@@ -1,0 +1,44 @@
+{
+  "name": "folder-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for folder operations and file system access",
+  "main": "dist/index.js",
+  "bin": {
+    "folder-mcp": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "file-system",
+    "folder-operations",
+    "ai-tools",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/commander": "^2.12.0",
+    "@types/glob": "^8.1.0",
+    "@types/node": "^20.0.0",
+    "@types/pdf-parse": "^1.1.5",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@types/xlsx": "^0.0.35",
+    "@types/xml2js": "^0.4.14",
+    "commander": "^14.0.0",
+    "glob": "^11.0.2",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.9.1",
+    "pdf-parse": "^1.1.1",
+    "pizzip": "^3.2.0",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  }
+}
