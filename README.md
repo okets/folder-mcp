@@ -35,11 +35,25 @@ folder-mcp is an MCP server that allows Large Language Models to read files, sea
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/folder-mcp.git
+git clone https://github.com/okets/folder-mcp.git
 cd folder-mcp
 npm install
 npm run build
 ```
+
+## Current Status
+
+🚀 **Version 1.0** - Basic MCP Server (13/30 planned features complete)
+
+This is the foundation release providing secure file system access through MCP. The full vision includes semantic search, embeddings, and intelligent document parsing - see [ROADMAP.md](ROADMAP.md) for the complete development plan.
+
+**What works now:**
+- ✅ Basic file reading and folder operations
+- ✅ Security validation and path protection  
+- ✅ Pattern-based file searching
+- ✅ MCP protocol integration
+
+**Coming next:** Smart text chunking, semantic embeddings, vector search ([see all 30 planned features](GITHUB_ISSUES.md))
 
 ## Usage
 
@@ -167,12 +181,24 @@ The server can be tested with any MCP-compatible client. For Claude Desktop, add
 
 ## Future Enhancements
 
-- **Advanced File Parsing**: Support for more file types (PDF, Word, Excel)
-- **Content Indexing**: Full-text search capabilities
-- **Metadata Extraction**: Rich file metadata and content analysis
-- **Caching System**: Intelligent caching for improved performance
-- **Watch Mode**: Real-time file system monitoring
-- **Configuration**: Customizable exclusion patterns and settings
+**📋 Development Roadmap:** See [ROADMAP.md](ROADMAP.md) for visual progress and [GITHUB_ISSUES.md](GITHUB_ISSUES.md) for detailed task breakdown.
+
+### Planned Features (17 remaining tasks):
+- **Phase 3:** Smart text chunking and semantic embeddings
+- **Phase 4:** FAISS vector search and similarity matching  
+- **Phase 5:** Enhanced MCP integration with semantic search
+- **Phase 6:** Real-time file watching and configuration system
+- **Phase 7:** Performance optimization and comprehensive testing
+- **Phase 8:** Documentation and npm release
+
+### Vision: Universal Folder-to-MCP Tool
+Transform any folder into an intelligent knowledge base with:
+- **Multi-format parsing**: PDF, Word, Excel, PowerPoint with structure preservation
+- **Semantic embeddings**: Nomic Embed model for intelligent content understanding  
+- **Vector search**: FAISS-powered similarity search for context-aware retrieval
+- **Smart chunking**: Meaning-based content segmentation
+- **Real-time updates**: File watching with automatic re-indexing
+- **RAG capabilities**: Enable LLMs to query folder contents intelligently
 
 ## Contributing
 
