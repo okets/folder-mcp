@@ -7,14 +7,13 @@
 node tests/run-all-tests.js
 
 # Or run individual phases  
-node tests/test-phase1-foundation.js    # 100% ✅
-node tests/test-phase2-parsing.js       # 100% ✅ 
-node tests/test-phase3-processing.js    # 83% ⚠️
-node tests/test-phase4-search.js        # 69% ⚠️
-node tests/test-phase5-mcp.js           # 100% ✅
+node tests/test-phase1-foundation.js
+node tests/test-phase2-parsing.js
+node tests/test-phase3-processing.js
+node tests/test-phase4-search.js
+node tests/test-phase5-mcp.js
+node tests/test-phase6-realtime.js
 ```
-
-## 📊 Current Status: **91% Pass Rate (82/90 tests)**
 
 This directory contains comprehensive tests for the folder-mcp project, organized by development phases.
 
@@ -27,6 +26,7 @@ This directory contains comprehensive tests for the folder-mcp project, organize
 | `test-phase3-processing.js` | Processing & embeddings tests | Text chunking, embedding generation |
 | `test-phase4-search.js` | Vector search tests | FAISS indexing, similarity search |
 | `test-phase5-mcp.js` | MCP integration tests | Model Context Protocol server, enhanced search |
+| `test-phase6-realtime.js` | Real-time & configuration tests | File watcher integration, configuration system |
 | `run-all-tests.js` | Test runner | Executes all phases sequentially |
 
 ## 🚀 Running Tests
@@ -39,6 +39,7 @@ node tests/test-phase2-parsing.js
 node tests/test-phase3-processing.js
 node tests/test-phase4-search.js
 node tests/test-phase5-mcp.js
+node tests/test-phase6-realtime.js
 ```
 
 ### All Tests at Once
@@ -49,22 +50,18 @@ node tests/run-all-tests.js
 
 ## 📊 Test Coverage
 
-The test suite covers **90 individual tests** across **5 phases**:
+The test suite covers **97 individual tests** across **6 phases**:
 
 - **Phase 1**: 24 tests (Foundation & CLI)
 - **Phase 2**: 16 tests (File Parsing)  
 - **Phase 3**: 18 tests (Processing & Embeddings)
 - **Phase 4**: 16 tests (Vector Search)
 - **Phase 5**: 16 tests (MCP Integration)
+- **Phase 6**: 7 tests (Real-time & Configuration)
 
-## ✅ Expected Results
+## ✅ Test Results
 
-When all tests pass, you should see:
-- **Phase 1**: 100% (24/24 tests) - Foundation solid
-- **Phase 2**: 100% (16/16 tests) - All parsers working
-- **Phase 3**: ~83% (15/18 tests) - Core processing functional
-- **Phase 4**: ~69% (11/16 tests) - Search basics working
-- **Phase 5**: 100% (16/16 tests) - MCP server perfect
+For current test results and pass rates, see `TEST-SUMMARY.md` which is generated after running the test suite.
 
 ## 🔧 Test Environment
 

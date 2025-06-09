@@ -21,7 +21,8 @@ class TestRunner {
       { name: 'Phase 2: Parsing', file: 'test-phase2-parsing.js' },
       { name: 'Phase 3: Processing', file: 'test-phase3-processing.js' },
       { name: 'Phase 4: Search', file: 'test-phase4-search.js' },
-      { name: 'Phase 5: MCP', file: 'test-phase5-mcp.js' }
+      { name: 'Phase 5: MCP', file: 'test-phase5-mcp.js' },
+      { name: 'Phase 6: Real-time', file: 'test-phase6-realtime.js' }
     ];
     this.results = [];
     this.phaseDetails = {}; // Store detailed results for each phase

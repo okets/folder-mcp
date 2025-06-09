@@ -138,4 +138,57 @@ export function setupCommands(program: Command, packageJson: any): void {
         process.exit(1);
       }
     });
+
+  program
+    .command('watch')
+    .description('Watch folder for changes and update index automatically')
+    .argument('<folder>', 'Path to the folder to watch')
+    .option('-d, --debounce <ms>', 'Debounce delay in milliseconds (default: 1000)', '1000')
+    .option('-b, --batch-size <size>', 'Embedding batch size (default: 32)', '32')
+    .option('-v, --verbose', 'Enable verbose logging')
+    .option('-q, --quiet', 'Minimize log output')
+    .action(async (folder: string, options: { 
+      debounce?: string; 
+      batchSize?: string; 
+      verbose?: boolean; 
+      quiet?: boolean;
+    }) => {
+      // Lazy load watcher modules
+      const { startWatching, setupGracefulShutdown } = await import('../watch/index.js');
+      
+      const debounceDelay = options.debounce ? parseInt(options.debounce, 10) : 1000;
+      const batchSize = options.batchSize ? parseInt(options.batchSize, 10) : 32;
+      
+      if (isNaN(debounceDelay) || debounceDelay < 100) {
+        console.error('❌ Debounce delay must be at least 100ms');
+        process.exit(1);
+      }
+      
+      if (isNaN(batchSize) || batchSize < 1) {
+        console.error('❌ Batch size must be a positive number');
+        process.exit(1);
+      }
+
+      // Determine log level
+      let logLevel: 'verbose' | 'normal' | 'quiet' = 'normal';
+      if (options.verbose) logLevel = 'verbose';
+      if (options.quiet) logLevel = 'quiet';
+
+      try {
+        const watcher = await startWatching(folder, packageJson, {
+          debounceDelay,
+          batchSize,
+          logLevel
+        });
+
+        // Set up graceful shutdown
+        setupGracefulShutdown(watcher);
+
+        // Keep the process running
+        await new Promise(() => {}); // Run indefinitely until interrupted
+      } catch (error) {
+        console.error('❌ Failed to start file watcher:', error);
+        process.exit(1);
+      }
+    });
 }
