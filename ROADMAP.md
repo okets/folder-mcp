@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 21/30 - Search Tool Implementation ⚡
+**Current Status**: Step 23/30 - File Watcher Integration 📋
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -107,13 +107,13 @@ folder-mcp/
 - ✅ **Step 18**: Similarity Search Function
 - ✅ **Step 19**: Search CLI Command
 
-### Phase 5: MCP Integration (Steps 20-22) ⚡ IN PROGRESS
+### Phase 5: MCP Integration (Steps 20-22) ✅ COMPLETED
 - ✅ **Step 20**: MCP Server Scaffold (COMPLETED)
-- ⚡ **Step 21**: Search Tool Implementation (CURRENT)
-- 📋 **Step 22**: Context Enhancement
+- ✅ **Step 21**: Search Tool Implementation (COMPLETED)
+- ✅ **Step 22**: Context Enhancement (COMPLETED)
 
-### Phase 6: Real-time & Configuration (Steps 23-24) 📋 PLANNED
-- 📋 **Step 23**: File Watcher Integration
+### Phase 6: Real-time & Configuration (Steps 23-24) ⚡ IN PROGRESS
+- ⚡ **Step 23**: File Watcher Integration (CURRENT)
 - 📋 **Step 24**: Configuration System
 
 ### Phase 7: Production Ready (Steps 25-27) 📋 PLANNED
@@ -369,23 +369,31 @@ folder-mcp/
 - Security features preventing access outside served folder
 - Graceful shutdown handling with SIGINT/SIGTERM
 
-#### Step 21: Search Tool Implementation
+#### ✅ COMPLETED: Step 21 - Search Tool Implementation
 **Task**: Add search_knowledge tool to MCP  
 **Success Criteria**:
-- Tool appears in MCP capability list
-- Accepts parameters: query, top_k, threshold
-- Returns structured results with content and metadata
-- Handles concurrent requests
-- Includes source attribution
+- ✅ Tool appears in MCP capability list
+- ✅ Accepts parameters: query, top_k, threshold
+- ✅ Returns structured results with content and metadata
+- ✅ Handles concurrent requests
+- ✅ Includes source attribution
 
-#### Step 22: Context Enhancement
+**Implementation**: `src/mcp/server.ts`
+- Added search_knowledge tool to MCP server tools list
+- Implemented handleSearchKnowledge() method with parameter validation
+- Integrated with existing EmbeddingModel and VectorIndex infrastructure
+- MCP-compliant response format with structured content and metadata
+- Lazy initialization for performance with proper error handling
+- GPU-accelerated search via Ollama embeddings
+
+#### ✅ Step 22: Context Enhancement (COMPLETED)
 **Task**: Improve search results with context  
 **Success Criteria**:
-- Includes previous/next chunk for context
-- Expands to full paragraph boundaries
-- Adds document outline (for structured docs)
-- Groups results by source document
-- Deduplicates overlapping results
+- ✅ Includes previous/next chunk for context
+- ✅ Expands to full paragraph boundaries
+- ✅ Adds document outline (for structured docs)
+- ✅ Groups results by source document
+- ✅ Deduplicates overlapping results
 
 ### Phase 6: Real-time & Configuration
 
