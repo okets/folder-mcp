@@ -30,6 +30,14 @@ program
     await indexFolder(folder);
   });
 
+program
+  .command('summary')
+  .description('Show chunking summary for an indexed folder')
+  .argument('<folder>', 'Path to the indexed folder')
+  .action(async (folder: string) => {
+    await showChunkingSummary(folder);
+  });
+
 async function setupCacheDirectory(folderPath: string): Promise<void> {
   try {
     const cacheDir = path.join(folderPath, '.folder-mcp-cache');
@@ -199,6 +207,223 @@ interface ParsedContent {
   type: string;
   originalPath: string;
   metadata?: any;
+}
+
+interface TextChunk {
+  content: string;
+  startPosition: number;
+  endPosition: number;
+  tokenCount: number;
+  chunkIndex: number;
+  metadata: {
+    sourceFile: string;
+    sourceType: string;
+    totalChunks: number;
+    hasOverlap: boolean;
+    originalMetadata?: any;
+  };
+}
+
+interface ChunkedContent {
+  originalContent: ParsedContent;
+  chunks: TextChunk[];
+  totalChunks: number;
+}
+
+// Simple tokenizer - approximates tokens as words * 1.3 (common rule of thumb)
+function estimateTokenCount(text: string): number {
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+  return Math.ceil(words.length * 1.3);
+}
+
+// Find sentence boundaries to avoid splitting mid-sentence
+function findSentenceBoundaries(text: string): number[] {
+  const boundaries: number[] = [0];
+  const sentenceEnders = /[.!?]+\s+/g;
+  let match;
+  
+  while ((match = sentenceEnders.exec(text)) !== null) {
+    const endPos = match.index + match[0].length;
+    if (endPos < text.length) {
+      boundaries.push(endPos);
+    }
+  }
+  
+  if (boundaries[boundaries.length - 1] !== text.length) {
+    boundaries.push(text.length);
+  }
+  
+  return boundaries;
+}
+
+// Smart text chunking function
+function chunkText(parsedContent: ParsedContent, minTokens: number = 200, maxTokens: number = 500, overlapPercent: number = 0.1): ChunkedContent {
+  const { content, type, originalPath, metadata } = parsedContent;
+  
+  if (!content || content.trim().length === 0) {
+    return {
+      originalContent: parsedContent,
+      chunks: [],
+      totalChunks: 0
+    };
+  }
+  
+  // Adjust parameters based on content type
+  let adjustedMinTokens = minTokens;
+  let adjustedMaxTokens = maxTokens;
+  
+  // For dense content types (Excel, CSV-like data), use larger chunk sizes
+  if (type === 'excel' || type === 'powerpoint') {
+    adjustedMinTokens = minTokens * 2; // 400 tokens
+    adjustedMaxTokens = maxTokens * 2; // 1000 tokens
+  }
+  
+  const chunks: TextChunk[] = [];
+  
+  // First, split on paragraph boundaries (double line breaks)
+  const paragraphs = content.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 0);
+  
+  let globalPosition = 0;
+  let chunkIndex = 0;
+  let currentChunk = '';
+  let chunkStartPos = 0;
+  
+  for (let i = 0; i < paragraphs.length; i++) {
+    const paragraph = paragraphs[i];
+    const paragraphStart = content.indexOf(paragraph, globalPosition);
+    
+    // Check if adding this paragraph would exceed max tokens
+    const potentialChunk = currentChunk + (currentChunk ? '\n\n' : '') + paragraph;
+    const tokenCount = estimateTokenCount(potentialChunk);
+    
+    if (currentChunk && tokenCount > adjustedMaxTokens) {
+      // Current chunk is ready, but we need to check if it meets minimum tokens
+      const currentTokenCount = estimateTokenCount(currentChunk);
+      
+      if (currentTokenCount >= adjustedMinTokens) {
+        // Create chunk from current content
+        chunks.push({
+          content: currentChunk,
+          startPosition: chunkStartPos,
+          endPosition: chunkStartPos + currentChunk.length,
+          tokenCount: currentTokenCount,
+          chunkIndex: chunkIndex++,
+          metadata: {
+            sourceFile: originalPath,
+            sourceType: type,
+            totalChunks: 0, // Will be updated later
+            hasOverlap: false, // Will be updated when we add overlap
+            originalMetadata: metadata
+          }
+        });
+        
+        // Calculate overlap for next chunk
+        const overlapLength = Math.floor(currentChunk.length * overlapPercent);
+        if (overlapLength > 0) {
+          // Find the best place to start overlap (sentence boundary if possible)
+          const overlapStart = Math.max(0, currentChunk.length - overlapLength);
+          const sentenceBoundaries = findSentenceBoundaries(currentChunk);
+          
+          // Find the sentence boundary closest to our desired overlap start
+          let bestBoundary = overlapStart;
+          for (const boundary of sentenceBoundaries) {
+            if (boundary >= overlapStart) {
+              bestBoundary = boundary;
+              break;
+            }
+          }
+          
+          const overlapText = currentChunk.substring(bestBoundary);
+          currentChunk = overlapText + '\n\n' + paragraph;
+          chunkStartPos = chunkStartPos + bestBoundary;
+        } else {
+          currentChunk = paragraph;
+          chunkStartPos = paragraphStart;
+        }
+      } else {
+        // Current chunk is too small, add this paragraph anyway
+        currentChunk = potentialChunk;
+      }
+    } else if (currentChunk && tokenCount >= adjustedMinTokens && tokenCount <= adjustedMaxTokens) {
+      // Perfect size chunk
+      currentChunk = potentialChunk;
+    } else if (!currentChunk) {
+      // Starting a new chunk
+      currentChunk = paragraph;
+      chunkStartPos = paragraphStart;
+    } else {
+      // Continue building current chunk
+      currentChunk = potentialChunk;
+    }
+    
+    // Update global position
+    globalPosition = paragraphStart + paragraph.length;
+  }
+  
+  // Handle the last chunk
+  if (currentChunk.trim().length > 0) {
+    const tokenCount = estimateTokenCount(currentChunk);
+    
+    // If the last chunk is too small, try to merge it with the previous chunk
+    if (tokenCount < adjustedMinTokens && chunks.length > 0) {
+      const lastChunk = chunks[chunks.length - 1];
+      const mergedContent = lastChunk.content + '\n\n' + currentChunk;
+      const mergedTokenCount = estimateTokenCount(mergedContent);
+      
+      if (mergedTokenCount <= adjustedMaxTokens * 1.2) { // Allow slight overflow for last chunk
+        // Merge with previous chunk
+        chunks[chunks.length - 1] = {
+          ...lastChunk,
+          content: mergedContent,
+          endPosition: chunkStartPos + currentChunk.length,
+          tokenCount: mergedTokenCount
+        };
+      } else {
+        // Keep as separate chunk even if small
+        chunks.push({
+          content: currentChunk,
+          startPosition: chunkStartPos,
+          endPosition: chunkStartPos + currentChunk.length,
+          tokenCount: tokenCount,
+          chunkIndex: chunkIndex++,
+          metadata: {
+            sourceFile: originalPath,
+            sourceType: type,
+            totalChunks: 0,
+            hasOverlap: false,
+            originalMetadata: metadata
+          }
+        });
+      }
+    } else {
+      chunks.push({
+        content: currentChunk,
+        startPosition: chunkStartPos,
+        endPosition: chunkStartPos + currentChunk.length,
+        tokenCount: tokenCount,
+        chunkIndex: chunkIndex++,
+        metadata: {
+          sourceFile: originalPath,
+          sourceType: type,
+          totalChunks: 0,
+          hasOverlap: false,
+          originalMetadata: metadata
+        }
+      });
+    }
+  }
+  
+  // Update total chunks and overlap flags
+  chunks.forEach((chunk, index) => {
+    chunk.metadata.totalChunks = chunks.length;
+    chunk.metadata.hasOverlap = index > 0; // All chunks except first have overlap from previous
+  });
+  
+  return {
+    originalContent: parsedContent,
+    chunks,
+    totalChunks: chunks.length
+  };
 }
 
 async function parseTextFile(filePath: string, basePath: string): Promise<ParsedContent> {
@@ -705,12 +930,34 @@ async function saveContentToCache(parsedContent: ParsedContent, hash: string, ca
   const metadataDir = path.join(cacheDir, 'metadata');
   const metadataFile = path.join(metadataDir, `${hash}.json`);
   
+  // Create chunks from the parsed content
+  const chunkedContent = chunkText(parsedContent);
+  
   const metadataContent = {
-    ...parsedContent,
-    cachedAt: new Date().toISOString()
+    originalContent: parsedContent,
+    chunks: chunkedContent.chunks,
+    totalChunks: chunkedContent.totalChunks,
+    cachedAt: new Date().toISOString(),
+    chunkingStats: {
+      originalTokenCount: estimateTokenCount(parsedContent.content),
+      averageChunkTokens: chunkedContent.chunks.length > 0 
+        ? Math.round(chunkedContent.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / chunkedContent.chunks.length)
+        : 0,
+      minChunkTokens: chunkedContent.chunks.length > 0 
+        ? Math.min(...chunkedContent.chunks.map(c => c.tokenCount))
+        : 0,
+      maxChunkTokens: chunkedContent.chunks.length > 0 
+        ? Math.max(...chunkedContent.chunks.map(c => c.tokenCount))
+        : 0
+    }
   };
   
   fs.writeFileSync(metadataFile, JSON.stringify(metadataContent, null, 2));
+  
+  // Log chunking stats (concise)
+  if (chunkedContent.totalChunks > 0) {
+    console.log(`    → ${chunkedContent.totalChunks} chunks (${metadataContent.chunkingStats.averageChunkTokens} avg tokens)`);
+  }
 }
 
 async function processFiles(fingerprints: FileFingerprint[], basePath: string, cacheDir: string): Promise<void> {
@@ -912,6 +1159,85 @@ async function indexFolder(folderPath: string): Promise<void> {
 
   } catch (error) {
     console.error(`Error scanning folder: ${error}`);
+    process.exit(1);
+  }
+}
+
+async function showChunkingSummary(folderPath: string): Promise<void> {
+  try {
+    const resolvedPath = path.resolve(folderPath);
+    const cacheDir = path.join(resolvedPath, '.folder-mcp-cache');
+    const metadataDir = path.join(cacheDir, 'metadata');
+    
+    if (!fs.existsSync(metadataDir)) {
+      console.log(`No cache found. Run 'folder-mcp index "${folderPath}"' first.`);
+      return;
+    }
+    
+    // Read all metadata files
+    const metadataFiles = fs.readdirSync(metadataDir).filter(f => f.endsWith('.json'));
+    
+    if (metadataFiles.length === 0) {
+      console.log('No processed files found in cache.');
+      return;
+    }
+    
+    console.log(`\n📊 Chunking Summary for: ${resolvedPath}`);
+    console.log('=' .repeat(60));
+    
+    let totalFiles = 0;
+    let totalChunks = 0;
+    let totalTokens = 0;
+    const typeStats: { [key: string]: { files: number; chunks: number; tokens: number } } = {};
+    
+    for (const metadataFile of metadataFiles) {
+      const filePath = path.join(metadataDir, metadataFile);
+      const metadata = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      
+      if (metadata.chunks && metadata.chunkingStats) {
+        totalFiles++;
+        totalChunks += metadata.totalChunks;
+        totalTokens += metadata.chunkingStats.originalTokenCount;
+        
+        const fileType = metadata.originalContent.type;
+        if (!typeStats[fileType]) {
+          typeStats[fileType] = { files: 0, chunks: 0, tokens: 0 };
+        }
+        
+        typeStats[fileType].files++;
+        typeStats[fileType].chunks += metadata.totalChunks;
+        typeStats[fileType].tokens += metadata.chunkingStats.originalTokenCount;
+        
+        // Show individual file details
+        const fileName = metadata.originalContent.originalPath;
+        const avgTokens = metadata.chunkingStats.averageChunkTokens;
+        const minTokens = metadata.chunkingStats.minChunkTokens;
+        const maxTokens = metadata.chunkingStats.maxChunkTokens;
+        
+        console.log(`\n📄 ${fileName}`);
+        console.log(`   Type: ${fileType} | Chunks: ${metadata.totalChunks} | Tokens: ${avgTokens} avg (${minTokens}-${maxTokens})`);
+      }
+    }
+    
+    console.log('\n' + '=' .repeat(60));
+    console.log(`📈 Overall Statistics:`);
+    console.log(`   Total Files: ${totalFiles}`);
+    console.log(`   Total Chunks: ${totalChunks}`);
+    console.log(`   Total Tokens: ${totalTokens.toLocaleString()}`);
+    console.log(`   Average Chunks per File: ${Math.round(totalChunks / totalFiles)}`);
+    console.log(`   Average Tokens per Chunk: ${Math.round(totalTokens / totalChunks)}`);
+    
+    console.log(`\n📋 By File Type:`);
+    Object.entries(typeStats).forEach(([type, stats]) => {
+      const avgChunksPerFile = Math.round(stats.chunks / stats.files);
+      const avgTokensPerChunk = Math.round(stats.tokens / stats.chunks);
+      console.log(`   ${type}: ${stats.files} files, ${stats.chunks} chunks (${avgChunksPerFile} avg/file, ${avgTokensPerChunk} tokens/chunk)`);
+    });
+    
+    console.log('');
+    
+  } catch (error) {
+    console.error(`Error reading chunking summary: ${error}`);
     process.exit(1);
   }
 }

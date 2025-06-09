@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 14/30 - Smart Text Chunking ⚡
+**Current Status**: Step 15/30 - Embedding Model Setup ⚡
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -97,8 +97,8 @@ folder-mcp/
 - ✅ **Step 13**: PowerPoint Parser
 
 ### Phase 3: Text Processing & Embeddings (Steps 14-16) 🚧 IN PROGRESS
-- ⚡ **Step 14**: Smart Text Chunking (CURRENT)
-- 🔄 **Step 15**: Embedding Model Setup
+- ✅ **Step 14**: Smart Text Chunking
+- ⚡ **Step 15**: Embedding Model Setup (CURRENT)
 - 🔄 **Step 16**: Batch Embedding Generation
 
 ### Phase 4: Vector Search (Steps 17-19) 📋 PLANNED
@@ -129,16 +129,16 @@ folder-mcp/
 
 ## Detailed Task Breakdown
 
-### ⚡ CURRENT: Step 14 - Smart Text Chunking
+### ✅ COMPLETED: Step 14 - Smart Text Chunking
 **Task**: Split documents into semantic chunks  
 **Success Criteria**:
-- ✓ Splits on paragraph boundaries
-- ✓ Chunks between 200-500 tokens (using simple tokenizer)
-- ✓ 10% overlap between consecutive chunks
-- ✓ Never splits mid-sentence
-- ✓ Preserves metadata (source, position, type)
+- ✅ Splits on paragraph boundaries
+- ✅ Chunks between 200-500 tokens (using simple tokenizer)
+- ✅ 10% overlap between consecutive chunks
+- ✅ Never splits mid-sentence
+- ✅ Preserves metadata (source, position, type)
 
-### 🔄 NEXT: Step 15 - Embedding Model Setup
+### ⚡ CURRENT: Step 15 - Embedding Model Setup
 **Task**: Initialize Nomic Embed model  
 **Success Criteria**:
 - Downloads model on first run
@@ -310,7 +310,7 @@ To set up GitHub Issues for project tracking:
 2. **Click "Issues" tab** → **"New Issue"**
 3. **Create issues for each step** using the templates below
 4. **Set labels and milestones** as indicated
-5. **Close issues 1-13** immediately after creating (mark as completed)
+5. **Close issues 1-14** immediately after creating (mark as completed)
 
 ### GitHub Milestones to Create
 
@@ -365,8 +365,8 @@ For each step in the roadmap above, create a GitHub issue with this format:
 [Copy the success criteria checklist from the roadmap]
 
 ### Status
-- ✅ **COMPLETED** (for steps 1-13)
-- 🔄 **TODO** (for steps 14-30)
+- ✅ **COMPLETED** (for steps 1-14)
+- 🔄 **TODO** (for steps 15-30)
 ```
 
 ### Issue Creation Workflow
@@ -376,8 +376,8 @@ For each step in the roadmap above, create a GitHub issue with this format:
 3. **Copy description and success criteria**
 4. **Add appropriate labels** 
 5. **Set milestone**
-6. **For steps 1-13**: Immediately close with comment "✅ COMPLETED - Already implemented"
-7. **For steps 14-30**: Leave open as TODO
+6. **For steps 1-14**: Immediately close with comment "✅ COMPLETED - Already implemented"
+7. **For steps 15-30**: Leave open as TODO
 
 ### Automated Alternative
 
@@ -394,8 +394,8 @@ gh issue create --title "[Step 14] Smart Text Chunking" --body "See ROADMAP.md S
 ### Project Status After Setup
 
 After creating all issues:
-- ✅ **13 Closed Issues** (Completed tasks)
-- 🔄 **17 Open Issues** (TODO tasks)  
+- ✅ **14 Closed Issues** (Completed tasks)
+- 🔄 **16 Open Issues** (TODO tasks)  
 - 📊 **8 Milestones** (Development phases)
 - 🏷️ **18 Labels** (Task categorization)
 
