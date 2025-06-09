@@ -50,14 +50,14 @@ node tests/run-all-tests.js
 
 ## 📊 Test Coverage
 
-The test suite covers **97 individual tests** across **6 phases**:
+The test suite covers **103 individual tests** across **6 phases**:
 
 - **Phase 1**: 24 tests (Foundation & CLI)
 - **Phase 2**: 16 tests (File Parsing)  
 - **Phase 3**: 18 tests (Processing & Embeddings)
 - **Phase 4**: 16 tests (Vector Search)
-- **Phase 5**: 16 tests (MCP Integration)
-- **Phase 6**: 7 tests (Real-time & Configuration)
+- **Phase 5**: 31 tests (MCP Integration)
+- **Phase 6**: 13 tests (Real-time & Configuration)
 
 ## ✅ Test Results
 

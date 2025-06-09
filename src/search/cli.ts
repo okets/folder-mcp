@@ -1,10 +1,12 @@
 import * as path from 'path';
 import { EmbeddingModel } from '../embeddings/index.js';
 import { VectorIndex, loadVectorIndex, buildVectorIndex } from './index.js';
+import { ResolvedConfig } from '../config/resolver.js';
 
 export interface SearchOptions {
   k: number;
   rebuildIndex?: boolean;
+  resolvedConfig?: ResolvedConfig;
 }
 
 export async function searchVectorIndex(folderPath: string, query: string, options: SearchOptions): Promise<void> {
@@ -52,7 +54,7 @@ export async function searchVectorIndex(folderPath: string, query: string, optio
 
     // Generate query embedding
     console.log('🧠 Generating query embedding...');
-    const embeddingModel = new EmbeddingModel();
+    const embeddingModel = new EmbeddingModel(options.resolvedConfig?.modelName);
     await embeddingModel.initialize();
     
     const queryEmbedding = await embeddingModel.generateEmbedding(query);

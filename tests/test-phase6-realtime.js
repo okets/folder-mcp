@@ -358,13 +358,15 @@ class Phase6Tester {
     console.log('⚙️  Testing Step 24: Configuration System');
     console.log('==========================================\n');
 
-    // Step 24 is marked as TODO in the roadmap, so we'll test for its absence
-    // and plan for future implementation
+    // Step 24 has been implemented with YAML configuration files
     
     const tests = [
       () => this.testConfigurationFileSupport(),
       () => this.testConfigurationSchema(),
-      () => this.testCLIOverrides()
+      () => this.testCLIOverrides(),
+      () => this.testLocalConfigPriority(),
+      () => this.testConfigurationValidation(),
+      () => this.testConfigurationDefaults()
     ];
 
     let passed = 0;
@@ -375,7 +377,7 @@ class Phase6Tester {
           console.log(`✅ ${result.name}: PASSED`);
           passed++;
         } else {
-          console.log(`⏭️  ${result.name}: NOT IMPLEMENTED (Expected for Step 24)`);
+          console.log(`❌ ${result.name}: FAILED - ${result.error}`);
         }
         this.results.step24.tests.push(result);
       } catch (error) {
@@ -388,82 +390,180 @@ class Phase6Tester {
       }
     }
 
-    // Step 24 is not implemented yet, so we expect all tests to "fail" (not be implemented)
-    this.results.step24.passed = false; // Will be true when Step 24 is implemented
-    console.log(`\n📊 Step 24 Results: Step 24 not yet implemented (planned for future)\n`);
+    this.results.step24.passed = passed === tests.length;
+    console.log(`\n📊 Step 24 Results: ${passed}/${tests.length} tests passed\n`);
   }
 
   async testConfigurationFileSupport() {
-    const testName = 'Configuration file (.folder-mcp.json) support';
+    const testName = 'Configuration file (.folder-mcp.yaml) support';
     try {
-      // This feature is not implemented yet, so test should detect its absence
-      const configPath = join(testDataDir, 'watch-test', '.folder-mcp.json');
-      
       // Check if configuration loading is implemented
-      const searchResults = ['src/config.ts', 'src/cli/commands.ts'].map(file => {
+      const configFiles = ['src/config/local.ts', 'src/config/resolver.ts', 'src/config/cli.ts'];
+      const foundFiles = configFiles.filter(file => {
         const filePath = join(projectRoot, file);
-        if (existsSync(filePath)) {
-          const content = readFileSync(filePath, 'utf-8');
-          return content.includes('.folder-mcp.json') || content.includes('loadConfig');
-        }
-        return false;
+        return existsSync(filePath);
       });
+      
+      if (foundFiles.length === 0) {
+        return { 
+          name: testName, 
+          success: false,
+          error: 'Configuration modules not found'
+        };
+      }
 
-      const isImplemented = searchResults.some(found => found);
+      // Check if CLI supports configuration options
+      const cliPath = join(projectRoot, 'src/cli/commands.ts');
+      if (existsSync(cliPath)) {
+        const content = readFileSync(cliPath, 'utf-8');
+        const hasConfigOptions = content.includes('--model') && content.includes('--show-config');
+        
+        return { 
+          name: testName, 
+          success: hasConfigOptions,
+          error: hasConfigOptions ? null : 'Configuration CLI options not found'
+        };
+      }
       
       return { 
         name: testName, 
-        success: !isImplemented, // We expect this NOT to be implemented yet
-        error: isImplemented ? null : 'Configuration system not yet implemented (as expected)'
+        success: false,
+        error: 'CLI commands file not found'
       };
     } catch (error) {
-      return { name: testName, success: true, error: null }; // Error expected since not implemented
+      return { name: testName, success: false, error: error.message };
     }
   }
 
   async testConfigurationSchema() {
     const testName = 'Configuration schema validation';
     try {
-      // Check if configuration schema exists
-      const configFile = join(projectRoot, 'src', 'config.ts');
-      let hasSchema = false;
+      // Check if configuration validation exists
+      const resolverFile = join(projectRoot, 'src/config/resolver.ts');
+      let hasValidation = false;
       
-      if (existsSync(configFile)) {
-        const content = readFileSync(configFile, 'utf-8');
-        hasSchema = content.includes('chunk_size') || 
-                   content.includes('overlap') || 
-                   content.includes('model_name') ||
-                   content.includes('file_extensions');
+      if (existsSync(resolverFile)) {
+        const content = readFileSync(resolverFile, 'utf-8');
+        hasValidation = content.includes('validateResolvedConfig') || 
+                       content.includes('chunkSize') || 
+                       content.includes('batchSize') ||
+                       content.includes('validation');
       }
       
       return { 
         name: testName, 
-        success: !hasSchema, // We expect this NOT to be implemented yet
-        error: hasSchema ? null : 'Configuration schema not yet implemented (as expected)'
+        success: hasValidation,
+        error: hasValidation ? null : 'Configuration validation not found'
       };
     } catch (error) {
-      return { name: testName, success: true, error: null }; // Error expected since not implemented
+      return { name: testName, success: false, error: error.message };
     }
   }
 
   async testCLIOverrides() {
     const testName = 'CLI arguments override config file';
     try {
-      // This depends on configuration system being implemented first
-      // Test that CLI still works without config system
-      
-      const output = execSync(`node "${join(projectRoot, 'dist', 'cli.js')}" --help`, {
+      // Test that CLI supports configuration options
+      const output = execSync(`node "${join(projectRoot, 'dist', 'cli.js')}" index --help`, {
         cwd: projectRoot,
         encoding: 'utf-8',
         timeout: 10000
       });
 
-      const cliWorks = output.includes('Universal Folder-to-MCP-Server Tool');
+      const hasConfigOptions = output.includes('--model') && 
+                              output.includes('--chunk-size') &&
+                              output.includes('--show-config');
       
       return { 
         name: testName, 
-        success: cliWorks, // CLI should work even without config system
-        error: cliWorks ? null : 'CLI not functioning properly'
+        success: hasConfigOptions,
+        error: hasConfigOptions ? null : 'Configuration CLI options not found'
+      };
+    } catch (error) {
+      return { name: testName, success: false, error: error.message };
+    }
+  }
+
+  async testLocalConfigPriority() {
+    const testName = 'Local config takes priority over global config';
+    try {
+      // Create a test folder with local config
+      const testFolder = join(__dirname, 'test-local-config');
+      if (existsSync(testFolder)) {
+        rmSync(testFolder, { recursive: true, force: true });
+      }
+      mkdirSync(testFolder, { recursive: true });
+      
+      // Initialize config for the test folder
+      const initOutput = execSync(`node "${join(projectRoot, 'dist', 'cli.js')}" config init "${testFolder}"`, {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 10000
+      });
+      
+      // Check if local config was created
+      const configPath = join(testFolder, '.folder-mcp', '.folder-mcp.yaml');
+      const hasLocalConfig = existsSync(configPath);
+      
+      // Clean up
+      if (existsSync(testFolder)) {
+        rmSync(testFolder, { recursive: true, force: true });
+      }
+      
+      return { 
+        name: testName, 
+        success: hasLocalConfig && initOutput.includes('Configuration initialized'),
+        error: hasLocalConfig ? null : 'Local config file not created'
+      };
+    } catch (error) {
+      return { name: testName, success: false, error: error.message };
+    }
+  }
+
+  async testConfigurationValidation() {
+    const testName = 'Configuration validation works correctly';
+    try {
+      // Test that config validation exists
+      const resolverFile = join(projectRoot, 'src/config/resolver.ts');
+      if (!existsSync(resolverFile)) {
+        return { name: testName, success: false, error: 'Resolver file not found' };
+      }
+      
+      const content = readFileSync(resolverFile, 'utf-8');
+      const hasValidation = content.includes('validateResolvedConfig') && 
+                           content.includes('chunkSize') && 
+                           content.includes('overlap') &&
+                           content.includes('batchSize');
+      
+      return { 
+        name: testName, 
+        success: hasValidation,
+        error: hasValidation ? null : 'Configuration validation not implemented'
+      };
+    } catch (error) {
+      return { name: testName, success: false, error: error.message };
+    }
+  }
+
+  async testConfigurationDefaults() {
+    const testName = 'Global config provides defaults';
+    try {
+      // Check if global config exists
+      const globalConfigPath = join(projectRoot, 'config.yaml');
+      if (!existsSync(globalConfigPath)) {
+        return { name: testName, success: false, error: 'Global config.yaml not found' };
+      }
+      
+      const content = readFileSync(globalConfigPath, 'utf-8');
+      const hasDefaults = content.includes('embeddings:') && 
+                         content.includes('defaultModel:') &&
+                         content.includes('processing:') &&
+                         content.includes('defaultChunkSize:');
+      
+      return { 
+        name: testName, 
+        success: hasDefaults,
+        error: hasDefaults ? null : 'Global config defaults not found'
       };
     } catch (error) {
       return { name: testName, success: false, error: error.message };
@@ -488,23 +588,25 @@ class Phase6Tester {
 
     // Step 24 Results  
     console.log('\n⚙️  Step 24: Configuration System');
-    console.log(`Status: ⏭️  NOT IMPLEMENTED (Planned for future)`);
+    const step24Status = this.results.step24.passed ? '✅ COMPLETED' : '❌ NEEDS WORK';
+    console.log(`Status: ${step24Status}`);
     this.results.step24.tests.forEach(test => {
-      console.log(`  ⏭️  ${test.name} - Not implemented (expected)`);
+      const status = test.success ? '✅' : '❌';
+      console.log(`  ${status} ${test.name}${test.error ? ` - ${test.error}` : ''}`);
     });
 
     console.log('\n' + '='.repeat(60));
     const totalSteps = Object.keys(this.results).length;
-    const completedSteps = this.results.step23.passed ? 1 : 0; // Only Step 23 should be completed
+    const completedSteps = (this.results.step23.passed ? 1 : 0) + (this.results.step24.passed ? 1 : 0);
     console.log(`📊 Overall: ${completedSteps}/${totalSteps} steps completed`);
     console.log(`🎯 Step 23 (File Watcher): ${this.results.step23.passed ? 'COMPLETED ✅' : 'NEEDS WORK ❌'}`);
-    console.log(`🎯 Step 24 (Configuration): PLANNED FOR FUTURE ⏭️`);
+    console.log(`🎯 Step 24 (Configuration): ${this.results.step24.passed ? 'COMPLETED ✅' : 'NEEDS WORK ❌'}`);
     console.log('='.repeat(60));
   }
 
   allTestsPassed() {
-    // For Phase 6, we only expect Step 23 to pass
-    return this.results.step23.passed;
+    // Both Step 23 and Step 24 should pass now
+    return this.results.step23.passed && this.results.step24.passed;
   }
 
   async cleanup() {

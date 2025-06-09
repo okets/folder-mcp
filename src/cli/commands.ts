@@ -1,42 +1,87 @@
 import { Command } from 'commander';
 import { testEmbeddingSystem } from '../embeddings/index.js';
+import { setupConfigCommand } from '../config/cli.js';
+import { resolveConfig, parseCliArgs, displayConfigSummary, validateResolvedConfig } from '../config/resolver.js';
+import { initializeLocalConfig } from '../config/local.js';
 
-export function setupCommands(program: Command, packageJson: any): void {
-  program
+export function setupCommands(program: Command, packageJson: any): void {  program
     .name('folder-mcp')
     .description('Universal Folder-to-MCP-Server Tool - Transform any local folder into an intelligent knowledge base')
     .version(packageJson.version);
+
+  // Set up configuration management command
+  setupConfigCommand(program);
 
   program
     .command('index')
     .description('Index a folder to create embeddings and vector database')
     .argument('<folder>', 'Path to the folder to index')
     .option('--skip-embeddings', 'Skip embedding generation during indexing')
-    .action(async (folder: string, options: { skipEmbeddings?: boolean }) => {
-      // Lazy load processing modules to avoid pdf-parse issues
+    .option('--chunk-size <size>', 'Override chunk size for text processing', parseInt)
+    .option('--overlap <size>', 'Override overlap size between chunks', parseInt)
+    .option('--batch-size <size>', 'Override batch size for embedding generation', parseInt)
+    .option('--model <name>', 'Override embedding model to use')
+    .option('--extensions <list>', 'Override file extensions to process (comma-separated)')
+    .option('--ignore <patterns>', 'Override ignore patterns (comma-separated)')
+    .option('--max-operations <num>', 'Override max concurrent operations', parseInt)
+    .option('--show-config', 'Show resolved configuration before processing')
+    .action(async (folder: string, options: any) => {
+      // Parse CLI arguments and resolve configuration
+      const cliArgs = parseCliArgs(options);
+      const config = resolveConfig(folder, cliArgs);
+      
+      // Validate configuration
+      const validationErrors = validateResolvedConfig(config);
+      if (validationErrors.length > 0) {
+        console.error('❌ Configuration validation errors:');
+        validationErrors.forEach(error => console.error(`   - ${error}`));
+        process.exit(1);
+      }
+      
+      // Initialize local config if it doesn't exist
+      initializeLocalConfig(folder);
+      
+      // Show configuration if requested
+      if (options.showConfig) {
+        displayConfigSummary(config, true);
+      }
+        // Lazy load processing modules to avoid pdf-parse issues
       const { indexFolder } = await import('../processing/indexing.js');
-      await indexFolder(folder, packageJson, options);
+      await indexFolder(folder, packageJson, { 
+        ...options,
+        resolvedConfig: config
+      });
     });
-
   program
     .command('embeddings')
     .description('Generate embeddings for chunks in an indexed folder')
     .argument('<folder>', 'Path to the indexed folder')
-    .option('-b, --batch-size <size>', 'Number of chunks to process in each batch (default: 32)', '32')
+    .option('-b, --batch-size <size>', 'Override batch size for embedding generation', parseInt)
     .option('-f, --force', 'Force regeneration of existing embeddings')
-    .action(async (folder: string, options: { batchSize?: string; force?: boolean }) => {
-      // Lazy load processing modules to avoid pdf-parse issues
-      const { generateEmbeddings } = await import('../processing/indexing.js');
-      const batchSize = options.batchSize ? parseInt(options.batchSize, 10) : 32;
+    .option('--model <name>', 'Override embedding model to use')
+    .option('--show-config', 'Show resolved configuration before processing')
+    .action(async (folder: string, options: any) => {
+      // Parse CLI arguments and resolve configuration
+      const cliArgs = parseCliArgs(options);
+      const config = resolveConfig(folder, cliArgs);
       
-      if (isNaN(batchSize) || batchSize < 1) {
-        console.error('❌ Batch size must be a positive number');
+      // Validate configuration
+      const validationErrors = validateResolvedConfig(config);
+      if (validationErrors.length > 0) {
+        console.error('❌ Configuration validation errors:');
+        validationErrors.forEach(error => console.error(`   - ${error}`));
         process.exit(1);
       }
       
+      // Show configuration if requested
+      if (options.showConfig) {
+        displayConfigSummary(config, false);
+      }
+        // Lazy load processing modules to avoid pdf-parse issues
+      const { generateEmbeddings } = await import('../processing/indexing.js');
       await generateEmbeddings(folder, { 
-        batchSize, 
-        force: options.force 
+        batchSize: config.batchSize, 
+        force: options.force
       });
     });
 
@@ -59,15 +104,33 @@ export function setupCommands(program: Command, packageJson: any): void {
       const { buildVectorIndexCLI } = await import('../search/cli.js');
       await buildVectorIndexCLI(folder);
     });
-
   program
     .command('search')
     .description('Search for similar content using vector similarity')
     .argument('<folder>', 'Path to the indexed folder')
     .argument('<query>', 'Search query text')
     .option('-k, --results <number>', 'Number of results to return (default: 5)', '5')
-    .option('--rebuild-index', 'Rebuild the vector index before searching')    
-    .action(async (folder: string, query: string, options: { results?: string; rebuildIndex?: boolean }) => {
+    .option('--rebuild-index', 'Rebuild the vector index before searching')
+    .option('--model <n>', 'Override embedding model to use')
+    .option('--show-config', 'Show resolved configuration before processing')
+    .action(async (folder: string, query: string, options: any) => {
+      // Parse CLI arguments and resolve configuration
+      const cliArgs = parseCliArgs(options);
+      const config = resolveConfig(folder, cliArgs);
+      
+      // Validate configuration
+      const validationErrors = validateResolvedConfig(config);
+      if (validationErrors.length > 0) {
+        console.error('❌ Configuration validation errors:');
+        validationErrors.forEach(error => console.error(`   - ${error}`));
+        process.exit(1);
+      }
+      
+      // Show configuration if requested
+      if (options.showConfig) {
+        displayConfigSummary(config, false);
+      }
+      
       // Lazy load search modules
       const { searchVectorIndex } = await import('../search/cli.js');
       const k = options.results ? parseInt(options.results, 10) : 5;
@@ -79,7 +142,8 @@ export function setupCommands(program: Command, packageJson: any): void {
       
       await searchVectorIndex(folder, query, {
         k,
-        rebuildIndex: options.rebuildIndex
+        rebuildIndex: options.rebuildIndex,
+        resolvedConfig: config
       });
     });
 
@@ -96,14 +160,34 @@ export function setupCommands(program: Command, packageJson: any): void {
         process.exit(1);
       }
     });
-
   program
     .command('serve')
     .description('Start MCP server to serve folder content to LLM clients')
     .argument('<folder>', 'Path to the folder to serve')
     .option('-p, --port <port>', 'Port number to listen on (default: 3000)', '3000')
     .option('-t, --transport <type>', 'Transport type: stdio or http (default: stdio)', 'stdio')
-    .action(async (folder: string, options: { port?: string; transport?: string }) => {
+    .option('--model <n>', 'Override embedding model to use')
+    .option('--extensions <list>', 'Override file extensions to process (comma-separated)')
+    .option('--ignore <patterns>', 'Override ignore patterns (comma-separated)')
+    .option('--show-config', 'Show resolved configuration before starting')
+    .action(async (folder: string, options: any) => {
+      // Parse CLI arguments and resolve configuration
+      const cliArgs = parseCliArgs(options);
+      const config = resolveConfig(folder, cliArgs);
+      
+      // Validate configuration
+      const validationErrors = validateResolvedConfig(config);
+      if (validationErrors.length > 0) {
+        console.error('❌ Configuration validation errors:');
+        validationErrors.forEach(error => console.error(`   - ${error}`));
+        process.exit(1);
+      }
+      
+      // Show configuration if requested
+      if (options.showConfig) {
+        displayConfigSummary(config, false);
+      }
+      
       // Lazy load MCP server
       const { startMCPServer } = await import('../mcp/server.js');
       
@@ -132,43 +216,52 @@ export function setupCommands(program: Command, packageJson: any): void {
           folderPath: folder,
           port,
           transport,
+          resolvedConfig: config,
         });
       } catch (error) {
         console.error('❌ Failed to start MCP server:', error);
         process.exit(1);
       }
     });
-
   program
     .command('watch')
     .description('Watch folder for changes and update index automatically')
     .argument('<folder>', 'Path to the folder to watch')
-    .option('-d, --debounce <ms>', 'Debounce delay in milliseconds (default: 1000)', '1000')
-    .option('-b, --batch-size <size>', 'Embedding batch size (default: 32)', '32')
+    .option('-d, --debounce <ms>', 'Override debounce delay in milliseconds', parseInt)
+    .option('-b, --batch-size <size>', 'Override embedding batch size', parseInt)
     .option('-v, --verbose', 'Enable verbose logging')
     .option('-q, --quiet', 'Minimize log output')
-    .action(async (folder: string, options: { 
-      debounce?: string; 
-      batchSize?: string; 
-      verbose?: boolean; 
-      quiet?: boolean;
-    }) => {
+    .option('--chunk-size <size>', 'Override chunk size for text processing', parseInt)
+    .option('--overlap <size>', 'Override overlap size between chunks', parseInt)
+    .option('--model <n>', 'Override embedding model to use')
+    .option('--extensions <list>', 'Override file extensions to process (comma-separated)')
+    .option('--ignore <patterns>', 'Override ignore patterns (comma-separated)')
+    .option('--max-operations <num>', 'Override max concurrent operations', parseInt)
+    .option('--show-config', 'Show resolved configuration before starting')
+    .action(async (folder: string, options: any) => {
+      // Parse CLI arguments and resolve configuration
+      const cliArgs = parseCliArgs(options);
+      const config = resolveConfig(folder, cliArgs);
+      
+      // Validate configuration
+      const validationErrors = validateResolvedConfig(config);
+      if (validationErrors.length > 0) {
+        console.error('❌ Configuration validation errors:');
+        validationErrors.forEach(error => console.error(`   - ${error}`));
+        process.exit(1);
+      }
+      
+      // Initialize local config if it doesn't exist
+      initializeLocalConfig(folder);
+      
+      // Show configuration if requested
+      if (options.showConfig) {
+        displayConfigSummary(config, false);
+      }
+      
       // Lazy load watcher modules
       const { startWatching, setupGracefulShutdown } = await import('../watch/index.js');
       
-      const debounceDelay = options.debounce ? parseInt(options.debounce, 10) : 1000;
-      const batchSize = options.batchSize ? parseInt(options.batchSize, 10) : 32;
-      
-      if (isNaN(debounceDelay) || debounceDelay < 100) {
-        console.error('❌ Debounce delay must be at least 100ms');
-        process.exit(1);
-      }
-      
-      if (isNaN(batchSize) || batchSize < 1) {
-        console.error('❌ Batch size must be a positive number');
-        process.exit(1);
-      }
-
       // Determine log level
       let logLevel: 'verbose' | 'normal' | 'quiet' = 'normal';
       if (options.verbose) logLevel = 'verbose';
@@ -176,9 +269,10 @@ export function setupCommands(program: Command, packageJson: any): void {
 
       try {
         const watcher = await startWatching(folder, packageJson, {
-          debounceDelay,
-          batchSize,
-          logLevel
+          debounceDelay: config.debounceDelay,
+          batchSize: config.batchSize,
+          logLevel,
+          resolvedConfig: config
         });
 
         // Set up graceful shutdown

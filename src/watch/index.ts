@@ -7,11 +7,13 @@ import { loadPreviousIndex, saveFingerprintsToCache } from '../cache/index.js';
 import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers/index.js';
 import { chunkText } from '../processing/chunking.js';
 import { getDefaultEmbeddingModel } from '../embeddings/index.js';
+import { ResolvedConfig } from '../config/resolver.js';
 
 export interface FileWatcherOptions {
   debounceDelay?: number;
   batchSize?: number;
   logLevel?: 'verbose' | 'normal' | 'quiet';
+  resolvedConfig?: ResolvedConfig;
 }
 
 export interface WatchEvent {
@@ -28,17 +30,25 @@ export class FolderWatcher {
   private debounceDelay: number;
   private batchSize: number;
   private logLevel: 'verbose' | 'normal' | 'quiet';
+  private resolvedConfig?: ResolvedConfig;
   private pendingEvents: Map<string, WatchEvent> = new Map();
   private debounceTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private packageJson: any;
+  
   constructor(folderPath: string, packageJson: any, options: FileWatcherOptions = {}) {
     this.folderPath = resolve(folderPath);
     this.cacheDir = join(this.folderPath, '.folder-mcp');
-    this.debounceDelay = options.debounceDelay || 1000; // 1 second default
-    this.batchSize = options.batchSize || 32;
+    this.debounceDelay = options.debounceDelay || options.resolvedConfig?.debounceDelay || 1000;
+    this.batchSize = options.batchSize || options.resolvedConfig?.batchSize || 32;
     this.logLevel = options.logLevel || 'normal';
+    this.resolvedConfig = options.resolvedConfig;
     this.packageJson = packageJson;
+    
+    // Update supported extensions from config if available
+    if (this.resolvedConfig?.fileExtensions) {
+      this.supportedExtensions = this.resolvedConfig.fileExtensions;
+    }
   }
 
   async start(): Promise<void> {
@@ -297,14 +307,16 @@ export class FolderWatcher {
     const { writeFileSync } = await import('fs');
     writeFileSync(metadataPath, JSON.stringify(parsedContent, null, 2));
   }
-
   private async generateEmbeddingsForFile(parsedContent: any, hash: string): Promise<void> {
     if (!parsedContent.chunks || !Array.isArray(parsedContent.chunks)) {
       return;
     }
 
     try {
-      const embeddingModel = await getDefaultEmbeddingModel();
+      // Use model from resolved config if available
+      const { EmbeddingModel } = await import('../embeddings/index.js');
+      const embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
+      await embeddingModel.initialize();
       
       for (const chunk of parsedContent.chunks) {
         const embeddingPath = join(this.cacheDir, 'embeddings', `${hash}_chunk_${chunk.chunkIndex}.json`);

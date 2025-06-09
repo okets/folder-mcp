@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 24/30 - Configuration System 📋
+**Current Status**: Step 25/30 - Error Recovery 📋
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -112,9 +112,9 @@ folder-mcp/
 - ✅ **Step 21**: Search Tool Implementation  
 - ✅ **Step 22**: Context Enhancement
 
-### Phase 6: Real-time & Configuration (Steps 23-24) ⚡ IN PROGRESS
+### Phase 6: Real-time & Configuration (Steps 23-24) ✅ **COMPLETED**
 - ✅ **Step 23**: File Watcher Integration ✅ **COMPLETED**
-- 📋 **Step 24**: Configuration System (CURRENT)
+- ✅ **Step 24**: Configuration System ✅ **COMPLETED**
 
 ### Phase 7: Production Ready (Steps 25-27) 📋 PLANNED
 - 📋 **Step 25**: Error Recovery
@@ -432,7 +432,7 @@ folder-mcp/
 - Cross-platform compatibility with Windows-specific readline handling
 - Comprehensive error handling and logging at multiple verbosity levels
 
-#### Step 24: Configuration System
+#### ✅ COMPLETED: Step 24: Configuration System
 **Task**: Add configuration file support  
 - Local configuration file will be set automatically with the default parameters.
 - cli parameters will override the default values.
@@ -440,11 +440,21 @@ folder-mcp/
 - the local config file is the only source of truth for this folder.
 - the global config.yaml should contain the defaults.
 **Success Criteria**:
-- Loads .folder-mcp.yaml from .folder-mcp folder
-- Configurable: chunk_size, overlap, model_name
-- Configurable: file_extensions, ignore_patterns
-- CLI args override config file
-- Validates configuration schema
+- ✅ Loads .folder-mcp.yaml from .folder-mcp folder
+- ✅ Configurable: chunk_size, overlap, model_name
+- ✅ Configurable: file_extensions, ignore_patterns
+- ✅ CLI args override config file
+- ✅ Validates configuration schema
+
+**Implementation**: `src/config/resolver.ts`, `src/config/local.ts`, `src/config/cli.ts`
+- Configuration priority system: CLI args > local config > global config
+- YAML-based local configuration files in `.folder-mcp/.folder-mcp.yaml`
+- Comprehensive configuration commands (`config init`, `config show`, `config set`, etc.)
+- Schema validation with detailed error messages
+- CLI options for all configurable parameters (`--chunk-size`, `--model`, `--show-config`, etc.)
+- Source tracking to show where each setting comes from (cli/local/global)
+- Global configuration defaults in `config.yaml` with multiple embedding models
+- Local configuration initialization and management system
 
 ### Phase 7: Production Ready
 

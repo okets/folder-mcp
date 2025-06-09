@@ -12,11 +12,13 @@ import { EmbeddingModel } from '../embeddings/index.js';
 import { VectorIndex, buildVectorIndex, loadVectorIndex } from '../search/index.js';
 import { EnhancedVectorSearch } from '../search/enhanced.js';
 import { getConfig } from '../config.js';
+import { ResolvedConfig } from '../config/resolver.js';
 
 export interface ServerOptions {
   folderPath: string;
   port?: number;
   transport?: 'stdio' | 'http';
+  resolvedConfig?: ResolvedConfig;
 }
 
 export class FolderMCPServer {
@@ -24,6 +26,7 @@ export class FolderMCPServer {
   private folderPath: string;
   private port: number;
   private transport: 'stdio' | 'http';
+  private resolvedConfig?: ResolvedConfig;
   private embeddingModel: EmbeddingModel | null = null;
   private vectorIndex: VectorIndex | null = null;
   private enhancedSearch: EnhancedVectorSearch | null = null;
@@ -32,6 +35,7 @@ export class FolderMCPServer {
     this.folderPath = resolve(options.folderPath);
     this.port = options.port || 3000;
     this.transport = options.transport || 'stdio';
+    this.resolvedConfig = options.resolvedConfig;
 
     // Initialize MCP server
     this.server = new Server(
@@ -349,7 +353,7 @@ export class FolderMCPServer {
 
       // Initialize embedding model if needed
       if (!this.embeddingModel) {
-        this.embeddingModel = new EmbeddingModel();
+        this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
         await this.embeddingModel.initialize();
       }
 
@@ -455,13 +459,11 @@ export class FolderMCPServer {
         }
         
         this.enhancedSearch = new EnhancedVectorSearch(this.vectorIndex, cacheDir);
-      }
-
-      // Initialize embedding model if needed for query
-      if (!this.embeddingModel) {
-        this.embeddingModel = new EmbeddingModel();
-        await this.embeddingModel.initialize();
-      }
+      }        // Initialize embedding model if needed for query
+        if (!this.embeddingModel) {
+          this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
+          await this.embeddingModel.initialize();
+        }
 
       // Generate query embedding
       const queryEmbedding = await this.embeddingModel.generateEmbedding(query);
