@@ -146,10 +146,9 @@ async function generateEmbeddingsForChunks(
         for (const chunk of metadata.chunks) {
           totalChunks++;
           const embeddingPath = join(embeddingsDir, `${hash}_chunk_${chunk.chunkIndex}.json`);
-          
-          // Check if embedding already exists
+            // Check if embedding already exists (incremental processing - resume capability)
           if (!forceRegenerate && existsSync(embeddingPath)) {
-            continue; // Skip already processed chunks
+            continue; // Skip already processed chunks for existing files
           }
           
           chunksToProcess.push({
@@ -368,21 +367,32 @@ export async function indexFolder(
     await processFiles(fingerprints, resolvedPath, cacheDir);
     console.log('');    // Save fingerprints to cache
     await saveFingerprintsToCache(fingerprints, cacheDir);
-    console.log('');
-
-    // Generate embeddings automatically (unless skipped)
+    console.log('');    // Generate embeddings automatically (unless skipped)
     if (!options.skipEmbeddings) {
       console.log('🚀 Generating embeddings for processed chunks...');
       try {
         await generateEmbeddingsForChunks(cacheDir, 32, false);
+        
+        // Build vector index automatically after embeddings
+        console.log('🔧 Building vector search index...');
+        try {
+          // Import the vector index building function
+          const { buildVectorIndex } = await import('../search/index.js');
+          const vectorIndex = await buildVectorIndex(cacheDir);
+          const stats = vectorIndex.getStats();
+          console.log(`✅ Vector index built successfully! (${stats.vectorCount} vectors, ${stats.dimension}D)`);
+        } catch (indexError) {
+          console.warn(`⚠️  Warning: Vector index building failed: ${indexError}`);
+          console.log(`   You can build the vector index later with: folder-mcp build-index "${folderPath}"`);
+        }
       } catch (error) {
         console.warn(`⚠️  Warning: Embedding generation failed: ${error}`);
         console.log(`   You can generate embeddings later with: folder-mcp embeddings "${folderPath}"`);
       }
       console.log('');
-    } else {
-      console.log('⏭️  Skipped embedding generation (use --skip-embeddings)');
+    } else {      console.log('⏭️  Skipped embedding generation (use --skip-embeddings)');
       console.log(`   Generate embeddings later with: folder-mcp embeddings "${folderPath}"`);
+      console.log(`   Then build vector index with: folder-mcp build-index "${folderPath}"`);
       console.log('');
     }
 
