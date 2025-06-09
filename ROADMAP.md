@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 16/30 - Batch Embedding Generation ⚡
+**Current Status**: Step 17/30 - FAISS Vector Index ⚡
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -96,14 +96,14 @@ folder-mcp/
 - ✅ **Step 12**: Excel Parser
 - ✅ **Step 13**: PowerPoint Parser
 
-### Phase 3: Text Processing & Embeddings (Steps 14-16) 🚧 IN PROGRESS
+### Phase 3: Text Processing & Embeddings (Steps 14-16) ✅ COMPLETED
 - ✅ **Step 14**: Smart Text Chunking
 - ✅ **Step 15**: Embedding Model Setup
 - ✅ **Step 15.1**: GPU-Enabled Embedding Model
-- ⚡ **Step 16**: Batch Embedding Generation (CURRENT)
+- ✅ **Step 16**: Batch Embedding Generation
 
-### Phase 4: Vector Search (Steps 17-19) 📋 PLANNED
-- 📋 **Step 17**: FAISS Vector Index
+### Phase 4: Vector Search (Steps 17-19) ⚡ IN PROGRESS
+- ⚡ **Step 17**: FAISS Vector Index (CURRENT)
 - 📋 **Step 18**: Similarity Search Function
 - 📋 **Step 19**: Search CLI Command
 
@@ -284,14 +284,22 @@ folder-mcp/
 - Comprehensive testing utilities (`test-cli.ts`, `test-switching.ts`)
 - Configuration system supporting multiple embedding models
 
-### ⚡ CURRENT: Step 16 - Batch Embedding Generation
+### ✅ COMPLETED: Step 16 - Batch Embedding Generation
 **Task**: Generate embeddings for all chunks  
 **Success Criteria**:
-- Processes chunks in batches of 32
-- Shows progress bar with ETA
-- Saves embeddings to .folder-mcp-cache/embeddings/[hash].json
-- Only processes new/modified files
-- Handles interruption gracefully (resume capable)
+- ✅ Processes chunks in batches of 32
+- ✅ Shows progress bar with ETA
+- ✅ Saves embeddings to .folder-mcp-cache/embeddings/[hash].json
+- ✅ Only processes new/modified files
+- ✅ Handles interruption gracefully (resume capable)
+
+**Implementation**: `src/processing/indexing.ts`
+- Batch processing with configurable batch size (default 32)
+- Progress tracking with ETA calculation and visual progress bar
+- Incremental processing - only generates embeddings for new/modified chunks
+- Graceful error handling with batch-level recovery
+- Resume capability through existing embedding detection
+- Performance statistics and timing reports
 
 ### Phase 4: Vector Search
 

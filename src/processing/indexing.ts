@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, resolve, extname, relative } from 'path';
 import { glob } from 'glob';
-import { FileFingerprint } from '../types/index.js';
+import { FileFingerprint, TextChunk } from '../types/index.js';
 import { generateFingerprints } from '../utils/fingerprint.js';
 import { setupCacheDirectory, loadPreviousIndex, detectCacheStatus, displayCacheStatus, saveFingerprintsToCache } from '../cache/index.js';
 import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers/index.js';
 import { chunkText, estimateTokenCount } from './chunking.js';
+import { getDefaultEmbeddingModel } from '../embeddings/index.js';
 
 async function saveContentToCache(parsedContent: any, hash: string, cacheDir: string): Promise<void> {
   const metadataDir = join(cacheDir, 'metadata');
@@ -79,7 +80,199 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
   }
 }
 
-export async function indexFolder(folderPath: string, packageJson: any): Promise<void> {
+// Progress bar utility
+function createProgressBar(total: number): { update: (current: number) => void; finish: () => void } {
+  const width = 40;
+  let lastRendered = '';
+  
+  return {
+    update: (current: number) => {
+      const percentage = Math.round((current / total) * 100);
+      const filled = Math.round((current / total) * width);
+      const empty = width - filled;
+      
+      const bar = '█'.repeat(filled) + '░'.repeat(empty);
+      const eta = current > 0 ? Math.round(((Date.now() - startTime) / current) * (total - current) / 1000) : 0;
+      const output = `  [${bar}] ${percentage}% (${current}/${total}) ETA: ${eta}s`;
+      
+      // Only update if output changed
+      if (output !== lastRendered) {
+        process.stdout.write('\r' + output);
+        lastRendered = output;
+      }
+    },
+    finish: () => {
+      process.stdout.write('\n');
+    }
+  };
+}
+
+let startTime: number;
+
+async function generateEmbeddingsForChunks(
+  cacheDir: string, 
+  batchSize: number = 32,
+  forceRegenerate: boolean = false
+): Promise<void> {
+  const metadataDir = join(cacheDir, 'metadata');
+  const embeddingsDir = join(cacheDir, 'embeddings');
+  
+  if (!existsSync(metadataDir)) {
+    console.log('No metadata found. Run index command first.');
+    return;
+  }
+
+  // Get all metadata files
+  const metadataFiles = readdirSync(metadataDir).filter(f => f.endsWith('.json'));
+  
+  if (metadataFiles.length === 0) {
+    console.log('No processed files found. Run index command first.');
+    return;
+  }
+
+  // Collect all chunks that need embeddings
+  console.log('🔍 Analyzing chunks for embedding generation...');
+  const chunksToProcess: Array<{ chunk: TextChunk, embeddingPath: string, hash: string }> = [];
+  let totalChunks = 0;
+  
+  for (const metadataFile of metadataFiles) {
+    const metadataPath = join(metadataDir, metadataFile);
+    const hash = metadataFile.replace('.json', '');
+    
+    try {
+      const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
+      
+      if (metadata.chunks && Array.isArray(metadata.chunks)) {
+        for (const chunk of metadata.chunks) {
+          totalChunks++;
+          const embeddingPath = join(embeddingsDir, `${hash}_chunk_${chunk.chunkIndex}.json`);
+          
+          // Check if embedding already exists
+          if (!forceRegenerate && existsSync(embeddingPath)) {
+            continue; // Skip already processed chunks
+          }
+          
+          chunksToProcess.push({
+            chunk,
+            embeddingPath,
+            hash
+          });
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️  Warning: Could not read metadata file ${metadataFile}: ${error}`);
+    }
+  }
+
+  if (chunksToProcess.length === 0) {
+    console.log(`✅ All ${totalChunks} chunks already have embeddings. Use --force to regenerate.`);
+    return;
+  }
+
+  console.log(`📊 Found ${totalChunks} total chunks, ${chunksToProcess.length} need embeddings`);
+  console.log('');
+
+  // Initialize embedding model
+  console.log('🚀 Initializing embedding model...');
+  const embeddingModel = getDefaultEmbeddingModel();
+  await embeddingModel.initialize();
+  
+  const modelInfo = embeddingModel.getModelInfo();
+  console.log(`📊 Model: ${modelInfo.name} (${modelInfo.dimensions}D)`);
+  console.log(`🔧 Backend: ${modelInfo.backend} ${modelInfo.isGPUAccelerated ? '(GPU-accelerated)' : '(CPU-only)'}`);
+  console.log('');
+
+  // Process chunks in batches
+  console.log(`🔄 Generating embeddings for ${chunksToProcess.length} chunks (batch size: ${batchSize})`);
+  startTime = Date.now();
+  const progressBar = createProgressBar(chunksToProcess.length);
+  
+  let processed = 0;
+  const errors: Array<{ chunk: any, error: string }> = [];
+
+  try {
+    for (let i = 0; i < chunksToProcess.length; i += batchSize) {
+      const batch = chunksToProcess.slice(i, i + batchSize);
+      const batchTexts = batch.map(item => item.chunk.content);
+      
+      try {
+        // Generate embeddings for this batch
+        const embeddings = await embeddingModel.generateBatchEmbeddings(batchTexts, batchSize);
+        
+        // Save each embedding to its respective file
+        for (let j = 0; j < batch.length; j++) {
+          const item = batch[j];
+          const embedding = embeddings[j];
+          
+          const embeddingData = {
+            chunk: item.chunk,
+            embedding: embedding,
+            generatedAt: new Date().toISOString(),
+            model: modelInfo.name,
+            modelBackend: modelInfo.backend,
+            isGPUAccelerated: modelInfo.isGPUAccelerated
+          };
+          
+          writeFileSync(item.embeddingPath, JSON.stringify(embeddingData, null, 2));
+        }
+        
+        processed += batch.length;
+        progressBar.update(processed);
+        
+      } catch (error) {
+        // Handle batch errors - save what we can and continue
+        console.log(`\n❌ Batch error at ${i}-${i + batch.length}: ${error}`);
+        
+        for (const item of batch) {
+          errors.push({ chunk: item.chunk, error: String(error) });
+        }
+        
+        processed += batch.length;
+        progressBar.update(processed);
+      }
+    }
+    
+    progressBar.finish();
+    
+    const totalTime = Date.now() - startTime;
+    const successful = processed - errors.length;
+    
+    console.log('');
+    console.log('🎉 Embedding generation completed!');
+    console.log(`✅ Successfully processed: ${successful}/${processed} chunks`);
+    console.log(`⏱️  Total time: ${(totalTime / 1000).toFixed(1)}s`);
+    console.log(`⚡ Average: ${(totalTime / successful).toFixed(1)}ms per embedding`);
+    
+    if (errors.length > 0) {
+      console.log(`❌ Failed: ${errors.length} chunks`);
+      console.log('   Check the console output above for error details.');
+    }
+
+    // Show performance stats
+    const perfStats = modelInfo.performanceStats;
+    if (perfStats && perfStats.embeddingsGenerated > 0) {
+      console.log('');
+      console.log('📈 Model Performance:');
+      console.log(`   - Total embeddings generated: ${perfStats.embeddingsGenerated}`);
+      console.log(`   - Model average time: ${perfStats.avgTimePerEmbedding.toFixed(1)}ms per embedding`);
+    }
+    
+  } catch (error) {
+    progressBar.finish();
+    console.log('');
+    console.error('💥 Fatal error during embedding generation:', error);
+    
+    // Save progress before exiting
+    console.log(`📊 Progress before error: ${processed}/${chunksToProcess.length} chunks processed`);
+    throw error;
+  }
+}
+
+export async function indexFolder(
+  folderPath: string, 
+  packageJson: any, 
+  options: { skipEmbeddings?: boolean } = {}
+): Promise<void> {
   try {
     // Check if folder exists
     const resolvedPath = resolve(folderPath);
@@ -173,11 +366,25 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
 
     // Process file content (parse and cache)
     await processFiles(fingerprints, resolvedPath, cacheDir);
-    console.log('');
-
-    // Save fingerprints to cache
+    console.log('');    // Save fingerprints to cache
     await saveFingerprintsToCache(fingerprints, cacheDir);
     console.log('');
+
+    // Generate embeddings automatically (unless skipped)
+    if (!options.skipEmbeddings) {
+      console.log('🚀 Generating embeddings for processed chunks...');
+      try {
+        await generateEmbeddingsForChunks(cacheDir, 32, false);
+      } catch (error) {
+        console.warn(`⚠️  Warning: Embedding generation failed: ${error}`);
+        console.log(`   You can generate embeddings later with: folder-mcp embeddings "${folderPath}"`);
+      }
+      console.log('');
+    } else {
+      console.log('⏭️  Skipped embedding generation (use --skip-embeddings)');
+      console.log(`   Generate embeddings later with: folder-mcp embeddings "${folderPath}"`);
+      console.log('');
+    }
 
     // Display all files
     console.log('Supported files found:');
@@ -269,6 +476,36 @@ export async function showChunkingSummary(folderPath: string): Promise<void> {
     
   } catch (error) {
     console.error(`Error reading chunking summary: ${error}`);
+    process.exit(1);
+  }
+}
+
+export async function generateEmbeddings(
+  folderPath: string, 
+  options: { batchSize?: number; force?: boolean } = {}
+): Promise<void> {
+  try {
+    const resolvedPath = resolve(folderPath);
+    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
+    
+    if (!existsSync(cacheDir)) {
+      console.error(`❌ No cache found in "${folderPath}". Run 'folder-mcp index "${folderPath}"' first.`);
+      process.exit(1);
+    }
+
+    const { batchSize = 32, force = false } = options;
+    
+    console.log(`🎯 Generating embeddings for: ${resolvedPath}`);
+    console.log(`⚙️  Batch size: ${batchSize}`);
+    if (force) {
+      console.log('🔄 Force regeneration enabled');
+    }
+    console.log('');
+    
+    await generateEmbeddingsForChunks(cacheDir, batchSize, force);
+    
+  } catch (error) {
+    console.error(`❌ Error generating embeddings: ${error}`);
     process.exit(1);
   }
 }
