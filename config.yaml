@@ -1,0 +1,82 @@
+# folder-mcp Configuration
+# This file contains all configuration settings for the folder-mcp project
+
+# Embedding Model Configuration
+embeddings:
+  defaultModel: "nomic-v1.5"
+  ollamaApiUrl: "http://127.0.0.1:11434"
+  batchSize: 32
+  timeoutMs: 30000
+  
+  # Available embedding models
+  models:
+    nomic-v1.5:
+      name: "Nomic Embed v1.5"
+      description: "High-quality general-purpose embedding model with 768 dimensions"
+      transformersModel: "nomic-ai/nomic-embed-text-v1.5"
+      ollamaModel: "nomic-embed-text"
+      dimensions: 768
+      maxTokens: 2048
+      isDefault: true
+    
+    mxbai-large:
+      name: "MixedBread AI Large"
+      description: "Large embedding model with excellent performance (1024 dimensions)"
+      transformersModel: "mixedbread-ai/mxbai-embed-large-v1"
+      ollamaModel: "mxbai-embed-large"
+      dimensions: 1024
+      maxTokens: 512
+    
+    all-minilm:
+      name: "All-MiniLM-L6-v2"
+      description: "Lightweight and fast embedding model (384 dimensions)"
+      transformersModel: "sentence-transformers/all-MiniLM-L6-v2"
+      ollamaModel: "all-minilm"
+      dimensions: 384
+      maxTokens: 256
+    
+    bge-small:
+      name: "BGE Small"
+      description: "BAAI general embedding model, small version (384 dimensions)"
+      transformersModel: "BAAI/bge-small-en-v1.5"
+      ollamaModel: "bge-small"
+      dimensions: 384
+      maxTokens: 512
+    
+    gte-base:
+      name: "GTE Base"
+      description: "General Text Embeddings model (768 dimensions)"
+      transformersModel: "thenlper/gte-base"
+      ollamaModel: "gte-base"
+      dimensions: 768
+      maxTokens: 512
+
+# Cache Configuration
+cache:
+  defaultCacheDir: "~/.cache/folder-mcp"  # User cache directory
+  maxCacheSize: "10GB"                    # Maximum cache size (future feature)
+  cleanupIntervalHours: 24                # How often to clean old entries
+
+# Text Processing Configuration
+processing:
+  defaultChunkSize: 1000        # Default size for text chunking
+  defaultOverlap: 200           # Default overlap between chunks
+  maxConcurrentOperations: 10   # Maximum parallel operations
+
+# API Configuration
+api:
+  defaultPort: 3000     # Default port for API services
+  timeoutMs: 30000      # API request timeout in milliseconds
+  rateLimitRpm: 1000    # Rate limiting (requests per minute)
+
+# Logging Configuration (future)
+logging:
+  level: "info"         # debug, info, warn, error
+  format: "json"        # json, text
+  file: "logs/app.log"  # Log file path (optional)
+
+# Development Configuration
+development:
+  enableDebugOutput: false  # Show detailed debug information
+  mockOllamaApi: false      # Use mock Ollama API for testing
+  skipGpuDetection: false   # Skip GPU detection for testing

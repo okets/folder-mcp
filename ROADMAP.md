@@ -99,6 +99,7 @@ folder-mcp/
 ### Phase 3: Text Processing & Embeddings (Steps 14-16) 🚧 IN PROGRESS
 - ✅ **Step 14**: Smart Text Chunking
 - ✅ **Step 15**: Embedding Model Setup
+- ✅ **Step 15.1**: GPU-Enabled Embedding Model
 - ⚡ **Step 16**: Batch Embedding Generation (CURRENT)
 
 ### Phase 4: Vector Search (Steps 17-19) 📋 PLANNED
@@ -265,7 +266,23 @@ folder-mcp/
 - Full ES module conversion completed
 - Comprehensive test system with batch embedding support
 
-### ⚡ CURRENT: Step 16 - Batch Embedding Generation
+### ✅ COMPLETED: Step 15.1 - GPU-Enabled Embedding Model
+**Task**: Replace Nomic Embed with GPU-accelerated Ollama embeddings  
+**Success Criteria**:
+- ✅ Detects if Ollama CLI is installed and running
+- ✅ Provides clear installation instructions if not available
+- ✅ Uses Ollama with `nomic-embed-text` model for GPU acceleration
+- ✅ Falls back to original Nomic Embed v1.5 if Ollama unavailable
+- ✅ Maintains same API interface for backward compatibility
+- ✅ Shows GPU/CPU usage status during embedding generation
+- ✅ Handles Ollama service startup and model downloading
+
+**Implementation**: `src/embeddings/index.ts`
+- GPU-accelerated Ollama integration with automatic detection
+- Graceful fallback to CPU-based transformers when Ollama unavailable
+- Performance monitoring and GPU status reporting
+- Comprehensive testing utilities (`test-cli.ts`, `test-switching.ts`)
+- Configuration system supporting multiple embedding models
 
 ### ⚡ CURRENT: Step 16 - Batch Embedding Generation
 **Task**: Generate embeddings for all chunks  

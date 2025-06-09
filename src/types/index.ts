@@ -66,11 +66,3 @@ export interface EmbeddingResult {
     sourceType: string;
   };
 }
-
-export interface EmbeddingModelConfig {
-  modelName: string;
-  dimensions: number;
-  cacheDir: string;
-  maxRetries: number;
-  batchSize: number;
-}

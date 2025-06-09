@@ -41,6 +41,58 @@ npm install
 npm run build
 ```
 
+## Configuration
+
+folder-mcp uses a centralized configuration system stored in `config.yaml` at the project root. This YAML file contains settings for embeddings, caching, processing, API, logging, and development configurations.
+
+### Embedding Models
+
+The system supports multiple embedding models with GPU acceleration via Ollama:
+
+| Model | Dimensions | Description |
+|-------|------------|-------------|
+| `nomic-v1.5` | 768 | High-quality general-purpose (default) |
+| `mxbai-large` | 1024 | Large model with excellent performance |
+| `all-minilm` | 384 | Lightweight and fast |
+| `bge-small` | 384 | BAAI general embedding, small version |
+| `gte-base` | 768 | General Text Embeddings model |
+
+### Configuration Structure
+
+```yaml
+# Embedding Model Configuration
+embeddings:
+  defaultModel: "nomic-v1.5"
+  ollamaApiUrl: "http://127.0.0.1:11434"
+  batchSize: 32
+  timeoutMs: 30000
+  models:
+    # Model definitions with dimensions, descriptions, etc.
+
+# Cache Configuration  
+cache:
+  defaultCacheDir: "~/.cache/folder-mcp"
+  maxCacheSize: "10GB"
+  cleanupIntervalHours: 24
+
+# Text Processing Configuration
+processing:
+  defaultChunkSize: 1000
+  defaultOverlap: 200
+  maxConcurrentOperations: 10
+
+# Development & Logging options
+logging:
+  level: "info"
+  format: "json"
+  
+development:
+  enableDebugOutput: false
+  mockOllamaApi: false
+```
+
+For detailed configuration options, see [CONFIGURATION.md](docs/CONFIGURATION.md).
+
 ## Current Status
 
 🚀 **Version 1.0** - Basic MCP Server (13/30 planned features complete)
