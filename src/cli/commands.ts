@@ -24,8 +24,22 @@ export function setupCommands(program: Command, packageJson: any): void {  progr
     .option('--extensions <list>', 'Override file extensions to process (comma-separated)')
     .option('--ignore <patterns>', 'Override ignore patterns (comma-separated)')
     .option('--max-operations <num>', 'Override max concurrent operations', parseInt)
-    .option('--show-config', 'Show resolved configuration before processing')
-    .action(async (folder: string, options: any) => {
+    .option('--show-config', 'Show resolved configuration before processing')    .action(async (folder: string, options: any) => {
+      // Very first thing: check if folder exists before doing ANYTHING else
+      const { existsSync, statSync } = await import('fs');
+      const { resolve } = await import('path');
+      
+      const resolvedPath = resolve(folder);
+      if (!existsSync(resolvedPath)) {
+        console.error(`❌ Error: Folder "${folder}" does not exist.`);
+        process.exit(1);
+      }
+
+      if (!statSync(resolvedPath).isDirectory()) {
+        console.error(`❌ Error: "${folder}" is not a directory.`);
+        process.exit(1);
+      }
+      
       // Parse CLI arguments and resolve configuration
       const cliArgs = parseCliArgs(options);
       const config = resolveConfig(folder, cliArgs);
@@ -38,7 +52,7 @@ export function setupCommands(program: Command, packageJson: any): void {  progr
         process.exit(1);
       }
       
-      // Initialize local config if it doesn't exist
+      // Initialize local config if it doesn't exist (after we know folder exists)
       initializeLocalConfig(folder);
       
       // Show configuration if requested
