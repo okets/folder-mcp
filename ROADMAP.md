@@ -296,47 +296,115 @@ folder-mcp/
 
 ---
 
-## Architecture Overview
-
-### Data Flow
-```
-📁 Local Folder → 🔍 File Scanner → 📄 Content Parsers → ✂️ Smart Chunker → 🧠 Embeddings → 🔍 Vector Index → 📡 MCP Server
-```
-
-### File Processing Pipeline
-```
-1. File Discovery → 2. Type Detection → 3. Content Extraction → 4. Chunking → 5. Embedding → 6. Indexing → 7. Serving
-```
-
-### Cache Structure
-```
-.folder-mcp-cache/
-├── index.json          # File fingerprints and status
-├── version.json        # Tool version and metadata
-├── metadata/           # Extracted content per file
-│   └── [hash].json
-├── embeddings/         # Vector embeddings per chunk
-│   └── [hash].json
-├── vectors/            # FAISS search index
-│   ├── index.faiss
-│   └── mappings.json
-└── errors.log          # Processing errors
-```
-
-## Success Metrics
-
-### Performance Targets
-- **Indexing Speed**: 1000 documents in <5 minutes
-- **Memory Usage**: <2GB for large folders
-- **Search Latency**: <100ms for similarity search
-- **Accuracy**: >90% relevant results in top 5
-
-### Quality Metrics
-- **Code Coverage**: >80% test coverage
-- **Error Recovery**: Graceful handling of all file types
-- **User Experience**: Clear progress and error messages
-- **Compatibility**: Works with all major MCP clients
+**This roadmap provides a clear, linear path from the current state (Step 14) to a fully functional universal folder-to-MCP tool. Each step has concrete success criteria that must be met before moving to the next step.**
 
 ---
 
-**This roadmap provides a clear, linear path from the current state (Step 14) to a fully functional universal folder-to-MCP tool. Each step has concrete success criteria that must be met before moving to the next step.**
+## GitHub Project Management Setup
+
+### Quick Setup Instructions
+
+To set up GitHub Issues for project tracking:
+
+1. **Go to your GitHub repository**: https://github.com/okets/folder-mcp
+2. **Click "Issues" tab** → **"New Issue"**
+3. **Create issues for each step** using the templates below
+4. **Set labels and milestones** as indicated
+5. **Close issues 1-13** immediately after creating (mark as completed)
+
+### GitHub Milestones to Create
+
+Create these milestones in GitHub (Issues → Milestones → New milestone):
+
+1. **Phase 1 - Foundation** (Due: Completed) 
+2. **Phase 2 - Parsing** (Due: Completed)
+3. **Phase 3 - Processing** (Due: TBD)
+4. **Phase 4 - Search** (Due: TBD) 
+5. **Phase 5 - MCP Integration** (Due: TBD)
+6. **Phase 6 - Advanced Features** (Due: TBD)
+7. **Phase 7 - Optimization** (Due: TBD)
+8. **Phase 8 - Release Preparation** (Due: TBD)
+
+### GitHub Labels to Create
+
+- `enhancement` (blue)
+- `foundation` (gray) 
+- `cli` (green)
+- `filesystem` (yellow)
+- `parsing` (orange)
+- `caching` (purple)
+- `processing` (pink)
+- `embeddings` (red)
+- `search` (light blue)
+- `mcp` (dark blue)
+- `realtime` (brown)
+- `config` (lime)
+- `reliability` (olive)
+- `performance` (maroon)
+- `testing` (navy)
+- `documentation` (silver)
+- `packaging` (teal)
+- `release` (gold)
+
+### GitHub Issue Templates
+
+For each step in the roadmap above, create a GitHub issue with this format:
+
+**Title**: `[Step X] Brief Description` (e.g., "Smart Text Chunking")
+
+**Labels**: `enhancement` + relevant category (e.g., `processing`)
+
+**Milestone**: Appropriate phase (e.g., "Phase 3 - Processing")
+
+**Description Template**:
+```
+### Description
+[Copy the task description from the roadmap]
+
+### Success Criteria
+[Copy the success criteria checklist from the roadmap]
+
+### Status
+- ✅ **COMPLETED** (for steps 1-13)
+- 🔄 **TODO** (for steps 14-30)
+```
+
+### Issue Creation Workflow
+
+1. **Create new issue**
+2. **Copy title** from roadmap step
+3. **Copy description and success criteria**
+4. **Add appropriate labels** 
+5. **Set milestone**
+6. **For steps 1-13**: Immediately close with comment "✅ COMPLETED - Already implemented"
+7. **For steps 14-30**: Leave open as TODO
+
+### Automated Alternative
+
+If you have GitHub CLI installed (`gh`), you can automate issue creation:
+
+```bash
+# Install GitHub CLI first: https://cli.github.com/
+# Then run from project directory:
+
+gh issue create --title "[Step 14] Smart Text Chunking" --body "See ROADMAP.md Step 14" --label "enhancement,processing" --milestone "Phase 3 - Processing"
+# Repeat for each step...
+```
+
+### Project Status After Setup
+
+After creating all issues:
+- ✅ **13 Closed Issues** (Completed tasks)
+- 🔄 **17 Open Issues** (TODO tasks)  
+- 📊 **8 Milestones** (Development phases)
+- 🏷️ **18 Labels** (Task categorization)
+
+### Benefits
+
+- **Clear progress tracking**: See exactly what's done vs. what's planned
+- **Contributor onboarding**: New developers can see the roadmap and pick tasks
+- **User expectations**: Users understand current capabilities vs. future features  
+- **Development focus**: Prioritized task list for systematic development
+- **Community engagement**: Users can vote on features and contribute to specific areas
+
+The repository now has comprehensive documentation showing both the current basic implementation and the ambitious roadmap ahead!
