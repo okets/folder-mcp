@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 15/30 - Embedding Model Setup ⚡
+**Current Status**: Step 16/30 - Batch Embedding Generation ⚡
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -98,8 +98,8 @@ folder-mcp/
 
 ### Phase 3: Text Processing & Embeddings (Steps 14-16) 🚧 IN PROGRESS
 - ✅ **Step 14**: Smart Text Chunking
-- ⚡ **Step 15**: Embedding Model Setup (CURRENT)
-- 🔄 **Step 16**: Batch Embedding Generation
+- ✅ **Step 15**: Embedding Model Setup
+- ⚡ **Step 16**: Batch Embedding Generation (CURRENT)
 
 ### Phase 4: Vector Search (Steps 17-19) 📋 PLANNED
 - 📋 **Step 17**: FAISS Vector Index
@@ -138,18 +138,25 @@ folder-mcp/
 - ✅ Never splits mid-sentence
 - ✅ Preserves metadata (source, position, type)
 
-### ⚡ CURRENT: Step 15 - Embedding Model Setup
+### ✅ COMPLETED: Step 15 - Embedding Model Setup
 **Task**: Initialize Nomic Embed model  
 **Success Criteria**:
-- Downloads model on first run
-- Shows download progress
-- Caches model in user directory
-- Generates 768-dim embedding for test string
-- Handles offline mode gracefully
+- ✅ Downloads model on first run
+- ✅ Shows download progress
+- ✅ Caches model in user directory
+- ✅ Generates 768-dim embedding for test string
+- ✅ Handles offline mode gracefully
 
-### Phase 3 Remaining Tasks
+**Implementation**: `src/embeddings/index.ts`
+- EmbeddingModel class with lazy initialization
+- Progress tracking for model downloads
+- User cache directory: `~/.cache/folder-mcp-models`
+- Full ES module conversion completed
+- Comprehensive test system with batch embedding support
 
-#### Step 16: Batch Embedding Generation
+### ⚡ CURRENT: Step 16 - Batch Embedding Generation
+
+### ⚡ CURRENT: Step 16 - Batch Embedding Generation
 **Task**: Generate embeddings for all chunks  
 **Success Criteria**:
 - Processes chunks in batches of 32

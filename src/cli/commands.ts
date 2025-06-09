@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { indexFolder, showChunkingSummary } from '../processing/indexing';
+import { testEmbeddingSystem } from '../embeddings/index.js';
 
 export function setupCommands(program: Command, packageJson: any): void {
   program
@@ -12,6 +12,8 @@ export function setupCommands(program: Command, packageJson: any): void {
     .description('Index a folder to create embeddings and vector database')
     .argument('<folder>', 'Path to the folder to index')
     .action(async (folder: string) => {
+      // Lazy load processing modules to avoid pdf-parse issues
+      const { indexFolder } = await import('../processing/indexing.js');
       await indexFolder(folder, packageJson);
     });
 
@@ -20,6 +22,22 @@ export function setupCommands(program: Command, packageJson: any): void {
     .description('Show chunking summary for an indexed folder')
     .argument('<folder>', 'Path to the indexed folder')
     .action(async (folder: string) => {
+      // Lazy load processing modules to avoid pdf-parse issues
+      const { showChunkingSummary } = await import('../processing/indexing.js');
       await showChunkingSummary(folder);
+    });
+
+  program
+    .command('test-embeddings')
+    .description('Test the embedding model system')
+    .action(async () => {
+      try {
+        await testEmbeddingSystem();
+        console.log('🎉 Embedding system test completed successfully!');
+        process.exit(0);
+      } catch (error) {
+        console.error('❌ Embedding system test failed:', error);
+        process.exit(1);
+      }
     });
 }

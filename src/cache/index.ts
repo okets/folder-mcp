@@ -1,41 +1,41 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { FileFingerprint, CacheIndex, CacheStatus } from '../types';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, relative, basename } from 'path';
+import { FileFingerprint, CacheIndex, CacheStatus } from '../types/index.js';
 
 export async function setupCacheDirectory(folderPath: string, packageJson: any): Promise<void> {
   try {
-    const cacheDir = path.join(folderPath, '.folder-mcp-cache');
+    const cacheDir = join(folderPath, '.folder-mcp-cache');
     
     console.log('Setting up cache directory...');
     
     // Create main cache directory
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir);
-      console.log(`Created cache directory: ${path.relative(folderPath, cacheDir)}`);
+    if (!existsSync(cacheDir)) {
+      mkdirSync(cacheDir);
+      console.log(`Created cache directory: ${relative(folderPath, cacheDir)}`);
     } else {
-      console.log(`Cache directory already exists: ${path.relative(folderPath, cacheDir)}`);
+      console.log(`Cache directory already exists: ${relative(folderPath, cacheDir)}`);
     }
 
     // Create subdirectories
     const subdirs = ['embeddings', 'metadata', 'vectors'];
     for (const subdir of subdirs) {
-      const subdirPath = path.join(cacheDir, subdir);
-      if (!fs.existsSync(subdirPath)) {
-        fs.mkdirSync(subdirPath);
-        console.log(`Created subdirectory: ${path.relative(folderPath, subdirPath)}`);
+      const subdirPath = join(cacheDir, subdir);
+      if (!existsSync(subdirPath)) {
+        mkdirSync(subdirPath);
+        console.log(`Created subdirectory: ${relative(folderPath, subdirPath)}`);
       }
     }
 
     // Create version.json with tool version and timestamp
-    const versionFile = path.join(cacheDir, 'version.json');
+    const versionFile = join(cacheDir, 'version.json');
     const versionData = {
       toolVersion: packageJson.version,
       createdAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString()
     };
 
-    fs.writeFileSync(versionFile, JSON.stringify(versionData, null, 2));
-    console.log(`Created version file: ${path.relative(folderPath, versionFile)}`);
+    writeFileSync(versionFile, JSON.stringify(versionData, null, 2));
+    console.log(`Created version file: ${relative(folderPath, versionFile)}`);
 
   } catch (error: any) {
     if (error.code === 'EACCES' || error.code === 'EPERM') {
@@ -50,14 +50,14 @@ export async function setupCacheDirectory(folderPath: string, packageJson: any):
 }
 
 export function loadPreviousIndex(cacheDir: string): CacheIndex | null {
-  const indexFile = path.join(cacheDir, 'index.json');
+  const indexFile = join(cacheDir, 'index.json');
   
-  if (!fs.existsSync(indexFile)) {
+  if (!existsSync(indexFile)) {
     return null;
   }
   
   try {
-    const indexContent = fs.readFileSync(indexFile, 'utf8');
+    const indexContent = readFileSync(indexFile, 'utf8');
     return JSON.parse(indexContent) as CacheIndex;
   } catch (error) {
     console.warn(`Warning: Could not load previous index: ${error}`);
@@ -147,13 +147,13 @@ export function displayCacheStatus(status: CacheStatus): void {
 }
 
 export async function saveFingerprintsToCache(fingerprints: FileFingerprint[], cacheDir: string): Promise<void> {
-  const indexFile = path.join(cacheDir, 'index.json');
+  const indexFile = join(cacheDir, 'index.json');
   const indexData = {
     generated: new Date().toISOString(),
     fileCount: fingerprints.length,
     files: fingerprints
   };
   
-  fs.writeFileSync(indexFile, JSON.stringify(indexData, null, 2));
-  console.log(`Saved fingerprints to: ${path.basename(indexFile)}`);
+  writeFileSync(indexFile, JSON.stringify(indexData, null, 2));
+  console.log(`Saved fingerprints to: ${basename(indexFile)}`);
 }

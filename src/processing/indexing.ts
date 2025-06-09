@@ -1,15 +1,15 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'fs';
+import { join, resolve, extname, relative } from 'path';
 import { glob } from 'glob';
-import { FileFingerprint } from '../types';
-import { generateFingerprints } from '../utils/fingerprint';
-import { setupCacheDirectory, loadPreviousIndex, detectCacheStatus, displayCacheStatus, saveFingerprintsToCache } from '../cache';
-import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers';
-import { chunkText, estimateTokenCount } from './chunking';
+import { FileFingerprint } from '../types/index.js';
+import { generateFingerprints } from '../utils/fingerprint.js';
+import { setupCacheDirectory, loadPreviousIndex, detectCacheStatus, displayCacheStatus, saveFingerprintsToCache } from '../cache/index.js';
+import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers/index.js';
+import { chunkText, estimateTokenCount } from './chunking.js';
 
 async function saveContentToCache(parsedContent: any, hash: string, cacheDir: string): Promise<void> {
-  const metadataDir = path.join(cacheDir, 'metadata');
-  const metadataFile = path.join(metadataDir, `${hash}.json`);
+  const metadataDir = join(cacheDir, 'metadata');
+  const metadataFile = join(metadataDir, `${hash}.json`);
   
   // Create chunks from the parsed content
   const chunkedContent = chunkText(parsedContent);
@@ -33,7 +33,7 @@ async function saveContentToCache(parsedContent: any, hash: string, cacheDir: st
     }
   };
   
-  fs.writeFileSync(metadataFile, JSON.stringify(metadataContent, null, 2));
+  writeFileSync(metadataFile, JSON.stringify(metadataContent, null, 2));
   
   // Log chunking stats (concise)
   if (chunkedContent.totalChunks > 0) {
@@ -46,8 +46,8 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
   
   for (let i = 0; i < fingerprints.length; i++) {
     const fingerprint = fingerprints[i];
-    const fullPath = path.join(basePath, fingerprint.path);
-    const ext = path.extname(fingerprint.path).toLowerCase();
+    const fullPath = join(basePath, fingerprint.path);
+    const ext = extname(fingerprint.path).toLowerCase();
     
     try {
       if (ext === '.txt' || ext === '.md') {
@@ -82,13 +82,13 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
 export async function indexFolder(folderPath: string, packageJson: any): Promise<void> {
   try {
     // Check if folder exists
-    const resolvedPath = path.resolve(folderPath);
-    if (!fs.existsSync(resolvedPath)) {
+    const resolvedPath = resolve(folderPath);
+    if (!existsSync(resolvedPath)) {
       console.error(`Error: Folder "${folderPath}" does not exist.`);
       process.exit(1);
     }
 
-    if (!fs.statSync(resolvedPath).isDirectory()) {
+    if (!statSync(resolvedPath).isDirectory()) {
       console.error(`Error: "${folderPath}" is not a directory.`);
       process.exit(1);
     }
@@ -100,7 +100,7 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
     const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
     
     // Find all files recursively
-    const pattern = path.join(resolvedPath, '**', '*').replace(/\\/g, '/');
+    const pattern = join(resolvedPath, '**', '*').replace(/\\/g, '/');
     const allFiles = await glob(pattern, { 
       nodir: true,  // Only files, not directories
       dot: false,   // Ignore hidden files
@@ -109,13 +109,13 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
 
     // Additional filter to ensure no cache files slip through
     const filteredFiles = allFiles.filter(file => {
-      const relativePath = path.relative(resolvedPath, file);
+      const relativePath = relative(resolvedPath, file);
       return !relativePath.includes('.folder-mcp-cache');
     });
 
     // Filter by supported extensions (case-insensitive)
     const supportedFiles = filteredFiles.filter(file => {
-      const ext = path.extname(file).toLowerCase();
+      const ext = extname(file).toLowerCase();
       return supportedExtensions.includes(ext);
     });
 
@@ -127,7 +127,7 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
 
     // Convert to relative paths from the target folder
     const relativePaths = supportedFiles.map(file => {
-      return path.relative(resolvedPath, file);
+      return relative(resolvedPath, file);
     });
 
     // Count files by type
@@ -142,7 +142,7 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
     };
 
     supportedFiles.forEach(file => {
-      const ext = path.extname(file).toLowerCase();
+      const ext = extname(file).toLowerCase();
       fileTypeCounts[ext] = (fileTypeCounts[ext] || 0) + 1;
     });
 
@@ -159,7 +159,7 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
     console.log('');
 
     // Load previous index for comparison
-    const cacheDir = path.join(resolvedPath, '.folder-mcp-cache');
+    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
     const previousIndex = loadPreviousIndex(cacheDir);
     
     // Generate fingerprints for all supported files
@@ -196,17 +196,17 @@ export async function indexFolder(folderPath: string, packageJson: any): Promise
 
 export async function showChunkingSummary(folderPath: string): Promise<void> {
   try {
-    const resolvedPath = path.resolve(folderPath);
-    const cacheDir = path.join(resolvedPath, '.folder-mcp-cache');
-    const metadataDir = path.join(cacheDir, 'metadata');
+    const resolvedPath = resolve(folderPath);
+    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
+    const metadataDir = join(cacheDir, 'metadata');
     
-    if (!fs.existsSync(metadataDir)) {
+    if (!existsSync(metadataDir)) {
       console.log(`No cache found. Run 'folder-mcp index "${folderPath}"' first.`);
       return;
     }
     
     // Read all metadata files
-    const metadataFiles = fs.readdirSync(metadataDir).filter(f => f.endsWith('.json'));
+    const metadataFiles = readdirSync(metadataDir).filter(f => f.endsWith('.json'));
     
     if (metadataFiles.length === 0) {
       console.log('No processed files found in cache.');
@@ -222,8 +222,8 @@ export async function showChunkingSummary(folderPath: string): Promise<void> {
     const typeStats: { [key: string]: { files: number; chunks: number; tokens: number } } = {};
     
     for (const metadataFile of metadataFiles) {
-      const filePath = path.join(metadataDir, metadataFile);
-      const metadata = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const filePath = join(metadataDir, metadataFile);
+      const metadata = JSON.parse(readFileSync(filePath, 'utf8'));
       
       if (metadata.chunks && metadata.chunkingStats) {
         totalFiles++;

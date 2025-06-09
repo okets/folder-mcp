@@ -1,22 +1,30 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import pdfParse from 'pdf-parse';
+import { readFileSync, statSync } from 'fs';
+import { relative, extname } from 'path';
 import * as mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
-import * as JSZip from 'jszip';
+import XLSX from 'xlsx';
+import JSZip from 'jszip';
 import * as xml2js from 'xml2js';
-import { ParsedContent } from '../types';
+import { ParsedContent } from '../types/index.js';
+
+// Lazy load pdf-parse to avoid initialization issues
+let pdfParse: any = null;
+async function getPdfParse() {
+  if (!pdfParse) {
+    pdfParse = (await import('pdf-parse')).default;
+  }
+  return pdfParse;
+}
 
 export async function parseTextFile(filePath: string, basePath: string): Promise<ParsedContent> {
   try {
     // Read file with UTF-8 encoding
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = readFileSync(filePath, 'utf8');
     
     // Normalize line endings (handle CRLF/LF)
     const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     
-    const relativePath = path.relative(basePath, filePath);
-    const ext = path.extname(filePath).toLowerCase();
+    const relativePath = relative(basePath, filePath);
+    const ext = extname(filePath).toLowerCase();
     
     const fileType = ext === '.md' ? 'markdown' : 'text';
     
@@ -38,8 +46,8 @@ export async function parseTextFile(filePath: string, basePath: string): Promise
 
 export async function parsePdfFile(filePath: string, basePath: string): Promise<ParsedContent> {
   try {
-    const relativePath = path.relative(basePath, filePath);
-    const stats = fs.statSync(filePath);
+    const relativePath = relative(basePath, filePath);
+    const stats = statSync(filePath);
     
     // Show progress for large PDFs (> 1MB)
     if (stats.size > 1024 * 1024) {
@@ -47,10 +55,11 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
     }
     
     // Read PDF file as buffer
-    const dataBuffer = fs.readFileSync(filePath);
+    const dataBuffer = readFileSync(filePath);
     
     // Parse PDF
-    const pdfData = await pdfParse(dataBuffer);
+    const pdfParseLib = await getPdfParse();
+    const pdfData = await pdfParseLib(dataBuffer);
     
     // Extract page-by-page content if available
     const pages: string[] = [];
@@ -91,11 +100,11 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
       error.message.includes('password') ||
       error.message.includes('Invalid PDF')
     )) {
-      console.warn(`    Warning: Skipping encrypted or password-protected PDF: ${path.relative(basePath, filePath)}`);
+      console.warn(`    Warning: Skipping encrypted or password-protected PDF: ${relative(basePath, filePath)}`);
       return {
         content: '',
         type: 'pdf',
-        originalPath: path.relative(basePath, filePath),
+        originalPath: relative(basePath, filePath),
         metadata: {
           error: 'encrypted_or_protected',
           errorMessage: 'PDF is encrypted or password-protected',
@@ -113,8 +122,8 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
 
 export async function parseWordFile(filePath: string, basePath: string): Promise<ParsedContent> {
   try {
-    const relativePath = path.relative(basePath, filePath);
-    const stats = fs.statSync(filePath);
+    const relativePath = relative(basePath, filePath);
+    const stats = statSync(filePath);
     
     // Show progress for large Word documents (> 500KB)
     if (stats.size > 500 * 1024) {
@@ -165,11 +174,11 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
       error.message.includes('ENOENT') ||
       error.message.includes('unexpected end of file')
     )) {
-      console.warn(`    Warning: Skipping corrupted or invalid Word document: ${path.relative(basePath, filePath)}`);
+      console.warn(`    Warning: Skipping corrupted or invalid Word document: ${relative(basePath, filePath)}`);
       return {
         content: '',
         type: 'word',
-        originalPath: path.relative(basePath, filePath),
+        originalPath: relative(basePath, filePath),
         metadata: {
           error: 'corrupted_or_invalid',
           errorMessage: 'Word document is corrupted or invalid',
@@ -187,8 +196,8 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
 
 export async function parseExcelFile(filePath: string, basePath: string): Promise<ParsedContent> {
   try {
-    const relativePath = path.relative(basePath, filePath);
-    const stats = fs.statSync(filePath);
+    const relativePath = relative(basePath, filePath);
+    const stats = statSync(filePath);
     
     // Show progress for large Excel files (> 1MB)
     if (stats.size > 1024 * 1024) {
@@ -280,11 +289,11 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
       error.message.includes('corrupted') ||
       error.message.includes('Invalid file')
     )) {
-      console.warn(`    Warning: Skipping protected or corrupted Excel file: ${path.relative(basePath, filePath)}`);
+      console.warn(`    Warning: Skipping protected or corrupted Excel file: ${relative(basePath, filePath)}`);
       return {
         content: '',
         type: 'excel',
-        originalPath: path.relative(basePath, filePath),
+        originalPath: relative(basePath, filePath),
         metadata: {
           error: 'protected_or_corrupted',
           errorMessage: 'Excel file is password-protected, encrypted, or corrupted',
@@ -302,8 +311,8 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
 
 export async function parsePowerPointFile(filePath: string, basePath: string): Promise<ParsedContent> {
   try {
-    const relativePath = path.relative(basePath, filePath);
-    const stats = fs.statSync(filePath);
+    const relativePath = relative(basePath, filePath);
+    const stats = statSync(filePath);
     
     // Show progress for large PowerPoint files (> 5MB)
     if (stats.size > 5 * 1024 * 1024) {
@@ -311,7 +320,7 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
     }
     
     // Read PowerPoint file as buffer
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = readFileSync(filePath);
     
     // Load as ZIP archive
     const zip = await JSZip.loadAsync(fileBuffer);
@@ -487,11 +496,11 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
       error.message.includes('ZIP') ||
       error.message.includes('End of central directory')
     )) {
-      console.warn(`    Warning: Skipping protected or corrupted PowerPoint file: ${path.relative(basePath, filePath)}`);
+      console.warn(`    Warning: Skipping protected or corrupted PowerPoint file: ${relative(basePath, filePath)}`);
       return {
         content: '',
         type: 'powerpoint',
-        originalPath: path.relative(basePath, filePath),
+        originalPath: relative(basePath, filePath),
         metadata: {
           error: 'protected_or_corrupted',
           errorMessage: 'PowerPoint file is password-protected, encrypted, or corrupted',

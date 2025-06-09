@@ -1,18 +1,18 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import { FileFingerprint } from '../types';
+import { readFileSync, statSync } from 'fs';
+import { relative } from 'path';
+import { createHash } from 'crypto';
+import { FileFingerprint } from '../types/index.js';
 
 export function generateFileHash(filePath: string): string {
-  const fileBuffer = fs.readFileSync(filePath);
-  const hashSum = crypto.createHash('sha256');
+  const fileBuffer = readFileSync(filePath);
+  const hashSum = createHash('sha256');
   hashSum.update(fileBuffer);
   return hashSum.digest('hex');
 }
 
 export function createFileFingerprint(filePath: string, basePath: string): FileFingerprint {
-  const stats = fs.statSync(filePath);
-  const relativePath = path.relative(basePath, filePath);
+  const stats = statSync(filePath);
+  const relativePath = relative(basePath, filePath);
   const hash = generateFileHash(filePath);
   
   return {
@@ -34,7 +34,7 @@ export async function generateFingerprints(files: string[], basePath: string): P
       fingerprints.push(fingerprint);
       console.log(`  ${i + 1}/${files.length}: ${fingerprint.path}`);
     } catch (error) {
-      console.warn(`  Warning: Could not fingerprint ${path.relative(basePath, file)}: ${error}`);
+      console.warn(`  Warning: Could not fingerprint ${relative(basePath, file)}: ${error}`);
     }
   }
   

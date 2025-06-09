@@ -7,8 +7,9 @@ import {
   ListToolsRequestSchema,
   ToolSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname, extname, resolve, relative } from 'path';
+import { fileURLToPath } from 'url';
 import { glob } from 'glob';
 
 // Server info
@@ -27,7 +28,7 @@ const server = new Server(
 // Helper function to get file content
 function getFileContent(filePath: string): string {
   try {
-    return fs.readFileSync(filePath, 'utf8');
+    return readFileSync(filePath, 'utf8');
   } catch (error) {
     return `Error reading file: ${error}`;
   }
@@ -36,7 +37,7 @@ function getFileContent(filePath: string): string {
 // Helper function to search files by pattern
 async function searchFiles(folderPath: string, pattern: string = '*'): Promise<string[]> {
   try {
-    const searchPattern = path.join(folderPath, '**', pattern);
+    const searchPattern = join(folderPath, '**', pattern);
     const files = await glob(searchPattern, { 
       ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp-cache/**'],
       nodir: true 
@@ -50,9 +51,9 @@ async function searchFiles(folderPath: string, pattern: string = '*'): Promise<s
 // Helper function to read metadata
 function getMetadata(folderPath: string): any {
   try {
-    const metadataPath = path.join(folderPath, '.folder-mcp-cache', 'metadata', 'index.json');
-    if (fs.existsSync(metadataPath)) {
-      return JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+    const metadataPath = join(folderPath, '.folder-mcp-cache', 'metadata', 'index.json');
+    if (existsSync(metadataPath)) {
+      return JSON.parse(readFileSync(metadataPath, 'utf8'));
     }
   } catch (error) {
     // Ignore errors
@@ -141,10 +142,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case 'read_file': {
         const { folder_path, file_path } = args as { folder_path: string; file_path: string };
-        const fullPath = path.resolve(folder_path, file_path);
+        const fullPath = resolve(folder_path, file_path);
         
         // Security check: ensure the file is within the folder
-        const relativePath = path.relative(folder_path, fullPath);
+        const relativePath = relative(folder_path, fullPath);
         if (relativePath.startsWith('..')) {
           throw new Error('Access denied: File is outside the indexed folder');
         }
@@ -163,7 +164,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'search_files': {
         const { folder_path, pattern = '*' } = args as { folder_path: string; pattern?: string };
         const files = await searchFiles(folder_path, pattern);
-        const relativeFiles = files.map(f => path.relative(folder_path, f));
+        const relativeFiles = files.map(f => relative(folder_path, f));
         
         return {
           content: [
@@ -178,7 +179,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'list_files': {
         const { folder_path } = args as { folder_path: string };
         const files = await searchFiles(folder_path, '*');
-        const relativeFiles = files.map(f => path.relative(folder_path, f));
+        const relativeFiles = files.map(f => relative(folder_path, f));
         
         return {
           content: [
@@ -240,7 +241,7 @@ async function main() {
   console.error('Folder MCP Server running on stdio');
 }
 
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === fileURLToPath(`file://${process.argv[1]}`)) {
   main().catch((error) => {
     console.error('Server error:', error);
     process.exit(1);

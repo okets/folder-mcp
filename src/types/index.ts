@@ -47,3 +47,30 @@ export interface ChunkedContent {
   chunks: TextChunk[];
   totalChunks: number;
 }
+
+export interface EmbeddingVector {
+  vector: number[];
+  dimensions: number;
+  model: string;
+  createdAt: string;
+}
+
+export interface EmbeddingResult {
+  chunkId: string;
+  sourceFile: string;
+  chunkIndex: number;
+  embedding: EmbeddingVector;
+  metadata: {
+    content: string;
+    tokenCount: number;
+    sourceType: string;
+  };
+}
+
+export interface EmbeddingModelConfig {
+  modelName: string;
+  dimensions: number;
+  cacheDir: string;
+  maxRetries: number;
+  batchSize: number;
+}
