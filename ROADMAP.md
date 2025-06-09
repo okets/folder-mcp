@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 20/30 - MCP Server Scaffold ⚡
+**Current Status**: Step 21/30 - Search Tool Implementation ⚡
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -108,8 +108,8 @@ folder-mcp/
 - ✅ **Step 19**: Search CLI Command
 
 ### Phase 5: MCP Integration (Steps 20-22) ⚡ IN PROGRESS
-- ⚡ **Step 20**: MCP Server Scaffold (CURRENT)
-- 📋 **Step 21**: Search Tool Implementation
+- ✅ **Step 20**: MCP Server Scaffold (COMPLETED)
+- ⚡ **Step 21**: Search Tool Implementation (CURRENT)
 - 📋 **Step 22**: Context Enhancement
 
 ### Phase 6: Real-time & Configuration (Steps 23-24) 📋 PLANNED
@@ -353,14 +353,21 @@ folder-mcp/
 
 ### Phase 5: MCP Integration
 
-#### Step 20: MCP Server Scaffold
+#### ✅ COMPLETED: Step 20 - MCP Server Scaffold
 **Task**: Create basic MCP server  
 **Success Criteria**:
-- Server starts with `folder-mcp serve <folder>`
-- Listens on default port 3000 (configurable)
-- Implements MCP handshake protocol
-- Logs client connections
-- Graceful shutdown on Ctrl+C
+- ✅ Server starts with `folder-mcp serve <folder>`
+- ✅ Listens on default port 3000 (configurable)
+- ✅ Implements MCP handshake protocol
+- ✅ Logs client connections
+- ✅ Graceful shutdown on Ctrl+C
+
+**Implementation**: `src/mcp/server.ts`, `src/cli/commands.ts`
+- MCP server class with stdio transport support
+- Basic file operations (read_file, search_files, list_files, get_folder_info)
+- Command-line interface with configurable port and transport options
+- Security features preventing access outside served folder
+- Graceful shutdown handling with SIGINT/SIGTERM
 
 #### Step 21: Search Tool Implementation
 **Task**: Add search_knowledge tool to MCP  

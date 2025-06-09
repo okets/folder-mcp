@@ -48,10 +48,13 @@ export function setupCommands(program: Command, packageJson: any): void {
       // Lazy load processing modules to avoid pdf-parse issues
       const { showChunkingSummary } = await import('../processing/indexing.js');
       await showChunkingSummary(folder);
-    });  program
+    });  
+
+  program
     .command('build-index')
     .description('Build vector search index from existing embeddings')
-    .argument('<folder>', 'Path to the indexed folder')    .action(async (folder: string) => {
+    .argument('<folder>', 'Path to the indexed folder')    
+    .action(async (folder: string) => {
       // Lazy load search modules
       const { buildVectorIndexCLI } = await import('../search/cli.js');
       await buildVectorIndexCLI(folder);
@@ -63,7 +66,8 @@ export function setupCommands(program: Command, packageJson: any): void {
     .argument('<folder>', 'Path to the indexed folder')
     .argument('<query>', 'Search query text')
     .option('-k, --results <number>', 'Number of results to return (default: 5)', '5')
-    .option('--rebuild-index', 'Rebuild the vector index before searching')    .action(async (folder: string, query: string, options: { results?: string; rebuildIndex?: boolean }) => {
+    .option('--rebuild-index', 'Rebuild the vector index before searching')    
+    .action(async (folder: string, query: string, options: { results?: string; rebuildIndex?: boolean }) => {
       // Lazy load search modules
       const { searchVectorIndex } = await import('../search/cli.js');
       const k = options.results ? parseInt(options.results, 10) : 5;
@@ -89,6 +93,48 @@ export function setupCommands(program: Command, packageJson: any): void {
         process.exit(0);
       } catch (error) {
         console.error('❌ Embedding system test failed:', error);
+        process.exit(1);
+      }
+    });
+
+  program
+    .command('serve')
+    .description('Start MCP server to serve folder content to LLM clients')
+    .argument('<folder>', 'Path to the folder to serve')
+    .option('-p, --port <port>', 'Port number to listen on (default: 3000)', '3000')
+    .option('-t, --transport <type>', 'Transport type: stdio or http (default: stdio)', 'stdio')
+    .action(async (folder: string, options: { port?: string; transport?: string }) => {
+      // Lazy load MCP server
+      const { startMCPServer } = await import('../mcp/server.js');
+      
+      const port = options.port ? parseInt(options.port, 10) : 3000;
+      if (isNaN(port) || port < 1 || port > 65535) {
+        console.error('❌ Port must be a valid number between 1 and 65535');
+        process.exit(1);
+      }
+
+      const transport = options.transport as 'stdio' | 'http';
+      if (transport !== 'stdio' && transport !== 'http') {
+        console.error('❌ Transport must be either "stdio" or "http"');
+        process.exit(1);
+      }
+
+      console.log(`🚀 Starting Folder MCP Server...`);
+      console.log(`   📁 Folder: ${folder}`);
+      console.log(`   🌐 Transport: ${transport}`);
+      if (transport === 'http') {
+        console.log(`   🔌 Port: ${port}`);
+      }
+      console.log(`   ⏹️  Press Ctrl+C to stop\n`);
+
+      try {
+        await startMCPServer({
+          folderPath: folder,
+          port,
+          transport,
+        });
+      } catch (error) {
+        console.error('❌ Failed to start MCP server:', error);
         process.exit(1);
       }
     });
