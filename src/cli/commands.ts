@@ -48,6 +48,35 @@ export function setupCommands(program: Command, packageJson: any): void {
       // Lazy load processing modules to avoid pdf-parse issues
       const { showChunkingSummary } = await import('../processing/indexing.js');
       await showChunkingSummary(folder);
+    });  program
+    .command('build-index')
+    .description('Build vector search index from existing embeddings')
+    .argument('<folder>', 'Path to the indexed folder')    .action(async (folder: string) => {
+      // Lazy load search modules
+      const { buildVectorIndexCLI } = await import('../search/cli.js');
+      await buildVectorIndexCLI(folder);
+    });
+
+  program
+    .command('search')
+    .description('Search for similar content using vector similarity')
+    .argument('<folder>', 'Path to the indexed folder')
+    .argument('<query>', 'Search query text')
+    .option('-k, --results <number>', 'Number of results to return (default: 5)', '5')
+    .option('--rebuild-index', 'Rebuild the vector index before searching')    .action(async (folder: string, query: string, options: { results?: string; rebuildIndex?: boolean }) => {
+      // Lazy load search modules
+      const { searchVectorIndex } = await import('../search/cli.js');
+      const k = options.results ? parseInt(options.results, 10) : 5;
+      
+      if (isNaN(k) || k < 1) {
+        console.error('❌ Number of results must be a positive number');
+        process.exit(1);
+      }
+      
+      await searchVectorIndex(folder, query, {
+        k,
+        rebuildIndex: options.rebuildIndex
+      });
     });
 
   program

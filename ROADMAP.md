@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 17/30 - FAISS Vector Index ⚡
+**Current Status**: Step 20/30 - MCP Server Scaffold ⚡
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -102,13 +102,13 @@ folder-mcp/
 - ✅ **Step 15.1**: GPU-Enabled Embedding Model
 - ✅ **Step 16**: Batch Embedding Generation
 
-### Phase 4: Vector Search (Steps 17-19) ⚡ IN PROGRESS
-- ⚡ **Step 17**: FAISS Vector Index (CURRENT)
-- 📋 **Step 18**: Similarity Search Function
-- 📋 **Step 19**: Search CLI Command
+### Phase 4: Vector Search (Steps 17-19) ✅ COMPLETED
+- ✅ **Step 17**: FAISS Vector Index
+- ✅ **Step 18**: Similarity Search Function
+- ✅ **Step 19**: Search CLI Command
 
-### Phase 5: MCP Integration (Steps 20-22) 📋 PLANNED
-- 📋 **Step 20**: MCP Server Scaffold
+### Phase 5: MCP Integration (Steps 20-22) ⚡ IN PROGRESS
+- ⚡ **Step 20**: MCP Server Scaffold (CURRENT)
 - 📋 **Step 21**: Search Tool Implementation
 - 📋 **Step 22**: Context Enhancement
 
@@ -303,32 +303,53 @@ folder-mcp/
 
 ### Phase 4: Vector Search
 
-#### Step 17: FAISS Vector Index
+#### ✅ COMPLETED: Step 17 - FAISS Vector Index
 **Task**: Create searchable vector index  
 **Success Criteria**:
-- Initializes FAISS index with correct dimensions (768)
-- Adds all embeddings with numeric IDs
-- Saves index to .folder-mcp-cache/vectors/index.faiss
-- Saves ID mappings to mappings.json
-- Can load and search existing index
+- ✅ Initializes FAISS index with correct dimensions (768)
+- ✅ Adds all embeddings with numeric IDs
+- ✅ Saves index to .folder-mcp-cache/vectors/index.faiss (binary format)
+- ✅ Saves ID mappings to mappings.json
+- ✅ Can load and search existing index with faiss.IndexFlatIP.read()
 
-#### Step 18: Similarity Search Function
+**Implementation**: `src/search/index.ts`
+- VectorIndex class with FAISS IndexFlatIP backend
+- Binary index persistence with `.faiss` format for fast loading
+- ID mapping system linking vector indices to chunk metadata
+- Automatic vector dimension detection and validation
+- Graceful fallback from binary to JSON vectors when needed
+
+#### ✅ COMPLETED: Step 18 - Similarity Search Function
 **Task**: Implement vector similarity search  
 **Success Criteria**:
-- Embeds query string
-- Returns top-K most similar chunks
-- Includes similarity scores (0-1 range)
-- Retrieves full chunk metadata
-- Handles empty index gracefully
+- ✅ Embeds query string with GPU-accelerated model
+- ✅ Returns top-K most similar chunks
+- ✅ Includes similarity scores (0-1 range with normalization)
+- ✅ Retrieves full chunk metadata
+- ✅ Handles empty index gracefully
 
-#### Step 19: Search CLI Command
+**Implementation**: `src/search/index.ts`
+- Inner product similarity search with FAISS IndexFlatIP
+- Query embedding generation using GPU-accelerated Ollama/CPU fallback
+- Score normalization from raw FAISS scores to 0-1 range
+- Automatic k adjustment when k > available vectors
+- Full chunk metadata retrieval with source file and line information
+
+#### ✅ COMPLETED: Step 19 - Search CLI Command
 **Task**: Add local search command  
 **Success Criteria**:
-- `folder-mcp search <folder> <query>` works
-- Shows top 5 results with snippets
-- Displays source file and location
-- Highlights why each result matched
-- Works without starting server
+- ✅ `folder-mcp search <folder> <query>` works
+- ✅ Shows configurable results with -k parameter
+- ✅ Displays source file and location with line ranges
+- ✅ Shows content snippets with similarity scores
+- ✅ Works without starting server
+
+**Implementation**: `src/search/cli.ts`, `src/cli/commands.ts`
+- Interactive search command with progress feedback
+- Automatic index building when not present
+- Configurable result count with `-k` parameter
+- Rich result display showing scores, file paths, and content previews
+- Error handling for unindexed folders with helpful guidance
 
 ### Phase 5: MCP Integration
 
