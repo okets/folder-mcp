@@ -205,7 +205,7 @@ The server uses glob patterns for file searching:
 Automatically excluded from all operations:
 - `**/node_modules/**`
 - `**/.git/**`
-- `**/.folder-mcp-cache/**`
+- `**/.folder-mcp/**`
 
 ## Development
 

@@ -166,7 +166,7 @@ Popular frameworks include React, Vue.js for frontend, and Node.js, Python Djang
             });
             
             // Check if vector index files are created
-            const vectorsDir = join(testDataDir, '.folder-mcp-cache', 'vectors');
+            const vectorsDir = join(testDataDir, '.folder-mcp', 'vectors');
             return existsSync(vectorsDir);
           } catch {
             return false;
@@ -176,7 +176,7 @@ Popular frameworks include React, Vue.js for frontend, and Node.js, Python Djang
       {
         name: 'Creates FAISS index file (binary format)',
         test: () => {
-          const vectorsDir = join(testDataDir, '.folder-mcp-cache', 'vectors');
+          const vectorsDir = join(testDataDir, '.folder-mcp', 'vectors');
           if (!existsSync(vectorsDir)) return false;
           
           const files = readdirSync(vectorsDir);
@@ -186,7 +186,7 @@ Popular frameworks include React, Vue.js for frontend, and Node.js, Python Djang
       {
         name: 'Creates ID mappings file',
         test: () => {
-          const vectorsDir = join(testDataDir, '.folder-mcp-cache', 'vectors');
+          const vectorsDir = join(testDataDir, '.folder-mcp', 'vectors');
           if (!existsSync(vectorsDir)) return false;
           
           const files = readdirSync(vectorsDir);
@@ -198,7 +198,7 @@ Popular frameworks include React, Vue.js for frontend, and Node.js, Python Djang
         test: () => {
           try {
             // Check if we can load and inspect the index
-            const vectorsDir = join(testDataDir, '.folder-mcp-cache', 'vectors');
+            const vectorsDir = join(testDataDir, '.folder-mcp', 'vectors');
             if (!existsSync(vectorsDir)) return false;
             
             // Look for dimension information in metadata or config

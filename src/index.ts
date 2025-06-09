@@ -39,7 +39,7 @@ async function searchFiles(folderPath: string, pattern: string = '*'): Promise<s
   try {
     const searchPattern = join(folderPath, '**', pattern);
     const files = await glob(searchPattern, { 
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp-cache/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
       nodir: true 
     });
     return files;
@@ -51,7 +51,7 @@ async function searchFiles(folderPath: string, pattern: string = '*'): Promise<s
 // Helper function to read metadata
 function getMetadata(folderPath: string): any {
   try {
-    const metadataPath = join(folderPath, '.folder-mcp-cache', 'metadata', 'index.json');
+    const metadataPath = join(folderPath, '.folder-mcp', 'metadata', 'index.json');
     if (existsSync(metadataPath)) {
       return JSON.parse(readFileSync(metadataPath, 'utf8'));
     }

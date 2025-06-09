@@ -106,7 +106,7 @@ class Phase2Tester {
             });
             
             // Check if metadata was created
-            const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+            const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
             if (!existsSync(metadataDir)) return false;
             
             // Look for any metadata file
@@ -133,7 +133,7 @@ class Phase2Tester {
         name: 'Parses .md files with content',
         test: () => {
           try {
-            const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+            const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
             if (!existsSync(metadataDir)) return false;
             
             const files = readdirSync(metadataDir);
@@ -156,7 +156,7 @@ class Phase2Tester {
         name: 'Handles UTF-8 encoding correctly',
         test: () => {
           try {
-            const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+            const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
             if (!existsSync(metadataDir)) return false;
             
             const files = readdirSync(metadataDir);
@@ -181,7 +181,7 @@ class Phase2Tester {
         name: 'Creates proper metadata structure',
         test: () => {
           try {
-            const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+            const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
             if (!existsSync(metadataDir)) return false;
             
             const files = readdirSync(metadataDir);

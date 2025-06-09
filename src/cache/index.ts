@@ -4,7 +4,7 @@ import { FileFingerprint, CacheIndex, CacheStatus } from '../types/index.js';
 
 export async function setupCacheDirectory(folderPath: string, packageJson: any): Promise<void> {
   try {
-    const cacheDir = join(folderPath, '.folder-mcp-cache');
+    const cacheDir = join(folderPath, '.folder-mcp');
     
     console.log('Setting up cache directory...');
     

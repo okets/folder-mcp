@@ -14,7 +14,7 @@ export async function searchVectorIndex(folderPath: string, query: string, optio
 
   try {
     // Check if folder is indexed
-    const cacheDir = path.join(folderPath, '.folder-mcp-cache');
+    const cacheDir = path.join(folderPath, '.folder-mcp');
     const embeddingsDir = path.join(cacheDir, 'embeddings');
 
     // Try to access embeddings directory
@@ -93,7 +93,7 @@ export async function buildVectorIndexCLI(folderPath: string): Promise<void> {
   console.log(`🔧 Building vector index for: ${folderPath}\n`);
 
   try {
-    const cacheDir = path.join(folderPath, '.folder-mcp-cache');
+    const cacheDir = path.join(folderPath, '.folder-mcp');
     const embeddingsDir = path.join(cacheDir, 'embeddings');
 
     // Check if embeddings exist

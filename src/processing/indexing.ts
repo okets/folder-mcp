@@ -292,17 +292,14 @@ export async function indexFolder(
     const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
     
     // Find all files recursively
-    const pattern = join(resolvedPath, '**', '*').replace(/\\/g, '/');
-    const allFiles = await glob(pattern, { 
+    const pattern = join(resolvedPath, '**', '*').replace(/\\/g, '/');    const allFiles = await glob(pattern, { 
       nodir: true,  // Only files, not directories
       dot: false,   // Ignore hidden files
-      ignore: ['**/.folder-mcp-cache/**']  // Exclude our cache directory
-    });
-
-    // Additional filter to ensure no cache files slip through
+      ignore: ['**/.folder-mcp/**']  // Exclude our cache directory
+    });    // Additional filter to ensure no cache files slip through
     const filteredFiles = allFiles.filter(file => {
       const relativePath = relative(resolvedPath, file);
-      return !relativePath.includes('.folder-mcp-cache');
+      return !relativePath.includes('.folder-mcp');
     });
 
     // Filter by supported extensions (case-insensitive)
@@ -348,10 +345,8 @@ export async function indexFolder(
 
     // Setup cache directory
     await setupCacheDirectory(resolvedPath, packageJson);
-    console.log('');
-
-    // Load previous index for comparison
-    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
+    console.log('');    // Load previous index for comparison
+    const cacheDir = join(resolvedPath, '.folder-mcp');
     const previousIndex = loadPreviousIndex(cacheDir);
     
     // Generate fingerprints for all supported files
@@ -414,7 +409,7 @@ export async function indexFolder(
 export async function showChunkingSummary(folderPath: string): Promise<void> {
   try {
     const resolvedPath = resolve(folderPath);
-    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
+    const cacheDir = join(resolvedPath, '.folder-mcp');
     const metadataDir = join(cacheDir, 'metadata');
     
     if (!existsSync(metadataDir)) {
@@ -493,10 +488,9 @@ export async function showChunkingSummary(folderPath: string): Promise<void> {
 export async function generateEmbeddings(
   folderPath: string, 
   options: { batchSize?: number; force?: boolean } = {}
-): Promise<void> {
-  try {
+): Promise<void> {  try {
     const resolvedPath = resolve(folderPath);
-    const cacheDir = join(resolvedPath, '.folder-mcp-cache');
+    const cacheDir = join(resolvedPath, '.folder-mcp');
     
     if (!existsSync(cacheDir)) {
       console.error(`❌ No cache found in "${folderPath}". Run 'folder-mcp index "${folderPath}"' first.`);

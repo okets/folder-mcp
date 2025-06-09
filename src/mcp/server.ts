@@ -254,7 +254,7 @@ export class FolderMCPServer {
   private async handleSearchFiles(pattern: string = '*') {
     const searchPattern = join(this.folderPath, '**', pattern);
     const files = await glob(searchPattern, {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp-cache/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
       nodir: true,
     });
 
@@ -272,7 +272,7 @@ export class FolderMCPServer {
 
   private async handleListFiles() {
     const files = await glob(join(this.folderPath, '**', '*'), {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp-cache/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
       nodir: true,
     });
 
@@ -302,7 +302,7 @@ export class FolderMCPServer {
 
   private async handleGetFolderInfo() {
     const files = await glob(join(this.folderPath, '**', '*'), {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp-cache/**'],
+      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
       nodir: true,
     });
 
@@ -340,7 +340,7 @@ export class FolderMCPServer {
 
     try {
       // Check if folder is indexed
-      const cacheDir = join(this.folderPath, '.folder-mcp-cache');
+      const cacheDir = join(this.folderPath, '.folder-mcp');
       const embeddingsDir = join(cacheDir, 'embeddings');
 
       if (!existsSync(embeddingsDir)) {
@@ -434,7 +434,7 @@ export class FolderMCPServer {
 
     try {
       // Check if folder is indexed
-      const cacheDir = join(this.folderPath, '.folder-mcp-cache');
+      const cacheDir = join(this.folderPath, '.folder-mcp');
       const embeddingsDir = join(cacheDir, 'embeddings');
 
       if (!existsSync(embeddingsDir)) {
@@ -574,7 +574,7 @@ export class FolderMCPServer {
 
   private getMetadata(): any {
     try {
-      const metadataPath = join(this.folderPath, '.folder-mcp-cache', 'metadata', 'index.json');
+      const metadataPath = join(this.folderPath, '.folder-mcp', 'metadata', 'index.json');
       if (existsSync(metadataPath)) {
         return JSON.parse(readFileSync(metadataPath, 'utf8'));
       }

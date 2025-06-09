@@ -348,7 +348,7 @@ class Phase1Tester {
     
     const tests = [
       {
-        name: 'Creates .folder-mcp-cache directory',
+        name: 'Creates .folder-mcp directory',
         test: () => {
           try {
             execSync(`node dist/cli.js index "${testDataDir}" --skip-embeddings`, { 
@@ -356,7 +356,7 @@ class Phase1Tester {
               stdio: 'pipe',
               timeout: 30000
             });
-            return existsSync(join(testDataDir, '.folder-mcp-cache'));
+            return existsSync(join(testDataDir, '.folder-mcp'));
           } catch {
             return false;
           }
@@ -365,7 +365,7 @@ class Phase1Tester {
       {
         name: 'Creates subdirectories: embeddings, metadata, vectors',
         test: () => {
-          const cacheDir = join(testDataDir, '.folder-mcp-cache');
+          const cacheDir = join(testDataDir, '.folder-mcp');
           return existsSync(join(cacheDir, 'embeddings')) &&
                  existsSync(join(cacheDir, 'metadata')) &&
                  existsSync(join(cacheDir, 'vectors'));
@@ -374,7 +374,7 @@ class Phase1Tester {
       {
         name: 'Creates version.json with tool version',
         test: () => {
-          const versionPath = join(testDataDir, '.folder-mcp-cache', 'version.json');
+          const versionPath = join(testDataDir, '.folder-mcp', 'version.json');
           if (!existsSync(versionPath)) return false;
           try {
             const version = JSON.parse(readFileSync(versionPath, 'utf8'));
@@ -396,7 +396,7 @@ class Phase1Tester {
       {
         name: 'Generates SHA-256 hash for files',
         test: () => {
-          const indexPath = join(testDataDir, '.folder-mcp-cache', 'index.json');
+          const indexPath = join(testDataDir, '.folder-mcp', 'index.json');
           if (!existsSync(indexPath)) return false;
           try {
             const index = JSON.parse(readFileSync(indexPath, 'utf8'));
@@ -414,7 +414,7 @@ class Phase1Tester {
       {
         name: 'Creates fingerprint with hash, path, size, modified',
         test: () => {
-          const indexPath = join(testDataDir, '.folder-mcp-cache', 'index.json');
+          const indexPath = join(testDataDir, '.folder-mcp', 'index.json');
           if (!existsSync(indexPath)) return false;
           try {
             const index = JSON.parse(readFileSync(indexPath, 'utf8'));
@@ -433,7 +433,7 @@ class Phase1Tester {
       {
         name: 'Saves fingerprints to index.json',
         test: () => {
-          return existsSync(join(testDataDir, '.folder-mcp-cache', 'index.json'));
+          return existsSync(join(testDataDir, '.folder-mcp', 'index.json'));
         }
       }
     ];

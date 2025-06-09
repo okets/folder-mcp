@@ -152,7 +152,7 @@ class Phase6Tester {
       writeFileSync(newFile, newContent);
       
       // Check if folder structure supports detection
-      const cacheDir = join(watchDir, '.folder-mcp-cache');
+      const cacheDir = join(watchDir, '.folder-mcp');
       if (!existsSync(cacheDir)) {
         return { detected: false, error: 'Cache directory not found' };
       }

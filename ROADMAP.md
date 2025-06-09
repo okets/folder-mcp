@@ -19,7 +19,7 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - Structure preservation (slides, tables, sections - not just raw text)
 - Smart chunking by meaning, not arbitrary sizes
 - Rich metadata tracking for precise retrieval
-- Smart caching system - embeddings stored in .folder-mcp-cache
+- Smart caching system - embeddings stored in .folder-mcp
 - Incremental updates - only processes changed files
 
 ## Tech Stack
@@ -174,7 +174,7 @@ folder-mcp/
 ### ✅ COMPLETED: Step 6 - Cache Directory Setup
 **Task**: Create and validate cache structure  
 **Success Criteria**:
-- ✅ Creates .folder-mcp-cache in target folder
+- ✅ Creates .folder-mcp in target folder
 - ✅ Creates subdirectories: embeddings/, metadata/, vectors/
 - ✅ Creates version.json with tool version and timestamp
 - ✅ Handles permission errors with clear message
@@ -184,7 +184,7 @@ folder-mcp/
 **Success Criteria**:
 - ✅ Generates SHA-256 hash for each file's content
 - ✅ Creates fingerprint object: {hash, path, size, modified}
-- ✅ Saves fingerprints to .folder-mcp-cache/index.json
+- ✅ Saves fingerprints to .folder-mcp/index.json
 - ✅ Pretty-prints JSON for debugging
 
 ### ✅ COMPLETED: Step 8 - Cache Status Detection
@@ -201,7 +201,7 @@ folder-mcp/
 **Success Criteria**:
 - ✅ Reads files with UTF-8 encoding
 - ✅ Handles different line endings (CRLF/LF)
-- ✅ Stores in .folder-mcp-cache/metadata/[hash].json
+- ✅ Stores in .folder-mcp/metadata/[hash].json
 - ✅ Metadata includes: content, type, originalPath
 - ✅ Processes 10MB file without memory issues
 
@@ -289,7 +289,7 @@ folder-mcp/
 **Success Criteria**:
 - ✅ Processes chunks in batches of 32
 - ✅ Shows progress bar with ETA
-- ✅ Saves embeddings to .folder-mcp-cache/embeddings/[hash].json
+- ✅ Saves embeddings to .folder-mcp/embeddings/[hash].json
 - ✅ Only processes new/modified files
 - ✅ Handles interruption gracefully (resume capable)
 
@@ -308,7 +308,7 @@ folder-mcp/
 **Success Criteria**:
 - ✅ Initializes FAISS index with correct dimensions (768)
 - ✅ Adds all embeddings with numeric IDs
-- ✅ Saves index to .folder-mcp-cache/vectors/index.faiss (binary format)
+- ✅ Saves index to .folder-mcp/vectors/index.faiss (binary format)
 - ✅ Saves ID mappings to mappings.json
 - ✅ Can load and search existing index with faiss.IndexFlatIP.read()
 
@@ -434,8 +434,13 @@ folder-mcp/
 
 #### Step 24: Configuration System
 **Task**: Add configuration file support  
+- Local configuration file will be set automatically with the default parameters.
+- cli parameters will override the default values.
+- if we display a prompt for the user with a choice, it should be saved in the local config file.
+- the local config file is the only source of truth for this folder.
+- the global config.yaml should contain the defaults.
 **Success Criteria**:
-- Loads .folder-mcp.json from folder
+- Loads .folder-mcp.yaml from .folder-mcp folder
 - Configurable: chunk_size, overlap, model_name
 - Configurable: file_extensions, ignore_patterns
 - CLI args override config file
@@ -447,7 +452,7 @@ folder-mcp/
 **Task**: Comprehensive error handling  
 **Success Criteria**:
 - Continues indexing after single file failure
-- Logs errors to .folder-mcp-cache/errors.log
+- Logs errors to .folder-mcp/errors.log
 - Retries failed embeddings (3 attempts)
 - Shows clear error summaries
 - Never leaves cache in corrupted state

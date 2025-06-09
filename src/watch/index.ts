@@ -32,10 +32,9 @@ export class FolderWatcher {
   private debounceTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private packageJson: any;
-
   constructor(folderPath: string, packageJson: any, options: FileWatcherOptions = {}) {
     this.folderPath = resolve(folderPath);
-    this.cacheDir = join(this.folderPath, '.folder-mcp-cache');
+    this.cacheDir = join(this.folderPath, '.folder-mcp');
     this.debounceDelay = options.debounceDelay || 1000; // 1 second default
     this.batchSize = options.batchSize || 32;
     this.logLevel = options.logLevel || 'normal';
@@ -56,14 +55,12 @@ export class FolderWatcher {
     this.log(`📁 Watching folder: ${this.folderPath}`, 'normal');
     this.log(`⏱️  Debounce delay: ${this.debounceDelay}ms`, 'verbose');
     this.log(`📦 Batch size: ${this.batchSize}`, 'verbose');
-    this.log('', 'normal');
-
-    // Initialize chokidar watcher
+    this.log('', 'normal');    // Initialize chokidar watcher
     this.watcher = watch(this.folderPath, {
       ignored: [
         '**/node_modules/**',
         '**/.git/**',
-        '**/.folder-mcp-cache/**',
+        '**/.folder-mcp/**',
         '**/.*' // Ignore hidden files
       ],
       ignoreInitial: true, // Don't emit events for existing files

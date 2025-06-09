@@ -218,7 +218,7 @@ Following these guidelines will help ensure that your software systems are robus
             });
             
             // Check if metadata files contain chunked content
-            const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+            const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
             if (!existsSync(metadataDir)) return false;
             
             const metadataFiles = readdirSync(metadataDir);
@@ -235,7 +235,7 @@ Following these guidelines will help ensure that your software systems are robus
       {
         name: 'Creates chunks between 200-500 tokens',
         test: async () => {
-          const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+          const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
           if (!existsSync(metadataDir)) return false;
           
           const metadataFiles = readdirSync(metadataDir);
@@ -258,7 +258,7 @@ Following these guidelines will help ensure that your software systems are robus
       {
         name: 'Preserves metadata (source, position, type)',
         test: async () => {
-          const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+          const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
           if (!existsSync(metadataDir)) return false;
           
           const metadataFiles = readdirSync(metadataDir);
@@ -277,7 +277,7 @@ Following these guidelines will help ensure that your software systems are robus
       {
         name: 'Never splits mid-sentence',
         test: async () => {
-          const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+          const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
           if (!existsSync(metadataDir)) return false;
           
           const metadataFiles = readdirSync(metadataDir);
@@ -302,7 +302,7 @@ Following these guidelines will help ensure that your software systems are robus
         name: 'Handles various document types',
         test: async () => {
           // Check that both .txt and .md files were processed
-          const metadataDir = join(testDataDir, '.folder-mcp-cache', 'metadata');
+          const metadataDir = join(testDataDir, '.folder-mcp', 'metadata');
           if (!existsSync(metadataDir)) return false;
           
           const metadataFiles = readdirSync(metadataDir);
@@ -453,7 +453,7 @@ Following these guidelines will help ensure that your software systems are robus
             });
             
             // Check if embeddings directory exists and contains files
-            const embeddingsDir = join(testDataDir, '.folder-mcp-cache', 'embeddings');
+            const embeddingsDir = join(testDataDir, '.folder-mcp', 'embeddings');
             if (!existsSync(embeddingsDir)) return false;
             
             const embeddingFiles = readdirSync(embeddingsDir);
@@ -468,7 +468,7 @@ Following these guidelines will help ensure that your software systems are robus
         test: async () => {
           try {
             // Clear cache to force re-processing
-            const cacheDir = join(testDataDir, '.folder-mcp-cache');
+            const cacheDir = join(testDataDir, '.folder-mcp');
             if (existsSync(cacheDir)) {
               rmSync(cacheDir, { recursive: true });
             }
@@ -492,7 +492,7 @@ Following these guidelines will help ensure that your software systems are robus
       {
         name: 'Saves embeddings to cache directory',
         test: () => {
-          const embeddingsDir = join(testDataDir, '.folder-mcp-cache', 'embeddings');
+          const embeddingsDir = join(testDataDir, '.folder-mcp', 'embeddings');
           if (!existsSync(embeddingsDir)) return false;
           
           const embeddingFiles = readdirSync(embeddingsDir);
