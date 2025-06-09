@@ -26,7 +26,7 @@ This directory contains comprehensive tests for the folder-mcp project, organize
 | `test-phase2-parsing.js` | File parsing tests | Text, PDF, Word, Excel, PowerPoint parsers |
 | `test-phase3-processing.js` | Processing & embeddings tests | Text chunking, embedding generation |
 | `test-phase4-search.js` | Vector search tests | FAISS indexing, similarity search |
-| `test-phase5-mcp.js` | MCP integration tests | Model Context Protocol server |
+| `test-phase5-mcp.js` | MCP integration tests | Model Context Protocol server, enhanced search |
 | `run-all-tests.js` | Test runner | Executes all phases sequentially |
 
 ## 🚀 Running Tests

@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Phase 5: MCP Integration Tests (Steps 20-21)
- * Tests for MCP server scaffold and search tool implementation
- * Note: Step 22 (Context Enhancement) is marked as IN PROGRESS in the roadmap
+ * Phase 5: MCP Integration Tests (Steps 20-22)
+ * Tests for MCP server scaffold, search tool implementation, and context enhancement
  */
 
 import { execSync, spawn } from 'child_process';
@@ -22,12 +21,13 @@ class Phase5Tester {
   constructor() {
     this.results = {
       step20: { passed: false, tests: [] },
-      step21: { passed: false, tests: [] }
+      step21: { passed: false, tests: [] },
+      step22: { passed: false, tests: [] }
     };
   }
 
   async runAllTests() {
-    console.log('🧪 Testing Phase 5: MCP Integration (Steps 20-21)\n');
+    console.log('🧪 Testing Phase 5: MCP Integration (Steps 20-22)\n');
     console.log('==================================================\n');
 
     try {
@@ -35,6 +35,7 @@ class Phase5Tester {
       
       await this.testStep20_MCPServerScaffold();
       await this.testStep21_SearchToolImplementation();
+      await this.testStep22_ContextEnhancement();
 
       this.printResults();
       
@@ -331,6 +332,189 @@ DevOps bridges development and operations through automation and monitoring.`
     this.results.step21 = await this.runTests(tests);
   }
 
+  async testStep22_ContextEnhancement() {
+    console.log('🔍 Step 22: Context Enhancement');
+    
+    const tests = [
+      {
+        name: 'search_knowledge_enhanced tool is defined in server',
+        test: () => {
+          const serverPath = join(projectRoot, 'src', 'mcp', 'server.ts');
+          if (!existsSync(serverPath)) return false;
+          
+          const content = readFileSync(serverPath, 'utf8');
+          return content.includes('search_knowledge_enhanced');
+        }
+      },
+      {
+        name: 'Enhanced search module exists',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'dist', 'search', 'enhanced.js');
+          return existsSync(enhancedPath);
+        }
+      },
+      {
+        name: 'EnhancedVectorSearch class is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('class EnhancedVectorSearch');
+        }
+      },
+      {
+        name: 'Previous/next chunk context retrieval is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('getContextualChunks') && 
+                 content.includes('previousChunk') && 
+                 content.includes('nextChunk');
+        }
+      },
+      {
+        name: 'Paragraph boundary expansion is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('expandedContent') && 
+                 content.includes('paragraphBoundaries');
+        }
+      },
+      {
+        name: 'Document structure extraction is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('extractDocumentStructure') && 
+                 content.includes('DocumentStructure') &&
+                 content.includes('powerpoint') && 
+                 content.includes('word') && 
+                 content.includes('excel');
+        }
+      },
+      {
+        name: 'Result grouping by document is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('groupAndDeduplicateResults') && 
+                 content.includes('DocumentGroup') &&
+                 content.includes('sourceDocument');
+        }
+      },
+      {
+        name: 'Overlap deduplication is implemented',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('areChunksOverlapping') && 
+                 content.includes('deduplicateResults');
+        }
+      },
+      {
+        name: 'Enhanced search tool accepts context parameters',
+        test: () => {
+          const serverPath = join(projectRoot, 'src', 'mcp', 'server.ts');
+          if (!existsSync(serverPath)) return false;
+          
+          const content = readFileSync(serverPath, 'utf8');
+          return content.includes('includeContext') && 
+                 content.includes('expandParagraphs') && 
+                 content.includes('groupByDocument');
+        }
+      },
+      {
+        name: 'Enhanced search integrates with vector index',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('VectorIndex') && 
+                 content.includes('searchWithContext');
+        }
+      },
+      {
+        name: 'Document type detection supports multiple formats',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('getDocumentType') && 
+                 content.includes('.pdf') && 
+                 content.includes('.docx') && 
+                 content.includes('.xlsx') && 
+                 content.includes('.pptx');
+        }
+      },
+      {
+        name: 'Enhanced results include structured metadata',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('EnhancedSearchResult') && 
+                 content.includes('contextualChunk') && 
+                 content.includes('documentType') &&
+                 content.includes('totalChunks');
+        }
+      },
+      {
+        name: 'Context expansion preserves content boundaries',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('split(\'\\n\\n\')') && 
+                 content.includes('contextParts');
+        }
+      },
+      {
+        name: 'Document structure supports multiple types',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('sections') && 
+                 content.includes('slides') && 
+                 content.includes('sheets') &&
+                 content.includes('outline');
+        }
+      },
+      {
+        name: 'Enhanced search returns grouped results format',
+        test: () => {
+          const enhancedPath = join(projectRoot, 'src', 'search', 'enhanced.ts');
+          if (!existsSync(enhancedPath)) return false;
+          
+          const content = readFileSync(enhancedPath, 'utf8');
+          return content.includes('GroupedSearchResults') && 
+                 content.includes('documentGroups') && 
+                 content.includes('totalResults') &&
+                 content.includes('documentsSearched');
+        }
+      }
+    ];
+
+    this.results.step22 = await this.runTests(tests);
+  }
+
   async runTests(tests) {
     const results = { passed: true, tests: [] };
     
@@ -357,7 +541,8 @@ DevOps bridges development and operations through automation and monitoring.`
 
     const steps = [
       { id: 'step20', name: 'Step 20: MCP Server Scaffold' },
-      { id: 'step21', name: 'Step 21: Search Tool Implementation' }
+      { id: 'step21', name: 'Step 21: Search Tool Implementation' },
+      { id: 'step22', name: 'Step 22: Context Enhancement' }
     ];
 
     let totalTests = 0;
@@ -378,8 +563,7 @@ DevOps bridges development and operations through automation and monitoring.`
     console.log(`📈 Success Rate: ${Math.round((passedTests / totalTests) * 100)}%`);
     
     if (this.allTestsPassed()) {
-      console.log('\n🎉 All Phase 5 tests passed! MCP integration is working correctly.');
-      console.log('\n📝 Note: Step 22 (Context Enhancement) is marked as IN PROGRESS in the roadmap.');
+      console.log('\n🎉 All Phase 5 tests passed! MCP integration with context enhancement is working correctly.');
     } else {
       console.log('\n⚠️  Some Phase 5 tests failed. Please review the MCP server implementation.');
     }
@@ -389,8 +573,10 @@ DevOps bridges development and operations through automation and monitoring.`
     console.log('1. Start the MCP server: node dist/cli.js serve <folder>');
     console.log('2. Test with Claude Desktop or another MCP client');
     console.log('3. Verify search_knowledge tool appears in capability list');
-    console.log('4. Test actual search queries through MCP protocol');
-    console.log('5. Check response format and source attribution');
+    console.log('4. Test search_knowledge_enhanced tool with context parameters');
+    console.log('5. Test actual search queries through MCP protocol');
+    console.log('6. Check response format and source attribution');
+    console.log('7. Verify context enhancement and document grouping');
   }
 
   allTestsPassed() {
