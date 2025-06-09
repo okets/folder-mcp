@@ -33,8 +33,9 @@ async function saveContentToCache(parsedContent: any, hash: string, cacheDir: st
         : 0
     }
   };
-  
-  writeFileSync(metadataFile, JSON.stringify(metadataContent, null, 2));
+    // Use atomic file operations to prevent cache corruption
+  const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+  await AtomicFileOperations.writeFileAtomic(metadataFile, JSON.stringify(metadataContent, null, 2));
   
   // Log chunking stats (concise)
   if (chunkedContent.totalChunks > 0) {
@@ -45,43 +46,97 @@ async function saveContentToCache(parsedContent: any, hash: string, cacheDir: st
 async function processFiles(fingerprints: FileFingerprint[], basePath: string, cacheDir: string): Promise<void> {
   console.log('Processing file content...');
   
-  for (let i = 0; i < fingerprints.length; i++) {
+  // Import error recovery system
+  const { ErrorRecoveryManager, AtomicFileOperations, ResumableProgress } = await import('../utils/errorRecovery.js');
+  const errorManager = new ErrorRecoveryManager(cacheDir);
+  const progress = new ResumableProgress(cacheDir, 'file_processing');
+  
+  // Check for previous progress
+  const previousProgress = progress.loadProgress();
+  let startIndex = 0;
+  
+  if (previousProgress && previousProgress.total === fingerprints.length) {
+    startIndex = previousProgress.current;
+    if (startIndex > 0) {
+      console.log(`📂 Resuming from file ${startIndex + 1}/${fingerprints.length} (${previousProgress.current} files already processed)`);
+    }
+  }
+  
+  let successCount = startIndex;
+  let errorCount = 0;
+  
+  for (let i = startIndex; i < fingerprints.length; i++) {
     const fingerprint = fingerprints[i];
     const fullPath = join(basePath, fingerprint.path);
     const ext = extname(fingerprint.path).toLowerCase();
     
+    console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
+    
     try {
-      if (ext === '.txt' || ext === '.md') {
-        console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-        const parsedContent = await parseTextFile(fullPath, basePath);
-        await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
-      } else if (ext === '.pdf') {
-        console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-        const parsedContent = await parsePdfFile(fullPath, basePath);
-        await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
-      } else if (ext === '.docx') {
-        console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-        const parsedContent = await parseWordFile(fullPath, basePath);
-        await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
-      } else if (ext === '.xlsx') {
-        console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-        const parsedContent = await parseExcelFile(fullPath, basePath);
-        await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
-      } else if (ext === '.pptx') {
-        console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-        const parsedContent = await parsePowerPointFile(fullPath, basePath);
-        await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
-      } else {
-        console.log(`  ${i + 1}/${fingerprints.length}: Skipping ${fingerprint.path} (parser not implemented yet)`);
-      }
+      // Use error recovery for file parsing
+      const parsedContent = await errorManager.executeWithRetry(
+        `parse_${ext.substring(1)}_file`,
+        async () => {
+          switch (ext) {
+            case '.txt':
+            case '.md':
+              return await parseTextFile(fullPath, basePath);
+            case '.pdf':
+              return await parsePdfFile(fullPath, basePath);
+            case '.docx':
+              return await parseWordFile(fullPath, basePath);
+            case '.xlsx':
+              return await parseExcelFile(fullPath, basePath);
+            case '.pptx':
+              return await parsePowerPointFile(fullPath, basePath);
+            default:
+              throw new Error(`Unsupported file extension: ${ext}`);
+          }
+        },
+        fingerprint.path
+      );
+
+      // Use error recovery for cache operations
+      await errorManager.executeWithRetry(
+        'save_content_to_cache',
+        async () => {
+          await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
+        },
+        fingerprint.path
+      );
+
+      successCount++;
+      
     } catch (error) {
-      console.warn(`  Warning: Could not process ${fingerprint.path}: ${error}`);
+      errorCount++;
+      console.warn(`  ❌ Failed to process ${fingerprint.path}: ${error}`);
+      
+      // Continue processing other files instead of stopping
+      continue;
     }
+    
+    // Save progress periodically
+    await progress.saveProgress(i + 1, fingerprints.length, { successCount, errorCount });
+  }
+  
+  // Clear progress on completion
+  progress.clearProgress();
+  
+  // Display processing summary
+  console.log('\n📊 File Processing Summary:');
+  console.log(`✅ Successfully processed: ${successCount}/${fingerprints.length} files`);
+  if (errorCount > 0) {
+    console.log(`❌ Failed to process: ${errorCount} files`);
+  }
+  
+  // Show error summary if there were any errors
+  if (errorCount > 0) {
+    errorManager.displayErrorSummary();
   }
 }
 
 // Progress bar utility
-function createProgressBar(total: number): { update: (current: number) => void; finish: () => void } {
+function createProgressBar(total: number, startTime: number): { update: (current: number) => void; finish: () => void } {
   const width = 40;
   let lastRendered = '';
   
@@ -107,7 +162,7 @@ function createProgressBar(total: number): { update: (current: number) => void; 
   };
 }
 
-let startTime: number;
+
 
 async function generateEmbeddingsForChunks(
   cacheDir: string, 
@@ -121,6 +176,11 @@ async function generateEmbeddingsForChunks(
     console.log('No metadata found. Run index command first.');
     return;
   }
+
+  // Initialize error recovery system
+  const { ErrorRecoveryManager, AtomicFileOperations, ResumableProgress } = await import('../utils/errorRecovery.js');
+  const errorManager = new ErrorRecoveryManager(cacheDir);
+  const progress = new ResumableProgress(cacheDir, 'embedding_generation');
 
   // Get all metadata files
   const metadataFiles = readdirSync(metadataDir).filter(f => f.endsWith('.json'));
@@ -146,7 +206,8 @@ async function generateEmbeddingsForChunks(
         for (const chunk of metadata.chunks) {
           totalChunks++;
           const embeddingPath = join(embeddingsDir, `${hash}_chunk_${chunk.chunkIndex}.json`);
-            // Check if embedding already exists (incremental processing - resume capability)
+          
+          // Check if embedding already exists (incremental processing - resume capability)
           if (!forceRegenerate && existsSync(embeddingPath)) {
             continue; // Skip already processed chunks for existing files
           }
@@ -160,6 +221,17 @@ async function generateEmbeddingsForChunks(
       }
     } catch (error) {
       console.warn(`⚠️  Warning: Could not read metadata file ${metadataFile}: ${error}`);
+    }
+  }
+
+  // Check for previous progress
+  const previousProgress = progress.loadProgress();
+  let startIndex = 0;
+  
+  if (previousProgress && previousProgress.total === chunksToProcess.length) {
+    startIndex = previousProgress.current;
+    if (startIndex > 0) {
+      console.log(`📂 Resuming embedding generation from chunk ${startIndex + 1}/${chunksToProcess.length}`);
     }
   }
 
@@ -180,25 +252,31 @@ async function generateEmbeddingsForChunks(
   console.log(`📊 Model: ${modelInfo.name} (${modelInfo.dimensions}D)`);
   console.log(`🔧 Backend: ${modelInfo.backend} ${modelInfo.isGPUAccelerated ? '(GPU-accelerated)' : '(CPU-only)'}`);
   console.log('');
-
-  // Process chunks in batches
+  // Process chunks in batches with error recovery
   console.log(`🔄 Generating embeddings for ${chunksToProcess.length} chunks (batch size: ${batchSize})`);
-  startTime = Date.now();
-  const progressBar = createProgressBar(chunksToProcess.length);
+  let startTime = Date.now();
+  const progressBar = createProgressBar(chunksToProcess.length, startTime);
   
-  let processed = 0;
-  const errors: Array<{ chunk: any, error: string }> = [];
+  let processed = startIndex;
+  let successCount = startIndex;
+  let errorCount = 0;
 
   try {
-    for (let i = 0; i < chunksToProcess.length; i += batchSize) {
+    for (let i = startIndex; i < chunksToProcess.length; i += batchSize) {
       const batch = chunksToProcess.slice(i, i + batchSize);
       const batchTexts = batch.map(item => item.chunk.content);
       
       try {
-        // Generate embeddings for this batch
-        const embeddings = await embeddingModel.generateBatchEmbeddings(batchTexts, batchSize);
+        // Use error recovery for embedding generation
+        const embeddings = await errorManager.executeWithRetry(
+          'generate_batch_embeddings',
+          async () => {
+            return await embeddingModel.generateBatchEmbeddings(batchTexts, batchSize);
+          },
+          `batch_${Math.floor(i / batchSize) + 1}`
+        );
         
-        // Save each embedding to its respective file
+        // Save each embedding with atomic operations
         for (let j = 0; j < batch.length; j++) {
           const item = batch[j];
           const embedding = embeddings[j];
@@ -212,39 +290,53 @@ async function generateEmbeddingsForChunks(
             isGPUAccelerated: modelInfo.isGPUAccelerated
           };
           
-          writeFileSync(item.embeddingPath, JSON.stringify(embeddingData, null, 2));
+          // Use atomic file operations to prevent corruption
+          await errorManager.executeWithRetry(
+            'save_embedding_to_cache',
+            async () => {
+              await AtomicFileOperations.writeJSONAtomic(item.embeddingPath, embeddingData);
+            },
+            item.embeddingPath
+          );
         }
         
-        processed += batch.length;
+        successCount += batch.length;
+        processed = i + batch.length;
         progressBar.update(processed);
         
       } catch (error) {
-        // Handle batch errors - save what we can and continue
+        // Handle batch errors - log and continue processing
         console.log(`\n❌ Batch error at ${i}-${i + batch.length}: ${error}`);
-        
-        for (const item of batch) {
-          errors.push({ chunk: item.chunk, error: String(error) });
-        }
-        
-        processed += batch.length;
+        errorCount += batch.length;
+        processed = i + batch.length;
         progressBar.update(processed);
+        
+        // Continue processing other batches instead of stopping
+        continue;
       }
+      
+      // Save progress periodically
+      await progress.saveProgress(processed, chunksToProcess.length, { successCount, errorCount });
     }
     
     progressBar.finish();
     
+    // Clear progress on completion
+    progress.clearProgress();
+    
     const totalTime = Date.now() - startTime;
-    const successful = processed - errors.length;
     
     console.log('');
     console.log('🎉 Embedding generation completed!');
-    console.log(`✅ Successfully processed: ${successful}/${processed} chunks`);
+    console.log(`✅ Successfully processed: ${successCount}/${chunksToProcess.length} chunks`);
     console.log(`⏱️  Total time: ${(totalTime / 1000).toFixed(1)}s`);
-    console.log(`⚡ Average: ${(totalTime / successful).toFixed(1)}ms per embedding`);
+    if (successCount > 0) {
+      console.log(`⚡ Average: ${(totalTime / successCount).toFixed(1)}ms per embedding`);
+    }
     
-    if (errors.length > 0) {
-      console.log(`❌ Failed: ${errors.length} chunks`);
-      console.log('   Check the console output above for error details.');
+    if (errorCount > 0) {
+      console.log(`❌ Failed: ${errorCount} chunks`);
+      errorManager.displayErrorSummary();
     }
 
     // Show performance stats
@@ -263,6 +355,9 @@ async function generateEmbeddingsForChunks(
     
     // Save progress before exiting
     console.log(`📊 Progress before error: ${processed}/${chunksToProcess.length} chunks processed`);
+    
+    // Show error summary
+    errorManager.displayErrorSummary();
     throw error;
   }
 }

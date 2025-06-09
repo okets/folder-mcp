@@ -264,9 +264,8 @@ export function setupCommands(program: Command, packageJson: any): void {  progr
         validationErrors.forEach(error => console.error(`   - ${error}`));
         process.exit(1);
       }
-      
-      // Initialize local config if it doesn't exist
-      initializeLocalConfig(folder);
+        // Initialize local config if it doesn't exist
+      await initializeLocalConfig(folder);
       
       // Show configuration if requested
       if (options.showConfig) {

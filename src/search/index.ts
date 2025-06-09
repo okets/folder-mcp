@@ -261,18 +261,21 @@ export class VectorIndex {
    */
   private async saveIndex(): Promise<void> {
     try {
+      // Import atomic file operations for safe writes
+      const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+      
       // Save FAISS index to binary format
       if (this.index) {
         this.index.write(this.indexPath);
         console.log(`✅ FAISS index saved to ${this.indexPath}`);
       }
       
-      // Save mappings
-      await fs.writeFile(this.mappingsPath, JSON.stringify(this.mappings, null, 2));
+      // Save mappings with atomic operations
+      await AtomicFileOperations.writeJSONAtomic(this.mappingsPath, this.mappings);
       console.log(`✅ Mappings saved to ${this.mappingsPath}`);
       
-      // Keep vectors.json as backup for debugging (optional)
-      await fs.writeFile(this.vectorsPath, JSON.stringify(this.vectors, null, 2));
+      // Keep vectors.json as backup for debugging (optional) - also atomic
+      await AtomicFileOperations.writeJSONAtomic(this.vectorsPath, this.vectors);
       console.log(`✅ Vector backup saved to ${this.vectorsPath}`);
     } catch (error) {
       throw new Error(`Failed to save index: ${error}`);

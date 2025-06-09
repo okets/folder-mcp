@@ -34,7 +34,9 @@ export async function setupCacheDirectory(folderPath: string, packageJson: any):
       lastUpdated: new Date().toISOString()
     };
 
-    writeFileSync(versionFile, JSON.stringify(versionData, null, 2));
+    // Use atomic file operations to prevent corruption during setup
+    const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+    await AtomicFileOperations.writeJSONAtomic(versionFile, versionData);
     console.log(`Created version file: ${relative(folderPath, versionFile)}`);
 
   } catch (error: any) {
@@ -154,6 +156,8 @@ export async function saveFingerprintsToCache(fingerprints: FileFingerprint[], c
     files: fingerprints
   };
   
-  writeFileSync(indexFile, JSON.stringify(indexData, null, 2));
+  // Use atomic file operations to prevent cache corruption
+  const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+  await AtomicFileOperations.writeJSONAtomic(indexFile, indexData);
   console.log(`Saved fingerprints to: ${basename(indexFile)}`);
 }

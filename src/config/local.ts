@@ -110,7 +110,7 @@ export function loadLocalConfig(folderPath: string): LocalConfig {
 /**
  * Save local configuration to a folder
  */
-export function saveLocalConfig(folderPath: string, config: LocalConfig): void {
+export async function saveLocalConfig(folderPath: string, config: LocalConfig): Promise<void> {
   const configPath = getLocalConfigPath(folderPath);
   const cacheDir = dirname(configPath);
   
@@ -135,7 +135,9 @@ export function saveLocalConfig(folderPath: string, config: LocalConfig): void {
       forceQuotes: false
     });
     
-    writeFileSync(configPath, yamlContent, 'utf8');
+    // Import and use atomic operations for safe config saves
+    const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+    await AtomicFileOperations.writeFileAtomic(configPath, yamlContent);
   } catch (error) {
     throw new Error(`Failed to save configuration to ${configPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -144,7 +146,7 @@ export function saveLocalConfig(folderPath: string, config: LocalConfig): void {
 /**
  * Initialize local configuration for a folder if it doesn't exist
  */
-export function initializeLocalConfig(folderPath: string): LocalConfig {
+export async function initializeLocalConfig(folderPath: string): Promise<LocalConfig> {
   const configPath = getLocalConfigPath(folderPath);
   
   if (existsSync(configPath)) {
@@ -152,7 +154,7 @@ export function initializeLocalConfig(folderPath: string): LocalConfig {
   }
   
   const initialConfig = { ...DEFAULT_LOCAL_CONFIG };
-  saveLocalConfig(folderPath, initialConfig);
+  await saveLocalConfig(folderPath, initialConfig);
   
   console.log(`📝 Created local configuration at ${configPath}`);
   return initialConfig;
@@ -161,7 +163,7 @@ export function initializeLocalConfig(folderPath: string): LocalConfig {
 /**
  * Update a specific setting in the local configuration
  */
-export function updateLocalConfig(folderPath: string, updates: Partial<LocalConfig>): LocalConfig {
+export async function updateLocalConfig(folderPath: string, updates: Partial<LocalConfig>): Promise<LocalConfig> {
   const currentConfig = loadLocalConfig(folderPath);
   const updatedConfig: LocalConfig = {
     ...currentConfig,
@@ -173,14 +175,14 @@ export function updateLocalConfig(folderPath: string, updates: Partial<LocalConf
     }
   };
   
-  saveLocalConfig(folderPath, updatedConfig);
+  await saveLocalConfig(folderPath, updatedConfig);
   return updatedConfig;
 }
 
 /**
  * Save a user choice to the local configuration
  */
-export function saveUserChoice(folderPath: string, key: string, value: any): void {
+export async function saveUserChoice(folderPath: string, key: string, value: any): Promise<void> {
   const currentConfig = loadLocalConfig(folderPath);
   const updatedConfig = {
     ...currentConfig,
@@ -190,7 +192,7 @@ export function saveUserChoice(folderPath: string, key: string, value: any): voi
     }
   };
   
-  saveLocalConfig(folderPath, updatedConfig);
+  await saveLocalConfig(folderPath, updatedConfig);
 }
 
 /**

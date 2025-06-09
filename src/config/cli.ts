@@ -187,7 +187,7 @@ async function initConfig(folder: string, force: boolean): Promise<void> {
       console.log(`⚠️  Overwriting existing configuration at ${configPath}`);
     }
     
-    const config = initializeLocalConfig(folder);
+    const config = await initializeLocalConfig(folder);
     console.log('✅ Configuration initialized with defaults');
     
     // Show the initialized configuration
@@ -245,7 +245,7 @@ async function setConfig(folder: string, options: any): Promise<void> {
     }
     
     // Apply the updates
-    const updatedConfig = updateLocalConfig(folder, updates);
+    const updatedConfig = await updateLocalConfig(folder, updates);
     
     console.log('✅ Configuration updated successfully');
     console.log();
@@ -298,7 +298,7 @@ async function resetConfig(folder: string, force: boolean): Promise<void> {
     }
     
     const defaultConfig = { ...DEFAULT_LOCAL_CONFIG };
-    saveLocalConfig(folder, defaultConfig);
+    await saveLocalConfig(folder, defaultConfig);
     
     console.log('✅ Configuration reset to defaults');
     console.log();

@@ -299,24 +299,30 @@ export class FolderWatcher {
       return null;
     }
   }
-
   private async saveContentToCache(parsedContent: any, hash: string): Promise<void> {
     const metadataPath = join(this.cacheDir, 'metadata', `${hash}.json`);
     
-    // Import the save function from indexing module
-    const { writeFileSync } = await import('fs');
-    writeFileSync(metadataPath, JSON.stringify(parsedContent, null, 2));
-  }
-  private async generateEmbeddingsForFile(parsedContent: any, hash: string): Promise<void> {
+    // Use atomic file operations to prevent corruption during live updates
+    const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+    await AtomicFileOperations.writeJSONAtomic(metadataPath, parsedContent);
+  }  private async generateEmbeddingsForFile(parsedContent: any, hash: string): Promise<void> {
     if (!parsedContent.chunks || !Array.isArray(parsedContent.chunks)) {
       return;
     }
 
     try {
+      // Initialize error recovery system
+      const { ErrorRecoveryManager, AtomicFileOperations } = await import('../utils/errorRecovery.js');
+      const errorManager = new ErrorRecoveryManager(this.cacheDir);
+      
       // Use model from resolved config if available
       const { EmbeddingModel } = await import('../embeddings/index.js');
       const embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
       await embeddingModel.initialize();
+      
+      const modelInfo = embeddingModel.getModelInfo();
+      let successCount = 0;
+      let errorCount = 0;
       
       for (const chunk of parsedContent.chunks) {
         const embeddingPath = join(this.cacheDir, 'embeddings', `${hash}_chunk_${chunk.chunkIndex}.json`);
@@ -326,25 +332,47 @@ export class FolderWatcher {
           continue;
         }
 
-        // Generate embedding
-        const embedding = await embeddingModel.generateEmbedding(chunk.text);
-        
-        const embeddingData = {
-          text: chunk.text,
-          embedding: {
-            model: embeddingModel.getModelInfo().name,
-            vector: embedding,
-            dimensions: Array.isArray(embedding) ? embedding.length : 768
-          },
-          metadata: chunk.metadata,
-          hash,
-          chunkIndex: chunk.chunkIndex,
-          createdAt: new Date().toISOString()
-        };
+        try {
+          // Generate embedding with retry logic
+          const embedding = await errorManager.executeWithRetry(
+            'generate_embedding',
+            async () => {
+              return await embeddingModel.generateEmbedding(chunk.text);
+            },
+            `${hash}_chunk_${chunk.chunkIndex}`
+          );
+          
+          const embeddingData = {
+            chunk: chunk,
+            embedding: embedding,
+            generatedAt: new Date().toISOString(),
+            model: modelInfo.name,
+            modelBackend: modelInfo.backend,
+            isGPUAccelerated: modelInfo.isGPUAccelerated
+          };
 
-        // Save embedding
-        const { writeFileSync } = await import('fs');
-        writeFileSync(embeddingPath, JSON.stringify(embeddingData, null, 2));
+          // Save embedding with atomic operations to prevent corruption
+          await errorManager.executeWithRetry(
+            'save_embedding_to_cache',
+            async () => {
+              await AtomicFileOperations.writeJSONAtomic(embeddingPath, embeddingData);
+            },
+            embeddingPath
+          );
+          
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          this.log(`   ❌ Failed to generate embedding for chunk ${chunk.chunkIndex}: ${error}`, 'verbose');
+          // Continue processing other chunks instead of stopping
+        }
+      }
+      
+      if (successCount > 0) {
+        this.log(`   ✅ Generated ${successCount} embeddings`, 'verbose');
+      }
+      if (errorCount > 0) {
+        this.log(`   ⚠️  Failed to generate ${errorCount} embeddings`, 'verbose');
       }
     } catch (error) {
       this.log(`   ⚠️  Error generating embeddings: ${error}`, 'verbose');

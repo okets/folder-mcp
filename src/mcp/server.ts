@@ -177,50 +177,69 @@ export class FolderMCPServer {
       };
     });
 
-    // Handle tool calls
+    // Handle tool calls with error recovery
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
+      // Initialize error recovery for MCP operations
+      const { ErrorRecoveryManager } = await import('../utils/errorRecovery.js');
+      const cacheDir = join(this.folderPath, '.folder-mcp');
+      const errorManager = new ErrorRecoveryManager(cacheDir);
+
       try {
-        switch (name) {
-          case 'read_file':
-            return await this.handleReadFile(args?.file_path as string);
+        return await errorManager.executeWithRetry(
+          `mcp_tool_${name}`,
+          async () => {
+            switch (name) {
+              case 'read_file':
+                return await this.handleReadFile(args?.file_path as string);
 
-          case 'search_files':
-            return await this.handleSearchFiles(args?.pattern as string);
+              case 'search_files':
+                return await this.handleSearchFiles(args?.pattern as string);
 
-          case 'list_files':
-            return await this.handleListFiles();
+              case 'list_files':
+                return await this.handleListFiles();
 
-          case 'get_folder_info':
-            return await this.handleGetFolderInfo();
+              case 'get_folder_info':
+                return await this.handleGetFolderInfo();
 
-          case 'search_knowledge':
-            return await this.handleSearchKnowledge(
-              args?.query as string,
-              args?.top_k as number,
-              args?.threshold as number
-            );
+              case 'search_knowledge':
+                return await this.handleSearchKnowledge(
+                  args?.query as string,
+                  args?.top_k as number,
+                  args?.threshold as number
+                );
 
-          case 'search_knowledge_enhanced':
-            return await this.handleEnhancedSearchKnowledge(
-              args?.query as string,
-              args?.top_k as number,
-              args?.threshold as number,
-              args?.include_context as boolean,
-              args?.expand_paragraphs as boolean,
-              args?.group_by_document as boolean
-            );
+              case 'search_knowledge_enhanced':
+                return await this.handleEnhancedSearchKnowledge(
+                  args?.query as string,
+                  args?.top_k as number,
+                  args?.threshold as number,
+                  args?.include_context as boolean,
+                  args?.expand_paragraphs as boolean,
+                  args?.group_by_document as boolean
+                );
 
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
+              default:
+                throw new Error(`Unknown tool: ${name}`);
+            }
+          },
+          `${name}_${(args?.query as string)?.slice(0, 20) || (args?.file_path as string) || 'no_context'}`
+        );
       } catch (error) {
+        // Enhanced error handling with recovery information
+        console.error(`❌ MCP tool '${name}' failed: ${error}`);
+        
+        // Log error details for debugging
+        const errorDetails = error instanceof Error 
+          ? `${error.message}\n\nStack trace:\n${error.stack}`
+          : String(error);
+        
         return {
           content: [
             {
               type: 'text',
-              text: `Error: ${error instanceof Error ? error.message : String(error)}`,
+              text: `Error executing tool '${name}': ${error instanceof Error ? error.message : String(error)}\n\nThis error has been logged and will be retried automatically on subsequent attempts. Check the error log at ${join(cacheDir, 'errors.log')} for more details.`,
             },
           ],
           isError: true,
