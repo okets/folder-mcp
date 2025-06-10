@@ -215,15 +215,13 @@ export function setupCommands(program: Command, packageJson: any): void {  progr
       if (transport !== 'stdio' && transport !== 'http') {
         console.error('❌ Transport must be either "stdio" or "http"');
         process.exit(1);
-      }
-
-      console.log(`🚀 Starting Folder MCP Server...`);
-      console.log(`   📁 Folder: ${folder}`);
-      console.log(`   🌐 Transport: ${transport}`);
+      }      console.error(`🚀 Starting Folder MCP Server...`);
+      console.error(`   📁 Folder: ${folder}`);
+      console.error(`   🌐 Transport: ${transport}`);
       if (transport === 'http') {
-        console.log(`   🔌 Port: ${port}`);
+        console.error(`   🔌 Port: ${port}`);
       }
-      console.log(`   ⏹️  Press Ctrl+C to stop\n`);
+      console.error(`   ⏹️  Press Ctrl+C to stop\n`);
 
       try {
         await startMCPServer({
