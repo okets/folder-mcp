@@ -77,7 +77,7 @@ folder-mcp/
 
 ## Development Progress
 
-**Current Status**: Step 26/30 - Performance Optimization 📋
+**Current Status**: Step 25/43 - Phase 7 Complete ✅
 
 ### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
 - ✅ **Step 1**: Initialize TypeScript Project
@@ -116,15 +116,33 @@ folder-mcp/
 - ✅ **Step 23**: File Watcher Integration ✅ **COMPLETED**
 - ✅ **Step 24**: Configuration System ✅ **COMPLETED**
 
-### Phase 7: Production Ready (Steps 25-27) 🔄 IN PROGRESS
+### Phase 7: Production Ready (Step 25) ✅ COMPLETED
 - ✅ **Step 25**: Error Recovery ✅ **COMPLETED**
-- 📋 **Step 26**: Performance Optimization
-- 📋 **Step 27**: Test Suite
 
-### Phase 8: Release (Steps 28-30) 📋 PLANNED
-- 📋 **Step 28**: Documentation
-- 📋 **Step 29**: NPM Package Preparation
-- 📋 **Step 30**: Release
+### Phase 8: Streamline UX and Configuration flow 📋 CURRENT
+- 📋 **Step 26**: Runtime Configuration Structure
+- 📋 **Step 27**: Configuration Caching System
+- 📋 **Step 27.1**: Hugging Face Hub Integration for Model Metadata
+- 📋 **Step 28**: Configuration Validation System
+- 📋 **Step 29**: CLI Parameter Override System
+- 📋 **Step 30**: Configuration Wizard Implementation
+- 📋 **Step 31**: System Detection Integration
+- 📋 **Step 32**: Full-Screen UI Implementation
+- 📋 **Step 33**: MCP Server UI Enhancement
+
+### Phase 9: Release 1.0.0 (Steps 34-38) 📋 PLANNED
+- 📋 **Step 34**: Performance Optimization
+- 📋 **Step 35**: Test Suite
+- 📋 **Step 36**: Documentation
+- 📋 **Step 37**: NPM Package Preparation
+- 📋 **Step 38**: Release
+
+### Phase 10: Chat with Your Folder (Steps 39-43) 📋 FUTURE
+- 📋 **Step 39**: Chat Configuration Wizard
+- 📋 **Step 40**: Cloud Provider Integration
+- 📋 **Step 41**: Local LLM Integration
+- 📋 **Step 42**: Interactive Chat Interface
+- 📋 **Step 43**: Chat History & Export
 
 ---
 
@@ -484,7 +502,237 @@ folder-mcp/
 - Comprehensive error summaries and statistics reporting
 - Never leaves cache in corrupted state - all operations are atomic or resumable
 
-#### Step 26: Performance Optimization
+### Phase 8: Streamline UX and Configuration flow
+Configuration flow, CLI commands, and user experience improvements.
+
+**🎯 Design Approach**: Fetch embedding models directly from Ollama API for accuracy and real-time availability. This ensures users only see models that actually work with GPU acceleration and are currently available on their system.
+
+**Default (zero config):**
+```
+folder-mcp .
+→ Check cache → Auto-detect system → Pick best multilingual model → Validate → Full-screen UI
+             ↓ (if cache exists)
+             → Load cached config → Validate → Full-screen UI
+```
+
+**With wizard:**
+```
+folder-mcp --wizard
+→ Load cache/defaults → Interactive questions → Show CLI command → Run command
+                                                                 ↓
+                                            → Validate → Update cache → Full-screen UI
+```
+
+**With CLI params:**
+```
+folder-mcp . --model xyz --chunk-size 400
+→ Load cache → Override with CLI params → Check embedding changes → Validate → Update cache → Full-screen UI
+                                                  ↓ (if changed)
+                                                  → Trigger re-index
+```
+
+**Subsequent runs (cached):**
+```
+folder-mcp .
+→ Load cache → No system changes? → Use cached config → Validate → Full-screen UI
+```
+
+#### Step 26: Runtime Configuration Structure
+**Task**: Create runtime configuration JSON with smart defaults  
+**Success Criteria**:
+- ✅ Define runtime config schema (model, port, languages, etc.)
+- ✅ Generate default runtime.json with multilingual model
+- ✅ Set sensible defaults (chunk_size: 400, workers: CPU count)
+- ✅ Include all configurable parameters in structure
+- ✅ Create TypeScript interfaces for type safety
+- ✅ Document each configuration parameter purpose
+
+#### Step 27: Configuration Caching System
+**Task**: Implement configuration persistence and caching with Ollama integration
+Selecting the right model can be direct (using CLI params) or through a configuration wizard that checks folder languages and machine capabilities.
+**Success Criteria**:
+- ✅ Save runtime config to ~/.folder-mcp/last-runtime.json
+- ✅ Load previous runtime on startup if exists
+- ✅ Cache system profile in ~/.folder-mcp/system-profile.json
+- ✅ Store Ollama embedding model list with 24-hour expiry
+- ✅ Fetch embedding models directly from Ollama API
+- ✅ Implement cache invalidation mechanism
+- ✅ Handle corrupted cache files gracefully
+- 📋 **ENHANCEMENT**: Augment Ollama models with Hugging Face metadata
+- 📋 **ENHANCEMENT**: Cache language support information from HF Hub
+- 📋 **ENHANCEMENT**: Implement intelligent model filtering by language capabilities
+
+**Implementation Notes**:
+- **Primary Source**: Fetch embedding models from Ollama API (`/api/tags`)
+- **Metadata Enhancement**: Cross-reference with Hugging Face Hub API for language support
+- **Filter by Type**: Only show models tagged as 'embedding' from Ollama library
+- **Language Intelligence**: Use HF metadata for accurate multilingual model detection
+- **Fallback Strategy**: Include pre-configured models for offline scenarios
+- **Cache Strategy**: Store Ollama model list + HF metadata with timestamps for 24-hour expiry
+- **Graceful Degradation**: Fall back to CPU-based transformers for any unavailable models
+
+**Ollama API Endpoints**:
+- `GET /api/tags` → Get all locally available models
+- `GET /api/show/{model}` → Get model details and capabilities
+- Ollama Library API: `https://ollama.ai/api/tags` → Get all available models
+
+**Hugging Face Hub Integration**:
+- `GET /api/models/{model_id}` → Get model metadata, tags, and capabilities
+- `GET /api/models` → Search models with filters (e.g., pipeline_tag:sentence-similarity)
+- Model card parsing for language support information
+- Download statistics and model popularity metrics
+- License and usage restriction information
+
+**Enhanced Model Metadata Schema**:
+```typescript
+interface EnhancedModelInfo {
+  // From Ollama
+  ollamaName: string;
+  locallyAvailable: boolean;
+  size: number;
+  
+  // From Hugging Face
+  huggingFaceId?: string;
+  languages: string[];
+  isMultilingual: boolean;
+  primaryLanguage: string;
+  pipeline: string; // 'sentence-similarity', 'feature-extraction', etc.
+  license: string;
+  downloads: number;
+  lastModified: string;
+  description: string;
+  
+  // Computed
+  confidence: 'high' | 'medium' | 'low';
+  source: 'ollama+hf' | 'ollama' | 'hf' | 'fallback';
+  dimensions?: number;
+  maxTokens?: number;
+}
+```
+
+**Known Working Embedding Models**:
+- ✅ `nomic-embed-text` → 768 dimensions, high-quality general purpose
+  - HF: `nomic-ai/nomic-embed-text-v1.5` → English, multilingual capabilities
+- ✅ `mxbai-embed-large` → 1024 dimensions, excellent performance  
+  - HF: `mixedbread-ai/mxbai-embed-large-v1` → Multilingual, 100+ languages
+- ✅ `all-minilm` → 384 dimensions, lightweight and fast
+  - HF: `sentence-transformers/all-MiniLM-L6-v2` → English primary, some multilingual
+- ✅ `bge-m3` → 1024 dimensions, multilingual support
+  - HF: `BAAI/bge-m3` → 100+ languages, excellent multilingual performance
+- ✅ `snowflake-arctic-embed` → 1024 dimensions, optimized for retrieval
+  - HF: `Snowflake/snowflake-arctic-embed-m` → English-focused, retrieval optimized
+
+**Language Support Detection Strategy**:
+1. **Primary**: Query Hugging Face Hub API for model metadata and tags
+2. **Secondary**: Parse model card for language information
+3. **Fallback**: Use pattern-based detection from model names
+4. **Cache**: Store language metadata with 24-hour expiry alongside Ollama data
+
+**Ollama Library Reference**: https://ollama.ai/library (filter for 'embedding' tag)
+
+#### Step 27.1: Hugging Face Hub Integration for Model Metadata
+**Task**: Enhance Ollama model information with Hugging Face Hub metadata  
+**Success Criteria**:
+- 📋 Fetch model metadata from Hugging Face Hub API
+- 📋 Extract language support information from model cards
+- 📋 Augment Ollama model list with HF metadata
+- 📋 Implement intelligent language-based model filtering
+- 📋 Cache HF metadata with 24-hour expiry
+- 📋 Handle API rate limits and offline scenarios gracefully
+- 📋 Provide rich model selection with language capabilities
+
+**Implementation Approach**:
+1. **Model ID Mapping**: Map Ollama model names to Hugging Face model IDs
+2. **Batch API Requests**: Fetch multiple model metadata in parallel with rate limiting
+3. **Language Detection**: Parse model cards and tags for language information
+4. **Confidence Scoring**: Rate quality of language support data
+5. **Caching Strategy**: Store combined Ollama + HF data in unified cache
+6. **Fallback Logic**: Graceful degradation when HF API unavailable
+
+**API Integration Details**:
+```
+GET https://huggingface.co/api/models/{model_id}
+→ Returns: model card, tags, pipeline info, language data
+
+Example Response:
+{
+  "id": "sentence-transformers/all-MiniLM-L6-v2",
+  "pipeline_tag": "sentence-similarity", 
+  "tags": ["sentence-transformers", "pytorch", "safetensors"],
+  "languages": ["en"],
+  "license": "apache-2.0",
+  "downloads": 50000000,
+  "lastModified": "2023-11-20T10:30:00.000Z"
+}
+```
+
+**Enhanced User Experience**:
+- Show language support when listing models: `mxbai-embed-large (100+ languages)`
+- Filter models by language: `--language zh,en` 
+- Smart defaults: Auto-select best multilingual model for diverse document sets
+- Confidence indicators: High/Medium/Low confidence for language support data
+**Task**: Validate runtime configuration before execution  
+**Success Criteria**:
+- ✅ Check model exists and is compatible
+- ✅ Validate numeric ranges (chunk size, overlap, etc.)
+- ✅ Verify folder paths and permissions
+- ✅ Ensure port availability for MCP server
+- ✅ Show clear, actionable error messages
+- ✅ Return validated config or throw with fixes
+
+#### Step 29: CLI Parameter Override System
+**Task**: Allow CLI parameters to override runtime defaults  
+**Success Criteria**:
+- ✅ Parse all CLI parameters into runtime config
+- ✅ Override only specified parameters
+- ✅ Detect changes in embedding config (model, chunk_size, overlap)
+- ✅ Trigger re-indexing if embedding params changed
+- ✅ Show warning: "Config changed, re-indexing required"
+- ✅ Update cached runtime with successful execution
+
+#### Step 30: Configuration Wizard Implementation
+**Task**: Create --wizard interactive configuration generator  
+**Success Criteria**:
+- ✅ Launch with folder-mcp --wizard
+- ✅ Load current runtime config as defaults
+- ✅ Ask questions with current values pre-filled
+- ✅ Generate CLI command string from answers
+- ✅ Display command and ask: "Run this command? Y/n"
+- ✅ Execute command or copy to clipboard
+
+#### Step 31: System Detection Integration
+**Task**: Auto-detect system capabilities for smart defaults  
+**Success Criteria**:
+- ✅ Detect CPU, RAM, GPU on first run
+- ✅ Update runtime config with optimal settings
+- ✅ Select best model based on system tier
+- ✅ Integrate with Ollama for model availability
+- ✅ Run only when cache missing or --detect flag
+- ✅ Show detected specs in --show-config output
+
+#### Step 32: Full-Screen UI Implementation
+**Task**: Create main operation interface  
+**Success Criteria**:
+- ✅ Launch after configuration is validated
+- ✅ Display real-time indexing progress
+- ✅ Show file processing statistics
+- ✅ Monitor memory and performance
+- ✅ Include error log panel
+- ✅ Add keyboard navigation
+
+#### Step 33: MCP Server UI Enhancement
+**Task**: Improve server display and connection info  
+**Success Criteria**:
+- ✅ Show connection details prominently
+- ✅ Display Claude configuration JSON
+- ✅ Add copy instructions for setup
+- ✅ Include server status monitoring
+- ✅ Show "Chat with folder" placeholder
+- ✅ Integrate with full-screen UI
+
+
+### Phase 9: Release 1.0.0
+#### Step 34: Performance Optimization
 **Task**: Optimize for large folders  
 **Success Criteria**:
 - Parallel file processing (worker pool)
@@ -493,7 +741,7 @@ folder-mcp/
 - Indexes 1000 documents in <5 minutes
 - Progress saves allow resume
 
-#### Step 27: Test Suite
+#### Step 35: Test Suite
 **Task**: Comprehensive test coverage  
 **Success Criteria**:
 - Unit tests for each parser
@@ -502,9 +750,7 @@ folder-mcp/
 - Tests for error conditions
 - >80% code coverage
 
-### Phase 8: Release
-
-#### Step 28: Documentation
+#### Step 36: Documentation
 **Task**: Complete user documentation  
 **Success Criteria**:
 - README with quick start guide
@@ -513,7 +759,7 @@ folder-mcp/
 - Troubleshooting guide
 - Architecture diagram
 
-#### Step 29: NPM Package Preparation
+#### Step 37: NPM Package Preparation
 **Task**: Prepare for publishing  
 **Success Criteria**:
 - Clean npm pack output
@@ -522,7 +768,7 @@ folder-mcp/
 - Version 1.0.0 tagged
 - LICENSE file included
 
-#### Step 30: Release
+#### Step 38: Release
 **Task**: Publish to npm registry  
 **Success Criteria**:
 - `npm install -g folder-mcp` works
@@ -530,6 +776,128 @@ folder-mcp/
 - GitHub repository public
 - CI/CD pipeline configured
 - First user successfully indexes folder
+
+### Phase 10: Chat with Your Folder 📋 FUTURE
+- 📋 **Step 39**: Chat Configuration Wizard
+- 📋 **Step 40**: Cloud Provider Integration
+- 📋 **Step 41**: Local LLM Integration
+- 📋 **Step 42**: Interactive Chat Interface
+- 📋 **Step 43**: Chat History & Export
+
+#### Step 39: Chat Configuration Wizard
+**Task**: Create interactive wizard for chat setup  
+**Success Criteria**:
+- Launch with `folder-mcp chat --setup`
+- Cloud vs Local GPU selection interface
+- Provider selection with clear descriptions
+- API key validation with test calls
+- Ollama model detection and recommendation
+- Save chat configuration to `.folder-mcp/chat-config.json`
+- Integration with existing configuration system
+
+**Chat Configuration Flow:**
+```
+folder-mcp chat <folder> (first time)
+→ Chat Setup Wizard
+   ├── Choose: Cloud or Local GPU?
+   │
+   ├─ Cloud Path:
+   │  ├── Select Provider:
+   │  │   ├── OpenAI (GPT-4, GPT-3.5-turbo)
+   │  │   ├── Anthropic (Claude 3.5 Sonnet, Claude 3 Haiku)
+   │  │   ├── Google (Gemini Pro, Gemini Flash)
+   │  │   └── Azure OpenAI
+   │  ├── Enter API Key → Validate → Test call
+   │  ├── Auto-select best model for provider
+   │  └── Save config → Launch chat
+   │
+   └─ Local GPU Path:
+      ├── Check Ollama installation
+      ├── Scan available models
+      ├── Show model list:
+      │   ├── ✅ llama3.1:8b (installed, 4.7GB)
+      │   ├── ❌ llama3.1:70b (not installed, 40GB)
+      │   ├── ✅ mistral:7b (installed, 4.1GB)
+      │   └── 💡 Recommended: llama3.1:8b (best for your system)
+      ├── Auto-recommend based on system specs
+      ├── Download model if needed (with progress)
+      └── Save config → Launch chat
+```
+
+#### Step 40: Cloud Provider Integration
+**Task**: Implement cloud LLM provider APIs  
+**Success Criteria**:
+- OpenAI API integration with streaming responses
+- Anthropic Claude API with proper formatting
+- Google Gemini API integration
+- Azure OpenAI support
+- API key validation and error handling
+- Rate limiting and quota management
+- Cost estimation display
+
+#### Step 41: Local LLM Integration
+**Task**: Implement Ollama local LLM integration  
+**Success Criteria**:
+- Ollama service detection and health checks
+- Model listing with installation status
+- Automatic model downloading with progress
+- System resource monitoring during chat
+- Model recommendation based on RAM/VRAM
+- Fallback to smaller models if needed
+- Performance optimization for local inference
+
+#### Step 42: Interactive Chat Interface
+**Task**: Create the main chat experience  
+**Success Criteria**:
+- CLI-based chat interface with rich formatting
+- Context-aware responses using vector search
+- Show source documents for each response
+- Real-time typing indicators
+- Message history in session
+- Commands: `/help`, `/sources`, `/clear`, `/export`
+- Graceful error handling and retries
+- Integration with existing full-screen UI
+
+**Chat Interface Flow:**
+```
+folder-mcp chat <folder>
+→ Load chat config → Initialize LLM → Start chat session
+
+Chat Interface:
+┌─ Chat with Documents in: ./my-folder ─────────────────────┐
+│ 📁 Sources: 47 documents indexed                          │
+│ 🤖 Model: Claude 3.5 Sonnet (Cloud) / llama3.1:8b (Local)│
+├────────────────────────────────────────────────────────────┤
+│ You: What are the main topics in my research papers?      │
+│                                                            │
+│ 🤖 Assistant: Based on your documents, I found 3 main    │
+│ research topics:                                           │
+│                                                            │
+│ 1. **Machine Learning Applications** (12 papers)          │
+│    Sources: ml-survey.pdf, neural-networks.docx           │
+│                                                            │
+│ 2. **Data Analysis Methods** (8 papers)                   │
+│    Sources: statistics-overview.pdf, data-mining.docx     │
+│                                                            │
+│ 3. **Software Engineering** (5 papers)                    │
+│    Sources: agile-methods.pdf, testing-strategies.docx    │
+│                                                            │
+├────────────────────────────────────────────────────────────┤
+│ Type your message... (/help for commands)                 │
+└────────────────────────────────────────────────────────────┘
+```
+
+#### Step 43: Chat History & Export
+**Task**: Implement chat session management  
+**Success Criteria**:
+- Save chat sessions to `.folder-mcp/chat-history/`
+- Session naming and organization
+- Resume previous chat sessions
+- Export options: Markdown, JSON, TXT
+- Search chat history
+- Delete old sessions
+- Session sharing capabilities
+- Privacy controls for sensitive conversations
 
 ---
 
@@ -560,7 +928,9 @@ Create these milestones in GitHub (Issues → Milestones → New milestone):
 5. **Phase 5 - MCP Integration** (Due: TBD)
 6. **Phase 6 - Advanced Features** (Due: TBD)
 7. **Phase 7 - Optimization** (Due: TBD)
-8. **Phase 8 - Release Preparation** (Due: TBD)
+8. **Phase 8 - Streamline UX** (Due: TBD)
+9. **Phase 9 - Release Preparation** (Due: TBD)
+10. **Phase 10 - Chat Interface** (Due: TBD)
 
 ### GitHub Labels to Create
 
@@ -631,8 +1001,8 @@ gh issue create --title "[Step 14] Smart Text Chunking" --body "See ROADMAP.md S
 ### Project Status After Setup
 
 After creating all issues:
-- ✅ **14 Closed Issues** (Completed tasks)
-- 🔄 **16 Open Issues** (TODO tasks)  
+- ✅ **25 Closed Issues** (Completed tasks)
+- 🔄 **5 Open Issues** (TODO tasks)  
 - 📊 **8 Milestones** (Development phases)
 - 🏷️ **18 Labels** (Task categorization)
 
