@@ -104,3 +104,49 @@ Add verbose logging by modifying test files or checking individual command outpu
 - Embedding tests (Phase 3) require the actual embedding system
 - MCP tests verify server functionality without requiring clients
 - All tests are designed to work on Windows, macOS, and Linux
+
+## Phase 8: Streamline UX and Configuration Flow
+
+### Step 28: Configuration Validation System
+
+The validation system tests verify that the configuration validation system works correctly. These tests are located in `test-phase8-ux.js` and cover:
+
+1. **Path Validation**
+   - Valid folder paths
+   - Non-existent folders
+   - Include/exclude paths
+   - Cache directory permissions
+
+2. **Numeric Validation**
+   - Valid numeric ranges
+   - Invalid values
+   - Default value application
+   - Parameter dependencies
+
+3. **Network Validation**
+   - Port availability
+   - Port number ranges
+   - Host configuration
+   - Timeout settings
+
+4. **Model Validation**
+   - Model existence
+   - Model compatibility
+   - Parameter validation
+   - Default model selection
+
+5. **Validation Summary**
+   - Error reporting
+   - Fix suggestions
+   - Warning handling
+   - Success messages
+
+To run the validation tests:
+```bash
+npm test test-phase8-ux.js
+```
+
+Test data:
+- Uses `C:\ThinkingHomes\test-simple` for basic tests
+- Uses `C:\ThinkingHomes\test-folder` for extended tests
+- Creates temporary test data in `tests/test-data-phase8`

@@ -702,41 +702,151 @@ class Phase8Tester {
   }
 
   async testConfigurationValidation() {
-    console.log('\n✅ Testing Configuration Validation System');
+    console.log('\n📋 Testing Step 28: Configuration Validation System');
     console.log('-'.repeat(60));
-    
+
     try {
-      const resolverModule = await import('../dist/config/resolver.js');
-      const { resolveConfig, validateResolvedConfig } = resolverModule;
-      
-      // Test 1: Valid configuration should pass
-      const testFolder = join(testDataDir, 'config-test');
-      const validConfig = resolveConfig(testFolder);
-      const errors = validateResolvedConfig(validConfig);
-      
-      if (errors.length > 0) {
-        throw new Error(`Valid config should not have errors: ${errors.join(', ')}`);
-      }
-      
-      // Test 2: Invalid configuration should fail
-      const invalidConfig = {
-        ...validConfig,
-        chunkSize: 50, // Too small
-        overlap: 5000, // Too large
-        batchSize: 0 // Invalid
-      };
-      
-      const invalidErrors = validateResolvedConfig(invalidConfig);
-      if (invalidErrors.length === 0) {
-        throw new Error('Invalid config should have validation errors');
-      }
-      
-      console.log('✅ Test: Configuration validation system works');
-      this.results['config_validation'] = true;
-      
+      // Import the validation module
+      const validationModule = await import('../dist/config/validation/index.js');
+      const { ConfigValidator } = validationModule;
+      const validator = new ConfigValidator();
+
+      // Test 1: Path Validation
+      await this.test('Path validation - valid folder', async () => {
+        const config = {
+          targetFolder: testFolderSimple
+        };
+        const result = await validator.validate(config);
+        return result.isValid && result.errors.length === 0;
+      });
+
+      await this.test('Path validation - non-existent folder', async () => {
+        const config = {
+          targetFolder: 'C:\\non-existent-folder'
+        };
+        const result = await validator.validate(config);
+        return !result.isValid && result.errors[0].code === 'FOLDER_NOT_FOUND';
+      });
+
+      await this.test('Path validation - include/exclude paths', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          includePaths: ['test.txt'],
+          excludePaths: ['temp']
+        };
+        const result = await validator.validate(config);
+        return result.isValid;
+      });
+
+      // Test 2: Numeric Validation
+      await this.test('Numeric validation - valid values', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          chunkSize: 400,
+          overlap: 10,
+          batchSize: 32,
+          workerCount: 4,
+          memoryLimit: 2048
+        };
+        const result = await validator.validate(config);
+        return result.isValid;
+      });
+
+      await this.test('Numeric validation - invalid chunk size', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          chunkSize: 50 // Too small
+        };
+        const result = await validator.validate(config);
+        return !result.isValid && result.errors[0].code === 'CHUNK_SIZE_INVALID';
+      });
+
+      await this.test('Numeric validation - defaults', async () => {
+        const config = {
+          targetFolder: testFolderSimple
+        };
+        const result = await validator.validate(config);
+        return result.isValid && 
+               result.config.chunkSize === 400 && 
+               result.config.overlap === 10;
+      });
+
+      // Test 3: Network Validation
+      await this.test('Network validation - valid port', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          port: 3000
+        };
+        const result = await validator.validate(config);
+        return result.isValid;
+      });
+
+      await this.test('Network validation - invalid port', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          port: 80 // Reserved port
+        };
+        const result = await validator.validate(config);
+        return !result.isValid && result.errors[0].code === 'PORT_INVALID';
+      });
+
+      await this.test('Network validation - host config', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          host: 'localhost'
+        };
+        const result = await validator.validate(config);
+        return result.isValid;
+      });
+
+      // Test 4: Model Validation
+      await this.test('Model validation - valid model', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          model: 'nomic-embed-text'
+        };
+        const result = await validator.validate(config);
+        return result.isValid;
+      });
+
+      await this.test('Model validation - non-existent model', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          model: 'non-existent-model'
+        };
+        const result = await validator.validate(config);
+        return !result.isValid && result.errors[0].code === 'MODEL_NOT_FOUND';
+      });
+
+      // Test 5: Validation Summary
+      await this.test('Validation summary - error case', async () => {
+        const config = {
+          targetFolder: testFolderSimple,
+          chunkSize: 50, // Invalid
+          port: 80 // Invalid
+        };
+        const result = await validator.validate(config);
+        const summary = validator.getValidationSummary(result);
+        return summary.includes('❌ Configuration validation failed') &&
+               summary.includes('Errors:') &&
+               summary.includes('Fix:');
+      });
+
+      await this.test('Validation summary - success case', async () => {
+        const config = {
+          targetFolder: testFolderSimple
+        };
+        const result = await validator.validate(config);
+        const summary = validator.getValidationSummary(result);
+        return summary.includes('✅ Configuration is valid');
+      });
+
+      this.results['Step 28'] = true;
+      console.log('✅ Step 28 tests completed successfully');
+
     } catch (error) {
-      console.log('❌ Test: Configuration validation failed:', error.message);
-      this.results['config_validation'] = false;
+      console.error('❌ Step 28 tests failed:', error);
+      this.results['Step 28'] = false;
     }
   }
 
