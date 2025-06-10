@@ -171,7 +171,7 @@ folder-mcp/
 
 **Current Steps**:
 - ✅ **Step 26**: Runtime Configuration Structure
-- 📋 **Step 27**: Configuration Caching System
+- ✅ **Step 27**: Configuration Caching System
 - 📋 **Step 28**: Configuration Validation System
 - 📋 **Step 29**: Hugging Face Hub Integration for Model Metadata
 - 📋 **Step 30**: CLI Parameter Override System
@@ -188,7 +188,7 @@ folder-mcp/
 - **Step 36**: Test Suite
 - **Step 37**: Documentation
 - **Step 38**: NPM Package Preparation
-- **Step 39**: Release
+- **Step 39**: Release 1.0.0
 
 #### Phase 10: Chat with Your Folder (Steps 40-44) → [Details](#phase-10-chat-with-your-folder-steps-40-44--future)
 **Status**: 📋 FUTURE
@@ -582,16 +582,26 @@ This section contains detailed task descriptions, success criteria, and implemen
 - Full validation system with detailed error messages
 - Comprehensive test suite with 7 specific tests covering all aspects
 
-#### Step 27: Configuration Caching System 📋 TODO
+#### Step 27: Configuration Caching System ✅ COMPLETED
 **Task**: Implement configuration persistence and caching with Ollama integration  
 **Success Criteria**:
-- 📋 Save runtime config to ~/.folder-mcp/last-runtime.json
-- 📋 Load previous runtime on startup if exists
-- 📋 Cache system profile in ~/.folder-mcp/system-profile.json
-- 📋 Store Ollama embedding model list with 24-hour expiry
-- 📋 Fetch embedding models directly from Ollama API
-- 📋 Implement cache invalidation mechanism
-- 📋 Handle corrupted cache files gracefully
+- ✅ Save runtime config to ~/.folder-mcp/last-runtime.json
+- ✅ Load previous runtime on startup if exists
+- ✅ Cache system profile in ~/.folder-mcp/system-profile.json
+- ✅ Store Ollama embedding model list with 24-hour expiry
+- ✅ Fetch embedding models directly from Ollama API
+- ✅ Implement cache invalidation mechanism
+- ✅ Handle corrupted cache files gracefully
+
+**Implementation**:
+- `src/config/runtime.ts`
+- `src/config/system.ts`
+- `src/config/ollama.ts`
+- `src/config/cache.ts`
+- `src/config/resolver.ts`
+- `tests/test-phase8-ux.js`
+
+All success criteria are fully implemented and tested. See `tests/test-phase8-ux.js` for comprehensive test coverage.
 
 #### Step 28: Configuration Validation System 📋 TODO
 **Task**: Validate runtime configuration before execution  
@@ -736,7 +746,7 @@ Example Response:
 - Version 1.0.0 tagged
 - LICENSE file included
 
-#### Step 39: Release
+#### Step 39: Release 1.0.0
 **Task**: Publish to npm registry  
 **Success Criteria**:
 - `npm install -g folder-mcp` works

@@ -6,6 +6,15 @@ import { homedir } from 'os';
 import { createHash } from 'crypto';
 import { ResolvedConfig } from './resolver.js';
 import { getSystemCapabilities, SystemCapabilities } from './system.js';
+import { 
+  readFromCache, 
+  writeToCache, 
+  CACHE_KEYS, 
+  CacheOptions,
+  isCacheKeyValid,
+  getCacheMetadata,
+  clearCache
+} from './cache.js';
 
 /**
  * Runtime configuration interface - contains all parameters needed for execution
@@ -516,4 +525,126 @@ export function displayRuntimeConfigSummary(config: RuntimeConfig): void {
   console.log(`   🏠 Host: ${config.server.host}`);
   console.log(`   🚀 Auto-start: ${config.server.autoStart ? 'Yes' : 'No'}`);
   console.log();
+}
+
+/**
+ * Save runtime configuration to cache
+ */
+export async function saveRuntimeConfig(config: RuntimeConfig): Promise<void> {
+  try {
+    const cacheOptions: CacheOptions = {
+      ttlHours: 168, // 7 days - longer TTL for runtime configs
+      validateChecksum: true,
+      compress: false // Runtime configs are small, no need to compress
+    };
+    
+    // Update the lastUsed timestamp
+    const configToSave = {
+      ...config,
+      metadata: {
+        ...config.metadata,
+        lastUsed: new Date().toISOString()
+      }
+    };
+    
+    writeToCache(CACHE_KEYS.RUNTIME_CONFIG, configToSave, cacheOptions);
+    console.log('💾 Runtime configuration saved to cache');
+  } catch (error) {
+    console.warn('⚠️ Failed to save runtime configuration to cache:', error);
+  }
+}
+
+/**
+ * Load runtime configuration from cache
+ */
+export async function loadRuntimeConfig(): Promise<RuntimeConfig | null> {
+  try {
+    const cacheOptions: CacheOptions = {
+      ttlHours: 168, // 7 days
+      validateChecksum: true
+    };
+    
+    const cachedConfig = readFromCache<RuntimeConfig>(CACHE_KEYS.RUNTIME_CONFIG, cacheOptions);
+    
+    if (cachedConfig) {
+      console.log('📂 Loaded runtime configuration from cache');
+      
+      // Check if the cached config is still valid
+      const metadata = getCacheMetadata(CACHE_KEYS.RUNTIME_CONFIG);
+      if (metadata) {
+        const cacheAge = Date.now() - new Date(metadata.createdAt).getTime();
+        const ageHours = Math.floor(cacheAge / (1000 * 60 * 60));
+        console.log(`   📅 Cache age: ${ageHours} hours`);
+        
+        // If cache is older than 24 hours, suggest refresh
+        if (ageHours > 24) {
+          console.log('   ⚠️ Configuration cache is older than 24 hours, consider refresh');
+        }
+      }
+      
+      return cachedConfig;
+    }
+    
+    console.log('📂 No cached runtime configuration found');
+    return null;
+  } catch (error) {
+    console.warn('⚠️ Failed to load runtime configuration from cache:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if runtime configuration needs regeneration
+ */
+export function shouldRegenerateRuntimeConfig(
+  folderPath: string, 
+  currentResolvedConfig: ResolvedConfig
+): boolean {
+  if (!isCacheKeyValid(CACHE_KEYS.RUNTIME_CONFIG)) {
+    return true; // No valid cache exists
+  }
+  
+  try {
+    const cachedConfig = readFromCache<RuntimeConfig>(CACHE_KEYS.RUNTIME_CONFIG);
+    if (!cachedConfig) {
+      return true;
+    }
+    
+    // Check if the source configuration has changed
+    const currentConfigHash = createHash('sha256')
+      .update(JSON.stringify(currentResolvedConfig))
+      .digest('hex');
+    
+    if (cachedConfig.metadata.configHash !== currentConfigHash) {
+      console.log('🔄 Configuration changed, runtime config needs regeneration');
+      return true;
+    }
+    
+    // Check if folder path changed
+    if (cachedConfig.metadata.folderPath !== folderPath) {
+      console.log('📁 Folder path changed, runtime config needs regeneration');
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn('⚠️ Error checking runtime config regeneration:', error);
+    return true; // Regenerate on error
+  }
+}
+
+/**
+ * Clear runtime configuration cache
+ */
+export function clearRuntimeConfigCache(): boolean {
+  try {
+    const cleared = clearCache(CACHE_KEYS.RUNTIME_CONFIG);
+    if (cleared) {
+      console.log('🗑️ Runtime configuration cache cleared');
+    }
+    return cleared;
+  } catch (error) {
+    console.warn('⚠️ Failed to clear runtime configuration cache:', error);
+    return false;
+  }
 }

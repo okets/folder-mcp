@@ -12,6 +12,17 @@ import {
 } from './local.js';
 import { resolveConfig, displayConfigSummary } from './resolver.js';
 import { getConfig } from '../config.js';
+import { 
+  getCacheStats, 
+  clearCache as clearCacheEntry, 
+  clearAllCache,
+  isCacheKeyValid,
+  getCacheMetadata,
+  CACHE_KEYS 
+} from './cache.js';
+import { clearRuntimeConfigCache } from './runtime.js';
+import { clearSystemProfileCache, getSystemCapabilitiesWithCache } from './system.js';
+import { clearOllamaModelsCache, getOllamaEmbeddingModelsWithCache } from './ollama.js';
 
 /**
  * Set up the config command with all subcommands
@@ -83,6 +94,35 @@ export function setupConfigCommand(program: Command): void {
     .description('List available embedding models')
     .action(async () => {
       await listModels();
+    });
+
+  // Cache management commands
+  configCmd
+    .command('cache-status')
+    .description('Show cache status and statistics')
+    .action(async () => {
+      await showCacheStatus();
+    });
+
+  configCmd
+    .command('clear-cache')
+    .description('Clear configuration cache')
+    .option('--runtime', 'Clear only runtime configuration cache')
+    .option('--system', 'Clear only system profile cache')
+    .option('--ollama', 'Clear only Ollama models cache')
+    .option('--all', 'Clear all cache (default)')
+    .action(async (options: { runtime?: boolean; system?: boolean; ollama?: boolean; all?: boolean }) => {
+      await clearCache(options);
+    });
+
+  configCmd
+    .command('refresh-cache')
+    .description('Refresh cached data')
+    .option('--system', 'Refresh system profile')
+    .option('--ollama', 'Refresh Ollama models')
+    .option('--all', 'Refresh all cached data (default)')
+    .action(async (options: { system?: boolean; ollama?: boolean; all?: boolean }) => {
+      await refreshCache(options);
     });
 }
 
@@ -391,6 +431,146 @@ async function listModels(): Promise<void> {
     console.error('❌ Failed to list models:', error instanceof Error ? error.message : 'Unknown error');
     process.exit(1);
   }
+}
+
+/**
+ * Show cache status and statistics
+ */
+async function showCacheStatus(): Promise<void> {
+  try {
+    console.log('📊 Cache Status:\n');
+    
+    const stats = getCacheStats();
+    console.log(`🗂️  Total cache files: ${stats.totalFiles}`);
+    console.log(`💾 Total cache size: ${formatBytes(stats.totalSize)}`);
+    
+    if (stats.oldestEntry) {
+      console.log(`⏰ Oldest entry: ${stats.oldestEntry}`);
+    }
+    if (stats.newestEntry) {
+      console.log(`🆕 Newest entry: ${stats.newestEntry}`);
+    }
+    
+    console.log('\n🔍 Cache Details:');
+    
+    // Check each cache type
+    const cacheTypes = [
+      { key: CACHE_KEYS.RUNTIME_CONFIG, name: 'Runtime Configuration' },
+      { key: CACHE_KEYS.SYSTEM_PROFILE, name: 'System Profile' },
+      { key: CACHE_KEYS.OLLAMA_MODELS, name: 'Ollama Models' }
+    ];
+    
+    for (const cacheType of cacheTypes) {
+      const isValid = isCacheKeyValid(cacheType.key);
+      const metadata = getCacheMetadata(cacheType.key);
+      
+      if (isValid && metadata) {
+        const cacheAge = Date.now() - new Date(metadata.createdAt).getTime();
+        const ageHours = Math.floor(cacheAge / (1000 * 60 * 60));
+        const ageMinutes = Math.floor((cacheAge % (1000 * 60 * 60)) / (1000 * 60));
+        
+        console.log(`   ✅ ${cacheType.name}: Valid (${ageHours}h ${ageMinutes}m old)`);
+        console.log(`      Created: ${new Date(metadata.createdAt).toLocaleString()}`);
+        console.log(`      Expires: ${new Date(metadata.expiresAt).toLocaleString()}`);
+      } else {
+        console.log(`   ❌ ${cacheType.name}: Not cached or expired`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to show cache status:', error instanceof Error ? error.message : 'Unknown error');
+    process.exit(1);
+  }
+}
+
+/**
+ * Clear cache entries
+ */
+async function clearCache(options: { runtime?: boolean; system?: boolean; ollama?: boolean; all?: boolean }): Promise<void> {
+  try {
+    const { runtime, system, ollama, all } = options;
+    const clearAll = all || (!runtime && !system && !ollama);
+    
+    let cleared = 0;
+    
+    if (clearAll || runtime) {
+      if (clearRuntimeConfigCache()) {
+        cleared++;
+        console.log('🗑️ Runtime configuration cache cleared');
+      }
+    }
+    
+    if (clearAll || system) {
+      if (clearSystemProfileCache()) {
+        cleared++;
+        console.log('🗑️ System profile cache cleared');
+      }
+    }
+    
+    if (clearAll || ollama) {
+      if (clearOllamaModelsCache()) {
+        cleared++;
+        console.log('🗑️ Ollama models cache cleared');
+      }
+    }
+    
+    if (clearAll) {
+      // Clear any other cache files
+      const totalCleared = clearAllCache();
+      if (totalCleared > cleared) {
+        console.log(`🗑️ Additional ${totalCleared - cleared} cache files cleared`);
+      }
+    }
+    
+    console.log(`\n✅ Cache clearing completed (${cleared} entries cleared)`);
+    
+  } catch (error) {
+    console.error('❌ Failed to clear cache:', error instanceof Error ? error.message : 'Unknown error');
+    process.exit(1);
+  }
+}
+
+/**
+ * Refresh cached data
+ */
+async function refreshCache(options: { system?: boolean; ollama?: boolean; all?: boolean }): Promise<void> {
+  try {
+    const { system, ollama, all } = options;
+    const refreshAll = all || (!system && !ollama);
+    
+    console.log('🔄 Refreshing cached data...\n');
+    
+    if (refreshAll || system) {
+      console.log('🔍 Refreshing system profile...');
+      await getSystemCapabilitiesWithCache(true);
+      console.log('✅ System profile refreshed');
+    }
+    
+    if (refreshAll || ollama) {
+      console.log('🔍 Refreshing Ollama models...');
+      const models = await getOllamaEmbeddingModelsWithCache(true);
+      console.log(`✅ Ollama models refreshed (${models.length} embedding models found)`);
+    }
+    
+    console.log('\n✅ Cache refresh completed');
+    
+  } catch (error) {
+    console.error('❌ Failed to refresh cache:', error instanceof Error ? error.message : 'Unknown error');
+    process.exit(1);
+  }
+}
+
+/**
+ * Format bytes to human-readable string
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 /**

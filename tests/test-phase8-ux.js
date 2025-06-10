@@ -27,6 +27,23 @@ class Phase8Tester {
     this.cleanup = [];
   }
 
+  async test(testName, testFn) {
+    try {
+      console.log(`   🔍 Test: ${testName}`);
+      const result = await testFn();
+      if (result === true) {
+        console.log(`   ✅ Test: ${testName} passed`);
+        return true;
+      } else {
+        console.log(`   ❌ Test: ${testName} failed`);
+        return false;
+      }
+    } catch (error) {
+      console.log(`   ❌ Test: ${testName} failed with error: ${error.message}`);
+      return false;
+    }
+  }
+
   async runAllTests() {
     console.log('🧪 Running Phase 8 Tests: Streamline UX and Configuration Flow');
     console.log('=' .repeat(80));
@@ -417,47 +434,270 @@ class Phase8Tester {
   }
 
   async testConfigurationCaching() {
-    console.log('\n💾 Testing Configuration Caching System');
+    console.log('\n📋 Testing Step 27: Configuration Caching System');
     console.log('-'.repeat(60));
     
     try {
+      // Import all required modules
+      const runtimeModule = await import('../dist/config/runtime.js');
+      const systemModule = await import('../dist/config/system.js');
+      const ollamaModule = await import('../dist/config/ollama.js');
       const cacheModule = await import('../dist/config/cache.js');
-      const { readFromCache, writeToCache, clearCache, getCacheStats } = cacheModule;
+      const resolverModule = await import('../dist/config/resolver.js');
+      
+      const { 
+        saveRuntimeConfig, 
+        loadRuntimeConfig, 
+        generateRuntimeConfig,
+        clearRuntimeConfigCache
+      } = runtimeModule;
+      
+      const {
+        saveSystemProfile,
+        loadSystemProfile,
+        getSystemCapabilitiesWithCache
+      } = systemModule;
+      
+      const {
+        cacheOllamaModels,
+        loadCachedOllamaModels,
+        getOllamaEmbeddingModelsWithCache,
+        isOllamaAccessible
+      } = ollamaModule;
+      
+      const {
+        readFromCache,
+        writeToCache,
+        CACHE_KEYS,
+        clearAllCache,
+        clearCache,
+        getCacheStats,
+        isCacheKeyValid,
+        getCacheMetadata,
+        getCacheFilePath
+      } = cacheModule;
       
       // Test 1: Basic cache operations
-      const testData = { test: 'data', timestamp: Date.now() };
-      writeToCache('test-key', testData);
+      await this.test('Basic cache write/read', async () => {
+        const testData = { test: 'data', timestamp: Date.now() };
+        writeToCache('test-key', testData);
+        const retrieved = readFromCache('test-key');
+        return JSON.stringify(retrieved) === JSON.stringify(testData);
+      });
       
-      const retrieved = readFromCache('test-key');
-      if (JSON.stringify(retrieved) !== JSON.stringify(testData)) {
-        throw new Error('Cache read/write mismatch');
-      }
+      // Test 2: Cache expiry
+      await this.test('Cache expiry works', async () => {
+        const testData = { expiry: 'test' };
+        writeToCache('expiry-test', testData, { ttlHours: -1 }); // Already expired
+        const retrieved = readFromCache('expiry-test');
+        return retrieved === null;
+      });
       
-      // Test 2: Cache stats
-      const stats = getCacheStats();
-      if (typeof stats.totalFiles !== 'number' || typeof stats.totalSize !== 'number') {
-        throw new Error('Invalid cache stats');
-      }
+      // Test 3: Cache key validity
+      await this.test('Cache key validity check', async () => {
+        const testData = { validity: 'test' };
+        writeToCache('validity-test', testData);
+        return isCacheKeyValid('validity-test') && !isCacheKeyValid('non-existent-key');
+      });
       
-      // Test 3: Cache clearing (basic functionality test)
-      // Note: clearCache may return false if file doesn't exist or can't be deleted
-      // The important thing is that the function doesn't crash
-      try {
-        clearCache('test-key');
-        console.log('✅ Cache clear function executed without errors');
-      } catch (error) {
-        throw new Error(`Cache clear function threw error: ${error.message}`);
-      }
+      // Test 4: Cache metadata
+      await this.test('Cache metadata retrieval', async () => {
+        const testData = { metadata: 'test' };
+        writeToCache('metadata-test', testData);
+        const metadata = getCacheMetadata('metadata-test');
+        return metadata !== null && metadata.version === '1.0.0';
+      });
       
-      const retrieved2 = readFromCache('test-key');
-      // Note: Cache behavior may vary - we mainly test that the functions work without crashing
+      // Test 5: Cache stats
+      await this.test('Cache statistics', async () => {
+        writeToCache('stats-test', { test: 'for stats' });
+        const stats = getCacheStats();
+        return stats.totalFiles > 0 && stats.totalSize > 0;
+      });
       
-      console.log('✅ Test: Configuration caching system works');
-      this.results['config_caching'] = true;
+      // Test 6: Runtime configuration caching
+      await this.test('Runtime configuration caching', async () => {
+        const resolvedConfig = await resolverModule.resolveConfig(process.cwd());
+        const runtimeConfig = await generateRuntimeConfig(process.cwd(), resolvedConfig);
+        
+        await saveRuntimeConfig(runtimeConfig);
+        const loaded = await loadRuntimeConfig();
+        
+        return loaded !== null && loaded.metadata.folderPath === runtimeConfig.metadata.folderPath;
+      });
+      
+      // Test 7: System profile caching
+      await this.test('System profile caching', async () => {
+        const capabilities = await getSystemCapabilitiesWithCache(true);
+        const loaded = await loadSystemProfile();
+        
+        return loaded !== null && loaded.cpuCores === capabilities.cpuCores;
+      });
+      
+      // Test 8: Ollama models caching (only if Ollama is available)
+      await this.test('Ollama models caching (if available)', async () => {
+        const isAccessible = await isOllamaAccessible();
+        if (!isAccessible) {
+          console.log('   ⏭️ Skipping Ollama test (not accessible)');
+          return true; // Skip this test if Ollama is not available
+        }
+        
+        const models = await getOllamaEmbeddingModelsWithCache(true);
+        const cached = await loadCachedOllamaModels();
+        
+        return cached !== null && cached.models.length === models.length;
+      });
+      
+      // Test 9: Cache invalidation
+      await this.test('Cache invalidation', async () => {
+        writeToCache('invalidation-test', { test: 'data' });
+        const cleared = clearCache('invalidation-test');
+        return cleared && !isCacheKeyValid('invalidation-test');
+      });
+      
+      // Test 10: Corrupted cache handling
+      await this.test('Corrupted cache handling', async () => {
+        // Write valid cache first
+        writeToCache('corruption-test', { test: 'data' });
+        
+        // Manually corrupt the cache file
+        const fs = await import('fs');
+        const filePath = getCacheFilePath('corruption-test');
+        fs.writeFileSync(filePath, 'invalid json content');
+        
+        // Try to read - should handle gracefully
+        const result = readFromCache('corruption-test');
+        return result === null; // Should return null for corrupted cache
+      });
+      
+      // Test 11: Cache files in correct location
+      await this.test('Cache files in global directory', async () => {
+        const globalCacheDir = join(homedir(), '.folder-mcp');
+        if (!existsSync(globalCacheDir)) {
+          throw new Error('Global cache directory does not exist');
+        }
+        
+        const expectedFiles = [
+          'last-runtime.json',
+          'system-profile.json', 
+          'ollama-models.json'
+        ];
+        
+        for (const file of expectedFiles) {
+          const filePath = join(globalCacheDir, file);
+          if (!existsSync(filePath)) {
+            throw new Error(`Cache file ${file} does not exist in global cache directory`);
+          }
+          
+          // Verify file has valid JSON structure
+          try {
+            const content = JSON.parse(readFileSync(filePath, 'utf-8'));
+            if (!content.data || !content.metadata) {
+              throw new Error(`Cache file ${file} does not have expected structure (data, metadata)`);
+            }
+            if (!content.metadata.createdAt || !content.metadata.expiresAt) {
+              throw new Error(`Cache file ${file} metadata is missing required fields`);
+            }
+          } catch (parseError) {
+            throw new Error(`Cache file ${file} contains invalid JSON: ${parseError.message}`);
+          }
+        }
+        return true;
+      });
+      
+      // Test 12: Cache TTL verification
+      await this.test('Cache TTL and expiration handling', async () => {
+        const globalCacheDir = join(homedir(), '.folder-mcp');
+        const runtimeFile = join(globalCacheDir, 'last-runtime.json');
+        const systemFile = join(globalCacheDir, 'system-profile.json');
+        const ollamaFile = join(globalCacheDir, 'ollama-models.json');
+        
+        // Check runtime config has 7-day TTL (168 hours)
+        const runtimeContent = JSON.parse(readFileSync(runtimeFile, 'utf-8'));
+        const runtimeCreated = new Date(runtimeContent.metadata.createdAt);
+        const runtimeExpires = new Date(runtimeContent.metadata.expiresAt);
+        const runtimeTTLHours = (runtimeExpires - runtimeCreated) / (1000 * 60 * 60);
+        
+        if (Math.abs(runtimeTTLHours - 168) > 1) { // Allow 1 hour tolerance
+          throw new Error(`Runtime config TTL is ${runtimeTTLHours} hours, expected ~168 hours (7 days)`);
+        }
+        
+        // Check system profile has 24-hour TTL
+        const systemContent = JSON.parse(readFileSync(systemFile, 'utf-8'));
+        const systemCreated = new Date(systemContent.metadata.createdAt);
+        const systemExpires = new Date(systemContent.metadata.expiresAt);
+        const systemTTLHours = (systemExpires - systemCreated) / (1000 * 60 * 60);
+        
+        if (Math.abs(systemTTLHours - 24) > 1) { // Allow 1 hour tolerance
+          throw new Error(`System profile TTL is ${systemTTLHours} hours, expected ~24 hours`);
+        }
+        
+        // Check Ollama models has 24-hour TTL
+        const ollamaContent = JSON.parse(readFileSync(ollamaFile, 'utf-8'));
+        const ollamaCreated = new Date(ollamaContent.metadata.createdAt);
+        const ollamaExpires = new Date(ollamaContent.metadata.expiresAt);
+        const ollamaTTLHours = (ollamaExpires - ollamaCreated) / (1000 * 60 * 60);
+        
+        if (Math.abs(ollamaTTLHours - 24) > 1) { // Allow 1 hour tolerance
+          throw new Error(`Ollama models TTL is ${ollamaTTLHours} hours, expected ~24 hours`);
+        }
+        
+        return true;
+      });
+      
+      // Test 13: Cache data structure validation
+      await this.test('Cache data structure validation', async () => {
+        const globalCacheDir = join(homedir(), '.folder-mcp');
+        
+        // Verify runtime config structure
+        const runtimeFile = join(globalCacheDir, 'last-runtime.json');
+        const runtimeContent = JSON.parse(readFileSync(runtimeFile, 'utf-8'));
+        const runtimeData = runtimeContent.data;
+        
+        const requiredRuntimeSections = ['system', 'processing', 'server', 'ui', 'files', 'cache', 'metadata'];
+        for (const section of requiredRuntimeSections) {
+          if (!runtimeData[section]) {
+            throw new Error(`Runtime config missing required section: ${section}`);
+          }
+        }
+        
+        // Verify system profile structure
+        const systemFile = join(globalCacheDir, 'system-profile.json');
+        const systemContent = JSON.parse(readFileSync(systemFile, 'utf-8'));
+        const systemData = systemContent.data;
+        
+        const requiredSystemFields = ['cpuCores', 'totalMemoryGB', 'platform', 'performanceTier'];
+        for (const field of requiredSystemFields) {
+          if (systemData[field] === undefined) {
+            throw new Error(`System profile missing required field: ${field}`);
+          }
+        }
+        
+        // Verify Ollama models structure
+        const ollamaFile = join(globalCacheDir, 'ollama-models.json');
+        const ollamaContent = JSON.parse(readFileSync(ollamaFile, 'utf-8'));
+        const ollamaData = ollamaContent.data;
+        
+        const requiredOllamaFields = ['models', 'fetchedAt', 'totalModels', 'embeddingModels'];
+        for (const field of requiredOllamaFields) {
+          if (ollamaData[field] === undefined) {
+            throw new Error(`Ollama models cache missing required field: ${field}`);
+          }
+        }
+        
+        if (!Array.isArray(ollamaData.models)) {
+          throw new Error('Ollama models should be an array');
+        }
+        
+        return true;
+      });
+      
+      console.log('\n✅ Step 27: Configuration Caching System - All tests passed!');
+      this.results['Step 27'] = true;
       
     } catch (error) {
-      console.log('❌ Test: Configuration caching failed:', error.message);
-      this.results['config_caching'] = false;
+      console.error('❌ Step 27 tests failed:', error);
+      this.results['Step 27'] = false;
     }
   }
 

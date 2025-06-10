@@ -4,6 +4,15 @@
 import { cpus, totalmem, freemem, platform } from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { 
+  readFromCache, 
+  writeToCache, 
+  CACHE_KEYS, 
+  CacheOptions,
+  isCacheKeyValid,
+  getCacheMetadata,
+  clearCache
+} from './cache.js';
 
 const execAsync = promisify(exec);
 
@@ -373,4 +382,124 @@ export async function quickSystemCheck(): Promise<{
   }
   
   return { cpuCores, memoryGB, ollamaRunning };
+}
+
+/**
+ * Save system profile to cache
+ */
+export async function saveSystemProfile(capabilities: SystemCapabilities): Promise<void> {
+  try {
+    const cacheOptions: CacheOptions = {
+      ttlHours: 24, // 24 hours - system capabilities don't change frequently
+      validateChecksum: true,
+      compress: false // System profiles are small
+    };
+    
+    writeToCache(CACHE_KEYS.SYSTEM_PROFILE, capabilities, cacheOptions);
+    console.log('💾 System profile saved to cache');
+  } catch (error) {
+    console.warn('⚠️ Failed to save system profile to cache:', error);
+  }
+}
+
+/**
+ * Load system profile from cache
+ */
+export async function loadSystemProfile(): Promise<SystemCapabilities | null> {
+  try {
+    const cacheOptions: CacheOptions = {
+      ttlHours: 24, // 24 hours
+      validateChecksum: true
+    };
+    
+    const cachedProfile = readFromCache<SystemCapabilities>(CACHE_KEYS.SYSTEM_PROFILE, cacheOptions);
+    
+    if (cachedProfile) {
+      console.log('📂 Loaded system profile from cache');
+      
+      // Show cache age
+      const metadata = getCacheMetadata(CACHE_KEYS.SYSTEM_PROFILE);
+      if (metadata) {
+        const cacheAge = Date.now() - new Date(metadata.createdAt).getTime();
+        const ageMinutes = Math.floor(cacheAge / (1000 * 60));
+        console.log(`   📅 System profile age: ${ageMinutes} minutes`);
+      }
+      
+      return cachedProfile;
+    }
+    
+    console.log('📂 No cached system profile found');
+    return null;
+  } catch (error) {
+    console.warn('⚠️ Failed to load system profile from cache:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if system profile should be refreshed
+ */
+export function shouldRefreshSystemProfile(): boolean {
+  if (!isCacheKeyValid(CACHE_KEYS.SYSTEM_PROFILE)) {
+    return true; // No valid cache exists
+  }
+  
+  try {
+    const metadata = getCacheMetadata(CACHE_KEYS.SYSTEM_PROFILE);
+    if (!metadata) {
+      return true;
+    }
+    
+    // Check if cache is older than 6 hours (suggest refresh for better accuracy)
+    const cacheAge = Date.now() - new Date(metadata.createdAt).getTime();
+    const ageHours = cacheAge / (1000 * 60 * 60);
+    
+    if (ageHours > 6) {
+      console.log('🔄 System profile cache is older than 6 hours, refresh recommended');
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn('⚠️ Error checking system profile refresh:', error);
+    return true; // Refresh on error
+  }
+}
+
+/**
+ * Get system capabilities with caching
+ */
+export async function getSystemCapabilitiesWithCache(forceRefresh: boolean = false): Promise<SystemCapabilities> {
+  // Check if we should use cached profile
+  if (!forceRefresh && !shouldRefreshSystemProfile()) {
+    const cachedProfile = await loadSystemProfile();
+    if (cachedProfile) {
+      return cachedProfile;
+    }
+  }
+  
+  // Generate fresh system capabilities
+  console.log('🔍 Detecting system capabilities...');
+  const capabilities = await getSystemCapabilities();
+  
+  // Save to cache
+  await saveSystemProfile(capabilities);
+  
+  return capabilities;
+}
+
+/**
+ * Clear system profile cache
+ */
+export function clearSystemProfileCache(): boolean {
+  try {
+    const cleared = clearCache(CACHE_KEYS.SYSTEM_PROFILE);
+    if (cleared) {
+      console.log('🗑️ System profile cache cleared');
+    }
+    return cleared;
+  } catch (error) {
+    console.warn('⚠️ Failed to clear system profile cache:', error);
+    return false;
+  }
 }

@@ -484,9 +484,7 @@ export async function indexFolder(
       console.log(`   Generate embeddings later with: folder-mcp embeddings "${folderPath}"`);
       console.log(`   Then build vector index with: folder-mcp build-index "${folderPath}"`);
       console.log('');
-    }
-
-    // Display all files
+    }    // Display all files
     console.log('Supported files found:');
     relativePaths.forEach(file => {
       console.log(`  ${file}`);
@@ -494,6 +492,19 @@ export async function indexFolder(
 
     console.log('');
     console.log(`Total supported files: ${supportedFiles.length}`);
+
+    // Generate and cache runtime configuration
+    try {
+      const { generateRuntimeConfig, saveRuntimeConfig } = await import('../config/runtime.js');
+      const { resolveConfig } = await import('../config/resolver.js');
+      
+      console.log('💾 Caching runtime configuration...');
+      const resolvedConfig = resolveConfig(folderPath);
+      const runtimeConfig = await generateRuntimeConfig(folderPath, resolvedConfig);
+      await saveRuntimeConfig(runtimeConfig);
+    } catch (configError) {
+      console.warn(`⚠️  Warning: Failed to cache runtime configuration: ${configError}`);
+    }
 
   } catch (error) {
     console.error(`Error scanning folder: ${error}`);

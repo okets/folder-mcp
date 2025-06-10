@@ -1,9 +1,11 @@
 // Configuration caching system for folder-mcp
 // Provides persistent storage for runtime configurations and system profiles
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, readdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
+import { createHash } from 'crypto';
+import { gzipSync, gunzipSync } from 'zlib';
 
 /**
  * Cache entry metadata
@@ -15,8 +17,21 @@ export interface CacheEntry<T> {
     expiresAt: string;
     version: string;
     checksum?: string;
+    compressed?: boolean;
   };
 }
+
+/**
+ * Cache keys for different types of cached data
+ */
+export const CACHE_KEYS = {
+  RUNTIME_CONFIG: 'last-runtime',
+  SYSTEM_PROFILE: 'system-profile',
+  OLLAMA_MODELS: 'ollama-models',
+  CACHE_METADATA: 'cache-metadata'
+} as const;
+
+export type CacheKey = typeof CACHE_KEYS[keyof typeof CACHE_KEYS];
 
 /**
  * Cache configuration options
@@ -98,9 +113,67 @@ export function isCacheValid(filePath: string, options: CacheOptions = {}): bool
 }
 
 /**
+ * Calculate checksum for data
+ */
+function calculateChecksum(data: string): string {
+  return createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * Compress data if compression is enabled
+ */
+function compressData(data: string, compress: boolean): { data: string; compressed: boolean } {
+  if (!compress) {
+    return { data, compressed: false };
+  }
+  
+  try {
+    const compressed = gzipSync(Buffer.from(data, 'utf-8')).toString('base64');
+    return { data: compressed, compressed: true };
+  } catch (error) {
+    // Fallback to uncompressed if compression fails
+    return { data, compressed: false };
+  }
+}
+
+/**
+ * Decompress data if it was compressed
+ */
+function decompressData(data: string, compressed: boolean): string {
+  if (!compressed) {
+    return data;
+  }
+  
+  try {
+    const decompressed = gunzipSync(Buffer.from(data, 'base64')).toString('utf-8');
+    return decompressed;
+  } catch (error) {
+    throw new Error(`Failed to decompress cached data: ${error}`);
+  }
+}
+
+/**
+ * Handle corrupted cache files gracefully
+ */
+function handleCorruptedCache(filePath: string, error: any): null {
+  console.warn(`⚠️ Corrupted cache file detected: ${filePath}`);
+  console.warn(`Error: ${error.message}`);
+  
+  try {
+    // Try to remove the corrupted file
+    require('fs').unlinkSync(filePath);
+    console.warn('🗑️ Corrupted cache file removed, will regenerate on next access');
+  } catch (deleteError: any) {
+    console.warn('❌ Failed to remove corrupted cache file:', deleteError.message);
+  }
+  
+  return null;
+}
+/**
  * Read data from cache
  */
 export function readFromCache<T>(key: string, options: CacheOptions = {}): T | null {
+  const opts = { ...DEFAULT_CACHE_OPTIONS, ...options };
   const filePath = getCacheFilePath(key);
   
   if (!isCacheValid(filePath, options)) {
@@ -111,12 +184,31 @@ export function readFromCache<T>(key: string, options: CacheOptions = {}): T | n
     const content = readFileSync(filePath, 'utf-8');
     const entry: CacheEntry<T> = JSON.parse(content);
     
-    // TODO: Add checksum validation if enabled
-    // TODO: Add decompression if enabled
+    // Validate checksum if enabled
+    if (opts.validateChecksum && entry.metadata.checksum) {
+      const expectedChecksum = calculateChecksum(JSON.stringify(entry.data));
+      if (entry.metadata.checksum !== expectedChecksum) {
+        console.warn(`⚠️ Cache checksum mismatch for key: ${key}`);
+        return handleCorruptedCache(filePath, new Error('Checksum validation failed'));
+      }
+    }
+    
+    // Decompress if needed
+    let dataString = typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data);
+    if (entry.metadata.compressed) {
+      try {
+        dataString = decompressData(dataString, true);
+        return JSON.parse(dataString) as T;
+      } catch (error) {
+        console.warn(`⚠️ Cache decompression failed for key: ${key}`);
+        return handleCorruptedCache(filePath, error);
+      }
+    }
     
     return entry.data;
   } catch (error) {
-    return null;
+    console.warn(`⚠️ Failed to read cache for key: ${key}`);
+    return handleCorruptedCache(filePath, error);
   }
 }
 
@@ -135,22 +227,47 @@ export function writeToCache<T>(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + opts.ttlHours * 60 * 60 * 1000);
   
-  const entry: CacheEntry<T> = {
-    data,
+  // Prepare data for storage
+  let processedData: any = data;
+  let compressed = false;
+  let checksum: string | undefined;
+  
+  // Apply compression if enabled
+  if (opts.compress) {
+    const dataString = JSON.stringify(data);
+    const compressionResult = compressData(dataString, true);
+    if (compressionResult.compressed) {
+      processedData = compressionResult.data;
+      compressed = true;
+    }
+  }
+  
+  // Calculate checksum if enabled
+  if (opts.validateChecksum) {
+    const dataString = JSON.stringify(compressed ? data : processedData);
+    checksum = calculateChecksum(dataString);
+  }
+  
+  const entry: CacheEntry<any> = {
+    data: processedData,
     metadata: {
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       version: '1.0.0',
-      // TODO: Add checksum if enabled
+      checksum,
+      compressed,
     },
   };
   
-  // TODO: Add compression if enabled
-  
   const filePath = getCacheFilePath(key);
-  const content = JSON.stringify(entry, null, 2);
   
-  writeFileSync(filePath, content, 'utf-8');
+  try {
+    const content = JSON.stringify(entry, null, 2);
+    writeFileSync(filePath, content, 'utf-8');
+  } catch (error) {
+    console.error(`❌ Failed to write cache for key: ${key}`, error);
+    throw error;
+  }
 }
 
 /**
@@ -164,7 +281,7 @@ export function clearCache(key: string): boolean {
   }
   
   try {
-    require('fs').unlinkSync(filePath);
+    unlinkSync(filePath);
     return true;
   } catch (error) {
     return false;
@@ -226,7 +343,7 @@ export function getCacheStats(): {
   let newestEntry: string | undefined;
   
   try {
-    const files = require('fs').readdirSync(cacheDir);
+    const files = readdirSync(cacheDir);
     
     for (const file of files) {
       if (file.endsWith('.json')) {
@@ -260,4 +377,94 @@ export function getCacheStats(): {
     oldestEntry,
     newestEntry,
   };
+}
+
+/**
+ * Invalidate cache entries that have expired
+ */
+export function invalidateExpiredCache(): number {
+  const cacheDir = getGlobalCacheDir();
+  
+  if (!existsSync(cacheDir)) {
+    return 0;
+  }
+  
+  let invalidated = 0;
+  try {
+    const files = require('fs').readdirSync(cacheDir);
+    
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filePath = join(cacheDir, file);
+        if (!isCacheValid(filePath)) {
+          try {
+            require('fs').unlinkSync(filePath);
+            invalidated++;
+          } catch (error) {
+            // Continue with other files
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Directory read error
+  }
+  
+  return invalidated;
+}
+
+/**
+ * Check if a cache key exists and is valid
+ */
+export function isCacheKeyValid(key: string, options: CacheOptions = {}): boolean {
+  const filePath = getCacheFilePath(key);
+  return isCacheValid(filePath, options);
+}
+
+/**
+ * Get cache entry metadata without loading the data
+ */
+export function getCacheMetadata(key: string): CacheEntry<any>['metadata'] | null {
+  const filePath = getCacheFilePath(key);
+  
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const entry: CacheEntry<any> = JSON.parse(content);
+    return entry.metadata;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Update cache entry TTL without changing the data
+ */
+export function extendCacheTTL(key: string, additionalHours: number): boolean {
+  const filePath = getCacheFilePath(key);
+  
+  if (!existsSync(filePath)) {
+    return false;
+  }
+  
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const entry: CacheEntry<any> = JSON.parse(content);
+    
+    // Extend the expiration time
+    const currentExpiry = new Date(entry.metadata.expiresAt);
+    const newExpiry = new Date(currentExpiry.getTime() + additionalHours * 60 * 60 * 1000);
+    entry.metadata.expiresAt = newExpiry.toISOString();
+    
+    // Write back the updated entry
+    const updatedContent = JSON.stringify(entry, null, 2);
+    writeFileSync(filePath, updatedContent, 'utf-8');
+    
+    return true;
+  } catch (error) {
+    return false;
+  }
 }
