@@ -66,3 +66,7 @@ export interface EmbeddingResult {
     sourceType: string;
   };
 }
+
+// Runtime configuration types
+export type { RuntimeConfig } from '../config/runtime.js';
+export type { SystemCapabilities } from '../config/system.js';

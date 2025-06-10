@@ -14,6 +14,7 @@ node tests/test-phase4-search.js
 node tests/test-phase5-mcp.js
 node tests/test-phase6-realtime.js
 node tests/test-phase7-production.js
+node tests/test-phase8-ux.js
 ```
 
 This directory contains comprehensive tests for the folder-mcp project, organized by development phases.
@@ -29,6 +30,7 @@ This directory contains comprehensive tests for the folder-mcp project, organize
 | `test-phase5-mcp.js` | MCP integration tests | Model Context Protocol server, enhanced search |
 | `test-phase6-realtime.js` | Real-time & configuration tests | File watcher integration, configuration system |
 | `test-phase7-production.js` | Production ready tests | Error recovery system, performance optimization |
+| `test-phase8-ux.js` | UX & configuration flow tests | Runtime configuration, system detection, caching |
 | `run-all-tests.js` | Test runner | Executes all phases sequentially |
 
 ## 🚀 Running Tests
@@ -43,6 +45,7 @@ node tests/test-phase4-search.js
 node tests/test-phase5-mcp.js
 node tests/test-phase6-realtime.js
 node tests/test-phase7-production.js
+node tests/test-phase8-ux.js
 ```
 
 ### All Tests at Once
@@ -53,7 +56,7 @@ node tests/run-all-tests.js
 
 ## 📊 Test Coverage
 
-The test suite covers **114 individual tests** across **7 phases**:
+The test suite covers **125+ individual tests** across **8 phases**:
 
 - **Phase 1**: 24 tests (Foundation & CLI)
 - **Phase 2**: 16 tests (File Parsing)  
@@ -62,6 +65,7 @@ The test suite covers **114 individual tests** across **7 phases**:
 - **Phase 5**: 31 tests (MCP Integration)  
 - **Phase 6**: 13 tests (Real-time & Configuration)
 - **Phase 7**: 11 tests (Production Ready - Error Recovery)
+- **Phase 8**: 11 tests (UX & Configuration Flow - Runtime Configuration)
 
 ## ✅ Test Results
 

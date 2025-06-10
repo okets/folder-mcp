@@ -1,6 +1,7 @@
 // Configuration merging system for folder-mcp
 // Handles priority: CLI args > local config > global config
 
+import { resolve } from 'path';
 import { getConfig, getProcessingConfig, getEmbeddingConfig } from '../config.js';
 import { loadLocalConfig, LocalConfig, validateLocalConfig } from './local.js';
 
@@ -26,6 +27,9 @@ export interface CLIArgs {
 
 // Resolved configuration interface (all settings resolved)
 export interface ResolvedConfig {
+  // Folder context
+  folderPath: string;
+  
   // Processing settings
   chunkSize: number;
   overlap: number;
@@ -60,6 +64,9 @@ export interface ResolvedConfig {
  * CLI args > local config > global config
  */
 export function resolveConfig(folderPath: string, cliArgs: CLIArgs = {}): ResolvedConfig {
+  // Resolve folder path to absolute
+  const absoluteFolderPath = resolve(folderPath);
+  
   // Load configurations
   const globalConfig = getConfig();
   const localConfig = loadLocalConfig(folderPath);
@@ -145,6 +152,7 @@ export function resolveConfig(folderPath: string, cliArgs: CLIArgs = {}): Resolv
   );
   
   return {
+    folderPath: absoluteFolderPath,
     chunkSize: chunkSize.value,
     overlap: overlap.value,
     batchSize: batchSize.value,
