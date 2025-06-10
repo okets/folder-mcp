@@ -2,7 +2,19 @@
 
 **Universal Folder-to-MCP-Server Tool**
 
-## Project Description
+## 📋 Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [Tech Stack](#2-tech-stack)
+3. [Project Structure](#3-project-structure)
+4. [Development Progress](#4-development-progress)
+5. [Phase Summary](#5-phase-summary)
+6. [Detailed Implementation](#6-detailed-implementation)
+7. [GitHub Project Management](#7-github-project-management)
+
+---
+
+## 1. Project Overview
 
 ### Core Purpose
 Transform any local folder into an intelligent knowledge base that LLMs can query for context-aware responses.
@@ -22,7 +34,9 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - Smart caching system - embeddings stored in .folder-mcp
 - Incremental updates - only processes changed files
 
-## Tech Stack
+---
+
+## 2. Tech Stack
 
 ### Core Technologies
 - **Language**: TypeScript
@@ -30,7 +44,7 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - **Build Tool**: TSC (TypeScript Compiler)
 - **Package Manager**: npm
 
-### Core Dependencies
+### Dependencies
 
 #### File Parsing
 - `pdf-parse` - PDF text extraction
@@ -56,7 +70,9 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - `@typescript-eslint/parser` - TypeScript ESLint
 - `prettier` - Code formatting
 
-## Project Structure
+---
+
+## 3. Project Structure
 
 ```
 folder-mcp/
@@ -75,80 +91,122 @@ folder-mcp/
 └── LICENSE
 ```
 
-## Development Progress
+---
 
-**Current Status**: Step 25/43 - Phase 7 Complete ✅
+## 4. Development Progress
 
-### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
-- ✅ **Step 1**: Initialize TypeScript Project
-- ✅ **Step 2**: Create CLI Executable
-- ✅ **Step 3**: Implement Commander.js CLI
-- ✅ **Step 4**: Recursive File Listing
-- ✅ **Step 5**: File Type Filtering
-- ✅ **Step 6**: Cache Directory Setup
-- ✅ **Step 7**: File Fingerprinting System
-- ✅ **Step 8**: Cache Status Detection
+**Current Status**: Step 25/44 - Phase 7 Completed, Phase 8 Ready to Start 📋
 
-### Phase 2: File Parsing (Steps 9-13) ✅ COMPLETED
-- ✅ **Step 9**: Text File Parser
-- ✅ **Step 10**: PDF Parser Integration
-- ✅ **Step 11**: Word Document Parser
-- ✅ **Step 12**: Excel Parser
-- ✅ **Step 13**: PowerPoint Parser
-
-### Phase 3: Text Processing & Embeddings (Steps 14-16) ✅ COMPLETED
-- ✅ **Step 14**: Smart Text Chunking
-- ✅ **Step 15**: Embedding Model Setup
-- ✅ **Step 15.1**: GPU-Enabled Embedding Model
-- ✅ **Step 16**: Batch Embedding Generation
-
-### Phase 4: Vector Search (Steps 17-19) ✅ COMPLETED
-- ✅ **Step 17**: FAISS Vector Index
-- ✅ **Step 18**: Similarity Search Function
-- ✅ **Step 19**: Search CLI Command
-
-### Phase 5: MCP Integration (Steps 20-22) ✅ COMPLETED
-- ✅ **Step 20**: MCP Server Scaffold
-- ✅ **Step 21**: Search Tool Implementation  
-- ✅ **Step 22**: Context Enhancement
-
-### Phase 6: Real-time & Configuration (Steps 23-24) ✅ **COMPLETED**
-- ✅ **Step 23**: File Watcher Integration ✅ **COMPLETED**
-- ✅ **Step 24**: Configuration System ✅ **COMPLETED**
-
-### Phase 7: Production Ready (Step 25) ✅ COMPLETED
-- ✅ **Step 25**: Error Recovery ✅ **COMPLETED**
-
-### Phase 8: Streamline UX and Configuration flow 📋 CURRENT
-- 📋 **Step 26**: Runtime Configuration Structure
-- 📋 **Step 27**: Configuration Caching System
-- 📋 **Step 27.1**: Hugging Face Hub Integration for Model Metadata
-- 📋 **Step 28**: Configuration Validation System
-- 📋 **Step 29**: CLI Parameter Override System
-- 📋 **Step 30**: Configuration Wizard Implementation
-- 📋 **Step 31**: System Detection Integration
-- 📋 **Step 32**: Full-Screen UI Implementation
-- 📋 **Step 33**: MCP Server UI Enhancement
-
-### Phase 9: Release 1.0.0 (Steps 34-38) 📋 PLANNED
-- 📋 **Step 34**: Performance Optimization
-- 📋 **Step 35**: Test Suite
-- 📋 **Step 36**: Documentation
-- 📋 **Step 37**: NPM Package Preparation
-- 📋 **Step 38**: Release
-
-### Phase 10: Chat with Your Folder (Steps 39-43) 📋 FUTURE
-- 📋 **Step 39**: Chat Configuration Wizard
-- 📋 **Step 40**: Cloud Provider Integration
-- 📋 **Step 41**: Local LLM Integration
-- 📋 **Step 42**: Interactive Chat Interface
-- 📋 **Step 43**: Chat History & Export
+### Overall Timeline
+- **✅ Phases 1-7**: Foundation through Production Ready (Steps 1-25) - **COMPLETED**
+- **📋 Phase 8**: Streamline UX and Configuration flow (Steps 26-34) - **PLANNED**
+- **📋 Phases 9-10**: Release and Chat Interface (Steps 35-44) - **PLANNED**
 
 ---
 
-## Detailed Task Breakdown
+## 5. Phase Summary
 
-### ✅ COMPLETED: Step 1 - Initialize TypeScript Project
+### ✅ COMPLETED PHASES
+
+#### Phase 1: Foundation (Steps 1-8) → [Details](#phase-1-foundation-steps-1-8--completed)
+**Status**: ✅ COMPLETED
+- **Step 1**: Initialize TypeScript Project
+- **Step 2**: Create CLI Executable
+- **Step 3**: Implement Commander.js CLI
+- **Step 4**: Recursive File Listing
+- **Step 5**: File Type Filtering
+- **Step 6**: Cache Directory Setup
+- **Step 7**: File Fingerprinting System
+- **Step 8**: Cache Status Detection
+
+#### Phase 2: File Parsing (Steps 9-13) → [Details](#phase-2-file-parsing-steps-9-13--completed)
+**Status**: ✅ COMPLETED
+- **Step 9**: Text File Parser
+- **Step 10**: PDF Parser Integration
+- **Step 11**: Word Document Parser
+- **Step 12**: Excel Parser
+- **Step 13**: PowerPoint Parser
+
+#### Phase 3: Text Processing & Embeddings (Steps 14-16) → [Details](#phase-3-text-processing--embeddings-steps-14-16--completed)
+**Status**: ✅ COMPLETED
+- **Step 14**: Smart Text Chunking
+- **Step 15**: Embedding Model Setup
+- **Step 15.1**: GPU-Enabled Embedding Model
+- **Step 16**: Batch Embedding Generation
+
+#### Phase 4: Vector Search (Steps 17-19) → [Details](#phase-4-vector-search-steps-17-19--completed)
+**Status**: ✅ COMPLETED
+- **Step 17**: FAISS Vector Index
+- **Step 18**: Similarity Search Function
+- **Step 19**: Search CLI Command
+
+#### Phase 5: MCP Integration (Steps 20-22) → [Details](#phase-5-mcp-integration-steps-20-22--completed)
+**Status**: ✅ COMPLETED
+- **Step 20**: MCP Server Scaffold
+- **Step 21**: Search Tool Implementation  
+- **Step 22**: Context Enhancement
+
+#### Phase 6: Real-time & Configuration (Steps 23-24) → [Details](#phase-6-real-time--configuration-steps-23-24--completed)
+**Status**: ✅ COMPLETED
+- **Step 23**: File Watcher Integration
+- **Step 24**: Configuration System
+
+#### Phase 7: Production Ready (Step 25) → [Details](#phase-7-production-ready-step-25--completed)
+**Status**: ✅ COMPLETED
+- **Step 25**: Error Recovery
+
+### ⬅️ CURRENT PHASE
+
+#### Phase 8: Streamline UX and Configuration Flow (Steps 26-34) → [Details](#phase-8-streamline-ux-and-configuration-flow-steps-26-34--planned)
+**Status**: ⬅️ Current
+
+**Design Approach**: Fetch embedding models directly from Ollama API for accuracy and real-time availability. This ensures users only see models that actually work with GPU acceleration and are currently available on their system.
+
+**Configuration Flows**:
+
+- **Default (zero config)**: `folder-mcp .` → Auto-detect → Best model → Full-screen UI
+- **With wizard**: `folder-mcp --wizard` → Interactive questions → CLI command → Execute
+- **With CLI params**: `folder-mcp . --model xyz` → Override → Validate → Update cache → UI
+- **Subsequent runs**: `folder-mcp .` → Load cache → Validate → Full-screen UI
+
+**Current Steps**:
+- 📋 **Step 26**: Runtime Configuration Structure
+- 📋 **Step 27**: Configuration Caching System
+- 📋 **Step 28**: Configuration Validation System
+- 📋 **Step 29**: Hugging Face Hub Integration for Model Metadata
+- 📋 **Step 30**: CLI Parameter Override System
+- 📋 **Step 31**: Configuration Wizard Implementation
+- 📋 **Step 32**: System Detection Integration
+- 📋 **Step 33**: Full-Screen UI Implementation
+- 📋 **Step 34**: MCP Server UI Enhancement
+
+### 📋 PLANNED PHASES
+
+#### Phase 9: Release 1.0.0 (Steps 35-39) → [Details](#phase-9-release-100-steps-35-39--planned)
+**Status**: 📋 PLANNED
+- **Step 35**: Performance Optimization
+- **Step 36**: Test Suite
+- **Step 37**: Documentation
+- **Step 38**: NPM Package Preparation
+- **Step 39**: Release
+
+#### Phase 10: Chat with Your Folder (Steps 40-44) → [Details](#phase-10-chat-with-your-folder-steps-40-44--future)
+**Status**: 📋 FUTURE
+- **Step 40**: Chat Configuration Wizard
+- **Step 41**: Cloud Provider Integration
+- **Step 42**: Local LLM Integration
+- **Step 43**: Interactive Chat Interface
+- **Step 44**: Chat History & Export
+
+---
+
+## 6. Detailed Implementation
+
+This section contains detailed task descriptions, success criteria, and implementation notes for each step.
+
+### Phase 1: Foundation (Steps 1-8) ✅ COMPLETED
+
+#### Step 1: Initialize TypeScript Project
 **Task**: Create project structure with TypeScript configuration  
 **Success Criteria**:
 - ✅ package.json with name "folder-mcp"
@@ -157,7 +215,7 @@ folder-mcp/
 - ✅ npm run build compiles successfully
 - ✅ npm start prints "Hello World"
 
-### ✅ COMPLETED: Step 2 - Create CLI Executable
+#### Step 2: Create CLI Executable
 **Task**: Make globally installable CLI tool  
 **Success Criteria**:
 - ✅ bin field in package.json points to CLI entry
@@ -165,7 +223,7 @@ folder-mcp/
 - ✅ npm link makes folder-mcp available globally
 - ✅ Running folder-mcp prints "Hello World"
 
-### ✅ COMPLETED: Step 3 - Implement Commander.js CLI
+#### Step 3: Implement Commander.js CLI
 **Task**: Add command structure with Commander  
 **Success Criteria**:
 - ✅ folder-mcp --version shows version
@@ -173,7 +231,7 @@ folder-mcp/
 - ✅ folder-mcp index <folder> command exists
 - ✅ Shows error for missing folder argument
 
-### ✅ COMPLETED: Step 4 - Recursive File Listing
+#### Step 4: Recursive File Listing
 **Task**: List all files in target folder using glob  
 **Success Criteria**:
 - ✅ folder-mcp index ./test-folder lists all files
@@ -181,7 +239,7 @@ folder-mcp/
 - ✅ Displays total file count
 - ✅ Handles non-existent folders gracefully
 
-### ✅ COMPLETED: Step 5 - File Type Filtering
+#### Step 5: File Type Filtering
 **Task**: Filter by supported extensions  
 **Success Criteria**:
 - ✅ Only shows: .txt, .md, .pdf, .docx, .xlsx, .pptx
@@ -189,7 +247,7 @@ folder-mcp/
 - ✅ Shows count by file type (e.g., "PDFs: 5, Word: 3")
 - ✅ Ignores hidden files and folders
 
-### ✅ COMPLETED: Step 6 - Cache Directory Setup
+#### Step 6: Cache Directory Setup
 **Task**: Create and validate cache structure  
 **Success Criteria**:
 - ✅ Creates .folder-mcp in target folder
@@ -197,7 +255,7 @@ folder-mcp/
 - ✅ Creates version.json with tool version and timestamp
 - ✅ Handles permission errors with clear message
 
-### ✅ COMPLETED: Step 7 - File Fingerprinting System
+#### Step 7: File Fingerprinting System
 **Task**: Generate unique identifiers for files  
 **Success Criteria**:
 - ✅ Generates SHA-256 hash for each file's content
@@ -205,7 +263,7 @@ folder-mcp/
 - ✅ Saves fingerprints to .folder-mcp/index.json
 - ✅ Pretty-prints JSON for debugging
 
-### ✅ COMPLETED: Step 8 - Cache Status Detection
+#### Step 8: Cache Status Detection
 **Task**: Identify what needs processing  
 **Success Criteria**:
 - ✅ Loads previous index.json if exists
@@ -214,7 +272,9 @@ folder-mcp/
 - ✅ Detects deleted files (in cache but not on disk)
 - ✅ Shows summary: "5 new, 2 modified, 1 deleted"
 
-### ✅ COMPLETED: Step 9 - Text File Parser
+### Phase 2: File Parsing (Steps 9-13) ✅ COMPLETED
+
+#### Step 9: Text File Parser
 **Task**: Extract content from .txt and .md files  
 **Success Criteria**:
 - ✅ Reads files with UTF-8 encoding
@@ -223,7 +283,7 @@ folder-mcp/
 - ✅ Metadata includes: content, type, originalPath
 - ✅ Processes 10MB file without memory issues
 
-### ✅ COMPLETED: Step 10 - PDF Parser Integration
+#### Step 10: PDF Parser Integration
 **Task**: Extract text from PDFs using pdf-parse  
 **Success Criteria**:
 - ✅ Extracts all text content from PDFs
@@ -232,7 +292,7 @@ folder-mcp/
 - ✅ Caches extracted content with page structure
 - ✅ Shows progress for large PDFs
 
-### ✅ COMPLETED: Step 11 - Word Document Parser
+#### Step 11: Word Document Parser
 **Task**: Extract content from .docx using mammoth  
 **Success Criteria**:
 - ✅ Extracts paragraphs with style information
@@ -241,7 +301,7 @@ folder-mcp/
 - ✅ Extracts table data as structured JSON
 - ✅ Handles corrupted files without crashing
 
-### ✅ COMPLETED: Step 12 - Excel Parser
+#### Step 12: Excel Parser
 **Task**: Extract data from .xlsx using xlsx library  
 **Success Criteria**:
 - ✅ Extracts all sheets with names
@@ -250,7 +310,7 @@ folder-mcp/
 - ✅ Handles merged cells appropriately
 - ✅ Includes sheet names in chunk metadata
 
-### ✅ COMPLETED: Step 13 - PowerPoint Parser
+#### Step 13: PowerPoint Parser
 **Task**: Extract content from .pptx files  
 **Success Criteria**:
 - ✅ Extracts text from all slides
@@ -259,7 +319,9 @@ folder-mcp/
 - ✅ Extracts text from shapes and text boxes
 - ✅ Orders content logically per slide
 
-### ✅ COMPLETED: Step 14 - Smart Text Chunking
+### Phase 3: Text Processing & Embeddings (Steps 14-16) ✅ COMPLETED
+
+#### Step 14: Smart Text Chunking
 **Task**: Split documents into semantic chunks  
 **Success Criteria**:
 - ✅ Splits on paragraph boundaries
@@ -268,7 +330,7 @@ folder-mcp/
 - ✅ Never splits mid-sentence
 - ✅ Preserves metadata (source, position, type)
 
-### ✅ COMPLETED: Step 15 - Embedding Model Setup
+#### Step 15: Embedding Model Setup
 **Task**: Initialize Nomic Embed model  
 **Success Criteria**:
 - ✅ Downloads model on first run
@@ -284,7 +346,7 @@ folder-mcp/
 - Full ES module conversion completed
 - Comprehensive test system with batch embedding support
 
-### ✅ COMPLETED: Step 15.1 - GPU-Enabled Embedding Model
+#### Step 15.1: GPU-Enabled Embedding Model
 **Task**: Replace Nomic Embed with GPU-accelerated Ollama embeddings  
 **Success Criteria**:
 - ✅ Detects if Ollama CLI is installed and running
@@ -302,7 +364,7 @@ folder-mcp/
 - Comprehensive testing utilities (`test-cli.ts`, `test-switching.ts`)
 - Configuration system supporting multiple embedding models
 
-### ✅ COMPLETED: Step 16 - Batch Embedding Generation
+#### Step 16: Batch Embedding Generation
 **Task**: Generate embeddings for all chunks  
 **Success Criteria**:
 - ✅ Processes chunks in batches of 32
@@ -319,9 +381,9 @@ folder-mcp/
 - Resume capability through existing embedding detection
 - Performance statistics and timing reports
 
-### Phase 4: Vector Search
+### Phase 4: Vector Search (Steps 17-19) ✅ COMPLETED
 
-#### ✅ COMPLETED: Step 17 - FAISS Vector Index
+#### Step 17: FAISS Vector Index
 **Task**: Create searchable vector index  
 **Success Criteria**:
 - ✅ Initializes FAISS index with correct dimensions (768)
@@ -337,7 +399,7 @@ folder-mcp/
 - Automatic vector dimension detection and validation
 - Graceful fallback from binary to JSON vectors when needed
 
-#### ✅ COMPLETED: Step 18 - Similarity Search Function
+#### Step 18: Similarity Search Function
 **Task**: Implement vector similarity search  
 **Success Criteria**:
 - ✅ Embeds query string with GPU-accelerated model
@@ -353,7 +415,7 @@ folder-mcp/
 - Automatic k adjustment when k > available vectors
 - Full chunk metadata retrieval with source file and line information
 
-#### ✅ COMPLETED: Step 19 - Search CLI Command
+#### Step 19: Search CLI Command
 **Task**: Add local search command  
 **Success Criteria**:
 - ✅ `folder-mcp search <folder> <query>` works
@@ -369,9 +431,9 @@ folder-mcp/
 - Rich result display showing scores, file paths, and content previews
 - Error handling for unindexed folders with helpful guidance
 
-### Phase 5: MCP Integration
+### Phase 5: MCP Integration (Steps 20-22) ✅ COMPLETED
 
-#### ✅ COMPLETED: Step 20 - MCP Server Scaffold
+#### Step 20: MCP Server Scaffold
 **Task**: Create basic MCP server  
 **Success Criteria**:
 - ✅ Server starts with `folder-mcp serve <folder>`
@@ -387,7 +449,7 @@ folder-mcp/
 - Security features preventing access outside served folder
 - Graceful shutdown handling with SIGINT/SIGTERM
 
-#### ✅ COMPLETED: Step 21 - Search Tool Implementation
+#### Step 21: Search Tool Implementation
 **Task**: Add search_knowledge tool to MCP  
 **Success Criteria**:
 - ✅ Tool appears in MCP capability list
@@ -404,7 +466,7 @@ folder-mcp/
 - Lazy initialization for performance with proper error handling
 - GPU-accelerated search via Ollama embeddings
 
-#### ✅ COMPLETED: Step 22 - Context Enhancement
+#### Step 22: Context Enhancement
 **Task**: Improve search results with context  
 **Success Criteria**:
 - ✅ Includes previous/next chunk for context
@@ -423,9 +485,9 @@ folder-mcp/
 - Full integration with MCP server including enhanced search tool
 - Comprehensive test coverage with 15/15 tests passing
 
-### Phase 6: Real-time & Configuration
+### Phase 6: Real-time & Configuration (Steps 23-24) ✅ COMPLETED
 
-#### ✅ COMPLETED: Step 23: File Watcher Integration
+#### Step 23: File Watcher Integration
 **Task**: Auto-update on file changes  
 **Success Criteria**:
 - ✅ Detects new files in watched folder
@@ -450,13 +512,8 @@ folder-mcp/
 - Cross-platform compatibility with Windows-specific readline handling
 - Comprehensive error handling and logging at multiple verbosity levels
 
-#### ✅ COMPLETED: Step 24: Configuration System
+#### Step 24: Configuration System
 **Task**: Add configuration file support  
-- Local configuration file will be set automatically with the default parameters.
-- cli parameters will override the default values.
-- if we display a prompt for the user with a choice, it should be saved in the local config file.
-- the local config file is the only source of truth for this folder.
-- the global config.yaml should contain the defaults.
 **Success Criteria**:
 - ✅ Loads .folder-mcp.yaml from .folder-mcp folder
 - ✅ Configurable: chunk_size, overlap, model_name
@@ -474,9 +531,9 @@ folder-mcp/
 - Global configuration defaults in `config.yaml` with multiple embedding models
 - Local configuration initialization and management system
 
-### Phase 7: Production Ready
+### Phase 7: Production Ready (Step 25) ✅ COMPLETED
 
-### ✅ COMPLETED: Step 25 - Error Recovery
+#### Step 25: Error Recovery
 **Task**: Comprehensive error handling  
 **Success Criteria**:
 - ✅ Continues indexing after single file failure
@@ -502,135 +559,40 @@ folder-mcp/
 - Comprehensive error summaries and statistics reporting
 - Never leaves cache in corrupted state - all operations are atomic or resumable
 
-### Phase 8: Streamline UX and Configuration flow
-Configuration flow, CLI commands, and user experience improvements.
+### Phase 8: Streamline UX and Configuration Flow (Steps 26-34) ⬅️ Current
 
-**🎯 Design Approach**: Fetch embedding models directly from Ollama API for accuracy and real-time availability. This ensures users only see models that actually work with GPU acceleration and are currently available on their system.
-
-**Default (zero config):**
-```
-folder-mcp .
-→ Check cache → Auto-detect system → Pick best multilingual model → Validate → Full-screen UI
-             ↓ (if cache exists)
-             → Load cached config → Validate → Full-screen UI
-```
-
-**With wizard:**
-```
-folder-mcp --wizard
-→ Load cache/defaults → Interactive questions → Show CLI command → Run command
-                                                                 ↓
-                                            → Validate → Update cache → Full-screen UI
-```
-
-**With CLI params:**
-```
-folder-mcp . --model xyz --chunk-size 400
-→ Load cache → Override with CLI params → Check embedding changes → Validate → Update cache → Full-screen UI
-                                                  ↓ (if changed)
-                                                  → Trigger re-index
-```
-
-**Subsequent runs (cached):**
-```
-folder-mcp .
-→ Load cache → No system changes? → Use cached config → Validate → Full-screen UI
-```
-
-#### Step 26: Runtime Configuration Structure
+#### Step 26: Runtime Configuration Structure 📋 TODO
 **Task**: Create runtime configuration JSON with smart defaults  
 **Success Criteria**:
-- ✅ Define runtime config schema (model, port, languages, etc.)
-- ✅ Generate default runtime.json with multilingual model
-- ✅ Set sensible defaults (chunk_size: 400, workers: CPU count)
-- ✅ Include all configurable parameters in structure
-- ✅ Create TypeScript interfaces for type safety
-- ✅ Document each configuration parameter purpose
+- 📋 Define runtime config schema (model, port, languages, etc.)
+- 📋 Generate default runtime.json with multilingual model
+- 📋 Set sensible defaults (chunk_size: 400, workers: CPU count)
+- 📋 Include all configurable parameters in structure
+- 📋 Create TypeScript interfaces for type safety
+- 📋 Document each configuration parameter purpose
 
-#### Step 27: Configuration Caching System
-**Task**: Implement configuration persistence and caching with Ollama integration
-Selecting the right model can be direct (using CLI params) or through a configuration wizard that checks folder languages and machine capabilities.
+#### Step 27: Configuration Caching System 📋 TODO
+**Task**: Implement configuration persistence and caching with Ollama integration  
 **Success Criteria**:
-- ✅ Save runtime config to ~/.folder-mcp/last-runtime.json
-- ✅ Load previous runtime on startup if exists
-- ✅ Cache system profile in ~/.folder-mcp/system-profile.json
-- ✅ Store Ollama embedding model list with 24-hour expiry
-- ✅ Fetch embedding models directly from Ollama API
-- ✅ Implement cache invalidation mechanism
-- ✅ Handle corrupted cache files gracefully
-- 📋 **ENHANCEMENT**: Augment Ollama models with Hugging Face metadata
-- 📋 **ENHANCEMENT**: Cache language support information from HF Hub
-- 📋 **ENHANCEMENT**: Implement intelligent model filtering by language capabilities
+- 📋 Save runtime config to ~/.folder-mcp/last-runtime.json
+- 📋 Load previous runtime on startup if exists
+- 📋 Cache system profile in ~/.folder-mcp/system-profile.json
+- 📋 Store Ollama embedding model list with 24-hour expiry
+- 📋 Fetch embedding models directly from Ollama API
+- 📋 Implement cache invalidation mechanism
+- 📋 Handle corrupted cache files gracefully
 
-**Implementation Notes**:
-- **Primary Source**: Fetch embedding models from Ollama API (`/api/tags`)
-- **Metadata Enhancement**: Cross-reference with Hugging Face Hub API for language support
-- **Filter by Type**: Only show models tagged as 'embedding' from Ollama library
-- **Language Intelligence**: Use HF metadata for accurate multilingual model detection
-- **Fallback Strategy**: Include pre-configured models for offline scenarios
-- **Cache Strategy**: Store Ollama model list + HF metadata with timestamps for 24-hour expiry
-- **Graceful Degradation**: Fall back to CPU-based transformers for any unavailable models
+#### Step 28: Configuration Validation System 📋 TODO
+**Task**: Validate runtime configuration before execution  
+**Success Criteria**:
+- 📋 Check model exists and is compatible
+- 📋 Validate numeric ranges (chunk size, overlap, etc.)
+- 📋 Verify folder paths and permissions
+- 📋 Ensure port availability for MCP server
+- 📋 Show clear, actionable error messages
+- 📋 Return validated config or throw with fixes
 
-**Ollama API Endpoints**:
-- `GET /api/tags` → Get all locally available models
-- `GET /api/show/{model}` → Get model details and capabilities
-- Ollama Library API: `https://ollama.ai/api/tags` → Get all available models
-
-**Hugging Face Hub Integration**:
-- `GET /api/models/{model_id}` → Get model metadata, tags, and capabilities
-- `GET /api/models` → Search models with filters (e.g., pipeline_tag:sentence-similarity)
-- Model card parsing for language support information
-- Download statistics and model popularity metrics
-- License and usage restriction information
-
-**Enhanced Model Metadata Schema**:
-```typescript
-interface EnhancedModelInfo {
-  // From Ollama
-  ollamaName: string;
-  locallyAvailable: boolean;
-  size: number;
-  
-  // From Hugging Face
-  huggingFaceId?: string;
-  languages: string[];
-  isMultilingual: boolean;
-  primaryLanguage: string;
-  pipeline: string; // 'sentence-similarity', 'feature-extraction', etc.
-  license: string;
-  downloads: number;
-  lastModified: string;
-  description: string;
-  
-  // Computed
-  confidence: 'high' | 'medium' | 'low';
-  source: 'ollama+hf' | 'ollama' | 'hf' | 'fallback';
-  dimensions?: number;
-  maxTokens?: number;
-}
-```
-
-**Known Working Embedding Models**:
-- ✅ `nomic-embed-text` → 768 dimensions, high-quality general purpose
-  - HF: `nomic-ai/nomic-embed-text-v1.5` → English, multilingual capabilities
-- ✅ `mxbai-embed-large` → 1024 dimensions, excellent performance  
-  - HF: `mixedbread-ai/mxbai-embed-large-v1` → Multilingual, 100+ languages
-- ✅ `all-minilm` → 384 dimensions, lightweight and fast
-  - HF: `sentence-transformers/all-MiniLM-L6-v2` → English primary, some multilingual
-- ✅ `bge-m3` → 1024 dimensions, multilingual support
-  - HF: `BAAI/bge-m3` → 100+ languages, excellent multilingual performance
-- ✅ `snowflake-arctic-embed` → 1024 dimensions, optimized for retrieval
-  - HF: `Snowflake/snowflake-arctic-embed-m` → English-focused, retrieval optimized
-
-**Language Support Detection Strategy**:
-1. **Primary**: Query Hugging Face Hub API for model metadata and tags
-2. **Secondary**: Parse model card for language information
-3. **Fallback**: Use pattern-based detection from model names
-4. **Cache**: Store language metadata with 24-hour expiry alongside Ollama data
-
-**Ollama Library Reference**: https://ollama.ai/library (filter for 'embedding' tag)
-
-#### Step 27.1: Hugging Face Hub Integration for Model Metadata
+#### Step 29: Hugging Face Hub Integration for Model Metadata
 **Task**: Enhance Ollama model information with Hugging Face Hub metadata  
 **Success Criteria**:
 - 📋 Fetch model metadata from Hugging Face Hub API
@@ -671,68 +633,60 @@ Example Response:
 - Filter models by language: `--language zh,en` 
 - Smart defaults: Auto-select best multilingual model for diverse document sets
 - Confidence indicators: High/Medium/Low confidence for language support data
-**Task**: Validate runtime configuration before execution  
-**Success Criteria**:
-- ✅ Check model exists and is compatible
-- ✅ Validate numeric ranges (chunk size, overlap, etc.)
-- ✅ Verify folder paths and permissions
-- ✅ Ensure port availability for MCP server
-- ✅ Show clear, actionable error messages
-- ✅ Return validated config or throw with fixes
 
-#### Step 29: CLI Parameter Override System
+#### Step 30: CLI Parameter Override System
 **Task**: Allow CLI parameters to override runtime defaults  
 **Success Criteria**:
-- ✅ Parse all CLI parameters into runtime config
-- ✅ Override only specified parameters
-- ✅ Detect changes in embedding config (model, chunk_size, overlap)
-- ✅ Trigger re-indexing if embedding params changed
-- ✅ Show warning: "Config changed, re-indexing required"
-- ✅ Update cached runtime with successful execution
+- 📋 Parse all CLI parameters into runtime config
+- 📋 Override only specified parameters
+- 📋 Detect changes in embedding config (model, chunk_size, overlap)
+- 📋 Trigger re-indexing if embedding params changed
+- 📋 Show warning: "Config changed, re-indexing required"
+- 📋 Update cached runtime with successful execution
 
-#### Step 30: Configuration Wizard Implementation
+#### Step 31: Configuration Wizard Implementation
 **Task**: Create --wizard interactive configuration generator  
 **Success Criteria**:
-- ✅ Launch with folder-mcp --wizard
-- ✅ Load current runtime config as defaults
-- ✅ Ask questions with current values pre-filled
-- ✅ Generate CLI command string from answers
-- ✅ Display command and ask: "Run this command? Y/n"
-- ✅ Execute command or copy to clipboard
+- 📋 Launch with folder-mcp --wizard
+- 📋 Load current runtime config as defaults
+- 📋 Ask questions with current values pre-filled
+- 📋 Generate CLI command string from answers
+- 📋 Display command and ask: "Run this command? Y/n"
+- 📋 Execute command or copy to clipboard
 
-#### Step 31: System Detection Integration
+#### Step 32: System Detection Integration
 **Task**: Auto-detect system capabilities for smart defaults  
 **Success Criteria**:
-- ✅ Detect CPU, RAM, GPU on first run
-- ✅ Update runtime config with optimal settings
-- ✅ Select best model based on system tier
-- ✅ Integrate with Ollama for model availability
-- ✅ Run only when cache missing or --detect flag
-- ✅ Show detected specs in --show-config output
+- 📋 Detect CPU, RAM, GPU on first run
+- 📋 Update runtime config with optimal settings
+- 📋 Select best model based on system tier
+- 📋 Integrate with Ollama for model availability
+- 📋 Run only when cache missing or --detect flag
+- 📋 Show detected specs in --show-config output
 
-#### Step 32: Full-Screen UI Implementation
+#### Step 33: Full-Screen UI Implementation
 **Task**: Create main operation interface  
 **Success Criteria**:
-- ✅ Launch after configuration is validated
-- ✅ Display real-time indexing progress
-- ✅ Show file processing statistics
-- ✅ Monitor memory and performance
-- ✅ Include error log panel
-- ✅ Add keyboard navigation
+- 📋 Launch after configuration is validated
+- 📋 Display real-time indexing progress
+- 📋 Show file processing statistics
+- 📋 Monitor memory and performance
+- 📋 Include error log panel
+- 📋 Add keyboard navigation
 
-#### Step 33: MCP Server UI Enhancement
+#### Step 34: MCP Server UI Enhancement
 **Task**: Improve server display and connection info  
 **Success Criteria**:
-- ✅ Show connection details prominently
-- ✅ Display Claude configuration JSON
-- ✅ Add copy instructions for setup
-- ✅ Include server status monitoring
-- ✅ Show "Chat with folder" placeholder
-- ✅ Integrate with full-screen UI
+- 📋 Show connection details prominently
+- 📋 Display Claude configuration JSON
+- 📋 Add copy instructions for setup
+- 📋 Include server status monitoring
+- 📋 Show "Chat with folder" placeholder
+- 📋 Integrate with full-screen UI
 
+### Phase 9: Release 1.0.0 (Steps 35-39) 📋 PLANNED
 
-### Phase 9: Release 1.0.0
-#### Step 34: Performance Optimization
+#### Step 35: Performance Optimization
 **Task**: Optimize for large folders  
 **Success Criteria**:
 - Parallel file processing (worker pool)
@@ -741,16 +695,18 @@ Example Response:
 - Indexes 1000 documents in <5 minutes
 - Progress saves allow resume
 
-#### Step 35: Test Suite
+#### Step 36: Test Suite
 **Task**: Comprehensive test coverage  
 **Success Criteria**:
+- generate a test folder with all supported file types, varying sizes, and structures and challenging content. multiple languages in the same folder.
 - Unit tests for each parser
 - Integration test for full pipeline
 - Mock file system for tests
 - Tests for error conditions
+- Write tests that emulate real usage of the tool, not just generic functionality testing
 - >80% code coverage
 
-#### Step 36: Documentation
+#### Step 37: Documentation
 **Task**: Complete user documentation  
 **Success Criteria**:
 - README with quick start guide
@@ -759,7 +715,7 @@ Example Response:
 - Troubleshooting guide
 - Architecture diagram
 
-#### Step 37: NPM Package Preparation
+#### Step 38: NPM Package Preparation
 **Task**: Prepare for publishing  
 **Success Criteria**:
 - Clean npm pack output
@@ -768,7 +724,7 @@ Example Response:
 - Version 1.0.0 tagged
 - LICENSE file included
 
-#### Step 38: Release
+#### Step 39: Release
 **Task**: Publish to npm registry  
 **Success Criteria**:
 - `npm install -g folder-mcp` works
@@ -777,14 +733,8 @@ Example Response:
 - CI/CD pipeline configured
 - First user successfully indexes folder
 
-### Phase 10: Chat with Your Folder 📋 FUTURE
-- 📋 **Step 39**: Chat Configuration Wizard
-- 📋 **Step 40**: Cloud Provider Integration
-- 📋 **Step 41**: Local LLM Integration
-- 📋 **Step 42**: Interactive Chat Interface
-- 📋 **Step 43**: Chat History & Export
-
-#### Step 39: Chat Configuration Wizard
+### Phase 10: Chat with Your Folder (Steps 40-44) 📋 FUTURE
+#### Step 40: Chat Configuration Wizard
 **Task**: Create interactive wizard for chat setup  
 **Success Criteria**:
 - Launch with `folder-mcp chat --setup`
@@ -824,7 +774,7 @@ folder-mcp chat <folder> (first time)
       └── Save config → Launch chat
 ```
 
-#### Step 40: Cloud Provider Integration
+#### Step 41: Cloud Provider Integration
 **Task**: Implement cloud LLM provider APIs  
 **Success Criteria**:
 - OpenAI API integration with streaming responses
@@ -835,7 +785,7 @@ folder-mcp chat <folder> (first time)
 - Rate limiting and quota management
 - Cost estimation display
 
-#### Step 41: Local LLM Integration
+#### Step 42: Local LLM Integration
 **Task**: Implement Ollama local LLM integration  
 **Success Criteria**:
 - Ollama service detection and health checks
@@ -846,7 +796,7 @@ folder-mcp chat <folder> (first time)
 - Fallback to smaller models if needed
 - Performance optimization for local inference
 
-#### Step 42: Interactive Chat Interface
+#### Step 43: Interactive Chat Interface
 **Task**: Create the main chat experience  
 **Success Criteria**:
 - CLI-based chat interface with rich formatting
@@ -887,7 +837,7 @@ Chat Interface:
 └────────────────────────────────────────────────────────────┘
 ```
 
-#### Step 43: Chat History & Export
+#### Step 44: Chat History & Export
 **Task**: Implement chat session management  
 **Success Criteria**:
 - Save chat sessions to `.folder-mcp/chat-history/`
@@ -901,69 +851,55 @@ Chat Interface:
 
 ---
 
-**This roadmap provides a clear, linear path from the current state (Step 14) to a fully functional universal folder-to-MCP tool. Each step has concrete success criteria that must be met before moving to the next step.**
+## 7. GitHub Project Management
 
----
-
-## GitHub Project Management Setup
+This section provides guidance for setting up GitHub Issues to track development progress.
 
 ### Quick Setup Instructions
-
-To set up GitHub Issues for project tracking:
 
 1. **Go to your GitHub repository**: https://github.com/okets/folder-mcp
 2. **Click "Issues" tab** → **"New Issue"**
 3. **Create issues for each step** using the templates below
 4. **Set labels and milestones** as indicated
-5. **Close issues 1-14** immediately after creating (mark as completed)
+5. **Close completed issues** (Steps 1-27) immediately after creating
 
-### GitHub Milestones to Create
+### GitHub Milestones
 
 Create these milestones in GitHub (Issues → Milestones → New milestone):
 
 1. **Phase 1 - Foundation** (Due: Completed) 
 2. **Phase 2 - Parsing** (Due: Completed)
-3. **Phase 3 - Processing** (Due: TBD)
-4. **Phase 4 - Search** (Due: TBD) 
-5. **Phase 5 - MCP Integration** (Due: TBD)
-6. **Phase 6 - Advanced Features** (Due: TBD)
-7. **Phase 7 - Optimization** (Due: TBD)
-8. **Phase 8 - Streamline UX** (Due: TBD)
+3. **Phase 3 - Processing** (Due: Completed)
+4. **Phase 4 - Search** (Due: Completed) 
+5. **Phase 5 - MCP Integration** (Due: Completed)
+6. **Phase 6 - Real-time & Configuration** (Due: Completed)
+7. **Phase 7 - Production Ready** (Due: Completed)
+8. **Phase 8 - Streamline UX** (Due: Current)
 9. **Phase 9 - Release Preparation** (Due: TBD)
 10. **Phase 10 - Chat Interface** (Due: TBD)
 
-### GitHub Labels to Create
+### GitHub Labels
 
-- `enhancement` (blue)
-- `foundation` (gray) 
-- `cli` (green)
-- `filesystem` (yellow)
-- `parsing` (orange)
-- `caching` (purple)
-- `processing` (pink)
-- `embeddings` (red)
-- `search` (light blue)
-- `mcp` (dark blue)
-- `realtime` (brown)
-- `config` (lime)
-- `reliability` (olive)
-- `performance` (maroon)
-- `testing` (navy)
-- `documentation` (silver)
-- `packaging` (teal)
-- `release` (gold)
+Create these labels for categorization:
 
-### GitHub Issue Templates
+- `enhancement` (blue), `foundation` (gray), `cli` (green)
+- `filesystem` (yellow), `parsing` (orange), `caching` (purple)
+- `processing` (pink), `embeddings` (red), `search` (light blue)
+- `mcp` (dark blue), `realtime` (brown), `config` (lime)
+- `reliability` (olive), `performance` (maroon), `testing` (navy)
+- `documentation` (silver), `packaging` (teal), `release` (gold)
 
-For each step in the roadmap above, create a GitHub issue with this format:
+### Issue Template
 
-**Title**: `[Step X] Brief Description` (e.g., "Smart Text Chunking")
+For each step in the roadmap, create a GitHub issue with:
 
-**Labels**: `enhancement` + relevant category (e.g., `processing`)
+**Title**: `[Step X] Brief Description` (e.g., "[Step 28] Configuration Validation System")
 
-**Milestone**: Appropriate phase (e.g., "Phase 3 - Processing")
+**Labels**: `enhancement` + relevant category (e.g., `config`)
 
-**Description Template**:
+**Milestone**: Appropriate phase (e.g., "Phase 8 - Streamline UX")
+
+**Description**:
 ```
 ### Description
 [Copy the task description from the roadmap]
@@ -972,39 +908,17 @@ For each step in the roadmap above, create a GitHub issue with this format:
 [Copy the success criteria checklist from the roadmap]
 
 ### Status
-- ✅ **COMPLETED** (for steps 1-14)
-- 🔄 **TODO** (for steps 15-30)
+- ✅ **COMPLETED** (for steps 1-27)
+- 🔄 **TODO** (for steps 28-43)
 ```
 
-### Issue Creation Workflow
-
-1. **Create new issue**
-2. **Copy title** from roadmap step
-3. **Copy description and success criteria**
-4. **Add appropriate labels** 
-5. **Set milestone**
-6. **For steps 1-14**: Immediately close with comment "✅ COMPLETED - Already implemented"
-7. **For steps 15-30**: Leave open as TODO
-
-### Automated Alternative
-
-If you have GitHub CLI installed (`gh`), you can automate issue creation:
-
-```bash
-# Install GitHub CLI first: https://cli.github.com/
-# Then run from project directory:
-
-gh issue create --title "[Step 14] Smart Text Chunking" --body "See ROADMAP.md Step 14" --label "enhancement,processing" --milestone "Phase 3 - Processing"
-# Repeat for each step...
-```
-
-### Project Status After Setup
+### Project Status Summary
 
 After creating all issues:
-- ✅ **25 Closed Issues** (Completed tasks)
-- 🔄 **5 Open Issues** (TODO tasks)  
-- 📊 **8 Milestones** (Development phases)
-- 🏷️ **18 Labels** (Task categorization)
+- **✅ 25 Closed Issues** (Completed tasks - Steps 1-25)
+- **🔄 19 Open Issues** (Remaining tasks - Steps 26-44)  
+- **📊 10 Milestones** (Development phases)
+- **🏷️ 16 Labels** (Task categorization)
 
 ### Benefits
 
@@ -1014,4 +928,6 @@ After creating all issues:
 - **Development focus**: Prioritized task list for systematic development
 - **Community engagement**: Users can vote on features and contribute to specific areas
 
-The repository now has comprehensive documentation showing both the current basic implementation and the ambitious roadmap ahead!
+---
+
+**This roadmap provides a clear, linear path from the current state to a fully functional universal folder-to-MCP tool. Each step has concrete success criteria that must be met before moving to the next step.**
