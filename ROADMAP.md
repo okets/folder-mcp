@@ -34,6 +34,13 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - Smart caching system - embeddings stored in .folder-mcp
 - Incremental updates - only processes changed files
 
+### coding guidlines
+- **Type Safety**
+- Add strict null checks throughout the codebase
+- Replace remaining any types with proper interfaces
+- Add comprehensive JSDoc documentation for all public APIs
+- Implement strict TypeScript compiler options
+
 ---
 
 ## 2. Tech Stack
@@ -738,12 +745,15 @@ Example Response:
 **Task**: Comprehensive test coverage  
 **Success Criteria**:
 - generate a test folder with all supported file types, varying sizes, and structures and challenging content. multiple languages in the same folder.
+- Add automated CI/CD pipeline for testing
 - Unit tests for each parser
 - Integration test for full pipeline
 - Mock file system for tests
 - Tests for error conditions
+- Implement E2E test suite
+- Add load testing infrastructure
+- Create test documentation
 - Write tests that emulate real usage of the tool, not just generic functionality testing
-- >80% code coverage
 
 #### Step 37: Documentation
 **Task**: Complete user documentation  
