@@ -35,6 +35,10 @@ export class FolderMCPServer {
     this.folderPath = resolve(options.folderPath);
     this.port = options.port || 3000;
     this.transport = options.transport || 'stdio';
+    
+    if (!options.resolvedConfig) {
+      throw new Error('ResolvedConfig is required for FolderMCPServer');
+    }
     this.resolvedConfig = options.resolvedConfig;
 
     // Initialize MCP server

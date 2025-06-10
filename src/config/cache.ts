@@ -254,8 +254,8 @@ export function writeToCache<T>(
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       version: '1.0.0',
-      checksum,
       compressed,
+      ...(checksum && { checksum }),
     },
   };
   
@@ -374,8 +374,8 @@ export function getCacheStats(): {
   return {
     totalFiles,
     totalSize,
-    oldestEntry,
-    newestEntry,
+    ...(oldestEntry && { oldestEntry }),
+    ...(newestEntry && { newestEntry }),
   };
 }
 

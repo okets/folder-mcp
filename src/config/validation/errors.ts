@@ -31,7 +31,7 @@ export interface ValidationError {
   code: ValidationErrorCode;
   message: string;
   field?: string;
-  value?: any;
+  value?: unknown;
   fix?: string;
   severity: 'error' | 'warning';
 }
@@ -41,21 +41,20 @@ export class ValidationError extends Error {
     public code: ValidationErrorCode,
     message: string,
     public field?: string,
-    public value?: any,
+    public value?: unknown,
     public fix?: string,
     public severity: 'error' | 'warning' = 'error'
   ) {
     super(message);
     this.name = 'ValidationError';
   }
-
   toJSON(): { code: ValidationErrorCode; message: string; field?: string; value?: any; fix?: string; severity: 'error' | 'warning' } {
     return {
       code: this.code,
       message: this.message,
-      field: this.field,
-      value: this.value,
-      fix: this.fix,
+      ...(this.field && { field: this.field }),
+      ...(this.value !== undefined && { value: this.value }),
+      ...(this.fix && { fix: this.fix }),
       severity: this.severity
     };
   }

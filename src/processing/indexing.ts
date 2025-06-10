@@ -1,14 +1,17 @@
 import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, resolve, extname, relative } from 'path';
 import { glob } from 'glob';
-import { FileFingerprint, TextChunk } from '../types/index.js';
+import { FileFingerprint, TextChunk, ParsedContent, ProcessedContent, PackageJson } from '../types/index.js';
 import { generateFingerprints } from '../utils/fingerprint.js';
 import { setupCacheDirectory, loadPreviousIndex, detectCacheStatus, displayCacheStatus, saveFingerprintsToCache } from '../cache/index.js';
 import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers/index.js';
 import { chunkText, estimateTokenCount } from './chunking.js';
 import { getDefaultEmbeddingModel } from '../embeddings/index.js';
 
-async function saveContentToCache(parsedContent: any, hash: string, cacheDir: string): Promise<void> {
+/**
+ * Save parsed content to cache with chunking and metadata
+ */
+async function saveContentToCache(parsedContent: ParsedContent, hash: string, cacheDir: string): Promise<void> {
   const metadataDir = join(cacheDir, 'metadata');
   const metadataFile = join(metadataDir, `${hash}.json`);
   
@@ -64,9 +67,13 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
   
   let successCount = startIndex;
   let errorCount = 0;
-  
-  for (let i = startIndex; i < fingerprints.length; i++) {
+    for (let i = startIndex; i < fingerprints.length; i++) {
     const fingerprint = fingerprints[i];
+    if (!fingerprint) {
+      console.warn(`⚠️  Missing fingerprint at index ${i}, skipping...`);
+      continue;
+    }
+    
     const fullPath = join(basePath, fingerprint.path);
     const ext = extname(fingerprint.path).toLowerCase();
     
@@ -275,11 +282,15 @@ async function generateEmbeddingsForChunks(
           },
           `batch_${Math.floor(i / batchSize) + 1}`
         );
-        
-        // Save each embedding with atomic operations
+          // Save each embedding with atomic operations
         for (let j = 0; j < batch.length; j++) {
           const item = batch[j];
           const embedding = embeddings[j];
+          
+          if (!item || !embedding) {
+            console.warn(`⚠️  Missing data for batch item ${j}, skipping...`);
+            continue;
+          }
           
           const embeddingData = {
             chunk: item.chunk,
@@ -362,9 +373,12 @@ async function generateEmbeddingsForChunks(
   }
 }
 
+/**
+ * Index a folder by processing all supported files and generating embeddings
+ */
 export async function indexFolder(
   folderPath: string, 
-  packageJson: any, 
+  packageJson: PackageJson, 
   options: { skipEmbeddings?: boolean } = {}
 ): Promise<void> {
   try {

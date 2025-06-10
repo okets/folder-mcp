@@ -1,7 +1,7 @@
 import faiss from 'faiss-node';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { EmbeddingVector } from '../types/index.js';
+import { EmbeddingVector, DocumentMetadata } from '../types/index.js';
 
 export interface VectorSearchResult {
   id: number;
@@ -39,7 +39,7 @@ interface StoredEmbedding {
       sourceType: string;
       totalChunks: number;
       hasOverlap: boolean;
-      originalMetadata?: any;
+      originalMetadata?: DocumentMetadata;
     };
   };
   embedding: {
@@ -89,7 +89,11 @@ export class VectorIndex {
     }
 
     // Get dimension from first embedding
-    this.dimension = embeddingFiles[0].embedding.vector.length;
+    const firstEmbedding = embeddingFiles[0];
+    if (!firstEmbedding?.embedding?.vector) {
+      throw new Error('Invalid embedding data found');
+    }
+    this.dimension = firstEmbedding.embedding.vector.length;
     console.log(`Vector dimension: ${this.dimension}`);
 
     // Create FAISS index
@@ -104,7 +108,8 @@ export class VectorIndex {
       
       // Extract fingerprint from filename
       const filename = embeddingData.filename || '';
-      const fingerprint = filename.split('_chunk_')[0];
+      const fingerprintParts = filename.split('_chunk_');
+      const fingerprint = fingerprintParts.length > 0 ? fingerprintParts[0] || 'unknown' : 'unknown';
       
       this.mappings.push({
         id: index,
@@ -171,7 +176,12 @@ export class VectorIndex {
         }
 
         // Get dimension
-        this.dimension = this.vectors[0].length;
+        const firstVector = this.vectors[0];
+        if (!firstVector) {
+          console.log('Invalid vector data found');
+          return false;
+        }
+        this.dimension = firstVector.length;
 
         // Recreate FAISS index
         this.index = new faiss.IndexFlatIP(this.dimension);

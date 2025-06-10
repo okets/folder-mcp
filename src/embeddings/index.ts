@@ -363,10 +363,14 @@ export class EmbeddingModel {
     
     const results: EmbeddingVector[] = [];
     
-    if (this.backend === 'ollama') {
-      // For Ollama, process sequentially to avoid overwhelming the API
+    if (this.backend === 'ollama') {      // For Ollama, process sequentially to avoid overwhelming the API
       for (let i = 0; i < texts.length; i++) {
         const text = texts[i];
+        if (!text) {
+          console.warn(`⚠️ Skipping empty text at index ${i}`);
+          continue;
+        }
+        
         const progress = ((i + 1) / texts.length * 100).toFixed(1);
         console.log(`🔄 Processing ${i + 1}/${texts.length} (${progress}%)`);
         

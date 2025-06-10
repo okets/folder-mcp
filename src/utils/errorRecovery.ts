@@ -5,28 +5,53 @@
 
 import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { ErrorContext, ProgressData } from '../types/index.js';
 
+/**
+ * Record of an error that occurred during processing
+ */
 export interface ErrorRecord {
+  /** ISO timestamp when the error occurred */
   timestamp: string;
+  /** Operation being performed when error occurred */
   operation: string;
+  /** File path if applicable */
   filePath?: string;
+  /** Error message */
   error: string;
+  /** Type/category of error */
   errorType: string;
+  /** Stack trace if available */
   stackTrace?: string;
+  /** Number of retry attempts made */
   retryCount: number;
+  /** Whether the error was successfully recovered from */
   recovered: boolean;
 }
 
+/**
+ * Error that occurred during file processing
+ */
 export interface ProcessingError {
+  /** Path to the file being processed */
   filePath: string;
+  /** Operation being performed */
   operation: string;
+  /** The actual error object */
   error: Error;
-  context?: any;
+  /** Additional context about the error */
+  context?: ErrorContext;
 }
 
+/**
+ * Configuration for retry logic
+ */
 export interface RetryOptions {
+  /** Maximum number of retry attempts */
   maxRetries: number;
+  /** Initial backoff delay in milliseconds */
   backoffMs: number;
+  /** Multiplier for exponential backoff */
   backoffMultiplier: number;
 }
 
@@ -116,17 +141,16 @@ export class ErrorRecoveryManager {
 
   /**
    * Log an error to the error log file
-   */
-  logError(operation: string, error: Error, filePath?: string, retryCount: number = 0): ErrorRecord {
+   */  logError(operation: string, error: Error, filePath?: string, retryCount: number = 0): ErrorRecord {
     const errorRecord: ErrorRecord = {
       timestamp: new Date().toISOString(),
       operation,
-      filePath,
       error: error.message,
       errorType: error.constructor.name,
-      stackTrace: error.stack,
       retryCount,
-      recovered: false
+      recovered: false,
+      ...(filePath && { filePath }),
+      ...(error.stack && { stackTrace: error.stack })
     };
 
     this.errors.push(errorRecord);
@@ -356,12 +380,10 @@ export class AtomicFileOperations {
       }
       throw error;
     }
-  }
-
-  /**
+  }  /**
    * Atomically write JSON to a file
    */
-  static async writeJSONAtomic(filePath: string, data: any): Promise<void> {
+  static async writeJSONAtomic(filePath: string, data: Record<string, unknown> | unknown[]): Promise<void> {
     const content = JSON.stringify(data, null, 2);
     await this.writeFileAtomic(filePath, content);
   }
@@ -377,12 +399,10 @@ export class ResumableProgress {
 
   constructor(cacheDir: string, operation: string) {
     this.progressPath = join(cacheDir, `progress_${operation}.json`);
-  }
-
-  /**
+  }  /**
    * Save progress state
    */
-  async saveProgress(current: number, total: number, metadata?: any): Promise<void> {
+  async saveProgress(current: number, total: number, metadata?: Record<string, unknown>): Promise<void> {
     const now = Date.now();
     if (now - this.lastSave < this.saveInterval) {
       return; // Don't save too frequently
@@ -391,9 +411,9 @@ export class ResumableProgress {
     const progressData = {
       current,
       total,
-      percentage: Math.round((current / total) * 100),
-      timestamp: new Date().toISOString(),
-      metadata
+      metadata,
+      lastUpdated: new Date().toISOString(),
+      estimatedTimeRemaining: this.calculateETA(current, total)
     };
 
     try {
@@ -403,25 +423,48 @@ export class ResumableProgress {
       console.warn(`⚠️  Could not save progress: ${error}`);
     }
   }
-
   /**
    * Load previous progress
    */
-  loadProgress(): { current: number; total: number; metadata?: any } | null {
+  loadProgress(): { current: number; total: number; metadata?: Record<string, unknown> } | null {
     try {
       if (existsSync(this.progressPath)) {
         const content = readFileSync(this.progressPath, 'utf8');
-        const data = JSON.parse(content);
-        return {
+        const data = JSON.parse(content) as { 
+          current: number; 
+          total: number; 
+          metadata?: Record<string, unknown>;
+        };
+        
+        const result: { current: number; total: number; metadata?: Record<string, unknown> } = {
           current: data.current || 0,
           total: data.total || 0,
-          metadata: data.metadata
         };
+        
+        if (data.metadata !== undefined) {
+          result.metadata = data.metadata;
+        }
+        
+        return result;
       }
     } catch (error) {
       console.warn(`⚠️  Could not load progress: ${error}`);
     }
     return null;
+  }
+
+  /**
+   * Calculate estimated time remaining based on current progress
+   */
+  private calculateETA(current: number, total: number): number | undefined {
+    if (current === 0 || total === 0) return undefined;
+    
+    const progressRate = current / total;
+    if (progressRate >= 1) return 0;
+    
+    const elapsedTime = Date.now() - this.lastSave;
+    const estimatedTotal = elapsedTime / progressRate;
+    return Math.round((estimatedTotal - elapsedTime) / 1000); // Return in seconds
   }
 
   /**

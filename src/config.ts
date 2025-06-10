@@ -140,7 +140,7 @@ export function getModelConfig(modelKey: string): EmbeddingModelConfig {
 export function getDefaultModelConfig(): EmbeddingModelConfig {
   const embeddingConfig = getEmbeddingConfig();
   const defaultKey = Object.keys(embeddingConfig.models).find(
-    key => embeddingConfig.models[key].isDefault
+    key => embeddingConfig.models[key]?.isDefault
   ) || embeddingConfig.defaultModel;
   
   return getModelConfig(defaultKey);

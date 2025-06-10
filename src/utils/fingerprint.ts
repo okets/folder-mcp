@@ -29,6 +29,8 @@ export async function generateFingerprints(files: string[], basePath: string): P
   
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
+    if (!file) continue; // Skip undefined files
+    
     try {
       const fingerprint = createFileFingerprint(file, basePath);
       fingerprints.push(fingerprint);

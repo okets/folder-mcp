@@ -330,9 +330,8 @@ export async function getBestEmbeddingModel(): Promise<EmbeddingModelInfo | null
   if (models.length === 0) {
     return null;
   }
-  
-  // Return the first model (highest confidence, smallest size due to sorting)
-  return models[0];
+    // Return the first model (highest confidence, smallest size due to sorting)
+  return models[0] || null;
 }
 
 // Default export to make this a proper ES module

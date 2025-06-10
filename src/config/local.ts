@@ -26,7 +26,7 @@ export interface LocalConfig {
   
   // User preferences (saved from prompts)
   userChoices?: {
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   // Metadata
@@ -86,17 +86,29 @@ export function loadLocalConfig(folderPath: string): LocalConfig {
     
     // Merge with defaults to ensure all required fields are present
     const mergedConfig: LocalConfig = {
-      ...DEFAULT_LOCAL_CONFIG,
-      ...loadedConfig,
-      // Merge arrays instead of replacing them
-      fileExtensions: loadedConfig.fileExtensions || DEFAULT_LOCAL_CONFIG.fileExtensions,
-      ignorePatterns: loadedConfig.ignorePatterns || DEFAULT_LOCAL_CONFIG.ignorePatterns,
+      chunkSize: loadedConfig.chunkSize ?? 1000,
+      overlap: loadedConfig.overlap ?? 200,
+      batchSize: loadedConfig.batchSize ?? 32,
+      modelName: loadedConfig.modelName ?? "nomic-v1.5",
+      maxConcurrentOperations: loadedConfig.maxConcurrentOperations ?? 10,
+      debounceDelay: loadedConfig.debounceDelay ?? 1000,
+      fileExtensions: loadedConfig.fileExtensions ?? ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+      ignorePatterns: loadedConfig.ignorePatterns ?? [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.folder-mcp/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/.DS_Store',
+        '**/Thumbs.db'
+      ],
       userChoices: {
-        ...DEFAULT_LOCAL_CONFIG.userChoices,
+        ...(DEFAULT_LOCAL_CONFIG.userChoices || {}),
         ...(loadedConfig.userChoices || {})
       },
-      // Update timestamp
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      ...(loadedConfig.version && { version: loadedConfig.version }),
+      ...(loadedConfig.createdAt && { createdAt: loadedConfig.createdAt })
     };
     
     return mergedConfig;

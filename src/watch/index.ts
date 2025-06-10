@@ -1,7 +1,7 @@
 import { watch, FSWatcher } from 'chokidar';
 import { join, extname, relative, resolve } from 'path';
 import { existsSync } from 'fs';
-import { FileFingerprint } from '../types/index.js';
+import { FileFingerprint, PackageJson, DocumentMetadata, ParsedContent, ProcessedContent } from '../types/index.js';
 import { createFileFingerprint } from '../utils/fingerprint.js';
 import { loadPreviousIndex, saveFingerprintsToCache } from '../cache/index.js';
 import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerPointFile } from '../parsers/index.js';
@@ -27,23 +27,24 @@ export class FolderWatcher {
   private folderPath: string;
   private cacheDir: string;
   private supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
-  private debounceDelay: number;
-  private batchSize: number;
+  private debounceDelay: number;  private batchSize: number;
   private logLevel: 'verbose' | 'normal' | 'quiet';
   private resolvedConfig?: ResolvedConfig;
   private pendingEvents: Map<string, WatchEvent> = new Map();
   private debounceTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
-  private packageJson: any;
-  
-  constructor(folderPath: string, packageJson: any, options: FileWatcherOptions = {}) {
+  private packageJson: PackageJson;
+    constructor(folderPath: string, packageJson: PackageJson, options: FileWatcherOptions = {}) {
     this.folderPath = resolve(folderPath);
     this.cacheDir = join(this.folderPath, '.folder-mcp');
     this.debounceDelay = options.debounceDelay || options.resolvedConfig?.debounceDelay || 1000;
     this.batchSize = options.batchSize || options.resolvedConfig?.batchSize || 32;
     this.logLevel = options.logLevel || 'normal';
-    this.resolvedConfig = options.resolvedConfig;
     this.packageJson = packageJson;
+    
+    if (options.resolvedConfig !== undefined) {
+      this.resolvedConfig = options.resolvedConfig;
+    }
     
     // Update supported extensions from config if available
     if (this.resolvedConfig?.fileExtensions) {
@@ -76,7 +77,6 @@ export class FolderWatcher {
       ignoreInitial: true, // Don't emit events for existing files
       persistent: true,
       alwaysStat: false,
-      depth: undefined, // Watch all subdirectories
       awaitWriteFinish: {
         stabilityThreshold: 500, // Wait 500ms for file writes to finish
         pollInterval: 100
@@ -249,9 +249,7 @@ export class FolderWatcher {
         if (existingFingerprint && existingFingerprint.hash === fingerprint.hash) {
           this.log(`   Skipping ${relativePath} (no content change)`, 'verbose');
           continue;
-        }
-
-        this.log(`   Processing: ${relativePath}`, 'verbose');
+        }        this.log(`   Processing: ${relativePath}`, 'verbose');
 
         // Parse file content
         const parsedContent = await this.parseFile(filePath);
@@ -260,11 +258,11 @@ export class FolderWatcher {
           continue;
         }
 
-        // Save to metadata cache
-        await this.saveContentToCache(parsedContent, fingerprint.hash);
+        // Save to metadata cache and get processed content with chunks
+        const processedContent = await this.saveContentToCache(parsedContent, fingerprint.hash);
 
-        // Generate embeddings
-        await this.generateEmbeddingsForFile(parsedContent, fingerprint.hash);
+        // Generate embeddings for the processed content
+        await this.generateEmbeddingsForFile(processedContent, fingerprint.hash);
 
       } catch (error) {
         const relativePath = relative(this.folderPath, filePath);
@@ -274,8 +272,10 @@ export class FolderWatcher {
 
     return newFingerprints;
   }
-
-  private async parseFile(filePath: string): Promise<any> {
+  /**
+   * Parse a file based on its extension and return the parsed content
+   */
+  private async parseFile(filePath: string): Promise<ParsedContent | null> {
     const ext = extname(filePath).toLowerCase();
     
     try {
@@ -297,16 +297,46 @@ export class FolderWatcher {
     } catch (error) {
       this.log(`   ⚠️  Parser error for ${relative(this.folderPath, filePath)}: ${error}`, 'verbose');
       return null;
-    }
-  }
-  private async saveContentToCache(parsedContent: any, hash: string): Promise<void> {
+    }  }
+    /**
+   * Save parsed content to the metadata cache after processing and chunking
+   */
+  private async saveContentToCache(parsedContent: ParsedContent, hash: string): Promise<ProcessedContent> {
     const metadataPath = join(this.cacheDir, 'metadata', `${hash}.json`);
+    
+    // Convert to chunked content
+    const chunkedContent = chunkText(parsedContent);
+    
+    const processedContent: ProcessedContent = {
+      ...parsedContent,
+      chunks: chunkedContent.chunks,
+      totalChunks: chunkedContent.totalChunks,
+      cachedAt: new Date().toISOString(),
+      chunkingStats: {
+        originalTokenCount: chunkedContent.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0),
+        averageChunkTokens: chunkedContent.chunks.length > 0 
+          ? Math.round(chunkedContent.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / chunkedContent.chunks.length)
+          : 0,
+        minChunkTokens: chunkedContent.chunks.length > 0 
+          ? Math.min(...chunkedContent.chunks.map(c => c.tokenCount))
+          : 0,
+        maxChunkTokens: chunkedContent.chunks.length > 0 
+          ? Math.max(...chunkedContent.chunks.map(c => c.tokenCount))
+          : 0
+      }
+    };
     
     // Use atomic file operations to prevent corruption during live updates
     const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
-    await AtomicFileOperations.writeJSONAtomic(metadataPath, parsedContent);
-  }  private async generateEmbeddingsForFile(parsedContent: any, hash: string): Promise<void> {
-    if (!parsedContent.chunks || !Array.isArray(parsedContent.chunks)) {
+    await AtomicFileOperations.writeJSONAtomic(metadataPath, processedContent);
+    
+    return processedContent;
+  }
+    /**
+   * Generate embeddings for a processed file and save them to cache
+   */
+  private async generateEmbeddingsForFile(processedContent: ProcessedContent, hash: string): Promise<void> {
+    if (!processedContent.chunks || !Array.isArray(processedContent.chunks)) {
       return;
     }
 
@@ -324,7 +354,7 @@ export class FolderWatcher {
       let successCount = 0;
       let errorCount = 0;
       
-      for (const chunk of parsedContent.chunks) {
+      for (const chunk of processedContent.chunks) {
         const embeddingPath = join(this.cacheDir, 'embeddings', `${hash}_chunk_${chunk.chunkIndex}.json`);
         
         // Skip if embedding already exists
@@ -337,7 +367,7 @@ export class FolderWatcher {
           const embedding = await errorManager.executeWithRetry(
             'generate_embedding',
             async () => {
-              return await embeddingModel.generateEmbedding(chunk.text);
+              return await embeddingModel.generateEmbedding(chunk.content);
             },
             `${hash}_chunk_${chunk.chunkIndex}`
           );
@@ -422,7 +452,7 @@ export class FolderWatcher {
 // Utility function to start watching a folder
 export async function startWatching(
   folderPath: string, 
-  packageJson: any, 
+  packageJson: PackageJson, 
   options: FileWatcherOptions = {}
 ): Promise<FolderWatcher> {
   const watcher = new FolderWatcher(folderPath, packageJson, options);

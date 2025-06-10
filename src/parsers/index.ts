@@ -4,7 +4,7 @@ import * as mammoth from 'mammoth';
 import XLSX from 'xlsx';
 import JSZip from 'jszip';
 import * as xml2js from 'xml2js';
-import { ParsedContent } from '../types/index.js';
+import { ParsedContent, TextMetadata, PDFMetadata, WordMetadata, ExcelMetadata, PowerPointMetadata } from '../types/index.js';
 
 // Lazy load pdf-parse to avoid initialization issues
 let pdfParse: any = null;
@@ -19,6 +19,7 @@ export async function parseTextFile(filePath: string, basePath: string): Promise
   try {
     // Read file with UTF-8 encoding
     const content = readFileSync(filePath, 'utf8');
+    const stats = statSync(filePath);
     
     // Normalize line endings (handle CRLF/LF)
     const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -26,18 +27,23 @@ export async function parseTextFile(filePath: string, basePath: string): Promise
     const relativePath = relative(basePath, filePath);
     const ext = extname(filePath).toLowerCase();
     
-    const fileType = ext === '.md' ? 'markdown' : 'text';
+    const fileType = ext === '.md' ? 'md' : 'txt';
+    const lines = normalizedContent.split('\n').length;
+    
+    const metadata: TextMetadata = {
+      type: fileType as 'txt' | 'md',
+      originalPath: relativePath,
+      size: stats.size,
+      lastModified: stats.mtime.toISOString(),
+      lines: lines,
+      encoding: 'utf-8'
+    };
     
     return {
       content: normalizedContent,
       type: fileType,
       originalPath: relativePath,
-      metadata: {
-        encoding: 'utf-8',
-        lineCount: normalizedContent.split('\n').length,
-        charCount: normalizedContent.length,
-        extension: ext
-      }
+      metadata: metadata
     };
   } catch (error) {
     throw new Error(`Failed to parse text file ${filePath}: ${error}`);
@@ -79,19 +85,30 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
       pages.push(pdfData.text.trim());
     }
     
+    const metadata: PDFMetadata = {
+      type: 'pdf',
+      originalPath: relativePath,
+      size: stats.size,
+      lastModified: stats.mtime.toISOString(),
+      pages: pdfData.numpages || pages.length,
+      ...(pdfData.info && {
+        pdfInfo: {
+          title: pdfData.info.Title,
+          author: pdfData.info.Author,
+          subject: pdfData.info.Subject,
+          creator: pdfData.info.Creator,
+          producer: pdfData.info.Producer,
+          creationDate: pdfData.info.CreationDate,
+          modificationDate: pdfData.info.ModDate
+        }
+      })
+    };
+
     return {
       content: pdfData.text || '',
       type: 'pdf',
       originalPath: relativePath,
-      metadata: {
-        totalPages: pdfData.numpages || pages.length,
-        pages: pages,
-        pageCount: pages.length,
-        info: pdfData.info || {},
-        version: pdfData.version || 'unknown',
-        charCount: (pdfData.text || '').length,
-        extension: '.pdf'
-      }
+      metadata
     };
   } catch (error: any) {
     // Handle encrypted PDFs gracefully
@@ -101,18 +118,21 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
       error.message.includes('Invalid PDF')
     )) {
       console.warn(`    Warning: Skipping encrypted or password-protected PDF: ${relative(basePath, filePath)}`);
+      const stats = statSync(filePath);
+      const errorMetadata: PDFMetadata = {
+        type: 'pdf',
+        originalPath: relative(basePath, filePath),
+        size: stats.size,
+        lastModified: stats.mtime.toISOString(),
+        pages: 0,
+        error: 'encrypted_or_protected',
+        errorMessage: 'PDF is encrypted or password-protected'
+      };
       return {
         content: '',
         type: 'pdf',
         originalPath: relative(basePath, filePath),
-        metadata: {
-          error: 'encrypted_or_protected',
-          errorMessage: 'PDF is encrypted or password-protected',
-          totalPages: 0,
-          pages: [],
-          pageCount: 0,
-          extension: '.pdf'
-        }
+        metadata: errorMetadata
       };
     }
     
@@ -147,24 +167,28 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
     
     // Count words (simple whitespace split)
     const words = textContent.trim().split(/\s+/).filter(w => w.length > 0);
+
+    const metadata: WordMetadata = {
+      type: 'docx',
+      originalPath: relativePath,
+      size: stats.size,
+      lastModified: stats.mtime.toISOString(),
+      paragraphs: paragraphs.length,
+      charCount: textContent.length,
+      wordCount: words.length,
+      htmlContent: htmlContent,
+      hasImages: htmlContent.includes('<img'),
+      hasTables: htmlContent.includes('<table'),
+      hasLinks: htmlContent.includes('<a '),
+      warnings: warnings.length > 0 ? warnings.map(w => w.message) : [],
+      htmlWarnings: htmlWarnings.length > 0 ? htmlWarnings.map(w => w.message) : []
+    };
     
     return {
       content: textContent,
       type: 'word',
       originalPath: relativePath,
-      metadata: {
-        charCount: textContent.length,
-        wordCount: words.length,
-        paragraphCount: paragraphs.length,
-        htmlContent: htmlContent,
-        hasImages: htmlContent.includes('<img'),
-        hasTables: htmlContent.includes('<table'),
-        hasLinks: htmlContent.includes('<a '),
-        warnings: warnings.length > 0 ? warnings.map(w => w.message) : [],
-        htmlWarnings: htmlWarnings.length > 0 ? htmlWarnings.map(w => w.message) : [],
-        extension: '.docx',
-        fileSize: stats.size
-      }
+      metadata
     };
   } catch (error: any) {
     // Handle corrupted or unsupported Word documents
@@ -175,18 +199,21 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
       error.message.includes('unexpected end of file')
     )) {
       console.warn(`    Warning: Skipping corrupted or invalid Word document: ${relative(basePath, filePath)}`);
+      const stats = statSync(filePath);
+      const errorMetadata: WordMetadata = {
+        type: 'docx',
+        originalPath: relative(basePath, filePath),
+        size: stats.size,
+        lastModified: stats.mtime.toISOString(),
+        paragraphs: 0,
+        error: 'corrupted_or_invalid',
+        errorMessage: 'Word document is corrupted or invalid'
+      };
       return {
         content: '',
         type: 'word',
         originalPath: relative(basePath, filePath),
-        metadata: {
-          error: 'corrupted_or_invalid',
-          errorMessage: 'Word document is corrupted or invalid',
-          charCount: 0,
-          wordCount: 0,
-          paragraphCount: 0,
-          extension: '.docx'
-        }
+        metadata: errorMetadata
       };
     }
     
@@ -215,6 +242,11 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
     workbook.SheetNames.forEach((sheetName, index) => {
       const worksheet = workbook.Sheets[sheetName];
       
+      if (!worksheet) {
+        console.warn(`    Warning: Sheet ${sheetName} is empty or invalid`);
+        return;
+      }
+
       // Convert to CSV format for text extraction
       const csvContent = XLSX.utils.sheet_to_csv(worksheet);
       
@@ -261,24 +293,36 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
     const totalRows = worksheets.reduce((sum, ws) => sum + ws.rowCount, 0);
     const totalCells = worksheets.reduce((sum, ws) => sum + ws.cellCount, 0);
     const totalFormulas = worksheets.reduce((sum, ws) => sum + ws.formulas.length, 0);
+
+    const metadata: ExcelMetadata = {
+      type: 'xlsx',
+      originalPath: relativePath,
+      size: stats.size,
+      lastModified: stats.mtime.toISOString(),
+      sheets: workbook.SheetNames,
+      sheetCount: workbook.SheetNames.length,
+      charCount: allTextContent.length,
+      worksheets: worksheets,
+      totalRows: totalRows,
+      totalCells: totalCells,
+      totalFormulas: totalFormulas,
+      hasFormulas: totalFormulas > 0,
+      ...(workbook.Props && Object.keys(workbook.Props).length > 0 && {
+        workbookProperties: {
+          ...(workbook.Props.Title && { title: workbook.Props.Title }),
+          ...(workbook.Props.Author && { author: workbook.Props.Author }),
+          ...(workbook.Props.Subject && { subject: workbook.Props.Subject }),
+          ...(workbook.Props.CreatedDate && { created: workbook.Props.CreatedDate.toISOString() }),
+          ...(workbook.Props.ModifiedDate && { modified: workbook.Props.ModifiedDate.toISOString() })
+        }
+      })
+    };
     
     return {
       content: allTextContent.trim(),
       type: 'excel',
       originalPath: relativePath,
-      metadata: {
-        charCount: allTextContent.length,
-        worksheetCount: workbook.SheetNames.length,
-        worksheets: worksheets,
-        sheetNames: workbook.SheetNames,
-        totalRows: totalRows,
-        totalCells: totalCells,
-        totalFormulas: totalFormulas,
-        hasFormulas: totalFormulas > 0,
-        fileSize: stats.size,
-        extension: '.xlsx',
-        workbookProps: workbook.Props || {}
-      }
+      metadata
     };
   } catch (error: any) {
     // Handle corrupted or password-protected Excel files
@@ -290,18 +334,22 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
       error.message.includes('Invalid file')
     )) {
       console.warn(`    Warning: Skipping protected or corrupted Excel file: ${relative(basePath, filePath)}`);
+      const stats = statSync(filePath);
+      const errorMetadata: ExcelMetadata = {
+        type: 'xlsx',
+        originalPath: relative(basePath, filePath),
+        size: stats.size,
+        lastModified: stats.mtime.toISOString(),
+        sheets: [],
+        sheetCount: 0,
+        error: 'protected_or_corrupted',
+        errorMessage: 'Excel file is password-protected, encrypted, or corrupted'
+      };
       return {
         content: '',
         type: 'excel',
         originalPath: relative(basePath, filePath),
-        metadata: {
-          error: 'protected_or_corrupted',
-          errorMessage: 'Excel file is password-protected, encrypted, or corrupted',
-          worksheetCount: 0,
-          totalRows: 0,
-          totalCells: 0,
-          extension: '.xlsx'
-        }
+        metadata: errorMetadata
       };
     }
     
@@ -358,7 +406,10 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
     
     // Process each slide
     for (let i = 0; i < slideFiles.length; i++) {
-      const slideFile = zip.file(slideFiles[i]);
+      const slideFilename = slideFiles[i];
+      if (!slideFilename) continue;
+      
+      const slideFile = zip.file(slideFilename);
       if (!slideFile) continue;
       
       try {
@@ -425,7 +476,7 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
         if (slideText) {
           // Try to identify title (usually the first significant text block)
           const sentences = slideText.split(/[.!?]\s+/);
-          if (sentences.length > 0 && sentences[0].length < 100) {
+          if (sentences.length > 0 && sentences[0] && sentences[0].length < 100) {
             slideData.title = sentences[0].trim();
             slideData.content = sentences.slice(1).join('. ').trim();
           } else {
@@ -464,26 +515,38 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
     
     // Count words across all slides
     const words = allTextContent.trim().split(/\s+/).filter(w => w.length > 0);
+
+    const metadata: PowerPointMetadata = {
+      type: 'pptx',
+      originalPath: relativePath,
+      size: stats.size,
+      lastModified: stats.mtime.toISOString(),
+      slides: slideCount,
+      charCount: allTextContent.length,
+      wordCount: words.length,
+      slideData: slides,
+      hasImages: totalImages > 0,
+      hasCharts: totalCharts > 0,
+      hasTables: totalTables > 0,
+      totalImages: totalImages,
+      totalCharts: totalCharts,
+      totalTables: totalTables,
+      ...(Object.keys(presentationProps).length > 0 && {
+        presentationProperties: {
+          title: presentationProps.title,
+          author: presentationProps.author,
+          subject: presentationProps.subject,
+          created: presentationProps.createdDate,
+          modified: presentationProps.modifiedDate
+        }
+      })
+    };
     
     return {
       content: allTextContent.trim(),
       type: 'powerpoint',
       originalPath: relativePath,
-      metadata: {
-        charCount: allTextContent.length,
-        wordCount: words.length,
-        slideCount: slideCount,
-        slides: slides,
-        hasImages: totalImages > 0,
-        hasCharts: totalCharts > 0,
-        hasTables: totalTables > 0,
-        totalImages: totalImages,
-        totalCharts: totalCharts,
-        totalTables: totalTables,
-        fileSize: stats.size,
-        extension: '.pptx',
-        presentationProps: presentationProps
-      }
+      metadata
     };
   } catch (error: any) {
     // Handle corrupted or password-protected PowerPoint files
@@ -497,18 +560,21 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
       error.message.includes('End of central directory')
     )) {
       console.warn(`    Warning: Skipping protected or corrupted PowerPoint file: ${relative(basePath, filePath)}`);
+      const stats = statSync(filePath);
+      const errorMetadata: PowerPointMetadata = {
+        type: 'pptx',
+        originalPath: relative(basePath, filePath),
+        size: stats.size,
+        lastModified: stats.mtime.toISOString(),
+        slides: 0,
+        error: 'protected_or_corrupted',
+        errorMessage: 'PowerPoint file is password-protected, encrypted, or corrupted'
+      };
       return {
         content: '',
         type: 'powerpoint',
         originalPath: relative(basePath, filePath),
-        metadata: {
-          error: 'protected_or_corrupted',
-          errorMessage: 'PowerPoint file is password-protected, encrypted, or corrupted',
-          slideCount: 0,
-          charCount: 0,
-          wordCount: 0,
-          extension: '.pptx'
-        }
+        metadata: errorMetadata
       };
     }
     

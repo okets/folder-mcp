@@ -158,7 +158,7 @@ export class EnhancedVectorSearch {
           metadata: {
             ...result.chunk.metadata,
             totalChunks: documentStructure?.outline?.length || 1,
-            documentStructure: documentStructure
+            ...(documentStructure && { documentStructure })
           },
           context: context
         }
@@ -229,8 +229,8 @@ export class EnhancedVectorSearch {
       expandedContent = contextParts.join('\n\n');
 
       return {
-        previousChunk,
-        nextChunk,
+        ...(previousChunk && { previousChunk }),
+        ...(nextChunk && { nextChunk }),
         expandedContent,
         paragraphBoundaries: true
       };
@@ -283,7 +283,7 @@ export class EnhancedVectorSearch {
   /**
    * Extract slide structure from PowerPoint metadata
    */
-  private extractSlideStructure(metadata: any): Slide[] {
+  private extractSlideStructure(metadata: Record<string, unknown>): Slide[] {
     // This would be enhanced based on the actual PowerPoint parsing metadata
     const slides: Slide[] = [];
     
@@ -294,13 +294,13 @@ export class EnhancedVectorSearch {
         slideMatches.forEach((match: string, index: number) => {
           const slideNumber = index + 1;
           const titleMatch = match.match(/=== Slide \d+ ===\s*([^\n]+)/);
-          const title = titleMatch ? titleMatch[1].trim() : `Slide ${slideNumber}`;
+          const title = titleMatch?.[1]?.trim() || `Slide ${slideNumber}`;
           
           slides.push({
             slideNumber,
             title,
-            startPosition: metadata.content.indexOf(match),
-            endPosition: metadata.content.indexOf(match) + match.length
+            startPosition: (metadata.content as string).indexOf(match),
+            endPosition: (metadata.content as string).indexOf(match) + match.length
           });
         });
       }
@@ -312,7 +312,7 @@ export class EnhancedVectorSearch {
   /**
    * Extract section structure from Word documents
    */
-  private extractSectionStructure(metadata: any): Section[] {
+  private extractSectionStructure(metadata: Record<string, unknown>): Section[] {
     // This would be enhanced based on the actual Word parsing metadata
     const sections: Section[] = [];
     
@@ -324,7 +324,7 @@ export class EnhancedVectorSearch {
         headerMatches.forEach((header: string, index: number) => {
           const level = header.startsWith('#') ? header.match(/^#+/)?.[0].length || 1 : 1;
           const title = header.replace(/^#+\s*|\*\*/g, '').trim();
-          const position = metadata.content.indexOf(header);
+          const position = (metadata.content as string).indexOf(header);
           
           sections.push({
             title,
@@ -342,14 +342,14 @@ export class EnhancedVectorSearch {
   /**
    * Extract sheet structure from Excel files
    */
-  private extractSheetStructure(metadata: any): Sheet[] {
+  private extractSheetStructure(metadata: Record<string, unknown>): Sheet[] {
     // This would be enhanced based on the actual Excel parsing metadata
     const sheets: Sheet[] = [];
     
     if (metadata.sheets && Array.isArray(metadata.sheets)) {
-      metadata.sheets.forEach((sheet: any, index: number) => {
+      metadata.sheets.forEach((sheet: Record<string, unknown>, index: number) => {
         sheets.push({
-          name: sheet.name || `Sheet ${index + 1}`,
+          name: (typeof sheet.name === 'string' && sheet.name) || `Sheet ${index + 1}`,
           startPosition: 0, // Would be calculated based on actual sheet data
           endPosition: 0    // Would be calculated based on actual sheet data
         });
@@ -362,7 +362,7 @@ export class EnhancedVectorSearch {
   /**
    * Extract basic outline for text files
    */
-  private extractBasicOutline(metadata: any): OutlineItem[] {
+  private extractBasicOutline(metadata: Record<string, unknown>): OutlineItem[] {
     const outline: OutlineItem[] = [];
     
     if (metadata.content && typeof metadata.content === 'string') {
@@ -416,14 +416,16 @@ export class EnhancedVectorSearch {
       // Take only the top results per document
       const topResults = deduplicatedResults.slice(0, Math.min(3, maxResults)); // Max 3 results per document
       
-      if (topResults.length > 0) {
+      if (topResults.length > 0 && topResults[0]) {
         processedGroups.push({
           sourceDocument: sourceDocument,
           documentType: topResults[0].documentType,
           resultCount: topResults.length,
           relevanceScore: topResults[0].score,
           results: topResults,
-          documentStructure: topResults[0].contextualChunk.metadata.documentStructure
+          ...(topResults[0].contextualChunk.metadata.documentStructure && {
+            documentStructure: topResults[0].contextualChunk.metadata.documentStructure
+          })
         });
       }
     }

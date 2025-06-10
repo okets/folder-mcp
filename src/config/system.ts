@@ -74,9 +74,9 @@ export async function getSystemCapabilities(): Promise<SystemCapabilities> {
     availableMemoryGB,
     platform: platformName,
     hasGPU: gpuInfo.hasGPU,
-    gpuMemoryGB: gpuInfo.memoryGB,
+    ...(gpuInfo.memoryGB !== undefined && { gpuMemoryGB: gpuInfo.memoryGB }),
     ollamaAvailable: ollamaInfo.available,
-    ollamaVersion: ollamaInfo.version,
+    ...(ollamaInfo.version && { ollamaVersion: ollamaInfo.version }),
     ollamaModels: ollamaInfo.models,
     performanceTier,
     detectedAt: new Date().toISOString(),
@@ -136,7 +136,10 @@ async function detectGPUWindows(): Promise<{ hasGPU: boolean; memoryGB?: number 
       const parts = line.split(',');
       if (parts.length >= 3) {
         const name = parts[1]?.trim();
-        const ram = parseInt(parts[2]?.trim());
+        const ramStr = parts[2]?.trim();
+        
+        if (!ramStr) continue;
+        const ram = parseInt(ramStr);
         
         // Check for discrete GPU (NVIDIA, AMD, Intel Arc)
         if (name && (name.includes('NVIDIA') || name.includes('AMD') || name.includes('Intel Arc'))) {
@@ -151,7 +154,7 @@ async function detectGPUWindows(): Promise<{ hasGPU: boolean; memoryGB?: number 
     
     return {
       hasGPU: hasDiscreteGPU,
-      memoryGB: maxMemoryGB > 0 ? maxMemoryGB : undefined,
+      ...(maxMemoryGB > 0 && { memoryGB: maxMemoryGB }),
     };
   } catch (error) {
     return { hasGPU: false };
@@ -212,7 +215,7 @@ async function detectGPUMacOS(): Promise<{ hasGPU: boolean; memoryGB?: number }>
     const memoryMatch = stdout.match(/VRAM \(Total\):\s*(\d+)\s*MB/);
     let memoryGB: number | undefined;
     
-    if (memoryMatch) {
+    if (memoryMatch && memoryMatch[1]) {
       const memoryMB = parseInt(memoryMatch[1]);
       if (!isNaN(memoryMB)) {
         memoryGB = Math.round((memoryMB / 1024) * 10) / 10;
@@ -221,7 +224,7 @@ async function detectGPUMacOS(): Promise<{ hasGPU: boolean; memoryGB?: number }>
     
     return {
       hasGPU: hasDiscreteGPU,
-      memoryGB,
+      ...(memoryGB !== undefined && { memoryGB }),
     };
   } catch (error) {
     return { hasGPU: false };

@@ -44,8 +44,8 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
   
   // For dense content types (Excel, CSV-like data), use larger chunk sizes
   if (type === 'excel' || type === 'powerpoint') {
-    adjustedMinTokens = minTokens * 2; // 400 tokens
-    adjustedMaxTokens = maxTokens * 2; // 1000 tokens
+    adjustedMinTokens = minTokens * 2;
+    adjustedMaxTokens = maxTokens * 2;
   }
   
   const chunks: TextChunk[] = [];
@@ -60,6 +60,8 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
   
   for (let i = 0; i < paragraphs.length; i++) {
     const paragraph = paragraphs[i];
+    if (!paragraph) continue;
+    
     const paragraphStart = content.indexOf(paragraph, globalPosition);
     
     // Check if adding this paragraph would exceed max tokens
@@ -81,9 +83,9 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
           metadata: {
             sourceFile: originalPath,
             sourceType: type,
-            totalChunks: 0, // Will be updated later
-            hasOverlap: false, // Will be updated when we add overlap
-            originalMetadata: metadata
+            totalChunks: 0,
+            hasOverlap: false,
+            ...(metadata && { originalMetadata: metadata })
           }
         });
         
@@ -132,36 +134,56 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
   
   // Handle the last chunk
   if (currentChunk.trim().length > 0) {
-    const tokenCount = estimateTokenCount(currentChunk);
+    const lastChunkTokenCount = estimateTokenCount(currentChunk);
     
     // If the last chunk is too small, try to merge it with the previous chunk
-    if (tokenCount < adjustedMinTokens && chunks.length > 0) {
+    if (lastChunkTokenCount < adjustedMinTokens && chunks.length > 0) {
       const lastChunk = chunks[chunks.length - 1];
-      const mergedContent = lastChunk.content + '\n\n' + currentChunk;
-      const mergedTokenCount = estimateTokenCount(mergedContent);
-      
-      if (mergedTokenCount <= adjustedMaxTokens * 1.2) { // Allow slight overflow for last chunk
-        // Merge with previous chunk
-        chunks[chunks.length - 1] = {
-          ...lastChunk,
-          content: mergedContent,
-          endPosition: chunkStartPos + currentChunk.length,
-          tokenCount: mergedTokenCount
-        };
+      if (lastChunk) {
+        const mergedContent = lastChunk.content + '\n\n' + currentChunk;
+        const mergedTokenCount = estimateTokenCount(mergedContent);
+        
+        if (mergedTokenCount <= adjustedMaxTokens * 1.2) {
+          // Merge with previous chunk
+          chunks[chunks.length - 1] = {
+            content: mergedContent,
+            startPosition: lastChunk.startPosition,
+            endPosition: chunkStartPos + currentChunk.length,
+            tokenCount: mergedTokenCount,
+            chunkIndex: lastChunk.chunkIndex,
+            metadata: lastChunk.metadata
+          };
+        } else {
+          // Keep as separate chunk even if small
+          chunks.push({
+            content: currentChunk,
+            startPosition: chunkStartPos,
+            endPosition: chunkStartPos + currentChunk.length,
+            tokenCount: lastChunkTokenCount,
+            chunkIndex: chunkIndex++,
+            metadata: {
+              sourceFile: originalPath,
+              sourceType: type,
+              totalChunks: 0,
+              hasOverlap: false,
+              ...(metadata && { originalMetadata: metadata })
+            }
+          });
+        }
       } else {
-        // Keep as separate chunk even if small
+        // Add as standalone chunk if no previous chunk exists
         chunks.push({
           content: currentChunk,
           startPosition: chunkStartPos,
           endPosition: chunkStartPos + currentChunk.length,
-          tokenCount: tokenCount,
+          tokenCount: lastChunkTokenCount,
           chunkIndex: chunkIndex++,
           metadata: {
             sourceFile: originalPath,
             sourceType: type,
             totalChunks: 0,
             hasOverlap: false,
-            originalMetadata: metadata
+            ...(metadata && { originalMetadata: metadata })
           }
         });
       }
@@ -170,14 +192,14 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
         content: currentChunk,
         startPosition: chunkStartPos,
         endPosition: chunkStartPos + currentChunk.length,
-        tokenCount: tokenCount,
+        tokenCount: lastChunkTokenCount,
         chunkIndex: chunkIndex++,
         metadata: {
           sourceFile: originalPath,
           sourceType: type,
           totalChunks: 0,
           hasOverlap: false,
-          originalMetadata: metadata
+          ...(metadata && { originalMetadata: metadata })
         }
       });
     }
@@ -186,7 +208,7 @@ export function chunkText(parsedContent: ParsedContent, minTokens: number = 200,
   // Update total chunks and overlap flags
   chunks.forEach((chunk, index) => {
     chunk.metadata.totalChunks = chunks.length;
-    chunk.metadata.hasOverlap = index > 0; // All chunks except first have overlap from previous
+    chunk.metadata.hasOverlap = index > 0;
   });
   
   return {
