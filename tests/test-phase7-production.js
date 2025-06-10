@@ -41,13 +41,7 @@ class Phase7Tester {
       console.error('💥 Test suite failed:', error);
       return false;
     } finally {
-      await this.cleanup.forEach(cleanupFn => {
-        try { 
-          cleanupFn(); 
-        } catch (e) { 
-          console.warn('Cleanup warning:', e.message); 
-        }
-      });
+      await this.cleanupTestEnvironment();
     }
   }
 
@@ -435,6 +429,17 @@ class Phase7Tester {
     });
     
     return totalTests > 0 && passedTests === totalTests;
+  }
+
+  async cleanupTestEnvironment() {
+    try {
+      if (existsSync(testDataDir)) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+      console.log('\n🧹 Test environment cleaned up');
+    } catch (error) {
+      console.warn('⚠️  Could not clean up test environment:', error.message);
+    }
   }
 }
 

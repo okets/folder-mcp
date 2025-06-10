@@ -15,7 +15,7 @@ import { setTimeout as sleep } from 'timers/promises';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
-const testDataDir = join(__dirname, 'test-data-mcp');
+const testDataDir = join(__dirname, 'test-data-phase5');
 
 class Phase5Tester {
   constructor() {

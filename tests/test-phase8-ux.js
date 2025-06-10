@@ -536,6 +536,7 @@ class Phase8Tester {
   }
 
   async cleanupTestEnvironment() {
+    // Run registered cleanup functions first
     this.cleanup.forEach(cleanupFn => {
       try { 
         cleanupFn(); 
@@ -543,6 +544,16 @@ class Phase8Tester {
         console.warn('Cleanup warning:', e.message); 
       }
     });
+    
+    // Clean up the main test data directory
+    try {
+      if (existsSync(testDataDir)) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+      console.log('\n🧹 Test environment cleaned up');
+    } catch (error) {
+      console.warn('⚠️  Could not clean up test environment:', error.message);
+    }
   }
 
   showResults() {

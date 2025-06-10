@@ -14,7 +14,7 @@ import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
-const testDataDir = join(__dirname, 'test-data-processing');
+const testDataDir = join(__dirname, 'test-data-phase3');
 
 class Phase3Tester {
   constructor() {
