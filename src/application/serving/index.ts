@@ -197,7 +197,6 @@ export interface PerformanceMetrics {
   errorRate: number;
 }
 
-// Application implementations (to be created)
-// export { ContentServingOrchestrator } from './content.js';
-// export { KnowledgeOrchestrator } from './knowledge.js';
-// export { SearchOrchestrator } from './search.js';
+// Application implementations
+export { ContentServingOrchestrator } from './orchestrator.js';
+export { KnowledgeOperationsService } from './knowledge.js';

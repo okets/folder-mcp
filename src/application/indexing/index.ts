@@ -93,7 +93,7 @@ export interface ChangesSummary {
   requiresFullReindex: boolean;
 }
 
-// Application implementations (to be created)
-// export { IndexingOrchestrator } from './orchestrator.js';
-// export { IndexingPipeline } from './pipeline.js';
-// export { IncrementalIndexer } from './incremental.js';
+// Application implementations
+export { IndexingOrchestrator } from './orchestrator.js';
+export { IndexingPipeline } from './pipeline.js';
+export { IncrementalIndexer, createIncrementalIndexer } from './incremental.js';

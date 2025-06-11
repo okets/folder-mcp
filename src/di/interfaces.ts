@@ -251,6 +251,73 @@ export interface ILoggingService {
 }
 
 // =============================================================================
+// Application Layer Interfaces
+// =============================================================================
+
+/**
+ * Indexing workflow interface
+ * Orchestrates the complete indexing process
+ */
+export interface IIndexingWorkflow {
+  indexFolder(path: string, options?: any): Promise<any>;
+  indexFiles(files: string[], options?: any): Promise<any>;
+  getIndexingStatus(path: string): Promise<any>;
+  resumeIndexing(path: string): Promise<any>;
+}
+
+/**
+ * Incremental indexing interface
+ * Handles incremental updates to the index
+ */
+export interface IIncrementalIndexing {
+  detectChanges(folderPath: string): Promise<any>;
+  indexChanges(changes: any, options?: any): Promise<any>;
+}
+
+/**
+ * Content serving workflow interface
+ * Orchestrates content serving operations
+ */
+export interface IContentServingWorkflow {
+  getFileContent(filePath: string): Promise<any>;
+  searchKnowledge(query: string, options?: any): Promise<any>;
+  getFileList(pattern?: string): Promise<any>;
+  getServerStatus(): Promise<any>;
+}
+
+/**
+ * Knowledge operations interface
+ * Provides advanced search and knowledge operations
+ */
+export interface IKnowledgeOperations {
+  semanticSearch(query: string, options: any): Promise<any>;
+  enhancedSearch(query: string, options: any): Promise<any>;
+  getRelatedContent(filePath: string, similarity?: number): Promise<any>;
+}
+
+/**
+ * Monitoring workflow interface
+ * Orchestrates monitoring and health checking
+ */
+export interface IMonitoringWorkflow {
+  startFileWatching(folderPath: string, options?: any): Promise<any>;
+  stopFileWatching(folderPath: string): Promise<void>;
+  getWatchingStatus(folderPath: string): Promise<any>;
+  getSystemHealth(): Promise<any>;
+}
+
+/**
+ * Health monitoring interface
+ * Provides comprehensive health monitoring
+ */
+export interface IHealthMonitoring {
+  checkIndexHealth(): Promise<any>;
+  checkPerformanceMetrics(): Promise<any>;
+  checkResourceUsage(): Promise<any>;
+  generateHealthReport(): Promise<any>;
+}
+
+// =============================================================================
 // Service Factory Interface
 // =============================================================================
 

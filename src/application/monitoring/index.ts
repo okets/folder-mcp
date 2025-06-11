@@ -191,7 +191,6 @@ export interface HealthRecommendation {
   automated: boolean;
 }
 
-// Application implementations (to be created)
-// export { FileWatchingOrchestrator } from './watcher.js';
-// export { HealthMonitor } from './health.js';
-// export { SystemMonitor } from './system.js';
+// Application implementations
+export { MonitoringOrchestrator } from './orchestrator.js';
+export { HealthMonitoringService } from './health.js';

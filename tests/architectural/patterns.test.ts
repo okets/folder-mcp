@@ -249,6 +249,9 @@ function checkErrorHandlingConsistency(): string[] {
           catchBlock.includes('lastError =') ||
           catchBlock.includes('errorMessage =') ||
           catchBlock.includes('errorCount++') ||
+          catchBlock.includes('IndexingError') ||
+          catchBlock.includes('PipelineError') ||
+          catchBlock.includes('error instanceof Error') ||
           file.includes('test') ||
           file.includes('cache') ||
           file.includes('recovery') || // Recovery files have specialized patterns

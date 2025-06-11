@@ -7,7 +7,7 @@
 
 import { DependencyContainer, getContainer } from './container.js';
 import { ServiceFactory } from './factory.js';
-import { SERVICE_TOKENS } from './interfaces.js';
+import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 import { ResolvedConfig } from '../config/resolver.js';
 import { IndexingService } from '../processing/indexingService.js';
 import { MCPServer } from '../mcp/mcpServer.js';
@@ -90,6 +90,39 @@ export function setupDependencyInjection(options: {
     container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, () => {
       const cacheDir = join(options.folderPath!, '.folder-mcp');
       return serviceFactory.createVectorSearchService(cacheDir);
+    });
+  }
+
+  // Register application layer services
+  if (options.config && options.folderPath) {
+    // Register indexing orchestrator
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW, () => {
+      return serviceFactory.createIndexingOrchestrator(container);
+    });
+
+    // Register incremental indexer
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING, () => {
+      return serviceFactory.createIncrementalIndexer(container);
+    });
+
+    // Register content serving orchestrator
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW, () => {
+      return serviceFactory.createContentServingOrchestrator(container);
+    });
+
+    // Register knowledge operations service
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS, () => {
+      return serviceFactory.createKnowledgeOperationsService(container);
+    });
+
+    // Register monitoring orchestrator
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW, () => {
+      return serviceFactory.createMonitoringOrchestrator(container);
+    });
+
+    // Register health monitoring service
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.HEALTH_MONITORING, () => {
+      return serviceFactory.createHealthMonitoringService(container);
     });
   }
 
