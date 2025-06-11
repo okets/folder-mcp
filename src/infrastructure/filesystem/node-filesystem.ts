@@ -13,14 +13,26 @@ export class NodeFileSystem implements IFileSystem {
   async readFile(filePath: string): Promise<string> {
     return fs.readFile(filePath, 'utf-8');
   }
-
   async stat(filePath: string): Promise<FileStats> {
     const stats = await fs.stat(filePath);
     return {
       size: stats.size,
       mtime: stats.mtime,
       isDirectory: () => stats.isDirectory(),
-      isFile: () => stats.isFile()
+      isFile: () => stats.isFile(),
+      isReadOnly: () => {
+        // On Windows, check if the file has write permission
+        // On Unix-like systems, check owner write permission
+        const mode = stats.mode;
+        if (process.platform === 'win32') {
+          // On Windows, we can't easily determine if a file is read-only from stats.mode
+          // This is a simplified check - in a real implementation you might want to use platform-specific APIs
+          return false;
+        } else {
+          // Check if owner has write permission (0o200)
+          return (mode & 0o200) === 0;
+        }
+      }
     };
   }
 

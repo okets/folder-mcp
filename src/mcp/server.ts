@@ -560,7 +560,20 @@ export async function startMCPServer(options: ServerOptions): Promise<FolderMCPS
     port: options.port || config.api.defaultPort,
   };
 
-  const server = new FolderMCPServer(serverOptions);
+  // Setup dependency injection container and get logging service
+  const { setupDependencyInjection } = await import('../di/setup.js');
+  const { getContainer } = await import('../di/container.js');
+  const { SERVICE_TOKENS } = await import('../di/interfaces.js');
+  
+  setupDependencyInjection({
+    folderPath: serverOptions.folderPath,
+    logLevel: 'info'
+  });
+  
+  const container = getContainer();
+  const loggingService = container.resolve<ILoggingService>(SERVICE_TOKENS.LOGGING);
+
+  const server = new FolderMCPServer(serverOptions, loggingService);
   
   // Setup graceful shutdown
   const shutdown = async () => {
