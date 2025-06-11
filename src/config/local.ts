@@ -79,7 +79,7 @@ export async function saveLocalConfig(folderPath: string, config: LocalConfig): 
     });
     
     // Import and use atomic operations for safe config saves
-    const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
+    const { AtomicFileOperations } = await import('../infrastructure/errors/recovery.js');
     await AtomicFileOperations.writeFileAtomic(configPath, yamlContent);
   } catch (error) {
     throw new Error(`Failed to save configuration to ${configPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -126,6 +126,7 @@ export class ServiceFactory implements IServiceFactory {
   // =============================================================================
 
   createIndexingOrchestrator(container: DependencyContainer): any {
+    // Import the IndexingOrchestrator directly to avoid require issues
     const { IndexingOrchestrator } = require('../application/indexing/orchestrator.js');
     return new IndexingOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
