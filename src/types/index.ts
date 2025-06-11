@@ -448,14 +448,28 @@ export interface ErrorContext {
  * Progress tracking data
  */
 export interface ProgressData {
+  /** Current operation being performed */
+  operation: string;
   /** Current progress count */
   current: number;
   /** Total items to process */
   total: number;
+  /** Total number of files to process */
+  totalFiles: number;
+  /** Number of files processed so far */
+  processedFiles: number;
+  /** Paths that have been successfully processed */
+  processedPaths: string[];
+  /** Paths that failed to process */
+  failedPaths: string[];
+  /** Start time of the operation */
+  startTime?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
   /** Timestamp of last update */
   lastUpdated: string;
+  /** Timestamp of last update (alternative name for compatibility) */
+  lastUpdate: string;
   /** Estimated time remaining in seconds */
   estimatedTimeRemaining?: number;
 }

@@ -78,11 +78,9 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
     const ext = extname(fingerprint.path).toLowerCase();
     
     console.log(`  ${i + 1}/${fingerprints.length}: Parsing ${fingerprint.path}`);
-    
-    try {
+      try {
       // Use error recovery for file parsing
       const parsedContent = await errorManager.executeWithRetry(
-        `parse_${ext.substring(1)}_file`,
         async () => {
           switch (ext) {
             case '.txt':
@@ -95,21 +93,25 @@ async function processFiles(fingerprints: FileFingerprint[], basePath: string, c
             case '.xlsx':
               return await parseExcelFile(fullPath, basePath);
             case '.pptx':
-              return await parsePowerPointFile(fullPath, basePath);
-            default:
+              return await parsePowerPointFile(fullPath, basePath);            default:
               throw new Error(`Unsupported file extension: ${ext}`);
           }
         },
-        fingerprint.path
+        {
+          operation: `parse_${ext.substring(1)}_file`,
+          filePath: fingerprint.path
+        }
       );
 
       // Use error recovery for cache operations
       await errorManager.executeWithRetry(
-        'save_content_to_cache',
         async () => {
           await saveContentToCache(parsedContent, fingerprint.hash, cacheDir);
         },
-        fingerprint.path
+        {
+          operation: 'save_content_to_cache',
+          filePath: fingerprint.path
+        }
       );
 
       successCount++;
@@ -273,14 +275,15 @@ async function generateEmbeddingsForChunks(
       const batch = chunksToProcess.slice(i, i + batchSize);
       const batchTexts = batch.map(item => item.chunk.content);
       
-      try {
-        // Use error recovery for embedding generation
+      try {        // Use error recovery for embedding generation
         const embeddings = await errorManager.executeWithRetry(
-          'generate_batch_embeddings',
           async () => {
-            return await embeddingModel.generateBatchEmbeddings(batchTexts, batchSize);
+            return await embeddingModel.generateBatchEmbeddings(batchTexts);
           },
-          `batch_${Math.floor(i / batchSize) + 1}`
+          {
+            operation: 'generate_batch_embeddings',
+            filePath: `batch_${Math.floor(i / batchSize) + 1}`
+          }
         );
           // Save each embedding with atomic operations
         for (let j = 0; j < batch.length; j++) {
@@ -300,14 +303,15 @@ async function generateEmbeddingsForChunks(
             modelBackend: modelInfo.backend,
             isGPUAccelerated: modelInfo.isGPUAccelerated
           };
-          
-          // Use atomic file operations to prevent corruption
+            // Use atomic file operations to prevent corruption
           await errorManager.executeWithRetry(
-            'save_embedding_to_cache',
             async () => {
               await AtomicFileOperations.writeJSONAtomic(item.embeddingPath, embeddingData);
             },
-            item.embeddingPath
+            {
+              operation: 'save_embedding_to_cache',
+              filePath: item.embeddingPath
+            }
           );
         }
         

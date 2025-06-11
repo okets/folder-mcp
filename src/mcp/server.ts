@@ -195,7 +195,6 @@ export class FolderMCPServer {
 
       try {
         return await errorManager.executeWithRetry(
-          `mcp_tool_${name}`,
           async () => {
             switch (name) {
               case 'read_file':
@@ -230,6 +229,10 @@ export class FolderMCPServer {
               default:
                 throw new Error(`Unknown tool: ${name}`);
             }
+          },
+          {
+            operation: `mcp_tool_${name}`,
+            filePath: args?.file_path as string
           }
         );
       } catch (error) {

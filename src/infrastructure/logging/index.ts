@@ -99,3 +99,6 @@ export interface TransportStatistics {
 // export { Logger } from './logger.js';
 // export { JsonFormatter, TextFormatter } from './formatters.js';
 // export { ConsoleTransport, FileTransport } from './transports.js';
+
+// Implementation exports
+export * from './logger';

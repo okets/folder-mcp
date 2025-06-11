@@ -156,3 +156,6 @@ export interface RecoveryAttempt {
 // export { ErrorHandler, FileSystemErrorHandler } from './handlers.js';
 // export { ErrorReporter } from './reporter.js';
 // export { ErrorCategorizer } from './categorizer.js';
+
+// Implementation exports
+export * from './recovery';

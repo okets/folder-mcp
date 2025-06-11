@@ -6,48 +6,31 @@
  */
 
 // Import standard types
-import type { TextChunk, ParsedContent } from '../../types/index.js';
+import type { TextChunk, ParsedContent, ChunkedContent } from '../../types/index.js';
 
-// Core domain services
-export interface ContentOperations {
-  chunkText(text: string, options: ChunkingOptions): TextChunk[];
-  processContent(content: ParsedContent): ProcessedContent;
-  extractMetadata(content: ParsedContent): ContentMetadata;
-}
+// Export chunking implementations
+export {
+  ContentProcessor,
+  type ContentOperations,
+  type ChunkingOptions,
+  type ContentProcessingMetadata,
+  type ProcessedContent,
+  type ContentMetadata,
+  createContentProcessor,
+  chunkText,
+  estimateTokenCount,
+  findSentenceBoundaries
+} from './chunking.js';
 
-// Re-export TextChunk from shared types for convenience
-export type { TextChunk } from '../../types/index.js';
+// Export processing implementations  
+export {
+  ContentProcessingService,
+  type ContentProcessingOperations,
+  type ContentTransformationOptions,
+  type ContentEnhancement,
+  type EnhancedContent,
+  createContentProcessingService
+} from './processing.js';
 
-export interface ChunkingOptions {
-  maxChunkSize: number;
-  overlapSize: number;
-  preserveParagraphs?: boolean;
-  preserveSentences?: boolean;
-}
-
-export interface ProcessedContent {
-  originalContent: string;
-  chunks: TextChunk[];
-  metadata: ContentMetadata;
-  filePath: string;
-}
-
-export interface ContentMetadata {
-  title?: string;
-  author?: string;
-  language?: string;
-  wordCount: number;
-  chunkCount: number;
-  extractedAt: string;
-}
-
-export interface ChunkMetadata {
-  type: 'paragraph' | 'sentence' | 'section' | 'fragment';
-  importance?: number;
-  keywords?: string[];
-}
-
-// Domain implementations (to be migrated from existing code)
-// export { ContentProcessor } from './processing.js';
-// export { ContentChunker } from './chunking.js';
-// export { MetadataExtractor } from './metadata.js';
+// Re-export types for convenience
+export type { TextChunk, ParsedContent, ChunkedContent };

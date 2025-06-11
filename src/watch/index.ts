@@ -368,16 +368,16 @@ export class FolderWatcher {
         // Skip if embedding already exists
         if (existsSync(embeddingPath)) {
           continue;
-        }
-
-        try {
+        }        try {
           // Generate embedding with retry logic
           const embedding = await errorManager.executeWithRetry(
-            'generate_embedding',
             async () => {
               return await embeddingModel.generateEmbedding(chunk.content);
             },
-            `${hash}_chunk_${chunk.chunkIndex}`
+            {
+              operation: 'generate_embedding',
+              filePath: `${hash}_chunk_${chunk.chunkIndex}`
+            }
           );
           
           const embeddingData = {
@@ -387,15 +387,15 @@ export class FolderWatcher {
             model: modelInfo.name,
             modelBackend: modelInfo.backend,
             isGPUAccelerated: modelInfo.isGPUAccelerated
-          };
-
-          // Save embedding with atomic operations to prevent corruption
+          };          // Save embedding with atomic operations to prevent corruption
           await errorManager.executeWithRetry(
-            'save_embedding_to_cache',
             async () => {
               await AtomicFileOperations.writeJSONAtomic(embeddingPath, embeddingData);
             },
-            embeddingPath
+            {
+              operation: 'save_embedding_to_cache',
+              filePath: embeddingPath
+            }
           );
           
           successCount++;

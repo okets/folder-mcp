@@ -56,10 +56,10 @@ export interface CacheEntry<T> {
   key: string;
   value: T;
   createdAt: Date;
-  lastAccessedAt: Date;
-  accessCount: number;
-  size: number; // in bytes
-  ttl: number; // in seconds
+  lastAccessedAt?: Date;
+  accessCount?: number;
+  size?: number; // in bytes
+  ttl?: number; // in seconds
 }
 
 export interface CacheStorageOptions {
@@ -84,3 +84,7 @@ export interface CacheStatistics {
 // export { DiskCacheStorage } from './storage.js';
 // export { LRUCacheStrategy } from './strategy.js';
 // export { CacheManager } from './manager.js';
+
+// Implementation exports
+export * from './storage';
+export * from './manager';

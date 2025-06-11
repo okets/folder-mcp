@@ -5,46 +5,67 @@
  * including parsing, watching, and fingerprinting.
  */
 
+// Import types from shared location
+import type { ParsedContent, FileFingerprint } from '../../types/index.js';
+
+// Export parser implementations
+export { 
+  FileParser, 
+  type FileParsingOperations,
+  createFileParser 
+} from './parser.js';
+
+// Export fingerprinting implementations
+export { 
+  FileFingerprintGenerator,
+  createFileFingerprintGenerator,
+  generateFileHash,
+  createFileFingerprint,
+  generateFingerprints
+} from './fingerprint.js';
+
+// Export watching implementations
+export {
+  FileWatchingDomainService,
+  FileEventAggregator,
+  type FileChangeType,
+  type FileChangeEvent,
+  type FileEventBatch,
+  type FileChangeStats,
+  type FileWatchingOperations,
+  createFileWatchingDomainService,
+  createFileEventAggregator
+} from './watcher.js';
+
+// Re-export types for convenience
+export type { ParsedContent, FileFingerprint };
+
+// Core domain interfaces for backward compatibility
+export interface FileOperations {
+  scanFolder(path: string): Promise<string[]>;
+  parseFile(path: string): Promise<ParsedContent>;
+  watchFolder(path: string, callback: FileChangeCallback): Promise<void>;
+}
+
+export type FileChangeCallback = (event: import('./watcher.js').FileChangeEvent) => void;
+
+// Backward compatibility with existing code during migration
 import { IFileSystem, MAX_FILE_SIZE, SUPPORTED_EXTENSIONS } from './interfaces.js';
-import { FileError, handleError } from '../../shared/errors/index.js';
+import { FileError } from '../../shared/errors/index.js';
 import { FileContent, FileMetadata } from './types.js';
 
-// Core domain services
-export interface IFileOperations {
+export interface LegacyFileOperations {
   parseFile(path: string): Promise<FileContent>;
   scanFolder(path: string): Promise<FileMetadata[]>;
   watchFolder(path: string, callback: (event: string, filename: string) => void): Promise<void>;
 }
 
-export interface FileFingerprintOperations {
+export interface LegacyFingerprintOperations {
   createFingerprint(filePath: string): Promise<FileFingerprint>;
   compareFingerprints(current: FileFingerprint, cached: FileFingerprint): boolean;
 }
 
-// Domain types
-export interface ParsedContent {
-  content: string;
-  metadata: FileMetadata;
-  filePath: string;
-}
-
-export interface FileFingerprint {
-  hash: string;
-  path: string;
-  size: number;
-  modified: string;
-}
-
-export type FileChangeCallback = (event: FileChangeEvent) => void;
-
-export interface FileChangeEvent {
-  type: 'added' | 'modified' | 'deleted';
-  filePath: string;
-  fingerprint?: FileFingerprint;
-}
-
-// Default implementation
-export class DefaultFileOperations implements IFileOperations {
+export class DefaultFileOperations implements LegacyFileOperations {
   private readonly MAX_FILE_SIZE = 1024 * 1024; // 1MB (matches test)
   private readonly SUPPORTED_EXTENSIONS = ['.txt', '.md', '.json', '.yaml', '.yml'];
 
@@ -147,7 +168,5 @@ export class DefaultFileOperations implements IFileOperations {
   }
 }
 
-// Domain implementations (to be migrated from existing code)
-// export { FileParser } from './parser.js';
-// export { FileWatcher } from './watcher.js'; 
-// export { createFileFingerprint } from './fingerprint.js';
+// Legacy exports for backward compatibility
+export { DefaultFileOperations as IFileOperations };
