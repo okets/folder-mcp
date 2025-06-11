@@ -504,8 +504,7 @@ export async function indexFolder(
       console.log(`  ${file}`);
     });
 
-    console.log('');
-    console.log(`Total supported files: ${supportedFiles.length}`);
+    console.log('');    console.log(`Total supported files: ${supportedFiles.length}`);
 
     // Generate and cache runtime configuration
     try {
@@ -516,6 +515,7 @@ export async function indexFolder(
       const resolvedConfig = resolveConfig(folderPath);
       const runtimeConfig = await generateRuntimeConfig(folderPath, resolvedConfig);
       await saveRuntimeConfig(runtimeConfig);
+      console.log('✅ Runtime configuration cached successfully');
     } catch (configError) {
       console.warn(`⚠️  Warning: Failed to cache runtime configuration: ${configError}`);
     }

@@ -7,9 +7,9 @@ import {
   initializeLocalConfig, 
   updateLocalConfig,
   getLocalConfigPath,
-  validateLocalConfig,
-  DEFAULT_LOCAL_CONFIG 
+  validateLocalConfig
 } from './local.js';
+import { ConfigFactory } from './factory.js';
 import { resolveConfig, displayConfigSummary } from './resolver.js';
 import { getConfig } from '../config.js';
 import { 
@@ -275,7 +275,7 @@ async function setConfig(folder: string, options: any): Promise<void> {
     }
     
     // Validate the updates
-    const tempConfig = { ...DEFAULT_LOCAL_CONFIG, ...updates };
+    const tempConfig = ConfigFactory.createLocalConfig(updates);
     const validationErrors = validateLocalConfig(tempConfig);
     
     if (validationErrors.length > 0) {
@@ -337,7 +337,7 @@ async function resetConfig(folder: string, force: boolean): Promise<void> {
       process.exit(1);
     }
     
-    const defaultConfig = { ...DEFAULT_LOCAL_CONFIG };
+    const defaultConfig = ConfigFactory.createLocalConfig();
     await saveLocalConfig(folder, defaultConfig);
     
     console.log('✅ Configuration reset to defaults');

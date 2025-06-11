@@ -4,57 +4,12 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import * as yaml from 'js-yaml';
-// No need to import cache functions, we'll use the standard path pattern
+import { LocalConfig } from './schema.js';
+import { validateConfig } from './validation-utils.js';
+import { ConfigFactory } from './factory.js';
 
-// Local configuration interface
-export interface LocalConfig {
-  // Processing settings
-  chunkSize?: number;
-  overlap?: number;
-  batchSize?: number;
-  
-  // Model settings
-  modelName?: string;
-  
-  // File filtering
-  fileExtensions?: string[];
-  ignorePatterns?: string[];
-  
-  // Advanced settings
-  maxConcurrentOperations?: number;
-  debounceDelay?: number;
-  
-  // User preferences (saved from prompts)
-  userChoices?: {
-    [key: string]: unknown;
-  };
-  
-  // Metadata
-  version?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-// Default local configuration
-export const DEFAULT_LOCAL_CONFIG: LocalConfig = {
-  chunkSize: 1000,
-  overlap: 200,
-  batchSize: 32,
-  modelName: "nomic-v1.5",
-  fileExtensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-  ignorePatterns: [
-    '**/node_modules/**',
-    '**/.git/**',
-    '**/.folder-mcp/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.DS_Store',
-    '**/Thumbs.db'
-  ],
-  maxConcurrentOperations: 10,
-  debounceDelay: 1000,
-  userChoices: {}
-};
+// Re-export the interface for backward compatibility
+export { LocalConfig } from './schema.js';
 
 /**
  * Get the path to the local configuration file for a folder
@@ -72,7 +27,7 @@ export function loadLocalConfig(folderPath: string): LocalConfig {
   const configPath = getLocalConfigPath(folderPath);
   
   if (!existsSync(configPath)) {
-    return { ...DEFAULT_LOCAL_CONFIG };
+    return ConfigFactory.createLocalConfig();
   }
   
   try {
@@ -81,41 +36,17 @@ export function loadLocalConfig(folderPath: string): LocalConfig {
     
     if (!loadedConfig) {
       console.warn(`⚠️  Empty configuration file at ${configPath}, using defaults`);
-      return { ...DEFAULT_LOCAL_CONFIG };
+      return ConfigFactory.createLocalConfig();
     }
     
-    // Merge with defaults to ensure all required fields are present
-    const mergedConfig: LocalConfig = {
-      chunkSize: loadedConfig.chunkSize ?? 1000,
-      overlap: loadedConfig.overlap ?? 200,
-      batchSize: loadedConfig.batchSize ?? 32,
-      modelName: loadedConfig.modelName ?? "nomic-v1.5",
-      maxConcurrentOperations: loadedConfig.maxConcurrentOperations ?? 10,
-      debounceDelay: loadedConfig.debounceDelay ?? 1000,
-      fileExtensions: loadedConfig.fileExtensions ?? ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-      ignorePatterns: loadedConfig.ignorePatterns ?? [
-        '**/node_modules/**',
-        '**/.git/**',
-        '**/.folder-mcp/**',
-        '**/dist/**',
-        '**/build/**',
-        '**/.DS_Store',
-        '**/Thumbs.db'
-      ],
-      userChoices: {
-        ...(DEFAULT_LOCAL_CONFIG.userChoices || {}),
-        ...(loadedConfig.userChoices || {})
-      },
-      updatedAt: new Date().toISOString(),
-      ...(loadedConfig.version && { version: loadedConfig.version }),
-      ...(loadedConfig.createdAt && { createdAt: loadedConfig.createdAt })
-    };
+    // Use the factory to merge with defaults properly
+    const mergedConfig = ConfigFactory.createLocalConfig(loadedConfig);
     
     return mergedConfig;
   } catch (error) {
     console.warn(`⚠️  Failed to load configuration from ${configPath}:`, error instanceof Error ? error.message : 'Unknown error');
     console.warn('   Using default configuration instead');
-    return { ...DEFAULT_LOCAL_CONFIG };
+    return ConfigFactory.createLocalConfig();
   }
 }
 
@@ -165,7 +96,7 @@ export async function initializeLocalConfig(folderPath: string): Promise<LocalCo
     return loadLocalConfig(folderPath);
   }
   
-  const initialConfig = { ...DEFAULT_LOCAL_CONFIG };
+  const initialConfig = ConfigFactory.createLocalConfig();
   await saveLocalConfig(folderPath, initialConfig);
   
   console.log(`📝 Created local configuration at ${configPath}`);
@@ -219,59 +150,6 @@ export function getUserChoice(folderPath: string, key: string): any {
  * Validate local configuration
  */
 export function validateLocalConfig(config: LocalConfig): string[] {
-  const errors: string[] = [];
-  
-  if (config.chunkSize !== undefined) {
-    if (!Number.isInteger(config.chunkSize) || config.chunkSize < 100 || config.chunkSize > 10000) {
-      errors.push('chunkSize must be an integer between 100 and 10000');
-    }
-  }
-  
-  if (config.overlap !== undefined) {
-    if (!Number.isInteger(config.overlap) || config.overlap < 0 || config.overlap >= (config.chunkSize || 1000)) {
-      errors.push('overlap must be a non-negative integer less than chunkSize');
-    }
-  }
-  
-  if (config.batchSize !== undefined) {
-    if (!Number.isInteger(config.batchSize) || config.batchSize < 1 || config.batchSize > 1000) {
-      errors.push('batchSize must be an integer between 1 and 1000');
-    }
-  }
-  
-  if (config.maxConcurrentOperations !== undefined) {
-    if (!Number.isInteger(config.maxConcurrentOperations) || config.maxConcurrentOperations < 1 || config.maxConcurrentOperations > 100) {
-      errors.push('maxConcurrentOperations must be an integer between 1 and 100');
-    }
-  }
-  
-  if (config.debounceDelay !== undefined) {
-    if (!Number.isInteger(config.debounceDelay) || config.debounceDelay < 100 || config.debounceDelay > 60000) {
-      errors.push('debounceDelay must be an integer between 100 and 60000 (milliseconds)');
-    }
-  }
-  
-  if (config.fileExtensions !== undefined) {
-    if (!Array.isArray(config.fileExtensions)) {
-      errors.push('fileExtensions must be an array of strings');
-    } else {
-      const invalidExts = config.fileExtensions.filter(ext => typeof ext !== 'string' || !ext.startsWith('.'));
-      if (invalidExts.length > 0) {
-        errors.push(`fileExtensions must start with '.': ${invalidExts.join(', ')}`);
-      }
-    }
-  }
-  
-  if (config.ignorePatterns !== undefined) {
-    if (!Array.isArray(config.ignorePatterns)) {
-      errors.push('ignorePatterns must be an array of strings');
-    } else {
-      const invalidPatterns = config.ignorePatterns.filter(pattern => typeof pattern !== 'string');
-      if (invalidPatterns.length > 0) {
-        errors.push('All ignorePatterns must be strings');
-      }
-    }
-  }
-  
-  return errors;
+  const result = validateConfig(config, 'local');
+  return result.errors.map(error => error.message);
 }

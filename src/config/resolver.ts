@@ -2,62 +2,13 @@
 // Handles priority: CLI args > local config > global config
 
 import { resolve } from 'path';
-import { getConfig, getProcessingConfig, getEmbeddingConfig } from '../config.js';
-import { loadLocalConfig, LocalConfig, validateLocalConfig } from './local.js';
+import { CLIArgs, ResolvedConfig, LocalConfig } from './schema.js';
+import { loadLocalConfig, validateLocalConfig } from './local.js';
+import { ConfigFactory } from './factory.js';
+import { validateConfig } from './validation-utils.js';
 
-// CLI arguments interface
-export interface CLIArgs {
-  chunkSize?: number;
-  overlap?: number;
-  batchSize?: number;
-  modelName?: string;
-  fileExtensions?: string[];
-  ignorePatterns?: string[];
-  maxConcurrentOperations?: number;
-  debounceDelay?: number;
-  force?: boolean;
-  verbose?: boolean;
-  quiet?: boolean;
-  rebuildIndex?: boolean;
-  skipEmbeddings?: boolean;
-  results?: number;
-  port?: number;
-  transport?: string;
-}
-
-// Resolved configuration interface (all settings resolved)
-export interface ResolvedConfig {
-  // Folder context
-  folderPath: string;
-  
-  // Processing settings
-  chunkSize: number;
-  overlap: number;
-  batchSize: number;
-  
-  // Model settings
-  modelName: string;
-  
-  // File filtering
-  fileExtensions: string[];
-  ignorePatterns: string[];
-  
-  // Advanced settings
-  maxConcurrentOperations: number;
-  debounceDelay: number;
-  
-  // Source information for debugging
-  sources: {
-    chunkSize: 'cli' | 'local' | 'global';
-    overlap: 'cli' | 'local' | 'global';
-    batchSize: 'cli' | 'local' | 'global';
-    modelName: 'cli' | 'local' | 'global';
-    fileExtensions: 'cli' | 'local' | 'global';
-    ignorePatterns: 'cli' | 'local' | 'global';
-    maxConcurrentOperations: 'cli' | 'local' | 'global';
-    debounceDelay: 'cli' | 'local' | 'global';
-  };
-}
+// Re-export interfaces for backward compatibility
+export { CLIArgs, ResolvedConfig } from './schema.js';
 
 /**
  * Resolve configuration with proper priority:
@@ -67,8 +18,7 @@ export function resolveConfig(folderPath: string, cliArgs: CLIArgs = {}): Resolv
   // Resolve folder path to absolute
   const absoluteFolderPath = resolve(folderPath);
   
-  // Load configurations
-  const globalConfig = getConfig();
+  // Load local configuration
   const localConfig = loadLocalConfig(folderPath);
   
   // Validate local config
@@ -78,100 +28,11 @@ export function resolveConfig(folderPath: string, cliArgs: CLIArgs = {}): Resolv
     validationErrors.forEach(error => console.warn(`   - ${error}`));
     console.warn('   Using global defaults for invalid settings');
   }
-  
-  // Helper function to resolve a setting with source tracking
-  function resolveWithSource<T>(
-    cliValue: T | undefined, 
-    localValue: T | undefined, 
-    globalValue: T
-  ): { value: T; source: 'cli' | 'local' | 'global' } {
-    if (cliValue !== undefined) {
-      return { value: cliValue, source: 'cli' };
-    }
-    if (localValue !== undefined) {
-      return { value: localValue, source: 'local' };
-    }
-    return { value: globalValue, source: 'global' };
-  }
-  
-  // Resolve each setting
-  const chunkSize = resolveWithSource(
-    cliArgs.chunkSize,
-    localConfig.chunkSize,
-    globalConfig.processing.defaultChunkSize
-  );
-  
-  const overlap = resolveWithSource(
-    cliArgs.overlap,
-    localConfig.overlap,
-    globalConfig.processing.defaultOverlap
-  );
-  
-  const batchSize = resolveWithSource(
-    cliArgs.batchSize,
-    localConfig.batchSize,
-    globalConfig.embeddings.batchSize
-  );
-  
-  const modelName = resolveWithSource(
-    cliArgs.modelName,
-    localConfig.modelName,
-    globalConfig.embeddings.defaultModel
-  );
-  
-  const fileExtensions = resolveWithSource(
-    cliArgs.fileExtensions,
-    localConfig.fileExtensions,
-    ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'] // Default from global config
-  );
-  
-  const ignorePatterns = resolveWithSource(
-    cliArgs.ignorePatterns,
-    localConfig.ignorePatterns,
-    [ // Default ignore patterns
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/.folder-mcp/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/.DS_Store',
-      '**/Thumbs.db'
-    ]
-  );
-  
-  const maxConcurrentOperations = resolveWithSource(
-    cliArgs.maxConcurrentOperations,
-    localConfig.maxConcurrentOperations,
-    globalConfig.processing.maxConcurrentOperations
-  );
-  
-  const debounceDelay = resolveWithSource(
-    cliArgs.debounceDelay,
-    localConfig.debounceDelay,
-    1000 // Default debounce delay
-  );
-  
-  return {
-    folderPath: absoluteFolderPath,
-    chunkSize: chunkSize.value,
-    overlap: overlap.value,
-    batchSize: batchSize.value,
-    modelName: modelName.value,
-    fileExtensions: fileExtensions.value,
-    ignorePatterns: ignorePatterns.value,
-    maxConcurrentOperations: maxConcurrentOperations.value,
-    debounceDelay: debounceDelay.value,
-    sources: {
-      chunkSize: chunkSize.source,
-      overlap: overlap.source,
-      batchSize: batchSize.source,
-      modelName: modelName.source,
-      fileExtensions: fileExtensions.source,
-      ignorePatterns: ignorePatterns.source,
-      maxConcurrentOperations: maxConcurrentOperations.source,
-      debounceDelay: debounceDelay.source
-    }
-  };
+
+  // Use factory to create resolved config
+  const resolvedConfig = ConfigFactory.createResolvedConfig(absoluteFolderPath, localConfig, cliArgs);
+
+  return resolvedConfig;
 }
 
 /**
@@ -201,38 +62,8 @@ export function displayConfigSummary(config: ResolvedConfig, verbose: boolean = 
  * Validate resolved configuration
  */
 export function validateResolvedConfig(config: ResolvedConfig): string[] {
-  const errors: string[] = [];
-  
-  if (config.chunkSize < 100 || config.chunkSize > 10000) {
-    errors.push('Chunk size must be between 100 and 10000');
-  }
-  
-  if (config.overlap < 0 || config.overlap >= config.chunkSize) {
-    errors.push('Overlap must be non-negative and less than chunk size');
-  }
-  
-  if (config.batchSize < 1 || config.batchSize > 1000) {
-    errors.push('Batch size must be between 1 and 1000');
-  }
-  
-  if (config.maxConcurrentOperations < 1 || config.maxConcurrentOperations > 100) {
-    errors.push('Max concurrent operations must be between 1 and 100');
-  }
-  
-  if (config.debounceDelay < 100 || config.debounceDelay > 60000) {
-    errors.push('Debounce delay must be between 100 and 60000 milliseconds');
-  }
-  
-  if (config.fileExtensions.length === 0) {
-    errors.push('At least one file extension must be specified');
-  }
-  
-  const invalidExts = config.fileExtensions.filter(ext => !ext.startsWith('.'));
-  if (invalidExts.length > 0) {
-    errors.push(`File extensions must start with '.': ${invalidExts.join(', ')}`);
-  }
-  
-  return errors;
+  const result = validateConfig(config, 'resolved');
+  return result.errors.map(error => error.message);
 }
 
 /**

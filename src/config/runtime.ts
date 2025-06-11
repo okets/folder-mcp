@@ -4,8 +4,10 @@
 import { join } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
-import { ResolvedConfig } from './resolver.js';
+import { ResolvedConfig, RuntimeConfig } from './schema.js';
 import { getSystemCapabilities, SystemCapabilities } from './system.js';
+import { ConfigFactory } from './factory.js';
+import { validateConfig } from './validation-utils.js';
 import { 
   readFromCache, 
   writeToCache, 
@@ -15,121 +17,64 @@ import {
   getCacheMetadata,
   clearCache
 } from './cache.js';
+import { 
+  getProcessingDefaults, 
+  getServerDefaults, 
+  getUIDefaults, 
+  getFileDefaults, 
+  getCacheDefaults 
+} from './schema.js';
+
+// Re-export interfaces for backward compatibility  
+export { RuntimeConfig } from './schema.js';
 
 /**
- * Runtime configuration interface - contains all parameters needed for execution
- * This differs from ResolvedConfig by including dynamic system-detected values
+ * Default runtime configuration for testing and reference
+ * This represents a baseline runtime config with sensible defaults
  */
-export interface RuntimeConfig {
-  // System capabilities (detected at runtime)
-  system: SystemCapabilities;
+export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
+  system: {
+    cpuCores: 4,
+    totalMemoryGB: 16,
+    availableMemoryGB: 8,
+    platform: 'win32' as const,
+    hasGPU: false,
+    ollamaAvailable: false,
+    ollamaModels: [],
+    performanceTier: 'medium' as const,
+    detectedAt: new Date().toISOString(),
+    detectionDuration: 1000
+  },
   
-  // Processing runtime settings (derived from ResolvedConfig + system optimization)
   processing: {
-    modelName: string;          // Resolved embedding model name
-    chunkSize: number;          // Text chunking size
-    overlap: number;            // Chunk overlap size
-    batchSize: number;          // Embedding batch size (optimized for system)
-    maxWorkers: number;         // Parallel workers (based on CPU cores)
-    timeoutMs: number;          // Operation timeout
-  };
-  
-  // Server runtime settings
-  server: {
-    port: number;               // MCP server port
-    transport: 'stdio' | 'http'; // Transport protocol
-    autoStart: boolean;         // Auto-start server after indexing
-    host: string;               // Server host (for HTTP transport)
-  };
-  
-  // UI/UX preferences
-  ui: {
-    fullScreen: boolean;        // Use full-screen UI
-    verboseLogging: boolean;    // Enable verbose output
-    showProgress: boolean;      // Show progress bars
-    theme: 'light' | 'dark' | 'auto'; // UI theme
-    logLevel: 'quiet' | 'normal' | 'verbose'; // Logging verbosity
-  };
-  
-  // File processing settings
-  files: {
-    extensions: string[];       // Supported file extensions
-    ignorePatterns: string[];   // Ignore patterns
-    maxFileSize: number;        // Maximum file size in bytes
-    encoding: string;           // Default file encoding
-  };
-  
-  // Cache and performance settings
-  cache: {
-    enabled: boolean;           // Enable caching
-    maxSize: number;            // Maximum cache size in bytes
-    cleanupInterval: number;    // Cache cleanup interval in hours
-    compressionEnabled: boolean; // Enable cache compression
-  };
-  
-  // Runtime metadata
-  metadata: {
-    folderPath: string;         // Target folder path (absolute)
-    configHash: string;         // Hash of source ResolvedConfig for change detection
-    runtimeVersion: string;     // Runtime config schema version
-    createdAt: string;          // ISO timestamp when generated
-    lastUsed: string;           // ISO timestamp when last used
-    toolVersion: string;        // folder-mcp tool version
-  };
-}
-
-/**
- * Default runtime configuration values
- * These are fallback values used when system detection fails
- */
-export const DEFAULT_RUNTIME_CONFIG = {
-  processing: {
-    modelName: 'nomic-v1.5',       // Default model name
-    chunkSize: 800,                // Default chunk size
-    overlap: 160,                  // Default overlap
-    batchSize: 32,
-    maxWorkers: 4,
-    timeoutMs: 30000,
+    ...getProcessingDefaults()
   },
   
   server: {
-    port: 3000,
-    transport: 'stdio' as const,
-    autoStart: false,
-    host: 'localhost',
+    ...getServerDefaults()
   },
   
   ui: {
-    fullScreen: true,
-    verboseLogging: false,
-    showProgress: true,
-    theme: 'auto' as const,
-    logLevel: 'normal' as const,
-  },
-  
-  cache: {
-    enabled: true,
-    maxSize: 10 * 1024 * 1024 * 1024, // 10GB
-    cleanupInterval: 24,
-    compressionEnabled: true,
+    ...getUIDefaults()
   },
   
   files: {
-    extensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'], // Default extensions
-    ignorePatterns: ['**/node_modules/**', '**/.git/**'],          // Default ignore patterns
-    maxFileSize: 100 * 1024 * 1024, // 100MB
-    encoding: 'utf-8',
+    ...getFileDefaults()
+  },
+  
+  cache: {
+    ...getCacheDefaults()
   },
   
   metadata: {
-    folderPath: '',                // Will be set at runtime
-    configHash: '',                // Will be generated at runtime
+    folderPath: '/example/folder',
+    configHash: 'default-config-hash',
     runtimeVersion: '1.0.0',
-    createdAt: '',                 // Will be set at runtime
-    lastUsed: '',                  // Will be set at runtime
-    toolVersion: '1.0.0',          // Will be set at runtime
-  },
-} as const;
+    createdAt: new Date().toISOString(),
+    lastUsed: new Date().toISOString(),
+    toolVersion: '1.0.0'
+  }
+};
 
 /**
  * Generate runtime configuration from resolved configuration and system detection
@@ -140,71 +85,8 @@ export async function generateRuntimeConfig(
   resolvedConfig: ResolvedConfig,
   toolVersion: string = '1.0.0'
 ): Promise<RuntimeConfig> {
-  // Detect system capabilities
-  const systemCapabilities = await getSystemCapabilities();
-  
-  // Generate configuration hash for change detection
-  const configHash = generateConfigHash(resolvedConfig);
-  
-  // Optimize settings based on system capabilities
-  const optimizedProcessing = optimizeProcessingSettings(resolvedConfig, systemCapabilities);
-  
-  // Generate timestamp
-  const now = new Date().toISOString();
-  
-  // Build complete runtime configuration
-  const runtimeConfig: RuntimeConfig = {
-    system: systemCapabilities,
-    
-    processing: {
-      modelName: resolvedConfig.modelName,
-      chunkSize: resolvedConfig.chunkSize,
-      overlap: resolvedConfig.overlap,
-      batchSize: optimizedProcessing.batchSize,
-      maxWorkers: optimizedProcessing.maxWorkers,
-      timeoutMs: optimizedProcessing.timeoutMs,
-    },
-    
-    server: {
-      port: DEFAULT_RUNTIME_CONFIG.server!.port!,
-      transport: DEFAULT_RUNTIME_CONFIG.server!.transport!,
-      autoStart: DEFAULT_RUNTIME_CONFIG.server!.autoStart!,
-      host: DEFAULT_RUNTIME_CONFIG.server!.host!,
-    },
-    
-    ui: {
-      fullScreen: DEFAULT_RUNTIME_CONFIG.ui!.fullScreen!,
-      verboseLogging: DEFAULT_RUNTIME_CONFIG.ui!.verboseLogging!,
-      showProgress: DEFAULT_RUNTIME_CONFIG.ui!.showProgress!,
-      theme: DEFAULT_RUNTIME_CONFIG.ui!.theme!,
-      logLevel: DEFAULT_RUNTIME_CONFIG.ui!.logLevel!,
-    },
-    
-    files: {
-      extensions: resolvedConfig.fileExtensions,
-      ignorePatterns: resolvedConfig.ignorePatterns,
-      maxFileSize: DEFAULT_RUNTIME_CONFIG.files!.maxFileSize!,
-      encoding: DEFAULT_RUNTIME_CONFIG.files!.encoding!,
-    },
-    
-    cache: {
-      enabled: DEFAULT_RUNTIME_CONFIG.cache!.enabled!,
-      maxSize: DEFAULT_RUNTIME_CONFIG.cache!.maxSize!,
-      cleanupInterval: DEFAULT_RUNTIME_CONFIG.cache!.cleanupInterval!,
-      compressionEnabled: DEFAULT_RUNTIME_CONFIG.cache!.compressionEnabled!,
-    },
-    
-    metadata: {
-      folderPath: resolvedConfig.folderPath || folderPath,
-      configHash,
-      runtimeVersion: DEFAULT_RUNTIME_CONFIG.metadata!.runtimeVersion!,
-      createdAt: now,
-      lastUsed: now,
-      toolVersion,
-    },
-  };
-  
-  return runtimeConfig;
+  // Use the factory to create runtime config
+  return ConfigFactory.createRuntimeConfig(resolvedConfig, toolVersion);
 }
 
 /**
@@ -400,69 +282,11 @@ export function getRuntimeConfigPath(filename: string): string {
 /**
  * Validate a runtime configuration object
  * Returns an array of validation errors, empty if valid
+ * For backward compatibility with tests
  */
 export function validateRuntimeConfig(config: RuntimeConfig): string[] {
-  const errors: string[] = [];
-  
-  // Validate processing settings
-  if (config.processing.chunkSize < 100 || config.processing.chunkSize > 10000) {
-    errors.push('Processing chunk size must be between 100 and 10000');
-  }
-  
-  if (config.processing.overlap < 0 || config.processing.overlap >= config.processing.chunkSize) {
-    errors.push('Processing overlap must be non-negative and less than chunk size');
-  }
-  
-  if (config.processing.batchSize < 1 || config.processing.batchSize > 1000) {
-    errors.push('Processing batch size must be between 1 and 1000');
-  }
-  
-  if (config.processing.maxWorkers < 1 || config.processing.maxWorkers > 32) {
-    errors.push('Processing max workers must be between 1 and 32');
-  }
-  
-  // Validate server settings
-  if (config.server.port < 1 || config.server.port > 65535) {
-    errors.push('Server port must be between 1 and 65535');
-  }
-  
-  if (!['stdio', 'http'].includes(config.server.transport)) {
-    errors.push('Server transport must be either "stdio" or "http"');
-  }
-  
-  // Validate file settings
-  if (config.files.extensions.length === 0) {
-    errors.push('At least one file extension must be specified');
-  }
-  
-  const invalidExts = config.files.extensions.filter(ext => !ext.startsWith('.'));
-  if (invalidExts.length > 0) {
-    errors.push(`File extensions must start with '.': ${invalidExts.join(', ')}`);
-  }
-  
-  if (config.files.maxFileSize < 1024) { // Minimum 1KB
-    errors.push('Maximum file size must be at least 1024 bytes');
-  }
-  
-  // Validate cache settings
-  if (config.cache.maxSize < 1024 * 1024) { // Minimum 1MB
-    errors.push('Cache max size must be at least 1MB');
-  }
-  
-  if (config.cache.cleanupInterval < 1 || config.cache.cleanupInterval > 168) { // 1 hour to 1 week
-    errors.push('Cache cleanup interval must be between 1 and 168 hours');
-  }
-  
-  // Validate metadata
-  if (!config.metadata.folderPath) {
-    errors.push('Folder path must be specified in metadata');
-  }
-  
-  if (!config.metadata.configHash || config.metadata.configHash.length !== 16) {
-    errors.push('Config hash must be a 16-character string');
-  }
-  
-  return errors;
+  const result = validateConfig(config, 'runtime');
+  return result.errors.map(error => error.message);
 }
 
 /**
@@ -497,7 +321,7 @@ export function displayRuntimeConfigSummary(config: RuntimeConfig): void {
   console.log('🚀 Runtime Configuration Summary:');
   console.log(`   📁 Folder: ${config.metadata.folderPath}`);
   console.log(`   🔧 Config Hash: ${config.metadata.configHash}`);
-  console.log(`   📅 Created: ${new Date(config.metadata.createdAt).toLocaleString()}`);
+  console.log(`   📅 Created: ${config.metadata.createdAt ? new Date(config.metadata.createdAt).toLocaleString() : 'Unknown'}`);
   console.log();
   
   console.log('💻 System Capabilities:');
