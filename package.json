@@ -13,7 +13,20 @@
     "dev": "tsc && node dist/index.js",
     "test-embeddings": "node dist/cli.js test-embeddings",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "test:architectural": "vitest run tests/architectural",
+    "test:performance": "vitest run tests/performance",
+    "test:domain": "vitest run tests/unit/domain",
+    "test:application": "vitest run tests/unit/application",
+    "test:infrastructure": "vitest run tests/unit/infrastructure",
+    "test:interfaces": "vitest run tests/unit/interfaces",
+    "test:watch:unit": "vitest tests/unit",
+    "test:watch:integration": "vitest tests/integration",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --reporter=junit --outputFile=test-results.xml"
   },
   "keywords": [
     "mcp",
