@@ -106,12 +106,12 @@ folder-mcp/
 
 ## 4. Development Progress
 
-**Current Status**: Step 29/44 - Phase 7 Completed, Phase 8 In Progress 📋
+**Current Status**: Step 29/46 - Phase 7 Completed, Phase 8 In Progress 📋
 
 ### Overall Timeline
 - **✅ Phases 1-7**: Foundation through Production Ready (Steps 1-25) - **COMPLETED**
 - **📋 Phase 8**: Streamline UX and Configuration flow (Steps 26-34) - **PLANNED**
-- **📋 Phases 9-10**: Release and Chat Interface (Steps 35-44) - **PLANNED**
+- **📋 Phases 9-10**: Release and Chat Interface (Steps 35-46) - **PLANNED**
 
 ---
 
@@ -193,21 +193,22 @@ folder-mcp/
 
 ### 📋 PLANNED PHASES
 
-#### Phase 9: Release 1.0.0 (Steps 35-39) → [Details](#phase-9-release-100-steps-35-39--planned)
+#### Phase 9: Release 1.0.0 (Steps 35-41) → [Details](#phase-9-release-100-steps-35-41--planned)
 **Status**: 📋 PLANNED
 - **Step 35**: Performance Optimization
 - **Step 36**: Test Suite
 - **Step 37**: Documentation
-- **Step 38**: NPM Package Preparation
-- **Step 39**: Release 1.0.0
+- **Step 38**: Prepare Code for Opensource Contribution
+- **Step 39**: NPM Package Preparation
+- **Step 40**: Release 1.0.0
 
-#### Phase 10: Chat with Your Folder (Steps 40-44) → [Details](#phase-10-chat-with-your-folder-steps-40-44--future)
+#### Phase 10: Chat with Your Folder (Steps 41-46) → [Details](#phase-10-chat-with-your-folder-steps-41-46--future)
 **Status**: 📋 FUTURE
-- **Step 40**: Chat Configuration Wizard
-- **Step 41**: Cloud Provider Integration
-- **Step 42**: Local LLM Integration
-- **Step 43**: Interactive Chat Interface
-- **Step 44**: Chat History & Export
+- **Step 41**: Chat Configuration Wizard
+- **Step 42**: Cloud Provider Integration
+- **Step 43**: Local LLM Integration
+- **Step 44**: Interactive Chat Interface
+- **Step 45**: Chat History & Export
 
 ---
 
@@ -734,7 +735,7 @@ Example Response:
 - 📋 Show "Chat with folder" placeholder
 - 📋 Integrate with full-screen UI
 
-### Phase 9: Release 1.0.0 (Steps 35-39) 📋 PLANNED
+### Phase 9: Release 1.0.0 (Steps 35-41) 📋 PLANNED
 
 #### Step 35: Performance Optimization
 **Task**: Optimize for large folders  
@@ -790,7 +791,21 @@ Example Response:
 - Troubleshooting guide
 - Architecture diagram
 
-#### Step 38: NPM Package Preparation
+#### Step 38: Prepare Code for Opensource Contribution
+**Task**: Implement development infrastructure for open source collaboration  
+**Success Criteria**:
+- Implement automated code review with GitHub Actions workflows
+- Add code quality metrics and reporting (coverage, complexity, maintainability)
+- Update development guidelines with coding standards and best practices
+- Create comprehensive contribution guidelines (CONTRIBUTING.md)
+- Add detailed architecture documentation with diagrams and design decisions
+- Create security guidelines for dependency management and vulnerability scanning
+- Add pre-commit hooks for code formatting, linting, and basic validation
+- Implement automated dependency updates and security alerts
+- Set up code quality gates for pull requests
+- Document release process and versioning strategy
+
+#### Step 39: NPM Package Preparation
 **Task**: Prepare for publishing  
 **Success Criteria**:
 - Clean npm pack output
@@ -799,7 +814,7 @@ Example Response:
 - Version 1.0.0 tagged
 - LICENSE file included
 
-#### Step 39: Release 1.0.0
+#### Step 40: Release 1.0.0
 **Task**: Publish to npm registry  
 **Success Criteria**:
 - `npm install -g folder-mcp` works
@@ -808,8 +823,8 @@ Example Response:
 - CI/CD pipeline configured
 - First user successfully indexes folder
 
-### Phase 10: Chat with Your Folder (Steps 40-44) 📋 FUTURE
-#### Step 40: Chat Configuration Wizard
+### Phase 10: Chat with Your Folder (Steps 41-46) 📋 FUTURE
+#### Step 41: Chat Configuration Wizard
 **Task**: Create interactive wizard for chat setup  
 **Success Criteria**:
 - Launch with `folder-mcp chat --setup`
@@ -849,7 +864,7 @@ folder-mcp chat <folder> (first time)
       └── Save config → Launch chat
 ```
 
-#### Step 41: Cloud Provider Integration
+#### Step 42: Cloud Provider Integration
 **Task**: Implement cloud LLM provider APIs  
 **Success Criteria**:
 - OpenAI API integration with streaming responses
@@ -860,7 +875,7 @@ folder-mcp chat <folder> (first time)
 - Rate limiting and quota management
 - Cost estimation display
 
-#### Step 42: Local LLM Integration
+#### Step 43: Local LLM Integration
 **Task**: Implement Ollama local LLM integration  
 **Success Criteria**:
 - Ollama service detection and health checks
@@ -871,7 +886,7 @@ folder-mcp chat <folder> (first time)
 - Fallback to smaller models if needed
 - Performance optimization for local inference
 
-#### Step 43: Interactive Chat Interface
+#### Step 44: Interactive Chat Interface
 **Task**: Create the main chat experience  
 **Success Criteria**:
 - CLI-based chat interface with rich formatting
@@ -912,7 +927,7 @@ Chat Interface:
 └────────────────────────────────────────────────────────────┘
 ```
 
-#### Step 44: Chat History & Export
+#### Step 45: Chat History & Export
 **Task**: Implement chat session management  
 **Success Criteria**:
 - Save chat sessions to `.folder-mcp/chat-history/`

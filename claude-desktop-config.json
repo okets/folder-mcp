@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "folder-mcp": {
-      "command": "node",
-      "args": ["c:\\ThinkingHomes\\folder-mcp\\dist\\cli.js", "serve", "c:\\ThinkingHomes\\test-folder"],
-      "env": {}
-    }
-  }
-}
