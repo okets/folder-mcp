@@ -2,6 +2,7 @@ import faiss from 'faiss-node';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { EmbeddingVector, DocumentMetadata } from '../types/index.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 export interface VectorSearchResult {
   id: number;
@@ -64,12 +65,14 @@ export class VectorIndex {
   private indexPath: string;
   private mappingsPath: string;
   private vectorsPath: string;
+  private loggingService: ILoggingService | undefined;
 
-  constructor(cacheDir: string) {
+  constructor(cacheDir: string, loggingService?: ILoggingService | undefined) {
     this.vectorsDir = path.join(cacheDir, 'vectors');
     this.indexPath = path.join(this.vectorsDir, 'index.faiss');
     this.mappingsPath = path.join(this.vectorsDir, 'mappings.json');
     this.vectorsPath = path.join(this.vectorsDir, 'vectors.json');
+    this.loggingService = loggingService;
   }
 
   /**
@@ -196,7 +199,11 @@ export class VectorIndex {
 
       return true;
     } catch (error) {
-      console.error('Failed to load FAISS index:', error);
+      if (this.loggingService) {
+        this.loggingService.error('Failed to load FAISS index', error instanceof Error ? error : new Error(String(error)));
+      } else {
+        console.error('Failed to load FAISS index:', error);
+      }
       return false;
     }
   }
@@ -348,7 +355,11 @@ export class VectorIndex {
         }
       };
     } catch (error) {
-      console.warn(`Failed to load chunk data for mapping ${mapping.id}:`, error);
+      if (this.loggingService) {
+        this.loggingService.error(`Failed to load chunk data for mapping ${mapping.id}`, error instanceof Error ? error : new Error(String(error)));
+      } else {
+        console.warn(`Failed to load chunk data for mapping ${mapping.id}:`, error);
+      }
       return null;
     }
   }

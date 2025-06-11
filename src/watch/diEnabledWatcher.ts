@@ -133,7 +133,7 @@ export class DIEnabledFolderWatcher {
       .on('unlink', (path: string) => this.handleFileEvent('unlink', path))
       .on('error', (err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
-        this.log(`⚠️  Watcher error: ${error.message}`, 'normal');
+        this.loggingService.error(`Watcher error: ${error.message}`, error);
       })
       .on('ready', () => {
         this.log('✅ DI-enabled file watcher is ready and monitoring for changes', 'normal');

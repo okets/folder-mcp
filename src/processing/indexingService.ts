@@ -159,7 +159,8 @@ export class IndexingService {
       } catch (error) {
         errorCount++;
         this.loggingService.error(`Failed to process ${fingerprint.path}`, error instanceof Error ? error : new Error(String(error)));
-        // Continue processing other files
+        // Re-throw the error to be handled by the caller
+        throw new Error(`Failed to process ${fingerprint.path}`);
       }
     }
 
@@ -239,11 +240,15 @@ export class IndexingService {
 
           } catch (error) {
             this.loggingService.error(`Failed to generate embeddings for batch in ${fingerprint.path}`, error instanceof Error ? error : new Error(String(error)));
+            // Re-throw the error to be handled by the caller
+            throw new Error(`Failed to generate embeddings for batch in ${fingerprint.path}`);
           }
         }
 
       } catch (error) {
         this.loggingService.error(`Failed to process embeddings for ${fingerprint.path}`, error instanceof Error ? error : new Error(String(error)));
+        // Re-throw the error to be handled by the caller
+        throw new Error(`Failed to process embeddings for ${fingerprint.path}`);
       }
     }
 

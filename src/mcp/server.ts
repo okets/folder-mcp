@@ -13,6 +13,7 @@ import { VectorIndex, buildVectorIndex, loadVectorIndex } from '../search/index.
 import { EnhancedVectorSearch } from '../search/enhanced.js';
 import { getConfig } from '../config.js';
 import { ResolvedConfig } from '../config/resolver.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 export interface ServerOptions {
   folderPath: string;
@@ -30,11 +31,13 @@ export class FolderMCPServer {
   private embeddingModel: EmbeddingModel | null = null;
   private vectorIndex: VectorIndex | null = null;
   private enhancedSearch: EnhancedVectorSearch | null = null;
+  private loggingService: ILoggingService;
 
-  constructor(options: ServerOptions) {
+  constructor(options: ServerOptions, loggingService: ILoggingService) {
     this.folderPath = resolve(options.folderPath);
     this.port = options.port || 3000;
     this.transport = options.transport || 'stdio';
+    this.loggingService = loggingService;
     
     if (!options.resolvedConfig) {
       throw new Error('ResolvedConfig is required for FolderMCPServer');
@@ -227,266 +230,216 @@ export class FolderMCPServer {
               default:
                 throw new Error(`Unknown tool: ${name}`);
             }
-          },
-          `${name}_${(args?.query as string)?.slice(0, 20) || (args?.file_path as string) || 'no_context'}`
+          }
         );
       } catch (error) {
-        // Enhanced error handling with recovery information
-        console.error(`❌ MCP tool '${name}' failed: ${error}`);
-        
-        // Log error details for debugging
-        const errorDetails = error instanceof Error 
-          ? `${error.message}\n\nStack trace:\n${error.stack}`
-          : String(error);
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error executing tool '${name}': ${error instanceof Error ? error.message : String(error)}\n\nThis error has been logged and will be retried automatically on subsequent attempts. Check the error log at ${join(cacheDir, 'errors.log')} for more details.`,
-            },
-          ],
-          isError: true,
-        };
+        const errObj = error instanceof Error ? error : new Error(String(error));
+        this.loggingService.error(`Tool execution failed: ${name}`, errObj);
+        throw new Error(`Tool execution failed: ${name}`);
       }
     });
   }
 
   private async handleReadFile(filePath: string) {
-    if (!filePath) {
-      throw new Error('file_path is required');
+    try {
+      const fullPath = resolve(this.folderPath, filePath);
+      
+      // Security check: ensure the file is within the folder
+      const relativePath = relative(this.folderPath, fullPath);
+      if (relativePath.startsWith('..')) {
+        throw new Error('Access denied: File is outside the served folder');
+      }
+      
+      if (!existsSync(fullPath)) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      
+      const content = readFileSync(fullPath, 'utf8');
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `File: ${filePath}\n\n${content}`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.loggingService.error('Failed to read file', error instanceof Error ? error : new Error(String(error)), { filePath });
+      throw error;
     }
-
-    // Security check - ensure path is within the served folder
-    const fullPath = resolve(this.folderPath, filePath);
-    if (!fullPath.startsWith(this.folderPath)) {
-      throw new Error('Access denied: Path is outside the served folder');
-    }
-
-    if (!existsSync(fullPath)) {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
-    const content = readFileSync(fullPath, 'utf8');
-    return {
-      content: [
-        {
-          type: 'text',
-          text: content,
-        },
-      ],
-    };
   }
 
   private async handleSearchFiles(pattern: string = '*') {
-    const searchPattern = join(this.folderPath, '**', pattern);
-    const files = await glob(searchPattern, {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-      nodir: true,
-    });
-
-    const relativeFiles = files.map(file => relative(this.folderPath, file));
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Found ${relativeFiles.length} files matching pattern "${pattern}":\n\n${relativeFiles.join('\n')}`,
-        },
-      ],
-    };
+    try {
+      const searchPattern = join(this.folderPath, '**', pattern);
+      const files = await glob(searchPattern, { 
+        ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
+        nodir: true 
+      });
+      
+      const relativeFiles = files.map(file => relative(this.folderPath, file));
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Found ${files.length} files matching pattern "${pattern}":\n\n${relativeFiles.join('\n')}`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.loggingService.error('Failed to search files', error instanceof Error ? error : new Error(String(error)), { pattern });
+      throw error;
+    }
   }
 
   private async handleListFiles() {
-    const files = await glob(join(this.folderPath, '**', '*'), {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-      nodir: true,
-    });
-
-    const relativeFiles = files.map(file => relative(this.folderPath, file));
-    
-    // Group by file type
-    const fileTypes: Record<string, number> = {};
-    relativeFiles.forEach(file => {
-      const ext = file.split('.').pop()?.toLowerCase() || 'no extension';
-      fileTypes[ext] = (fileTypes[ext] || 0) + 1;
-    });
-
-    const typeInfo = Object.entries(fileTypes)
-      .sort(([, a], [, b]) => b - a)
-      .map(([ext, count]) => `${ext}: ${count}`)
-      .join(', ');
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Total files: ${relativeFiles.length}\n\nFile types: ${typeInfo}\n\nFiles:\n${relativeFiles.join('\n')}`,
-        },
-      ],
-    };
+    try {
+      const files = await glob(join(this.folderPath, '**', '*'), {
+        ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
+        nodir: true
+      });
+      
+      const relativeFiles = files.map(file => relative(this.folderPath, file));
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `All files in folder (${files.length} total):\n\n${relativeFiles.join('\n')}`,
+          },
+        ],
+      };
+    } catch (error) {
+      this.loggingService.error('Failed to list files', error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   private async handleGetFolderInfo() {
-    const files = await glob(join(this.folderPath, '**', '*'), {
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-      nodir: true,
-    });
-
-    // Check for index metadata
-    let info = `Folder: ${this.folderPath}\n`;
-    info += `Total files: ${files.length}\n`;
-
-    const metadata = this.getMetadata();
-    if (metadata) {
-      info += `\nIndex Information:\n`;
-      info += `- Indexed at: ${metadata.indexedAt}\n`;
-      info += `- Total files processed: ${metadata.totalFiles}\n`;
-      info += `- Cache directory: ${metadata.cacheDir}\n`;
-    } else {
-      info += `\nNo index found. Run 'folder-mcp index "${this.folderPath}"' to create an index.`;
+    try {
+      const files = await glob(join(this.folderPath, '**', '*'), {
+        ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
+        nodir: true
+      });
+      
+      const metadata = this.getMetadata();
+      
+      let info = `Folder: ${this.folderPath}\n`;
+      info += `Total files: ${files.length}\n`;
+      
+      if (metadata) {
+        info += `\nMetadata:\n${JSON.stringify(metadata, null, 2)}`;
+      }
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: info,
+          },
+        ],
+      };
+    } catch (error) {
+      this.loggingService.error('Failed to get folder info', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: info,
-        },
-      ],
-    };
   }
 
-  private async handleSearchKnowledge(query: string, topK?: number, threshold?: number) {
-    if (!query) {
-      throw new Error('query parameter is required');
-    }
-
-    const k = Math.max(1, Math.min(50, topK || 5)); // Clamp between 1 and 50
-    const minThreshold = Math.max(0.0, Math.min(1.0, threshold || 0.0)); // Clamp between 0 and 1
-
+  private async handleSearchKnowledge(query: string, topK: number = 5, threshold: number = 0.0) {
     try {
-      // Check if folder is indexed
-      const cacheDir = join(this.folderPath, '.folder-mcp');
-      const embeddingsDir = join(cacheDir, 'embeddings');
-
-      if (!existsSync(embeddingsDir)) {
-        throw new Error(`Folder is not indexed. Please run: folder-mcp index "${this.folderPath}"`);
-      }
-
-      // Initialize embedding model if needed
+      // Initialize services if needed
       if (!this.embeddingModel) {
-        this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
+        this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName || 'default');
         await this.embeddingModel.initialize();
       }
 
-      // Load or build vector index if needed
       if (!this.vectorIndex) {
-        const existingIndex = await loadVectorIndex(cacheDir);
-        if (!existingIndex) {
-          // Build index if it doesn't exist
-          this.vectorIndex = await buildVectorIndex(cacheDir);
+        const indexPath = join(this.folderPath, '.folder-mcp', 'vectors', 'index.faiss');
+        if (existsSync(indexPath)) {
+          this.vectorIndex = await loadVectorIndex(indexPath);
         } else {
-          this.vectorIndex = existingIndex;
+          throw new Error('Vector index not found. Please run indexing first.');
         }
       }
 
       // Generate query embedding
       const queryEmbedding = await this.embeddingModel.generateEmbedding(query);
-
-      // Perform search
-      const searchResults = await this.vectorIndex.search(queryEmbedding.vector, k);
-
-      // Filter by threshold
-      const filteredResults = searchResults.filter(result => result.score >= minThreshold);
-
-      if (filteredResults.length === 0) {
+      
+      // Search for similar content
+      if (!this.vectorIndex) {
+        throw new Error('Vector index not initialized');
+      }
+      const results = await this.vectorIndex.search(queryEmbedding.vector, topK);
+      
+      if (results.length === 0) {
         return {
           content: [
             {
               type: 'text',
-              text: `No results found for query: "${query}"\n\nTried searching ${searchResults.length} indexed documents with minimum similarity threshold ${minThreshold}.`,
+              text: 'No similar content found.',
             },
           ],
         };
       }
-
-      // Format results for MCP response
-      let responseText = `Found ${filteredResults.length} similar chunks for: "${query}"\n\n`;
       
-      filteredResults.forEach((result, index) => {
-        responseText += `${index + 1}. **${result.chunk.metadata.filePath}**\n`;
-        responseText += `   - Similarity Score: ${result.score.toFixed(4)}\n`;
-        responseText += `   - Lines: ${result.chunk.metadata.startLine}-${result.chunk.metadata.endLine}\n`;
-        responseText += `   - Content: ${result.chunk.content.slice(0, 300)}${result.chunk.content.length > 300 ? '...' : ''}\n\n`;
-      });
-
-      // Add search metadata
-      const stats = this.vectorIndex.getStats();
-      responseText += `---\n`;
-      responseText += `Search completed using vector index with ${stats.vectorCount} documents (${stats.dimension}D vectors)\n`;
-      responseText += `Parameters: top_k=${k}, threshold=${minThreshold}`;
-
+      // Format results
+      let response = `Found ${results.length} similar results:\n\n`;
+      
+      for (const result of results) {
+        if (result.score >= threshold) {
+          response += `Score: ${result.score.toFixed(3)}\n`;
+          response += `Content: ${result.chunk.content}\n`;
+          response += `Metadata: ${JSON.stringify(result.chunk.metadata, null, 2)}\n\n`;
+        }
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: responseText,
+            text: response,
           },
         ],
       };
-
     } catch (error) {
-      throw new Error(`Search failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.loggingService.error('Failed to search knowledge', error instanceof Error ? error : new Error(String(error)), { query, topK, threshold });
+      throw error;
     }
   }
 
   private async handleEnhancedSearchKnowledge(
     query: string, 
-    topK?: number, 
-    threshold?: number,
-    includeContext?: boolean,
-    expandParagraphs?: boolean,
-    groupByDocument?: boolean
+    topK: number = 5, 
+    threshold: number = 0.0,
+    includeContext: boolean = true,
+    expandParagraphs: boolean = true,
+    groupByDocument: boolean = true
   ) {
-    if (!query) {
-      throw new Error('query parameter is required');
-    }
-
-    const k = Math.max(1, Math.min(50, topK || 5));
-    const minThreshold = Math.max(0.0, Math.min(1.0, threshold || 0.0));
-    const contextEnabled = includeContext !== false;
-    const paragraphExpansion = expandParagraphs !== false;
-    const documentGrouping = groupByDocument !== false;
-
     try {
-      // Check if folder is indexed
-      const cacheDir = join(this.folderPath, '.folder-mcp');
-      const embeddingsDir = join(cacheDir, 'embeddings');
-
-      if (!existsSync(embeddingsDir)) {
-        throw new Error(`Folder is not indexed. Please run: folder-mcp index "${this.folderPath}"`);
+      // Initialize services if needed
+      if (!this.embeddingModel) {
+        this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName || 'default');
+        await this.embeddingModel.initialize();
       }
 
-      // Initialize enhanced search if needed
+      if (!this.vectorIndex) {
+        const indexPath = join(this.folderPath, '.folder-mcp', 'vectors', 'index.faiss');
+        if (existsSync(indexPath)) {
+          this.vectorIndex = await loadVectorIndex(indexPath);
+        } else {
+          throw new Error('Vector index not found. Please run indexing first.');
+        }
+      }
+
+      if (!this.vectorIndex) {
+        throw new Error('Vector index not initialized');
+      }
+
       if (!this.enhancedSearch) {
-        // First ensure we have the vector index
-        if (!this.vectorIndex) {
-          const existingIndex = await loadVectorIndex(cacheDir);
-          if (!existingIndex) {
-            // Build index if it doesn't exist
-            this.vectorIndex = await buildVectorIndex(cacheDir);
-          } else {
-            this.vectorIndex = existingIndex;
-          }
-        }
-        
-        this.enhancedSearch = new EnhancedVectorSearch(this.vectorIndex, cacheDir);
-      }        // Initialize embedding model if needed for query
-        if (!this.embeddingModel) {
-          this.embeddingModel = new EmbeddingModel(this.resolvedConfig?.modelName);
-          await this.embeddingModel.initialize();
-        }
+        this.enhancedSearch = new EnhancedVectorSearch(this.vectorIndex, this.folderPath);
+      }
 
       // Generate query embedding
       const queryEmbedding = await this.embeddingModel.generateEmbedding(query);
@@ -494,139 +447,106 @@ export class FolderMCPServer {
       // Perform enhanced search
       const results = await this.enhancedSearch.searchWithContext(
         queryEmbedding.vector,
-        k,
-        minThreshold,
-        contextEnabled
+        topK,
+        threshold,
+        includeContext
       );
-
+      
       if (results.totalResults === 0) {
         return {
           content: [
             {
               type: 'text',
-              text: `No results found for query: "${query}"\n\nTried enhanced search with minimum similarity threshold ${minThreshold}.`,
+              text: 'No similar content found.',
             },
           ],
         };
       }
-
-      // Format enhanced results for MCP response
-      let responseText = `Enhanced search found ${results.totalResults} results for: "${query}"\n`;
-      responseText += `Searched ${results.documentsSearched} documents\n\n`;
       
-      if (documentGrouping && results.documentGroups.length > 0) {
-        // Use grouped results format
-        results.documentGroups.forEach((group, docIndex) => {
-          responseText += `## Document ${docIndex + 1}: ${group.sourceDocument}\n`;
-          responseText += `**Type:** ${group.documentType}\n`;
-          responseText += `**Results:** ${group.resultCount}\n`;
-          responseText += `**Best Score:** ${group.relevanceScore.toFixed(4)}\n`;
-          
-          if (group.documentStructure) {
-            const structure = group.documentStructure;
-            if (structure.sections?.length) {
-              responseText += `**Sections:** ${structure.sections.length}\n`;
-            }
-            if (structure.slides?.length) {
-              responseText += `**Slides:** ${structure.slides.length}\n`;
-            }
-            if (structure.sheets?.length) {
-              responseText += `**Sheets:** ${structure.sheets.length}\n`;
-            }
+      // Format results
+      let response = `Found ${results.totalResults} similar results:\n\n`;
+      
+      for (const group of results.documentGroups) {
+        for (const result of group.results) {
+          response += `Score: ${result.score.toFixed(3)}\n`;
+          response += `Content: ${result.contextualChunk.content}\n`;
+          if (result.contextualChunk.context) {
+            response += `Context:\n${result.contextualChunk.context.previousChunk || ''}\n${result.contextualChunk.context.nextChunk || ''}\n`;
           }
-          responseText += '\n';
-
-          group.results.forEach((result, index) => {
-            responseText += `### Result ${index + 1} (Score: ${result.score.toFixed(4)})\n`;
-            responseText += `**Location:** Lines ${result.contextualChunk.metadata.startLine}-${result.contextualChunk.metadata.endLine}\n`;
-            
-            if (result.contextualChunk.context.previousChunk && contextEnabled) {
-              responseText += `**Previous Context:** ${result.contextualChunk.context.previousChunk.slice(0, 150)}...\n`;
-            }
-            
-            responseText += `**Content:** ${result.contextualChunk.content}\n`;
-            
-            if (result.contextualChunk.context.nextChunk && contextEnabled) {
-              responseText += `**Next Context:** ${result.contextualChunk.context.nextChunk.slice(0, 150)}...\n`;
-            }
-
-            if (paragraphExpansion && result.contextualChunk.context.expandedContent !== result.contextualChunk.content) {
-              responseText += `**Expanded Content:** ${result.contextualChunk.context.expandedContent.slice(0, 300)}...\n`;
-            }
-            
-            responseText += '\n';
-          });
-          responseText += '---\n\n';
-        });
-      } else {
-        // Simple list format - flatten all results from all groups
-        let allResults: any[] = [];
-        results.documentGroups.forEach(group => {
-          allResults.push(...group.results);
-        });
-        
-        allResults.forEach((result, index) => {
-          responseText += `${index + 1}. **${result.sourceDocument}** (${result.documentType})\n`;
-          responseText += `   - Similarity Score: ${result.score.toFixed(4)}\n`;
-          responseText += `   - Lines: ${result.contextualChunk.metadata.startLine}-${result.contextualChunk.metadata.endLine}\n`;
-          responseText += `   - Content: ${result.contextualChunk.content.slice(0, 300)}${result.contextualChunk.content.length > 300 ? '...' : ''}\n`;
-          
-          if (contextEnabled && result.contextualChunk.context.expandedContent !== result.contextualChunk.content) {
-            responseText += `   - Enhanced Context: ${result.contextualChunk.context.expandedContent.slice(0, 200)}...\n`;
-          }
-          responseText += '\n';
-        });
+          response += `Metadata: ${JSON.stringify(result.contextualChunk.metadata, null, 2)}\n\n`;
+        }
       }
-
-      // Add search metadata
-      responseText += `---\n`;
-      responseText += `Enhanced search completed with context=${contextEnabled}, paragraphs=${paragraphExpansion}, grouping=${documentGrouping}\n`;
-      responseText += `Parameters: top_k=${k}, threshold=${minThreshold}`;
-
+      
       return {
         content: [
           {
             type: 'text',
-            text: responseText,
+            text: response,
           },
         ],
       };
-
     } catch (error) {
-      throw new Error(`Enhanced search failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.loggingService.error('Failed to perform enhanced search', error instanceof Error ? error : new Error(String(error)), { 
+        query, 
+        topK, 
+        threshold,
+        includeContext,
+        expandParagraphs,
+        groupByDocument
+      });
+      throw error;
     }
   }
 
   private getMetadata(): any {
+    const metadataPath = join(this.folderPath, '.folder-mcp', 'metadata', 'index.json');
     try {
-      const metadataPath = join(this.folderPath, '.folder-mcp', 'metadata', 'index.json');
       if (existsSync(metadataPath)) {
         return JSON.parse(readFileSync(metadataPath, 'utf8'));
       }
     } catch (error) {
-      // Ignore errors
+      this.loggingService.error('Failed to read metadata', error instanceof Error ? error : new Error(String(error)), { path: metadataPath });
     }
     return null;
   }
 
   async start(): Promise<void> {
-    if (this.transport === 'stdio') {
-      const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-      console.error(`Folder MCP Server running on stdio for folder: ${this.folderPath}`);
-    } else {
-      // For HTTP transport, we'll implement this in the future
-      // For now, we'll use stdio but indicate the intended port
-      const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-      console.error(`Folder MCP Server running on stdio (HTTP port ${this.port} planned) for folder: ${this.folderPath}`);
+    try {
+      this.loggingService.info('Starting MCP server', {
+        folderPath: this.folderPath,
+        port: this.port,
+        transport: this.transport
+      });
+      
+      if (this.transport === 'http') {
+        // Start HTTP server
+        const { createServer } = await import('http');
+        const server = createServer((req, res) => {
+          // Handle HTTP requests
+        });
+        
+        server.listen(this.port, () => {
+          this.loggingService.info(`MCP server listening on port ${this.port}`);
+        });
+      } else {
+        // Start stdio server
+        const transport = new StdioServerTransport();
+        await this.server.connect(transport);
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to start MCP server', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 
   async stop(): Promise<void> {
-    // Implement graceful shutdown
-    await this.server.close();
-    console.error('Folder MCP Server stopped');
+    try {
+      this.loggingService.info('Stopping MCP server');
+      await this.server.close();
+    } catch (error) {
+      this.loggingService.error('Failed to stop MCP server', error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 }
 

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { VectorSearchResult, VectorIndex } from './index.js';
 import { TextChunk } from '../types/index.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 export interface EnhancedSearchResult {
   id: number;
@@ -83,11 +84,13 @@ export class EnhancedVectorSearch {
   private vectorIndex: VectorIndex;
   private cacheDir: string;
   private embeddingsDir: string;
+  private loggingService: ILoggingService | undefined;
 
-  constructor(vectorIndex: VectorIndex, cacheDir: string) {
+  constructor(vectorIndex: VectorIndex, cacheDir: string, loggingService?: ILoggingService | undefined) {
     this.vectorIndex = vectorIndex;
     this.cacheDir = cacheDir;
     this.embeddingsDir = path.join(cacheDir, 'embeddings');
+    this.loggingService = loggingService;
   }
 
   /**
@@ -99,30 +102,47 @@ export class EnhancedVectorSearch {
     threshold: number = 0.0,
     includeContext: boolean = true
   ): Promise<GroupedSearchResults> {
-    // Perform basic vector search
-    const basicResults = await this.vectorIndex.search(queryVector, k * 2); // Get more results for deduplication
-    
-    // Filter by threshold
-    const filteredResults = basicResults.filter(result => result.score >= threshold);
-    
-    // Enhance each result with context
-    const enhancedResults: EnhancedSearchResult[] = [];
-    for (const result of filteredResults) {
-      const enhanced = await this.enhanceResult(result, includeContext);
-      if (enhanced) {
-        enhancedResults.push(enhanced);
+    try {
+      // Perform basic vector search
+      const basicResults = await this.vectorIndex.search(queryVector, k * 2); // Get more results for deduplication
+      
+      // Filter by threshold
+      const filteredResults = basicResults.filter(result => result.score >= threshold);
+      
+      // Enhance each result with context
+      const enhancedResults: EnhancedSearchResult[] = [];
+      for (const result of filteredResults) {
+        try {
+          const enhanced = await this.enhanceResult(result, includeContext);
+          if (enhanced) {
+            enhancedResults.push(enhanced);
+          }
+        } catch (error) {
+          if (this.loggingService) {
+            this.loggingService.warn(`Failed to enhance result: ${(error instanceof Error ? error.message : String(error))}`);
+          } else {
+            console.warn('Failed to enhance result:', error);
+          }
+        }
       }
+
+      // Group by document and deduplicate
+      const groupedResults = await this.groupAndDeduplicateResults(enhancedResults, k);
+
+      return {
+        query: '', // Will be set by caller
+        totalResults: enhancedResults.length,
+        documentsSearched: groupedResults.length,
+        documentGroups: groupedResults
+      };
+    } catch (error) {
+      if (this.loggingService) {
+        this.loggingService.error(`Search failed: ${(error instanceof Error ? error.message : String(error))}`);
+      } else {
+        console.error('Search failed:', error);
+      }
+      throw error;
     }
-
-    // Group by document and deduplicate
-    const groupedResults = await this.groupAndDeduplicateResults(enhancedResults, k);
-
-    return {
-      query: '', // Will be set by caller
-      totalResults: enhancedResults.length,
-      documentsSearched: groupedResults.length,
-      documentGroups: groupedResults
-    };
   }
 
   /**
@@ -164,7 +184,11 @@ export class EnhancedVectorSearch {
         }
       };
     } catch (error) {
-      console.warn(`Failed to enhance result for ${result.chunk.metadata.filePath}:`, error);
+      if (this.loggingService) {
+        this.loggingService.warn(`Failed to enhance result for ${result.chunk.metadata.filePath}: ${(error instanceof Error ? error.message : String(error))}`);
+      } else {
+        console.warn(`Failed to enhance result for ${result.chunk.metadata.filePath}:`, error);
+      }
       return null;
     }
   }
@@ -192,7 +216,9 @@ export class EnhancedVectorSearch {
           const prevData = JSON.parse(await fs.readFile(prevChunkPath, 'utf-8'));
           previousChunk = prevData.chunk.content;
         } catch (error) {
-          // Previous chunk doesn't exist, which is fine
+          if (this.loggingService) {
+            this.loggingService.debug(`Previous chunk not found for ${fingerprint}_${chunkIndex - 1}`);
+          }
         }
       }
 
@@ -202,7 +228,9 @@ export class EnhancedVectorSearch {
         const nextData = JSON.parse(await fs.readFile(nextChunkPath, 'utf-8'));
         nextChunk = nextData.chunk.content;
       } catch (error) {
-        // Next chunk doesn't exist, which is fine
+        if (this.loggingService) {
+          this.loggingService.debug(`Next chunk not found for ${fingerprint}_${chunkIndex + 1}`);
+        }
       }
 
       // Expand content to include context with paragraph boundaries
@@ -235,7 +263,11 @@ export class EnhancedVectorSearch {
         paragraphBoundaries: true
       };
     } catch (error) {
-      console.warn(`Failed to get contextual chunks for ${fingerprint}_${chunkIndex}:`, error);
+      if (this.loggingService) {
+        this.loggingService.error(`Failed to get contextual chunks for ${fingerprint}_${chunkIndex}: ${(error instanceof Error ? error.message : String(error))}`);
+      } else {
+        console.error(`Failed to get contextual chunks for ${fingerprint}_${chunkIndex}:`, error);
+      }
       return {
         expandedContent: '',
         paragraphBoundaries: false
@@ -275,7 +307,11 @@ export class EnhancedVectorSearch {
 
       return structure;
     } catch (error) {
-      console.warn(`Failed to extract document structure for ${filePath}:`, error);
+      if (this.loggingService) {
+        this.loggingService.warn(`Failed to extract document structure for ${filePath}: ${(error instanceof Error ? error.message : String(error))}`);
+      } else {
+        console.warn(`Failed to extract document structure for ${filePath}:`, error);
+      }
       return undefined;
     }
   }
@@ -392,70 +428,87 @@ export class EnhancedVectorSearch {
     enhancedResults: EnhancedSearchResult[],
     maxResults: number
   ): Promise<DocumentGroup[]> {
-    // Group by source document
-    const documentGroups = new Map<string, EnhancedSearchResult[]>();
-    
-    enhancedResults.forEach(result => {
-      const key = result.sourceDocument;
-      if (!documentGroups.has(key)) {
-        documentGroups.set(key, []);
+    try {
+      // Group by source document
+      const documentGroups = new Map<string, EnhancedSearchResult[]>();
+      
+      enhancedResults.forEach(result => {
+        const key = result.sourceDocument;
+        if (!documentGroups.has(key)) {
+          documentGroups.set(key, []);
+        }
+        documentGroups.get(key)!.push(result);
+      });
+
+      // Process each document group
+      const processedGroups: DocumentGroup[] = [];
+      
+      for (const [sourceDocument, results] of documentGroups) {
+        try {
+          // Sort by score descending
+          results.sort((a, b) => b.score - a.score);
+          
+          // Deduplicate overlapping chunks
+          const deduplicatedResults = this.deduplicateResults(results);
+          
+          // Take only the top results per document
+          const topResults = deduplicatedResults.slice(0, Math.min(3, maxResults)); // Max 3 results per document
+          
+          if (topResults.length > 0 && topResults[0]) {
+            processedGroups.push({
+              sourceDocument: sourceDocument,
+              documentType: topResults[0].documentType,
+              resultCount: topResults.length,
+              relevanceScore: topResults[0].score,
+              results: topResults,
+              ...(topResults[0].contextualChunk.metadata.documentStructure && {
+                documentStructure: topResults[0].contextualChunk.metadata.documentStructure
+              })
+            });
+          }
+        } catch (error) {
+          if (this.loggingService) {
+            this.loggingService.warn(`Failed to process document group for ${sourceDocument}: ${(error instanceof Error ? error.message : String(error))}`);
+          } else {
+            console.warn(`Failed to process document group for ${sourceDocument}:`, error);
+          }
+        }
       }
-      documentGroups.get(key)!.push(result);
-    });
 
-    // Process each document group
-    const processedGroups: DocumentGroup[] = [];
-    
-    for (const [sourceDocument, results] of documentGroups) {
-      // Sort by score descending
-      results.sort((a, b) => b.score - a.score);
+      // Sort document groups by highest relevance score
+      processedGroups.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+      // Return top document groups up to maxResults total results
+      const finalGroups: DocumentGroup[] = [];
+      let totalResults = 0;
       
-      // Deduplicate overlapping chunks
-      const deduplicatedResults = this.deduplicateResults(results);
-      
-      // Take only the top results per document
-      const topResults = deduplicatedResults.slice(0, Math.min(3, maxResults)); // Max 3 results per document
-      
-      if (topResults.length > 0 && topResults[0]) {
-        processedGroups.push({
-          sourceDocument: sourceDocument,
-          documentType: topResults[0].documentType,
-          resultCount: topResults.length,
-          relevanceScore: topResults[0].score,
-          results: topResults,
-          ...(topResults[0].contextualChunk.metadata.documentStructure && {
-            documentStructure: topResults[0].contextualChunk.metadata.documentStructure
-          })
-        });
+      for (const group of processedGroups) {
+        if (totalResults >= maxResults) break;
+        
+        const remainingSlots = maxResults - totalResults;
+        if (group.results.length <= remainingSlots) {
+          finalGroups.push(group);
+          totalResults += group.results.length;
+        } else {
+          // Truncate results to fit remaining slots
+          finalGroups.push({
+            ...group,
+            results: group.results.slice(0, remainingSlots),
+            resultCount: remainingSlots
+          });
+          totalResults = maxResults;
+        }
       }
-    }
 
-    // Sort document groups by highest relevance score
-    processedGroups.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-    // Return top document groups up to maxResults total results
-    const finalGroups: DocumentGroup[] = [];
-    let totalResults = 0;
-    
-    for (const group of processedGroups) {
-      if (totalResults >= maxResults) break;
-      
-      const remainingSlots = maxResults - totalResults;
-      if (group.results.length <= remainingSlots) {
-        finalGroups.push(group);
-        totalResults += group.results.length;
+      return finalGroups;
+    } catch (error) {
+      if (this.loggingService) {
+        this.loggingService.error(`Failed to group and deduplicate results: ${(error instanceof Error ? error.message : String(error))}`);
       } else {
-        // Truncate results to fit remaining slots
-        finalGroups.push({
-          ...group,
-          results: group.results.slice(0, remainingSlots),
-          resultCount: remainingSlots
-        });
-        totalResults = maxResults;
+        console.error('Failed to group and deduplicate results:', error);
       }
+      throw error;
     }
-
-    return finalGroups;
   }
 
   /**

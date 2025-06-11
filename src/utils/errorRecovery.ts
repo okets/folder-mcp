@@ -6,6 +6,7 @@
 import { writeFileSync, existsSync, readFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { ErrorContext, ProgressData } from '../types/index.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 /**
  * Record of an error that occurred during processing
@@ -59,8 +60,9 @@ export class ErrorRecoveryManager {
   private errorLogPath: string;
   private errors: ErrorRecord[] = [];
   private retryOptions: RetryOptions;
+  private loggingService: ILoggingService | undefined;
 
-  constructor(cacheDir: string, retryOptions?: Partial<RetryOptions>) {
+  constructor(cacheDir: string, retryOptions?: Partial<RetryOptions>, loggingService?: ILoggingService | undefined) {
     this.errorLogPath = join(cacheDir, 'errors.log');
     this.retryOptions = {
       maxRetries: 3,
@@ -68,6 +70,7 @@ export class ErrorRecoveryManager {
       backoffMultiplier: 2,
       ...retryOptions
     };
+    this.loggingService = loggingService;
     
     // Load existing errors if log exists
     this.loadExistingErrors();
@@ -182,7 +185,11 @@ export class ErrorRecoveryManager {
       const logLine = JSON.stringify(errorRecord) + '\n';
       writeFileSync(this.errorLogPath, logLine, { flag: 'a' });
     } catch (logError) {
-      console.warn(`⚠️  Could not write to error log: ${logError}`);
+      if (this.loggingService) {
+        this.loggingService.warn(`Could not write to error log: ${logError}`);
+      } else {
+        console.warn(`⚠️  Could not write to error log: ${logError}`);
+      }
     }
   }
 

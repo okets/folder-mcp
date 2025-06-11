@@ -30,6 +30,10 @@ import {
 } from './services.js';
 
 import { ResolvedConfig } from '../config/resolver.js';
+import { DependencyContainer } from './container.js';
+import { SERVICE_TOKENS } from './interfaces.js';
+import { IndexingService } from '../processing/indexingService.js';
+import { MCPServer } from '../mcp/mcpServer.js';
 
 /**
  * Default service factory implementation
@@ -89,6 +93,42 @@ export class ServiceFactory implements IServiceFactory {
 
   createLoggingService(config?: any): ILoggingService {
     return this.getLoggingService(config);
+  }
+
+  createIndexingService(
+    config: ResolvedConfig,
+    folderPath: string,
+    container: DependencyContainer
+  ): IndexingService {
+    return new IndexingService(
+      container.resolve(SERVICE_TOKENS.CONFIGURATION),
+      container.resolve(SERVICE_TOKENS.FILE_PARSING),
+      container.resolve(SERVICE_TOKENS.CHUNKING),
+      container.resolve(SERVICE_TOKENS.EMBEDDING),
+      container.resolve(SERVICE_TOKENS.CACHE),
+      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
+      container.resolve(SERVICE_TOKENS.LOGGING),
+      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH)
+    );
+  }
+
+  createMCPServer(
+    config: ResolvedConfig,
+    folderPath: string,
+    container: DependencyContainer
+  ): MCPServer {
+    return new MCPServer(
+      {
+        folderPath,
+        resolvedConfig: config
+      },
+      container.resolve(SERVICE_TOKENS.CONFIGURATION),
+      container.resolve(SERVICE_TOKENS.EMBEDDING),
+      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
+      container.resolve(SERVICE_TOKENS.CACHE),
+      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
+      container.resolve(SERVICE_TOKENS.LOGGING)
+    );
   }
 }
 

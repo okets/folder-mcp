@@ -30,7 +30,8 @@ function getFileContent(filePath: string): string {
   try {
     return readFileSync(filePath, 'utf8');
   } catch (error) {
-    return `Error reading file: ${error}`;
+    console.error('Error reading file:', error instanceof Error ? error : new Error(String(error)), { filePath });
+    throw error;
   }
 }
 
@@ -44,7 +45,8 @@ async function searchFiles(folderPath: string, pattern: string = '*'): Promise<s
     });
     return files;
   } catch (error) {
-    return [];
+    console.error('Error searching files:', error instanceof Error ? error : new Error(String(error)), { folderPath, pattern });
+    throw error;
   }
 }
 
@@ -56,7 +58,7 @@ function getMetadata(folderPath: string): any {
       return JSON.parse(readFileSync(metadataPath, 'utf8'));
     }
   } catch (error) {
-    // Ignore errors
+    console.error('Error reading metadata:', error instanceof Error ? error : new Error(String(error)), { folderPath });
   }
   return null;
 }
@@ -200,12 +202,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         info += `Total files: ${files.length}\n`;
         
         if (metadata) {
-          info += `\nIndex metadata:\n`;
-          info += `- Indexed at: ${metadata.indexedAt}\n`;
-          info += `- Total files processed: ${metadata.totalFiles}\n`;
-          info += `- Cache directory: ${metadata.cacheDir}\n`;
-        } else {
-          info += `\nNo index found. Run 'folder-mcp index "${folder_path}"' to create an index.`;
+          info += `\nMetadata:\n${JSON.stringify(metadata, null, 2)}`;
         }
         
         return {
@@ -222,15 +219,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    console.error('Error handling tool call:', error instanceof Error ? error : new Error(String(error)), { tool: name, args });
+    throw error;
   }
 });
 

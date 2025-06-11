@@ -41,8 +41,8 @@ Transform any local folder into an intelligent knowledge base that LLMs can quer
 - Add comprehensive JSDoc documentation for all public APIs
 - Implement strict TypeScript compiler options
 - **Code Quality**
-- Implement proper dependency injection
-- Add proper module boundaries
+- Always Implement proper dependency injection
+- Always Add proper module boundaries
 
 
 ---

@@ -369,3 +369,109 @@ export const SERVICE_TOKENS = {
  * Type for service tokens
  */
 export type ServiceToken = typeof SERVICE_TOKENS[keyof typeof SERVICE_TOKENS];
+
+// =============================================================================
+// Module Service Tokens for New Architecture
+// =============================================================================
+
+/**
+ * Service tokens for dependency injection
+ * Organized by architectural layer
+ */
+export const MODULE_TOKENS = {
+  // Domain Layer Services
+  DOMAIN: {
+    FILE_OPERATIONS: Symbol('Domain.FileOperations'),
+    FILE_FINGERPRINT: Symbol('Domain.FileFingerprintOperations'),
+    CONTENT_OPERATIONS: Symbol('Domain.ContentOperations'),
+    EMBEDDING_OPERATIONS: Symbol('Domain.EmbeddingOperations'),
+    BATCH_EMBEDDING_OPERATIONS: Symbol('Domain.BatchEmbeddingOperations'),
+    SEARCH_OPERATIONS: Symbol('Domain.SearchOperations'),
+    ENHANCED_SEARCH_OPERATIONS: Symbol('Domain.EnhancedSearchOperations'),
+  },
+  
+  // Application Layer Services
+  APPLICATION: {
+    INDEXING_WORKFLOW: Symbol('Application.IndexingWorkflow'),
+    INCREMENTAL_INDEXING: Symbol('Application.IncrementalIndexing'),
+    CONTENT_SERVING_WORKFLOW: Symbol('Application.ContentServingWorkflow'),
+    KNOWLEDGE_OPERATIONS: Symbol('Application.KnowledgeOperations'),
+    MONITORING_WORKFLOW: Symbol('Application.MonitoringWorkflow'),
+    HEALTH_MONITORING: Symbol('Application.HealthMonitoring'),
+  },
+  
+  // Infrastructure Layer Services
+  INFRASTRUCTURE: {
+    CACHE_SERVICE: Symbol('Infrastructure.CacheService'),
+    CACHE_STORAGE: Symbol('Infrastructure.CacheStorage'),
+    CACHE_STRATEGY: Symbol('Infrastructure.CacheStrategy'),
+    LOGGING_SERVICE: Symbol('Infrastructure.LoggingService'),
+    LOG_FORMATTER: Symbol('Infrastructure.LogFormatter'),
+    LOG_TRANSPORT: Symbol('Infrastructure.LogTransport'),
+    ERROR_HANDLER: Symbol('Infrastructure.ErrorHandler'),
+    ERROR_RECOVERY_SERVICE: Symbol('Infrastructure.ErrorRecoveryService'),
+    ERROR_REPORTER: Symbol('Infrastructure.ErrorReporter'),
+  },
+  
+  // Interface Layer Services
+  INTERFACE: {
+    CLI_PROGRAM: Symbol('Interface.CLIProgram'),
+    MCP_SERVER: Symbol('Interface.MCPServer'),
+    MCP_TRANSPORT: Symbol('Interface.MCPTransport'),
+  },
+} as const;
+
+// =============================================================================
+// Legacy Service Tokens (for backward compatibility during migration)
+// =============================================================================
+
+// =============================================================================
+// New Modular Architecture Interfaces (Forward Declarations)
+// =============================================================================
+
+// Note: These interfaces will be properly imported once the migration is complete
+// For now, we declare them as placeholders to support the new architecture
+
+// Domain Layer Interface Placeholders
+export interface ModularFileOperations {
+  scanFolder(path: string): Promise<string[]>;
+  parseFile(path: string): Promise<any>;
+  watchFolder(path: string, callback: Function): Promise<void>;
+}
+
+export interface ModularContentOperations {
+  chunkText(text: string, options: any): any[];
+  processContent(content: any): any;
+  extractMetadata(content: any): any;
+}
+
+export interface ModularEmbeddingOperations {
+  generateEmbeddings(chunks: any[]): Promise<any[]>;
+  generateSingleEmbedding(text: string): Promise<any>;
+  calculateSimilarity(vector1: any, vector2: any): number;
+}
+
+export interface ModularSearchOperations {
+  findSimilar(query: any, k: number): Promise<any[]>;
+  searchByText(queryText: string, k: number): Promise<any[]>;
+  rankResults(results: any[]): any[];
+}
+
+// Application Layer Interface Placeholders
+export interface ModularIndexingWorkflow {
+  indexFolder(path: string, options: any): Promise<any>;
+  indexFiles(files: string[], options: any): Promise<any>;
+  getIndexingStatus(path: string): Promise<any>;
+}
+
+export interface ModularContentServingWorkflow {
+  getFileContent(filePath: string): Promise<any>;
+  searchKnowledge(query: string, options?: any): Promise<any>;
+  getFileList(pattern?: string): Promise<any>;
+}
+
+export interface ModularMonitoringWorkflow {
+  startFileWatching(folderPath: string, options: any): Promise<any>;
+  stopFileWatching(folderPath: string): Promise<void>;
+  getWatchingStatus(folderPath: string): Promise<any>;
+}

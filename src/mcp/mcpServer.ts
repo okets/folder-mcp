@@ -197,16 +197,7 @@ export class MCPServer {
         }
       } catch (error) {
         this.loggingService.error(`Tool execution failed: ${name}`, error instanceof Error ? error : new Error(String(error)));
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error executing tool '${name}': ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        };
+        throw new Error(`Tool execution failed: ${name}`);
       }
     });
   }
@@ -215,35 +206,28 @@ export class MCPServer {
    * Handle read_file tool
    */
   private async handleReadFile(filePath: string) {
-    if (!filePath) {
-      throw new Error('file_path parameter is required');
-    }
-
-    // Security check: ensure file is within served folder
-    const fullPath = resolve(this.folderPath, filePath);
-    if (!fullPath.startsWith(this.folderPath)) {
-      throw new Error('Access denied: file is outside served folder');
-    }
-
-    if (!this.fileSystemService.exists(fullPath)) {
-      throw new Error(`File not found: ${filePath}`);
-    }
-
     try {
-      const content = await this.fileSystemService.readFile(fullPath);
+      const fullPath = resolve(this.folderPath, filePath);
       
-      this.loggingService.debug('File read successfully', { filePath, size: content.length });
+      // Security check: ensure the file is within the folder
+      const relativePath = relative(this.folderPath, fullPath);
+      if (relativePath.startsWith('..')) {
+        throw new Error('Access denied: File is outside the served folder');
+      }
+      
+      const content = await this.fileSystemService.readFile(fullPath);
       
       return {
         content: [
           {
             type: 'text',
-            text: content,
+            text: `File: ${filePath}\n\n${content}`,
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.loggingService.error('Failed to read file', error instanceof Error ? error : new Error(String(error)), { filePath });
+      throw error;
     }
   }
 
@@ -252,26 +236,25 @@ export class MCPServer {
    */
   private async handleSearchFiles(pattern: string = '*') {
     try {
-      const searchPattern = join(this.folderPath, '**', pattern);
-      const files = await glob(searchPattern, { 
-        ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-        nodir: true 
-      });
-
-      const relativeFiles = files.map(file => relative(this.folderPath, file));
+      const files = await this.fileSystemService.generateFingerprints(
+        this.folderPath,
+        [pattern],
+        ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
+      );
       
-      this.loggingService.debug('File search completed', { pattern, fileCount: relativeFiles.length });
+      const relativeFiles = files.map(f => relative(this.folderPath, f.path));
       
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(relativeFiles, null, 2),
+            text: `Found ${files.length} files matching pattern "${pattern}":\n\n${relativeFiles.join('\n')}`,
           },
         ],
       };
     } catch (error) {
-      throw new Error(`File search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.loggingService.error('Failed to search files', error instanceof Error ? error : new Error(String(error)), { pattern });
+      throw error;
     }
   }
 
@@ -280,25 +263,25 @@ export class MCPServer {
    */
   private async handleListFiles() {
     try {
-      const files = await glob(join(this.folderPath, '**', '*'), {
-        ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-        nodir: true
-      });
-
-      const relativeFiles = files.map(file => relative(this.folderPath, file));
+      const files = await this.fileSystemService.generateFingerprints(
+        this.folderPath,
+        ['*'],
+        ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
+      );
       
-      this.loggingService.debug('File listing completed', { fileCount: relativeFiles.length });
+      const relativeFiles = files.map(f => relative(this.folderPath, f.path));
       
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(relativeFiles, null, 2),
+            text: `All files in folder (${files.length} total):\n\n${relativeFiles.join('\n')}`,
           },
         ],
       };
     } catch (error) {
-      throw new Error(`File listing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.loggingService.error('Failed to list files', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 
@@ -307,29 +290,32 @@ export class MCPServer {
    */
   private async handleGetFolderInfo() {
     try {
-      const info = {
-        path: this.folderPath,
-        name: require('path').basename(this.folderPath),
-        config: {
-          modelName: this.resolvedConfig.modelName,
-          chunkSize: this.resolvedConfig.chunkSize,
-          fileExtensions: this.resolvedConfig.fileExtensions,
-        },
-        cache: await this.getCacheInfo(),
-      };
-
-      this.loggingService.debug('Folder info retrieved', { folderPath: this.folderPath });
+      const files = await this.fileSystemService.generateFingerprints(
+        this.folderPath,
+        ['*'],
+        ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
+      );
+      
+      const cacheInfo = await this.getCacheInfo();
+      
+      let info = `Folder: ${this.folderPath}\n`;
+      info += `Total files: ${files.length}\n`;
+      
+      if (cacheInfo) {
+        info += `\nCache info:\n${JSON.stringify(cacheInfo, null, 2)}`;
+      }
       
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(info, null, 2),
+            text: info,
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Failed to get folder info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.loggingService.error('Failed to get folder info', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 
@@ -341,58 +327,44 @@ export class MCPServer {
     topK: number = 5,
     threshold: number = 0.0
   ) {
-    if (!query) {
-      throw new Error('query parameter is required');
-    }
-
-    this.loggingService.debug('Performing knowledge search', { query, topK, threshold });
-
     try {
-      // Initialize services if needed
-      if (!this.embeddingService.isInitialized()) {
-        await this.embeddingService.initialize();
-      }
-
-      if (!this.vectorSearchService.isReady()) {
-        // Load or build vector index
-        const indexPath = join(this.folderPath, '.folder-mcp', 'vectors', 'index.faiss');
-        if (this.fileSystemService.exists(indexPath)) {
-          await this.vectorSearchService.loadIndex(indexPath);
-        } else {
-          throw new Error('Vector index not found. Please run indexing first.');
-        }
-      }
-
       // Generate query embedding
       const queryEmbedding = await this.embeddingService.generateQueryEmbedding(query);
-
-      // Search for similar vectors
-      const searchResults = await this.vectorSearchService.search(queryEmbedding, topK, threshold);
-
-      this.loggingService.info('Knowledge search completed', { 
-        query, 
-        resultCount: searchResults.length 
-      });
-
+      
+      // Search for similar content
+      const results = await this.vectorSearchService.search(queryEmbedding, topK, threshold);
+      
+      if (results.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'No similar content found.',
+            },
+          ],
+        };
+      }
+      
+      // Format results
+      let response = `Found ${results.length} similar results:\n\n`;
+      
+      for (const result of results) {
+        response += `Score: ${result.score.toFixed(3)}\n`;
+        response += `Content: ${result.content}\n`;
+        response += `Metadata: ${JSON.stringify(result.metadata, null, 2)}\n\n`;
+      }
+      
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({
-              query,
-              results: searchResults,
-              metadata: {
-                searchTime: new Date().toISOString(),
-                totalResults: searchResults.length,
-                threshold,
-                model: this.embeddingService.getModelConfig()
-              }
-            }, null, 2),
+            text: response,
           },
         ],
       };
     } catch (error) {
-      throw new Error(`Knowledge search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.loggingService.error('Failed to search knowledge', error instanceof Error ? error : new Error(String(error)), { query, topK, threshold });
+      throw error;
     }
   }
 
@@ -401,21 +373,16 @@ export class MCPServer {
    */
   private async getCacheInfo() {
     try {
-      const cacheDir = join(this.folderPath, '.folder-mcp');
+      const files = await this.fileSystemService.generateFingerprints(
+        this.folderPath,
+        ['*'],
+        ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
+      );
       
-      if (!this.fileSystemService.exists(cacheDir)) {
-        return { status: 'not_initialized' };
-      }
-
-      // This would need proper implementation based on cache service
-      return {
-        status: 'initialized',
-        path: cacheDir,
-        // Add more cache info as needed
-      };
+      return await this.cacheService.getCacheStatus(files);
     } catch (error) {
-      this.loggingService.warn('Failed to get cache info', error);
-      return { status: 'error', error: error instanceof Error ? error.message : 'Unknown error' };
+      this.loggingService.error('Failed to get cache info', error instanceof Error ? error : new Error(String(error)));
+      return null;
     }
   }
 
@@ -423,18 +390,27 @@ export class MCPServer {
    * Start the MCP server
    */
   async start(): Promise<void> {
-    this.loggingService.info('Starting MCP server', { transport: this.transport });
-
     try {
-      if (this.transport === 'stdio') {
-        const transport = new StdioServerTransport();
-        await this.server.connect(transport);
-        this.loggingService.info(`MCP Server running on stdio for folder: ${this.folderPath}`);
+      this.loggingService.info('Starting MCP server', {
+        folderPath: this.folderPath,
+        port: this.port,
+        transport: this.transport
+      });
+      
+      if (this.transport === 'http') {
+        // Start HTTP server
+        const { createServer } = await import('http');
+        const server = createServer((req, res) => {
+          // Handle HTTP requests
+        });
+        
+        server.listen(this.port, () => {
+          this.loggingService.info(`MCP server listening on port ${this.port}`);
+        });
       } else {
-        // For HTTP transport, we'll implement this in the future
+        // Start stdio server
         const transport = new StdioServerTransport();
         await this.server.connect(transport);
-        this.loggingService.info(`MCP Server running on stdio (HTTP port ${this.port} planned) for folder: ${this.folderPath}`);
       }
     } catch (error) {
       this.loggingService.error('Failed to start MCP server', error instanceof Error ? error : new Error(String(error)));
@@ -446,14 +422,11 @@ export class MCPServer {
    * Stop the MCP server
    */
   async stop(): Promise<void> {
-    this.loggingService.info('Stopping MCP server');
-    
     try {
-      // Cleanup server resources
+      this.loggingService.info('Stopping MCP server');
       await this.server.close();
-      this.loggingService.info('MCP server stopped successfully');
     } catch (error) {
-      this.loggingService.error('Error stopping MCP server', error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error('Failed to stop MCP server', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }

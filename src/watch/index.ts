@@ -8,6 +8,7 @@ import { parseTextFile, parsePdfFile, parseWordFile, parseExcelFile, parsePowerP
 import { chunkText } from '../processing/chunking.js';
 import { getDefaultEmbeddingModel } from '../embeddings/index.js';
 import { ResolvedConfig } from '../config/resolver.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 export interface FileWatcherOptions {
   debounceDelay?: number;
@@ -34,13 +35,16 @@ export class FolderWatcher {
   private debounceTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private packageJson: PackageJson;
-    constructor(folderPath: string, packageJson: PackageJson, options: FileWatcherOptions = {}) {
+  private loggingService: ILoggingService | undefined;
+
+  constructor(folderPath: string, packageJson: PackageJson, options: FileWatcherOptions = {}, loggingService?: ILoggingService | undefined) {
     this.folderPath = resolve(folderPath);
     this.cacheDir = join(this.folderPath, '.folder-mcp');
     this.debounceDelay = options.debounceDelay || options.resolvedConfig?.debounceDelay || 1000;
     this.batchSize = options.batchSize || options.resolvedConfig?.batchSize || 32;
     this.logLevel = options.logLevel || 'normal';
     this.packageJson = packageJson;
+    this.loggingService = loggingService;
     
     if (options.resolvedConfig !== undefined) {
       this.resolvedConfig = options.resolvedConfig;
@@ -90,7 +94,11 @@ export class FolderWatcher {
       .on('unlink', (path: string) => this.handleFileEvent('unlink', path))
       .on('error', (err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
-        this.log(`⚠️  Watcher error: ${error.message}`, 'normal');
+        if (this.loggingService) {
+          this.loggingService.error(`Watcher error: ${error.message}`, error);
+        } else {
+          this.log(`⚠️  Watcher error: ${error.message}`, 'normal');
+        }
       })
       .on('ready', () => {
         this.log('✅ File watcher is ready and monitoring for changes', 'normal');

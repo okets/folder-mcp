@@ -5,6 +5,7 @@ import XLSX from 'xlsx';
 import JSZip from 'jszip';
 import * as xml2js from 'xml2js';
 import { ParsedContent, TextMetadata, PDFMetadata, WordMetadata, ExcelMetadata, PowerPointMetadata } from '../types/index.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 // Lazy load pdf-parse to avoid initialization issues
 let pdfParse: any = null;
@@ -15,7 +16,7 @@ async function getPdfParse() {
   return pdfParse;
 }
 
-export async function parseTextFile(filePath: string, basePath: string): Promise<ParsedContent> {
+export async function parseTextFile(filePath: string, basePath: string, loggingService?: ILoggingService): Promise<ParsedContent> {
   try {
     // Read file with UTF-8 encoding
     const content = readFileSync(filePath, 'utf8');
@@ -46,11 +47,18 @@ export async function parseTextFile(filePath: string, basePath: string): Promise
       metadata: metadata
     };
   } catch (error) {
-    throw new Error(`Failed to parse text file ${filePath}: ${error}`);
+    // Log the error and throw a structured error
+    const errorMessage = `Failed to parse text file ${filePath}`;
+    if (loggingService) {
+      loggingService.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+    } else {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
   }
 }
 
-export async function parsePdfFile(filePath: string, basePath: string): Promise<ParsedContent> {
+export async function parsePdfFile(filePath: string, basePath: string, loggingService?: ILoggingService): Promise<ParsedContent> {
   try {
     const relativePath = relative(basePath, filePath);
     const stats = statSync(filePath);
@@ -117,7 +125,11 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
       error.message.includes('password') ||
       error.message.includes('Invalid PDF')
     )) {
-      console.warn(`    Warning: Skipping encrypted or password-protected PDF: ${relative(basePath, filePath)}`);
+      if (loggingService) {
+        loggingService.warn(`Warning: Skipping encrypted or password-protected PDF: ${relative(basePath, filePath)}`);
+      } else {
+        console.warn(`    Warning: Skipping encrypted or password-protected PDF: ${relative(basePath, filePath)}`);
+      }
       const stats = statSync(filePath);
       const errorMetadata: PDFMetadata = {
         type: 'pdf',
@@ -136,11 +148,18 @@ export async function parsePdfFile(filePath: string, basePath: string): Promise<
       };
     }
     
-    throw new Error(`Failed to parse PDF file ${filePath}: ${error.message}`);
+    // Log the error and throw a structured error
+    const errorMessage = `Failed to parse PDF file ${filePath}`;
+    if (loggingService) {
+      loggingService.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+    } else {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
   }
 }
 
-export async function parseWordFile(filePath: string, basePath: string): Promise<ParsedContent> {
+export async function parseWordFile(filePath: string, basePath: string, loggingService?: ILoggingService): Promise<ParsedContent> {
   try {
     const relativePath = relative(basePath, filePath);
     const stats = statSync(filePath);
@@ -198,7 +217,11 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
       error.message.includes('ENOENT') ||
       error.message.includes('unexpected end of file')
     )) {
-      console.warn(`    Warning: Skipping corrupted or invalid Word document: ${relative(basePath, filePath)}`);
+      if (loggingService) {
+        loggingService.warn(`Warning: Skipping corrupted or unsupported Word document: ${relative(basePath, filePath)}`);
+      } else {
+        console.warn(`    Warning: Skipping corrupted or unsupported Word document: ${relative(basePath, filePath)}`);
+      }
       const stats = statSync(filePath);
       const errorMetadata: WordMetadata = {
         type: 'docx',
@@ -206,8 +229,16 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
         size: stats.size,
         lastModified: stats.mtime.toISOString(),
         paragraphs: 0,
-        error: 'corrupted_or_invalid',
-        errorMessage: 'Word document is corrupted or invalid'
+        charCount: 0,
+        wordCount: 0,
+        htmlContent: '',
+        hasImages: false,
+        hasTables: false,
+        hasLinks: false,
+        warnings: [],
+        htmlWarnings: [],
+        error: 'corrupted_or_unsupported',
+        errorMessage: 'Word document is corrupted or unsupported'
       };
       return {
         content: '',
@@ -217,11 +248,18 @@ export async function parseWordFile(filePath: string, basePath: string): Promise
       };
     }
     
-    throw new Error(`Failed to parse Word document ${filePath}: ${error.message}`);
+    // Log the error and throw a structured error
+    const errorMessage = `Failed to parse Word file ${filePath}`;
+    if (loggingService) {
+      loggingService.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+    } else {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
   }
 }
 
-export async function parseExcelFile(filePath: string, basePath: string): Promise<ParsedContent> {
+export async function parseExcelFile(filePath: string, basePath: string, loggingService?: ILoggingService): Promise<ParsedContent> {
   try {
     const relativePath = relative(basePath, filePath);
     const stats = statSync(filePath);
@@ -243,7 +281,11 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
       const worksheet = workbook.Sheets[sheetName];
       
       if (!worksheet) {
-        console.warn(`    Warning: Sheet ${sheetName} is empty or invalid`);
+        if (loggingService) {
+          loggingService.warn(`Warning: Sheet ${sheetName} is empty or invalid`);
+        } else {
+          console.warn(`    Warning: Sheet ${sheetName} is empty or invalid`);
+        }
         return;
       }
 
@@ -333,7 +375,12 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
       error.message.includes('corrupted') ||
       error.message.includes('Invalid file')
     )) {
-      console.warn(`    Warning: Skipping protected or corrupted Excel file: ${relative(basePath, filePath)}`);
+      const errorMessage = `Warning: Skipping protected or corrupted Excel file: ${relative(basePath, filePath)}`;
+      if (loggingService) {
+        loggingService.warn(errorMessage);
+      } else {
+        console.warn(`    ${errorMessage}`);
+      }
       const stats = statSync(filePath);
       const errorMetadata: ExcelMetadata = {
         type: 'xlsx',
@@ -353,193 +400,117 @@ export async function parseExcelFile(filePath: string, basePath: string): Promis
       };
     }
     
-    throw new Error(`Failed to parse Excel file ${filePath}: ${error.message}`);
+    // Log the error and throw a structured error
+    const errorMessage = `Failed to parse Excel file ${filePath}`;
+    if (loggingService) {
+      loggingService.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+    } else {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
   }
 }
 
-export async function parsePowerPointFile(filePath: string, basePath: string): Promise<ParsedContent> {
+export async function parsePowerPointFile(filePath: string, basePath: string, loggingService?: ILoggingService): Promise<ParsedContent> {
   try {
     const relativePath = relative(basePath, filePath);
     const stats = statSync(filePath);
     
-    // Show progress for large PowerPoint files (> 5MB)
-    if (stats.size > 5 * 1024 * 1024) {
+    // Show progress for large PowerPoint files (> 1MB)
+    if (stats.size > 1024 * 1024) {
       console.log(`    Processing large PowerPoint file (${Math.round(stats.size / 1024 / 1024)}MB)...`);
     }
     
-    // Read PowerPoint file as buffer
-    const fileBuffer = readFileSync(filePath);
+    // Read PowerPoint file
+    const zip = new JSZip();
+    const content = await zip.loadAsync(readFileSync(filePath));
     
-    // Load as ZIP archive
-    const zip = await JSZip.loadAsync(fileBuffer);
-    
-    let allTextContent = '';
+    // Extract slides
     const slides: any[] = [];
-    let slideCount = 0;
+    let allTextContent = '';
     
-    // Extract presentation properties
-    let presentationProps: any = {};
-    const appPropsFile = zip.file('docProps/app.xml');
-    if (appPropsFile) {
-      try {
-        const appPropsXml = await appPropsFile.async('string');
-        const parsed = await xml2js.parseStringPromise(appPropsXml);
-        if (parsed.Properties) {
-          presentationProps = {
-            application: parsed.Properties.Application?.[0] || 'Unknown',
-            slides: parsed.Properties.Slides?.[0] || '0',
-            company: parsed.Properties.Company?.[0] || '',
-            createdDate: parsed.Properties.CreatedDate?.[0] || ''
-          };
-        }
-      } catch (error) {
-        // Ignore app props parsing errors
+    // Helper function to extract text from XML nodes
+    const extractTextFromNode = (node: any): string => {
+      let text = '';
+      if (typeof node === 'string') {
+        return node;
       }
-    }
-    
-    // Find all slide files
-    const slideFiles = Object.keys(zip.files).filter(filename => 
-      filename.startsWith('ppt/slides/slide') && filename.endsWith('.xml')
-    );
-    
-    slideCount = slideFiles.length;
-    
-    // Process each slide
-    for (let i = 0; i < slideFiles.length; i++) {
-      const slideFilename = slideFiles[i];
-      if (!slideFilename) continue;
-      
-      const slideFile = zip.file(slideFilename);
-      if (!slideFile) continue;
-      
-      try {
-        const slideXml = await slideFile.async('string');
-        const slideData: any = {
-          slideNumber: i + 1,
-          title: '',
-          content: '',
-          hasImages: false,
-          hasCharts: false,
-          hasTables: false,
-          textElements: []
-        };
-        
-        // Parse slide XML
-        const parsed = await xml2js.parseStringPromise(slideXml);
-        
-        let slideText = '';
-        
-        // Extract text from the slide
-        const extractTextFromNode = (node: any): string => {
-          let text = '';
-          if (typeof node === 'string') {
-            return node;
-          }
-          if (Array.isArray(node)) {
-            node.forEach(item => {
-              text += extractTextFromNode(item);
-            });
-          } else if (node && typeof node === 'object') {
-            // Look for text content in various Office XML structures
-            if (node['a:t']) {
-              text += extractTextFromNode(node['a:t']) + ' ';
-            }
-            if (node.t) {
-              text += extractTextFromNode(node.t) + ' ';
-            }
-            if (node._) {
-              text += node._ + ' ';
-            }
-            // Recursively search child nodes
-            Object.keys(node).forEach(key => {
-              if (key !== '$' && key !== '_') {
-                text += extractTextFromNode(node[key]);
-              }
-            });
-          }
-          return text;
-        };
-        
-        if (parsed['p:sld']) {
-          slideText = extractTextFromNode(parsed['p:sld']);
-          
-          // Detect slide elements
-          const slideXmlString = slideXml.toLowerCase();
-          slideData.hasImages = slideXmlString.includes('<p:pic') || slideXmlString.includes('<a:blip');
-          slideData.hasCharts = slideXmlString.includes('<c:chart') || slideXmlString.includes('chart');
-          slideData.hasTables = slideXmlString.includes('<a:tbl') || slideXmlString.includes('table');
+      if (Array.isArray(node)) {
+        node.forEach(item => {
+          text += extractTextFromNode(item);
+        });
+      } else if (node && typeof node === 'object') {
+        // Look for text content in various Office XML structures
+        if (node['a:t']) {
+          text += extractTextFromNode(node['a:t']) + ' ';
         }
-        
-        // Clean and structure the text
-        slideText = slideText.replace(/\s+/g, ' ').trim();
-        
-        if (slideText) {
-          // Try to identify title (usually the first significant text block)
-          const sentences = slideText.split(/[.!?]\s+/);
-          if (sentences.length > 0 && sentences[0] && sentences[0].length < 100) {
-            slideData.title = sentences[0].trim();
-            slideData.content = sentences.slice(1).join('. ').trim();
-          } else {
-            slideData.content = slideText;
-          }
-          
-          slideData.textElements.push(slideText);
-          slides.push(slideData);
-          
-          // Add to overall text content
-          allTextContent += `\n\n=== Slide ${i + 1} ===\n${slideText}`;
-        } else {
-          // Even if no text, add slide info for completeness
-          slideData.content = '[No text content]';
-          slides.push(slideData);
+        if (node.t) {
+          text += extractTextFromNode(node.t) + ' ';
         }
-        
-      } catch (error) {
-        console.warn(`    Warning: Could not parse slide ${i + 1}: ${error}`);
-        slides.push({
-          slideNumber: i + 1,
-          title: '',
-          content: '[Parse error]',
-          hasImages: false,
-          hasCharts: false,
-          hasTables: false,
-          textElements: []
+        if (node._) {
+          text += node._ + ' ';
+        }
+        // Recursively search child nodes
+        Object.keys(node).forEach(key => {
+          if (key !== '$' && key !== '_') {
+            text += extractTextFromNode(node[key]);
+          }
         });
       }
+      return text;
+    };
+    
+    // Process each slide
+    for (const [filename, file] of Object.entries(content.files)) {
+      if (filename.startsWith('ppt/slides/slide') && filename.endsWith('.xml')) {
+        try {
+          const slideContent = await file.async('text');
+          const parser = new xml2js.Parser();
+          const result = await parser.parseStringPromise(slideContent);
+          
+          // Extract text from slide
+          const slideText = extractTextFromNode(result);
+          if (slideText.trim()) {
+            allTextContent += `\n\n=== Slide ${filename.match(/\d+/)?.[0] || '?'} ===\n${slideText}`;
+          }
+          
+          // Extract slide metadata
+          const slideNumber = parseInt(filename.match(/\d+/)?.[0] || '0');
+          const hasImages = slideContent.includes('<a:blip');
+          const hasShapes = slideContent.includes('<p:sp');
+          const hasTables = slideContent.includes('<a:tbl');
+          
+          slides.push({
+            number: slideNumber,
+            text: slideText,
+            hasImages,
+            hasShapes,
+            hasTables
+          });
+        } catch (slideError) {
+          if (loggingService) {
+            loggingService.warn(`Warning: Failed to process slide ${filename}`, slideError instanceof Error ? slideError : new Error(String(slideError)));
+          } else {
+            console.warn(`    Warning: Failed to process slide ${filename}`);
+          }
+        }
+      }
     }
     
-    // Calculate summary statistics
-    const totalImages = slides.reduce((sum, slide) => sum + (slide.hasImages ? 1 : 0), 0);
-    const totalCharts = slides.reduce((sum, slide) => sum + (slide.hasCharts ? 1 : 0), 0);
-    const totalTables = slides.reduce((sum, slide) => sum + (slide.hasTables ? 1 : 0), 0);
+    // Sort slides by number
+    slides.sort((a, b) => a.number - b.number);
     
-    // Count words across all slides
-    const words = allTextContent.trim().split(/\s+/).filter(w => w.length > 0);
-
     const metadata: PowerPointMetadata = {
       type: 'pptx',
       originalPath: relativePath,
       size: stats.size,
       lastModified: stats.mtime.toISOString(),
-      slides: slideCount,
+      slides: slides.length,
+      slideCount: slides.length,
       charCount: allTextContent.length,
-      wordCount: words.length,
-      slideData: slides,
-      hasImages: totalImages > 0,
-      hasCharts: totalCharts > 0,
-      hasTables: totalTables > 0,
-      totalImages: totalImages,
-      totalCharts: totalCharts,
-      totalTables: totalTables,
-      ...(Object.keys(presentationProps).length > 0 && {
-        presentationProperties: {
-          title: presentationProps.title,
-          author: presentationProps.author,
-          subject: presentationProps.subject,
-          created: presentationProps.createdDate,
-          modified: presentationProps.modifiedDate
-        }
-      })
+      hasImages: slides.some(s => s.hasImages),
+      hasShapes: slides.some(s => s.hasShapes),
+      hasTables: slides.some(s => s.hasTables)
     };
     
     return {
@@ -553,13 +524,16 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
     if (error.message && (
       error.message.includes('password') ||
       error.message.includes('encrypted') ||
+      error.message.includes('Unsupported file') ||
       error.message.includes('corrupted') ||
-      error.message.includes('Invalid') ||
-      error.message.includes('not a valid') ||
-      error.message.includes('ZIP') ||
-      error.message.includes('End of central directory')
+      error.message.includes('Invalid file')
     )) {
-      console.warn(`    Warning: Skipping protected or corrupted PowerPoint file: ${relative(basePath, filePath)}`);
+      const errorMessage = `Warning: Skipping protected or corrupted PowerPoint file: ${relative(basePath, filePath)}`;
+      if (loggingService) {
+        loggingService.warn(errorMessage);
+      } else {
+        console.warn(`    ${errorMessage}`);
+      }
       const stats = statSync(filePath);
       const errorMetadata: PowerPointMetadata = {
         type: 'pptx',
@@ -567,6 +541,7 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
         size: stats.size,
         lastModified: stats.mtime.toISOString(),
         slides: 0,
+        slideCount: 0,
         error: 'protected_or_corrupted',
         errorMessage: 'PowerPoint file is password-protected, encrypted, or corrupted'
       };
@@ -578,6 +553,13 @@ export async function parsePowerPointFile(filePath: string, basePath: string): P
       };
     }
     
-    throw new Error(`Failed to parse PowerPoint file ${filePath}: ${error.message}`);
+    // Log the error and throw a structured error
+    const errorMessage = `Failed to parse PowerPoint file ${filePath}`;
+    if (loggingService) {
+      loggingService.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+    } else {
+      console.error(errorMessage);
+    }
+    throw new Error(errorMessage);
   }
 }

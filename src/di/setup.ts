@@ -97,31 +97,19 @@ export function setupDependencyInjection(options: {
   if (options.config && options.folderPath) {
     // Register indexing service
     container.registerSingleton(SERVICE_TOKENS.INDEXING_SERVICE, () => {
-      return new IndexingService(
-        container.resolve(SERVICE_TOKENS.CONFIGURATION),
-        container.resolve(SERVICE_TOKENS.FILE_PARSING),
-        container.resolve(SERVICE_TOKENS.CHUNKING),
-        container.resolve(SERVICE_TOKENS.EMBEDDING),
-        container.resolve(SERVICE_TOKENS.CACHE),
-        container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-        container.resolve(SERVICE_TOKENS.LOGGING),
-        container.resolve(SERVICE_TOKENS.VECTOR_SEARCH)
+      return serviceFactory.createIndexingService(
+        options.config!,
+        options.folderPath!,
+        container
       );
     });
 
     // Register MCP server
     container.registerFactory(SERVICE_TOKENS.MCP_SERVER, () => {
-      return new MCPServer(
-        {
-          folderPath: options.folderPath!,
-          resolvedConfig: options.config!
-        },
-        container.resolve(SERVICE_TOKENS.CONFIGURATION),
-        container.resolve(SERVICE_TOKENS.EMBEDDING),
-        container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
-        container.resolve(SERVICE_TOKENS.CACHE),
-        container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-        container.resolve(SERVICE_TOKENS.LOGGING)
+      return serviceFactory.createMCPServer(
+        options.config!,
+        options.folderPath!,
+        container
       );
     });
   }

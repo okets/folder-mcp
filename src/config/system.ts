@@ -13,6 +13,7 @@ import {
   getCacheMetadata,
   clearCache
 } from './cache.js';
+import type { ILoggingService } from '../di/interfaces.js';
 
 const execAsync = promisify(exec);
 
@@ -48,7 +49,7 @@ export interface SystemCapabilities {
  * Detect system capabilities with comprehensive hardware and software detection
  * This is the main function used by runtime configuration generation
  */
-export async function getSystemCapabilities(): Promise<SystemCapabilities> {
+export async function getSystemCapabilities(loggingService?: ILoggingService): Promise<SystemCapabilities> {
   const startTime = Date.now();
   
   // Basic hardware detection
@@ -59,8 +60,8 @@ export async function getSystemCapabilities(): Promise<SystemCapabilities> {
   
   // Parallel detection of software capabilities
   const [gpuInfo, ollamaInfo] = await Promise.all([
-    detectGPU(),
-    detectOllama(),
+    detectGPU(loggingService),
+    detectOllama(loggingService),
   ]);
   
   // Calculate performance tier
@@ -88,7 +89,7 @@ export async function getSystemCapabilities(): Promise<SystemCapabilities> {
  * Detect GPU availability and capabilities
  * Attempts multiple detection methods for cross-platform compatibility
  */
-async function detectGPU(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
+async function detectGPU(loggingService?: ILoggingService): Promise<{ hasGPU: boolean; memoryGB?: number }> {
   try {
     // Try multiple GPU detection methods
     const detectionMethods = [
@@ -100,19 +101,19 @@ async function detectGPU(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
     
     for (const method of detectionMethods) {
       try {
-        const result = await method();
+        const result = await method(loggingService);
         if (result.hasGPU) {
           return result;
         }
       } catch (error) {
-        // Continue to next method
+        loggingService?.error('GPU detection method failed', error instanceof Error ? error : new Error(String(error)));
         continue;
       }
     }
     
     return { hasGPU: false };
   } catch (error) {
-    // Fallback: assume no GPU
+    loggingService?.error('GPU detection failed', error instanceof Error ? error : new Error(String(error)));
     return { hasGPU: false };
   }
 }
@@ -120,7 +121,7 @@ async function detectGPU(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
 /**
  * Windows GPU detection using wmic
  */
-async function detectGPUWindows(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
+async function detectGPUWindows(loggingService?: ILoggingService): Promise<{ hasGPU: boolean; memoryGB?: number }> {
   if (platform() !== 'win32') {
     return { hasGPU: false };
   }
@@ -157,6 +158,7 @@ async function detectGPUWindows(): Promise<{ hasGPU: boolean; memoryGB?: number 
       ...(maxMemoryGB > 0 && { memoryGB: maxMemoryGB }),
     };
   } catch (error) {
+    loggingService?.error('Windows GPU detection failed', error instanceof Error ? error : new Error(String(error)));
     return { hasGPU: false };
   }
 }
@@ -164,7 +166,7 @@ async function detectGPUWindows(): Promise<{ hasGPU: boolean; memoryGB?: number 
 /**
  * Linux GPU detection using lspci and nvidia-smi
  */
-async function detectGPULinux(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
+async function detectGPULinux(loggingService?: ILoggingService): Promise<{ hasGPU: boolean; memoryGB?: number }> {
   if (platform() !== 'linux') {
     return { hasGPU: false };
   }
@@ -190,11 +192,13 @@ async function detectGPULinux(): Promise<{ hasGPU: boolean; memoryGB?: number }>
         };
       }
     } catch (error) {
+      loggingService?.error('nvidia-smi not available', error instanceof Error ? error : new Error(String(error)));
       // nvidia-smi not available, but we know there's a discrete GPU
     }
     
     return { hasGPU: true };
   } catch (error) {
+    loggingService?.error('Linux GPU detection failed', error instanceof Error ? error : new Error(String(error)));
     return { hasGPU: false };
   }
 }
@@ -202,31 +206,20 @@ async function detectGPULinux(): Promise<{ hasGPU: boolean; memoryGB?: number }>
 /**
  * macOS GPU detection using system_profiler
  */
-async function detectGPUMacOS(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
+async function detectGPUMacOS(loggingService?: ILoggingService): Promise<{ hasGPU: boolean; memoryGB?: number }> {
   if (platform() !== 'darwin') {
     return { hasGPU: false };
   }
   
   try {
     const { stdout } = await execAsync('system_profiler SPDisplaysDataType');
-    const hasDiscreteGPU = stdout.includes('AMD') || stdout.includes('NVIDIA');
+    const hasDiscreteGPU = stdout.toLowerCase().includes('nvidia') || 
+                          stdout.toLowerCase().includes('amd') ||
+                          stdout.toLowerCase().includes('radeon');
     
-    // Try to extract GPU memory
-    const memoryMatch = stdout.match(/VRAM \(Total\):\s*(\d+)\s*MB/);
-    let memoryGB: number | undefined;
-    
-    if (memoryMatch && memoryMatch[1]) {
-      const memoryMB = parseInt(memoryMatch[1]);
-      if (!isNaN(memoryMB)) {
-        memoryGB = Math.round((memoryMB / 1024) * 10) / 10;
-      }
-    }
-    
-    return {
-      hasGPU: hasDiscreteGPU,
-      ...(memoryGB !== undefined && { memoryGB }),
-    };
+    return { hasGPU: hasDiscreteGPU };
   } catch (error) {
+    loggingService?.error('macOS GPU detection failed', error instanceof Error ? error : new Error(String(error)));
     return { hasGPU: false };
   }
 }
@@ -234,44 +227,52 @@ async function detectGPUMacOS(): Promise<{ hasGPU: boolean; memoryGB?: number }>
 /**
  * Generic GPU detection fallback
  */
-async function detectGPUGeneric(): Promise<{ hasGPU: boolean; memoryGB?: number }> {
-  // Simple heuristic: systems with >8GB RAM and >4 CPU cores likely have discrete GPU
-  const totalMemoryGB = Math.round((totalmem() / (1024 * 1024 * 1024)) * 10) / 10;
-  const cpuCores = cpus().length;
-  
-  const likelyHasGPU = totalMemoryGB >= 8 && cpuCores >= 4;
-  
-  return { hasGPU: likelyHasGPU };
+async function detectGPUGeneric(loggingService?: ILoggingService): Promise<{ hasGPU: boolean; memoryGB?: number }> {
+  try {
+    const { stdout } = await execAsync('nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits');
+    const memoryMB = parseInt(stdout.trim());
+    if (!isNaN(memoryMB)) {
+      return {
+        hasGPU: true,
+        memoryGB: Math.round((memoryMB / 1024) * 10) / 10,
+      };
+    }
+    return { hasGPU: true };
+  } catch (error) {
+    loggingService?.error('Generic GPU detection failed', error instanceof Error ? error : new Error(String(error)));
+    return { hasGPU: false };
+  }
 }
 
 /**
  * Detect Ollama installation and available models
  */
-async function detectOllama(): Promise<{
+async function detectOllama(loggingService?: ILoggingService): Promise<{
   available: boolean;
   version?: string;
   models: string[];
 }> {
   try {
-    // Check if Ollama is available by pinging the API
-    const { stdout: versionOutput } = await execAsync('ollama --version', { timeout: 5000 });
-    const version = versionOutput.trim();
+    const { stdout } = await execAsync('ollama list');
+    const models = parseOllamaModels(stdout);
     
-    // Try to get the list of available models
-    let models: string[] = [];
     try {
-      const { stdout: modelsOutput } = await execAsync('ollama list', { timeout: 10000 });
-      models = parseOllamaModels(modelsOutput);
+      const { stdout: versionOutput } = await execAsync('ollama --version');
+      const version = versionOutput.trim();
+      return {
+        available: true,
+        version,
+        models,
+      };
     } catch (error) {
-      // Models list not available, but Ollama is installed
+      loggingService?.error('Failed to get Ollama version', error instanceof Error ? error : new Error(String(error)));
+      return {
+        available: true,
+        models,
+      };
     }
-    
-    return {
-      available: true,
-      version,
-      models,
-    };
   } catch (error) {
+    loggingService?.error('Ollama detection failed', error instanceof Error ? error : new Error(String(error)));
     return {
       available: false,
       models: [],
@@ -381,6 +382,7 @@ export async function quickSystemCheck(): Promise<{
     await execAsync('ollama --version', { timeout: 2000 });
     ollamaRunning = true;
   } catch (error) {
+    console.warn('Ollama not available:', error instanceof Error ? error.message : String(error));
     ollamaRunning = false;
   }
   
@@ -401,7 +403,8 @@ export async function saveSystemProfile(capabilities: SystemCapabilities): Promi
     writeToCache(CACHE_KEYS.SYSTEM_PROFILE, capabilities, cacheOptions);
     console.log('💾 System profile saved to cache');
   } catch (error) {
-    console.warn('⚠️ Failed to save system profile to cache:', error);
+    console.error('Failed to save system profile to cache:', error instanceof Error ? error.message : String(error));
+    throw error; // Re-throw to allow caller to handle
   }
 }
 
@@ -434,7 +437,7 @@ export async function loadSystemProfile(): Promise<SystemCapabilities | null> {
     console.log('📂 No cached system profile found');
     return null;
   } catch (error) {
-    console.warn('⚠️ Failed to load system profile from cache:', error);
+    console.error('Failed to load system profile from cache:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -464,7 +467,7 @@ export function shouldRefreshSystemProfile(): boolean {
     
     return false;
   } catch (error) {
-    console.warn('⚠️ Error checking system profile refresh:', error);
+    console.error('Error checking system profile refresh:', error instanceof Error ? error.message : String(error));
     return true; // Refresh on error
   }
 }
@@ -473,22 +476,27 @@ export function shouldRefreshSystemProfile(): boolean {
  * Get system capabilities with caching
  */
 export async function getSystemCapabilitiesWithCache(forceRefresh: boolean = false): Promise<SystemCapabilities> {
-  // Check if we should use cached profile
-  if (!forceRefresh && !shouldRefreshSystemProfile()) {
-    const cachedProfile = await loadSystemProfile();
-    if (cachedProfile) {
-      return cachedProfile;
+  try {
+    // Check if we should use cached profile
+    if (!forceRefresh && !shouldRefreshSystemProfile()) {
+      const cachedProfile = await loadSystemProfile();
+      if (cachedProfile) {
+        return cachedProfile;
+      }
     }
+    
+    // Generate fresh system capabilities
+    console.log('🔍 Detecting system capabilities...');
+    const capabilities = await getSystemCapabilities();
+    
+    // Save to cache
+    await saveSystemProfile(capabilities);
+    
+    return capabilities;
+  } catch (error) {
+    console.error('Failed to get system capabilities:', error instanceof Error ? error.message : String(error));
+    throw error; // Re-throw to allow caller to handle
   }
-  
-  // Generate fresh system capabilities
-  console.log('🔍 Detecting system capabilities...');
-  const capabilities = await getSystemCapabilities();
-  
-  // Save to cache
-  await saveSystemProfile(capabilities);
-  
-  return capabilities;
 }
 
 /**
@@ -502,7 +510,7 @@ export function clearSystemProfileCache(): boolean {
     }
     return cleared;
   } catch (error) {
-    console.warn('⚠️ Failed to clear system profile cache:', error);
+    console.error('Failed to clear system profile cache:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }

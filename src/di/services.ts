@@ -93,6 +93,9 @@ export class ConfigurationService implements IConfigurationService {
         }
         
         return errors;
+      }).catch(error => {
+        this.loggingService.error('Failed to validate configuration', error instanceof Error ? error : new Error(String(error)));
+        return ['Configuration validation failed: ' + (error instanceof Error ? error.message : 'Unknown error')];
       });
       
       // For now, return empty array - proper async validation should be implemented
@@ -534,9 +537,18 @@ export class FileSystemService implements IFileSystemService {
   }
 
   async watchFolder(folderPath: string, callback: (event: string, filePath: string) => void): Promise<void> {
-    // Implementation would use file watcher
-    this.loggingService.debug('Starting folder watch', { folderPath });
-    // ... implementation
+    try {
+      const { watch } = await import('fs/promises');
+      const watcher = await watch(folderPath, { recursive: true });
+      for await (const event of watcher) {
+        if (event.filename) {
+          callback(event.eventType, event.filename);
+        }
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to watch folder', error instanceof Error ? error : new Error(String(error)), { folderPath });
+      throw error;
+    }
   }
 }
 
@@ -554,21 +566,18 @@ export class VectorSearchService implements IVectorSearchService {
   ) {}
 
   async buildIndex(embeddings: EmbeddingVector[], metadata: any[]): Promise<void> {
-    this.loggingService.debug('Building vector index', { embeddingCount: embeddings.length });
-    
     try {
-      // Use the existing VectorIndex class
       const { VectorIndex } = await import('../search/index.js');
       this.vectorIndex = new VectorIndex(this.cacheDir);
       
-      // Note: The existing VectorIndex expects to build from embedding files
-      // This is a simplified approach - in practice we'd need to save embeddings first
-      this.isIndexReady = true;
+      // Save embeddings to files first
+      for (let i = 0; i < embeddings.length; i++) {
+        await this.vectorIndex.saveEmbedding(embeddings[i], metadata[i]);
+      }
       
-      this.loggingService.info('Vector index built successfully', {
-        embeddingCount: embeddings.length,
-        dimensions: Array.isArray(embeddings[0]) ? embeddings[0].length : 0
-      });
+      // Build the index
+      await this.vectorIndex.buildIndex();
+      this.isIndexReady = true;
     } catch (error) {
       this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
       throw error;
@@ -576,40 +585,34 @@ export class VectorSearchService implements IVectorSearchService {
   }
 
   async loadIndex(indexPath: string): Promise<void> {
-    this.loggingService.debug('Loading vector index', { indexPath });
-    
     try {
       const { VectorIndex } = await import('../search/index.js');
       this.vectorIndex = new VectorIndex(indexPath);
       const loaded = await this.vectorIndex.loadIndex();
       this.isIndexReady = loaded;
-      
-      this.loggingService.info('Vector index loaded successfully', { indexPath, loaded });
     } catch (error) {
-      this.loggingService.error('Failed to load vector index', error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error('Failed to load vector index', error instanceof Error ? error : new Error(String(error)), { indexPath });
       throw error;
     }
   }
 
   async search(queryVector: EmbeddingVector, topK = 5, threshold = 0.0): Promise<any[]> {
     if (!this.isIndexReady) {
-      throw new Error('Vector index not ready. Please build or load index first.');
+      throw new Error('Vector index not ready');
     }
-
-    this.loggingService.debug('Performing vector search', { topK, threshold });
     
     try {
       const results = await this.vectorIndex.search(queryVector, topK);
       
-      // Filter by threshold if needed
-      const filteredResults = threshold > 0 
-        ? results.filter((result: any) => result.score >= threshold)
-        : results;
-      
-      this.loggingService.debug('Vector search completed', { resultCount: filteredResults.length });
-      return filteredResults;
+      return results
+        .filter((result: { score: number }) => result.score >= threshold)
+        .map((result: { content: string; metadata: any; score: number }) => ({
+          content: result.content,
+          metadata: result.metadata,
+          score: result.score
+        }));
     } catch (error) {
-      this.loggingService.error('Vector search failed', error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error('Failed to search vector index', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }
@@ -633,8 +636,13 @@ export class ErrorRecoveryService implements IErrorRecoveryService {
 
   private async getErrorManager() {
     if (!this.errorManager) {
-      const { ErrorRecoveryManager } = await import('../utils/errorRecovery.js');
-      this.errorManager = new ErrorRecoveryManager(this.cacheDir);
+      try {
+        const { ErrorRecoveryManager } = await import('../utils/errorRecovery.js');
+        this.errorManager = new ErrorRecoveryManager(this.cacheDir);
+      } catch (error) {
+        this.loggingService.error('Failed to initialize error manager', error instanceof Error ? error : new Error(String(error)));
+        throw error;
+      }
     }
     return this.errorManager;
   }
@@ -644,19 +652,25 @@ export class ErrorRecoveryService implements IErrorRecoveryService {
     operation: () => Promise<T>,
     maxRetries = 3
   ): Promise<T> {
-    const errorManager = await this.getErrorManager();
+    let lastError: Error | null = null;
     
-    this.loggingService.debug('Executing operation with retry', { operationId, maxRetries });
-    
-    try {
-      const result = await errorManager.executeWithRetry(operationId, operation, maxRetries);
-      
-      this.loggingService.debug('Operation completed successfully', { operationId });
-      return result;
-    } catch (error) {
-      this.loggingService.error('Operation failed after retries', error instanceof Error ? error : new Error(String(error)), { operationId, maxRetries });
-      throw error;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        this.logError(operationId, lastError, { attempt, maxRetries });
+        
+        if (attempt === maxRetries) {
+          break;
+        }
+        
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
     }
+    
+    throw lastError;
   }
 
   logError(operationId: string, error: Error, context?: any): void {
@@ -682,49 +696,44 @@ export class EnhancedCacheService implements ICacheService {
   ) {}
 
   async setupCacheDirectory(): Promise<void> {
-    const { setupCacheDirectory } = await import('../cache/index.js');
-    await setupCacheDirectory(this.folderPath, { version: '1.0.0' });
+    try {
+      if (!existsSync(this.folderPath)) {
+        mkdirSync(this.folderPath, { recursive: true });
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to setup cache directory', error instanceof Error ? error : new Error(String(error)), { folderPath: this.folderPath });
+      throw error;
+    }
   }
 
   async saveToCache<T>(key: string, data: T, cacheType: 'metadata' | 'embeddings' | 'vectors'): Promise<void> {
-    const cacheDir = join(this.folderPath, '.folder-mcp');
-    const typeDir = join(cacheDir, cacheType);
-    const filePath = join(typeDir, `${key}.json`);
-    
     try {
-      // Ensure directory exists
-      if (!existsSync(typeDir)) {
-        mkdirSync(typeDir, { recursive: true });
+      const cachePath = join(this.folderPath, `${cacheType}`, `${key}.json`);
+      const cacheDir = join(this.folderPath, cacheType);
+      
+      if (!existsSync(cacheDir)) {
+        mkdirSync(cacheDir, { recursive: true });
       }
       
-      // Use atomic file operations
-      const { AtomicFileOperations } = await import('../utils/errorRecovery.js');
-      await AtomicFileOperations.writeFileAtomic(filePath, JSON.stringify(data, null, 2));
-      
-      this.loggingService.debug('Data saved to cache', { key, cacheType, filePath });
+      writeFileSync(cachePath, JSON.stringify(data, null, 2));
     } catch (error) {
-      this.loggingService.error('Failed to save to cache', error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error('Failed to save to cache', error instanceof Error ? error : new Error(String(error)), { key, cacheType });
       throw error;
     }
   }
 
   async loadFromCache<T>(key: string, cacheType: 'metadata' | 'embeddings' | 'vectors'): Promise<T | null> {
-    const cacheDir = join(this.folderPath, '.folder-mcp');
-    const typeDir = join(cacheDir, cacheType);
-    const filePath = join(typeDir, `${key}.json`);
-    
     try {
-      if (!this.hasCacheEntry(key, cacheType)) {
+      const cachePath = join(this.folderPath, `${cacheType}`, `${key}.json`);
+      
+      if (!existsSync(cachePath)) {
         return null;
       }
       
-      const content = readFileSync(filePath, 'utf8');
-      const data = JSON.parse(content) as T;
-      
-      this.loggingService.debug('Data loaded from cache', { key, cacheType, filePath });
-      return data;
+      const data = readFileSync(cachePath, 'utf-8');
+      return JSON.parse(data) as T;
     } catch (error) {
-      this.loggingService.error('Failed to load from cache', error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error('Failed to load from cache', error instanceof Error ? error : new Error(String(error)), { key, cacheType });
       return null;
     }
   }
