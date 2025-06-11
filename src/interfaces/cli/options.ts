@@ -4,7 +4,19 @@
  * Handles parsing and validation of CLI options.
  */
 
-import { CLIOption, CLICommandOptions } from './index.js';
+// Inline types since they are no longer exported from index.ts
+export interface CLIOption {
+  name: string;
+  alias?: string;
+  description: string;
+  type: 'string' | 'number' | 'boolean' | 'array';
+  required?: boolean;
+  default?: any;
+}
+
+export interface CLICommandOptions {
+  [key: string]: any;
+}
 
 export interface ParsedCLIOptions {
   [key: string]: any;

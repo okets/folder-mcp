@@ -279,6 +279,8 @@ export interface IIncrementalIndexing {
  * Orchestrates content serving operations
  */
 export interface IContentServingWorkflow {
+  startServer(folder: string, options: { port: number; host: string }): Promise<void>;
+  stopServer(): Promise<void>;
   getFileContent(filePath: string): Promise<any>;
   searchKnowledge(query: string, options?: any): Promise<any>;
   getFileList(pattern?: string): Promise<any>;

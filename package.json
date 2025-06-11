@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "folder-mcp": "dist/cli.js"
+    "folder-mcp": "dist/interfaces/cli/index.js"
   },
   "scripts": {
     "build": "tsc",

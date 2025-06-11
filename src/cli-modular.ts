@@ -21,15 +21,8 @@ async function main() {
     const packageJsonPath = join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
 
-    // Determine CLI mode based on command line arguments
-    const args = process.argv;
-    const useDI = CLIEntry.shouldUseDI(args);
-    const useModular = CLIEntry.shouldUseModularInterface(args);
-
     // Run CLI with appropriate configuration
-    await CLIEntry.run(args, {
-      useDI,
-      useModularInterface: useModular,
+    await CLIEntry.run(process.argv, {
       packageJson
     });
 

@@ -6,13 +6,36 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestUtils } from '../../helpers/test-utils.js';
-import type {
-  CLIProgram,
-  CLICommand,
-  CLIOption,
-  CLICommandOptions,
-  CLIContext
-} from '../../../src/interfaces/cli/index.js';
+import type { CLIProgram } from '../../../src/interfaces/cli/index.js';
+import { getContainer } from '../../../src/di/container.js';
+import { MODULE_TOKENS } from '../../../src/di/index.js';
+
+// Inline CLI types since they are no longer exported from CLI index
+interface CLIOption {
+  name: string;
+  alias?: string;
+  description: string;
+  type: 'string' | 'number' | 'boolean' | 'array';
+  required?: boolean;
+  default?: any;
+}
+
+interface CLICommandOptions {
+  [key: string]: any;
+}
+
+interface CLICommand {
+  name: string;
+  description: string;
+  options: CLIOption[];
+  execute: (options: CLICommandOptions) => Promise<void>;
+}
+
+interface CLIContext {
+  workingDirectory: string;
+  verbosity: string;
+  outputFormat: string;
+}
 
 describe('Interface Layer - CLI', () => {
   let tempDir: string;
@@ -123,62 +146,10 @@ describe('Interface Layer - CLI', () => {
     });
   });
 
-  describe('CLIProgram Interface', () => {
-    it('should define proper CLI program contract', () => {
-      const mockProgram: CLIProgram = {
-        addCommand: (command: CLICommand): void => {},
-        execute: async (args: string[]): Promise<void> => {},
-        getCommands: (): CLICommand[] => []
-      };
-
-      expect(mockProgram.addCommand).toBeDefined();
-      expect(mockProgram.execute).toBeDefined();
-      expect(mockProgram.getCommands).toBeDefined();
-    });
-
-    it('should manage command registry properly', () => {
-      const commands: CLICommand[] = [];
-      
-      const mockProgram: Partial<CLIProgram> = {
-        addCommand: (command: CLICommand): void => {
-          commands.push(command);
-        },
-        
-        getCommands: (): CLICommand[] => {
-          return commands;
-        }
-      };
-
-      const indexCommand: CLICommand = {
-        name: 'index',
-        description: 'Index files',
-        options: [],
-        execute: async (): Promise<void> => {}
-      };
-
-      const searchCommand: CLICommand = {
-        name: 'search',
-        description: 'Search content',
-        options: [],
-        execute: async (): Promise<void> => {}
-      };
-
-      // Add commands
-      mockProgram.addCommand?.(indexCommand);
-      mockProgram.addCommand?.(searchCommand);
-
-      const registeredCommands = mockProgram.getCommands?.();
-      expect(registeredCommands).toHaveLength(2);
-      expect(registeredCommands?.[0].name).toBe('index');
-      expect(registeredCommands?.[1].name).toBe('search');
-    });
-  });
-
   describe('CLI Context', () => {
     it('should handle CLI context properly', () => {
       const context: CLIContext = {
         workingDirectory: '/project/root',
-        configPath: '/etc/folder-mcp/config.yaml',
         verbosity: 'normal',
         outputFormat: 'json'
       };
@@ -316,6 +287,46 @@ describe('Interface Layer - CLI', () => {
       version: '1.0.0'
     };
 
+    let mockIndexingWorkflow: any;
+    let mockServingWorkflow: any;
+    let mockMonitoringWorkflow: any;
+    let mockKnowledgeOperations: any;
+
+    beforeEach(() => {
+      mockIndexingWorkflow = {
+        indexFolder: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+        indexFiles: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+        getIndexingStatus: () => Promise.resolve({ isRunning: false, progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 } }),
+        resumeIndexing: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} })
+      };
+      mockServingWorkflow = {
+        getFileContent: () => Promise.resolve({ success: true, content: 'test' }),
+        searchKnowledge: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+        getFileList: () => Promise.resolve({ success: true, files: [] }),
+        getServerStatus: () => Promise.resolve({ running: true, uptime: 1000 })
+      };
+      mockMonitoringWorkflow = {
+        startFileWatching: () => Promise.resolve({ success: true, watcherId: 'test' }),
+        stopFileWatching: () => Promise.resolve(),
+        getWatchingStatus: () => Promise.resolve({ isWatching: false, watchedPaths: [] }),
+        getSystemHealth: () => Promise.resolve({ healthy: true, metrics: {} })
+      };
+      mockKnowledgeOperations = {
+        semanticSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+        enhancedSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {}, groupedResults: {}, suggestions: [], relatedQueries: [] }),
+        getRelatedContent: () => Promise.resolve({ success: true, relatedContent: [] })
+      };
+      // Register mocks in DI container
+      getContainer().register(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW, mockIndexingWorkflow);
+      getContainer().register(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW, mockServingWorkflow);
+      getContainer().register(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW, mockMonitoringWorkflow);
+      getContainer().register(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS, mockKnowledgeOperations);
+    });
+
+    afterEach(() => {
+      getContainer().clear();
+    });
+
     it('should create CLI program with application services', async () => {
       // Mock application services
       const mockIndexingWorkflow = {
@@ -348,7 +359,7 @@ describe('Interface Layer - CLI', () => {
       // Create CLI using factory
       const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
       
-      const cli = CLIFactory.create({
+      const cli = await CLIFactory.createWithDI({
         indexingWorkflow: mockIndexingWorkflow,
         servingWorkflow: mockServingWorkflow,
         monitoringWorkflow: mockMonitoringWorkflow,
@@ -357,10 +368,10 @@ describe('Interface Layer - CLI', () => {
       });
 
       expect(cli).toBeDefined();
-      expect(cli.getCommands).toBeDefined();
+      expect(cli.commands).toBeDefined();
       
-      const commands = cli.getCommands();
-      expect(commands).toHaveLength(5); // index, serve, embeddings, search, watch
+      const commands = cli.commands.filter(cmd => cmd.name() !== 'help');
+      expect(commands).toHaveLength(6); // config, index, serve, embed, search, watch
     });
 
     it('should register commands with correct structure', async () => {
@@ -392,13 +403,14 @@ describe('Interface Layer - CLI', () => {
       };
 
       const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
-      const cli = CLIFactory.create(mockServices);
-      const commands = cli.getCommands();
-      const commandNames = commands.map(cmd => cmd.name);
+      const cli = await CLIFactory.createWithDI(mockServices);
+      const commands = cli.commands;
+      const commandNames = commands.map(cmd => cmd.name());
 
+      expect(commandNames).toContain('config');
       expect(commandNames).toContain('index');
       expect(commandNames).toContain('serve');
-      expect(commandNames).toContain('embeddings');
+      expect(commandNames).toContain('embed');
       expect(commandNames).toContain('search');
       expect(commandNames).toContain('watch');
     });
@@ -432,18 +444,18 @@ describe('Interface Layer - CLI', () => {
       };
 
       const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
-      const cli = CLIFactory.create(mockServices);
-      const commands = cli.getCommands();
+      const cli = await CLIFactory.createWithDI(mockServices);
+      const commands = cli.commands;
       
-      const indexCommand = commands.find(cmd => cmd.name === 'index');
+      const indexCommand = commands.find(cmd => cmd.name() === 'index');
       expect(indexCommand).toBeDefined();
-      expect(indexCommand?.options.some(opt => opt.name === 'chunk-size' && opt.type === 'number')).toBe(true);
-      expect(indexCommand?.options.some(opt => opt.name === 'show-config' && opt.type === 'boolean')).toBe(true);
+      expect(indexCommand?.options.some(opt => opt.name() === 'chunk-size')).toBe(true);
+      expect(indexCommand?.options.some(opt => opt.name() === 'show-config')).toBe(true);
 
-      const serveCommand = commands.find(cmd => cmd.name === 'serve');
+      const serveCommand = commands.find(cmd => cmd.name() === 'serve');
       expect(serveCommand).toBeDefined();
-      expect(serveCommand?.options.some(opt => opt.name === 'port' && opt.alias === 'p')).toBe(true);
-      expect(serveCommand?.options.some(opt => opt.name === 'transport' && opt.alias === 't')).toBe(true);
+      expect(serveCommand?.options.some(opt => opt.name() === 'port' && opt.flags.includes('-p'))).toBe(true);
+      expect(serveCommand?.options.some(opt => opt.name() === 'transport' && opt.flags.includes('-t'))).toBe(true);
     });
 
     it('should handle CLI context management', async () => {
@@ -475,7 +487,7 @@ describe('Interface Layer - CLI', () => {
       };
 
       const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
-      const cli = CLIFactory.create(mockServices);
+      const cli = await CLIFactory.createWithDI(mockServices);
       
       const initialContext = cli.getContext();
       expect(initialContext.workingDirectory).toBe(process.cwd());
@@ -492,15 +504,6 @@ describe('Interface Layer - CLI', () => {
       expect(updatedContext.verbosity).toBe('verbose');
       expect(updatedContext.outputFormat).toBe('json');
       expect(updatedContext.workingDirectory).toBe(initialContext.workingDirectory);
-    });
-
-    it('should support legacy compatibility mode', async () => {
-      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
-      const program = await CLIFactory.createWithLegacySupport(mockPackageJson);
-      
-      expect(program).toBeDefined();
-      expect(program.name()).toBe('folder-mcp');
-      expect(program.version()).toBe('1.0.0');
     });
   });
 });
