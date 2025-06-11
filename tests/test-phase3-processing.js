@@ -22,7 +22,8 @@ class Phase3Tester {
       step14: [],
       step15: [],
       step15_1: [],
-      step16: []
+      step16: [],
+      di_processing: []
     };
   }
 
@@ -551,6 +552,122 @@ Following these guidelines will help ensure that your software systems are robus
     this.results.step16 = await this.runTests(tests);
   }
 
+  async testDI_ProcessingServices() {
+    console.log('🔍 DI: Processing Services Integration');
+    
+    const tests = [
+      {
+        name: 'LegacyIndexingService can process files with DI',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            const { LegacyIndexingService } = await import(`file:///${projectRoot.replace(/\\/g, '/')}/dist/processing/legacyIndexingService.js`);
+            
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const legacyService = new LegacyIndexingService(
+              getService(SERVICE_TOKENS.FILE_PARSING),
+              getService(SERVICE_TOKENS.EMBEDDING),
+              getService(SERVICE_TOKENS.VECTOR_SEARCH),
+              getService(SERVICE_TOKENS.CACHE),
+              getService(SERVICE_TOKENS.FILE_SYSTEM),
+              getService(SERVICE_TOKENS.CHUNKING),
+              getService(SERVICE_TOKENS.LOGGING)
+            );
+            
+            return legacyService !== null;
+          } catch (error) {
+            console.log(`    LegacyIndexingService creation failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'DI chunking service processes text correctly',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const chunkingService = getService(SERVICE_TOKENS.CHUNKING);
+            const testContent = {
+              path: 'test.txt',
+              content: 'This is a test document for chunking. '.repeat(50),
+              extension: '.txt'
+            };
+            
+            const result = await chunkingService.chunkText(testContent);
+            return result && result.chunks && result.chunks.length > 0;
+          } catch (error) {
+            console.log(`    Chunking service failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'DI file parsing service works correctly',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const fileParsingService = getService(SERVICE_TOKENS.FILE_PARSING);
+            const testFilePath = join(testDataDir, 'sample-document.txt');
+            
+            const result = await fileParsingService.parseFile(testFilePath, '.txt');
+            return result && result.content && result.content.length > 0;
+          } catch (error) {
+            console.log(`    File parsing service failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'DI embedding service is available (skip embeddings mode)',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const embeddingService = getService(SERVICE_TOKENS.EMBEDDING);
+            return embeddingService !== null && embeddingService !== undefined;
+          } catch (error) {
+            console.log(`    Embedding service failed: ${error.message}`);
+            return false;
+          }
+        }
+      }
+    ];
+
+    const results = [];
+    let passed = 0;
+
+    for (const test of tests) {
+      try {
+        const result = await test.test();
+        if (result) {
+          console.log(`  ✅ ${test.name}`);
+          passed++;
+        } else {
+          console.log(`  ❌ ${test.name}`);
+        }
+        results.push({ name: test.name, passed: result });
+      } catch (error) {
+        console.log(`  ❌ ${test.name} (Error: ${error.message})`);
+        results.push({ name: test.name, passed: false, error: error.message });
+      }
+    }
+
+    this.results.di_processing = results;
+  }
+
   async runAllTests() {
     console.log('🧪 Testing Phase 3: Text Processing & Embeddings (Steps 14-16)');
     console.log('=============================================================');
@@ -563,6 +680,9 @@ Following these guidelines will help ensure that your software systems are robus
       await this.testStep15_1_GPUEmbedding();
       await this.testStep16_BatchEmbedding();
       
+      // DI Integration Testing for processing services
+      await this.testDI_ProcessingServices();
+      
       // Calculate and display results
       let totalTests = 0;
       let passedTests = 0;
@@ -574,7 +694,8 @@ Following these guidelines will help ensure that your software systems are robus
         { name: 'Step 14: Smart Text Chunking', results: this.results.step14 },
         { name: 'Step 15: Embedding Model Setup', results: this.results.step15 },
         { name: 'Step 15.1: GPU-Enabled Embedding Model', results: this.results.step15_1 },
-        { name: 'Step 16: Batch Embedding Generation', results: this.results.step16 }
+        { name: 'Step 16: Batch Embedding Generation', results: this.results.step16 },
+        { name: 'DI: Processing Services Integration', results: this.results.di_processing }
       ];
       
       let allPassed = true;

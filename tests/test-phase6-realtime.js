@@ -21,7 +21,8 @@ class Phase6Tester {
   constructor() {
     this.results = {
       step23: { passed: false, tests: [] },
-      step24: { passed: false, tests: [] }
+      step24: { passed: false, tests: [] },
+      di_watcher: { passed: false, tests: [] }
     };
   }
 
@@ -34,6 +35,9 @@ class Phase6Tester {
       
       await this.testStep23_FileWatcherIntegration();
       await this.testStep24_ConfigurationSystem();
+
+      // DI Integration Testing for file watcher
+      await this.testDI_FileWatcher();
 
       this.printResults();
       
@@ -394,6 +398,105 @@ class Phase6Tester {
     console.log(`\n📊 Step 24 Results: ${passed}/${tests.length} tests passed\n`);
   }
 
+  async testDI_FileWatcher() {
+    console.log('🔍 DI: File Watcher Integration with Dependency Injection');
+    
+    const tests = [
+      {
+        name: 'DI-enabled watcher module can be imported',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/watch/diEnabledWatcher.js`;
+            await import(fileUrl);
+            return true;
+          } catch (error) {
+            console.log(`    Import failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'CLI watch command supports --use-di flag',
+        test: () => {
+          try {
+            const output = execSync(`node dist/cli.js watch --help`, { 
+              cwd: projectRoot, 
+              encoding: 'utf8',
+              timeout: 10000
+            });
+            return output.includes('--use-di');
+          } catch (error) {
+            if (error.stdout && error.stdout.includes('--use-di')) {
+              return true;
+            }
+            console.log(`    CLI help failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'DI-enabled watcher can be instantiated',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const diWatcherUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/watch/diEnabledWatcher.js`;
+            const { DIEnabledFolderWatcher } = await import(diWatcherUrl);
+            
+            const watcher = new DIEnabledFolderWatcher(
+              testDataDir,
+              { name: 'test', version: '1.0.0' },
+              { debounceMs: 100, skipEmbeddings: true },
+              getService(SERVICE_TOKENS.FILE_PARSING),
+              getService(SERVICE_TOKENS.CHUNKING),
+              getService(SERVICE_TOKENS.EMBEDDING),
+              getService(SERVICE_TOKENS.VECTOR_SEARCH),
+              getService(SERVICE_TOKENS.CACHE),
+              getService(SERVICE_TOKENS.FILE_SYSTEM),
+              getService(SERVICE_TOKENS.LOGGING)
+            );
+            
+            return watcher !== null && watcher !== undefined;
+          } catch (error) {
+            console.log(`    DI watcher instantiation failed: ${error.message}`);
+            return false;
+          }
+        }
+      }
+    ];
+
+    // Run async tests properly
+    const results = [];
+    let passed = 0;
+
+    for (const test of tests) {
+      try {
+        const result = await test.test();
+        if (result) {
+          console.log(`  ✅ ${test.name}`);
+          passed++;
+        } else {
+          console.log(`  ❌ ${test.name}`);
+        }
+        results.push({ name: test.name, passed: result });
+      } catch (error) {
+        console.log(`  ❌ ${test.name} (Error: ${error.message})`);
+        results.push({ name: test.name, passed: false, error: error.message });
+      }
+    }
+
+    this.results.di_watcher = {
+      passed: passed === tests.length,
+      passedCount: passed,
+      totalCount: tests.length,
+      tests: results
+    };
+    
+    console.log(`\n📊 DI Watcher Results: ${passed}/${tests.length} tests passed\n`);
+  }
+
   async testConfigurationFileSupport() {
     const testName = 'Configuration file (.folder-mcp.yaml) support';
     try {
@@ -595,18 +698,28 @@ class Phase6Tester {
       console.log(`  ${status} ${test.name}${test.error ? ` - ${test.error}` : ''}`);
     });
 
+    // DI Watcher Results
+    console.log('\n🔧 DI: File Watcher Integration');
+    const diStatus = this.results.di_watcher.passed ? '✅ COMPLETED' : '❌ NEEDS WORK';
+    console.log(`Status: ${diStatus}`);
+    this.results.di_watcher.tests.forEach(test => {
+      const status = test.passed ? '✅' : '❌';
+      console.log(`  ${status} ${test.name}${test.error ? ` - ${test.error}` : ''}`);
+    });
+
     console.log('\n' + '='.repeat(60));
     const totalSteps = Object.keys(this.results).length;
-    const completedSteps = (this.results.step23.passed ? 1 : 0) + (this.results.step24.passed ? 1 : 0);
+    const completedSteps = (this.results.step23.passed ? 1 : 0) + (this.results.step24.passed ? 1 : 0) + (this.results.di_watcher.passed ? 1 : 0);
     console.log(`📊 Overall: ${completedSteps}/${totalSteps} steps completed`);
     console.log(`🎯 Step 23 (File Watcher): ${this.results.step23.passed ? 'COMPLETED ✅' : 'NEEDS WORK ❌'}`);
     console.log(`🎯 Step 24 (Configuration): ${this.results.step24.passed ? 'COMPLETED ✅' : 'NEEDS WORK ❌'}`);
+    console.log(`🎯 DI Watcher Integration: ${this.results.di_watcher.passed ? 'COMPLETED ✅' : 'NEEDS WORK ❌'}`);
     console.log('='.repeat(60));
   }
 
   allTestsPassed() {
-    // Both Step 23 and Step 24 should pass now
-    return this.results.step23.passed && this.results.step24.passed;
+    // Both Step 23, Step 24, and DI Watcher should pass now
+    return this.results.step23.passed && this.results.step24.passed && this.results.di_watcher.passed;
   }
 
   async cleanup() {

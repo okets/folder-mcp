@@ -16,8 +16,7 @@ const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..');
 const testDataDir = join(__dirname, 'test-data-phase1');
 
-class Phase1Tester {
-  constructor() {
+class Phase1Tester {  constructor() {
     this.results = {
       step1: { passed: false, tests: [] },
       step2: { passed: false, tests: [] },
@@ -26,7 +25,8 @@ class Phase1Tester {
       step5: { passed: false, tests: [] },
       step6: { passed: false, tests: [] },
       step7: { passed: false, tests: [] },
-      step8: { passed: false, tests: [] }
+      step8: { passed: false, tests: [] },
+      di_container: { passed: false, tests: [] }
     };
   }
 
@@ -36,8 +36,7 @@ class Phase1Tester {
 
     try {
       await this.setupTestEnvironment();
-      
-      await this.testStep1_Initialize();
+        await this.testStep1_Initialize();
       await this.testStep2_CLIExecutable();
       await this.testStep3_CommanderCLI();
       await this.testStep4_RecursiveFileListing();
@@ -45,6 +44,9 @@ class Phase1Tester {
       await this.testStep6_CacheDirectorySetup();
       await this.testStep7_FileFingerprinting();
       await this.testStep8_CacheStatusDetection();
+
+      // DI Integration Testing (part of foundation)
+      await this.testDI_ContainerSetup();
 
       this.printResults();
       
@@ -514,9 +516,105 @@ class Phase1Tester {
           }
         }
       }
+    ];    this.results.step8 = await this.runTests(tests);
+  }
+
+  async testDI_ContainerSetup() {
+    console.log('🔍 DI: Dependency Injection Container Setup');
+    
+    const tests = [
+      {        name: 'DI module can be imported',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            await import(fileUrl);
+            return true;
+          } catch (error) {
+            console.log(`    Import failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {        name: 'DI container can be setup for indexing',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing } = await import(fileUrl);
+            const container = await setupForIndexing(testDataDir, { 
+              verbose: false,
+              skipEmbeddings: true 
+            });
+            return container !== null && container !== undefined;
+          } catch (error) {
+            console.log(`    Container setup failed: ${error.message}`);
+            return false;
+          }
+        }      },
+      {
+        name: 'DI services can be resolved',
+        test: async () => {
+          try {
+            const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
+            const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
+            await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
+            
+            const loggingService = getService(SERVICE_TOKENS.LOGGING);
+            const configService = getService(SERVICE_TOKENS.CONFIGURATION);
+            const fileSystemService = getService(SERVICE_TOKENS.FILE_SYSTEM);
+            
+            return loggingService && configService && fileSystemService;
+          } catch (error) {
+            console.log(`    Service resolution failed: ${error.message}`);
+            return false;
+          }
+        }
+      },
+      {
+        name: 'CLI supports --use-di flag',
+        test: () => {
+          try {
+            const output = execSync(`node dist/cli.js index --help`, { 
+              cwd: projectRoot, 
+              encoding: 'utf8',
+              timeout: 10000
+            });
+            return output.includes('--use-di');
+          } catch (error) {
+            if (error.stdout && error.stdout.includes('--use-di')) {
+              return true;
+            }
+            return false;
+          }
+        }
+      }
     ];
 
-    this.results.step8 = await this.runTests(tests);
+    // Run async tests properly
+    const results = [];
+    let passed = 0;
+
+    for (const test of tests) {
+      try {
+        const result = await test.test();
+        if (result) {
+          console.log(`  ✅ ${test.name}`);
+          passed++;
+        } else {
+          console.log(`  ❌ ${test.name}`);
+        }
+        results.push({ name: test.name, passed: result });
+      } catch (error) {
+        console.log(`  ❌ ${test.name} (Error: ${error.message})`);
+        results.push({ name: test.name, passed: false, error: error.message });
+      }
+    }
+
+    this.results.di_container = {
+      passed: passed === tests.length,
+      passedCount: passed,
+      totalCount: tests.length,
+      tests: results
+    };
   }
 
   async runTests(tests) {
@@ -553,10 +651,10 @@ class Phase1Tester {
     
     let totalPassed = 0;
     let totalTests = 0;
-    
-    for (const [step, result] of Object.entries(this.results)) {
+      for (const [step, result] of Object.entries(this.results)) {
       const status = result.passed ? '✅' : '❌';
-      console.log(`${status} Step ${step.replace('step', '')}: ${this.getStepName(step)}: ${result.passedCount}/${result.totalCount} tests passed`);
+      const stepLabel = step.startsWith('step') ? `Step ${step.replace('step', '')}` : step.replace('_', ' ').toUpperCase();
+      console.log(`${status} ${stepLabel}: ${this.getStepName(step)}: ${result.passedCount}/${result.totalCount} tests passed`);
       totalPassed += result.passedCount || 0;
       totalTests += result.totalCount || 0;
     }
@@ -574,13 +672,13 @@ class Phase1Tester {
   getStepName(step) {
     const names = {
       step1: 'Initialize TypeScript Project',
-      step2: 'Create CLI Executable', 
-      step3: 'Implement Commander.js CLI',
+      step2: 'Create CLI Executable',      step3: 'Implement Commander.js CLI',
       step4: 'Recursive File Listing',
       step5: 'File Type Filtering',
       step6: 'Cache Directory Setup',
       step7: 'File Fingerprinting System',
-      step8: 'Cache Status Detection'
+      step8: 'Cache Status Detection',
+      di_container: 'DI Container Setup'
     };
     return names[step] || step;
   }

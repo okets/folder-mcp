@@ -74,7 +74,7 @@ export function setupCommands(program: Command, packageJson: any): void {
       // Use DI if requested and available
       if (options.useDi) {
         try {
-          console.log('📦 Setting up dependency injection for indexing...');
+          console.log('📦 Setting up dependency injection...');
           
           // Dynamic import to avoid loading DI if not needed
           const { setupForIndexing, getService, SERVICE_TOKENS } = await import('../di/index.js');
@@ -82,26 +82,8 @@ export function setupCommands(program: Command, packageJson: any): void {
           // Setup DI container
           await setupForIndexing(folder, cliArgs);
           
-          // Try to get the new IndexingService first, fallback to legacy
-          let indexingService;
-          try {
-            indexingService = getService(SERVICE_TOKENS.INDEXING_SERVICE) as any;
-          } catch {
-            // If IndexingService not available, use LegacyIndexingService
-            const { LegacyIndexingService } = await import('../processing/legacyIndexingService.js');
-            const container = await import('../di/container.js').then(m => m.getContainer());
-            
-            // Create legacy service with DI
-            indexingService = new LegacyIndexingService(
-              getService(SERVICE_TOKENS.FILE_PARSING),
-              getService(SERVICE_TOKENS.EMBEDDING),
-              getService(SERVICE_TOKENS.VECTOR_SEARCH),
-              getService(SERVICE_TOKENS.CACHE),
-              getService(SERVICE_TOKENS.FILE_SYSTEM),
-              getService(SERVICE_TOKENS.CHUNKING),
-              getService(SERVICE_TOKENS.LOGGING)
-            );
-          }
+          // Get indexing service from DI container
+          const indexingService = getService(SERVICE_TOKENS.INDEXING_SERVICE) as any;
           
           console.log('✅ Using dependency injection for indexing');
           await indexingService.indexFolder(folder, packageJson, { 
@@ -344,7 +326,6 @@ export function setupCommands(program: Command, packageJson: any): void {
     .option('--ignore <patterns>', 'Override ignore patterns (comma-separated)')
     .option('--max-operations <num>', 'Override max concurrent operations', parseInt)
     .option('--show-config', 'Show resolved configuration before starting')
-    .option('--use-di', 'Use dependency injection (experimental)')
     .action(async (folder: string, options: any) => {
       const cliArgs = parseCliArgs(options);
       const config = resolveConfig(folder, cliArgs);
@@ -362,78 +343,25 @@ export function setupCommands(program: Command, packageJson: any): void {
         displayConfigSummary(config, false);
       }
       
+      const { startWatching, setupGracefulShutdown } = await import('../watch/index.js');
+      
       let logLevel: 'verbose' | 'normal' | 'quiet' = 'normal';
       if (options.verbose) logLevel = 'verbose';
       if (options.quiet) logLevel = 'quiet';
 
-      // Use DI if requested and available
-      if (options.useDi) {
-        try {
-          console.log('📦 Setting up dependency injection for file watching...');
-          
-          // Dynamic import to avoid loading DI if not needed
-          const { setupForIndexing, getService, SERVICE_TOKENS } = await import('../di/index.js');
-          
-          // Setup DI container
-          await setupForIndexing(folder, cliArgs);
-          
-          const { startDIWatching, setupDIGracefulShutdown } = await import('../watch/diEnabledWatcher.js');
-          
-          console.log('✅ Using dependency injection for file watching');
-          
-          const watcher = await startDIWatching(folder, packageJson, {
-            debounceDelay: config.debounceDelay,
-            batchSize: config.batchSize,
-            logLevel,
-            resolvedConfig: config
-          },
-          // DI Services
-          getService(SERVICE_TOKENS.FILE_PARSING),
-          getService(SERVICE_TOKENS.CHUNKING),
-          getService(SERVICE_TOKENS.EMBEDDING),
-          getService(SERVICE_TOKENS.CACHE),
-          getService(SERVICE_TOKENS.LOGGING),
-          getService(SERVICE_TOKENS.FILE_SYSTEM)
-          );
+      try {
+        const watcher = await startWatching(folder, packageJson, {
+          debounceDelay: config.debounceDelay,
+          batchSize: config.batchSize,
+          logLevel,
+          resolvedConfig: config
+        });
 
-          setupDIGracefulShutdown(watcher);
-          await new Promise(() => {}); // Run indefinitely until interrupted
-          
-        } catch (error) {
-          console.warn('⚠️ Dependency injection failed, falling back to legacy mode:', 
-            error instanceof Error ? error.message : 'Unknown error');
-          
-          // Fallback to legacy implementation
-          const { startWatching, setupGracefulShutdown } = await import('../watch/index.js');
-          
-          const watcher = await startWatching(folder, packageJson, {
-            debounceDelay: config.debounceDelay,
-            batchSize: config.batchSize,
-            logLevel,
-            resolvedConfig: config
-          });
-
-          setupGracefulShutdown(watcher);
-          await new Promise(() => {}); // Run indefinitely until interrupted
-        }
-      } else {
-        // Use legacy implementation by default
-        const { startWatching, setupGracefulShutdown } = await import('../watch/index.js');
-        
-        try {
-          const watcher = await startWatching(folder, packageJson, {
-            debounceDelay: config.debounceDelay,
-            batchSize: config.batchSize,
-            logLevel,
-            resolvedConfig: config
-          });
-
-          setupGracefulShutdown(watcher);
-          await new Promise(() => {}); // Run indefinitely until interrupted
-        } catch (error) {
-          console.error('❌ Failed to start file watcher:', error);
-          process.exit(1);
-        }
+        setupGracefulShutdown(watcher);
+        await new Promise(() => {}); // Run indefinitely until interrupted
+      } catch (error) {
+        console.error('❌ Failed to start file watcher:', error);
+        process.exit(1);
       }
     });
 }
