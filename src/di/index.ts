@@ -23,7 +23,7 @@ export type {
   ServiceToken
 } from './interfaces.js';
 
-export { SERVICE_TOKENS } from './interfaces.js';
+export { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 
 // Service implementations
 export {

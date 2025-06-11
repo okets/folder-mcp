@@ -309,4 +309,198 @@ describe('Interface Layer - CLI', () => {
       });
     });
   });
+
+  describe('Modular CLI Interface', () => {
+    const mockPackageJson = {
+      name: 'folder-mcp',
+      version: '1.0.0'
+    };
+
+    it('should create CLI program with application services', async () => {
+      // Mock application services
+      const mockIndexingWorkflow = {
+        indexFolder: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+        indexFiles: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+        getIndexingStatus: () => Promise.resolve({ isRunning: false, progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 } }),
+        resumeIndexing: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} })
+      };
+
+      const mockServingWorkflow = {
+        getFileContent: () => Promise.resolve({ success: true, content: 'test' }),
+        searchKnowledge: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+        getFileList: () => Promise.resolve({ success: true, files: [] }),
+        getServerStatus: () => Promise.resolve({ running: true, uptime: 1000 })
+      };
+
+      const mockMonitoringWorkflow = {
+        startFileWatching: () => Promise.resolve({ success: true, watcherId: 'test' }),
+        stopFileWatching: () => Promise.resolve(),
+        getWatchingStatus: () => Promise.resolve({ isWatching: false, watchedPaths: [] }),
+        getSystemHealth: () => Promise.resolve({ healthy: true, metrics: {} })
+      };
+
+      const mockKnowledgeOperations = {
+        semanticSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+        enhancedSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {}, groupedResults: {}, suggestions: [], relatedQueries: [] }),
+        getRelatedContent: () => Promise.resolve({ success: true, relatedContent: [] })
+      };
+
+      // Create CLI using factory
+      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
+      
+      const cli = CLIFactory.create({
+        indexingWorkflow: mockIndexingWorkflow,
+        servingWorkflow: mockServingWorkflow,
+        monitoringWorkflow: mockMonitoringWorkflow,
+        knowledgeOperations: mockKnowledgeOperations,
+        packageJson: mockPackageJson
+      });
+
+      expect(cli).toBeDefined();
+      expect(cli.getCommands).toBeDefined();
+      
+      const commands = cli.getCommands();
+      expect(commands).toHaveLength(5); // index, serve, embeddings, search, watch
+    });
+
+    it('should register commands with correct structure', async () => {
+      const mockServices = {
+        indexingWorkflow: {
+          indexFolder: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          indexFiles: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          getIndexingStatus: () => Promise.resolve({ isRunning: false, progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 } }),
+          resumeIndexing: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} })
+        },
+        servingWorkflow: {
+          getFileContent: () => Promise.resolve({ success: true, content: 'test' }),
+          searchKnowledge: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          getFileList: () => Promise.resolve({ success: true, files: [] }),
+          getServerStatus: () => Promise.resolve({ running: true, uptime: 1000 })
+        },
+        monitoringWorkflow: {
+          startFileWatching: () => Promise.resolve({ success: true, watcherId: 'test' }),
+          stopFileWatching: () => Promise.resolve(),
+          getWatchingStatus: () => Promise.resolve({ isWatching: false, watchedPaths: [] }),
+          getSystemHealth: () => Promise.resolve({ healthy: true, metrics: {} })
+        },
+        knowledgeOperations: {
+          semanticSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          enhancedSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {}, groupedResults: {}, suggestions: [], relatedQueries: [] }),
+          getRelatedContent: () => Promise.resolve({ success: true, relatedContent: [] })
+        },
+        packageJson: mockPackageJson
+      };
+
+      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
+      const cli = CLIFactory.create(mockServices);
+      const commands = cli.getCommands();
+      const commandNames = commands.map(cmd => cmd.name);
+
+      expect(commandNames).toContain('index');
+      expect(commandNames).toContain('serve');
+      expect(commandNames).toContain('embeddings');
+      expect(commandNames).toContain('search');
+      expect(commandNames).toContain('watch');
+    });
+
+    it('should validate command options properly', async () => {
+      const mockServices = {
+        indexingWorkflow: {
+          indexFolder: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          indexFiles: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          getIndexingStatus: () => Promise.resolve({ isRunning: false, progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 } }),
+          resumeIndexing: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} })
+        },
+        servingWorkflow: {
+          getFileContent: () => Promise.resolve({ success: true, content: 'test' }),
+          searchKnowledge: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          getFileList: () => Promise.resolve({ success: true, files: [] }),
+          getServerStatus: () => Promise.resolve({ running: true, uptime: 1000 })
+        },
+        monitoringWorkflow: {
+          startFileWatching: () => Promise.resolve({ success: true, watcherId: 'test' }),
+          stopFileWatching: () => Promise.resolve(),
+          getWatchingStatus: () => Promise.resolve({ isWatching: false, watchedPaths: [] }),
+          getSystemHealth: () => Promise.resolve({ healthy: true, metrics: {} })
+        },
+        knowledgeOperations: {
+          semanticSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          enhancedSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {}, groupedResults: {}, suggestions: [], relatedQueries: [] }),
+          getRelatedContent: () => Promise.resolve({ success: true, relatedContent: [] })
+        },
+        packageJson: mockPackageJson
+      };
+
+      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
+      const cli = CLIFactory.create(mockServices);
+      const commands = cli.getCommands();
+      
+      const indexCommand = commands.find(cmd => cmd.name === 'index');
+      expect(indexCommand).toBeDefined();
+      expect(indexCommand?.options.some(opt => opt.name === 'chunk-size' && opt.type === 'number')).toBe(true);
+      expect(indexCommand?.options.some(opt => opt.name === 'show-config' && opt.type === 'boolean')).toBe(true);
+
+      const serveCommand = commands.find(cmd => cmd.name === 'serve');
+      expect(serveCommand).toBeDefined();
+      expect(serveCommand?.options.some(opt => opt.name === 'port' && opt.alias === 'p')).toBe(true);
+      expect(serveCommand?.options.some(opt => opt.name === 'transport' && opt.alias === 't')).toBe(true);
+    });
+
+    it('should handle CLI context management', async () => {
+      const mockServices = {
+        indexingWorkflow: {
+          indexFolder: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          indexFiles: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} }),
+          getIndexingStatus: () => Promise.resolve({ isRunning: false, progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 } }),
+          resumeIndexing: () => Promise.resolve({ success: true, filesProcessed: 0, chunksGenerated: 0, embeddingsCreated: 0, processingTime: 0, errors: [], statistics: {} })
+        },
+        servingWorkflow: {
+          getFileContent: () => Promise.resolve({ success: true, content: 'test' }),
+          searchKnowledge: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          getFileList: () => Promise.resolve({ success: true, files: [] }),
+          getServerStatus: () => Promise.resolve({ running: true, uptime: 1000 })
+        },
+        monitoringWorkflow: {
+          startFileWatching: () => Promise.resolve({ success: true, watcherId: 'test' }),
+          stopFileWatching: () => Promise.resolve(),
+          getWatchingStatus: () => Promise.resolve({ isWatching: false, watchedPaths: [] }),
+          getSystemHealth: () => Promise.resolve({ healthy: true, metrics: {} })
+        },
+        knowledgeOperations: {
+          semanticSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {} }),
+          enhancedSearch: () => Promise.resolve({ success: true, results: [], totalResults: 0, processingTime: 0, query: '', options: {}, groupedResults: {}, suggestions: [], relatedQueries: [] }),
+          getRelatedContent: () => Promise.resolve({ success: true, relatedContent: [] })
+        },
+        packageJson: mockPackageJson
+      };
+
+      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
+      const cli = CLIFactory.create(mockServices);
+      
+      const initialContext = cli.getContext();
+      expect(initialContext.workingDirectory).toBe(process.cwd());
+      expect(initialContext.verbosity).toBe('normal');
+      expect(initialContext.outputFormat).toBe('text');
+
+      // Update context
+      cli.updateContext({
+        verbosity: 'verbose',
+        outputFormat: 'json'
+      });
+
+      const updatedContext = cli.getContext();
+      expect(updatedContext.verbosity).toBe('verbose');
+      expect(updatedContext.outputFormat).toBe('json');
+      expect(updatedContext.workingDirectory).toBe(initialContext.workingDirectory);
+    });
+
+    it('should support legacy compatibility mode', async () => {
+      const { CLIFactory } = await import('../../../src/interfaces/cli/index.js');
+      const program = await CLIFactory.createWithLegacySupport(mockPackageJson);
+      
+      expect(program).toBeDefined();
+      expect(program.name()).toBe('folder-mcp');
+      expect(program.version()).toBe('1.0.0');
+    });
+  });
 });

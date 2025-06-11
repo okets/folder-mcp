@@ -39,8 +39,17 @@ export interface CLIContext {
   outputFormat: 'text' | 'json' | 'table';
 }
 
-// Interface implementations (to be migrated/created)
-// export { FolderMCPCLI } from './program.js';
-// export { ServeCommand } from './commands/serve.js';
-// export { EmbedCommand } from './commands/embed.js';
-// export { SearchCommand } from './commands/search.js';
+// Interface implementations
+export { FolderMCPCLI } from './program.js';
+export { CLIOptionsParser } from './options.js';
+export { CLIFactory } from './factory.js';
+export { CLIEntry, executeCliProgram } from './entry.js';
+
+// Commands
+export { 
+  IndexCommand, 
+  ServeCommand, 
+  EmbeddingsCommand, 
+  SearchCommand, 
+  WatchCommand 
+} from './commands/commands.js';
