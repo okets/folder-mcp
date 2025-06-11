@@ -65,13 +65,26 @@ describe('Architectural Pattern Compliance', () => {
 
   describe('Command Pattern', () => {
     it('should use command pattern for CLI operations', () => {
-      const cliPath = path.join(projectRoot, 'src/cli');
+      const cliPath = path.join(projectRoot, 'src/interfaces/cli');
       expect(fs.existsSync(cliPath)).toBe(true);
       
-      const commandsPath = path.join(cliPath, 'commands.ts');
-      if (fs.existsSync(commandsPath)) {
-        const content = fs.readFileSync(commandsPath, 'utf-8');
-        expect(content).toContain('command');
+      const commandsPath = path.join(cliPath, 'commands');
+      expect(fs.existsSync(commandsPath)).toBe(true);
+      
+      // Check for command files
+      const commandFiles = fs.readdirSync(commandsPath);
+      expect(commandFiles.length).toBeGreaterThan(0);
+      
+      // Only check files that look like command implementations
+      for (const file of commandFiles) {
+        if (
+          file.endsWith('Command.ts') &&
+          !file.endsWith('.d.ts')
+        ) {
+          const content = fs.readFileSync(path.join(commandsPath, file), 'utf-8');
+          expect(content).toMatch(/class \w+Command/);
+          expect(content).toMatch(/execute\(/);
+        }
       }
     });
   });

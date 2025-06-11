@@ -425,6 +425,7 @@ export interface IDependencyContainer {
  * Service tokens for dependency injection
  */
 export const SERVICE_TOKENS = {
+  // Infrastructure Layer
   CONFIGURATION: Symbol('ConfigurationService'),
   FILE_PARSING: Symbol('FileParsingService'),
   CHUNKING: Symbol('ChunkingService'),
@@ -435,8 +436,13 @@ export const SERVICE_TOKENS = {
   ERROR_RECOVERY: Symbol('ErrorRecoveryService'),
   LOGGING: Symbol('LoggingService'),
   SERVICE_FACTORY: Symbol('ServiceFactory'),
-  INDEXING_SERVICE: Symbol('IndexingService'),
-  MCP_SERVER: Symbol('MCPServer'),
+  
+  // Application Layer
+  INDEXING_WORKFLOW: Symbol('IndexingWorkflow'),
+  CONTENT_SERVING_WORKFLOW: Symbol('ContentServingWorkflow'),
+  MONITORING_WORKFLOW: Symbol('MonitoringWorkflow'),
+  
+  // Interface Layer
   UNIFIED_MCP_SERVER: Symbol('UnifiedMCPServer'),
 } as const;
 

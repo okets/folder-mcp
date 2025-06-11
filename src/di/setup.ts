@@ -9,7 +9,7 @@ import { DependencyContainer, getContainer } from './container.js';
 import { ServiceFactory } from './factory.js';
 import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 import { ResolvedConfig } from '../config/resolver.js';
-import { IndexingService } from '../processing/indexingService.js';
+import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
 
 /**
@@ -127,13 +127,19 @@ export function setupDependencyInjection(options: {
 
   // Register high-level services
   if (options.config && options.folderPath) {
-    // Register indexing service
-    container.registerSingleton(SERVICE_TOKENS.INDEXING_SERVICE, () => {
-      return serviceFactory.createIndexingService(
-        options.config!,
-        options.folderPath!,
-        container
-      );
+    // Register indexing workflow
+    container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, () => {
+      return serviceFactory.createIndexingOrchestrator(container);
+    });
+
+    // Register content serving workflow
+    container.registerSingleton(SERVICE_TOKENS.CONTENT_SERVING_WORKFLOW, () => {
+      return serviceFactory.createContentServingOrchestrator(container);
+    });
+
+    // Register monitoring workflow
+    container.registerSingleton(SERVICE_TOKENS.MONITORING_WORKFLOW, () => {
+      return serviceFactory.createMonitoringOrchestrator(container);
     });
 
     // Register Unified MCP server

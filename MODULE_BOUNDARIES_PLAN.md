@@ -467,6 +467,48 @@ export class MCPServer {
 - Delete `src/cli/commandsRefactored.ts` (merge into unified CLI)
 - Consolidate legacy vs DI implementations
 
+#### 5.4 Complete Legacy Code Removal
+**Goal**: Eliminate all legacy implementations for clean, maintainable codebase
+
+Since this is a pre-production tool with a sole developer, remove all legacy code to avoid maintenance overhead:
+
+**Legacy Directories to Delete**:
+```bash
+# Remove entire legacy modules
+Remove-Item -Recurse -Force src\processing\
+Remove-Item -Recurse -Force src\search\
+Remove-Item -Recurse -Force src\watch\
+Remove-Item -Recurse -Force src\embeddings\
+Remove-Item -Recurse -Force src\parsers\
+Remove-Item -Recurse -Force src\cache\
+Remove-Item -Recurse -Force src\cli\
+
+# Remove legacy utility files
+Remove-Item -Force src\utils\errorRecovery.ts
+Remove-Item -Force src\utils\fingerprint.ts
+```
+
+**Rationale**:
+- ✅ **Single Source of Truth**: Eliminate confusion about which implementation to use
+- ✅ **Reduced Complexity**: Remove duplicate code paths and maintenance burden
+- ✅ **Clean Architecture**: Pure modular structure without legacy cruft
+- ✅ **Future-Proof**: New features only need to consider modular architecture
+
+**Migration Status**:
+- ✅ Processing logic → `src/application/indexing/` & `src/domain/content/`
+- ✅ Search logic → `src/application/serving/` & `src/domain/search/`
+- ✅ Watch logic → `src/application/monitoring/`
+- ✅ Embedding logic → `src/domain/embeddings/`
+- ✅ Parser logic → `src/domain/files/`
+- ✅ Cache logic → `src/infrastructure/cache/`
+- ✅ Error recovery → `src/infrastructure/errors/`
+
+**Post-Removal Actions**:
+1. Update any remaining imports to use new modular paths
+2. Remove legacy service registrations from DI container
+3. Update tests to use new module structure
+4. Validate no broken references remain
+
 ### Phase 6: Validation & Testing (Week 6)
 **Goal**: Ensure architectural integrity
 

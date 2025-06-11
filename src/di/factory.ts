@@ -32,7 +32,7 @@ import {
 import { ResolvedConfig } from '../config/resolver.js';
 import { DependencyContainer } from './container.js';
 import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
-import { IndexingService } from '../processing/indexingService.js';
+import { IndexingOrchestrator } from '../application/indexing/index.js';
 
 /**
  * Default service factory implementation
@@ -98,27 +98,18 @@ export class ServiceFactory implements IServiceFactory {
     config: ResolvedConfig,
     folderPath: string,
     container: DependencyContainer
-  ): IndexingService {
-    return new IndexingService(
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(SERVICE_TOKENS.FILE_PARSING),
-      container.resolve(SERVICE_TOKENS.CHUNKING),
-      container.resolve(SERVICE_TOKENS.EMBEDDING),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-      container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH)
-    );
+  ): IndexingOrchestrator {
+    return this.createIndexingOrchestrator(container);
   }
 
   createUnifiedMCPServer(
-    options: any, // UnifiedMCPServerOptions
+    options: any,
     container: DependencyContainer
   ): any {
     const { UnifiedMCPServer } = require('../interfaces/mcp/server.js');
     
     // Get application services
-    const contentServing = container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
+    const contentServing = container.resolve(SERVICE_TOKENS.CONTENT_SERVING_WORKFLOW);
     const knowledgeOps = container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
     
@@ -182,14 +173,11 @@ export class ServiceFactory implements IServiceFactory {
 
   createMonitoringOrchestrator(container: DependencyContainer): any {
     const { MonitoringOrchestrator } = require('../application/monitoring/orchestrator.js');
-    const incrementalIndexer = this.createIncrementalIndexer(container);
-    
     return new MonitoringOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      incrementalIndexer
+      container.resolve(SERVICE_TOKENS.CONFIGURATION)
     );
   }
 
