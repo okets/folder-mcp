@@ -10,7 +10,6 @@ import { ServiceFactory } from './factory.js';
 import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 import { ResolvedConfig } from '../config/resolver.js';
 import { IndexingService } from '../processing/indexingService.js';
-import { MCPServer } from '../mcp/mcpServer.js';
 import { join } from 'path';
 
 /**
@@ -137,13 +136,14 @@ export function setupDependencyInjection(options: {
       );
     });
 
-    // Register MCP server
-    container.registerFactory(SERVICE_TOKENS.MCP_SERVER, () => {
-      return serviceFactory.createMCPServer(
-        options.config!,
-        options.folderPath!,
-        container
-      );
+    // Register Unified MCP server
+    container.registerFactory(SERVICE_TOKENS.UNIFIED_MCP_SERVER, () => {
+      return serviceFactory.createUnifiedMCPServer({
+        folderPath: options.folderPath!,
+        transport: 'stdio',
+        name: 'folder-mcp',
+        version: '1.0.0'
+      }, container);
     });
   }
 

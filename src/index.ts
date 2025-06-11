@@ -1,239 +1,78 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ToolSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname, extname, resolve, relative } from 'path';
+/**
+ * Main Entry Point for folder-mcp
+ * 
+ * This entry point uses the unified MCP server implementation with proper
+ * dependency injection and modular architecture.
+ */
+
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { glob } from 'glob';
 
-// Server info
-const server = new Server(
-  {
-    name: 'folder-mcp',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-// Helper function to get file content
-function getFileContent(filePath: string): string {
-  try {
-    return readFileSync(filePath, 'utf8');
-  } catch (error) {
-    console.error('Error reading file:', error instanceof Error ? error : new Error(String(error)), { filePath });
-    throw error;
-  }
-}
-
-// Helper function to search files by pattern
-async function searchFiles(folderPath: string, pattern: string = '*'): Promise<string[]> {
-  try {
-    const searchPattern = join(folderPath, '**', pattern);
-    const files = await glob(searchPattern, { 
-      ignore: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**'],
-      nodir: true 
-    });
-    return files;
-  } catch (error) {
-    console.error('Error searching files:', error instanceof Error ? error : new Error(String(error)), { folderPath, pattern });
-    throw error;
-  }
-}
-
-// Helper function to read metadata
-function getMetadata(folderPath: string): any {
-  try {
-    const metadataPath = join(folderPath, '.folder-mcp', 'metadata', 'index.json');
-    if (existsSync(metadataPath)) {
-      return JSON.parse(readFileSync(metadataPath, 'utf8'));
-    }
-  } catch (error) {
-    console.error('Error reading metadata:', error instanceof Error ? error : new Error(String(error)), { folderPath });
-  }
-  return null;
-}
-
-// List available tools
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: [
-      {
-        name: 'read_file',
-        description: 'Read the contents of a file from the indexed folder',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            folder_path: {
-              type: 'string',
-              description: 'Path to the indexed folder',
-            },
-            file_path: {
-              type: 'string',
-              description: 'Relative path to the file within the folder',
-            },
-          },
-          required: ['folder_path', 'file_path'],
-        },
-      },
-      {
-        name: 'search_files',
-        description: 'Search for files in the indexed folder by name pattern',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            folder_path: {
-              type: 'string',
-              description: 'Path to the indexed folder',
-            },
-            pattern: {
-              type: 'string',
-              description: 'File pattern to search for (e.g., "*.md", "*.txt")',
-              default: '*',
-            },
-          },
-          required: ['folder_path'],
-        },
-      },
-      {
-        name: 'list_files',
-        description: 'List all files in the indexed folder',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            folder_path: {
-              type: 'string',
-              description: 'Path to the indexed folder',
-            },
-          },
-          required: ['folder_path'],
-        },
-      },
-      {
-        name: 'get_folder_info',
-        description: 'Get information about the indexed folder including metadata',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            folder_path: {
-              type: 'string',
-              description: 'Path to the indexed folder',
-            },
-          },
-          required: ['folder_path'],
-        },
-      },
-    ],
-  };
-});
-
-// Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    switch (name) {
-      case 'read_file': {
-        const { folder_path, file_path } = args as { folder_path: string; file_path: string };
-        const fullPath = resolve(folder_path, file_path);
-        
-        // Security check: ensure the file is within the folder
-        const relativePath = relative(folder_path, fullPath);
-        if (relativePath.startsWith('..')) {
-          throw new Error('Access denied: File is outside the indexed folder');
-        }
-        
-        const content = getFileContent(fullPath);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `File: ${file_path}\n\n${content}`,
-            },
-          ],
-        };
-      }
-
-      case 'search_files': {
-        const { folder_path, pattern = '*' } = args as { folder_path: string; pattern?: string };
-        const files = await searchFiles(folder_path, pattern);
-        const relativeFiles = files.map(f => relative(folder_path, f));
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Found ${files.length} files matching pattern "${pattern}":\n\n${relativeFiles.join('\n')}`,
-            },
-          ],
-        };
-      }
-
-      case 'list_files': {
-        const { folder_path } = args as { folder_path: string };
-        const files = await searchFiles(folder_path, '*');
-        const relativeFiles = files.map(f => relative(folder_path, f));
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `All files in folder (${files.length} total):\n\n${relativeFiles.join('\n')}`,
-            },
-          ],
-        };
-      }
-
-      case 'get_folder_info': {
-        const { folder_path } = args as { folder_path: string };
-        const metadata = getMetadata(folder_path);
-        const files = await searchFiles(folder_path, '*');
-        
-        let info = `Folder: ${folder_path}\n`;
-        info += `Total files: ${files.length}\n`;
-        
-        if (metadata) {
-          info += `\nMetadata:\n${JSON.stringify(metadata, null, 2)}`;
-        }
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: info,
-            },
-          ],
-        };
-      }
-
-      default:
-        throw new Error(`Unknown tool: ${name}`);
-    }
-  } catch (error) {
-    console.error('Error handling tool call:', error instanceof Error ? error : new Error(String(error)), { tool: name, args });
-    throw error;
-  }
-});
-
-// Start the server
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('Folder MCP Server running on stdio');
+  try {
+    // Check if folder path is provided as argument
+    const folderPath = process.argv[2];
+    if (!folderPath) {
+      console.error('Usage: folder-mcp <folder-path>');
+      console.error('');
+      console.error('Example: folder-mcp ./my-folder');
+      process.exit(1);
+    }
+
+    // Import the unified MCP server and DI system
+    const { setupDependencyInjection } = await import('./di/setup.js');
+    const { getContainer } = await import('./di/container.js');
+    const { SERVICE_TOKENS } = await import('./di/interfaces.js');
+    const { resolveConfig } = await import('./config/resolver.js');
+
+    // Resolve configuration
+    const config = resolveConfig(folderPath, {});
+
+    // Setup dependency injection
+    const container = setupDependencyInjection({
+      config,
+      folderPath,
+      logLevel: 'info'
+    });
+
+    // Get the unified MCP server
+    const unifiedMCPServer = container.resolve(SERVICE_TOKENS.UNIFIED_MCP_SERVER) as import('./interfaces/mcp/index.js').MCPServerInterface;
+
+    // Setup graceful shutdown
+    const shutdown = async () => {
+      console.error('\n📡 Received shutdown signal, stopping server...');
+      try {
+        await unifiedMCPServer.stop();
+        console.error('✅ Server stopped successfully');
+      } catch (error) {
+        console.error('❌ Error stopping server:', error);
+      }
+      process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    // Start the server
+    await unifiedMCPServer.start();
+    console.error('✅ Unified MCP Server running on stdio');
+
+  } catch (error) {
+    console.error('❌ Server startup failed:', error instanceof Error ? error.message : 'Unknown error');
+    process.exit(1);
+  }
 }
 
+// Execute main function if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}` || import.meta.url === fileURLToPath(`file://${process.argv[1]}`)) {
   main().catch((error) => {
-    console.error('Server error:', error);
+    console.error('❌ Server error:', error);
     process.exit(1);
   });
 }

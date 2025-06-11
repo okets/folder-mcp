@@ -31,9 +31,8 @@ import {
 
 import { ResolvedConfig } from '../config/resolver.js';
 import { DependencyContainer } from './container.js';
-import { SERVICE_TOKENS } from './interfaces.js';
+import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 import { IndexingService } from '../processing/indexingService.js';
-import { MCPServer } from '../mcp/mcpServer.js';
 
 /**
  * Default service factory implementation
@@ -112,22 +111,22 @@ export class ServiceFactory implements IServiceFactory {
     );
   }
 
-  createMCPServer(
-    config: ResolvedConfig,
-    folderPath: string,
+  createUnifiedMCPServer(
+    options: any, // UnifiedMCPServerOptions
     container: DependencyContainer
-  ): MCPServer {
-    return new MCPServer(
-      {
-        folderPath,
-        resolvedConfig: config
-      },
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(SERVICE_TOKENS.EMBEDDING),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-      container.resolve(SERVICE_TOKENS.LOGGING)
+  ): any {
+    const { UnifiedMCPServer } = require('../interfaces/mcp/server.js');
+    
+    // Get application services
+    const contentServing = container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
+    const knowledgeOps = container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    
+    return new UnifiedMCPServer(
+      options,
+      contentServing,
+      knowledgeOps,
+      loggingService
     );
   }
 

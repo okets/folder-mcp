@@ -371,6 +371,11 @@ export interface IServiceFactory {
    * Create logging service
    */
   createLoggingService(config?: any): ILoggingService;
+  
+  /**
+   * Create unified MCP server
+   */
+  createUnifiedMCPServer(options: any, container: any): any;
 }
 
 // =============================================================================
@@ -432,6 +437,7 @@ export const SERVICE_TOKENS = {
   SERVICE_FACTORY: Symbol('ServiceFactory'),
   INDEXING_SERVICE: Symbol('IndexingService'),
   MCP_SERVER: Symbol('MCPServer'),
+  UNIFIED_MCP_SERVER: Symbol('UnifiedMCPServer'),
 } as const;
 
 /**
