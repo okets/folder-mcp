@@ -14,4 +14,4 @@ export {
   detectCacheStatus,
   displayCacheStatus,
   saveFingerprintsToCache 
-} from '../infrastructure/cache/manager';
+} from '../infrastructure/cache/manager.js';

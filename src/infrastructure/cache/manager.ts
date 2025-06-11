@@ -54,7 +54,7 @@ export class CacheManager implements ICacheManager {
       };
 
       // Use atomic file operations to prevent corruption during setup
-      const { AtomicFileOperations } = await import('../errors/recovery');
+      const { AtomicFileOperations } = await import('../errors/recovery.js');
       await AtomicFileOperations.writeJSONAtomic(versionFile, versionData);
       console.log(`Created version file: ${relative(folderPath, versionFile)}`);
 
@@ -176,7 +176,7 @@ export class CacheManager implements ICacheManager {
     };
     
     // Use atomic file operations to prevent cache corruption
-    const { AtomicFileOperations } = await import('../errors/recovery');
+    const { AtomicFileOperations } = await import('../errors/recovery.js');
     await AtomicFileOperations.writeJSONAtomic(indexFile, indexData);
     console.log(`Saved fingerprints to: ${basename(indexFile)}`);
   }

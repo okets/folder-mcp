@@ -8,4 +8,4 @@
  */
 
 // Re-export from infrastructure for backward compatibility
-export * from '../infrastructure/errors/recovery';
+export * from '../infrastructure/errors/recovery.js';
