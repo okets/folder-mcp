@@ -15,7 +15,8 @@ import {
   IEmbeddingService,
   ICacheService,
   IFileSystemService,
-  ILoggingService
+  ILoggingService,
+  IVectorSearchService
 } from '../di/interfaces.js';
 
 export interface IndexingOptions {
@@ -35,7 +36,8 @@ export class IndexingService {
     private readonly embeddingService: IEmbeddingService,
     private readonly cacheService: ICacheService,
     private readonly fileSystemService: IFileSystemService,
-    private readonly loggingService: ILoggingService
+    private readonly loggingService: ILoggingService,
+    private readonly vectorSearchService: IVectorSearchService
   ) {}
 
   /**
@@ -91,6 +93,9 @@ export class IndexingService {
       // Generate embeddings if requested
       if (!options.skipEmbeddings) {
         await this.generateEmbeddingsForFiles(filesToProcess, config);
+        
+        // Build vector search index
+        await this.buildVectorIndex(folderPath);
       }
 
       this.loggingService.info('Folder indexing completed successfully', {
@@ -283,6 +288,30 @@ export class IndexingService {
       chunks: chunkedResult.totalChunks,
       avgTokens: metadataContent.chunkingStats.averageChunkTokens
     });
+  }
+
+  /**
+   * Build vector search index
+   */
+  private async buildVectorIndex(folderPath: string): Promise<void> {
+    this.loggingService.info('Building vector search index');
+    
+    try {
+      // Use the existing VectorIndex to build the index from embeddings
+      const { buildVectorIndex } = await import('../search/index.js');
+      const cacheDir = join(folderPath, '.folder-mcp');
+      
+      const vectorIndex = await buildVectorIndex(cacheDir);
+      const stats = vectorIndex.getStats();
+      
+      this.loggingService.info('Vector index built successfully', {
+        vectorCount: stats.vectorCount,
+        dimension: stats.dimension
+      });
+    } catch (error) {
+      this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
   /**

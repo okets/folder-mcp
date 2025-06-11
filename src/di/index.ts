@@ -33,7 +33,8 @@ export {
   EmbeddingService,
   LoggingService,
   CacheService,
-  FileSystemService
+  FileSystemService,
+  VectorSearchService
 } from './services.js';
 
 // Service factory

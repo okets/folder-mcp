@@ -557,28 +557,19 @@ Following these guidelines will help ensure that your software systems are robus
     
     const tests = [
       {
-        name: 'LegacyIndexingService can process files with DI',
+        name: 'IndexingService can be created with DI',
         test: async () => {
           try {
             const fileUrl = `file:///${projectRoot.replace(/\\/g, '/')}/dist/di/index.js`;
             const { setupForIndexing, getService, SERVICE_TOKENS } = await import(fileUrl);
-            const { LegacyIndexingService } = await import(`file:///${projectRoot.replace(/\\/g, '/')}/dist/processing/legacyIndexingService.js`);
             
             await setupForIndexing(testDataDir, { verbose: false, skipEmbeddings: true });
             
-            const legacyService = new LegacyIndexingService(
-              getService(SERVICE_TOKENS.FILE_PARSING),
-              getService(SERVICE_TOKENS.EMBEDDING),
-              getService(SERVICE_TOKENS.VECTOR_SEARCH),
-              getService(SERVICE_TOKENS.CACHE),
-              getService(SERVICE_TOKENS.FILE_SYSTEM),
-              getService(SERVICE_TOKENS.CHUNKING),
-              getService(SERVICE_TOKENS.LOGGING)
-            );
+            const indexingService = getService(SERVICE_TOKENS.INDEXING_SERVICE);
             
-            return legacyService !== null;
+            return indexingService !== null;
           } catch (error) {
-            console.log(`    LegacyIndexingService creation failed: ${error.message}`);
+            console.log(`    IndexingService creation failed: ${error.message}`);
             return false;
           }
         }

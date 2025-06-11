@@ -11,6 +11,7 @@ import { SERVICE_TOKENS } from './interfaces.js';
 import { ResolvedConfig } from '../config/resolver.js';
 import { IndexingService } from '../processing/indexingService.js';
 import { MCPServer } from '../mcp/mcpServer.js';
+import { join } from 'path';
 
 /**
  * Setup the dependency injection container with all services
@@ -84,6 +85,14 @@ export function setupDependencyInjection(options: {
     });
   }
 
+  // Register vector search service if folder path is provided
+  if (options.folderPath) {
+    container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, () => {
+      const cacheDir = join(options.folderPath!, '.folder-mcp');
+      return serviceFactory.createVectorSearchService(cacheDir);
+    });
+  }
+
   // Register high-level services
   if (options.config && options.folderPath) {
     // Register indexing service
@@ -95,7 +104,8 @@ export function setupDependencyInjection(options: {
         container.resolve(SERVICE_TOKENS.EMBEDDING),
         container.resolve(SERVICE_TOKENS.CACHE),
         container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-        container.resolve(SERVICE_TOKENS.LOGGING)
+        container.resolve(SERVICE_TOKENS.LOGGING),
+        container.resolve(SERVICE_TOKENS.VECTOR_SEARCH)
       );
     });
 

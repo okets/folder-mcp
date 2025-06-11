@@ -82,26 +82,8 @@ export function setupCommands(program: Command, packageJson: any): void {
           // Setup DI container
           await setupForIndexing(folder, cliArgs);
           
-          // Try to get the new IndexingService first, fallback to legacy
-          let indexingService;
-          try {
-            indexingService = getService(SERVICE_TOKENS.INDEXING_SERVICE) as any;
-          } catch {
-            // If IndexingService not available, use LegacyIndexingService
-            const { LegacyIndexingService } = await import('../processing/legacyIndexingService.js');
-            const container = await import('../di/container.js').then(m => m.getContainer());
-            
-            // Create legacy service with DI
-            indexingService = new LegacyIndexingService(
-              getService(SERVICE_TOKENS.FILE_PARSING),
-              getService(SERVICE_TOKENS.EMBEDDING),
-              getService(SERVICE_TOKENS.VECTOR_SEARCH),
-              getService(SERVICE_TOKENS.CACHE),
-              getService(SERVICE_TOKENS.FILE_SYSTEM),
-              getService(SERVICE_TOKENS.CHUNKING),
-              getService(SERVICE_TOKENS.LOGGING)
-            );
-          }
+          // Get the IndexingService from the DI container
+          const indexingService = getService(SERVICE_TOKENS.INDEXING_SERVICE) as any;
           
           console.log('✅ Using dependency injection for indexing');
           await indexingService.indexFolder(folder, packageJson, { 
@@ -110,15 +92,8 @@ export function setupCommands(program: Command, packageJson: any): void {
           });
           
         } catch (error) {
-          console.warn('⚠️ Dependency injection failed, falling back to legacy mode:', 
-            error instanceof Error ? error.message : 'Unknown error');
-          
-          // Fallback to legacy implementation
-          const { indexFolder } = await import('../processing/indexing.js');
-          await indexFolder(folder, packageJson, { 
-            ...options,
-            resolvedConfig: config
-          });
+          console.error('❌ Indexing failed:', error instanceof Error ? error.message : 'Unknown error');
+          process.exit(1);
         }
       } else {
         // Use legacy implementation by default
