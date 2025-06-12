@@ -124,7 +124,6 @@ export function setupDependencyInjection(options: {
       return serviceFactory.createHealthMonitoringService(container);
     });
   }
-
   // Register high-level services
   if (options.config && options.folderPath) {
     // Register indexing workflow
@@ -141,10 +140,10 @@ export function setupDependencyInjection(options: {
     container.registerSingleton(SERVICE_TOKENS.MONITORING_WORKFLOW, () => {
       return serviceFactory.createMonitoringOrchestrator(container);
     });
-
-    // Register Unified MCP server
-    container.registerFactory(SERVICE_TOKENS.UNIFIED_MCP_SERVER, () => {
-      return serviceFactory.createUnifiedMCPServer({
+  }  // Register MCP server (only needs folderPath)
+  if (options.folderPath) {
+    container.registerSingleton(SERVICE_TOKENS.MCP_SERVER, () => {
+      return serviceFactory.createMCPServer({
         folderPath: options.folderPath!,
         transport: 'stdio',
         name: 'folder-mcp',

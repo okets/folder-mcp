@@ -366,16 +366,15 @@ export interface IServiceFactory {
    * Create error recovery service
    */
   createErrorRecoveryService(cacheDir: string): IErrorRecoveryService;
-  
   /**
    * Create logging service
    */
   createLoggingService(config?: any): ILoggingService;
   
   /**
-   * Create unified MCP server
+   * Create MCP server
    */
-  createUnifiedMCPServer(options: any, container: any): any;
+  createMCPServer(options: any, container: any): any;
 }
 
 // =============================================================================
@@ -433,8 +432,7 @@ export const SERVICE_TOKENS = {
   VECTOR_SEARCH: Symbol('VectorSearchService'),
   CACHE: Symbol('CacheService'),
   FILE_SYSTEM: Symbol('FileSystemService'),
-  ERROR_RECOVERY: Symbol('ErrorRecoveryService'),
-  LOGGING: Symbol('LoggingService'),
+  ERROR_RECOVERY: Symbol('ErrorRecoveryService'),  LOGGING: Symbol('LoggingService'),
   SERVICE_FACTORY: Symbol('ServiceFactory'),
   
   // Application Layer
@@ -443,7 +441,7 @@ export const SERVICE_TOKENS = {
   MONITORING_WORKFLOW: Symbol('MonitoringWorkflow'),
   
   // Interface Layer
-  UNIFIED_MCP_SERVER: Symbol('UnifiedMCPServer'),
+  MCP_SERVER: Symbol('MCPServer'),
 } as const;
 
 /**

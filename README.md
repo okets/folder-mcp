@@ -118,15 +118,27 @@ This server is designed to be used with MCP clients like Claude Desktop. Add it 
   "mcpServers": {
     "folder-mcp": {
       "command": "node",
-      "args": ["path/to/folder-mcp/dist/index.js"]
+      "args": [
+        "C:\\Path\\To\\folder-mcp\\dist\\mcp-server.js",
+        "C:\\Path\\To\\folder-mcp"
+      ],
+      "env": {}
     }
   }
 }
 ```
 
+> ⚠️ **Critical Claude Desktop Integration Note**: 
+> The MCP protocol requires that ONLY valid JSON-RPC messages go to stdout. Any logging or debugging 
+> output to stdout will break the connection. All logs should be redirected to stderr only.
+> See CLAUDE_DESKTOP_SETUP.md for detailed troubleshooting tips.
+
 ### Available Tools
 
-The server provides four main tools:
+The server currently provides the following tools:
+
+1. **hello_world** - A simple tool that returns a greeting message to verify connection
+   - Optional parameter: `name` - A name to include in the greeting
 
 #### 1. `read_file`
 Read the contents of a specific file within a folder.

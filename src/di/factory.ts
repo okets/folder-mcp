@@ -33,6 +33,7 @@ import { ResolvedConfig } from '../config/resolver.js';
 import { DependencyContainer } from './container.js';
 import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
+import { MCPServer } from '../interfaces/mcp/server.js';
 
 /**
  * Default service factory implementation
@@ -101,26 +102,6 @@ export class ServiceFactory implements IServiceFactory {
   ): IndexingOrchestrator {
     return this.createIndexingOrchestrator(container);
   }
-
-  createUnifiedMCPServer(
-    options: any,
-    container: DependencyContainer
-  ): any {
-    const { UnifiedMCPServer } = require('../interfaces/mcp/server.js');
-    
-    // Get application services
-    const contentServing = container.resolve(SERVICE_TOKENS.CONTENT_SERVING_WORKFLOW);
-    const knowledgeOps = container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
-    
-    return new UnifiedMCPServer(
-      options,
-      contentServing,
-      knowledgeOps,
-      loggingService
-    );
-  }
-
   // =============================================================================
   // Application Layer Factory Methods
   // =============================================================================
@@ -190,6 +171,17 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
       container.resolve(SERVICE_TOKENS.FILE_PARSING)
+    );
+  }  createMCPServer(
+    options: any,
+    container: DependencyContainer
+  ): any {
+    // Get required services
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+    
+    return new MCPServer(
+      options,
+      loggingService
     );
   }
 }

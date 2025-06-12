@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Model Context Protocol server for folder operations and file system access",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/mcp-server.js",
   "bin": {
     "folder-mcp": "dist/interfaces/cli/index.js"
   },

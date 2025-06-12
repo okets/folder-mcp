@@ -1,130 +1,61 @@
 /**
- * MCP Transport Abstraction
+ * MCP Transport Wrapper
  * 
- * Provides a clean abstraction over different MCP transport mechanisms
- * (stdio, http, etc.) to support multiple connection types.
+ * Handles transport-specific concerns for the MCP server.
+ * 
+ * IMPORTANT: Claude Desktop expects only valid JSON-RPC messages on stdout.
+ * All logs MUST go to stderr only.
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { ILoggingService } from '../../di/interfaces.js';
 
-export interface MCPTransport {
-  start(): Promise<void>;
-  stop(): Promise<void>;
-  isRunning(): boolean;
-  getTransportType(): string;
-}
-
-export interface TransportOptions {
-  server: Server;
-  loggingService: ILoggingService;
-  port?: number;
-}
-
-/**
- * Stdio transport implementation
- */
-export class StdioTransport implements MCPTransport {
-  private transport: StdioServerTransport | null = null;
-  private isActive = false;
-
-  constructor(private readonly options: TransportOptions) {}
-
-  async start(): Promise<void> {
-    if (this.isActive) {
-      throw new Error('Stdio transport is already running');
-    }
-
-    try {
-      this.options.loggingService.info('Starting MCP server with stdio transport');
-      
-      this.transport = new StdioServerTransport();
-      await this.options.server.connect(this.transport);
-      
-      this.isActive = true;
-      this.options.loggingService.info('MCP server started successfully with stdio transport');
-    } catch (error) {
-      this.options.loggingService.error('Failed to start stdio transport', error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  async stop(): Promise<void> {
-    if (!this.isActive || !this.transport) {
-      return;
-    }
-
-    try {
-      this.options.loggingService.info('Stopping MCP server with stdio transport');
-      
-      await this.options.server.close();
-      this.transport = null;
-      this.isActive = false;
-      
-      this.options.loggingService.info('MCP server stopped successfully');
-    } catch (error) {
-      this.options.loggingService.error('Failed to stop stdio transport', error instanceof Error ? error : new Error(String(error)));
-      throw error;
-    }
-  }
-
-  isRunning(): boolean {
-    return this.isActive;
-  }
-
-  getTransportType(): string {
-    return 'stdio';
-  }
-}
-
-/**
- * HTTP transport implementation (placeholder for future implementation)
- */
-export class HttpTransport implements MCPTransport {
-  private isActive = false;
+export class MCPTransport {
+  private transport: StdioServerTransport;
 
   constructor(
-    private readonly options: TransportOptions & { port: number }
-  ) {}
-
-  async start(): Promise<void> {
-    // TODO: Implement HTTP transport when MCP SDK supports it
-    throw new Error('HTTP transport not yet implemented');
+    private readonly logger: ILoggingService
+  ) {
+    // Write log to stderr only
+    process.stderr.write('[INFO] Initializing MCP stdio transport\n');
+    this.logger.info('Initializing MCP stdio transport');
+    
+    // Create the standard transport
+    this.transport = new StdioServerTransport();
   }
 
-  async stop(): Promise<void> {
-    // TODO: Implement HTTP transport when MCP SDK supports it
-    this.isActive = false;
+  /**
+   * Get the underlying transport for server connection
+   */
+  getTransport(): StdioServerTransport {
+    return this.transport;
   }
 
-  isRunning(): boolean {
-    return this.isActive;
+  /**
+   * Connect the transport
+   */
+  async connect(): Promise<void> {
+    try {
+      this.logger.info('Connecting MCP transport');
+      // StdioServerTransport doesn't require explicit connection
+      this.logger.info('MCP transport connected successfully');
+    } catch (error) {
+      this.logger.error('Failed to connect MCP transport', error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
   }
 
-  getTransportType(): string {
-    return 'http';
-  }
-}
-
-/**
- * Transport factory for creating appropriate transport instances
- */
-export class TransportFactory {
-  static create(
-    type: 'stdio' | 'http',
-    options: TransportOptions & { port?: number }
-  ): MCPTransport {
-    switch (type) {
-      case 'stdio':
-        return new StdioTransport(options);
-      case 'http':
-        return new HttpTransport({
-          ...options,
-          port: options.port || 3000
-        });
-      default:
-        throw new Error(`Unsupported transport type: ${type}`);
+  /**
+   * Disconnect the transport
+   */
+  async disconnect(): Promise<void> {
+    try {
+      this.logger.info('Disconnecting MCP transport');
+      // Cleanup if needed
+      this.logger.info('MCP transport disconnected');
+    } catch (error) {
+      this.logger.error('Error disconnecting MCP transport', error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
   }
 }
