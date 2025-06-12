@@ -111,7 +111,7 @@ export class MCPServer {
           default:
             const errorMsg = `Unknown tool: ${name}`;
             process.stderr.write(`[ERROR] Unknown tool requested: ${name}\n`);
-            this.logger.error('Unknown tool requested', undefined, { name });
+            this.logger.error('Unknown tool requested', new Error(errorMsg), { name });
             throw new Error(errorMsg);
         }
       } catch (error) {
@@ -148,8 +148,10 @@ export class MCPServer {
       this.isRunning = true;
       this.logger.info('MCP server started successfully');
     } catch (error) {
-      this.logger.error('Failed to start MCP server', error instanceof Error ? error : new Error(String(error)));
-      throw error;
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.logger.error('Failed to start MCP server', errorObj);
+      process.stderr.write(`[ERROR] MCP server start failed: ${errorObj.message}\n`);
+      throw errorObj;
     }
   }
 
@@ -171,8 +173,10 @@ export class MCPServer {
       this.isRunning = false;
       this.logger.info('MCP server stopped successfully');
     } catch (error) {
-      this.logger.error('Error stopping MCP server', error instanceof Error ? error : new Error(String(error)));
-      throw error;
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.logger.error('Error stopping MCP server', errorObj);
+      process.stderr.write(`[ERROR] MCP server stop failed: ${errorObj.message}\n`);
+      throw errorObj;
     }
   }
 

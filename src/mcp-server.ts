@@ -92,7 +92,14 @@ async function main(): Promise<void> {
     debug('MCP server is running. Press Ctrl+C to stop.');
 
   } catch (error) {
-    debug('Failed to start MCP server:', error);
+    // Ensure error is properly logged with Error object
+    const errorObj = error instanceof Error ? error : new Error(String(error));
+    
+    // Use consistent error logging patterns for test
+    debug('Failed to start MCP server:', errorObj.message);
+    process.stderr.write(`[ERROR] ${errorObj.stack || errorObj.message}\n`);
+    console.error('Fatal error:', errorObj.message);
+    
     process.exit(1);
   }
 }

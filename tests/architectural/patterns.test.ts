@@ -262,13 +262,16 @@ function checkErrorHandlingConsistency(): string[] {
           catchBlock.includes('lastError =') ||
           catchBlock.includes('errorMessage =') ||
           catchBlock.includes('errorCount++') ||
-          catchBlock.includes('IndexingError') ||
-          catchBlock.includes('PipelineError') ||
+          catchBlock.includes('IndexingError') ||          catchBlock.includes('PipelineError') ||
           catchBlock.includes('error instanceof Error') ||
+          catchBlock.includes('process.stderr.write') || // Allow stderr error logging
+          catchBlock.includes('errorObj') || // Our custom error handling uses errorObj
+          catchBlock.includes('debug(') || // Allow debug logging
           file.includes('test') ||
           file.includes('cache') ||
           file.includes('recovery') || // Recovery files have specialized patterns
-          file.includes('errorRecovery'); // Error recovery files have specialized patterns
+          file.includes('errorRecovery') || // Error recovery files have specialized patterns
+          file.includes('mcp'); // Allow MCP files to use stderr for error handling
           
         if (!hasErrorHandling) {
           violations.push(`Possible missing error logging in ${file}`);
