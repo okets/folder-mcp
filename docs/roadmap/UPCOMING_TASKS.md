@@ -1,0 +1,560 @@
+# folder-mcp Upcoming Tasks
+
+This document tracks current and future development phases with detailed specifications.
+
+## 📋 Table of Contents
+
+- [Current Development Status](#current-development-status)
+- [Phase 8: Transport Foundation & Core Endpoints (Current)](#phase-8-transport-foundation--core-endpoints-current)
+- [Phase 9: Advanced Endpoints & HTTP Gateway (Planned)](#phase-9-advanced-endpoints--http-gateway-planned)
+- [Phase 10: Release Preparation (Planned)](#phase-10-release-preparation-planned)
+- [Phase 11: UX Refinements (Planned)](#phase-11-ux-refinements-planned)
+- [Phase 12: Chat Interface Integration (Future)](#phase-12-chat-interface-integration-future)
+- [GitHub Project Management](#github-project-management)
+
+---
+
+## Current Development Status
+
+**Current Status**: Step 29/57 - Phase 7 Completed, Phase 8 Transport & Endpoints In Progress 🚀
+
+### Overall Timeline
+- **✅ Phases 1-7**: Foundation through Production Ready (Steps 1-28) - **COMPLETED**
+- **🔄 Phase 8**: Transport Foundation & Core Endpoints (Steps 29-34) - **IN PROGRESS** 
+- **📋 Phase 9**: Advanced Endpoints & HTTP Gateway (Steps 35-42) - **PLANNED**
+- **📋 Phase 10**: Release Preparation (Steps 43-48) - **PLANNED**
+- **📋 Phase 11**: UX Refinements (Steps 49-52) - **PLANNED**
+- **📋 Phase 12**: Chat Interface Integration (Steps 53-57) - **FUTURE**
+
+---
+
+## Phase 8: Transport Foundation & Core Endpoints (Current)
+
+**Status**: ⬅️ Current - **PRIORITIZED FOR IMMEDIATE DEVELOPMENT** 🚀
+
+**Focus**: Implement gRPC transport layer and core document intelligence endpoints with local Unix socket communication for high-performance document access.
+
+**Immediate Implementation Path**:
+- **Local gRPC First**: Unix domain socket transport for maximum performance
+- **Core Endpoints**: SearchDocs, SearchChunks, navigation, and document access
+- **Foundation First**: Protocol buffers, transport layer, then endpoint implementation
+- **Security Ready**: API key system foundation (used later for remote access)
+
+### Step 29: Transport Layer Foundation
+**Task**: Prepare for gRPC transport system architecture with security foundation  
+**Success Criteria**:
+- 📋 Install gRPC dependencies (@grpc/grpc-js, @grpc/proto-loader)
+- 📋 Design Protocol Buffer schema for all endpoints
+- 📋 Create transport layer interface definitions
+- 📋 Implement transport factory pattern
+- 📋 Add transport configuration to runtime config
+- 📋 Create transport selection logic (local/remote/http)
+- 📋 Update MCP server to "hello world" baseline
+- 📋 Add security CLI commands foundation
+
+**Security CLI Commands**:
+- `folder-mcp serve <folder>` - Auto-generate API key on first run
+- `folder-mcp generate-key <folder>` - Generate new API key
+- `folder-mcp rotate-key <folder>` - Rotate existing API key
+- `folder-mcp show-key <folder>` - Display current API key
+- `folder-mcp revoke-key <folder>` - Revoke API key access
+
+### Step 30: Protocol Buffer Schema Design
+**Task**: Define comprehensive .proto files for all endpoints  
+**Success Criteria**:
+- 📋 Create folder-mcp.proto with all 14 service endpoints
+- 📋 Define message types for all request/response pairs
+- 📋 Include proper field validation and documentation
+- 📋 Generate TypeScript types from proto files
+- 📋 Validate schema against endpoint specification
+- 📋 Add token limit annotations in proto comments
+
+### Step 31: gRPC Transport Implementation
+**Task**: Implement multi-protocol transport layer with comprehensive security  
+**Success Criteria**:
+- 📋 Local transport: Unix Domain Socket (/tmp/folder-mcp.sock) with filesystem permissions only
+- 📋 Remote transport: TCP with configurable port (50051) with API key authentication
+- 📋 TLS/mTLS support for remote connections
+- 📋 API key generation system (32-byte Base64 on first serve)
+- 📋 Transport health checks and reconnection logic
+- 📋 Graceful shutdown handling for all transports
+
+**Security Implementation**:
+- **API Key Management**:
+  - Generate strong random key (32-byte Base64) on first `folder-mcp serve <folder>`
+  - Store plaintext in `~/.folder-mcp/` alongside embeddings
+  - Display once to CLI: `Generated remote API key: <KEY>`
+  - Support key rotation: `folder-mcp rotate-key <folder>`
+- **Authentication Enforcement**:
+  - Local UDS: No API key required (filesystem permissions)
+  - Remote gRPC: Server interceptor checks `authorization: Bearer <KEY>` metadata
+  - Loopback HTTP: No API key required for localhost connections
+
+### Step 32: Core Search Endpoints
+**Task**: Implement SearchDocs and SearchChunks endpoints  
+**Success Criteria**:
+- 📋 SearchDocs: Semantic document discovery with metadata filters
+- 📋 SearchChunks: Chunk-level search with text previews
+- 📋 Implement proper token limiting (≤1,000 tokens response)
+- 📋 Add similarity score normalization
+- 📋 Support top_k parameter with validation (max 50)
+- 📋 Implement metadata filtering (type, dates, author)
+
+### Step 33: Navigation Endpoints
+**Task**: Implement folder and document listing endpoints  
+**Success Criteria**:
+- 📋 ListFolders: Top-level folder tree structure
+- 📋 ListDocumentsInFolder: Paginated document listing
+- 📋 Implement pagination with configurable per_page (max 200)
+- 📋 Add filtering by document type and modification date
+- 📋 Include proper metadata in responses
+- 📋 Handle path traversal security
+
+### Step 34: Document Content Endpoints
+**Task**: Implement document access and metadata endpoints  
+**Success Criteria**:
+- 📋 GetDocMetadata: Structural metadata (sheets, slides, authors)
+- 📋 DownloadDoc: Binary document streaming
+- 📋 GetChunks: Full chunk text retrieval with metadata
+- 📋 Implement proper binary streaming for large files
+- 📋 Add content-type detection and headers
+- 📋 Token limiting for text responses (≤1,000 per chunk)
+
+---
+
+## Phase 9: Advanced Endpoints & HTTP Gateway (Planned)
+
+### Step 35: Summarization Endpoints
+**Task**: Implement document summarization services  
+**Success Criteria**:
+- 📋 GetDocSummary: Single document summarization
+- 📋 BatchDocSummary: Multi-document batch processing
+- 📋 Support brief/detailed mode selection
+- 📋 Implement token limiting (≤500 per summary)
+- 📋 Add source range references in responses
+- 📋 Batch processing with total token cap (≤2,000)
+
+### Step 36: Specialized Query Endpoints
+**Task**: Implement table querying and system status endpoints  
+**Success Criteria**:
+- 📋 TableQuery: Semantic queries over spreadsheet data
+- 📋 IngestStatus: Document processing status monitoring
+- 📋 RefreshDoc: Trigger document re-processing
+- 📋 GetEmbedding: Raw vector access for debugging
+- 📋 Handle sheet selection and cell range responses
+- 📋 Implement job tracking for refresh operations
+
+### Step 37: HTTP Gateway Implementation
+**Task**: Implement REST/JSON gateway for gRPC services with comprehensive authentication  
+**Success Criteria**:
+- 📋 HTTP server on configurable port (default 8080)
+- 📋 REST endpoints with /v1 prefix matching specification
+- 📋 JSON request/response translation to/from gRPC
+- 📋 Proper HTTP status codes and error handling
+- 📋 CORS support for web clients
+- 📋 Request validation and sanitization
+
+**Security Implementation**:
+- **Authentication Middleware**:
+  - Check `Authorization: Bearer <KEY>` header for remote connections
+  - Accept `x-api-key: <KEY>` header as alternative
+  - Allow localhost/loopback connections without API key
+  - Return 401 Unauthorized for invalid/missing keys on remote connections
+- **Request Security**:
+  - Input validation and sanitization for all endpoints
+  - Rate limiting per API key
+  - Request size limits and timeout handling
+
+### Step 38: Advanced Search Features
+**Task**: Enhance search capabilities with advanced filtering  
+**Success Criteria**:
+- 📋 Complex metadata filtering (AND/OR operations)
+- 📋 Date range queries with RFC3339 timestamp support
+- 📋 Author and document type filtering
+- 📋 Search result ranking and relevance scoring
+- 📋 Search history and saved queries
+- 📋 Query performance optimization
+
+### Step 39: Batch Operations & Streaming
+**Task**: Implement efficient batch processing and streaming  
+**Success Criteria**:
+- 📋 Streaming responses for large result sets
+- 📋 Batch embedding generation for multiple documents
+- 📋 Progress tracking for long-running operations
+- 📋 Cancellation support for batch operations
+- 📋 Memory-efficient processing for large files
+- 📋 Rate limiting and throttling
+
+### Step 40: Security & Authentication
+**Task**: Implement comprehensive security features with API key management  
+**Success Criteria**:
+- 📋 mTLS certificate generation and management for remote connections
+- 📋 API key lifecycle management (generate, rotate, revoke)
+- 📋 Security audit logging with authentication events
+- 📋 Rate limiting and DDoS protection per API key
+- 📋 Access control and permission system
+- 📋 Secure key storage and retrieval
+
+**Detailed Security Implementation**:
+- **API Key System**:
+  - Strong random key generation (32-byte Base64 encoding)
+  - Secure storage in `~/.folder-mcp/api-keys.json` with folder mapping
+  - CLI commands: `generate-key`, `rotate-key`, `revoke-key`, `list-keys`
+  - Key expiration and automatic rotation policies
+- **Transport Security**:
+  - Unix Domain Socket: Filesystem permissions only (no API key)
+  - Remote gRPC: Mandatory API key in `authorization: Bearer <KEY>` metadata
+  - HTTP Gateway: API key in `Authorization: Bearer <KEY>` or `x-api-key: <KEY>`
+  - Localhost exemption: No API key required for 127.0.0.1/::1 connections
+- **Security Monitoring**:
+  - Failed authentication attempt logging
+  - Suspicious activity detection (rate limiting violations)
+  - Security event alerts and notifications
+
+### Step 41: Monitoring & Observability
+**Task**: Add comprehensive monitoring and logging  
+**Success Criteria**:
+- 📋 Metrics collection (request counts, latency, errors)
+- 📋 Health check endpoints for all services
+- 📋 Structured logging with configurable levels
+- 📋 Performance monitoring and alerting
+- 📋 Resource usage tracking (memory, CPU, disk)
+- 📋 Service discovery and load balancing support
+
+### Step 42: Integration Testing & Validation
+**Task**: Comprehensive testing of transport and endpoint system  
+**Success Criteria**:
+- 📋 gRPC client/server integration tests
+- 📋 HTTP gateway API testing
+- 📋 Multi-transport connection testing
+- 📋 Load testing for all endpoints
+- 📋 Error handling and recovery testing
+- 📋 Performance benchmarking and optimization
+
+---
+
+## Phase 10: Release Preparation (Planned)
+### Step 43: Hugging Face Hub Integration for Model Metadata
+**Task**: Enhance Ollama model information with Hugging Face Hub metadata  
+**Success Criteria**:
+- 📋 Fetch model metadata from Hugging Face Hub API
+- 📋 Extract language support information from model cards
+- 📋 Augment Ollama model list with HF metadata
+- 📋 Implement intelligent language-based model filtering
+- 📋 Cache HF metadata with 24-hour expiry
+- 📋 Handle API rate limits and offline scenarios gracefully
+- 📋 Provide rich model selection with language capabilities
+
+**Implementation Approach**:
+1. **Model ID Mapping**: Map Ollama model names to Hugging Face model IDs
+2. **Batch API Requests**: Fetch multiple model metadata in parallel with rate limiting
+3. **Language Detection**: Parse model cards and tags for language information
+4. **Confidence Scoring**: Rate quality of language support data
+5. **Caching Strategy**: Store combined Ollama + HF data in unified cache
+6. **Fallback Logic**: Graceful degradation when HF API unavailable
+
+**API Integration Details**:
+```
+GET https://huggingface.co/api/models/{model_id}
+→ Returns: model card, tags, pipeline info, language data
+
+Example Response:
+{
+  "id": "sentence-transformers/all-MiniLM-L6-v2",
+  "pipeline_tag": "sentence-similarity", 
+  "tags": ["sentence-transformers", "pytorch", "safetensors"],
+  "languages": ["en"],
+  "license": "apache-2.0",
+  "downloads": 50000000,
+  "lastModified": "2023-11-20T10:30:00.000Z"
+}
+```
+
+**Enhanced User Experience**:
+- Show language support when listing models: `mxbai-embed-large (100+ languages)`
+- Filter models by language: `--language zh,en` 
+- Smart defaults: Auto-select best multilingual model for diverse document sets
+- Confidence indicators: High/Medium/Low confidence for language support data
+
+### Step 44: Performance Optimization
+**Task**: Optimize for production deployment  
+**Success Criteria**:
+- 📋 Connection pooling and resource management
+- 📋 Caching strategies for frequently accessed data
+- 📋 Memory optimization for large document sets
+- 📋 Database indexing and query optimization
+- 📋 Concurrent request handling optimization
+- 📋 Network protocol optimization
+
+### Step 45: Test Suite Integration
+**Task**: Extend existing test suite for new transport system  
+**Success Criteria**:
+- 📋 Add gRPC transport testing to existing test infrastructure
+- 📋 HTTP gateway endpoint testing
+- 📋 Multi-protocol integration testing
+- 📋 Performance benchmarking for all endpoints
+- 📋 Security and authentication testing
+- 📋 Load testing and stress testing
+
+**Note**: Leverages existing comprehensive test system (238 tests, 99.6% pass rate) by extending with transport-specific tests while maintaining current test infrastructure and patterns.
+
+### Step 46: Documentation & API Reference
+**Task**: Complete comprehensive documentation  
+**Success Criteria**:
+- 📋 API documentation with OpenAPI/Swagger spec
+- 📋 gRPC service documentation
+- 📋 Transport configuration guide
+- 📋 Deployment and scaling guide
+- 📋 Security configuration documentation
+- 📋 Troubleshooting and debugging guide
+
+### Step 47: Containerization & Deployment
+**Task**: Prepare for containerized deployment  
+**Success Criteria**:
+- 📋 Docker containerization with multi-stage builds
+- 📋 Docker Compose for local development
+- 📋 Kubernetes deployment manifests
+- 📋 Health checks and readiness probes
+- 📋 Environment variable configuration
+- 📋 Horizontal scaling support
+
+### Step 48: Release 1.0.0
+**Task**: Publish production-ready release  
+**Success Criteria**:
+- 📋 Publish to npm registry with all transport options
+- 📋 GitHub release with binary distributions
+- 📋 Docker Hub container publication
+- 📋 Documentation website deployment
+- 📋 Community announcement and promotion
+- 📋 User feedback collection system
+
+---
+
+## Phase 11: UX Refinements (Planned)
+
+**NOTE**: These remaining UX steps were moved from the original Phase 8 to allow immediate focus on transport and endpoints implementation.
+
+### Step 49: CLI Parameter Override System
+**Task**: Allow CLI parameters to override runtime defaults  
+**Success Criteria**:
+- 📋 Parse all CLI parameters into runtime config
+- 📋 Override only specified parameters
+- 📋 Detect changes in embedding config (model, chunk_size, overlap)
+- 📋 Trigger re-indexing if embedding params changed
+- 📋 Show warning: "Config changed, re-indexing required"
+- 📋 Update cached runtime with successful execution
+- 📋 Update --help for the tool
+
+### Step 50: Configuration Wizard Implementation
+**Task**: Create --wizard interactive configuration generator  
+**Success Criteria**:
+- 📋 Launch with folder-mcp --wizard
+- 📋 Load current runtime config as defaults
+- 📋 Ask questions with current values pre-filled
+- 📋 Generate CLI command string from answers
+- 📋 Display command and ask: "Run this command? Y/n"
+- 📋 Execute command or copy to clipboard
+
+### Step 51: System Detection Integration
+**Task**: Auto-detect system capabilities for smart defaults  
+**Success Criteria**:
+- 📋 Detect CPU, RAM, GPU on first run
+- 📋 Update runtime config with optimal settings
+- 📋 Select best model based on system tier
+- 📋 Integrate with Ollama for model availability
+- 📋 Run only when cache missing or --detect flag
+- 📋 Show detected specs in --show-config output
+
+### Step 52: Full-Screen UI Implementation
+**Task**: Create main operation interface  
+**Success Criteria**:
+- 📋 Launch after configuration is validated
+- 📋 Display real-time indexing progress
+- 📋 Show file processing statistics
+- 📋 Monitor memory and performance
+- 📋 Include error log panel
+- 📋 Add keyboard navigation
+
+---
+
+## Phase 12: Chat Interface Integration (Future)
+
+### Step 53: Chat Configuration Wizard
+**Task**: Create interactive wizard for chat setup using new transport layer  
+**Success Criteria**:
+- 📋 Launch with `folder-mcp chat --setup`
+- 📋 Auto-detect available transport options (local gRPC, remote gRPC, HTTP)
+- 📋 Cloud vs Local GPU selection interface
+- 📋 Provider selection with clear descriptions
+- 📋 API key validation with test calls
+- 📋 Ollama model detection and recommendation
+- 📋 Transport selection and configuration
+- 📋 Save chat configuration leveraging new config system
+
+**Chat Configuration Flow leveraging gRPC Transport**:
+```
+folder-mcp chat <folder> (first time)
+→ Chat Setup Wizard
+   ├── Transport Selection:
+   │   ├── Local gRPC (unix socket) - Best performance
+   │   ├── Remote gRPC (TCP) - Distributed setup
+   │   └── HTTP Gateway - Web compatibility
+   │
+   ├── Choose: Cloud or Local GPU?
+   │
+   ├─ Cloud Path:
+   │  ├── Select Provider:
+   │  │   ├── OpenAI (GPT-4, GPT-3.5-turbo)
+   │  │   ├── Anthropic (Claude 3.5 Sonnet, Claude 3 Haiku)
+   │  │   ├── Google (Gemini Pro, Gemini Flash)
+   │  │   └── Azure OpenAI
+   │  ├── Enter API Key → Validate → Test call via transport
+   │  ├── Auto-select best model for provider
+   │  └── Save config → Launch chat
+   │
+   └─ Local GPU Path:
+      ├── Check Ollama installation
+      ├── Scan available models via transport
+      ├── Show model list with embedding compatibility
+      ├── Auto-recommend based on system specs
+      ├── Download model if needed (with progress)
+      └── Save config → Launch chat
+```
+
+### Step 54: Cloud Provider Integration
+**Task**: Implement cloud LLM provider APIs with transport layer  
+**Success Criteria**:
+- 📋 OpenAI API integration with streaming responses
+- 📋 Anthropic Claude API with proper formatting
+- 📋 Google Gemini API integration
+- 📋 Azure OpenAI support
+- 📋 Transport-agnostic LLM client interface
+- 📋 API routing through gRPC or HTTP transport
+- 📋 Rate limiting and quota management via transport
+
+### Step 55: Local LLM Integration
+**Task**: Implement Ollama local LLM integration via transport  
+**Success Criteria**:
+- 📋 Ollama service detection and health checks
+- 📋 Model listing with installation status via transport
+- 📋 Automatic model downloading with progress
+- 📋 System resource monitoring during chat
+- 📋 Model recommendation based on RAM/VRAM
+- 📋 Transport-optimized local inference
+- 📋 Performance optimization for gRPC streaming
+
+### Step 56: Interactive Chat Interface
+**Task**: Create the main chat experience using transport endpoints  
+**Success Criteria**:
+- 📋 CLI-based chat interface with rich formatting
+- 📋 Context-aware responses using SearchDocs/SearchChunks endpoints
+- 📋 Real-time document retrieval via transport
+- 📋 Source document attribution using GetDocMetadata
+- 📋 Streaming responses via gRPC or HTTP
+- 📋 Commands: `/help`, `/sources`, `/clear`, `/export`
+- 📋 Integration with BatchDocSummary for context preparation
+- 📋 Transport performance monitoring during chat
+
+**Chat Interface Flow leveraging Transport Endpoints**:
+```
+folder-mcp chat <folder>
+→ Load chat config → Connect to transport → Start chat session
+
+Chat Interface using gRPC/HTTP endpoints:
+┌─ Chat with Documents in: ./my-folder ─────────────────────┐
+│ 📁 Sources: 47 documents indexed (via IngestStatus)       │
+│ 🤖 Model: Claude 3.5 Sonnet (Cloud) / llama3.1:8b (Local)│
+│ 🔗 Transport: gRPC/Unix Socket (high performance)         │
+├────────────────────────────────────────────────────────────┤
+│ You: What are the main topics in my research papers?      │
+│                                                            │
+│ 🤖 Assistant: Based on your documents, I found 3 main    │
+│ research topics: (via SearchDocs + BatchDocSummary)       │
+│                                                            │
+│ 1. **Machine Learning Applications** (12 papers)          │
+│    Sources: ml-survey.pdf, neural-networks.docx           │
+│                                                            │
+│ 2. **Data Analysis Methods** (8 papers)                   │
+│    Sources: statistics-overview.pdf, data-mining.docx     │
+│                                                            │
+│ 3. **Software Engineering** (5 papers)                    │
+│    Sources: agile-methods.pdf, testing-strategies.docx    │
+│                                                            │
+├────────────────────────────────────────────────────────────┤
+│ Type your message... (/help for commands)                 │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Step 57: Chat History & Export
+**Task**: Implement chat session management with transport integration  
+**Success Criteria**:
+- 📋 Save chat sessions with document references
+- 📋 Session naming and organization
+- 📋 Resume previous chat sessions with transport reconnection
+- 📋 Export options: Markdown, JSON, TXT with source links
+- 📋 Search chat history using existing search infrastructure
+- 📋 Delete old sessions with cleanup
+- 📋 Session sharing with transport endpoint references
+- 📋 Privacy controls for sensitive conversations
+
+---
+
+## GitHub Project Management
+
+This section provides guidance for setting up GitHub Issues to track development progress.
+
+### Quick Setup Instructions
+
+1. **Go to your GitHub repository**: https://github.com/okets/folder-mcp
+2. **Click "Issues" tab** → **"New Issue"**
+3. **Create issues for each step** using the templates below
+4. **Set labels and milestones** as indicated
+
+### GitHub Milestones
+
+Create these milestones in GitHub (Issues → Milestones → New milestone):
+
+1. **Phase 8 - Transport & Core Endpoints** (Due: Current - PRIORITIZED) 🚀
+2. **Phase 9 - Advanced Endpoints & HTTP Gateway** (Due: TBD)
+3. **Phase 10 - Release Preparation** (Due: TBD)
+4. **Phase 11 - UX Refinements** (Due: TBD)
+5. **Phase 12 - Chat Interface Integration** (Due: TBD)
+
+### GitHub Labels
+
+Create these labels for categorization:
+
+- `enhancement` (blue), `grpc` (steel blue), `transport` (coral), `http-gateway` (lavender)
+- `endpoints` (mint), `security` (crimson), `monitoring` (forest green)
+- `config` (lime), `cli` (green), `performance` (maroon), `testing` (navy)
+- `documentation` (silver), `packaging` (teal), `release` (gold)
+
+### Issue Template
+
+For each step in the roadmap, create a GitHub issue with:
+
+**Title**: `[Step X] Brief Description` (e.g., "[Step 34] Transport Layer Foundation")
+
+**Labels**: `enhancement` + relevant category (e.g., `transport`)
+
+**Milestone**: Appropriate phase (e.g., "Phase 8 - Transport & Core Endpoints")
+
+**Description**:
+```
+### Description
+[Copy the task description from the roadmap]
+
+### Success Criteria
+[Copy the success criteria checklist from the roadmap]
+
+### Status
+- 🔄 **IN PROGRESS** / **TODO**
+```
+
+### Benefits
+
+- **Clear progress tracking**: See exactly what's done vs. what's planned
+- **Contributor onboarding**: New developers can see the roadmap and pick tasks
+- **User expectations**: Users understand current capabilities vs. future features  
+- **Development focus**: Prioritized task list for systematic development
+- **Community engagement**: Users can vote on features and contribute to specific areas
