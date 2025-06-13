@@ -6,14 +6,14 @@ Keep this file updated with any new prompts or modifications to existing ones.
 
 
 
-## 1. 🧱 PLANNING
+## 1. 🧱 PLANNING A STEP
 Use **before coding** starts for the current step.
 
 ### ✅ Create Step Implementation Plan .md File
 ```
 Read the success criteria for [Step X] from `UPCOMING_TASKS.md`.
 
-Create `implementation_plan_[Step X].md` with the following:
+Create `STEP_X_IMPLEMENTATION_PLAN.md` with the following:
 1. A description of the step.
 2. A checklist of all tasks in **linear execution order**.
    2.1. For each task:
@@ -35,7 +35,7 @@ Create `implementation_plan_[Step X].md` with the following:
 ```
 
 
-## 2. 🛠️ MID EXECUTION INTERVENTION PROMPTS
+## 2. 🛠️ STEP MID EXECUTION INTERVENTION PROMPTS
 Use **during** implementation.
 
 ### 2.1 🧾 Figure out where we left off in our tasklist.
@@ -43,31 +43,31 @@ Use **during** implementation.
 **Figure out where we left off in our tasklist**:
    - Read the UPCOMING_TASKS.md file.
    - Identify the current step.
-   - Read the `implementation_plan_[Step X].md` file.
+   - Read the `STEP_X_IMPLEMENTATION_PLAN.md` file.
    - check if the progress is up to date. fix it if not.
    - let me know where we left off in the task list.
 ```
 
-## 3. 📚 DOCUMENTATION & ROADMAP UPDATE
+## 3. 📚 CONCLUDING A STEP
 Use **once cleanup is done**, before starting the next step.
-
-### 3.1 📘 Update Roadmap Docs Prompt
+### DOCUMENTATION & ROADMAP UPDATE
+#### 3.1 📘 Update Roadmap Docs Prompt
 ```
-**Update UPCOMING_TASKS.md and COMPLETED_TASKS.md in roadmap documents folder**:
-   - Mark the step as "✅ COMPLETED" 
+**[Step 31] is Complete, Update UPCOMING_TASKS.md and COMPLETED_TASKS.md in roadmap documents folder**:
+   - Mark the step as "✅ COMPLETED"
    - Update "current" status to the next step
    - review the rest of our upcoming tasks and suggest if any decision we took to complete the current step has affected any of the upcoming tasks.
-   - move this step to the "COMPLETED_TASKS.md" file.
+   - move this step, along with other completed steps, to the "COMPLETED_TASKS.md" file.
 ```
-### 3.2 📘GIT & GITHUB OPERATIONS
-#### 3.2.1 ✅ Close Current Step Issue Prompt
+#### 3.2 📘GIT & GITHUB OPERATIONS
+##### 3.2.1 ✅ Close Current Step Issue Prompt
 ```
 **Close the current step issue in GitHub**:
    - Using gh tool Find the GitHub issue for the step
-   - Update step body to the content of `implementation_plan_[Step X].md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)
+   - Update step body to the content of `STEP_X_IMPLEMENTATION_PLAN.md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)
    - Close the issue with completion comment
 ```
-#### 3.2.2 🆕 Create Next Step Issue Prompt
+##### 3.2.2 🆕 Create Next Step Issue Prompt
 ```
 **Create a new GitHub issue for the next step in the roadmap.**:
 1. Check the labels using `gh label list` since you tend to invent non-existing labels.
