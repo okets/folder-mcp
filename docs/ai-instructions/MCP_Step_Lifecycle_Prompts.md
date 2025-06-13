@@ -1,144 +1,85 @@
 # 🧭 MCP Step Lifecycle Prompts
+This guide organizes your AI prompts into breaking out a step into manageable tasks, ensuring clarity and efficiency in your development process.
+Copy and paste the relevant prompts into the agent as needed.
+Keep this file updated with any new prompts or modifications to existing ones.
 
-This guide organizes your AI prompts into **5 lifecycle phases** for each roadmap step:
 
----
+
 
 ## 1. 🧱 PLANNING
-
 Use **before coding** starts for the current step.
 
-### ✅ Step Implementation Plan Prompt
+### ✅ Create Step Implementation Plan .md File
 ```
-Read the success criteria for [Step XX].
+Read the success criteria for [Step X] from `UPCOMING_TASKS.md`.
 
-Create `implementation_plan.md` with:
-
-1. All tasks in **linear order**.
-2. For each task:
-   - Clear task description
-   - Precise success criterion
-3. Format as checklist: `- [ ]`
-
-Instructions for agents:
-- Update the file regularly and mark completed steps `- [x]`.
-- Keep this as the source of truth for this step's progress.
+Create `implementation_plan_[Step X].md` with the following:
+1. A description of the step.
+2. A checklist of all tasks in **linear execution order**.
+   2.1. For each task:
+         - A short **description**.
+         - A **clear success criterion**.
+   2.2. Format the tasks using markdown checkboxes: `- [ ]`.
+3. the last task of the plan should be "run a real world example with claude desktop."
+   3.0 The procedure of testing Claude desktop it described at CLAUDE_DESKTOP_TEST_ROUTINE.md
+   3.1 Ask the Agent to supply a prompt to check that the MCP server runs without issues by testing the implementation of this step and the integrity of our MCP server.
+   - When you create this last task, also insert a link to the `CLAUDE_DESKTOP_TEST_ROUTINE.md` file.
+4. Add a section for **Agent Instructions** at the end of the file.
+   - I am the sole developer of this tool, it's pre production. so don't keep any legacy code.
+   - Test folder paths:
+     - Full test folder: `C:\ThinkingHomes\test-folder`
+     - Simple test folder: `C:\ThinkingHomes\test-simple`
+   - I am running a windows machine so if you need to concatenate powershell commands, use ; instead of &&
+   - Regularly update the file and mark completed steps: `- [x]`.
+   - Keep the plan file as the **single source of truth** for progress tracking.
 ```
 
----
 
-## 2. 🛠️ EXECUTION
-
+## 2. 🛠️ MID EXECUTION INTERVENTION PROMPTS
 Use **during** implementation.
 
-### 🧾 Task Checklist Enforcement
+### 2.1 🧾 Figure out where we left off in our tasklist.
 ```
-This step is only considered complete when:
-
-- [ ] All tests pass
-- [ ] TypeScript compiles with **zero errors**
-- [ ] Claude Desktop runs the MCP server without issues  
-  → See `CLAUDE_DESKTOP_TEST_ROUTINE.md`
-```
-
-### 📁 Test Environment Info (Windows Paths)
-```
-- Full test folder:     C:\ThinkingHomes\test-folder  
-- Simple test folder:   C:\ThinkingHomes\test-simple
+**Figure out where we left off in our tasklist**:
+   - Read the UPCOMING_TASKS.md file.
+   - Identify the current step.
+   - Read the `implementation_plan_[Step X].md` file.
+   - check if the progress is up to date. fix it if not.
+   - let me know where we left off in the task list.
 ```
 
-### 📝 Development Control Reminder
-```
-Do not proceed to the next step until I explicitly approve it.
-
-You may work autonomously within this step.
-
-Temporary or legacy code is not allowed — clean up as you go.
-```
-
----
-
-## 3. 🧹 CLEANUP & VALIDATION
-
-Use **after task implementation**, before marking as complete.
-
-### 🧼 Finalization Prompt
-```
-Step [XX] is ready for finalization.
-
-Please:
-
-1. ✅ Confirm all success criteria are satisfied.
-2. 🧹 Fix all TypeScript compilation errors.
-3. 🧼 Remove all temporary files and folders.
-4. ✅ Check that all necessary tests exist.
-5. 🧪 Run all tests — they must pass!
-6. 🧪 Validate with:
-   node dist/index.js "C:\ThinkingHomes\test-folder"
-```
-
----
-
-## 4. 📚 DOCUMENTATION & ROADMAP UPDATE
-
+## 3. 📚 DOCUMENTATION & ROADMAP UPDATE
 Use **once cleanup is done**, before starting the next step.
 
-### 📘 Update Roadmap Docs Prompt
+### 3.1 📘 Update Roadmap Docs Prompt
 ```
-1. In the roadmap folder:
-   - Mark step as ✅ COMPLETED
-   - Check off all success criteria
-   - Point to implementation files
-   - Set current status to next step
+**Update UPCOMING_TASKS.md and COMPLETED_TASKS.md in roadmap documents folder**:
+   - Mark the step as "✅ COMPLETED" 
+   - Update "current" status to the next step
+   - review the rest of our upcoming tasks and suggest if any decision we took to complete the current step has affected any of the upcoming tasks.
+   - move this step to the "COMPLETED_TASKS.md" file.
 ```
-
----
-
-## 5. ⬆️ GIT & GITHUB OPERATIONS
-
-Do this **after roadmap update** and before moving on.
-
-### ✅ Commit & Push Prompt
+### 3.2 📘GIT & GITHUB OPERATIONS
+#### 3.2.1 ✅ Close Current Step Issue Prompt
 ```
-- git add .
-- git commit -m "Step XX: ✅ Completed <summary>"
-- git push
+**Close the current step issue in GitHub**:
+   - Using gh tool Find the GitHub issue for the step
+   - Update step body to the content of `implementation_plan_[Step X].md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)
+   - Close the issue with completion comment
 ```
-
-### 🐙 Update GitHub Issue Prompt
+#### 3.2.2 🆕 Create Next Step Issue Prompt
 ```
-- Use `gh issue list` to find the issue
-- Mark all criteria with [x]
-- Add implementation notes
-- Close with completion comment
+**Create a new GitHub issue for the next step in the roadmap.**:
+1. Check the labels using `gh label list` since you tend to invent non-existing labels.
+2. Create a new issue for the upcoming step
+   - For the body use the Step's description from `UPCOMING_TASKS.md`
 ```
 
-### 🆕 Create Next Step Issue Prompt
-```
-- gh issue create -t "Step XX" -b "<success criteria list>"
-- gh label list (to assign proper labels)
-```
 
----
-
-## 📦 Special Case: Cloudflare Tunnel Setup
-
-Use only when working on tunnel deployment (likely a dedicated step).
-
-### ☁️ Cloudflare Tunnel Setup Prompt
-```
-Goal: Serve the user’s CLI app via a public MCP server using Cloudflare Tunnel.
-
-Public format: fdsl3442356lkl.folder-mcp.link
-
-Tasks:
-1. Register domain: mcp-folder.link OR folder-mcp.app
-2. Set up DNS records
-3. Install & configure Cloudflare Tunnel
-4. Integrate with MCP server
-5. Implement dynamic subdomain provisioning
-
-Also:
-- Explore behavior if user shuts off computer
-- Ensure tunnel restarts cleanly on boot
-```
+[Work in Progress]
+####  ☁️ Cloudflare Tunnel plan prompt
+Give me full implementation plan for implementing cloudflare Tunnel. with all required steps, including registering the domain mcp-folder.link (or folder-mcp.app, haven't decided yet) with the  service.
+my goal is to have the user run my CLI app locally, have it process the data -> serve it using MCP server
+the user should have a connection address with this format fdsl3442356lkl.folder-mcp.link
+also, check what are the implications if the user shuts off his computer for the night.
+will it still work after starting it again?
