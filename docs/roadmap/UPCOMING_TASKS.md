@@ -114,6 +114,9 @@ This document tracks current and future development phases with detailed specifi
 
 ### Step 31: gRPC Transport Implementation
 **Task**: Implement multi-protocol transport layer with comprehensive security  
+**Status**: 🚀 **READY TO START** - Detailed implementation plan created  
+**Implementation Plan**: `STEP_31_IMPLEMENTATION_PLAN.md` - Complete 4-phase implementation guide
+
 **Success Criteria**:
 - 📋 Local transport: Unix Domain Socket (/tmp/folder-mcp.sock) with filesystem permissions only
 - 📋 Remote transport: TCP with configurable port (50051) with API key authentication
@@ -121,6 +124,18 @@ This document tracks current and future development phases with detailed specifi
 - 📋 API key generation system (32-byte Base64 on first serve)
 - 📋 Transport health checks and reconnection logic
 - 📋 Graceful shutdown handling for all transports
+- 📋 gRPC service implementation using generated proto types
+- 📋 Integration with existing DI container and configuration system
+- 📋 All tests pass with new transport implementation
+- 📋 TypeScript compiles without ANY errors
+- 📋 Claude Desktop integration maintains compatibility
+
+**Implementation Phases**:
+- **Phase A**: Core gRPC Service Implementation (Week 1)
+- **Phase B**: Multi-Protocol Transport Implementation (Week 2)  
+- **Phase C**: API Key Security System (Week 3)
+- **Phase D**: Transport Management and Health Monitoring (Week 4)
+- **Phase E**: Integration and Testing (Week 4)
 
 **Security Implementation**:
 - **API Key Management**:
@@ -132,6 +147,14 @@ This document tracks current and future development phases with detailed specifi
   - Local UDS: No API key required (filesystem permissions)
   - Remote gRPC: Server interceptor checks `authorization: Bearer <KEY>` metadata
   - Loopback HTTP: No API key required for localhost connections
+
+**Key Deliverables**:
+- Complete gRPC server with all 13 endpoints implemented
+- Multi-protocol transport support (Unix Domain Socket + TCP)
+- Comprehensive API key security system
+- Type-safe service implementations using generated proto types
+- Transport health monitoring and graceful shutdown
+- Enhanced CLI commands with transport management
 
 ### Step 32: Core Search Endpoints
 **Task**: Implement SearchDocs and SearchChunks endpoints  
