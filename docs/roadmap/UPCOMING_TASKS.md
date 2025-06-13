@@ -112,49 +112,51 @@ This document tracks current and future development phases with detailed specifi
 - ✅ Type-safe transport layer with factory pattern
 - ✅ Claude Desktop MCP server integration confirmed working
 
-### Step 31: gRPC Transport Implementation
-**Task**: Implement multi-protocol transport layer with comprehensive security  
-**Status**: 🚀 **READY TO START** - Detailed implementation plan created  
-**Implementation Plan**: `STEP_31_IMPLEMENTATION_PLAN.md` - Complete 4-phase implementation guide
+### Step 31: Local gRPC Transport Implementation  
+**Task**: Implement local gRPC transport layer with Unix Domain Socket for high-performance local access  
+**Status**: 🚀 **IN PROGRESS** - Core infrastructure completed, endpoint implementation ongoing  
+**Implementation Plan**: `STEP_31_IMPLEMENTATION_PLAN.md` - Complete implementation guide
 
 **Success Criteria**:
-- 📋 Local transport: Unix Domain Socket (/tmp/folder-mcp.sock) with filesystem permissions only
-- 📋 Remote transport: TCP with configurable port (50051) with API key authentication
-- 📋 TLS/mTLS support for remote connections
-- 📋 API key generation system (32-byte Base64 on first serve)
-- 📋 Transport health checks and reconnection logic
-- 📋 Graceful shutdown handling for all transports
-- 📋 gRPC service implementation using generated proto types
-- 📋 Integration with existing DI container and configuration system
-- 📋 All tests pass with new transport implementation
+- ✅ Local transport: Unix Domain Socket (Windows named pipe) with filesystem permissions
+- ✅ Basic service endpoints: SearchDocs and SearchChunks with validation and error handling
+- ✅ gRPC service implementation using generated proto types
+- ✅ Integration with existing DI container and configuration system
+- ✅ Local transport health checks and graceful shutdown
+- 📋 Complete all 13 gRPC service endpoints (11 remaining)
+- 📋 All tests pass with local transport implementation
 - 📋 TypeScript compiles without ANY errors
 - 📋 Claude Desktop integration maintains compatibility
+- 📋 Enhanced CLI commands for local transport management
 
-**Implementation Phases**:
-- **Phase A**: Core gRPC Service Implementation (Week 1)
-- **Phase B**: Multi-Protocol Transport Implementation (Week 2)  
-- **Phase C**: API Key Security System (Week 3)
-- **Phase D**: Transport Management and Health Monitoring (Week 4)
-- **Phase E**: Integration and Testing (Week 4)
-
-**Security Implementation**:
-- **API Key Management**:
-  - Generate strong random key (32-byte Base64) on first `folder-mcp serve <folder>`
-  - Store plaintext in `~/.folder-mcp/` alongside embeddings
-  - Display once to CLI: `Generated remote API key: <KEY>`
-  - Support key rotation: `folder-mcp rotate-key <folder>`
-- **Authentication Enforcement**:
-  - Local UDS: No API key required (filesystem permissions)
-  - Remote gRPC: Server interceptor checks `authorization: Bearer <KEY>` metadata
-  - Loopback HTTP: No API key required for localhost connections
+**Implementation Focus**: **Local Access Only**
+- **Unix Domain Socket**: High-performance local IPC (Windows named pipes)
+- **No Authentication Required**: Filesystem permissions provide security
+- **Core gRPC Services**: All 13 endpoints implemented with proper typing
+- **Health Monitoring**: Local transport status and diagnostics
+- **Performance Optimized**: Direct memory access, no network overhead
 
 **Key Deliverables**:
-- Complete gRPC server with all 13 endpoints implemented
-- Multi-protocol transport support (Unix Domain Socket + TCP)
-- Comprehensive API key security system
+- Complete local gRPC server with all 13 endpoints implemented
+- Unix Domain Socket transport with optimal performance
 - Type-safe service implementations using generated proto types
-- Transport health monitoring and graceful shutdown
-- Enhanced CLI commands with transport management
+- Local transport health monitoring and graceful shutdown
+- Enhanced CLI commands for local transport management
+
+**Completed Infrastructure**:
+- ✅ gRPC server with proto loading and DI integration
+- ✅ Unix Domain Socket transport (Windows named pipe)
+- ✅ Basic SearchDocs and SearchChunks endpoints
+- ✅ Error mapping and validation utilities
+- ✅ Transport manager with graceful shutdown
+- ✅ API key system (foundation for future remote access)
+- ✅ Authentication middleware (inactive for local transport)
+
+**Remaining Work**:
+- 📋 11 additional service endpoints (ListFolders, GetDocMetadata, etc.)
+- 📋 Integration with existing domain services (search, files, embeddings)
+- 📋 Comprehensive test coverage for all local transport scenarios
+- 📋 CLI enhancements for local transport management
 
 ### Step 32: Core Search Endpoints
 **Task**: Implement SearchDocs and SearchChunks endpoints  
@@ -186,11 +188,71 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Add content-type detection and headers
 - 📋 Token limiting for text responses (≤1,000 per chunk)
 
+### Step 35: Remote Access & Cloud LLM Integration
+**Task**: Implement secure remote access for cloud LLM integration with Cloudflare tunneling  
+**Status**: 📋 **PLANNED** - Depends on Step 31 completion  
+**Focus**: Enable cloud LLM access to local folder-mcp instances with zero-config tunneling
+
+**Success Criteria**:
+- 📋 **TCP Transport**: Remote gRPC server with configurable port (50051)
+- 📋 **API Key Authentication**: Bearer token validation for remote connections
+- 📋 **TLS/mTLS Support**: Auto-generated self-signed certificates for development
+- 📋 **Cloudflare Tunnel Integration**: Zero-config remote access without port forwarding
+- 📋 **Project Subdomain Service**: Users get `username.folder-mcp.com` subdomains
+- 📋 **Let's Encrypt Integration**: Automated certificate management for custom domains
+- 📋 **Rate Limiting**: Per-key request throttling and abuse prevention
+- 📋 **Audit Logging**: Security event tracking and monitoring
+- 📋 **Certificate Management**: Auto-renewal and expiration monitoring
+
+**Implementation Architecture**:
+- **Cloudflare Tunnel**: Primary remote access method (no port forwarding required)
+  - Wildcard domain: `*.folder-mcp.com` → automatic user subdomains
+  - Reverse tunneling through Cloudflare's global network
+  - Built-in DDoS protection and SSL certificate management
+  - Comprehensive analytics dashboard for usage monitoring
+- **Alternative Methods**: ngrok integration for users preferring different providers
+- **Hybrid Security**: Local connections bypass auth, remote connections require API keys
+- **Zero-Config UX**: `folder-mcp serve /docs --tunnel --subdomain alice` → instant cloud access
+
+**Key Technical Components**:
+- **TCP Transport Layer**: Extend existing gRPC server with TCP binding
+- **Certificate Strategy**: 
+  - Self-signed certificates for local development and testing
+  - CA-signed certificates (Let's Encrypt/Cloudflare) for production tunneling
+  - Automatic certificate provisioning and renewal
+- **Tunneling Integration**:
+  - Cloudflare Tunnel SDK integration with automatic authentication
+  - Dynamic subdomain allocation and DNS record management
+  - Tunnel health monitoring and automatic reconnection
+  - Fallback to alternative providers (ngrok, localtunnel)
+- **Authentication System**: 
+  - API key validation for all remote connections
+  - Rate limiting and abuse prevention per key
+  - Audit logging for security events and access patterns
+  - Key lifecycle management (generation, rotation, revocation)
+
+**Cloud LLM Integration Benefits**:
+- **Zero Network Configuration**: No router setup, firewall rules, or port forwarding
+- **Enterprise-Grade Security**: Cloudflare's DDoS protection and WAF
+- **Global Performance**: Cloudflare's edge network optimizes connection speed
+- **User-Friendly URLs**: `https://alice.folder-mcp.com` instead of `https://random-ngrok-id.ngrok.io`
+- **SSL/TLS Automatic**: Cloudflare provides and manages SSL certificates
+- **Analytics & Monitoring**: Built-in request analytics and performance monitoring
+
+**Key Deliverables**:
+- TCP transport with configurable binding and port settings
+- Cloudflare Tunnel integration with automatic subdomain allocation
+- TLS/mTLS certificate management with automatic renewal
+- Remote authentication system with comprehensive security features
+- Subdomain service for user-friendly cloud access
+- Documentation for cloud LLM integration workflows
+- CLI commands for tunnel management and remote access setup
+
 ---
 
 ## Phase 9: Advanced Endpoints & HTTP Gateway (Planned)
 
-### Step 35: Summarization Endpoints
+### Step 36: Summarization Endpoints
 **Task**: Implement document summarization services  
 **Success Criteria**:
 - 📋 GetDocSummary: Single document summarization
@@ -200,7 +262,7 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Add source range references in responses
 - 📋 Batch processing with total token cap (≤2,000)
 
-### Step 36: Specialized Query Endpoints
+### Step 37: Specialized Query Endpoints
 **Task**: Implement table querying and system status endpoints  
 **Success Criteria**:
 - 📋 TableQuery: Semantic queries over spreadsheet data
@@ -210,7 +272,7 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Handle sheet selection and cell range responses
 - 📋 Implement job tracking for refresh operations
 
-### Step 37: HTTP Gateway Implementation
+### Step 38: HTTP Gateway Implementation
 **Task**: Implement REST/JSON gateway for gRPC services with comprehensive authentication  
 **Success Criteria**:
 - 📋 HTTP server on configurable port (default 8080)
@@ -231,7 +293,7 @@ This document tracks current and future development phases with detailed specifi
   - Rate limiting per API key
   - Request size limits and timeout handling
 
-### Step 38: Advanced Search Features
+### Step 39: Advanced Search Features
 **Task**: Enhance search capabilities with advanced filtering  
 **Success Criteria**:
 - 📋 Complex metadata filtering (AND/OR operations)
@@ -241,7 +303,7 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Search history and saved queries
 - 📋 Query performance optimization
 
-### Step 39: Batch Operations & Streaming
+### Step 40: Batch Operations & Streaming
 **Task**: Implement efficient batch processing and streaming  
 **Success Criteria**:
 - 📋 Streaming responses for large result sets

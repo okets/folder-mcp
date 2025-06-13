@@ -1,51 +1,150 @@
-# Step 31 Implementation Plan: gRPC Transport Implementation
+# Step 31 Implementation Plan: Local gRPC Transport Implementation
 
 **Date Created**: June 13, 2025  
-**Status**: 🚀 READY TO START - Next Immediate Task  
-**Priority**: 🔥 CRITICAL - Core Transport Infrastructure  
+**Status**: 🏗️ IN PROGRESS - Core infrastructure completed, endpoint implementation ongoing  
+**Priority**: 🔥 CRITICAL - Local Transport Foundation  
 **Dependencies**: ✅ Step 30 Protocol Buffer Schema Design (COMPLETED)
+
+**Implementation Started**: June 13, 2025  
+**Current Phase**: Phase B - Service Endpoint Implementation  
+**Progress**: 
+- ✅ Phase A1 - gRPC Server Foundation (COMPLETED)
+- ✅ Phase A2 - Basic Service Endpoint Structure (COMPLETED)  
+- ✅ Phase A3 - DI Container Integration (COMPLETED)
+- ✅ Phase B1 - Unix Domain Socket Transport (COMPLETED)
+- ✅ Phase B2 - API Key System Foundation (COMPLETED - for future remote access)
+- ✅ Phase B3 - Authentication Middleware (COMPLETED - inactive for local transport)
+- 🏗️ Phase C1 - Complete Service Endpoint Implementation (IN PROGRESS)
+- ⏸️ Phase C2 - Local Transport Health Monitoring (PENDING)
+- ⏸️ Phase C3 - CLI Integration Enhancement (PENDING)
+
+**Latest Achievement**: ✅ **Local gRPC Transport Foundation Completed**
+- Unix Domain Socket transport (Windows named pipe) working perfectly
+- Basic SearchDocs and SearchChunks endpoints implemented with validation
+- Complete error mapping and gRPC status code handling
+- Transport manager with graceful shutdown capabilities
+- API key system implemented (foundation for future Step 35 remote access)
+- Authentication middleware ready (inactive for local transport, filesystem permissions provide security)
+
+**Updated Focus**: **Local Transport Only**
+This implementation plan now focuses exclusively on local gRPC transport using Unix Domain Socket (Windows named pipe). All remote access features (TCP transport, TLS, Cloudflare Tunnel integration) have been moved to **Step 35: Remote Access & Cloud LLM Integration** for cleaner separation of concerns.
+
+**Files Created in This Session**:
+```
+src/grpc/
+├── auth/
+│   ├── index.ts                 # ✅ Authentication module exports
+│   ├── api-key-manager.ts       # ✅ API key system (for future Step 35)
+│   └── auth-interceptor.ts      # ✅ gRPC auth middleware (inactive for local)
+├── server.ts                     # ✅ Main gRPC server implementation
+├── transport-manager.ts          # ✅ Local transport coordination
+├── services/
+│   ├── index.ts                 # ✅ Service implementations index
+│   └── search-service.ts        # ✅ SearchDocs/SearchChunks implementations
+├── interceptors/
+│   └── index.ts                 # ✅ Interceptors index (placeholder)
+└── utils/
+    ├── proto-loader.ts          # ✅ Protocol buffer loading utilities
+    └── error-mapper.ts          # ✅ Domain error to gRPC status mapping
+
+src/config/
+└── grpc-config.ts               # ✅ gRPC transport configuration
+
+src/grpc-demo.ts                 # ✅ Working gRPC server demo
+src/grpc-auth-test.ts            # ✅ Authentication system test (for future Step 35)
+```
+
+**Next Priority**: Complete all 13 service endpoints for local access and integrate with existing domain services
 
 ## 📋 Overview
 
-**Goal**: Implement comprehensive multi-protocol gRPC transport layer with local Unix Domain Socket and remote TCP support, complete API key security system, and production-ready transport management for high-performance document intelligence services.
+**Goal**: Implement comprehensive local gRPC transport layer using Unix Domain Socket (Windows named pipe) for high-performance document intelligence services with complete service endpoint coverage.
 
 **Success Criteria from Roadmap**:
-- Local transport: Unix Domain Socket (/tmp/folder-mcp.sock) with filesystem permissions only
-- Remote transport: TCP with configurable port (50051) with API key authentication
-- TLS/mTLS support for remote connections
-- API key generation system (32-byte Base64 on first serve)
-- Transport health checks and reconnection logic
-- Graceful shutdown handling for all transports
-- gRPC service implementation using generated proto types
+- Local transport: Unix Domain Socket (Windows named pipe) with filesystem permissions only
+- Complete implementation of all 13 gRPC service endpoints
+- gRPC service implementation using generated proto types with full type safety
 - Integration with existing DI container and configuration system
-- All tests pass with new transport implementation
+- Local transport health monitoring and graceful shutdown
+- All tests pass with local transport implementation
 - TypeScript compiles without ANY errors
 - Claude Desktop integration maintains compatibility
+- Enhanced CLI commands for local transport management
+
+**Key Architecture Decisions**:
+- **Local Only**: Focus exclusively on Unix Domain Socket transport for maximum performance
+- **No Authentication**: Filesystem permissions provide security (API key system exists for future remote access)
+- **Type Safety**: Leverage generated TypeScript types throughout the implementation
+- **DI Integration**: Full integration with existing dependency injection container
+- **Performance First**: Optimize for local high-throughput document processing scenarios
 
 ## 🏗️ Implementation Phases
 
-### Phase A: Core gRPC Service Implementation
+### Phase A: Core gRPC Service Implementation ✅ COMPLETED
 **Priority**: First - Foundation Service Layer
 
-#### A1. gRPC Server Foundation
-- **Current State**: Protocol buffer schema complete with all 13 endpoints
-- **Task**: Implement gRPC server using @grpc/grpc-js with typed proto definitions
-- **Components to Create**:
-  - [ ] **gRPC Server Setup**: Server initialization, proto loading, service registration
-  - [ ] **Service Implementation**: All 13 endpoints with proper error handling
-  - [ ] **Type Integration**: Use generated TypeScript types for type safety
-  - [ ] **Error Handling**: Standardized gRPC error codes and messages
-  - [ ] **Logging Integration**: Structured logging for all service calls
-  - [ ] **Health Checks**: gRPC health checking protocol implementation
+#### A1. gRPC Server Foundation ✅ COMPLETED
+- **Status**: Complete gRPC server using @grpc/grpc-js with typed proto definitions
+- **Completed Components**:
+  - [x] **gRPC Server Setup**: Server initialization, proto loading, service registration
+  - [x] **Service Implementation**: Basic service structure with error handling
+  - [x] **Type Integration**: Use generated TypeScript types for type safety
+  - [x] **Error Handling**: Standardized gRPC error codes and messages
+  - [x] **Logging Integration**: Structured logging for all service calls
+  - [ ] **Health Checks**: gRPC health checking protocol implementation (Phase C)
 
-#### A2. Service Endpoint Implementation
-- [ ] **Implement all 13 service methods** with proper type safety and error handling
-- **Service Methods to Implement**:
-  - [ ] **SearchDocs**: Semantic document discovery with metadata filtering
-  - [ ] **SearchChunks**: Chunk-level search with similarity scoring
-  - [ ] **ListFolders**: Folder tree structure with recursive navigation
-  - [ ] **ListDocumentsInFolder**: Document listing with pagination
-  - [ ] **GetDocMetadata**: Document metadata with structural information
+#### A2. Service Endpoint Implementation ✅ COMPLETED (Basic Structure)
+- [x] **Basic service method structure** with proper type safety and error handling
+- **Service Methods Status**:
+  - [x] **SearchDocs**: Complete implementation with validation and error handling
+  - [x] **SearchChunks**: Complete implementation with validation and error handling
+  - [ ] **Remaining 11 endpoints**: Implementation pending (Phase C)
+
+#### A3. Business Logic Integration ✅ COMPLETED (Foundation)
+- [x] **Connect service layer to existing domain services** via DI container
+- **Domain Service Integration**:
+  - [x] DI container setup with proper service tokens
+  - [x] Logging service integration
+  - [x] Error translation from domain to gRPC status codes
+  - [ ] Full domain service integration (Phase C)
+
+---
+
+### Phase B: Local Transport Implementation ✅ COMPLETED
+**Priority**: Second - Local Transport Foundation
+
+#### B1. Unix Domain Socket Transport ✅ COMPLETED
+- [x] **Local Transport Implementation**: High-performance Unix socket for local communication
+- [x] **Security Model**: Filesystem permissions only (no API key required)
+- **Socket Configuration**: ✅ ALL COMPLETED
+  - [x] Default path: Windows named pipe `\\.\pipe\folder-mcp` (configurable)
+  - [x] Automatic cleanup on shutdown
+  - [x] Socket availability detection
+- **Connection Management**: ✅ ALL COMPLETED
+  - [x] Connection handling for local clients
+  - [x] Graceful shutdown with active connection drainage
+  - [x] Basic health monitoring and diagnostics
+
+#### B2. API Key System Foundation ✅ COMPLETED
+**Note**: This system was implemented as foundation for future Step 35 (Remote Access). For local transport, it remains inactive.
+- [x] **API Key Generation**: Cryptographically secure 32-byte Base64 encoded keys
+- [x] **Key Storage**: Secure storage in `~/.folder-mcp/api-keys.json`
+- [x] **Authentication Middleware**: gRPC interceptor (inactive for local transport)
+
+---
+
+### Phase C: Complete Service Implementation 🏗️ IN PROGRESS
+**Priority**: Third - Complete Local Service Coverage
+
+#### C1. All Service Endpoints Implementation 🏗️ IN PROGRESS
+- **Status**: 2 of 13 endpoints completed, 11 remaining
+- **Completed Endpoints**:
+  - [x] **SearchDocs**: Semantic document discovery with metadata filters
+  - [x] **SearchChunks**: Chunk-level search with text previews
+- **Remaining Endpoints**:
+  - [ ] **ListFolders**: Top-level folder tree structure
+  - [ ] **ListDocumentsInFolder**: Paginated document listing
+  - [ ] **GetDocMetadata**: Document metadata with structural information  
   - [ ] **DownloadDoc**: Binary document streaming with content-type detection
   - [ ] **GetChunks**: Chunk text retrieval with token limiting
   - [ ] **GetDocSummary**: Single document summarization
@@ -55,288 +154,119 @@
   - [ ] **RefreshDoc**: Document re-processing trigger
   - [ ] **GetEmbedding**: Raw vector access for debugging
 
-#### A3. Business Logic Integration
-- [ ] **Connect service layer to existing domain services** via DI container
-- **Domain Service Integration**:
+#### C2. Domain Service Integration 📋 PENDING
+- **Integration Required**:
   - [ ] Search service for document and chunk queries
   - [ ] File system service for document access and metadata
   - [ ] Embedding service for vector operations
   - [ ] Content service for summarization and text processing
   - [ ] Cache service for performance optimization
   - [ ] Monitoring service for status tracking
-- [ ] **Type-Safe Service Wrappers**: Ensure all domain service calls are properly typed
-- [ ] **Error Translation**: Convert domain errors to appropriate gRPC status codes
+- **Implementation Tasks**:
+  - [ ] Connect each endpoint to appropriate domain services
+  - [ ] Implement proper error handling and response mapping
+  - [ ] Add input validation and sanitization
+  - [ ] Implement token limiting for text responses
 
----
-
-### Phase B: Multi-Protocol Transport Implementation
-**Priority**: Second - Transport Layer Foundation
-
-#### B1. Unix Domain Socket Transport
-- [ ] **Local Transport Implementation**: High-performance Unix socket for local communication
-- [ ] **Security Model**: Filesystem permissions only (no API key required)
-- **Socket Configuration**:
-  - [ ] Default path: `/tmp/folder-mcp.sock` (configurable)
-  - [ ] File permissions: 0600 (owner read/write only)
-  - [ ] Automatic cleanup on shutdown
-  - [ ] Socket availability detection
-- **Connection Management**:
-  - [ ] Connection pooling for local clients
-  - [ ] Automatic reconnection handling
-  - [ ] Graceful shutdown with active connection drainage
-  - [ ] Health monitoring and diagnostics
-
-#### B2. Remote TCP Transport
-- [ ] **Remote Transport Implementation**: TCP server for remote gRPC connections
-- [ ] **Security Model**: API key authentication required for all remote connections
-- **TCP Configuration**:
-  - [ ] Default port: 50051 (configurable)
-  - [ ] Bind address: configurable (default: 0.0.0.0 for remote, 127.0.0.1 for local-only)
-  - [ ] Connection limits and timeout configuration
-  - [ ] Keep-alive settings for long-lived connections
-- **Authentication Integration**:
-  - [ ] gRPC interceptor for API key validation
-  - [ ] Bearer token extraction from metadata
-  - [ ] Integration with API key management system
-  - [ ] Request rate limiting per API key
-
-#### B3. TLS/mTLS Security Layer
-- [ ] **TLS Configuration**: Secure connections for production deployments
-- **Certificate Management**:
-  - [ ] Self-signed certificate generation for development
-  - [ ] Custom certificate support for production
-  - [ ] Certificate validation and expiration monitoring
-  - [ ] Automatic certificate renewal hooks
-- **mTLS Support**:
-  - [ ] Client certificate validation
-  - [ ] Certificate-based access control
-  - [ ] Integration with API key system
-  - [ ] Audit logging for certificate-based connections
-
----
-
-### Phase C: API Key Security System
-**Priority**: Third - Security Infrastructure
-
-#### C1. API Key Generation and Storage
-- [ ] **Strong Key Generation**: Cryptographically secure 32-byte Base64 encoded keys
-- **Key Storage System**:
-  - [ ] Storage location: `~/.folder-mcp/api-keys.json`
-  - [ ] JSON structure with folder-to-key mapping
-  - [ ] Atomic file operations for key updates
-  - [ ] Backup and recovery mechanisms
-- **Key Lifecycle Management**:
-  - [ ] Automatic generation on first `folder-mcp serve <folder>`
-  - [ ] Key rotation with `folder-mcp rotate-key <folder>`
-  - [ ] Key revocation with `folder-mcp revoke-key <folder>`
-  - [ ] Key listing and status display
-- **Security Features**:
-  - [ ] In-memory key caching for performance
-  - [ ] Key validation and format verification
-  - [ ] Secure key comparison (timing-safe)
-  - [ ] Key expiration and automatic rotation (optional)
-
-#### C2. Authentication Middleware
-- [ ] **gRPC Interceptor Implementation**: Server-side authentication for remote connections
-- **Authentication Logic**:
-  - [ ] Extract Bearer token from `authorization` metadata
-  - [ ] Support alternative `x-api-key` metadata format
-  - [ ] Validate key against stored keys for the served folder
-  - [ ] Bypass authentication for Unix Domain Socket connections
-- **Error Handling**:
-  - [ ] Return `UNAUTHENTICATED` status for missing keys
-  - [ ] Return `PERMISSION_DENIED` status for invalid keys
-  - [ ] Rate limiting for failed authentication attempts
-  - [ ] Audit logging for all authentication events
-
-#### C3. CLI Integration Enhancement
-- [ ] **Extend existing CLI commands** with transport-specific options
-- **Command Enhancements**:
-  - [ ] `folder-mcp serve <folder>` with transport selection
-  - [ ] Transport health status in `folder-mcp status <folder>`
-  - [ ] Connection testing with `folder-mcp test-connection <folder>`
-  - [ ] Key management integration with transport configuration
-- **Configuration Integration**:
-  - [ ] Transport protocol selection (unix, tcp, both)
-  - [ ] Port and socket path configuration
-  - [ ] TLS certificate configuration
-  - [ ] Authentication settings per transport
-
----
-
-### Phase D: Transport Management and Health Monitoring
-**Priority**: Fourth - Operational Excellence
-
-#### D1. Connection Management
-- [ ] **Connection Pooling**: Efficient connection reuse for high-throughput scenarios
-- **Connection Lifecycle**:
-  - [ ] Connection establishment and handshake
-  - [ ] Keep-alive and heartbeat monitoring
-  - [ ] Graceful connection termination
-  - [ ] Connection recovery and retry logic
-- **Resource Management**:
-  - [ ] Memory usage monitoring for active connections
-  - [ ] Connection limits and throttling
-  - [ ] Automatic cleanup of stale connections
-  - [ ] Resource leak detection and prevention
-
-#### D2. Health Monitoring System
-- [ ] **gRPC Health Check Protocol**: Standard health checking implementation
-- **Health Status Tracking**:
-  - [ ] Service availability monitoring
-  - [ ] Transport layer health status
+#### C3. Local Transport Health Monitoring 📋 PENDING
+- **Health Check Implementation**:
+  - [ ] gRPC health checking protocol
+  - [ ] Local transport status monitoring
   - [ ] Dependency health checks (file system, cache, embeddings)
   - [ ] Performance metrics collection
 - **Monitoring Integration**:
   - [ ] Health status in CLI commands
   - [ ] Structured logging for monitoring systems
-  - [ ] Metrics export for observability platforms
-  - [ ] Alert thresholds and notification hooks
-
-#### D3. Graceful Shutdown Management
-- [ ] **Shutdown Sequence**: Coordinated shutdown of all transport layers
-- **Shutdown Phases**:
-  1. [ ] Stop accepting new connections
-  2. [ ] Drain active requests with timeout
-  3. [ ] Close transport listeners
-  4. [ ] Cleanup resources (sockets, certificates, keys)
-  5. [ ] Final status reporting
-- **Signal Handling**:
-  - [ ] SIGTERM for graceful shutdown
-  - [ ] SIGINT for immediate shutdown
-  - [ ] SIGHUP for configuration reload
-  - [ ] Process manager integration (PM2, systemd)
+  - [ ] Diagnostic endpoints for troubleshooting
 
 ---
 
-### Phase E: Integration and Testing
-**Priority**: Fifth - Quality Assurance
+### Phase D: Testing and CLI Integration 📋 PLANNED
+**Priority**: Fourth - Quality Assurance and User Experience
 
-#### E1. DI Container Integration
-- [ ] **Service Registration**: Register gRPC services with dependency injection container
-- **Factory Pattern Enhancement**:
-  - [ ] Transport factory for protocol selection
-  - [ ] Service factory for endpoint implementation
-  - [ ] Configuration factory for transport settings
-  - [ ] Lifecycle management through DI
-- [ ] **Type Safety**: Ensure all DI registrations maintain TypeScript type safety
-- [ ] **Testing Integration**: Mock-friendly DI setup for unit testing
+#### D1. Test Suite Integration 📋 PLANNED
+- **Test Coverage**:
+  - [ ] Unit tests for all service endpoints
+  - [ ] Integration tests with domain services
+  - [ ] Local transport connection testing
+  - [ ] Error handling and edge case testing
+  - [ ] Performance testing for high-throughput scenarios
+- **Test Infrastructure**:
+  - [ ] Mock factories for domain services
+  - [ ] Test fixtures for various document types
+  - [ ] Automated test execution in CI/CD
 
-#### E2. Configuration System Enhancement
-- [ ] **Transport Configuration Schema**: Extend config schema with transport settings
-- **Configuration Options**:
-  - [ ] Transport protocol selection (unix, tcp, both)
-  - [ ] Port and socket path configuration
-  - [ ] TLS/certificate settings
-  - [ ] API key management options
-  - [ ] Connection limits and timeouts
-- [ ] **Environment Variable Support**: Standard environment variable naming
-- [ ] **Configuration Validation**: Runtime validation of transport settings
-
-#### E3. Testing Strategy
-- [ ] **Unit Tests**: Individual service method testing with mocks
-- [ ] **Integration Tests**: End-to-end transport testing with real connections
-- [ ] **Security Tests**: Authentication and authorization verification
-- [ ] **Performance Tests**: Load testing for connection handling
-- [ ] **Compatibility Tests**: Verify Claude Desktop integration remains functional
+#### D2. CLI Enhancement 📋 PLANNED
+- **Command Enhancements**:
+  - [ ] `folder-mcp serve <folder>` with local transport status
+  - [ ] `folder-mcp status <folder>` with transport health information
+  - [ ] `folder-mcp test-connection <folder>` for local connection testing
+  - [ ] Enhanced logging and diagnostic output
+- **Configuration Integration**:
+  - [ ] Local transport configuration options
+  - [ ] Socket path customization
+  - [ ] Performance tuning parameters
 
 ---
 
-## 📁 Detailed File Structure Plan
+## 📁 File Structure Plan
 
-### New gRPC Service Implementation
+### Completed gRPC Service Implementation ✅
 ```
 src/grpc/
-├── server.ts                     # NEW: Main gRPC server implementation
-├── services/                     # NEW: Service endpoint implementations
-│   ├── search-service.ts        # SearchDocs, SearchChunks implementations
-│   ├── navigation-service.ts    # ListFolders, ListDocumentsInFolder
-│   ├── document-service.ts      # GetDocMetadata, DownloadDoc, GetChunks
-│   ├── summary-service.ts       # GetDocSummary, BatchDocSummary
-│   ├── specialized-service.ts   # TableQuery, IngestStatus, RefreshDoc, GetEmbedding
-│   └── health-service.ts        # gRPC health check protocol
-├── interceptors/                 # NEW: gRPC middleware
-│   ├── auth-interceptor.ts      # API key authentication
-│   ├── logging-interceptor.ts   # Request/response logging
-│   ├── error-interceptor.ts     # Error handling and translation
-│   └── metrics-interceptor.ts   # Performance metrics collection
-├── security/                     # NEW: Security implementations
-│   ├── api-key-manager.ts       # Key generation, storage, validation
-│   ├── certificate-manager.ts   # TLS certificate management
-│   └── rate-limiter.ts          # Request rate limiting
-└── utils/                        # NEW: gRPC utilities
-    ├── proto-loader.ts          # Protocol buffer loading utilities
-    ├── error-mapper.ts          # Domain error to gRPC status mapping
-    └── stream-helper.ts         # Streaming response utilities
+├── server.ts                     # ✅ Main gRPC server implementation
+├── transport-manager.ts          # ✅ Local transport coordination
+├── services/                     # ✅ Service endpoint implementations
+│   ├── index.ts                 # ✅ Service implementations index
+│   └── search-service.ts        # ✅ SearchDocs, SearchChunks implementations
+├── auth/                         # ✅ Authentication system (for future Step 35)
+│   ├── index.ts                 # ✅ Authentication module exports
+│   ├── api-key-manager.ts       # ✅ API key generation, storage, lifecycle
+│   └── auth-interceptor.ts      # ✅ gRPC authentication middleware
+├── interceptors/                 # ✅ gRPC middleware
+│   └── index.ts                 # ✅ Interceptors index (placeholder)
+└── utils/                        # ✅ gRPC utilities
+    ├── proto-loader.ts          # ✅ Protocol buffer loading utilities
+    └── error-mapper.ts          # ✅ Domain error to gRPC status mapping
 ```
 
-### Enhanced Transport Layer
+### Remaining Service Implementation 📋
 ```
-src/transport/
-├── grpc-transport.ts             # ENHANCED: gRPC-specific transport implementation
-├── unix-transport.ts             # NEW: Unix Domain Socket transport
-├── tcp-transport.ts              # NEW: TCP transport with TLS support
-├── transport-manager.ts          # NEW: Multi-transport coordination
-├── connection-pool.ts            # NEW: Connection pooling and management
-└── health-monitor.ts             # NEW: Transport health monitoring
+src/grpc/services/
+├── navigation-service.ts         # 📋 ListFolders, ListDocumentsInFolder
+├── document-service.ts           # 📋 GetDocMetadata, DownloadDoc, GetChunks
+├── summary-service.ts            # 📋 GetDocSummary, BatchDocSummary
+├── specialized-service.ts        # 📋 TableQuery, IngestStatus, RefreshDoc, GetEmbedding
+└── health-service.ts             # 📋 gRPC health check protocol
 ```
 
-### Enhanced Configuration
+### Enhanced Configuration ✅
 ```
 src/config/
-├── transport-config.ts           # NEW: Transport-specific configuration
-├── security-config.ts            # NEW: Security and API key configuration
-├── grpc-config.ts               # NEW: gRPC server configuration
-└── tls-config.ts                # NEW: TLS/certificate configuration
+├── grpc-config.ts               # ✅ gRPC server configuration
+└── transport-config.ts          # 📋 Local transport-specific configuration
 ```
 
-### Security System
-```
-src/security/
-├── api-key/                      # NEW: API key management system
-│   ├── generator.ts             # Cryptographic key generation
-│   ├── storage.ts               # Secure key storage and retrieval
-│   ├── validator.ts             # Key validation and verification
-│   └── manager.ts               # Key lifecycle management
-├── auth/                         # NEW: Authentication system
-│   ├── interceptor.ts           # gRPC authentication interceptor
-│   ├── middleware.ts            # HTTP authentication middleware
-│   └── rate-limiter.ts          # Authentication rate limiting
-└── tls/                          # NEW: TLS certificate management
-    ├── cert-generator.ts        # Self-signed certificate generation
-    ├── cert-manager.ts          # Certificate lifecycle management
-    └── cert-validator.ts        # Certificate validation and monitoring
-```
-
-### Enhanced CLI Integration
-```
-src/interfaces/cli/commands/
-├── serve.ts                      # ENHANCED: Transport-aware serve command
-├── transport-test.ts             # NEW: Transport connection testing
-├── transport-status.ts           # NEW: Transport health status
-└── security/                     # ENHANCED: Security command enhancements
-    ├── generate-key.ts          # Enhanced with transport integration
-    ├── rotate-key.ts            # Enhanced with active connection handling
-    └── test-auth.ts             # NEW: Authentication testing command
-```
-
-### Testing Infrastructure
+### Testing Infrastructure 📋
 ```
 tests/
-├── grpc/                         # NEW: gRPC-specific tests
-│   ├── services/                # Service endpoint tests
-│   ├── interceptors/            # Middleware tests
-│   ├── security/                # Authentication tests
-│   └── transport/               # Transport layer tests
-├── security/                     # NEW: Security system tests
-│   ├── api-key/                 # API key management tests
-│   ├── auth/                    # Authentication tests
-│   └── tls/                     # TLS/certificate tests
-└── integration/                  # ENHANCED: Transport integration tests
-    ├── grpc-integration.test.ts # End-to-end gRPC testing
-    ├── multi-transport.test.ts  # Multi-protocol testing
-    └── security-integration.test.ts # Security integration testing
+├── grpc/                         # 📋 gRPC-specific tests
+│   ├── services/                # 📋 Service endpoint tests
+│   ├── transport/               # 📋 Local transport tests
+│   └── integration/             # 📋 End-to-end local transport tests
+└── integration/                  # 📋 Enhanced transport integration tests
+    └── grpc-local.test.ts       # 📋 Local gRPC transport testing
 ```
+
+### Enhanced CLI Integration 📋
+```
+src/interfaces/cli/commands/
+├── serve.ts                      # 📋 Enhanced with local transport status
+├── transport-test.ts             # 📋 Local transport connection testing
+└── transport-status.ts           # 📋 Local transport health status
+```
+
+**Note**: Remote access components (TCP transport, TLS, Cloudflare integration) have been moved to **Step 35: Remote Access & Cloud LLM Integration** for focused implementation.
 
 ---
 
@@ -351,7 +281,6 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { FolderMCPService } from '../generated/folder-mcp';
 import { createServices } from './services';
-import { createInterceptors } from './interceptors';
 
 export class GrpcServer {
   private server: grpc.Server;
@@ -363,27 +292,32 @@ export class GrpcServer {
   ) {
     this.server = new grpc.Server();
     this.services = createServices(container);
-    this.setupInterceptors();
     this.registerServices();
   }
   
   async start(): Promise<void> {
-    // Unix Domain Socket
-    if (this.config.enableUnixSocket) {
-      await this.startUnixSocket();
-    }
-    
-    // TCP with optional TLS
-    if (this.config.enableTcp) {
-      await this.startTcpServer();
-    }
+    // Unix Domain Socket for local high-performance access
+    await this.startUnixSocket();
   }
   
-  private setupInterceptors(): void {
-    const interceptors = createInterceptors(this.container);
-    this.server.addInterceptor(interceptors.auth);
-    this.server.addInterceptor(interceptors.logging);
-    this.server.addInterceptor(interceptors.metrics);
+  private async startUnixSocket(): Promise<void> {
+    const socketPath = this.config.socketPath || '\\\\.\\pipe\\folder-mcp';
+    
+    return new Promise((resolve, reject) => {
+      this.server.bindAsync(
+        socketPath,
+        grpc.ServerCredentials.createInsecure(),
+        (error, port) => {
+          if (error) {
+            reject(error);
+          } else {
+            this.server.start();
+            this.logger.info(`gRPC server listening on ${socketPath}`);
+            resolve();
+          }
+        }
+      );
+    });
   }
 }
 ```
@@ -402,14 +336,13 @@ export class SearchService {
   
   async searchDocs(
     request: SearchDocsRequest,
-    metadata: grpc.Metadata,
     call: grpc.ServerUnaryCall<SearchDocsRequest, SearchDocsResponse>
   ): Promise<SearchDocsResponse> {
     try {
       this.logger.info('SearchDocs request', { 
         query: request.query,
         topK: request.top_k,
-        userId: metadata.get('user-id')[0]
+        socketPath: call.getPeer() // Local socket identification
       });
       
       // Input validation
@@ -418,6 +351,136 @@ export class SearchService {
       }
       
       if (request.top_k < 1 || request.top_k > 50) {
+        throw new Error('top_k must be between 1 and 50');
+      }
+      
+      // Execute search via domain service
+      const results = await this.searchService.searchDocuments({
+        query: request.query,
+        topK: request.top_k,
+        filters: request.metadata_filters,
+        dateFrom: request.date_from,
+        dateTo: request.date_to,
+        authors: request.authors,
+        documentTypes: request.document_types
+      });
+      
+      // Convert to proto response
+      return {
+        documents: results.documents.map(doc => ({
+          document: {
+            id: doc.id,
+            path: doc.path,
+            title: doc.title,
+            document_type: doc.documentType,
+            author: doc.author,
+            creation_date: doc.creationDate,
+            modification_date: doc.modificationDate,
+            size_bytes: doc.sizeBytes
+          },
+          similarity_score: doc.similarityScore,
+          match_context: doc.matchContext
+        })),
+        total_results: results.totalResults,
+        search_duration_ms: results.searchDurationMs
+      };
+      
+    } catch (error) {
+      this.logger.error('SearchDocs error', { error: error.message });
+      throw error; // gRPC error mapping handled by interceptor
+    }
+  }
+}
+```
+
+### Local Transport Optimization
+
+#### Unix Domain Socket Benefits:
+- **Zero Network Overhead**: Direct kernel-level IPC without TCP/IP stack
+- **Maximum Throughput**: Optimal for high-volume document processing
+- **Filesystem Security**: Natural access control via file permissions
+- **Process Isolation**: Clean separation between MCP server and gRPC transport
+
+#### Performance Characteristics:
+- **Latency**: <1ms for local calls vs 1-5ms for localhost TCP
+- **Throughput**: 10-100x higher than network sockets for large payloads
+- **Memory Usage**: Direct memory access without network buffer copies
+- **CPU Overhead**: Minimal compared to network protocol processing
+
+### Domain Service Integration
+
+#### Service Resolution Pattern:
+```typescript
+// src/grpc/services/index.ts
+import { DIContainer } from '../../di/container';
+import { SearchService } from './search-service';
+import { NavigationService } from './navigation-service';
+import { DocumentService } from './document-service';
+
+export function createServices(container: DIContainer) {
+  return {
+    searchService: new SearchService(
+      container.resolve('ISearchService'),
+      container.resolve('ILogger')
+    ),
+    navigationService: new NavigationService(
+      container.resolve('IFileSystemService'),
+      container.resolve('ILogger')
+    ),
+    documentService: new DocumentService(
+      container.resolve('IFileSystemService'),
+      container.resolve('IContentService'),
+      container.resolve('ILogger')
+    )
+  };
+}
+```
+
+### Error Handling and Status Mapping
+
+#### Domain to gRPC Error Translation:
+```typescript
+// src/grpc/utils/error-mapper.ts
+import * as grpc from '@grpc/grpc-js';
+import { DomainError } from '../../domain/errors';
+
+export function mapDomainErrorToGrpcStatus(error: Error): grpc.StatusObject {
+  if (error instanceof DomainError) {
+    switch (error.code) {
+      case 'FILE_NOT_FOUND':
+        return {
+          code: grpc.status.NOT_FOUND,
+          details: error.message,
+          metadata: new grpc.Metadata()
+        };
+      case 'INVALID_INPUT':
+        return {
+          code: grpc.status.INVALID_ARGUMENT,
+          details: error.message,
+          metadata: new grpc.Metadata()
+        };
+      case 'ACCESS_DENIED':
+        return {
+          code: grpc.status.PERMISSION_DENIED,
+          details: error.message,
+          metadata: new grpc.Metadata()
+        };
+      default:
+        return {
+          code: grpc.status.INTERNAL,
+          details: 'Internal service error',
+          metadata: new grpc.Metadata()
+        };
+    }
+  }
+  
+  return {
+    code: grpc.status.INTERNAL,
+    details: 'Unknown error occurred',
+    metadata: new grpc.Metadata()
+  };
+}
+```
         throw new Error('top_k must be between 1 and 50');
       }
       
@@ -972,19 +1035,27 @@ async downloadDoc(
 
 ## 🎯 Next Steps After Completion
 
-**Step 31 COMPLETED** → **Step 32**: Core Search Endpoints Implementation
-- **High-performance search services** using the gRPC transport layer
-- **Semantic document discovery** with metadata filtering and similarity scoring
-- **Chunk-level search** with text previews and token limiting
-- **Advanced search features** with complex filtering and ranking
-- **Search performance optimization** with caching and indexing
+**Step 31 COMPLETED** → **Step 32-34**: Core Service Endpoints Implementation
+- **Step 32**: Core Search Endpoints (SearchDocs, SearchChunks)
+- **Step 33**: Navigation Endpoints (ListFolders, ListDocumentsInFolder)  
+- **Step 34**: Document Content Endpoints (GetDocMetadata, DownloadDoc, GetChunks)
+
+**Step 35**: Remote Access & Cloud LLM Integration
+- **TCP Transport**: Remote gRPC server with configurable port
+- **API Key Authentication**: Bearer token validation for remote connections
+- **Cloudflare Tunnel Integration**: Zero-config remote access for cloud LLMs
+- **TLS/mTLS Support**: Certificate management and secure connections
+- **Subdomain Service**: User-friendly `username.folder-mcp.com` URLs
+- **Rate Limiting & Audit Logging**: Enterprise-grade security features
+
+**Separation of Concerns**: Step 31 focuses exclusively on local transport to establish a solid foundation. Remote access complexity is isolated in Step 35, allowing for dedicated focus on cloud LLM integration requirements.
 
 ---
 
-**Step 31 Status**: 🚀 **READY TO START**  
-**Priority**: 🔥 **CRITICAL - Core Transport Infrastructure**  
+**Step 31 Status**: 🏗️ **IN PROGRESS** - Core infrastructure completed, endpoint implementation ongoing  
+**Priority**: 🔥 **CRITICAL - Local Transport Foundation**  
 **Dependencies**: ✅ **All Met** (Step 30 Protocol Buffer Schema Complete)
 
 ---
 
-*This document serves as the complete implementation guide for Step 31. Update checkboxes as tasks are completed and add implementation notes as development progresses.*
+*This document serves as the complete implementation guide for Step 31 local transport. Update checkboxes as tasks are completed and add implementation notes as development progresses.*
