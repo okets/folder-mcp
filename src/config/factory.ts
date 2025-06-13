@@ -14,7 +14,8 @@ import {
   getServerDefaults,
   getUIDefaults,
   getFileDefaults,
-  getCacheDefaults
+  getCacheDefaults,
+  getTransportDefaults
 } from './schema.js';
 import { validateConfig } from './validation-utils.js';
 import { getSystemCapabilities, SystemCapabilities } from './system.js';
@@ -204,6 +205,10 @@ export class ConfigFactory {
       
       ui: {
         ...getUIDefaults()
+      },
+      
+      transport: {
+        ...getTransportDefaults()
       },
       
       files: {

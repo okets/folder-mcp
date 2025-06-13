@@ -371,7 +371,7 @@ describe('Interface Layer - CLI', () => {
       expect(cli.commands).toBeDefined();
       
       const commands = cli.commands.filter(cmd => cmd.name() !== 'help');
-      expect(commands).toHaveLength(6); // config, index, serve, embed, search, watch
+      expect(commands).toHaveLength(10); // config, index, serve, embed, search, watch, generate-key, rotate-key, show-key, revoke-key
     });
 
     it('should register commands with correct structure', async () => {

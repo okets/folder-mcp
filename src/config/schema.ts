@@ -44,6 +44,48 @@ export interface UIConfig {
   logLevel: 'quiet' | 'normal' | 'verbose';
 }
 
+// Transport configuration (only in runtime config)
+export interface TransportConfig {
+  enabled: boolean;
+  activeTransports: ('local' | 'remote' | 'http')[];
+  selection: {
+    strategy: 'prefer-local' | 'prefer-remote' | 'round-robin' | 'manual';
+    fallback: boolean;
+    healthCheckInterval: number; // ms
+  };
+  local: {
+    enabled: boolean;
+    socketPath: string;
+    permissions?: number;
+    timeout: number;
+    retryAttempts: number;
+  };
+  remote: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    enableTLS: boolean;
+    timeout: number;
+    retryAttempts: number;
+  };
+  http: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    basePath: string;
+    enableHTTPS: boolean;
+    corsEnabled: boolean;
+    timeout: number;
+    retryAttempts: number;
+  };
+  security: {
+    apiKeyEnabled: boolean;
+    keyRotationDays?: number;
+    requireAuthForRemote: boolean;
+    requireAuthForHttp: boolean;
+  };
+}
+
 // Cache configuration (only in runtime config)
 export interface CacheConfig {
   enabled: boolean;
@@ -156,6 +198,7 @@ export interface RuntimeConfig {
     autoStart: boolean;
     host: string;
   };
+  transport: TransportConfig;
   ui: UIConfig;
   files: {
     extensions: string[];
@@ -379,6 +422,46 @@ export const DEFAULT_VALUES = {
     compressionEnabled: true
   },
   
+  transport: {
+    enabled: true,
+    activeTransports: ['local', 'http'] as ('local' | 'remote' | 'http')[],
+    selection: {
+      strategy: 'prefer-local' as const,
+      fallback: true,
+      healthCheckInterval: 30000, // 30 seconds
+    },
+    local: {
+      enabled: true,
+      socketPath: process.platform === 'win32' ? '\\\\.\\pipe\\folder-mcp' : '/tmp/folder-mcp.sock',
+      ...(process.platform !== 'win32' && { permissions: 0o600 }),
+      timeout: 30000,
+      retryAttempts: 3,
+    },
+    remote: {
+      enabled: false,
+      host: 'localhost',
+      port: 50051,
+      enableTLS: false,
+      timeout: 30000,
+      retryAttempts: 3,
+    },
+    http: {
+      enabled: true,
+      host: 'localhost',
+      port: 8080,
+      basePath: '/v1',
+      enableHTTPS: false,
+      corsEnabled: true,
+      timeout: 30000,
+      retryAttempts: 3,
+    },
+    security: {
+      apiKeyEnabled: true,
+      requireAuthForRemote: true,
+      requireAuthForHttp: false, // Not required for localhost
+    },
+  },
+  
   misc: {
     debounceDelay: 1000 as number
   }
@@ -420,6 +503,10 @@ export function getFileDefaults(): typeof DEFAULT_VALUES.files {
 
 export function getCacheDefaults(): typeof DEFAULT_VALUES.cache {
   return { ...DEFAULT_VALUES.cache };
+}
+
+export function getTransportDefaults(): typeof DEFAULT_VALUES.transport {
+  return { ...DEFAULT_VALUES.transport };
 }
 
 // Re-export types for backward compatibility

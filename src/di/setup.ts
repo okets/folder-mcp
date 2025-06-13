@@ -65,10 +65,18 @@ export function setupDependencyInjection(options: {
       return serviceFactory.createCacheService(options.folderPath!);
     });
   }
-
   // Register file system service as singleton
   container.registerSingleton(SERVICE_TOKENS.FILE_SYSTEM, () => {
     return serviceFactory.createFileSystemService();
+  });
+
+  // Register transport services
+  container.registerSingleton(SERVICE_TOKENS.TRANSPORT_FACTORY, () => {
+    return serviceFactory.createTransportFactory();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.TRANSPORT_MANAGER, () => {
+    return serviceFactory.createTransportManager(container);
   });
 
   // Register vector search and error recovery if folder path is provided

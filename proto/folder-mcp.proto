@@ -1,0 +1,455 @@
+syntax = "proto3";
+
+package folder_mcp;
+
+// =====================================================================
+// Folder MCP Service Definition
+// =====================================================================
+// Complete gRPC service definition for document intelligence endpoints
+// Supports local Unix Domain Socket and remote TCP transport with auth
+// Token limits: ≤1,000 tokens per response, ≤500 per summary, ≤2,000 batch
+
+service FolderMCP {
+  // ===================================================================
+  // Core Search Endpoints
+  // ===================================================================
+  
+  // Semantic document discovery with metadata filters
+  // Returns top_k documents (max 50) with similarity scores
+  rpc SearchDocs(SearchDocsRequest) returns (SearchDocsResponse);
+  
+  // Chunk-level search with text previews and metadata
+  // Returns top_k chunks (max 50) with content previews ≤1,000 tokens
+  rpc SearchChunks(SearchChunksRequest) returns (SearchChunksResponse);
+  
+  // ===================================================================
+  // Navigation Endpoints
+  // ===================================================================
+  
+  // Top-level folder tree structure with pagination
+  // Returns folder hierarchy with document counts
+  rpc ListFolders(ListFoldersRequest) returns (ListFoldersResponse);
+  
+  // Paginated document listing within a folder
+  // Returns documents with metadata, max 200 per page
+  rpc ListDocumentsInFolder(ListDocumentsInFolderRequest) returns (ListDocumentsInFolderResponse);
+  
+  // ===================================================================
+  // Document Access Endpoints
+  // ===================================================================
+  
+  // Structural metadata for documents (sheets, slides, authors)
+  // Returns document structure without content
+  rpc GetDocMetadata(GetDocMetadataRequest) returns (GetDocMetadataResponse);
+  
+  // Binary document streaming for downloads
+  // Streams document content with proper content-type headers
+  rpc DownloadDoc(DownloadDocRequest) returns (stream DownloadDocResponse);
+  
+  // Full chunk text retrieval with metadata
+  // Returns chunk content with ≤1,000 tokens per chunk
+  rpc GetChunks(GetChunksRequest) returns (GetChunksResponse);
+  
+  // ===================================================================
+  // Summarization Endpoints
+  // ===================================================================
+  
+  // Single document summarization (brief/detailed modes)
+  // Returns summary ≤500 tokens with source range references
+  rpc GetDocSummary(GetDocSummaryRequest) returns (GetDocSummaryResponse);
+  
+  // Multi-document batch processing with total token cap
+  // Returns batch summaries with ≤2,000 total tokens
+  rpc BatchDocSummary(BatchDocSummaryRequest) returns (BatchDocSummaryResponse);
+  
+  // ===================================================================
+  // Specialized Query Endpoints
+  // ===================================================================
+  
+  // Semantic queries over spreadsheet data with sheet selection
+  // Returns cell ranges and values matching query
+  rpc TableQuery(TableQueryRequest) returns (TableQueryResponse);
+  
+  // Document processing status monitoring
+  // Returns ingestion progress and job tracking
+  rpc IngestStatus(IngestStatusRequest) returns (IngestStatusResponse);
+  
+  // Trigger document re-processing with job tracking
+  // Initiates refresh operation and returns job ID
+  rpc RefreshDoc(RefreshDocRequest) returns (RefreshDocResponse);
+  
+  // Raw vector access for debugging and advanced queries
+  // Returns embedding vectors for specified documents/chunks
+  rpc GetEmbedding(GetEmbeddingRequest) returns (GetEmbeddingResponse);
+}
+
+// =====================================================================
+// Core Search Messages
+// =====================================================================
+
+message SearchDocsRequest {
+  string query = 1;                    // Semantic search query
+  int32 top_k = 2;                     // Max results (≤50)
+  repeated string document_types = 3;   // Filter by file extensions
+  string date_from = 4;                // RFC3339 timestamp
+  string date_to = 5;                  // RFC3339 timestamp
+  repeated string authors = 6;         // Filter by document authors
+  map<string, string> metadata_filters = 7; // Key-value metadata filters
+}
+
+message SearchDocsResponse {
+  repeated DocumentResult documents = 1;
+  int32 total_found = 2;
+  float max_score = 3;
+  string query_id = 4;                 // For debugging/tracing
+}
+
+message DocumentResult {
+  string document_id = 1;
+  string file_path = 2;
+  string title = 3;
+  float similarity_score = 4;          // Normalized 0.0-1.0
+  string document_type = 5;
+  int64 file_size = 6;
+  string modified_date = 7;            // RFC3339 timestamp
+  repeated string authors = 8;
+  string snippet = 9;                  // Brief content preview
+  map<string, string> metadata = 10;
+}
+
+message SearchChunksRequest {
+  string query = 1;
+  int32 top_k = 2;                     // Max results (≤50)
+  repeated string document_ids = 3;     // Restrict to specific documents
+  int32 max_preview_tokens = 4;        // Preview length (≤1000)
+  bool include_context = 5;            // Include surrounding chunks
+}
+
+message SearchChunksResponse {
+  repeated ChunkResult chunks = 1;
+  int32 total_found = 2;
+  float max_score = 3;
+  string query_id = 4;
+}
+
+message ChunkResult {
+  string chunk_id = 1;
+  string document_id = 2;
+  string file_path = 3;
+  float similarity_score = 4;
+  string content_preview = 5;          // ≤1,000 tokens
+  int32 chunk_index = 6;
+  int32 start_offset = 7;
+  int32 end_offset = 8;
+  repeated ChunkResult context_chunks = 9; // Surrounding chunks if requested
+}
+
+// =====================================================================
+// Navigation Messages
+// =====================================================================
+
+message ListFoldersRequest {
+  string base_path = 1;                // Starting folder path
+  int32 max_depth = 2;                 // Tree traversal depth
+  bool include_document_counts = 3;    // Include file counts per folder
+}
+
+message ListFoldersResponse {
+  repeated FolderInfo folders = 1;
+  int32 total_folders = 2;
+}
+
+message FolderInfo {
+  string folder_path = 1;
+  string folder_name = 2;
+  int32 document_count = 3;
+  int64 total_size = 4;
+  string last_modified = 5;            // RFC3339 timestamp
+  repeated FolderInfo subfolders = 6;
+}
+
+message ListDocumentsInFolderRequest {
+  string folder_path = 1;
+  int32 page = 2;                      // Page number (1-based)
+  int32 per_page = 3;                  // Items per page (≤200)
+  string sort_by = 4;                  // "name", "modified", "size"
+  string sort_order = 5;               // "asc", "desc"
+  repeated string type_filter = 6;     // Filter by file extensions
+  string modified_after = 7;           // RFC3339 timestamp
+  string modified_before = 8;          // RFC3339 timestamp
+}
+
+message ListDocumentsInFolderResponse {
+  repeated DocumentInfo documents = 1;
+  int32 total_documents = 2;
+  int32 current_page = 3;
+  int32 total_pages = 4;
+  bool has_next_page = 5;
+}
+
+message DocumentInfo {
+  string document_id = 1;
+  string file_path = 2;
+  string filename = 3;
+  string document_type = 4;
+  int64 file_size = 5;
+  string created_date = 6;             // RFC3339 timestamp
+  string modified_date = 7;            // RFC3339 timestamp
+  repeated string authors = 8;
+  string title = 9;
+  int32 page_count = 10;               // For PDFs, slides
+  map<string, string> metadata = 11;
+}
+
+// =====================================================================
+// Document Access Messages
+// =====================================================================
+
+message GetDocMetadataRequest {
+  string document_id = 1;
+  bool include_structure = 2;          // Include sheets/slides structure
+}
+
+message GetDocMetadataResponse {
+  DocumentInfo document_info = 1;
+  DocumentStructure structure = 2;     // Optional detailed structure
+}
+
+message DocumentStructure {
+  repeated SheetInfo sheets = 1;       // For spreadsheets
+  repeated SlideInfo slides = 2;       // For presentations
+  repeated PageInfo pages = 3;         // For PDFs
+  repeated SectionInfo sections = 4;   // For documents
+}
+
+message SheetInfo {
+  string sheet_name = 1;
+  int32 row_count = 2;
+  int32 column_count = 3;
+  repeated string column_headers = 4;
+}
+
+message SlideInfo {
+  int32 slide_number = 1;
+  string title = 2;
+  string layout = 3;
+  int32 text_length = 4;
+}
+
+message PageInfo {
+  int32 page_number = 1;
+  int32 text_length = 2;
+  bool has_images = 3;
+  bool has_tables = 4;
+}
+
+message SectionInfo {
+  string section_title = 1;
+  int32 level = 2;                     // Heading level (1-6)
+  int32 start_offset = 3;
+  int32 end_offset = 4;
+}
+
+message DownloadDocRequest {
+  string document_id = 1;
+  string format = 2;                   // "original", "pdf", "text"
+}
+
+message DownloadDocResponse {
+  bytes chunk_data = 1;                // Streamed binary data
+  string content_type = 2;
+  int64 total_size = 3;
+  string filename = 4;
+}
+
+message GetChunksRequest {
+  string document_id = 1;
+  repeated int32 chunk_indices = 2;    // Specific chunks, empty = all
+  bool include_metadata = 3;
+  int32 max_tokens_per_chunk = 4;      // ≤1,000 per chunk
+}
+
+message GetChunksResponse {
+  repeated ChunkData chunks = 1;
+  string document_id = 2;
+}
+
+message ChunkData {
+  string chunk_id = 1;
+  int32 chunk_index = 2;
+  string content = 3;                  // Full text content ≤1,000 tokens
+  int32 start_offset = 4;
+  int32 end_offset = 5;
+  int32 token_count = 6;
+  map<string, string> metadata = 7;
+}
+
+// =====================================================================
+// Summarization Messages
+// =====================================================================
+
+message GetDocSummaryRequest {
+  string document_id = 1;
+  string mode = 2;                     // "brief", "detailed"
+  repeated string focus_areas = 3;     // Specific topics to emphasize
+  int32 max_tokens = 4;                // ≤500 tokens
+}
+
+message GetDocSummaryResponse {
+  string summary = 1;                  // ≤500 tokens
+  repeated SourceRange source_ranges = 2;
+  string mode = 3;
+  int32 token_count = 4;
+  float confidence_score = 5;
+}
+
+message SourceRange {
+  int32 start_offset = 1;
+  int32 end_offset = 2;
+  string source_text = 3;              // Supporting evidence
+}
+
+message BatchDocSummaryRequest {
+  repeated string document_ids = 1;
+  string mode = 2;                     // "brief", "detailed"
+  int32 max_total_tokens = 3;          // ≤2,000 total
+  bool include_cross_references = 4;   // Link related documents
+}
+
+message BatchDocSummaryResponse {
+  repeated DocumentSummary summaries = 1;
+  int32 total_tokens = 2;              // ≤2,000
+  repeated CrossReference cross_references = 3;
+}
+
+message DocumentSummary {
+  string document_id = 1;
+  string summary = 2;
+  int32 token_count = 3;
+  repeated SourceRange source_ranges = 4;
+}
+
+message CrossReference {
+  string source_document_id = 1;
+  string target_document_id = 2;
+  string relationship = 3;             // "references", "similar", "contradicts"
+  float confidence = 4;
+}
+
+// =====================================================================
+// Specialized Query Messages
+// =====================================================================
+
+message TableQueryRequest {
+  string query = 1;                    // Natural language query
+  repeated string document_ids = 2;     // Target spreadsheets
+  repeated string sheet_names = 3;     // Specific sheets
+  string cell_range = 4;               // "A1:Z100" format
+  int32 max_results = 5;               // Max cell matches
+}
+
+message TableQueryResponse {
+  repeated CellMatch matches = 1;
+  repeated TableStructure tables = 2;  // Relevant table structures
+  string query_interpretation = 3;     // How query was processed
+}
+
+message CellMatch {
+  string document_id = 1;
+  string sheet_name = 2;
+  string cell_address = 3;             // "A1" format
+  string cell_value = 4;
+  string data_type = 5;                // "text", "number", "date", "formula"
+  float relevance_score = 6;
+}
+
+message TableStructure {
+  string document_id = 1;
+  string sheet_name = 2;
+  repeated string headers = 3;
+  int32 row_count = 4;
+  int32 column_count = 5;
+}
+
+message IngestStatusRequest {
+  repeated string document_ids = 1;     // Specific documents, empty = all
+  bool include_error_details = 2;
+}
+
+message IngestStatusResponse {
+  repeated DocumentStatus documents = 1;
+  OverallStatus overall = 2;
+}
+
+message DocumentStatus {
+  string document_id = 1;
+  string file_path = 2;
+  string status = 3;                   // "pending", "processing", "completed", "error"
+  float progress_percent = 4;          // 0.0-100.0
+  string last_updated = 5;             // RFC3339 timestamp
+  string error_message = 6;            // If status = "error"
+  ProcessingStats stats = 7;
+}
+
+message ProcessingStats {
+  int32 chunks_created = 1;
+  int32 embeddings_generated = 2;
+  int64 processing_time_ms = 3;
+}
+
+message OverallStatus {
+  int32 total_documents = 1;
+  int32 completed_documents = 2;
+  int32 pending_documents = 3;
+  int32 error_documents = 4;
+  float overall_progress = 5;          // 0.0-100.0
+}
+
+message RefreshDocRequest {
+  repeated string document_ids = 1;
+  bool force_reprocess = 2;            // Ignore cache
+  bool high_priority = 3;              // Queue priority
+}
+
+message RefreshDocResponse {
+  string job_id = 1;                   // For tracking progress
+  repeated string queued_document_ids = 2;
+  string estimated_completion = 3;     // RFC3339 timestamp
+}
+
+message GetEmbeddingRequest {
+  repeated string document_ids = 1;    // Empty = error
+  repeated string chunk_ids = 2;       // Empty = all chunks for documents
+  string format = 3;                   // "raw", "normalized"
+}
+
+message GetEmbeddingResponse {
+  repeated EmbeddingVector vectors = 1;
+  int32 vector_dimension = 2;
+  string model_name = 3;
+}
+
+message EmbeddingVector {
+  string id = 1;                       // Document or chunk ID
+  repeated float values = 2;           // Vector components
+  map<string, string> metadata = 3;
+}
+
+// =====================================================================
+// Common Error and Status Messages
+// =====================================================================
+
+message ErrorDetail {
+  string code = 1;                     // Error code
+  string message = 2;                  // Human-readable message
+  string field = 3;                    // Field that caused error
+  repeated string suggestions = 4;     // Possible fixes
+}
+
+message StatusInfo {
+  bool healthy = 1;
+  string version = 2;
+  int64 uptime_seconds = 3;
+  int32 active_connections = 4;
+  string build_info = 5;
+}

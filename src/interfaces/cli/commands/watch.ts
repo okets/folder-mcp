@@ -2,13 +2,15 @@
  * Watch Command Implementation
  * 
  * Handles file watching by delegating to the MonitoringWorkflow application service.
+ * Uses lazy dependency injection to avoid requiring services at construction time.
  */
 
-import { Command } from 'commander';
-import { IMonitoringWorkflow } from '../../../di/interfaces.js';
+import { BaseCommand } from './base-command.js';
+import { MODULE_TOKENS } from '../../../di/interfaces.js';
+import type { IMonitoringWorkflow } from '../../../di/interfaces.js';
 
-export class WatchCommand extends Command {
-  constructor(private readonly monitoringWorkflow: IMonitoringWorkflow) {
+export class WatchCommand extends BaseCommand {
+  constructor() {
     super('watch');
     
     this
@@ -21,7 +23,13 @@ export class WatchCommand extends Command {
 
   private async execute(folder: string, options: any): Promise<void> {
     try {
-      await this.monitoringWorkflow.startFileWatching(folder, {
+      // Resolve the monitoring workflow service lazily
+      const monitoringWorkflow = this.resolveService<IMonitoringWorkflow>(
+        folder,
+        MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW
+      );
+      
+      await monitoringWorkflow.startFileWatching(folder, {
         debounceDelay: parseInt(options.debounce),
         batchSize: parseInt(options.batchSize)
       });

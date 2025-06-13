@@ -4,7 +4,7 @@
  * MCP Server Entry Point
  * 
  * Simple entry script that creates and starts the MCP server with proper
- * dependency injection setup.
+ * dependency injection setup and transport layer integration.
  * 
  * IMPORTANT: For MCP protocol, we must ONLY write valid JSON-RPC messages to stdout.
  * All logs must go to stderr only. Claude Desktop expects only valid JSON on stdout.
@@ -13,6 +13,7 @@
 import { setupDependencyInjection } from './di/setup.js';
 import { SERVICE_TOKENS } from './di/interfaces.js';
 import type { MCPServer } from './interfaces/mcp/index.js';
+import type { ITransportManager, TransportManagerConfig } from './transport/interfaces.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -54,6 +55,32 @@ async function main(): Promise<void> {
       logLevel: 'info'
     });
 
+    debug('Initializing transport layer...');
+    // Initialize transport layer
+    try {
+      const transportManager = container.resolve(SERVICE_TOKENS.TRANSPORT_MANAGER) as ITransportManager;
+      
+      // Create a basic transport manager configuration
+      const transportConfig = {
+        transports: [],
+        selection: {
+          strategy: 'prefer-local' as const,
+          fallback: true,
+          healthCheckInterval: 30000
+        },
+        authentication: {
+          enabled: false,
+          algorithms: ['HS256']
+        }
+      };
+      
+      await transportManager.initialize(transportConfig);
+      debug('Transport layer initialized successfully');
+    } catch (error) {
+      debug('Transport layer initialization failed (non-critical):', error);
+      // Transport layer is optional for basic MCP functionality
+    }
+
     debug('Resolving MCP server from container...');
     // Resolve MCP server from container
     const mcpServer = container.resolve(SERVICE_TOKENS.MCP_SERVER) as MCPServer;
@@ -68,6 +95,16 @@ async function main(): Promise<void> {
     const shutdown = async () => {
       debug('Shutting down MCP server...');
       try {
+        // Stop transport layer first
+        try {
+          const transportManager = container.resolve(SERVICE_TOKENS.TRANSPORT_MANAGER) as ITransportManager;
+          await transportManager.stop();
+          debug('Transport layer shutdown complete');
+        } catch (error) {
+          debug('Transport layer shutdown failed (non-critical):', error);
+        }
+        
+        // Stop MCP server
         await mcpServer.stop();
         process.exit(0);
       } catch (error) {

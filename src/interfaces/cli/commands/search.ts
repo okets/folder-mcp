@@ -2,26 +2,44 @@
  * Search Command Implementation
  * 
  * Handles semantic search by delegating to the KnowledgeOperations application service.
+ * Uses lazy dependency injection to avoid requiring services at construction time.
  */
 
-import { Command } from 'commander';
-import { IKnowledgeOperations } from '../../../di/interfaces.js';
+import { BaseCommand } from './base-command.js';
+import { MODULE_TOKENS } from '../../../di/interfaces.js';
+import type { IKnowledgeOperations } from '../../../di/interfaces.js';
 
-export class SearchCommand extends Command {
-  constructor(private readonly knowledgeOperations: IKnowledgeOperations) {
+export class SearchCommand extends BaseCommand {
+  constructor() {
     super('search');
     
     this
       .description('Search the indexed content using semantic search')
       .argument('<query>', 'Search query')
+      .argument('[folder]', 'Folder to search in (optional, defaults to current directory)')
       .option('-l, --limit <number>', 'Maximum number of results', '10')
       .option('-t, --threshold <number>', 'Similarity threshold (0-1)', '0.7')
       .action(this.execute.bind(this));
   }
 
-  private async execute(query: string, options: any): Promise<void> {
+  private async execute(query: string, folder?: string, options?: any): Promise<void> {
     try {
-      const results = await this.knowledgeOperations.semanticSearch(query, {
+      // If folder is actually options (when folder argument is not provided)
+      if (typeof folder === 'object' && !options) {
+        options = folder;
+        folder = process.cwd();
+      }
+      
+      // Use current directory if no folder specified
+      const searchFolder = folder || process.cwd();
+      
+      // Resolve the knowledge operations service lazily
+      const knowledgeOperations = this.resolveService<IKnowledgeOperations>(
+        searchFolder,
+        MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS
+      );
+      
+      const results = await knowledgeOperations.semanticSearch(query, {
         limit: parseInt(options.limit),
         threshold: parseFloat(options.threshold)
       });

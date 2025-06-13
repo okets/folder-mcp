@@ -14,7 +14,9 @@ import {
   ICacheService,
   IFileSystemService,
   IErrorRecoveryService,
-  ILoggingService
+  ILoggingService,
+  ITransportFactory,
+  ITransportManager
 } from './interfaces.js';
 
 import {
@@ -166,13 +168,46 @@ export class ServiceFactory implements IServiceFactory {
   createHealthMonitoringService(container: DependencyContainer): any {
     const { HealthMonitoringService } = require('../application/monitoring/health.js');
     return new HealthMonitoringService(
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
+      container.resolve(SERVICE_TOKENS.CACHE),      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
       container.resolve(SERVICE_TOKENS.FILE_PARSING)
     );
-  }  createMCPServer(
+  }
+
+  /**
+   * Create transport factory
+   */
+  createTransportFactory(): any {
+    // For now, return a stub implementation
+    return {
+      createTransport: async (config: any) => {
+        // Return a stub transport
+        return {
+          initialize: async () => {},
+          start: async () => {},
+          stop: async () => {},
+          isHealthy: async () => true
+        };
+      },
+      getAvailableTransports: () => ['local', 'remote', 'http']
+    };
+  }
+
+  /**
+   * Create transport manager
+   */
+  createTransportManager(container: DependencyContainer): any {
+    // For now, return a stub implementation
+    return {
+      initialize: async () => {},
+      startAll: async () => {},
+      stopAll: async () => {},
+      getActiveTransports: () => []
+    };
+  }
+
+  createMCPServer(
     options: any,
     container: DependencyContainer
   ): any {

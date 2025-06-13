@@ -423,8 +423,7 @@ export interface IDependencyContainer {
 /**
  * Service tokens for dependency injection
  */
-export const SERVICE_TOKENS = {
-  // Infrastructure Layer
+export const SERVICE_TOKENS = {  // Infrastructure Layer
   CONFIGURATION: Symbol('ConfigurationService'),
   FILE_PARSING: Symbol('FileParsingService'),
   CHUNKING: Symbol('ChunkingService'),
@@ -434,6 +433,10 @@ export const SERVICE_TOKENS = {
   FILE_SYSTEM: Symbol('FileSystemService'),
   ERROR_RECOVERY: Symbol('ErrorRecoveryService'),  LOGGING: Symbol('LoggingService'),
   SERVICE_FACTORY: Symbol('ServiceFactory'),
+  
+  // Transport Layer
+  TRANSPORT_FACTORY: Symbol('TransportFactory'),
+  TRANSPORT_MANAGER: Symbol('TransportManager'),
   
   // Application Layer
   INDEXING_WORKFLOW: Symbol('IndexingWorkflow'),
@@ -553,4 +556,76 @@ export interface ModularMonitoringWorkflow {
   startFileWatching(folderPath: string, options: any): Promise<any>;
   stopFileWatching(folderPath: string): Promise<void>;
   getWatchingStatus(folderPath: string): Promise<any>;
+}
+
+// =============================================================================
+// Transport Layer Interfaces
+// =============================================================================
+
+/**
+ * Transport factory service interface
+ * Manages creation and selection of different transport implementations
+ */
+export interface ITransportFactory {
+  /**
+   * Create a transport instance based on configuration
+   */
+  createTransport(config: any): Promise<ITransport>;
+  
+  /**
+   * Get available transport types
+   */
+  getAvailableTransports(): string[];
+}
+
+/**
+ * Transport service interface
+ * Base interface for all transport implementations
+ */
+export interface ITransport {
+  /**
+   * Initialize the transport
+   */
+  initialize(): Promise<void>;
+  
+  /**
+   * Start the transport service
+   */
+  start(): Promise<void>;
+  
+  /**
+   * Stop the transport service
+   */
+  stop(): Promise<void>;
+  
+  /**
+   * Check if transport is healthy
+   */
+  isHealthy(): Promise<boolean>;
+}
+
+/**
+ * Transport manager service interface
+ * Coordinates multiple transports and handles lifecycle
+ */
+export interface ITransportManager {
+  /**
+   * Initialize all configured transports
+   */
+  initialize(): Promise<void>;
+  
+  /**
+   * Start all transports
+   */
+  startAll(): Promise<void>;
+  
+  /**
+   * Stop all transports
+   */
+  stopAll(): Promise<void>;
+  
+  /**
+   * Get active transports
+   */
+  getActiveTransports(): ITransport[];
 }

@@ -22,7 +22,8 @@ import {
   getServerDefaults, 
   getUIDefaults, 
   getFileDefaults, 
-  getCacheDefaults 
+  getCacheDefaults,
+  getTransportDefaults
 } from './schema.js';
 
 // Re-export interfaces for backward compatibility  
@@ -56,6 +57,10 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   
   ui: {
     ...getUIDefaults()
+  },
+  
+  transport: {
+    ...getTransportDefaults()
   },
   
   files: {
