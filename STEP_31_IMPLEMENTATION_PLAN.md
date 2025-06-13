@@ -14,20 +14,24 @@
 - ✅ Phase B1 - Unix Domain Socket Transport (COMPLETED)
 - ✅ Phase B2 - API Key System Foundation (COMPLETED - for future remote access)
 - ✅ Phase B3 - Authentication Middleware (COMPLETED - inactive for local transport)
+- ✅ Phase B4 - MCP Protocol Maintenance (COMPLETED - Claude Desktop working)
 - 🏗️ Phase C1 - Complete Service Endpoint Implementation (IN PROGRESS)
-- ⏸️ Phase C2 - Local Transport Health Monitoring (PENDING)
-- ⏸️ Phase C3 - CLI Integration Enhancement (PENDING)
+- ⏸️ Phase C2 - MCP Protocol Enhancement (PENDING)
+- ⏸️ Phase C3 - Local Transport Health Monitoring (PENDING)
+- ⏸️ Phase C4 - CLI Integration Enhancement (PENDING)
 
-**Latest Achievement**: ✅ **Local gRPC Transport Foundation Completed**
-- Unix Domain Socket transport (Windows named pipe) working perfectly
-- Basic SearchDocs and SearchChunks endpoints implemented with validation
-- Complete error mapping and gRPC status code handling
-- Transport manager with graceful shutdown capabilities
-- API key system implemented (foundation for future Step 35 remote access)
-- Authentication middleware ready (inactive for local transport, filesystem permissions provide security)
+**Latest Achievement**: ✅ **Dual-Protocol Local Transport Foundation Completed**
+- ✅ MCP protocol working perfectly with Claude Desktop (stdio transport)
+- ✅ Unix Domain Socket transport (Windows named pipe) working for gRPC
+- ✅ Basic SearchDocs and SearchChunks endpoints implemented with validation
+- ✅ Complete error mapping and gRPC status code handling
+- ✅ Transport manager with graceful shutdown capabilities
+- ✅ API key system implemented (foundation for future Step 35 remote access)
+- ✅ Authentication middleware ready (inactive for local transport, filesystem permissions provide security)
+- ✅ Shared domain services accessible by both MCP and gRPC protocols
 
-**Updated Focus**: **Local Transport Only**
-This implementation plan now focuses exclusively on local gRPC transport using Unix Domain Socket (Windows named pipe). All remote access features (TCP transport, TLS, Cloudflare Tunnel integration) have been moved to **Step 35: Remote Access & Cloud LLM Integration** for cleaner separation of concerns.
+**Updated Focus**: **Dual-Protocol Local Transport**
+This implementation plan focuses on supporting BOTH MCP (RPC) and gRPC protocols for local access, providing comprehensive compatibility. MCP protocol ensures Claude Desktop integration continues working perfectly, while gRPC protocol enables high-performance local applications. All remote access features (TCP transport, TLS, Cloudflare Tunnel integration) have been moved to **Step 35: Remote Access & Cloud LLM Integration** for cleaner separation of concerns.
 
 **Files Created in This Session**:
 ```
@@ -58,25 +62,29 @@ src/grpc-auth-test.ts            # ✅ Authentication system test (for future St
 
 ## 📋 Overview
 
-**Goal**: Implement comprehensive local gRPC transport layer using Unix Domain Socket (Windows named pipe) for high-performance document intelligence services with complete service endpoint coverage.
+**Goal**: Implement comprehensive dual-protocol local transport layer supporting both MCP (RPC) and gRPC protocols for maximum compatibility and performance. MCP protocol provides Claude Desktop integration while gRPC protocol enables high-performance local applications with complete service endpoint coverage.
 
 **Success Criteria from Roadmap**:
-- Local transport: Unix Domain Socket (Windows named pipe) with filesystem permissions only
+- ✅ MCP transport: JSON-RPC over stdio for Claude Desktop integration (WORKING)
+- Local gRPC transport: Unix Domain Socket (Windows named pipe) with filesystem permissions only
 - Complete implementation of all 13 gRPC service endpoints
+- Maintain MCP protocol compatibility with corresponding tools/capabilities
 - gRPC service implementation using generated proto types with full type safety
 - Integration with existing DI container and configuration system
-- Local transport health monitoring and graceful shutdown
-- All tests pass with local transport implementation
+- Local transport health monitoring and graceful shutdown for both protocols
+- All tests pass with dual transport implementation
 - TypeScript compiles without ANY errors
-- Claude Desktop integration maintains compatibility
-- Enhanced CLI commands for local transport management
+- Claude Desktop integration maintains compatibility (MCP protocol)
+- Enhanced CLI commands for dual transport management
 
 **Key Architecture Decisions**:
-- **Local Only**: Focus exclusively on Unix Domain Socket transport for maximum performance
+- **Dual Protocol Support**: Both MCP (RPC) and gRPC protocols running simultaneously
+- **Protocol-Specific Optimization**: MCP for interactive chat, gRPC for high-performance operations
+- **Shared Domain Services**: Both protocols use the same underlying document intelligence services
 - **No Authentication**: Filesystem permissions provide security (API key system exists for future remote access)
-- **Type Safety**: Leverage generated TypeScript types throughout the implementation
+- **Type Safety**: Leverage generated TypeScript types throughout the gRPC implementation
 - **DI Integration**: Full integration with existing dependency injection container
-- **Performance First**: Optimize for local high-throughput document processing scenarios
+- **Performance First**: Optimize gRPC for local high-throughput document processing scenarios
 
 ## 🏗️ Implementation Phases
 
@@ -133,15 +141,15 @@ src/grpc-auth-test.ts            # ✅ Authentication system test (for future St
 
 ---
 
-### Phase C: Complete Service Implementation 🏗️ IN PROGRESS
-**Priority**: Third - Complete Local Service Coverage
+### Phase C: Complete Dual-Protocol Implementation 🏗️ IN PROGRESS
+**Priority**: Third - Complete Local Service Coverage for Both Protocols
 
-#### C1. All Service Endpoints Implementation 🏗️ IN PROGRESS
+#### C1. All gRPC Service Endpoints Implementation 🏗️ IN PROGRESS
 - **Status**: 2 of 13 endpoints completed, 11 remaining
 - **Completed Endpoints**:
   - [x] **SearchDocs**: Semantic document discovery with metadata filters
   - [x] **SearchChunks**: Chunk-level search with text previews
-- **Remaining Endpoints**:
+- **Remaining gRPC Endpoints**:
   - [ ] **ListFolders**: Top-level folder tree structure
   - [ ] **ListDocumentsInFolder**: Paginated document listing
   - [ ] **GetDocMetadata**: Document metadata with structural information  
@@ -154,69 +162,101 @@ src/grpc-auth-test.ts            # ✅ Authentication system test (for future St
   - [ ] **RefreshDoc**: Document re-processing trigger
   - [ ] **GetEmbedding**: Raw vector access for debugging
 
-#### C2. Domain Service Integration 📋 PENDING
-- **Integration Required**:
-  - [ ] Search service for document and chunk queries
-  - [ ] File system service for document access and metadata
-  - [ ] Embedding service for vector operations
-  - [ ] Content service for summarization and text processing
-  - [ ] Cache service for performance optimization
-  - [ ] Monitoring service for status tracking
-- **Implementation Tasks**:
-  - [ ] Connect each endpoint to appropriate domain services
-  - [ ] Implement proper error handling and response mapping
-  - [ ] Add input validation and sanitization
-  - [ ] Implement token limiting for text responses
+#### C2. MCP Protocol Enhancement 📋 PENDING
+**Purpose**: Ensure MCP protocol provides equivalent capabilities to gRPC for Claude Desktop users
+- **Current MCP Tools**:
+  - [x] **hello_world**: Basic connectivity test (WORKING)
+- **Required MCP Tool Implementation**:
+  - [ ] **search_documents**: Semantic document search (equivalent to gRPC SearchDocs)
+  - [ ] **search_chunks**: Chunk-level search (equivalent to gRPC SearchChunks)
+  - [ ] **list_folders**: Folder navigation (equivalent to gRPC ListFolders)
+  - [ ] **list_documents**: Document listing (equivalent to gRPC ListDocumentsInFolder)
+  - [ ] **get_document_metadata**: Document info (equivalent to gRPC GetDocMetadata)
+  - [ ] **get_document_content**: Document access (equivalent to gRPC GetChunks)
+  - [ ] **summarize_document**: Document summary (equivalent to gRPC GetDocSummary)
+  - [ ] **query_table**: Table queries (equivalent to gRPC TableQuery)
+  - [ ] **get_status**: System status (equivalent to gRPC IngestStatus)
+  - [ ] **refresh_document**: Re-processing (equivalent to gRPC RefreshDoc)
 
-#### C3. Local Transport Health Monitoring 📋 PENDING
+**MCP Tool Implementation Strategy**:
+- **Shared Logic**: MCP tools call the same domain services as gRPC endpoints
+- **Response Formatting**: Convert domain responses to MCP-compatible format
+- **Token Awareness**: Respect Claude Desktop's context limits
+- **Error Handling**: Provide user-friendly error messages for chat context
+
+#### C3. Domain Service Integration 📋 PENDING
+- **Integration Required**:
+  - [ ] Search service for document and chunk queries (both MCP and gRPC)
+  - [ ] File system service for document access and metadata (both protocols)
+  - [ ] Embedding service for vector operations (both protocols)
+  - [ ] Content service for summarization and text processing (both protocols)
+  - [ ] Cache service for performance optimization (both protocols)
+  - [ ] Monitoring service for status tracking (both protocols)
+- **Implementation Tasks**:
+  - [ ] Connect each gRPC endpoint to appropriate domain services
+  - [ ] Connect each MCP tool to appropriate domain services
+  - [ ] Implement proper error handling and response mapping for both protocols
+  - [ ] Add input validation and sanitization for both protocols
+  - [ ] Implement token limiting for text responses (both protocols)
+
+#### C4. Local Transport Health Monitoring 📋 PENDING
 - **Health Check Implementation**:
   - [ ] gRPC health checking protocol
-  - [ ] Local transport status monitoring
+  - [ ] MCP protocol status monitoring
+  - [ ] Local transport status monitoring (both protocols)
   - [ ] Dependency health checks (file system, cache, embeddings)
-  - [ ] Performance metrics collection
+  - [ ] Performance metrics collection for both protocols
 - **Monitoring Integration**:
-  - [ ] Health status in CLI commands
+  - [ ] Health status in CLI commands (both transports)
   - [ ] Structured logging for monitoring systems
-  - [ ] Diagnostic endpoints for troubleshooting
+  - [ ] Diagnostic endpoints for troubleshooting both protocols
 
 ---
 
 ### Phase D: Testing and CLI Integration 📋 PLANNED
-**Priority**: Fourth - Quality Assurance and User Experience
+**Priority**: Fourth - Quality Assurance and User Experience for Both Protocols
 
 #### D1. Test Suite Integration 📋 PLANNED
 - **Test Coverage**:
-  - [ ] Unit tests for all service endpoints
-  - [ ] Integration tests with domain services
-  - [ ] Local transport connection testing
-  - [ ] Error handling and edge case testing
-  - [ ] Performance testing for high-throughput scenarios
+  - [ ] Unit tests for all gRPC service endpoints
+  - [ ] Unit tests for all MCP tool implementations
+  - [ ] Integration tests with domain services for both protocols
+  - [ ] Local transport connection testing (both gRPC and MCP)
+  - [ ] Cross-protocol consistency testing (same data, both protocols)
+  - [ ] Error handling and edge case testing for both protocols
+  - [ ] Performance testing for high-throughput scenarios (both protocols)
 - **Test Infrastructure**:
-  - [ ] Mock factories for domain services
+  - [ ] Mock factories for domain services (shared between protocols)
   - [ ] Test fixtures for various document types
+  - [ ] MCP client test harness for tool testing
+  - [ ] gRPC client test harness for endpoint testing
   - [ ] Automated test execution in CI/CD
 
 #### D2. CLI Enhancement 📋 PLANNED
 - **Command Enhancements**:
-  - [ ] `folder-mcp serve <folder>` with local transport status
-  - [ ] `folder-mcp status <folder>` with transport health information
-  - [ ] `folder-mcp test-connection <folder>` for local connection testing
-  - [ ] Enhanced logging and diagnostic output
+  - [ ] `folder-mcp serve <folder>` with dual transport status
+  - [ ] `folder-mcp status <folder>` with both MCP and gRPC transport health
+  - [ ] `folder-mcp test-connection <folder>` for both protocol testing
+  - [ ] `folder-mcp test-mcp <folder>` for MCP protocol testing
+  - [ ] `folder-mcp test-grpc <folder>` for gRPC protocol testing
+  - [ ] Enhanced logging and diagnostic output for both protocols
 - **Configuration Integration**:
-  - [ ] Local transport configuration options
-  - [ ] Socket path customization
-  - [ ] Performance tuning parameters
+  - [ ] Local transport configuration options for both protocols
+  - [ ] Socket path customization for gRPC
+  - [ ] MCP protocol configuration options
+  - [ ] Performance tuning parameters for both protocols
+  - [ ] Protocol selection options (MCP only, gRPC only, both)
 
 ---
 
 ## 📁 File Structure Plan
 
-### Completed gRPC Service Implementation ✅
+### Completed Dual-Protocol Infrastructure ✅
 ```
 src/grpc/
 ├── server.ts                     # ✅ Main gRPC server implementation
 ├── transport-manager.ts          # ✅ Local transport coordination
-├── services/                     # ✅ Service endpoint implementations
+├── services/                     # ✅ gRPC service endpoint implementations
 │   ├── index.ts                 # ✅ Service implementations index
 │   └── search-service.ts        # ✅ SearchDocs, SearchChunks implementations
 ├── auth/                         # ✅ Authentication system (for future Step 35)
@@ -228,9 +268,12 @@ src/grpc/
 └── utils/                        # ✅ gRPC utilities
     ├── proto-loader.ts          # ✅ Protocol buffer loading utilities
     └── error-mapper.ts          # ✅ Domain error to gRPC status mapping
+
+src/mcp-server.ts                 # ✅ MCP protocol server (Claude Desktop integration)
+src/interfaces/mcp/               # ✅ MCP protocol handlers and tools
 ```
 
-### Remaining Service Implementation 📋
+### Remaining gRPC Service Implementation 📋
 ```
 src/grpc/services/
 ├── navigation-service.ts         # 📋 ListFolders, ListDocumentsInFolder
@@ -240,11 +283,23 @@ src/grpc/services/
 └── health-service.ts             # 📋 gRPC health check protocol
 ```
 
+### Required MCP Tool Implementation 📋
+```
+src/interfaces/mcp/tools/
+├── search-tools.ts               # 📋 search_documents, search_chunks
+├── navigation-tools.ts           # 📋 list_folders, list_documents
+├── document-tools.ts             # 📋 get_document_metadata, get_document_content
+├── summary-tools.ts              # 📋 summarize_document
+├── specialized-tools.ts          # 📋 query_table, get_status, refresh_document
+└── index.ts                      # 📋 Tool registration and exports
+```
+
 ### Enhanced Configuration ✅
 ```
 src/config/
 ├── grpc-config.ts               # ✅ gRPC server configuration
-└── transport-config.ts          # 📋 Local transport-specific configuration
+├── mcp-config.ts                # 📋 MCP protocol configuration
+└── transport-config.ts          # 📋 Dual transport-specific configuration
 ```
 
 ### Testing Infrastructure 📋
@@ -253,20 +308,26 @@ tests/
 ├── grpc/                         # 📋 gRPC-specific tests
 │   ├── services/                # 📋 Service endpoint tests
 │   ├── transport/               # 📋 Local transport tests
-│   └── integration/             # 📋 End-to-end local transport tests
-└── integration/                  # 📋 Enhanced transport integration tests
-    └── grpc-local.test.ts       # 📋 Local gRPC transport testing
+│   └── integration/             # 📋 End-to-end gRPC transport tests
+├── mcp/                          # 📋 MCP protocol tests
+│   ├── tools/                   # 📋 MCP tool tests
+│   ├── handlers/                # 📋 MCP handler tests
+│   └── integration/             # 📋 End-to-end MCP tests
+└── integration/                  # 📋 Cross-protocol integration tests
+    ├── dual-protocol.test.ts    # 📋 Both protocols serving same data
+    └── consistency.test.ts      # 📋 Response consistency between protocols
 ```
 
 ### Enhanced CLI Integration 📋
 ```
 src/interfaces/cli/commands/
-├── serve.ts                      # 📋 Enhanced with local transport status
-├── transport-test.ts             # 📋 Local transport connection testing
-└── transport-status.ts           # 📋 Local transport health status
+├── serve.ts                      # 📋 Enhanced with dual transport status
+├── test-mcp.ts                   # 📋 MCP protocol connection testing
+├── test-grpc.ts                  # 📋 gRPC protocol connection testing
+└── transport-status.ts           # 📋 Dual transport health status
 ```
 
-**Note**: Remote access components (TCP transport, TLS, Cloudflare integration) have been moved to **Step 35: Remote Access & Cloud LLM Integration** for focused implementation.
+**Dual-Protocol Architecture**: Both MCP and gRPC protocols share the same domain services and business logic, ensuring consistent behavior and data access across both interfaces.
 
 ---
 

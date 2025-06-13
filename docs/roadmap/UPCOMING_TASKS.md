@@ -34,12 +34,13 @@ This document tracks current and future development phases with detailed specifi
 
 **Status**: ⬅️ Current - **PRIORITIZED FOR IMMEDIATE DEVELOPMENT** 🚀
 
-**Focus**: Implement gRPC transport layer and core document intelligence endpoints with local Unix socket communication for high-performance document access.
+**Focus**: Implement dual-protocol transport layer (MCP + gRPC) and core document intelligence endpoints with local communication for maximum compatibility and high-performance document access.
 
 **Immediate Implementation Path**:
-- **Local gRPC First**: Unix domain socket transport for maximum performance
-- **Core Endpoints**: SearchDocs, SearchChunks, navigation, and document access
-- **Foundation First**: Protocol buffers, transport layer, then endpoint implementation
+- **MCP Protocol First**: Maintain Claude Desktop integration with stdio transport
+- **Local gRPC Second**: Unix domain socket transport for maximum performance
+- **Core Endpoints & Tools**: Complete gRPC endpoints and corresponding MCP tools
+- **Foundation First**: Dual-protocol support, then full endpoint/tool implementation
 - **Security Ready**: API key system foundation (used later for remote access)
 
 ### ✅ Step 29: Transport Layer Foundation - COMPLETED
@@ -112,81 +113,100 @@ This document tracks current and future development phases with detailed specifi
 - ✅ Type-safe transport layer with factory pattern
 - ✅ Claude Desktop MCP server integration confirmed working
 
-### Step 31: Local gRPC Transport Implementation  
-**Task**: Implement local gRPC transport layer with Unix Domain Socket for high-performance local access  
-**Status**: 🚀 **IN PROGRESS** - Core infrastructure completed, endpoint implementation ongoing  
+### Step 31: Local Dual-Protocol Transport Implementation  
+**Task**: Implement local transport layer supporting both MCP (RPC) and gRPC protocols for maximum compatibility and performance  
+**Status**: 🚀 **IN PROGRESS** - Core infrastructure completed, endpoint and tool implementation ongoing  
 **Implementation Plan**: `STEP_31_IMPLEMENTATION_PLAN.md` - Complete implementation guide
 
 **Success Criteria**:
-- ✅ Local transport: Unix Domain Socket (Windows named pipe) with filesystem permissions
-- ✅ Basic service endpoints: SearchDocs and SearchChunks with validation and error handling
+- ✅ MCP transport: JSON-RPC over stdio for Claude Desktop integration (WORKING)
+- ✅ Local gRPC transport: Unix Domain Socket (Windows named pipe) with filesystem permissions
+- ✅ Basic gRPC service endpoints: SearchDocs and SearchChunks with validation and error handling
 - ✅ gRPC service implementation using generated proto types
 - ✅ Integration with existing DI container and configuration system
 - ✅ Local transport health checks and graceful shutdown
 - 📋 Complete all 13 gRPC service endpoints (11 remaining)
-- 📋 All tests pass with local transport implementation
+- 📋 Implement corresponding MCP tools for Claude Desktop compatibility (10 tools)
+- 📋 Shared domain service integration for both protocols
+- 📋 All tests pass with dual transport implementation
 - 📋 TypeScript compiles without ANY errors
-- 📋 Claude Desktop integration maintains compatibility
-- 📋 Enhanced CLI commands for local transport management
+- 📋 Claude Desktop integration maintains compatibility (MCP protocol)
+- 📋 Enhanced CLI commands for dual transport management
 
-**Implementation Focus**: **Local Access Only**
-- **Unix Domain Socket**: High-performance local IPC (Windows named pipes)
-- **No Authentication Required**: Filesystem permissions provide security
-- **Core gRPC Services**: All 13 endpoints implemented with proper typing
-- **Health Monitoring**: Local transport status and diagnostics
-- **Performance Optimized**: Direct memory access, no network overhead
+**Implementation Focus**: **Dual-Protocol Local Access**
+- **MCP Protocol**: JSON-RPC over stdio for Claude Desktop integration
+- **gRPC Protocol**: Unix Domain Socket (Windows named pipes) for high-performance local applications
+- **Shared Domain Services**: Both protocols use the same underlying document intelligence services
+- **No Authentication Required**: Filesystem permissions provide security for both protocols
+- **Protocol Optimization**: MCP for interactive chat, gRPC for bulk operations
+- **Performance Optimized**: Direct memory access for gRPC, chat-optimized responses for MCP
 
 **Key Deliverables**:
+- ✅ Working MCP server with Claude Desktop integration
 - Complete local gRPC server with all 13 endpoints implemented
+- Complete MCP tool set with equivalent functionality to gRPC endpoints
 - Unix Domain Socket transport with optimal performance
 - Type-safe service implementations using generated proto types
-- Local transport health monitoring and graceful shutdown
-- Enhanced CLI commands for local transport management
+- Dual transport health monitoring and graceful shutdown
+- Enhanced CLI commands for dual transport management
 
 **Completed Infrastructure**:
+- ✅ MCP server with Claude Desktop integration (stdio transport)
 - ✅ gRPC server with proto loading and DI integration
 - ✅ Unix Domain Socket transport (Windows named pipe)
-- ✅ Basic SearchDocs and SearchChunks endpoints
+- ✅ Basic SearchDocs and SearchChunks gRPC endpoints
+- ✅ hello_world MCP tool (working with Claude Desktop)
 - ✅ Error mapping and validation utilities
 - ✅ Transport manager with graceful shutdown
 - ✅ API key system (foundation for future remote access)
 - ✅ Authentication middleware (inactive for local transport)
 
 **Remaining Work**:
-- 📋 11 additional service endpoints (ListFolders, GetDocMetadata, etc.)
-- 📋 Integration with existing domain services (search, files, embeddings)
-- 📋 Comprehensive test coverage for all local transport scenarios
-- 📋 CLI enhancements for local transport management
+- 📋 11 additional gRPC service endpoints (ListFolders, GetDocMetadata, etc.)
+- 📋 10 corresponding MCP tools for Claude Desktop access
+- 📋 Integration with existing domain services (search, files, embeddings) for both protocols
+- 📋 Cross-protocol consistency testing and validation
+- 📋 Comprehensive test coverage for dual transport scenarios
+- 📋 CLI enhancements for dual transport management
 
-### Step 32: Core Search Endpoints
-**Task**: Implement SearchDocs and SearchChunks endpoints  
+### Step 32: Core Search Endpoints & Tools
+**Task**: Complete SearchDocs and SearchChunks implementation for both gRPC and MCP protocols  
 **Success Criteria**:
-- 📋 SearchDocs: Semantic document discovery with metadata filters
-- 📋 SearchChunks: Chunk-level search with text previews
-- 📋 Implement proper token limiting (≤1,000 tokens response)
-- 📋 Add similarity score normalization
-- 📋 Support top_k parameter with validation (max 50)
-- 📋 Implement metadata filtering (type, dates, author)
+- 📋 gRPC SearchDocs: Semantic document discovery with metadata filters
+- 📋 gRPC SearchChunks: Chunk-level search with text previews
+- 📋 MCP search_documents tool: Claude Desktop compatible document search
+- 📋 MCP search_chunks tool: Claude Desktop compatible chunk search
+- 📋 Implement proper token limiting (≤1,000 tokens response) for both protocols
+- 📋 Add similarity score normalization for both protocols
+- 📋 Support top_k parameter with validation (max 50) for both protocols
+- 📋 Implement metadata filtering (type, dates, author) for both protocols
+- 📋 Cross-protocol response consistency validation
 
-### Step 33: Navigation Endpoints
-**Task**: Implement folder and document listing endpoints  
+### Step 33: Navigation Endpoints & Tools
+**Task**: Implement folder and document listing for both gRPC and MCP protocols  
 **Success Criteria**:
-- 📋 ListFolders: Top-level folder tree structure
-- 📋 ListDocumentsInFolder: Paginated document listing
-- 📋 Implement pagination with configurable per_page (max 200)
-- 📋 Add filtering by document type and modification date
-- 📋 Include proper metadata in responses
-- 📋 Handle path traversal security
+- 📋 gRPC ListFolders: Top-level folder tree structure
+- 📋 gRPC ListDocumentsInFolder: Paginated document listing
+- 📋 MCP list_folders tool: Claude Desktop compatible folder navigation
+- 📋 MCP list_documents tool: Claude Desktop compatible document listing
+- 📋 Implement pagination with configurable per_page (max 200) for both protocols
+- 📋 Add filtering by document type and modification date for both protocols
+- 📋 Include proper metadata in responses for both protocols
+- 📋 Handle path traversal security for both protocols
+- 📋 Cross-protocol navigation consistency
 
-### Step 34: Document Content Endpoints
-**Task**: Implement document access and metadata endpoints  
+### Step 34: Document Content Endpoints & Tools
+**Task**: Implement document access and metadata for both gRPC and MCP protocols  
 **Success Criteria**:
-- 📋 GetDocMetadata: Structural metadata (sheets, slides, authors)
-- 📋 DownloadDoc: Binary document streaming
-- 📋 GetChunks: Full chunk text retrieval with metadata
-- 📋 Implement proper binary streaming for large files
-- 📋 Add content-type detection and headers
-- 📋 Token limiting for text responses (≤1,000 per chunk)
+- 📋 gRPC GetDocMetadata: Structural metadata (sheets, slides, authors)
+- 📋 gRPC DownloadDoc: Binary document streaming
+- 📋 gRPC GetChunks: Full chunk text retrieval with metadata
+- 📋 MCP get_document_metadata tool: Claude Desktop compatible metadata access
+- 📋 MCP get_document_content tool: Claude Desktop compatible content access
+- 📋 Implement proper binary streaming for large files (gRPC only)
+- 📋 Add content-type detection and headers for both protocols
+- 📋 Token limiting for text responses (≤1,000 per chunk) for both protocols
+- 📋 Cross-protocol content consistency validation
 
 ### Step 35: Remote Access & Cloud LLM Integration
 **Task**: Implement secure remote access for cloud LLM integration with Cloudflare tunneling  
@@ -195,7 +215,7 @@ This document tracks current and future development phases with detailed specifi
 
 **Success Criteria**:
 - 📋 **TCP Transport**: Remote gRPC server with configurable port (50051)
-- 📋 **API Key Authentication**: Bearer token validation for remote connections
+- 📋 **API Key Authentication**: Bearer token validation for remote gRPC connections
 - 📋 **TLS/mTLS Support**: Auto-generated self-signed certificates for development
 - 📋 **Cloudflare Tunnel Integration**: Zero-config remote access without port forwarding
 - 📋 **Project Subdomain Service**: Users get `username.folder-mcp.com` subdomains
@@ -203,6 +223,8 @@ This document tracks current and future development phases with detailed specifi
 - 📋 **Rate Limiting**: Per-key request throttling and abuse prevention
 - 📋 **Audit Logging**: Security event tracking and monitoring
 - 📋 **Certificate Management**: Auto-renewal and expiration monitoring
+
+**Note**: MCP protocol will remain local-only (stdio) as Claude Desktop requires direct process communication. Remote access applies to gRPC protocol only.
 
 **Implementation Architecture**:
 - **Cloudflare Tunnel**: Primary remote access method (no port forwarding required)
@@ -252,32 +274,37 @@ This document tracks current and future development phases with detailed specifi
 
 ## Phase 9: Advanced Endpoints & HTTP Gateway (Planned)
 
-### Step 36: Summarization Endpoints
-**Task**: Implement document summarization services  
+### Step 36: Summarization Endpoints & Tools
+**Task**: Implement document summarization services for both gRPC and MCP protocols  
 **Success Criteria**:
-- 📋 GetDocSummary: Single document summarization
-- 📋 BatchDocSummary: Multi-document batch processing
-- 📋 Support brief/detailed mode selection
-- 📋 Implement token limiting (≤500 per summary)
-- 📋 Add source range references in responses
-- 📋 Batch processing with total token cap (≤2,000)
+- 📋 gRPC GetDocSummary: Single document summarization
+- 📋 gRPC BatchDocSummary: Multi-document batch processing
+- 📋 MCP summarize_document tool: Claude Desktop compatible summarization
+- 📋 MCP batch_summarize tool: Claude Desktop compatible batch processing
+- 📋 Support brief/detailed mode selection for both protocols
+- 📋 Implement token limiting (≤500 per summary) for both protocols
+- 📋 Add source range references in responses for both protocols
+- 📋 Batch processing with total token cap (≤2,000) for both protocols
 
-### Step 37: Specialized Query Endpoints
-**Task**: Implement table querying and system status endpoints  
+### Step 37: Specialized Query Endpoints & Tools
+**Task**: Implement table querying and system status for both gRPC and MCP protocols  
 **Success Criteria**:
-- 📋 TableQuery: Semantic queries over spreadsheet data
-- 📋 IngestStatus: Document processing status monitoring
-- 📋 RefreshDoc: Trigger document re-processing
-- 📋 GetEmbedding: Raw vector access for debugging
-- 📋 Handle sheet selection and cell range responses
-- 📋 Implement job tracking for refresh operations
+- 📋 gRPC TableQuery: Semantic queries over spreadsheet data
+- 📋 gRPC IngestStatus: Document processing status monitoring
+- 📋 gRPC RefreshDoc: Trigger document re-processing
+- 📋 gRPC GetEmbedding: Raw vector access for debugging
+- 📋 MCP query_table tool: Claude Desktop compatible table queries
+- 📋 MCP get_status tool: Claude Desktop compatible status monitoring
+- 📋 MCP refresh_document tool: Claude Desktop compatible re-processing
+- 📋 Handle sheet selection and cell range responses for both protocols
+- 📋 Implement job tracking for refresh operations for both protocols
 
 ### Step 38: HTTP Gateway Implementation
 **Task**: Implement REST/JSON gateway for gRPC services with comprehensive authentication  
 **Success Criteria**:
 - 📋 HTTP server on configurable port (default 8080)
 - 📋 REST endpoints with /v1 prefix matching specification
-- 📋 JSON request/response translation to/from gRPC
+- 📋 JSON request/response translation to/from gRPC (not MCP - remains stdio only)
 - 📋 Proper HTTP status codes and error handling
 - 📋 CORS support for web clients
 - 📋 Request validation and sanitization
