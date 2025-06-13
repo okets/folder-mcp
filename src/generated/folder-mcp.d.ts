@@ -3,6 +3,82 @@ import Long = require("long");
 /** Namespace folder_mcp. */
 export namespace folder_mcp {
 
+    /** DocumentType enum. */
+    enum DocumentType {
+        DOCUMENT_TYPE_UNSPECIFIED = 0,
+        DOCUMENT_TYPE_PDF = 1,
+        DOCUMENT_TYPE_DOCX = 2,
+        DOCUMENT_TYPE_DOC = 3,
+        DOCUMENT_TYPE_XLSX = 4,
+        DOCUMENT_TYPE_XLS = 5,
+        DOCUMENT_TYPE_PPTX = 6,
+        DOCUMENT_TYPE_PPT = 7,
+        DOCUMENT_TYPE_TXT = 8,
+        DOCUMENT_TYPE_MD = 9,
+        DOCUMENT_TYPE_CSV = 10,
+        DOCUMENT_TYPE_RTF = 11,
+        DOCUMENT_TYPE_ODT = 12,
+        DOCUMENT_TYPE_ODS = 13,
+        DOCUMENT_TYPE_ODP = 14,
+        DOCUMENT_TYPE_HTML = 15,
+        DOCUMENT_TYPE_XML = 16
+    }
+
+    /** SummaryMode enum. */
+    enum SummaryMode {
+        SUMMARY_MODE_UNSPECIFIED = 0,
+        SUMMARY_MODE_BRIEF = 1,
+        SUMMARY_MODE_DETAILED = 2,
+        SUMMARY_MODE_EXECUTIVE = 3,
+        SUMMARY_MODE_TECHNICAL = 4
+    }
+
+    /** IngestStatus enum. */
+    enum IngestStatus {
+        INGEST_STATUS_UNSPECIFIED = 0,
+        INGEST_STATUS_PENDING = 1,
+        INGEST_STATUS_PROCESSING = 2,
+        INGEST_STATUS_COMPLETED = 3,
+        INGEST_STATUS_FAILED = 4,
+        INGEST_STATUS_CANCELLED = 5,
+        INGEST_STATUS_RETRY = 6
+    }
+
+    /** Priority enum. */
+    enum Priority {
+        PRIORITY_UNSPECIFIED = 0,
+        PRIORITY_LOW = 1,
+        PRIORITY_NORMAL = 2,
+        PRIORITY_HIGH = 3,
+        PRIORITY_URGENT = 4
+    }
+
+    /** ErrorCode enum. */
+    enum ErrorCode {
+        ERROR_CODE_UNSPECIFIED = 0,
+        ERROR_CODE_NOT_FOUND = 1,
+        ERROR_CODE_PERMISSION_DENIED = 2,
+        ERROR_CODE_INVALID_REQUEST = 3,
+        ERROR_CODE_RESOURCE_EXHAUSTED = 4,
+        ERROR_CODE_INTERNAL_ERROR = 5,
+        ERROR_CODE_UNAVAILABLE = 6,
+        ERROR_CODE_TIMEOUT = 7,
+        ERROR_CODE_ALREADY_EXISTS = 8,
+        ERROR_CODE_PRECONDITION_FAILED = 9,
+        ERROR_CODE_OUT_OF_RANGE = 10
+    }
+
+    /** CellDataType enum. */
+    enum CellDataType {
+        CELL_DATA_TYPE_UNSPECIFIED = 0,
+        CELL_DATA_TYPE_TEXT = 1,
+        CELL_DATA_TYPE_NUMBER = 2,
+        CELL_DATA_TYPE_DATE = 3,
+        CELL_DATA_TYPE_BOOLEAN = 4,
+        CELL_DATA_TYPE_FORMULA = 5,
+        CELL_DATA_TYPE_ERROR = 6
+    }
+
     /** Represents a FolderMCP */
     class FolderMCP extends $protobuf.rpc.Service {
 
@@ -310,7 +386,7 @@ export namespace folder_mcp {
         topK?: (number|null);
 
         /** SearchDocsRequest documentTypes */
-        documentTypes?: (string[]|null);
+        documentTypes?: (folder_mcp.DocumentType[]|null);
 
         /** SearchDocsRequest dateFrom */
         dateFrom?: (string|null);
@@ -341,7 +417,7 @@ export namespace folder_mcp {
         public topK: number;
 
         /** SearchDocsRequest documentTypes. */
-        public documentTypes: string[];
+        public documentTypes: folder_mcp.DocumentType[];
 
         /** SearchDocsRequest dateFrom. */
         public dateFrom: string;
@@ -443,10 +519,16 @@ export namespace folder_mcp {
         totalFound?: (number|null);
 
         /** SearchDocsResponse maxScore */
-        maxScore?: (number|null);
+        maxScore?: (folder_mcp.ISimilarityScore|null);
 
         /** SearchDocsResponse queryId */
         queryId?: (string|null);
+
+        /** SearchDocsResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** SearchDocsResponse pagination */
+        pagination?: (folder_mcp.IPaginationInfo|null);
     }
 
     /** Represents a SearchDocsResponse. */
@@ -465,10 +547,16 @@ export namespace folder_mcp {
         public totalFound: number;
 
         /** SearchDocsResponse maxScore. */
-        public maxScore: number;
+        public maxScore?: (folder_mcp.ISimilarityScore|null);
 
         /** SearchDocsResponse queryId. */
         public queryId: string;
+
+        /** SearchDocsResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** SearchDocsResponse pagination. */
+        public pagination?: (folder_mcp.IPaginationInfo|null);
 
         /**
          * Creates a new SearchDocsResponse instance using the specified properties.
@@ -560,11 +648,11 @@ export namespace folder_mcp {
         /** DocumentResult title */
         title?: (string|null);
 
-        /** DocumentResult similarityScore */
-        similarityScore?: (number|null);
+        /** DocumentResult similarity */
+        similarity?: (folder_mcp.ISimilarityScore|null);
 
         /** DocumentResult documentType */
-        documentType?: (string|null);
+        documentType?: (folder_mcp.DocumentType|null);
 
         /** DocumentResult fileSize */
         fileSize?: (number|Long|null);
@@ -573,13 +661,13 @@ export namespace folder_mcp {
         modifiedDate?: (string|null);
 
         /** DocumentResult authors */
-        authors?: (string[]|null);
+        authors?: (folder_mcp.IAuthor[]|null);
 
         /** DocumentResult snippet */
         snippet?: (string|null);
 
         /** DocumentResult metadata */
-        metadata?: ({ [k: string]: string }|null);
+        metadata?: (folder_mcp.IMetadata|null);
     }
 
     /** Represents a DocumentResult. */
@@ -600,11 +688,11 @@ export namespace folder_mcp {
         /** DocumentResult title. */
         public title: string;
 
-        /** DocumentResult similarityScore. */
-        public similarityScore: number;
+        /** DocumentResult similarity. */
+        public similarity?: (folder_mcp.ISimilarityScore|null);
 
         /** DocumentResult documentType. */
-        public documentType: string;
+        public documentType: folder_mcp.DocumentType;
 
         /** DocumentResult fileSize. */
         public fileSize: (number|Long);
@@ -613,13 +701,13 @@ export namespace folder_mcp {
         public modifiedDate: string;
 
         /** DocumentResult authors. */
-        public authors: string[];
+        public authors: folder_mcp.IAuthor[];
 
         /** DocumentResult snippet. */
         public snippet: string;
 
         /** DocumentResult metadata. */
-        public metadata: { [k: string]: string };
+        public metadata?: (folder_mcp.IMetadata|null);
 
         /**
          * Creates a new DocumentResult instance using the specified properties.
@@ -830,10 +918,16 @@ export namespace folder_mcp {
         totalFound?: (number|null);
 
         /** SearchChunksResponse maxScore */
-        maxScore?: (number|null);
+        maxScore?: (folder_mcp.ISimilarityScore|null);
 
         /** SearchChunksResponse queryId */
         queryId?: (string|null);
+
+        /** SearchChunksResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** SearchChunksResponse pagination */
+        pagination?: (folder_mcp.IPaginationInfo|null);
     }
 
     /** Represents a SearchChunksResponse. */
@@ -852,10 +946,16 @@ export namespace folder_mcp {
         public totalFound: number;
 
         /** SearchChunksResponse maxScore. */
-        public maxScore: number;
+        public maxScore?: (folder_mcp.ISimilarityScore|null);
 
         /** SearchChunksResponse queryId. */
         public queryId: string;
+
+        /** SearchChunksResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** SearchChunksResponse pagination. */
+        public pagination?: (folder_mcp.IPaginationInfo|null);
 
         /**
          * Creates a new SearchChunksResponse instance using the specified properties.
@@ -947,8 +1047,8 @@ export namespace folder_mcp {
         /** ChunkResult filePath */
         filePath?: (string|null);
 
-        /** ChunkResult similarityScore */
-        similarityScore?: (number|null);
+        /** ChunkResult similarity */
+        similarity?: (folder_mcp.ISimilarityScore|null);
 
         /** ChunkResult contentPreview */
         contentPreview?: (string|null);
@@ -964,6 +1064,9 @@ export namespace folder_mcp {
 
         /** ChunkResult contextChunks */
         contextChunks?: (folder_mcp.IChunkResult[]|null);
+
+        /** ChunkResult metadata */
+        metadata?: (folder_mcp.IMetadata|null);
     }
 
     /** Represents a ChunkResult. */
@@ -984,8 +1087,8 @@ export namespace folder_mcp {
         /** ChunkResult filePath. */
         public filePath: string;
 
-        /** ChunkResult similarityScore. */
-        public similarityScore: number;
+        /** ChunkResult similarity. */
+        public similarity?: (folder_mcp.ISimilarityScore|null);
 
         /** ChunkResult contentPreview. */
         public contentPreview: string;
@@ -1001,6 +1104,9 @@ export namespace folder_mcp {
 
         /** ChunkResult contextChunks. */
         public contextChunks: folder_mcp.IChunkResult[];
+
+        /** ChunkResult metadata. */
+        public metadata?: (folder_mcp.IMetadata|null);
 
         /**
          * Creates a new ChunkResult instance using the specified properties.
@@ -1197,6 +1303,12 @@ export namespace folder_mcp {
 
         /** ListFoldersResponse totalFolders */
         totalFolders?: (number|null);
+
+        /** ListFoldersResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** ListFoldersResponse pagination */
+        pagination?: (folder_mcp.IPaginationInfo|null);
     }
 
     /** Represents a ListFoldersResponse. */
@@ -1213,6 +1325,12 @@ export namespace folder_mcp {
 
         /** ListFoldersResponse totalFolders. */
         public totalFolders: number;
+
+        /** ListFoldersResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** ListFoldersResponse pagination. */
+        public pagination?: (folder_mcp.IPaginationInfo|null);
 
         /**
          * Creates a new ListFoldersResponse instance using the specified properties.
@@ -1438,7 +1556,7 @@ export namespace folder_mcp {
         sortOrder?: (string|null);
 
         /** ListDocumentsInFolderRequest typeFilter */
-        typeFilter?: (string[]|null);
+        typeFilter?: (folder_mcp.DocumentType[]|null);
 
         /** ListDocumentsInFolderRequest modifiedAfter */
         modifiedAfter?: (string|null);
@@ -1472,7 +1590,7 @@ export namespace folder_mcp {
         public sortOrder: string;
 
         /** ListDocumentsInFolderRequest typeFilter. */
-        public typeFilter: string[];
+        public typeFilter: folder_mcp.DocumentType[];
 
         /** ListDocumentsInFolderRequest modifiedAfter. */
         public modifiedAfter: string;
@@ -1567,14 +1685,11 @@ export namespace folder_mcp {
         /** ListDocumentsInFolderResponse totalDocuments */
         totalDocuments?: (number|null);
 
-        /** ListDocumentsInFolderResponse currentPage */
-        currentPage?: (number|null);
+        /** ListDocumentsInFolderResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
 
-        /** ListDocumentsInFolderResponse totalPages */
-        totalPages?: (number|null);
-
-        /** ListDocumentsInFolderResponse hasNextPage */
-        hasNextPage?: (boolean|null);
+        /** ListDocumentsInFolderResponse pagination */
+        pagination?: (folder_mcp.IPaginationInfo|null);
     }
 
     /** Represents a ListDocumentsInFolderResponse. */
@@ -1592,14 +1707,11 @@ export namespace folder_mcp {
         /** ListDocumentsInFolderResponse totalDocuments. */
         public totalDocuments: number;
 
-        /** ListDocumentsInFolderResponse currentPage. */
-        public currentPage: number;
+        /** ListDocumentsInFolderResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
 
-        /** ListDocumentsInFolderResponse totalPages. */
-        public totalPages: number;
-
-        /** ListDocumentsInFolderResponse hasNextPage. */
-        public hasNextPage: boolean;
+        /** ListDocumentsInFolderResponse pagination. */
+        public pagination?: (folder_mcp.IPaginationInfo|null);
 
         /**
          * Creates a new ListDocumentsInFolderResponse instance using the specified properties.
@@ -1692,7 +1804,7 @@ export namespace folder_mcp {
         filename?: (string|null);
 
         /** DocumentInfo documentType */
-        documentType?: (string|null);
+        documentType?: (folder_mcp.DocumentType|null);
 
         /** DocumentInfo fileSize */
         fileSize?: (number|Long|null);
@@ -1704,7 +1816,7 @@ export namespace folder_mcp {
         modifiedDate?: (string|null);
 
         /** DocumentInfo authors */
-        authors?: (string[]|null);
+        authors?: (folder_mcp.IAuthor[]|null);
 
         /** DocumentInfo title */
         title?: (string|null);
@@ -1713,7 +1825,7 @@ export namespace folder_mcp {
         pageCount?: (number|null);
 
         /** DocumentInfo metadata */
-        metadata?: ({ [k: string]: string }|null);
+        metadata?: (folder_mcp.IMetadata|null);
     }
 
     /** Represents a DocumentInfo. */
@@ -1735,7 +1847,7 @@ export namespace folder_mcp {
         public filename: string;
 
         /** DocumentInfo documentType. */
-        public documentType: string;
+        public documentType: folder_mcp.DocumentType;
 
         /** DocumentInfo fileSize. */
         public fileSize: (number|Long);
@@ -1747,7 +1859,7 @@ export namespace folder_mcp {
         public modifiedDate: string;
 
         /** DocumentInfo authors. */
-        public authors: string[];
+        public authors: folder_mcp.IAuthor[];
 
         /** DocumentInfo title. */
         public title: string;
@@ -1756,7 +1868,7 @@ export namespace folder_mcp {
         public pageCount: number;
 
         /** DocumentInfo metadata. */
-        public metadata: { [k: string]: string };
+        public metadata?: (folder_mcp.IMetadata|null);
 
         /**
          * Creates a new DocumentInfo instance using the specified properties.
@@ -1946,7 +2058,10 @@ export namespace folder_mcp {
         documentInfo?: (folder_mcp.IDocumentInfo|null);
 
         /** GetDocMetadataResponse structure */
-        structure?: (folder_mcp.IDocumentStructure|null);
+        structure?: (folder_mcp.IDocumentStructureEnhanced|null);
+
+        /** GetDocMetadataResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
     }
 
     /** Represents a GetDocMetadataResponse. */
@@ -1962,7 +2077,10 @@ export namespace folder_mcp {
         public documentInfo?: (folder_mcp.IDocumentInfo|null);
 
         /** GetDocMetadataResponse structure. */
-        public structure?: (folder_mcp.IDocumentStructure|null);
+        public structure?: (folder_mcp.IDocumentStructureEnhanced|null);
+
+        /** GetDocMetadataResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
 
         /**
          * Creates a new GetDocMetadataResponse instance using the specified properties.
@@ -2958,6 +3076,12 @@ export namespace folder_mcp {
 
         /** GetChunksResponse documentId */
         documentId?: (string|null);
+
+        /** GetChunksResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** GetChunksResponse totalTokenCount */
+        totalTokenCount?: (number|null);
     }
 
     /** Represents a GetChunksResponse. */
@@ -2974,6 +3098,12 @@ export namespace folder_mcp {
 
         /** GetChunksResponse documentId. */
         public documentId: string;
+
+        /** GetChunksResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** GetChunksResponse totalTokenCount. */
+        public totalTokenCount: number;
 
         /**
          * Creates a new GetChunksResponse instance using the specified properties.
@@ -3075,7 +3205,7 @@ export namespace folder_mcp {
         tokenCount?: (number|null);
 
         /** ChunkData metadata */
-        metadata?: ({ [k: string]: string }|null);
+        metadata?: (folder_mcp.IMetadata|null);
     }
 
     /** Represents a ChunkData. */
@@ -3106,7 +3236,7 @@ export namespace folder_mcp {
         public tokenCount: number;
 
         /** ChunkData metadata. */
-        public metadata: { [k: string]: string };
+        public metadata?: (folder_mcp.IMetadata|null);
 
         /**
          * Creates a new ChunkData instance using the specified properties.
@@ -3193,7 +3323,7 @@ export namespace folder_mcp {
         documentId?: (string|null);
 
         /** GetDocSummaryRequest mode */
-        mode?: (string|null);
+        mode?: (folder_mcp.SummaryMode|null);
 
         /** GetDocSummaryRequest focusAreas */
         focusAreas?: (string[]|null);
@@ -3215,7 +3345,7 @@ export namespace folder_mcp {
         public documentId: string;
 
         /** GetDocSummaryRequest mode. */
-        public mode: string;
+        public mode: folder_mcp.SummaryMode;
 
         /** GetDocSummaryRequest focusAreas. */
         public focusAreas: string[];
@@ -3311,13 +3441,16 @@ export namespace folder_mcp {
         sourceRanges?: (folder_mcp.ISourceRange[]|null);
 
         /** GetDocSummaryResponse mode */
-        mode?: (string|null);
+        mode?: (folder_mcp.SummaryMode|null);
 
         /** GetDocSummaryResponse tokenCount */
         tokenCount?: (number|null);
 
         /** GetDocSummaryResponse confidenceScore */
         confidenceScore?: (number|null);
+
+        /** GetDocSummaryResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
     }
 
     /** Represents a GetDocSummaryResponse. */
@@ -3336,13 +3469,16 @@ export namespace folder_mcp {
         public sourceRanges: folder_mcp.ISourceRange[];
 
         /** GetDocSummaryResponse mode. */
-        public mode: string;
+        public mode: folder_mcp.SummaryMode;
 
         /** GetDocSummaryResponse tokenCount. */
         public tokenCount: number;
 
         /** GetDocSummaryResponse confidenceScore. */
         public confidenceScore: number;
+
+        /** GetDocSummaryResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
 
         /**
          * Creates a new GetDocSummaryResponse instance using the specified properties.
@@ -3433,6 +3569,12 @@ export namespace folder_mcp {
 
         /** SourceRange sourceText */
         sourceText?: (string|null);
+
+        /** SourceRange pageNumber */
+        pageNumber?: (number|null);
+
+        /** SourceRange sectionTitle */
+        sectionTitle?: (string|null);
     }
 
     /** Represents a SourceRange. */
@@ -3452,6 +3594,12 @@ export namespace folder_mcp {
 
         /** SourceRange sourceText. */
         public sourceText: string;
+
+        /** SourceRange pageNumber. */
+        public pageNumber: number;
+
+        /** SourceRange sectionTitle. */
+        public sectionTitle: string;
 
         /**
          * Creates a new SourceRange instance using the specified properties.
@@ -3538,7 +3686,7 @@ export namespace folder_mcp {
         documentIds?: (string[]|null);
 
         /** BatchDocSummaryRequest mode */
-        mode?: (string|null);
+        mode?: (folder_mcp.SummaryMode|null);
 
         /** BatchDocSummaryRequest maxTotalTokens */
         maxTotalTokens?: (number|null);
@@ -3560,7 +3708,7 @@ export namespace folder_mcp {
         public documentIds: string[];
 
         /** BatchDocSummaryRequest mode. */
-        public mode: string;
+        public mode: folder_mcp.SummaryMode;
 
         /** BatchDocSummaryRequest maxTotalTokens. */
         public maxTotalTokens: number;
@@ -3657,6 +3805,12 @@ export namespace folder_mcp {
 
         /** BatchDocSummaryResponse crossReferences */
         crossReferences?: (folder_mcp.ICrossReference[]|null);
+
+        /** BatchDocSummaryResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** BatchDocSummaryResponse processingStats */
+        processingStats?: (folder_mcp.IProcessingStats|null);
     }
 
     /** Represents a BatchDocSummaryResponse. */
@@ -3676,6 +3830,12 @@ export namespace folder_mcp {
 
         /** BatchDocSummaryResponse crossReferences. */
         public crossReferences: folder_mcp.ICrossReference[];
+
+        /** BatchDocSummaryResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** BatchDocSummaryResponse processingStats. */
+        public processingStats?: (folder_mcp.IProcessingStats|null);
 
         /**
          * Creates a new BatchDocSummaryResponse instance using the specified properties.
@@ -4117,6 +4277,12 @@ export namespace folder_mcp {
 
         /** TableQueryResponse queryInterpretation */
         queryInterpretation?: (string|null);
+
+        /** TableQueryResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
+
+        /** TableQueryResponse pagination */
+        pagination?: (folder_mcp.IPaginationInfo|null);
     }
 
     /** Represents a TableQueryResponse. */
@@ -4136,6 +4302,12 @@ export namespace folder_mcp {
 
         /** TableQueryResponse queryInterpretation. */
         public queryInterpretation: string;
+
+        /** TableQueryResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
+
+        /** TableQueryResponse pagination. */
+        public pagination?: (folder_mcp.IPaginationInfo|null);
 
         /**
          * Creates a new TableQueryResponse instance using the specified properties.
@@ -4224,17 +4396,14 @@ export namespace folder_mcp {
         /** CellMatch sheetName */
         sheetName?: (string|null);
 
-        /** CellMatch cellAddress */
-        cellAddress?: (string|null);
-
-        /** CellMatch cellValue */
-        cellValue?: (string|null);
-
-        /** CellMatch dataType */
-        dataType?: (string|null);
+        /** CellMatch cell */
+        cell?: (folder_mcp.ICell|null);
 
         /** CellMatch relevanceScore */
         relevanceScore?: (number|null);
+
+        /** CellMatch context */
+        context?: (string|null);
     }
 
     /** Represents a CellMatch. */
@@ -4252,17 +4421,14 @@ export namespace folder_mcp {
         /** CellMatch sheetName. */
         public sheetName: string;
 
-        /** CellMatch cellAddress. */
-        public cellAddress: string;
-
-        /** CellMatch cellValue. */
-        public cellValue: string;
-
-        /** CellMatch dataType. */
-        public dataType: string;
+        /** CellMatch cell. */
+        public cell?: (folder_mcp.ICell|null);
 
         /** CellMatch relevanceScore. */
         public relevanceScore: number;
+
+        /** CellMatch context. */
+        public context: string;
 
         /**
          * Creates a new CellMatch instance using the specified properties.
@@ -4574,6 +4740,9 @@ export namespace folder_mcp {
 
         /** IngestStatusResponse overall */
         overall?: (folder_mcp.IOverallStatus|null);
+
+        /** IngestStatusResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
     }
 
     /** Represents an IngestStatusResponse. */
@@ -4590,6 +4759,9 @@ export namespace folder_mcp {
 
         /** IngestStatusResponse overall. */
         public overall?: (folder_mcp.IOverallStatus|null);
+
+        /** IngestStatusResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
 
         /**
          * Creates a new IngestStatusResponse instance using the specified properties.
@@ -4679,16 +4851,16 @@ export namespace folder_mcp {
         filePath?: (string|null);
 
         /** DocumentStatus status */
-        status?: (string|null);
+        status?: (folder_mcp.IngestStatus|null);
 
-        /** DocumentStatus progressPercent */
-        progressPercent?: (number|null);
+        /** DocumentStatus progress */
+        progress?: (folder_mcp.IProgress|null);
 
         /** DocumentStatus lastUpdated */
         lastUpdated?: (string|null);
 
-        /** DocumentStatus errorMessage */
-        errorMessage?: (string|null);
+        /** DocumentStatus errors */
+        errors?: (folder_mcp.IErrorDetail[]|null);
 
         /** DocumentStatus stats */
         stats?: (folder_mcp.IProcessingStats|null);
@@ -4710,16 +4882,16 @@ export namespace folder_mcp {
         public filePath: string;
 
         /** DocumentStatus status. */
-        public status: string;
+        public status: folder_mcp.IngestStatus;
 
-        /** DocumentStatus progressPercent. */
-        public progressPercent: number;
+        /** DocumentStatus progress. */
+        public progress?: (folder_mcp.IProgress|null);
 
         /** DocumentStatus lastUpdated. */
         public lastUpdated: string;
 
-        /** DocumentStatus errorMessage. */
-        public errorMessage: string;
+        /** DocumentStatus errors. */
+        public errors: folder_mcp.IErrorDetail[];
 
         /** DocumentStatus stats. */
         public stats?: (folder_mcp.IProcessingStats|null);
@@ -5041,8 +5213,8 @@ export namespace folder_mcp {
         /** RefreshDocRequest forceReprocess */
         forceReprocess?: (boolean|null);
 
-        /** RefreshDocRequest highPriority */
-        highPriority?: (boolean|null);
+        /** RefreshDocRequest priority */
+        priority?: (folder_mcp.Priority|null);
     }
 
     /** Represents a RefreshDocRequest. */
@@ -5060,8 +5232,8 @@ export namespace folder_mcp {
         /** RefreshDocRequest forceReprocess. */
         public forceReprocess: boolean;
 
-        /** RefreshDocRequest highPriority. */
-        public highPriority: boolean;
+        /** RefreshDocRequest priority. */
+        public priority: folder_mcp.Priority;
 
         /**
          * Creates a new RefreshDocRequest instance using the specified properties.
@@ -5370,6 +5542,12 @@ export namespace folder_mcp {
 
         /** GetEmbeddingResponse modelName */
         modelName?: (string|null);
+
+        /** GetEmbeddingResponse modelVersion */
+        modelVersion?: (string|null);
+
+        /** GetEmbeddingResponse status */
+        status?: (folder_mcp.IResponseStatus|null);
     }
 
     /** Represents a GetEmbeddingResponse. */
@@ -5389,6 +5567,12 @@ export namespace folder_mcp {
 
         /** GetEmbeddingResponse modelName. */
         public modelName: string;
+
+        /** GetEmbeddingResponse modelVersion. */
+        public modelVersion: string;
+
+        /** GetEmbeddingResponse status. */
+        public status?: (folder_mcp.IResponseStatus|null);
 
         /**
          * Creates a new GetEmbeddingResponse instance using the specified properties.
@@ -5474,11 +5658,11 @@ export namespace folder_mcp {
         /** EmbeddingVector id */
         id?: (string|null);
 
-        /** EmbeddingVector values */
-        values?: (number[]|null);
+        /** EmbeddingVector embedding */
+        embedding?: (folder_mcp.IEmbedding|null);
 
-        /** EmbeddingVector metadata */
-        metadata?: ({ [k: string]: string }|null);
+        /** EmbeddingVector sourceType */
+        sourceType?: (string|null);
     }
 
     /** Represents an EmbeddingVector. */
@@ -5493,11 +5677,11 @@ export namespace folder_mcp {
         /** EmbeddingVector id. */
         public id: string;
 
-        /** EmbeddingVector values. */
-        public values: number[];
+        /** EmbeddingVector embedding. */
+        public embedding?: (folder_mcp.IEmbedding|null);
 
-        /** EmbeddingVector metadata. */
-        public metadata: { [k: string]: string };
+        /** EmbeddingVector sourceType. */
+        public sourceType: string;
 
         /**
          * Creates a new EmbeddingVector instance using the specified properties.
@@ -5577,11 +5761,1245 @@ export namespace folder_mcp {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a PaginationInfo. */
+    interface IPaginationInfo {
+
+        /** PaginationInfo page */
+        page?: (number|null);
+
+        /** PaginationInfo perPage */
+        perPage?: (number|null);
+
+        /** PaginationInfo totalCount */
+        totalCount?: (number|null);
+
+        /** PaginationInfo totalPages */
+        totalPages?: (number|null);
+
+        /** PaginationInfo hasNext */
+        hasNext?: (boolean|null);
+
+        /** PaginationInfo hasPrevious */
+        hasPrevious?: (boolean|null);
+    }
+
+    /** Represents a PaginationInfo. */
+    class PaginationInfo implements IPaginationInfo {
+
+        /**
+         * Constructs a new PaginationInfo.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IPaginationInfo);
+
+        /** PaginationInfo page. */
+        public page: number;
+
+        /** PaginationInfo perPage. */
+        public perPage: number;
+
+        /** PaginationInfo totalCount. */
+        public totalCount: number;
+
+        /** PaginationInfo totalPages. */
+        public totalPages: number;
+
+        /** PaginationInfo hasNext. */
+        public hasNext: boolean;
+
+        /** PaginationInfo hasPrevious. */
+        public hasPrevious: boolean;
+
+        /**
+         * Creates a new PaginationInfo instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns PaginationInfo instance
+         */
+        public static create(properties?: folder_mcp.IPaginationInfo): folder_mcp.PaginationInfo;
+
+        /**
+         * Encodes the specified PaginationInfo message. Does not implicitly {@link folder_mcp.PaginationInfo.verify|verify} messages.
+         * @param message PaginationInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IPaginationInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified PaginationInfo message, length delimited. Does not implicitly {@link folder_mcp.PaginationInfo.verify|verify} messages.
+         * @param message PaginationInfo message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IPaginationInfo, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a PaginationInfo message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns PaginationInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.PaginationInfo;
+
+        /**
+         * Decodes a PaginationInfo message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns PaginationInfo
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.PaginationInfo;
+
+        /**
+         * Verifies a PaginationInfo message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a PaginationInfo message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns PaginationInfo
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.PaginationInfo;
+
+        /**
+         * Creates a plain object from a PaginationInfo message. Also converts values to other types if specified.
+         * @param message PaginationInfo
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.PaginationInfo, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this PaginationInfo to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for PaginationInfo
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a Metadata. */
+    interface IMetadata {
+
+        /** Metadata stringValues */
+        stringValues?: ({ [k: string]: string }|null);
+
+        /** Metadata intValues */
+        intValues?: ({ [k: string]: (number|Long) }|null);
+
+        /** Metadata floatValues */
+        floatValues?: ({ [k: string]: number }|null);
+
+        /** Metadata boolValues */
+        boolValues?: ({ [k: string]: boolean }|null);
+
+        /** Metadata binaryValues */
+        binaryValues?: ({ [k: string]: Uint8Array }|null);
+    }
+
+    /** Represents a Metadata. */
+    class Metadata implements IMetadata {
+
+        /**
+         * Constructs a new Metadata.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IMetadata);
+
+        /** Metadata stringValues. */
+        public stringValues: { [k: string]: string };
+
+        /** Metadata intValues. */
+        public intValues: { [k: string]: (number|Long) };
+
+        /** Metadata floatValues. */
+        public floatValues: { [k: string]: number };
+
+        /** Metadata boolValues. */
+        public boolValues: { [k: string]: boolean };
+
+        /** Metadata binaryValues. */
+        public binaryValues: { [k: string]: Uint8Array };
+
+        /**
+         * Creates a new Metadata instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Metadata instance
+         */
+        public static create(properties?: folder_mcp.IMetadata): folder_mcp.Metadata;
+
+        /**
+         * Encodes the specified Metadata message. Does not implicitly {@link folder_mcp.Metadata.verify|verify} messages.
+         * @param message Metadata message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IMetadata, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Metadata message, length delimited. Does not implicitly {@link folder_mcp.Metadata.verify|verify} messages.
+         * @param message Metadata message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IMetadata, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Metadata message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Metadata
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.Metadata;
+
+        /**
+         * Decodes a Metadata message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Metadata
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.Metadata;
+
+        /**
+         * Verifies a Metadata message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Metadata message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Metadata
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.Metadata;
+
+        /**
+         * Creates a plain object from a Metadata message. Also converts values to other types if specified.
+         * @param message Metadata
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.Metadata, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Metadata to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Metadata
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a Progress. */
+    interface IProgress {
+
+        /** Progress completed */
+        completed?: (number|null);
+
+        /** Progress total */
+        total?: (number|null);
+
+        /** Progress percentage */
+        percentage?: (number|null);
+
+        /** Progress eta */
+        eta?: (string|null);
+
+        /** Progress currentItem */
+        currentItem?: (string|null);
+    }
+
+    /** Represents a Progress. */
+    class Progress implements IProgress {
+
+        /**
+         * Constructs a new Progress.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IProgress);
+
+        /** Progress completed. */
+        public completed: number;
+
+        /** Progress total. */
+        public total: number;
+
+        /** Progress percentage. */
+        public percentage: number;
+
+        /** Progress eta. */
+        public eta: string;
+
+        /** Progress currentItem. */
+        public currentItem: string;
+
+        /**
+         * Creates a new Progress instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Progress instance
+         */
+        public static create(properties?: folder_mcp.IProgress): folder_mcp.Progress;
+
+        /**
+         * Encodes the specified Progress message. Does not implicitly {@link folder_mcp.Progress.verify|verify} messages.
+         * @param message Progress message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IProgress, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Progress message, length delimited. Does not implicitly {@link folder_mcp.Progress.verify|verify} messages.
+         * @param message Progress message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IProgress, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Progress message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Progress
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.Progress;
+
+        /**
+         * Decodes a Progress message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Progress
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.Progress;
+
+        /**
+         * Verifies a Progress message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Progress message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Progress
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.Progress;
+
+        /**
+         * Creates a plain object from a Progress message. Also converts values to other types if specified.
+         * @param message Progress
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.Progress, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Progress to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Progress
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a SimilarityScore. */
+    interface ISimilarityScore {
+
+        /** SimilarityScore score */
+        score?: (number|null);
+
+        /** SimilarityScore confidence */
+        confidence?: (number|null);
+
+        /** SimilarityScore rank */
+        rank?: (number|null);
+
+        /** SimilarityScore method */
+        method?: (string|null);
+    }
+
+    /** Represents a SimilarityScore. */
+    class SimilarityScore implements ISimilarityScore {
+
+        /**
+         * Constructs a new SimilarityScore.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.ISimilarityScore);
+
+        /** SimilarityScore score. */
+        public score: number;
+
+        /** SimilarityScore confidence. */
+        public confidence: number;
+
+        /** SimilarityScore rank. */
+        public rank: number;
+
+        /** SimilarityScore method. */
+        public method: string;
+
+        /**
+         * Creates a new SimilarityScore instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns SimilarityScore instance
+         */
+        public static create(properties?: folder_mcp.ISimilarityScore): folder_mcp.SimilarityScore;
+
+        /**
+         * Encodes the specified SimilarityScore message. Does not implicitly {@link folder_mcp.SimilarityScore.verify|verify} messages.
+         * @param message SimilarityScore message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.ISimilarityScore, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified SimilarityScore message, length delimited. Does not implicitly {@link folder_mcp.SimilarityScore.verify|verify} messages.
+         * @param message SimilarityScore message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.ISimilarityScore, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a SimilarityScore message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns SimilarityScore
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.SimilarityScore;
+
+        /**
+         * Decodes a SimilarityScore message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns SimilarityScore
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.SimilarityScore;
+
+        /**
+         * Verifies a SimilarityScore message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a SimilarityScore message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns SimilarityScore
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.SimilarityScore;
+
+        /**
+         * Creates a plain object from a SimilarityScore message. Also converts values to other types if specified.
+         * @param message SimilarityScore
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.SimilarityScore, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this SimilarityScore to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for SimilarityScore
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a DateRange. */
+    interface IDateRange {
+
+        /** DateRange from */
+        from?: (string|null);
+
+        /** DateRange to */
+        to?: (string|null);
+
+        /** DateRange timezone */
+        timezone?: (string|null);
+
+        /** DateRange precision */
+        precision?: (string|null);
+    }
+
+    /** Represents a DateRange. */
+    class DateRange implements IDateRange {
+
+        /**
+         * Constructs a new DateRange.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IDateRange);
+
+        /** DateRange from. */
+        public from: string;
+
+        /** DateRange to. */
+        public to: string;
+
+        /** DateRange timezone. */
+        public timezone: string;
+
+        /** DateRange precision. */
+        public precision: string;
+
+        /**
+         * Creates a new DateRange instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns DateRange instance
+         */
+        public static create(properties?: folder_mcp.IDateRange): folder_mcp.DateRange;
+
+        /**
+         * Encodes the specified DateRange message. Does not implicitly {@link folder_mcp.DateRange.verify|verify} messages.
+         * @param message DateRange message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IDateRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified DateRange message, length delimited. Does not implicitly {@link folder_mcp.DateRange.verify|verify} messages.
+         * @param message DateRange message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IDateRange, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a DateRange message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns DateRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.DateRange;
+
+        /**
+         * Decodes a DateRange message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns DateRange
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.DateRange;
+
+        /**
+         * Verifies a DateRange message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a DateRange message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns DateRange
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.DateRange;
+
+        /**
+         * Creates a plain object from a DateRange message. Also converts values to other types if specified.
+         * @param message DateRange
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.DateRange, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this DateRange to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DateRange
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an Author. */
+    interface IAuthor {
+
+        /** Author name */
+        name?: (string|null);
+
+        /** Author email */
+        email?: (string|null);
+
+        /** Author role */
+        role?: (string|null);
+
+        /** Author lastModified */
+        lastModified?: (string|null);
+
+        /** Author attributes */
+        attributes?: ({ [k: string]: string }|null);
+    }
+
+    /** Represents an Author. */
+    class Author implements IAuthor {
+
+        /**
+         * Constructs a new Author.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IAuthor);
+
+        /** Author name. */
+        public name: string;
+
+        /** Author email. */
+        public email: string;
+
+        /** Author role. */
+        public role: string;
+
+        /** Author lastModified. */
+        public lastModified: string;
+
+        /** Author attributes. */
+        public attributes: { [k: string]: string };
+
+        /**
+         * Creates a new Author instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Author instance
+         */
+        public static create(properties?: folder_mcp.IAuthor): folder_mcp.Author;
+
+        /**
+         * Encodes the specified Author message. Does not implicitly {@link folder_mcp.Author.verify|verify} messages.
+         * @param message Author message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IAuthor, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Author message, length delimited. Does not implicitly {@link folder_mcp.Author.verify|verify} messages.
+         * @param message Author message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IAuthor, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an Author message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Author
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.Author;
+
+        /**
+         * Decodes an Author message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Author
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.Author;
+
+        /**
+         * Verifies an Author message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an Author message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Author
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.Author;
+
+        /**
+         * Creates a plain object from an Author message. Also converts values to other types if specified.
+         * @param message Author
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.Author, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Author to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Author
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a DocumentStructureEnhanced. */
+    interface IDocumentStructureEnhanced {
+
+        /** DocumentStructureEnhanced sheets */
+        sheets?: (folder_mcp.ISheetInfo[]|null);
+
+        /** DocumentStructureEnhanced slides */
+        slides?: (folder_mcp.ISlideInfo[]|null);
+
+        /** DocumentStructureEnhanced pages */
+        pages?: (folder_mcp.IPageInfo[]|null);
+
+        /** DocumentStructureEnhanced sections */
+        sections?: (folder_mcp.ISectionInfo[]|null);
+
+        /** DocumentStructureEnhanced toc */
+        toc?: (folder_mcp.ITableOfContentsEntry[]|null);
+
+        /** DocumentStructureEnhanced tags */
+        tags?: (string[]|null);
+
+        /** DocumentStructureEnhanced properties */
+        properties?: ({ [k: string]: string }|null);
+    }
+
+    /** Represents a DocumentStructureEnhanced. */
+    class DocumentStructureEnhanced implements IDocumentStructureEnhanced {
+
+        /**
+         * Constructs a new DocumentStructureEnhanced.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IDocumentStructureEnhanced);
+
+        /** DocumentStructureEnhanced sheets. */
+        public sheets: folder_mcp.ISheetInfo[];
+
+        /** DocumentStructureEnhanced slides. */
+        public slides: folder_mcp.ISlideInfo[];
+
+        /** DocumentStructureEnhanced pages. */
+        public pages: folder_mcp.IPageInfo[];
+
+        /** DocumentStructureEnhanced sections. */
+        public sections: folder_mcp.ISectionInfo[];
+
+        /** DocumentStructureEnhanced toc. */
+        public toc: folder_mcp.ITableOfContentsEntry[];
+
+        /** DocumentStructureEnhanced tags. */
+        public tags: string[];
+
+        /** DocumentStructureEnhanced properties. */
+        public properties: { [k: string]: string };
+
+        /**
+         * Creates a new DocumentStructureEnhanced instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns DocumentStructureEnhanced instance
+         */
+        public static create(properties?: folder_mcp.IDocumentStructureEnhanced): folder_mcp.DocumentStructureEnhanced;
+
+        /**
+         * Encodes the specified DocumentStructureEnhanced message. Does not implicitly {@link folder_mcp.DocumentStructureEnhanced.verify|verify} messages.
+         * @param message DocumentStructureEnhanced message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IDocumentStructureEnhanced, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified DocumentStructureEnhanced message, length delimited. Does not implicitly {@link folder_mcp.DocumentStructureEnhanced.verify|verify} messages.
+         * @param message DocumentStructureEnhanced message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IDocumentStructureEnhanced, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a DocumentStructureEnhanced message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns DocumentStructureEnhanced
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.DocumentStructureEnhanced;
+
+        /**
+         * Decodes a DocumentStructureEnhanced message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns DocumentStructureEnhanced
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.DocumentStructureEnhanced;
+
+        /**
+         * Verifies a DocumentStructureEnhanced message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a DocumentStructureEnhanced message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns DocumentStructureEnhanced
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.DocumentStructureEnhanced;
+
+        /**
+         * Creates a plain object from a DocumentStructureEnhanced message. Also converts values to other types if specified.
+         * @param message DocumentStructureEnhanced
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.DocumentStructureEnhanced, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this DocumentStructureEnhanced to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for DocumentStructureEnhanced
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a TableOfContentsEntry. */
+    interface ITableOfContentsEntry {
+
+        /** TableOfContentsEntry title */
+        title?: (string|null);
+
+        /** TableOfContentsEntry level */
+        level?: (number|null);
+
+        /** TableOfContentsEntry pageNumber */
+        pageNumber?: (number|null);
+
+        /** TableOfContentsEntry anchor */
+        anchor?: (string|null);
+    }
+
+    /** Represents a TableOfContentsEntry. */
+    class TableOfContentsEntry implements ITableOfContentsEntry {
+
+        /**
+         * Constructs a new TableOfContentsEntry.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.ITableOfContentsEntry);
+
+        /** TableOfContentsEntry title. */
+        public title: string;
+
+        /** TableOfContentsEntry level. */
+        public level: number;
+
+        /** TableOfContentsEntry pageNumber. */
+        public pageNumber: number;
+
+        /** TableOfContentsEntry anchor. */
+        public anchor: string;
+
+        /**
+         * Creates a new TableOfContentsEntry instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns TableOfContentsEntry instance
+         */
+        public static create(properties?: folder_mcp.ITableOfContentsEntry): folder_mcp.TableOfContentsEntry;
+
+        /**
+         * Encodes the specified TableOfContentsEntry message. Does not implicitly {@link folder_mcp.TableOfContentsEntry.verify|verify} messages.
+         * @param message TableOfContentsEntry message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.ITableOfContentsEntry, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified TableOfContentsEntry message, length delimited. Does not implicitly {@link folder_mcp.TableOfContentsEntry.verify|verify} messages.
+         * @param message TableOfContentsEntry message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.ITableOfContentsEntry, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a TableOfContentsEntry message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns TableOfContentsEntry
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.TableOfContentsEntry;
+
+        /**
+         * Decodes a TableOfContentsEntry message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns TableOfContentsEntry
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.TableOfContentsEntry;
+
+        /**
+         * Verifies a TableOfContentsEntry message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a TableOfContentsEntry message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns TableOfContentsEntry
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.TableOfContentsEntry;
+
+        /**
+         * Creates a plain object from a TableOfContentsEntry message. Also converts values to other types if specified.
+         * @param message TableOfContentsEntry
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.TableOfContentsEntry, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this TableOfContentsEntry to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for TableOfContentsEntry
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of a Cell. */
+    interface ICell {
+
+        /** Cell row */
+        row?: (number|null);
+
+        /** Cell column */
+        column?: (number|null);
+
+        /** Cell address */
+        address?: (string|null);
+
+        /** Cell value */
+        value?: (string|null);
+
+        /** Cell rawValue */
+        rawValue?: (string|null);
+
+        /** Cell type */
+        type?: (folder_mcp.CellDataType|null);
+
+        /** Cell formula */
+        formula?: (string|null);
+
+        /** Cell formatting */
+        formatting?: ({ [k: string]: string }|null);
+    }
+
+    /** Represents a Cell. */
+    class Cell implements ICell {
+
+        /**
+         * Constructs a new Cell.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.ICell);
+
+        /** Cell row. */
+        public row: number;
+
+        /** Cell column. */
+        public column: number;
+
+        /** Cell address. */
+        public address: string;
+
+        /** Cell value. */
+        public value: string;
+
+        /** Cell rawValue. */
+        public rawValue: string;
+
+        /** Cell type. */
+        public type: folder_mcp.CellDataType;
+
+        /** Cell formula. */
+        public formula: string;
+
+        /** Cell formatting. */
+        public formatting: { [k: string]: string };
+
+        /**
+         * Creates a new Cell instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Cell instance
+         */
+        public static create(properties?: folder_mcp.ICell): folder_mcp.Cell;
+
+        /**
+         * Encodes the specified Cell message. Does not implicitly {@link folder_mcp.Cell.verify|verify} messages.
+         * @param message Cell message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.ICell, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Cell message, length delimited. Does not implicitly {@link folder_mcp.Cell.verify|verify} messages.
+         * @param message Cell message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.ICell, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a Cell message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Cell
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.Cell;
+
+        /**
+         * Decodes a Cell message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Cell
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.Cell;
+
+        /**
+         * Verifies a Cell message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a Cell message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Cell
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.Cell;
+
+        /**
+         * Creates a plain object from a Cell message. Also converts values to other types if specified.
+         * @param message Cell
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.Cell, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Cell to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Cell
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
+    /** Properties of an Embedding. */
+    interface IEmbedding {
+
+        /** Embedding vector */
+        vector?: (number[]|null);
+
+        /** Embedding dimensions */
+        dimensions?: (number|null);
+
+        /** Embedding modelName */
+        modelName?: (string|null);
+
+        /** Embedding modelVersion */
+        modelVersion?: (string|null);
+
+        /** Embedding norm */
+        norm?: (number|null);
+
+        /** Embedding metadata */
+        metadata?: ({ [k: string]: string }|null);
+    }
+
+    /** Represents an Embedding. */
+    class Embedding implements IEmbedding {
+
+        /**
+         * Constructs a new Embedding.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IEmbedding);
+
+        /** Embedding vector. */
+        public vector: number[];
+
+        /** Embedding dimensions. */
+        public dimensions: number;
+
+        /** Embedding modelName. */
+        public modelName: string;
+
+        /** Embedding modelVersion. */
+        public modelVersion: string;
+
+        /** Embedding norm. */
+        public norm: number;
+
+        /** Embedding metadata. */
+        public metadata: { [k: string]: string };
+
+        /**
+         * Creates a new Embedding instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns Embedding instance
+         */
+        public static create(properties?: folder_mcp.IEmbedding): folder_mcp.Embedding;
+
+        /**
+         * Encodes the specified Embedding message. Does not implicitly {@link folder_mcp.Embedding.verify|verify} messages.
+         * @param message Embedding message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IEmbedding, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified Embedding message, length delimited. Does not implicitly {@link folder_mcp.Embedding.verify|verify} messages.
+         * @param message Embedding message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IEmbedding, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes an Embedding message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns Embedding
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.Embedding;
+
+        /**
+         * Decodes an Embedding message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns Embedding
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.Embedding;
+
+        /**
+         * Verifies an Embedding message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates an Embedding message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns Embedding
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.Embedding;
+
+        /**
+         * Creates a plain object from an Embedding message. Also converts values to other types if specified.
+         * @param message Embedding
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.Embedding, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this Embedding to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for Embedding
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of an ErrorDetail. */
     interface IErrorDetail {
 
         /** ErrorDetail code */
-        code?: (string|null);
+        code?: (folder_mcp.ErrorCode|null);
 
         /** ErrorDetail message */
         message?: (string|null);
@@ -5591,6 +7009,12 @@ export namespace folder_mcp {
 
         /** ErrorDetail suggestions */
         suggestions?: (string[]|null);
+
+        /** ErrorDetail context */
+        context?: ({ [k: string]: string }|null);
+
+        /** ErrorDetail documentationUrl */
+        documentationUrl?: (string|null);
     }
 
     /** Represents an ErrorDetail. */
@@ -5603,7 +7027,7 @@ export namespace folder_mcp {
         constructor(properties?: folder_mcp.IErrorDetail);
 
         /** ErrorDetail code. */
-        public code: string;
+        public code: folder_mcp.ErrorCode;
 
         /** ErrorDetail message. */
         public message: string;
@@ -5613,6 +7037,12 @@ export namespace folder_mcp {
 
         /** ErrorDetail suggestions. */
         public suggestions: string[];
+
+        /** ErrorDetail context. */
+        public context: { [k: string]: string };
+
+        /** ErrorDetail documentationUrl. */
+        public documentationUrl: string;
 
         /**
          * Creates a new ErrorDetail instance using the specified properties.
@@ -5692,6 +7122,127 @@ export namespace folder_mcp {
         public static getTypeUrl(typeUrlPrefix?: string): string;
     }
 
+    /** Properties of a ResponseStatus. */
+    interface IResponseStatus {
+
+        /** ResponseStatus success */
+        success?: (boolean|null);
+
+        /** ResponseStatus errors */
+        errors?: (folder_mcp.IErrorDetail[]|null);
+
+        /** ResponseStatus warnings */
+        warnings?: (string[]|null);
+
+        /** ResponseStatus requestId */
+        requestId?: (string|null);
+
+        /** ResponseStatus processingTimeMs */
+        processingTimeMs?: (number|Long|null);
+    }
+
+    /** Represents a ResponseStatus. */
+    class ResponseStatus implements IResponseStatus {
+
+        /**
+         * Constructs a new ResponseStatus.
+         * @param [properties] Properties to set
+         */
+        constructor(properties?: folder_mcp.IResponseStatus);
+
+        /** ResponseStatus success. */
+        public success: boolean;
+
+        /** ResponseStatus errors. */
+        public errors: folder_mcp.IErrorDetail[];
+
+        /** ResponseStatus warnings. */
+        public warnings: string[];
+
+        /** ResponseStatus requestId. */
+        public requestId: string;
+
+        /** ResponseStatus processingTimeMs. */
+        public processingTimeMs: (number|Long);
+
+        /**
+         * Creates a new ResponseStatus instance using the specified properties.
+         * @param [properties] Properties to set
+         * @returns ResponseStatus instance
+         */
+        public static create(properties?: folder_mcp.IResponseStatus): folder_mcp.ResponseStatus;
+
+        /**
+         * Encodes the specified ResponseStatus message. Does not implicitly {@link folder_mcp.ResponseStatus.verify|verify} messages.
+         * @param message ResponseStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encode(message: folder_mcp.IResponseStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Encodes the specified ResponseStatus message, length delimited. Does not implicitly {@link folder_mcp.ResponseStatus.verify|verify} messages.
+         * @param message ResponseStatus message or plain object to encode
+         * @param [writer] Writer to encode to
+         * @returns Writer
+         */
+        public static encodeDelimited(message: folder_mcp.IResponseStatus, writer?: $protobuf.Writer): $protobuf.Writer;
+
+        /**
+         * Decodes a ResponseStatus message from the specified reader or buffer.
+         * @param reader Reader or buffer to decode from
+         * @param [length] Message length if known beforehand
+         * @returns ResponseStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decode(reader: ($protobuf.Reader|Uint8Array), length?: number): folder_mcp.ResponseStatus;
+
+        /**
+         * Decodes a ResponseStatus message from the specified reader or buffer, length delimited.
+         * @param reader Reader or buffer to decode from
+         * @returns ResponseStatus
+         * @throws {Error} If the payload is not a reader or valid buffer
+         * @throws {$protobuf.util.ProtocolError} If required fields are missing
+         */
+        public static decodeDelimited(reader: ($protobuf.Reader|Uint8Array)): folder_mcp.ResponseStatus;
+
+        /**
+         * Verifies a ResponseStatus message.
+         * @param message Plain object to verify
+         * @returns `null` if valid, otherwise the reason why it is not
+         */
+        public static verify(message: { [k: string]: any }): (string|null);
+
+        /**
+         * Creates a ResponseStatus message from a plain object. Also converts values to their respective internal types.
+         * @param object Plain object
+         * @returns ResponseStatus
+         */
+        public static fromObject(object: { [k: string]: any }): folder_mcp.ResponseStatus;
+
+        /**
+         * Creates a plain object from a ResponseStatus message. Also converts values to other types if specified.
+         * @param message ResponseStatus
+         * @param [options] Conversion options
+         * @returns Plain object
+         */
+        public static toObject(message: folder_mcp.ResponseStatus, options?: $protobuf.IConversionOptions): { [k: string]: any };
+
+        /**
+         * Converts this ResponseStatus to JSON.
+         * @returns JSON object
+         */
+        public toJSON(): { [k: string]: any };
+
+        /**
+         * Gets the default type url for ResponseStatus
+         * @param [typeUrlPrefix] your custom typeUrlPrefix(default "type.googleapis.com")
+         * @returns The default type url
+         */
+        public static getTypeUrl(typeUrlPrefix?: string): string;
+    }
+
     /** Properties of a StatusInfo. */
     interface IStatusInfo {
 
@@ -5709,6 +7260,12 @@ export namespace folder_mcp {
 
         /** StatusInfo buildInfo */
         buildInfo?: (string|null);
+
+        /** StatusInfo components */
+        components?: ({ [k: string]: string }|null);
+
+        /** StatusInfo capabilities */
+        capabilities?: (string[]|null);
     }
 
     /** Represents a StatusInfo. */
@@ -5734,6 +7291,12 @@ export namespace folder_mcp {
 
         /** StatusInfo buildInfo. */
         public buildInfo: string;
+
+        /** StatusInfo components. */
+        public components: { [k: string]: string };
+
+        /** StatusInfo capabilities. */
+        public capabilities: string[];
 
         /**
          * Creates a new StatusInfo instance using the specified properties.

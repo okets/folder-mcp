@@ -20,6 +20,16 @@ import {
   AnyTransportConfig
 } from './types.js';
 
+// Import generated proto types and typed service
+import { folder_mcp } from '../generated/folder-mcp.js';
+import { 
+  ITypedFolderMCPService, 
+  ITypedTransport,
+  ServiceMethodName,
+  RequestTypeMap,
+  ResponseTypeMap
+} from './typed-service.js';
+
 /**
  * Base transport interface
  * All transport implementations must implement this interface
@@ -186,6 +196,35 @@ export interface ITransportManager extends EventEmitter {
 }
 
 /**
+ * Type-safe transport manager interface
+ * Extends base transport manager with type-safe service methods
+ */
+export interface ITypedTransportManager extends ITransportManager {
+  /**
+   * Get the typed service interface for making calls
+   */
+  getTypedService(): ITypedFolderMCPService;
+  
+  /**
+   * Type-safe request method with compile-time type checking
+   */
+  typedRequest<M extends ServiceMethodName>(
+    method: M,
+    request: RequestTypeMap[M],
+    metadata?: Record<string, string>
+  ): Promise<ResponseTypeMap[M]>;
+  
+  /**
+   * Type-safe streaming request method
+   */
+  typedStreamRequest<M extends ServiceMethodName>(
+    method: M,
+    request: RequestTypeMap[M],
+    metadata?: Record<string, string>
+  ): AsyncIterable<ResponseTypeMap[M]>;
+}
+
+/**
  * Transport service interface
  * High-level service interface for handling gRPC service calls
  */
@@ -217,6 +256,37 @@ export interface ITransportService {
     request: TRequest,
     metadata: Record<string, string>
   ): AsyncIterable<TResponse>;
+}
+
+/**
+ * Enhanced transport service interface with proto message support
+ */
+export interface IEnhancedTransportService extends ITransportService {
+  /**
+   * Handle incoming proto message calls
+   */
+  handleProtoCall<M extends ServiceMethodName>(
+    method: M,
+    request: RequestTypeMap[M],
+    metadata: Record<string, string>
+  ): Promise<ResponseTypeMap[M]>;
+  
+  /**
+   * Handle incoming proto streaming calls
+   */
+  handleProtoStreamCall<M extends ServiceMethodName>(
+    method: M,
+    request: RequestTypeMap[M],
+    metadata: Record<string, string>
+  ): AsyncIterable<ResponseTypeMap[M]>;
+  
+  /**
+   * Validate proto message request
+   */
+  validateProtoRequest<M extends ServiceMethodName>(
+    method: M,
+    request: RequestTypeMap[M]
+  ): Promise<folder_mcp.IResponseStatus | null>;
 }
 
 /**

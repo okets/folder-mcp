@@ -295,3 +295,33 @@ export class TransportManager extends EventEmitter implements ITransportManager 
     }
   }
 }
+
+// Type-safe transport interfaces
+export type {
+  ITypedFolderMCPService,
+  ITypedTransport,
+  ServiceMethodName,
+  RequestTypeMap,
+  ResponseTypeMap,
+  TransportStats as TypedTransportStats
+} from './typed-service.js';
+
+export type {
+  ITypedTransportManager,
+  IEnhancedTransportService
+} from './interfaces.js';
+
+// Concrete implementations
+export { 
+  TypedFolderMCPService,
+  TypedTransport,
+  ProtoRequestValidator,
+  TransportMetadataBuilder,
+  createTypedFolderMCPService,
+  createTypedTransport
+} from './typed-transport.js';
+
+export { 
+  SERVICE_METHODS,
+  isStreamingMethod
+} from './typed-service.js';

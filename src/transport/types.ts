@@ -300,3 +300,46 @@ export const DEFAULT_TRANSPORT_SELECTION: TransportSelectionConfig = {
   fallback: true,
   priority: ['local', 'remote', 'http'],
 };
+
+// Import generated proto enums for enhanced type definitions
+import { folder_mcp } from '../generated/folder-mcp.js';
+
+/**
+ * Enhanced transport error using proto error codes
+ */
+export interface EnhancedTransportError extends TransportError {
+  errorCode?: folder_mcp.ErrorCode;
+  statusInfo?: folder_mcp.IResponseStatus;
+}
+
+/**
+ * Transport request priority using proto enum
+ */
+export type TransportPriority = folder_mcp.Priority;
+
+/**
+ * Document type filter for transport requests
+ */
+export type DocumentTypeFilter = folder_mcp.DocumentType[];
+
+/**
+ * Enhanced transport request metadata
+ */
+export interface EnhancedTransportMetadata extends Record<string, string> {
+  'request-id'?: string;
+  'priority'?: string;  // Serialized Priority enum
+  'document-types'?: string;  // Serialized DocumentType array
+  'summary-mode'?: string;  // Serialized SummaryMode enum
+  'trace-id'?: string;
+  'client-version'?: string;
+}
+
+/**
+ * Transport validation result using proto status
+ */
+export interface TransportValidationResult {
+  valid: boolean;
+  status?: folder_mcp.IResponseStatus;
+  errors: folder_mcp.IErrorDetail[];
+  warnings: string[];
+}

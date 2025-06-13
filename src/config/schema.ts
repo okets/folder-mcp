@@ -3,6 +3,7 @@
 // to eliminate duplication across the configuration system
 
 import { SystemCapabilities } from './system.js';
+import { folder_mcp } from '../generated/folder-mcp.js';
 
 /**
  * Core configuration sections that are shared across different config types
@@ -468,6 +469,106 @@ export const DEFAULT_VALUES = {
 };
 
 /**
+ * Enhanced configuration using proto types
+ */
+export interface EnhancedProcessingConfig extends ProcessingConfig {
+  defaultPriority?: folder_mcp.Priority;
+  supportedDocumentTypes?: folder_mcp.DocumentType[];
+  defaultSummaryMode?: folder_mcp.SummaryMode;
+}
+
+// Document filtering configuration using proto enums
+export interface DocumentFilterConfig {
+  allowedTypes: folder_mcp.DocumentType[];
+  defaultPriority: folder_mcp.Priority;
+  maxFileSizeByType: Partial<Record<folder_mcp.DocumentType, number>>;
+}
+
+// Search configuration with proto enums
+export interface SearchConfig {
+  defaultTopK: number;
+  maxTopK: number;
+  supportedDocumentTypes: folder_mcp.DocumentType[];
+  enableFiltering: boolean;
+  defaultSummaryMode: folder_mcp.SummaryMode;
+}
+
+// Ingestion configuration with proto enums
+export interface IngestionConfig {
+  defaultPriority: folder_mcp.Priority;
+  supportedStatuses: folder_mcp.IngestStatus[];
+  retryAttempts: number;
+  timeoutMs: number;
+}
+
+/**
+ * Enhanced defaults using proto enums
+ */
+export const ENHANCED_DEFAULTS = {
+  processing: {
+    defaultPriority: folder_mcp.Priority.PRIORITY_NORMAL,
+    supportedDocumentTypes: [
+      folder_mcp.DocumentType.DOCUMENT_TYPE_PDF,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_DOCX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_DOC,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_XLSX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_XLS,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_PPTX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_PPT,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_TXT,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_MD,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_CSV
+    ],
+    defaultSummaryMode: folder_mcp.SummaryMode.SUMMARY_MODE_BRIEF
+  },
+  
+  documentFilter: {
+    allowedTypes: [
+      folder_mcp.DocumentType.DOCUMENT_TYPE_PDF,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_DOCX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_XLSX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_TXT,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_MD
+    ],
+    defaultPriority: folder_mcp.Priority.PRIORITY_NORMAL,
+    maxFileSizeByType: {
+      [folder_mcp.DocumentType.DOCUMENT_TYPE_PDF]: 50 * 1024 * 1024, // 50MB
+      [folder_mcp.DocumentType.DOCUMENT_TYPE_DOCX]: 20 * 1024 * 1024, // 20MB
+      [folder_mcp.DocumentType.DOCUMENT_TYPE_XLSX]: 30 * 1024 * 1024, // 30MB
+      [folder_mcp.DocumentType.DOCUMENT_TYPE_TXT]: 5 * 1024 * 1024,   // 5MB
+      [folder_mcp.DocumentType.DOCUMENT_TYPE_MD]: 5 * 1024 * 1024     // 5MB
+    }
+  },
+  
+  search: {
+    defaultTopK: 10,
+    maxTopK: 50,
+    supportedDocumentTypes: [
+      folder_mcp.DocumentType.DOCUMENT_TYPE_PDF,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_DOCX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_XLSX,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_TXT,
+      folder_mcp.DocumentType.DOCUMENT_TYPE_MD
+    ],
+    enableFiltering: true,
+    defaultSummaryMode: folder_mcp.SummaryMode.SUMMARY_MODE_BRIEF
+  },
+  
+  ingestion: {
+    defaultPriority: folder_mcp.Priority.PRIORITY_NORMAL,
+    supportedStatuses: [
+      folder_mcp.IngestStatus.INGEST_STATUS_PENDING,
+      folder_mcp.IngestStatus.INGEST_STATUS_PROCESSING,
+      folder_mcp.IngestStatus.INGEST_STATUS_COMPLETED,
+      folder_mcp.IngestStatus.INGEST_STATUS_FAILED,
+      folder_mcp.IngestStatus.INGEST_STATUS_RETRY
+    ],
+    retryAttempts: 3,
+    timeoutMs: 30000
+  }
+} as const;
+
+/**
  * Helper function to get validation rule by field name
  */
 export function getValidationRule(field: string): ValidationRule | undefined {
@@ -507,6 +608,36 @@ export function getCacheDefaults(): typeof DEFAULT_VALUES.cache {
 
 export function getTransportDefaults(): typeof DEFAULT_VALUES.transport {
   return { ...DEFAULT_VALUES.transport };
+}
+
+// Enhanced configuration using proto types
+export function getEnhancedProcessingDefaults(): EnhancedProcessingConfig {
+  return {
+    ...getProcessingDefaults(),
+    ...ENHANCED_DEFAULTS.processing,
+    supportedDocumentTypes: [...ENHANCED_DEFAULTS.processing.supportedDocumentTypes]
+  };
+}
+
+export function getDocumentFilterDefaults(): DocumentFilterConfig {
+  return { 
+    ...ENHANCED_DEFAULTS.documentFilter,
+    allowedTypes: [...ENHANCED_DEFAULTS.documentFilter.allowedTypes]
+  };
+}
+
+export function getSearchDefaults(): SearchConfig {
+  return { 
+    ...ENHANCED_DEFAULTS.search,
+    supportedDocumentTypes: [...ENHANCED_DEFAULTS.search.supportedDocumentTypes]
+  };
+}
+
+export function getIngestionDefaults(): IngestionConfig {
+  return { 
+    ...ENHANCED_DEFAULTS.ingestion,
+    supportedStatuses: [...ENHANCED_DEFAULTS.ingestion.supportedStatuses]
+  };
 }
 
 // Re-export types for backward compatibility
