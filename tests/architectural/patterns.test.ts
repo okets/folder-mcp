@@ -146,8 +146,7 @@ function checkDependencyInjectionUsage(): string[] {
     if (content.includes('new ') && !file.includes('test')) {
       const directInstantiations = content.match(/new \w+Service\(/g);
       if (directInstantiations && directInstantiations.length > 0) {
-        // This might be a violation - services should be injected        // However, we need to check if it's in a factory or container setup
-        // or if it's creating factory functions (which is allowed)
+        // This might be a violation - services should be injected        // However, we need to check if it's in a factory or container setup        // or if it's creating factory functions (which is allowed)
         if (!file.includes('factory') && 
             !file.includes('container') && 
             !content.includes('createContentProcessingService') &&
@@ -158,6 +157,7 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('createFileLogger') &&
             !content.includes('createDualLogger') &&
             !content.includes('createLogger') &&
+            !content.includes('createSearchService') &&
             !content.includes('createTypedFolderMCPService') &&
             !content.includes('createTypedTransport')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);

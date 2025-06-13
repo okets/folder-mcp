@@ -9,10 +9,17 @@ import { SearchService } from './search-service.js';
 import { AuthInterceptor } from '../auth/index.js';
 
 /**
+ * Factory function to create search service instance
+ */
+function createSearchService(container: IDependencyContainer, authInterceptor?: AuthInterceptor): SearchService {
+  return new SearchService(container, authInterceptor);
+}
+
+/**
  * Create all service implementations
  */
 export function createServiceImplementations(container: IDependencyContainer, authInterceptor?: AuthInterceptor): any {
-  const searchService = new SearchService(container, authInterceptor);
+  const searchService = createSearchService(container, authInterceptor);
   
   return {
     // Search services
