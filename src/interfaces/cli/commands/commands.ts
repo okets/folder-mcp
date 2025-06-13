@@ -14,6 +14,9 @@ import { GenerateKeyCommand } from './generate-key.js';
 import { RotateKeyCommand } from './rotate-key.js';
 import { ShowKeyCommand } from './show-key.js';
 import { RevokeKeyCommand } from './revoke-key.js';
+import { TestGrpcCommand } from './test-grpc.js';
+import { TestMcpCommand } from './test-mcp.js';
+import { StatusCommand } from './status.js';
 
 export function setupCommands(program: CLIProgram): void {
   // Add all commands - they now use lazy DI resolution, so no need to resolve services here
@@ -30,4 +33,9 @@ export function setupCommands(program: CLIProgram): void {
   program.addCommand(new RotateKeyCommand());
   program.addCommand(new ShowKeyCommand());
   program.addCommand(new RevokeKeyCommand());
+  
+  // Transport testing and status commands
+  program.addCommand(new TestGrpcCommand());
+  program.addCommand(new TestMcpCommand());
+  program.addCommand(new StatusCommand());
 }

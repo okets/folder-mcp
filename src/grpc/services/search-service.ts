@@ -6,7 +6,14 @@
 
 import * as grpc from '@grpc/grpc-js';
 import { folder_mcp } from '../../generated/folder-mcp.js';
-import { IDependencyContainer, ILoggingService, SERVICE_TOKENS } from '../../di/interfaces.js';
+import { 
+  IDependencyContainer, 
+  ILoggingService, 
+  IVectorSearchService,
+  IEmbeddingService,
+  IFileSystemService,
+  SERVICE_TOKENS 
+} from '../../di/interfaces.js';
 import { mapDomainErrorToGrpcStatus, createMissingFieldError, createOutOfRangeError } from '../utils/error-mapper.js';
 import { createGrpcError } from '../utils/proto-loader.js';
 import { AuthInterceptor } from '../auth/index.js';
@@ -16,12 +23,18 @@ import { AuthInterceptor } from '../auth/index.js';
  */
 export class SearchService {
   private logger: ILoggingService;
+  private vectorSearch: IVectorSearchService;
+  private embeddingService: IEmbeddingService;
+  private fileSystemService: IFileSystemService;
 
   constructor(
     container: IDependencyContainer,
     private authInterceptor?: AuthInterceptor
   ) {
     this.logger = container.resolve<ILoggingService>(SERVICE_TOKENS.LOGGING);
+    this.vectorSearch = container.resolve<IVectorSearchService>(SERVICE_TOKENS.VECTOR_SEARCH);
+    this.embeddingService = container.resolve<IEmbeddingService>(SERVICE_TOKENS.EMBEDDING);
+    this.fileSystemService = container.resolve<IFileSystemService>(SERVICE_TOKENS.FILE_SYSTEM);
   }
 
   /**
@@ -54,33 +67,75 @@ export class SearchService {
         return;
       }
 
+      // Check if vector search service is ready
+      if (!this.vectorSearch.isReady()) {
+        const grpcError = createGrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          'Vector search index not ready. Please ensure documents have been indexed.',
+          'VECTOR_INDEX_NOT_READY'
+        );
+        callback(grpcError);
+        return;
+      }
+
+      // Generate query embedding
+      const queryEmbedding = await this.embeddingService.generateQueryEmbedding(request.query || '');
+      
+      // Perform vector search
+      const searchResults = await this.vectorSearch.search(
+        queryEmbedding,
+        request.topK || 10,
+        0.7 // Default similarity threshold
+      );
+
+      // Convert search results to gRPC response format
+      const documents = searchResults.map((result, index) => ({
+        documentId: result.documentId || `doc_${index}`,
+        filename: result.filename || 'unknown',
+        relativePath: result.relativePath || result.filename || 'unknown',
+        title: result.title || result.filename || 'Untitled',
+        lastModified: result.lastModified ? new Date(result.lastModified).toISOString() : new Date().toISOString(),
+        fileSizeBytes: result.fileSize || 0,
+        score: result.score || 0,
+        snippet: result.snippet || '',
+        metadata: result.metadata || {}
+      }));
+
       const executionTime = Date.now() - startTime;
       
-      // Build mock response - will be replaced with real search implementation
+      // Calculate max score in SimilarityScore format
+      const maxScore = documents.length > 0 ? {
+        score: Math.max(...documents.map(d => d.score)),
+        confidence: 0.95,
+        rank: 1,
+        method: 'cosine_similarity'
+      } : null;
+      
       const response: folder_mcp.ISearchDocsResponse = {
-        documents: [], // Empty for now
-        totalFound: 0,
-        maxScore: null,
+        documents,
+        totalFound: documents.length,
+        maxScore,
         queryId: this.generateQueryId(),
         status: {
           success: true,
           requestId: this.generateQueryId(),
           processingTimeMs: executionTime,
           errors: [],
-          warnings: []
+          warnings: documents.length === 0 ? ['No documents found matching the query'] : []
         },
         pagination: {
           page: 1,
           perPage: request.topK || 10,
-          totalCount: 0,
-          totalPages: 0,
+          totalCount: documents.length,
+          totalPages: 1,
           hasNext: false,
           hasPrevious: false
         }
       };
 
       this.logger.info('SearchDocs completed', {
-        documentsFound: 0,
+        documentsFound: documents.length,
+        maxScore: maxScore?.score,
         executionTimeMs: executionTime
       });
 
@@ -122,33 +177,79 @@ export class SearchService {
         return;
       }
 
+      // Check if vector search service is ready
+      if (!this.vectorSearch.isReady()) {
+        const grpcError = createGrpcError(
+          grpc.status.FAILED_PRECONDITION,
+          'Vector search index not ready. Please ensure documents have been indexed.',
+          'VECTOR_INDEX_NOT_READY'
+        );
+        callback(grpcError);
+        return;
+      }
+
+      // Generate query embedding
+      const queryEmbedding = await this.embeddingService.generateQueryEmbedding(request.query || '');
+      
+      // Perform vector search for chunks
+      const searchResults = await this.vectorSearch.search(
+        queryEmbedding,
+        request.topK || 20,
+        0.7 // Default similarity threshold
+      );
+
+      // Convert search results to chunk format
+      const chunks = searchResults.map((result, index) => ({
+        chunkId: result.chunkId || `chunk_${index}`,
+        documentId: result.documentId || `doc_${Math.floor(index / 5)}`,
+        text: result.text || result.snippet || '',
+        startOffset: result.startOffset || 0,
+        endOffset: result.endOffset || (result.text?.length || 0),
+        metadata: result.metadata || {},
+        score: result.score || 0,
+        similarity: {
+          score: result.score || 0,
+          confidence: 0.95,
+          rank: index + 1,
+          method: 'cosine_similarity'
+        }
+      }));
+
       const executionTime = Date.now() - startTime;
       
-      // Build mock response - will be replaced with real search implementation
+      // Calculate max score in SimilarityScore format
+      const maxScore = chunks.length > 0 ? {
+        score: Math.max(...chunks.map(c => c.score)),
+        confidence: 0.95,
+        rank: 1,
+        method: 'cosine_similarity'
+      } : null;
+      
       const response: folder_mcp.ISearchChunksResponse = {
-        chunks: [], // Empty for now
-        totalFound: 0,
-        maxScore: null,
+        chunks,
+        totalFound: chunks.length,
+        maxScore,
         queryId: this.generateQueryId(),
         status: {
           success: true,
           requestId: this.generateQueryId(),
           processingTimeMs: executionTime,
           errors: [],
-          warnings: []
+          warnings: chunks.length === 0 ? ['No chunks found matching the query'] : []
         },
         pagination: {
           page: 1,
-          perPage: request.topK || 10,
-          totalCount: 0,
-          totalPages: 0,
+          perPage: request.topK || 20,
+          totalCount: chunks.length,
+          totalPages: 1,
           hasNext: false,
           hasPrevious: false
         }
       };
 
       this.logger.info('SearchChunks completed', {
-        chunksFound: 0,
+        chunksFound: chunks.length,
+        maxScore: maxScore?.score,
         executionTimeMs: executionTime
       });
 
