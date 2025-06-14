@@ -48,6 +48,7 @@ Use **during** implementation.
    - let me know where we left off in the task list.
 ```
 
+
 ## 3. 📚 CONCLUDING A STEP
 Use **once cleanup is done**, before starting the next step.
 ### DOCUMENTATION & ROADMAP UPDATE
@@ -59,15 +60,23 @@ Use **once cleanup is done**, before starting the next step.
    - review the rest of our upcoming tasks and suggest if any decision we took to complete the current step has affected any of the upcoming tasks.
    - move this step, along with other completed steps, to the "COMPLETED_TASKS.md" file.
 ```
-#### 3.2 📘GIT & GITHUB OPERATIONS
-##### 3.2.1 ✅ Close Current Step Issue Prompt
+#### 3.2 📘 Running manual tests
+```
+**Lets verify that the MCP server is working correctly**:
+   - Make sure there are no typescript compilation errors.
+   - Run npm test to verify that ALL tests pass.
+   - Run the `CLAUDE_DESKTOP_TEST_ROUTINE.md` routine to verify that the MCP server is working correctly.
+
+```
+#### 3.3 📘GIT & GITHUB OPERATIONS
+##### 3.3.1 ✅ Close Current Step Issue Prompt
 ```
 **Close the current step issue in GitHub**:
    - Using gh tool Find the GitHub issue for the step
    - Update step body to the content of `STEP_X_IMPLEMENTATION_PLAN.md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)
    - Close the issue with completion comment
 ```
-##### 3.2.2 🆕 Create Next Step Issue Prompt
+##### 3.3.2 🆕 Create Next Step Issue Prompt
 ```
 **Create a new GitHub issue for the next step in the roadmap.**:
 1. Check the labels using `gh label list` since you tend to invent non-existing labels.
