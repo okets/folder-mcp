@@ -11,25 +11,29 @@ Use **before coding** starts for the current step.
 
 ### ✅ Create Step Implementation Plan .md File
 ```
-Read the success criteria for [Step X] from `UPCOMING_TASKS.md`.
+Identify the next Step from `UPCOMING_TASKS.md`.  
+From now on, we will refer to this step as `STEP_[current_step_number]`. e.g. `STEP_31`.
 
-Create `STEP_X_IMPLEMENTATION_PLAN.md` with the following:
+Generate the file `STEP_[current_step_number]_IMPLEMENTATION_PLAN.md` and save it to the roadmap folder. Include these sections in the file:
 1. A description of the step.
-2. A checklist of all tasks in **linear execution order**.
-   2.1. For each task:
-         - A short **description**.
-         - A **clear success criterion**.
-   2.2. Format the tasks using markdown checkboxes: `- [ ]`.
-3. the last task of the plan should be "run a real world example with claude desktop."
-   3.0 The procedure of testing Claude desktop it described at CLAUDE_DESKTOP_TEST_ROUTINE.md
-   3.1 Ask the Agent to supply a prompt to check that the MCP server runs without issues by testing the implementation of this step and the integrity of our MCP server.
+
+2. A checklist of all tasks in **linear execution order**.  
+   - For each task:
+     - A short **description**.
+     - A **clear success criterion**.
+   - Format the tasks using markdown checkboxes: `- [ ]`.
+
+3. The last task of the plan should be "Run a real world example with Claude Desktop."  
+   - The procedure for testing Claude Desktop is described in `CLAUDE_DESKTOP_TEST_ROUTINE.md`.  
+   - Ask the Agent to supply a prompt to test MCP server functionality and this step's implementation.  
    - When you create this last task, also insert a link to the `CLAUDE_DESKTOP_TEST_ROUTINE.md` file.
-4. Add a section for **Agent Instructions** at the end of the file.
-   - I am the sole developer of this tool, it's pre production. so don't keep any legacy code.
+
+4. Add a section for **Agent Instructions** at the end of the file with the following content:  
+   - This tool is in pre-production, so do **not** preserve any legacy code.  
    - Test folder paths:
      - Full test folder: `C:\ThinkingHomes\test-folder`
      - Simple test folder: `C:\ThinkingHomes\test-simple`
-   - I am running a windows machine so if you need to concatenate powershell commands, use ; instead of &&
+   - On Windows, use PowerShell command chaining with `;` instead of `&&`.
    - Regularly update the file and mark completed steps: `- [x]`.
    - Keep the plan file as the **single source of truth** for progress tracking.
 ```
@@ -41,9 +45,8 @@ Use **during** implementation.
 ### 2.1 🧾 Figure out where we left off in our tasklist.
 ```
 **Figure out where we left off in our tasklist**:
-   - Read the UPCOMING_TASKS.md file.
-   - Identify the current step.
-   - Read the `STEP_X_IMPLEMENTATION_PLAN.md` file.
+   - Identify the next Step from `UPCOMING_TASKS.md`. from now on, we will refer to this step as `STEP_[current_step_number]`. eg `STEP_31`.
+   - Read the STEP_[current_step_number]_IMPLEMENTATION_PLAN.md file.
    - check if the progress is up to date. fix it if not.
    - let me know where we left off in the task list.
 ```
