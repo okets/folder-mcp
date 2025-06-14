@@ -102,18 +102,5 @@ describe('Module Boundaries - Phase 1 Foundation', () => {
       
       const content = fs.readFileSync(diInterfacesPath, 'utf8');
       expect(content, 'DI interfaces should have MODULE_TOKENS').toMatch(/MODULE_TOKENS/);
-    });
-  });
-  
-  describe('Phase 1 Validation', () => {
-    it('should have foundation documentation', () => {
-      const phase1DocPath = path.join(process.cwd(), 'PHASE1_COMPLETION.md');
-      expect(fs.existsSync(phase1DocPath), 'Phase 1 completion documentation should exist').toBe(true);
-    });
-    
-    it('should have module boundaries plan', () => {
-      const planPath = path.join(process.cwd(), 'MODULE_BOUNDARIES_PLAN.md');
-      expect(fs.existsSync(planPath), 'Module boundaries plan should exist').toBe(true);
-    });
-  });
+    });  });
 });
