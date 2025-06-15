@@ -152,17 +152,19 @@ export class FileParsingService implements IFileParsingService {
     try {
       // For now, use a simplified approach until domain layer is fully integrated
       // TODO: Properly integrate with domain layer FileParser
+        const { readFileSync } = await import('fs');
+      const { resolve } = await import('path');
       
-      const { readFileSync } = await import('fs');
-      const content = readFileSync(filePath, 'utf8');      const { statSync } = await import('fs');
-      const stats = statSync(filePath);
-      
-      const result: ParsedContent = {
+      // Create absolute path by resolving relative to basePath
+      const absolutePath = resolve(this.basePath, filePath);
+      const content = readFileSync(absolutePath, 'utf8');      const { statSync } = await import('fs');
+      const stats = statSync(absolutePath);
+        const result: ParsedContent = {
         content,
         type: fileType,
-        originalPath: filePath,
+        originalPath: absolutePath,
         metadata: {
-          originalPath: filePath,
+          originalPath: absolutePath,
           type: fileType.startsWith('.') ? fileType.substring(1) as any : fileType as any,
           size: stats.size,
           lastModified: stats.mtime.toISOString(),
@@ -285,10 +287,8 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     this.loggingService.debug('Generating embeddings', { chunkCount: chunks.length });
-    
-    try {
-      const texts = chunks.map(chunk => chunk.content);
-      const embeddings = await this.embeddingModel.generateBatchEmbeddings(texts);
+      try {
+      const embeddings = await this.embeddingModel.generateEmbeddings(chunks);
       
       this.loggingService.info('Embeddings generated successfully', { 
         count: embeddings.length,
@@ -370,7 +370,6 @@ export class LoggingService implements ILoggingService {
   setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
     this.level = level;
   }
-
   private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, context?: any): void {
     if (this.levels[level] < this.levels[this.level]) {
       return;
@@ -380,7 +379,9 @@ export class LoggingService implements ILoggingService {
     const prefix = this.getPrefix(level);
     
     if (context) {
-      console.log(`${prefix} [${timestamp}] ${message}`, context);
+      // Properly serialize context objects to avoid [object Object]
+      const contextStr = typeof context === 'object' ? JSON.stringify(context, null, 2) : String(context);
+      console.log(`${prefix} [${timestamp}] ${message} ${contextStr}`);
     } else {
       console.log(`${prefix} [${timestamp}] ${message}`);
     }
