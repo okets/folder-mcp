@@ -5,8 +5,12 @@
 A Model Context Protocol (MCP) server that provides tools for reading and analyzing folder structures, enabling LLMs to interact with local file systems safely and efficiently.
 
 ## Overview
+folder-mcp was created for a simple but powerful purpose: take your local folder and make it accessible to Large Language Models (LLMs) running anywhere.
+You don't need to upload your files to the cloud or use a third-party service.
 
-folder-mcp is an MCP server that allows Large Language Models to read files, search folders, and analyze directory structures. It provides secure, controlled access to local folders through a standardized protocol interface.
+it creates RAG (Retrieval-Augmented Generation) capabilities for your local files, allowing LLMs to read, search, and analyze documents in a secure and structured way.
+This server implements the Model Context Protocol (MCP) standard, allowing LLMs to interact with local file systems through a set of defined tools.
+This project is designed to work with MCP clients like Claude Desktop, Cursor, VsCode and others, providing a secure and efficient way to access and manipulate files within specified folders.
 
 ## Features
 
