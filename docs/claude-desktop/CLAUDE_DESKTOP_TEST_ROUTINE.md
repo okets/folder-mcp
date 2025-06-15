@@ -1,14 +1,10 @@
-# Claude Desktop Test Routine
+# End-to-End Claude Desktop Integration Test
 
-This document contains the standard testing procedure for MCP server integration with Claude Desktop.
+**Main Goal**: Verify all systems work together seamlessly  
+**Sub Goal**: Update e2e tests based on discovered gaps and issues  
+**Test Environment**: `C:\ThinkingHomes\test-folder`
 
-## PowerShell Command Chaining Reminder
-**IMPORTANT**: Use `;` for PowerShell command chaining, NOT `&&` (which is bash syntax)
-
-## When to Use
-Execute this routine whenever instructed to "test with claude" or when debugging MCP server connectivity issues.
-
-## Test Procedure
+## Pre-Test Cleanup (Steps 1-6)
 
 ### 1. Kill Running MCP Server Instances
 ```powershell
@@ -18,90 +14,91 @@ Get-Process | Where-Object {$_.ProcessName -like "*node*" -and $_.CommandLine -l
 ### 2. Check for Port Conflicts
 ```powershell
 netstat -ano | findstr :3000
+# If conflicts found, note PIDs and kill if necessary
 ```
 *(Adjust port number as needed for your configuration)*
 
-### 3. Clear Stuck Processes (if needed)
+### 3. Clear Stuck Processes
 ```powershell
 taskkill /f /im node.exe
 ```
 
-### 4. Fresh Terminal Session
-- Start new PowerShell window to avoid environment issues
-- Process Check: Kill running instances, fresh terminal, rebuild
-
-### 5. **MANDATORY**: Clear Claude Desktop Logs
+### 4. Clear Claude Desktop Logs (MANDATORY)
 ```powershell
-Remove-Item "$env:APPDATA\Claude\logs\*" -Force
+Remove-Item "$env:APPDATA\Claude\logs\*" -Force -ErrorAction SilentlyContinue
 ```
 
-### 6. **MANDATORY**: Test Connection
-- Test that the Claude can figure out a secret we hid in a document 
-
-### 7. **MANDATORY**: Check Claude Desktop Logs
+### 5. Delete MCP Cache Folder
 ```powershell
-Get-Content "$env:APPDATA\Claude\logs\*" | Select-String -Pattern "mcp\|error\|folder-mcp"
+Remove-Item "C:\ThinkingHomes\test-folder\.folder-mcp" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
-### 8. **MANDATORY**: User Confirmation
-- User confirms Claude Desktop integration works before proceeding to the next phase
+### 6. Fresh Terminal Session
+- Close current PowerShell
+- Open new PowerShell as Administrator
+- Navigate to project directory
 
----
+## Test Execution (Steps 7-11)
 
-## ✅ LATEST TEST RESULTS - June 13, 2025
+### 7. Start MCP Server
+- Verify zero TypeScript errors: `npm run build` or `tsc --noEmit`
+- Ensure all tests pass: `npm test`
+- Launch server and verify startup logs
+- Confirm server is listening on expected port
+- **Success Criteria**: No TS errors, all tests pass, server starts without errors, port is active
 
-### Test Summary
-- **Date:** 2025-06-13T14:30:00Z
-- **Server Status:** CONNECTED ✅
-- **Overall Result:** MOSTLY_SUCCESSFUL → **100% FUNCTIONAL** (after formatting fixes)
-- **Tools Tested:** 14/14 (12 expected + 2 bonus)
-- **Success Rate:** 100% functional
+### 8. Create/Update Mock Version File
+- **If file doesn't exist**: Create `CIARA_REL_TEST.md` (tests creation scenario)
+- **If file exists**: Append new version entry (tests update scenario)
+- Use incremental version numbering (read existing file to determine next version)
+- Include current timestamp
+- **Agent Task**: Generate 3-4 realistic, randomly generated release notes for each new version entry
+- Make the release notes varied and believable (features, fixes, improvements, etc.)
+- **Success Criteria**: File is created/updated with unique, realistic content and proper version incrementing
 
-### Detailed Results
+### 9. Verify Filesystem Trigger & Embeddings Update
+- Wait 10-15 seconds for file system watcher to detect changes
+- **Verification Method**: Check server logs for embedding update messages
+- **Success Criteria**: New file content appears in embeddings within 30 seconds
 
-#### ✅ Server Connection (PASS)
-- Server visible and responsive
-- All tools discoverable
-- No connection errors
+### 10. Claude Desktop Integration Test (MANDATORY)
+- If there are no issues with the MCP server and file updates, proceed to test Claude Desktop's integration.
+- If there are issues, address them first before proceeding.
+**Generated Prompt for User:**
+```
+I'm testing our MCP server implementation and need a comprehensive functionality report in JSON format. Please:
 
-#### ✅ Tool Discovery (PASS)
-**Expected Tools Found:**
-- hello_world, search_documents, search_chunks
-- list_folders, list_documents  
-- get_document_metadata, get_document_content, get_chunks
-- query_table, get_status, refresh_document, get_embeddings
+1. Tell me about Ciara's most recent version information
+2. List all endpoints/functions you used to retrieve this information  
+3. Provide suggestions for improving information retrieval efficiency
 
-**Bonus Tools Found:**
-- summarize_document, batch_summarize (from SummarizationHandler)
+Format your response as JSON with these keys:
+- "ciara_version_info": [the version details you found]
+- "endpoints_used": [array of function calls made]
+- "retrieval_success": [true/false]
+- "suggestions": [array of improvement recommendations]
+- "issues_encountered": [array of any problems]
+```
 
-#### ✅ Functional Testing (100% PASS)
-- **Basic Connectivity:** hello_world working perfectly
-- **Search & Discovery:** Both search functions working (formatting fixed)
-- **Navigation:** Folder/document listing working
-- **Document Access:** Metadata, content, chunks all working
-- **Advanced Features:** Table queries, status, refresh, embeddings all working
+### 11. User Confirmation & Analysis
+- **Input Required**: User pastes Claude Desktop's JSON response
+- **Analysis**: Parse response for:
+  - Did it find the new Ciara version?
+  - Which functions were called?
+  - Were there any errors?
+  - Are suggestions actionable?
 
-#### 🔧 Issues Fixed
-1. **search_documents formatting** - Fixed mock data property names
-2. **search_chunks undefined values** - Fixed null handling and mock data structure
+### 12. Issue Resolution & Planning
+- If issues found, document them in a temporary .md file in the /roadmap/issues directory, explain clearly what isn't working, and why
+- If suggestions are actionable, create tasks for implementation
+- If everything works, note it and plan for minor enhancements
+- Define clear success criteria for each task
 
-### Performance Metrics
-- **Response Times:** All < 1 second
-- **Server Stability:** Excellent
-- **Feature Completeness:** 100%
-- **Mock Data Quality:** High realism
+## Success Metrics
+- [ ] MCP server starts cleanly
+- [ ] File changes trigger embedding updates within 30 seconds  
+- [ ] Claude Desktop successfully retrieves new version information
+- [ ] All MCP functions work as expected
+- [ ] JSON response is well-formed and complete
 
-### Architecture Verification ✅
-- **MCP Protocol:** OPERATIONAL
-- **Dual Protocol Sync:** VERIFIED  
-- **Feature Parity:** COMPLETE (100%)
-- **Mock Service Layer:** FUNCTIONAL
-
-### **FINAL STATUS: READY FOR PRODUCTION** 🚀
-All 12 core document intelligence endpoints are working correctly through MCP protocol with proper formatting and error handling.
-
-## Notes
-- All steps marked **MANDATORY** must be completed and confirmed
-- Fresh terminal session helps avoid environment variable conflicts
-- Log clearing ensures clean debugging information
-- User confirmation prevents proceeding with broken integration
+**This step concludes when the entire flow executes successfully with only minor enhancement opportunities remaining.**
