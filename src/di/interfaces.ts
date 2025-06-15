@@ -434,6 +434,11 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   ERROR_RECOVERY: Symbol('ErrorRecoveryService'),  LOGGING: Symbol('LoggingService'),
   SERVICE_FACTORY: Symbol('ServiceFactory'),
   
+  // Domain Infrastructure Providers
+  DOMAIN_FILE_SYSTEM_PROVIDER: Symbol('DomainFileSystemProvider'),
+  DOMAIN_CRYPTOGRAPHY_PROVIDER: Symbol('DomainCryptographyProvider'),
+  DOMAIN_PATH_PROVIDER: Symbol('DomainPathProvider'),
+  
   // Transport Layer
   TRANSPORT_FACTORY: Symbol('TransportFactory'),
   TRANSPORT_MANAGER: Symbol('TransportManager'),

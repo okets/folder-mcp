@@ -12,6 +12,13 @@ import { ResolvedConfig } from '../config/resolver.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
 
+// Import domain infrastructure providers
+import { 
+  NodeFileSystemProvider, 
+  NodeCryptographyProvider, 
+  NodePathProvider 
+} from '../infrastructure/providers/node-providers.js';
+
 /**
  * Setup the dependency injection container with all services
  */
@@ -30,10 +37,22 @@ export function setupDependencyInjection(options: {
 
   // Register service factory
   container.register(SERVICE_TOKENS.SERVICE_FACTORY, serviceFactory);
-
   // Register logging service as singleton
   container.registerSingleton(SERVICE_TOKENS.LOGGING, () => {
     return serviceFactory.createLoggingService({ level: options.logLevel || 'info' });
+  });
+
+  // Register domain infrastructure providers as singletons
+  container.registerSingleton(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER, () => {
+    return new NodeFileSystemProvider();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.DOMAIN_CRYPTOGRAPHY_PROVIDER, () => {
+    return new NodeCryptographyProvider();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.DOMAIN_PATH_PROVIDER, () => {
+    return new NodePathProvider();
   });
 
   // Register configuration service as singleton
@@ -64,10 +83,9 @@ export function setupDependencyInjection(options: {
     container.registerSingleton(SERVICE_TOKENS.CACHE, () => {
       return serviceFactory.createCacheService(options.folderPath!);
     });
-  }
-  // Register file system service as singleton
+  }  // Register file system service as singleton
   container.registerSingleton(SERVICE_TOKENS.FILE_SYSTEM, () => {
-    return serviceFactory.createFileSystemService();
+    return serviceFactory.createFileSystemServiceWithContainer(container);
   });
 
   // Register transport services
@@ -133,8 +151,7 @@ export function setupDependencyInjection(options: {
     });
   }
   // Register high-level services
-  if (options.config && options.folderPath) {
-    // Register indexing workflow
+  if (options.config && options.folderPath) {    // Register indexing workflow
     container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, () => {
       return serviceFactory.createIndexingOrchestrator(container);
     });

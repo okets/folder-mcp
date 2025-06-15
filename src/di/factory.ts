@@ -16,8 +16,17 @@ import {
   IErrorRecoveryService,
   ILoggingService,
   ITransportFactory,
-  ITransportManager
+  ITransportManager,
+  SERVICE_TOKENS,
+  MODULE_TOKENS
 } from './interfaces.js';
+
+// Import domain infrastructure provider interfaces
+import { 
+  FileSystemProvider, 
+  CryptographyProvider, 
+  PathProvider 
+} from '../domain/index.js';
 
 import {
   ConfigurationService,
@@ -33,8 +42,8 @@ import {
 
 import { ResolvedConfig } from '../config/resolver.js';
 import { DependencyContainer } from './container.js';
-import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
-import { IndexingOrchestrator } from '../application/indexing/index.js';
+import { IndexingOrchestrator } from '../application/indexing/orchestrator.js';
+import { IncrementalIndexer } from '../application/indexing/incremental.js';
 import { MCPServer } from '../interfaces/mcp/server.js';
 
 /**
@@ -82,10 +91,23 @@ export class ServiceFactory implements IServiceFactory {
     const loggingService = this.getLoggingService();
     return new CacheService(folderPath, loggingService);
   }
-
   createFileSystemService(): IFileSystemService {
+    // This method now requires a container to resolve domain providers
+    throw new Error('createFileSystemService() requires a DependencyContainer. Use createFileSystemServiceWithContainer() instead.');
+  }
+
+  createFileSystemServiceWithContainer(container: DependencyContainer): IFileSystemService {
     const loggingService = this.getLoggingService();
-    return new FileSystemService(loggingService);
+    const fileSystemProvider = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as FileSystemProvider;
+    const cryptographyProvider = container.resolve(SERVICE_TOKENS.DOMAIN_CRYPTOGRAPHY_PROVIDER) as CryptographyProvider;
+    const pathProvider = container.resolve(SERVICE_TOKENS.DOMAIN_PATH_PROVIDER) as PathProvider;
+    
+    return new FileSystemService(
+      loggingService,
+      fileSystemProvider,
+      cryptographyProvider,
+      pathProvider
+    );
   }
 
   createErrorRecoveryService(cacheDir: string): IErrorRecoveryService {
@@ -101,16 +123,14 @@ export class ServiceFactory implements IServiceFactory {
     config: ResolvedConfig,
     folderPath: string,
     container: DependencyContainer
-  ): IndexingOrchestrator {
-    return this.createIndexingOrchestrator(container);
+  ): IndexingOrchestrator {    return this.createIndexingOrchestrator(container);
   }
+
   // =============================================================================
   // Application Layer Factory Methods
   // =============================================================================
-
-  createIndexingOrchestrator(container: DependencyContainer): any {
-    // Import the IndexingOrchestrator directly to avoid require issues
-    const { IndexingOrchestrator } = require('../application/indexing/orchestrator.js');
+  
+  createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
     return new IndexingOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CHUNKING),
@@ -121,9 +141,7 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM)
     );
   }
-
-  createIncrementalIndexer(container: DependencyContainer): any {
-    const { IncrementalIndexer } = require('../application/indexing/incremental.js');
+  createIncrementalIndexer(container: DependencyContainer): IncrementalIndexer {
     const indexingOrchestrator = this.createIndexingOrchestrator(container);
     
     return new IncrementalIndexer(

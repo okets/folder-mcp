@@ -28,6 +28,14 @@ import { ResolvedConfig, CLIArgs } from '../config/resolver.js';
 import { RuntimeConfig } from '../config/schema.js';
 import { SystemCapabilities, getSystemCapabilities } from '../config/system.js';
 
+// Import domain layer functionality
+import { 
+  FileSystemProvider, 
+  CryptographyProvider, 
+  PathProvider
+} from '../domain/index.js';
+import { createFileFingerprintGenerator } from '../domain/files/index.js';
+
 // =============================================================================
 // Configuration Service Implementation
 // =============================================================================
@@ -468,15 +476,16 @@ export class CacheService implements ICacheService {
 // File System Service (simplified implementation)
 export class FileSystemService implements IFileSystemService {
   constructor(
-    private readonly loggingService: ILoggingService
+    private readonly loggingService: ILoggingService,
+    private readonly fileSystemProvider: FileSystemProvider,
+    private readonly cryptographyProvider: CryptographyProvider,
+    private readonly pathProvider: PathProvider
   ) {}
-
   async generateFingerprints(folderPath: string, extensions: string[], ignorePatterns: string[]): Promise<FileFingerprint[]> {
-    this.loggingService.debug('Generating fingerprints for folder', { folderPath, extensions, ignorePatterns });
+    this.loggingService.debug('Generating fingerprints for folder using domain layer', { folderPath, extensions, ignorePatterns });
     
     try {
       const { glob } = await import('glob');
-      const { relative, extname } = await import('path');
       
       // Build glob pattern
       const pattern = folderPath.replace(/\\/g, '/') + '/**/*';
@@ -503,7 +512,7 @@ export class FileSystemService implements IFileSystemService {
       
       // Filter by supported extensions
       const supportedFiles = allFiles.filter(file => {
-        const ext = extname(file).toLowerCase();
+        const ext = this.pathProvider.extname(file).toLowerCase();
         return extensions.includes(ext);
       });
       
@@ -513,9 +522,19 @@ export class FileSystemService implements IFileSystemService {
         extensions: extensions
       });
       
-      // Generate fingerprints for supported files
-      const { generateFingerprints } = await import('../domain/files/fingerprint.js');
-      return generateFingerprints(supportedFiles, folderPath);
+      // Create fingerprint generator using domain layer
+      const fingerprintGenerator = createFileFingerprintGenerator(
+        this.fileSystemProvider,
+        this.cryptographyProvider,
+        this.pathProvider
+      );
+      
+      // Generate fingerprints using domain layer
+      const fingerprints = await fingerprintGenerator.generateFingerprints(supportedFiles, folderPath);
+      
+      this.loggingService.debug('Fingerprints generated successfully', { count: fingerprints.length });
+      
+      return fingerprints;
     } catch (error) {
       this.loggingService.error('Failed to generate fingerprints', error instanceof Error ? error : new Error(String(error)));
       return [];

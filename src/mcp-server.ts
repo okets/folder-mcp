@@ -14,6 +14,7 @@ import { setupDependencyInjection } from './di/setup.js';
 import { SERVICE_TOKENS } from './di/interfaces.js';
 import type { MCPServer } from './interfaces/mcp/index.js';
 import type { ITransportManager, TransportManagerConfig } from './transport/interfaces.js';
+import type { IndexingWorkflow } from './application/indexing/index.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -46,13 +47,30 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     
-    debug(`Using folder path: ${folderPath}`);
-
-    debug('Setting up dependency injection...');
-    // Setup dependency injection
+    debug(`Using folder path: ${folderPath}`);    debug('Setting up dependency injection...');
+    // Setup dependency injection with minimal config to enable indexing
     const container = setupDependencyInjection({
       folderPath,
-      logLevel: 'info'
+      logLevel: 'info',
+      config: {
+        // Minimal config needed for indexing workflow registration
+        runtime: {
+          environment: 'development',
+          logLevel: 'info'
+        },
+        caching: {
+          enabled: true,
+          ttl: 3600
+        },
+        embedding: {
+          model: 'nomic-embed-text',
+          dimension: 768
+        },
+        vectorSearch: {
+          enabled: true,
+          algorithm: 'hnsw'
+        }
+      } as any
     });
 
     debug('Initializing transport layer...');
@@ -83,13 +101,35 @@ async function main(): Promise<void> {
 
     debug('Resolving MCP server from container...');
     // Resolve MCP server from container
-    const mcpServer = container.resolve(SERVICE_TOKENS.MCP_SERVER) as MCPServer;
-
-    debug('Starting MCP server...');
+    const mcpServer = container.resolve(SERVICE_TOKENS.MCP_SERVER) as MCPServer;    debug('Starting MCP server...');
     // Start the server
     await mcpServer.start();
 
-    debug('MCP server started successfully');
+    debug('MCP server started successfully');    debug('Triggering incremental indexing...');
+    // Auto-index the folder incrementally (only process changed files)
+    try {
+      const indexingWorkflow = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
+      debug('Starting folder indexing with incremental processing...');
+        const indexingResult = await indexingWorkflow.indexFolder(folderPath, {
+        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        excludePatterns: ['node_modules', '.git', '.folder-mcp'],
+        embeddingModel: 'nomic-embed-text',
+        forceReindex: true  // Force full reindex on startup to ensure content is indexed
+      });
+      
+      debug(`Indexing completed: ${indexingResult.filesProcessed} files processed, ${indexingResult.chunksGenerated} chunks generated`);
+      if (indexingResult.errors.length > 0) {
+        debug(`Indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      debug('Auto-indexing failed (non-critical):', errorMessage);
+      if (errorStack) {
+        debug('Error stack:', errorStack);
+      }
+      // Don't fail the server startup if indexing fails
+    }
 
     // Handle graceful shutdown
     const shutdown = async () => {
