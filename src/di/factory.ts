@@ -223,18 +223,64 @@ export class ServiceFactory implements IServiceFactory {
       stopAll: async () => {},
       getActiveTransports: () => []
     };
-  }
-
-  createMCPServer(
+  }  createMCPServer(
     options: any,
     container: DependencyContainer
   ): any {
     // Get required services
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
     
+    // Try to get application layer services (may not be available in all configurations)
+    let knowledgeOperations = null;
+    let contentServingWorkflow = null;
+    let monitoringWorkflow = null;
+    
+    try {
+      knowledgeOperations = container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
+    } catch (e) {
+      // Service not available, will use mock
+    }
+    
+    try {
+      contentServingWorkflow = container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
+    } catch (e) {
+      // Service not available, will use mock
+    }
+    
+    try {
+      monitoringWorkflow = container.resolve(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
+    } catch (e) {
+      // Service not available, will use mock
+    }
+    
+    // Create service adapters if we have the real services
+    let searchService = null;
+    let navigationService = null;
+    let documentService = null;
+    let specializedService = null;
+    
+    if (knowledgeOperations && contentServingWorkflow && monitoringWorkflow) {
+      const { 
+        SearchServiceAdapter, 
+        NavigationServiceAdapter, 
+        DocumentServiceAdapter, 
+        SpecializedServiceAdapter 
+      } = require('../interfaces/mcp/adapters.js');
+      
+      searchService = new SearchServiceAdapter(knowledgeOperations, loggingService);
+      navigationService = new NavigationServiceAdapter(contentServingWorkflow, loggingService);
+      documentService = new DocumentServiceAdapter(contentServingWorkflow, loggingService);
+      specializedService = new SpecializedServiceAdapter(monitoringWorkflow, loggingService);
+    }
+    
     return new MCPServer(
       options,
-      loggingService
+      loggingService,
+      searchService,
+      navigationService,
+      documentService,
+      null, // summarization service not implemented yet
+      specializedService
     );
   }
 }
