@@ -8,7 +8,7 @@
 import { DependencyContainer, getContainer } from './container.js';
 import { ServiceFactory } from './factory.js';
 import { SERVICE_TOKENS, MODULE_TOKENS } from './interfaces.js';
-import { ResolvedConfig } from '../config/resolver.js';
+import { ResolvedConfig, resolveConfig } from '../config/resolver.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
 
@@ -116,10 +116,42 @@ export function setupDependencyInjection(options: {
       const cacheDir = join(options.folderPath!, '.folder-mcp');
       return serviceFactory.createVectorSearchService(cacheDir);
     });
-  }
+  }  // Register application layer services - always register when folderPath is available
+  if (options.folderPath) {
+    // Create or use existing config
+    let workingConfig = options.config;
+    if (!workingConfig) {
+      // Create a minimal valid ResolvedConfig for basic operation
+      workingConfig = {
+        folderPath: options.folderPath,
+        chunkSize: 500,
+        overlap: 50,
+        batchSize: 32,
+        modelName: 'nomic-embed-text',
+        fileExtensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        ignorePatterns: ['node_modules', '.git', '.folder-mcp'],
+        maxConcurrentOperations: 4,
+        debounceDelay: 1000,
+        sources: {
+          chunkSize: 'global',
+          overlap: 'global',
+          batchSize: 'global',
+          modelName: 'global',
+          fileExtensions: 'global',
+          ignorePatterns: 'global',
+          maxConcurrentOperations: 'global',
+          debounceDelay: 'global'
+        }
+      } as ResolvedConfig;
+    }
 
-  // Register application layer services
-  if (options.config && options.folderPath) {
+    // Register embedding service with working config
+    if (!container.isRegistered(SERVICE_TOKENS.EMBEDDING)) {
+      container.registerSingleton(SERVICE_TOKENS.EMBEDDING, () => {
+        return serviceFactory.createEmbeddingService(workingConfig!);
+      });
+    }
+
     // Register indexing orchestrator
     container.registerSingleton(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW, () => {
       return serviceFactory.createIndexingOrchestrator(container);
@@ -148,10 +180,12 @@ export function setupDependencyInjection(options: {
     // Register health monitoring service
     container.registerSingleton(MODULE_TOKENS.APPLICATION.HEALTH_MONITORING, () => {
       return serviceFactory.createHealthMonitoringService(container);
-    });
-  }
-  // Register high-level services
-  if (options.config && options.folderPath) {    // Register indexing workflow
+    });  }  // Register high-level services
+  if (options.folderPath) {
+    // Always use the properly resolved config
+    const finalConfig = options.config || resolveConfig(options.folderPath, {});
+
+    // Register indexing workflow
     container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, () => {
       return serviceFactory.createIndexingOrchestrator(container);
     });
@@ -165,7 +199,7 @@ export function setupDependencyInjection(options: {
     container.registerSingleton(SERVICE_TOKENS.MONITORING_WORKFLOW, () => {
       return serviceFactory.createMonitoringOrchestrator(container);
     });
-  }  // Register MCP server (only needs folderPath)
+  }// Register MCP server (only needs folderPath)
   if (options.folderPath) {
     container.registerSingleton(SERVICE_TOKENS.MCP_SERVER, () => {
       return serviceFactory.createMCPServer({

@@ -151,7 +151,6 @@ export class ServiceFactory implements IServiceFactory {
       indexingOrchestrator
     );
   }
-
   createContentServingOrchestrator(container: DependencyContainer): any {
     const { ContentServingOrchestrator } = require('../application/serving/orchestrator.js');
     return new ContentServingOrchestrator(
@@ -159,17 +158,18 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION)
+      container.resolve(SERVICE_TOKENS.CONFIGURATION),
+      container.resolve(SERVICE_TOKENS.EMBEDDING)
     );
   }
-
   createKnowledgeOperationsService(container: DependencyContainer): any {
     const { KnowledgeOperationsService } = require('../application/serving/knowledge.js');
     return new KnowledgeOperationsService(
       container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.FILE_PARSING)
+      container.resolve(SERVICE_TOKENS.FILE_PARSING),
+      container.resolve(SERVICE_TOKENS.EMBEDDING)
     );
   }
 

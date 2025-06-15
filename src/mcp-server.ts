@@ -48,29 +48,14 @@ async function main(): Promise<void> {
     }
     
     debug(`Using folder path: ${folderPath}`);    debug('Setting up dependency injection...');
-    // Setup dependency injection with minimal config to enable indexing
+    // Setup dependency injection with real config to enable all services
+    const { resolveConfig } = await import('./config/resolver.js');
+    const config = resolveConfig(folderPath, {});
+    
     const container = setupDependencyInjection({
       folderPath,
-      logLevel: 'info',
-      config: {
-        // Minimal config needed for indexing workflow registration
-        runtime: {
-          environment: 'development',
-          logLevel: 'info'
-        },
-        caching: {
-          enabled: true,
-          ttl: 3600
-        },
-        embedding: {
-          model: 'nomic-embed-text',
-          dimension: 768
-        },
-        vectorSearch: {
-          enabled: true,
-          algorithm: 'hnsw'
-        }
-      } as any
+      config,
+      logLevel: 'info'
     });
 
     debug('Initializing transport layer...');
