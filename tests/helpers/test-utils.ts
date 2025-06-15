@@ -439,6 +439,14 @@ if __name__ == "__main__":
 
     return spy as Spy<T>;
   }
+
+  /**
+   * Sleep utility for testing
+   * @param ms Milliseconds to sleep
+   */
+  static async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 }
 
 /**
