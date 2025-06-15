@@ -589,10 +589,10 @@ All success criteria are fully implemented and tested. See `tests/test-phase8-ux
 - ✅ Type-safe transport layer with factory pattern
 - ✅ Claude Desktop MCP server integration confirmed working
 
-### Step 31: Local Dual-Protocol Transport Implementation
-**Task**: Implement local transport layer supporting both MCP (RPC) and gRPC protocols for maximum compatibility and performance  
+### Step 31: Local Dual-Protocol Transport Implementation (Including Steps 32-34)
+**Task**: Implement local transport layer supporting both MCP (RPC) and gRPC protocols with all 13 endpoints  
 **Status**: ✅ **COMPLETED** - June 14, 2025  
-**Final Results**: All 13 gRPC service endpoints implemented with complete MCP tool compatibility
+**Final Results**: Complete dual-protocol implementation with all endpoints and tools
 
 **Success Criteria**: ✅ All Completed
 - ✅ MCP transport: JSON-RPC over stdio for Claude Desktop integration (WORKING)
@@ -603,18 +603,25 @@ All success criteria are fully implemented and tested. See `tests/test-phase8-ux
 - ✅ Local transport health checks and graceful shutdown
 - ✅ Implement corresponding MCP tools for Claude Desktop compatibility (10 tools)
 - ✅ Shared domain service integration for both protocols
-- ✅ All 263 tests pass with dual transport implementation
+- ✅ All 277 tests pass with dual transport implementation
 - ✅ TypeScript compiles without ANY errors
 - ✅ Claude Desktop integration maintains compatibility (MCP protocol)
 - ✅ Enhanced CLI commands for dual transport management
 
+**All Endpoints Implemented** (Originally planned as Steps 32-34):
+- **✅ Core Search Endpoints**: SearchDocs, SearchChunks with MCP tools
+- **✅ Navigation Endpoints**: ListFolders, ListDocumentsInFolder with MCP tools  
+- **✅ Document Content Endpoints**: GetDocMetadata, DownloadDoc, GetChunks with MCP tools
+- **✅ Summarization Endpoints**: GetDocSummary, BatchDocSummary with MCP tools
+- **✅ Specialized Endpoints**: TableQuery, IngestStatus, RefreshDoc, GetEmbedding with MCP tools
+
 **Implementation Achievements**: **Complete Dual-Protocol Success**
 - **✅ MCP Protocol**: JSON-RPC over stdio working perfectly with Claude Desktop
 - **✅ gRPC Protocol**: Unix Domain Socket (Windows named pipes) for high-performance local access
-- **✅ All 13 gRPC Services**: SearchDocs, SearchChunks, ListFolders, ListDocumentsInFolder, GetDocMetadata, DownloadDoc, GetChunks, GetDocSummary, BatchDocSummary, TableQuery, IngestStatus, RefreshDoc, GetEmbedding
+- **✅ All 13 gRPC Services**: Full implementation with error handling and validation
 - **✅ All 10 MCP Tools**: Complete equivalent functionality for Claude Desktop
 - **✅ Shared Domain Services**: Both protocols access same document intelligence services
-- **✅ No Authentication Required**: Filesystem permissions provide security for both protocols
+- **✅ Local-Only Security**: Filesystem permissions provide security for both protocols
 - **✅ Protocol Optimization**: MCP for interactive chat, gRPC for bulk operations
 - **✅ Performance Optimized**: Direct memory access for gRPC, chat-optimized responses for MCP
 
@@ -625,8 +632,8 @@ All success criteria are fully implemented and tested. See `tests/test-phase8-ux
 - ✅ Unix Domain Socket transport with optimal performance
 - ✅ Type-safe service implementations using generated proto types
 - ✅ Dual transport health monitoring and graceful shutdown
-- ✅ Enhanced CLI commands for dual transport management
-- ✅ API key system foundation (ready for future Step 35 remote access)
+- ✅ Enhanced CLI commands for transport testing
+- ✅ API key system foundation (ready for future remote access)
 - ✅ Authentication middleware (inactive for local transport, ready for remote)
 
 **Implementation Files**:
@@ -635,22 +642,44 @@ All success criteria are fully implemented and tested. See `tests/test-phase8-ux
 - `src/grpc/auth/` - API key system and authentication middleware
 - `src/interfaces/cli/commands/` - Enhanced CLI with transport testing
 - `src/mcp/handlers/` - Complete MCP tool implementations
-- `STEP_31_COMPLETION_SUMMARY.md` - Comprehensive completion documentation
 
-### Steps 32-34: Advanced Endpoints Implementation
-**Status**: ✅ **COMPLETED** - Completed ahead of schedule during Step 31 implementation
+**Note**: Steps 32-34 were combined into Step 32 as they were implemented together.
 
-**Step 32: Core Search Endpoints & Tools** - ✅ COMPLETED
-- ✅ gRPC SearchDocs and SearchChunks with full domain integration
-- ✅ MCP search_documents and search_chunks tools
-- ✅ Token limiting, similarity scoring, and metadata filtering
+### Step 32: Complete Endpoints Implementation
+**Task**: Implement all remaining gRPC endpoints and corresponding MCP tools (originally planned as separate steps)  
+**Status**: ✅ **COMPLETED** - Completed as part of Step 31 implementation  
+**Success Criteria**: ✅ All Completed
 
-**Step 33: Navigation Endpoints & Tools** - ✅ COMPLETED  
-- ✅ gRPC ListFolders and ListDocumentsInFolder with pagination
-- ✅ MCP list_folders and list_documents tools
-- ✅ Path security and metadata integration
+**Core Search Endpoints** (Originally Step 32):
+- ✅ gRPC SearchDocs endpoint with semantic document discovery
+- ✅ gRPC SearchChunks endpoint with chunk-level search
+- ✅ MCP search_documents tool for Claude Desktop
+- ✅ MCP search_chunks tool for Claude Desktop  
+- ✅ Token limiting and similarity scoring
+- ✅ Metadata filtering and pagination
 
-**Step 34: Document Content Endpoints & Tools** - ✅ COMPLETED
-- ✅ gRPC GetDocMetadata, DownloadDoc, and GetChunks
-- ✅ MCP get_document_metadata and get_document_content tools
-- ✅ Binary streaming and content-type detection
+**Navigation Endpoints** (Originally Step 33):
+- ✅ gRPC ListFolders endpoint with folder hierarchy
+- ✅ gRPC ListDocumentsInFolder endpoint with pagination
+- ✅ MCP list_folders tool for Claude Desktop
+- ✅ MCP list_documents tool for Claude Desktop
+- ✅ Path security and validation
+- ✅ Document metadata integration
+
+**Document Content Endpoints** (Originally Step 34):
+- ✅ gRPC GetDocMetadata endpoint with document structure
+- ✅ gRPC DownloadDoc endpoint with binary streaming
+- ✅ gRPC GetChunks endpoint with chunk retrieval
+- ✅ MCP get_document_metadata tool for Claude Desktop
+- ✅ MCP get_document_content tool for Claude Desktop
+- ✅ Content-type detection and validation
+
+**Additional Endpoints Completed**:
+- ✅ **Summarization Endpoints**: GetDocSummary, BatchDocSummary with MCP tools
+- ✅ **Specialized Endpoints**: TableQuery, IngestStatus, RefreshDoc, GetEmbedding with MCP tools
+
+**Shared Implementation Features**:
+- ✅ Shared domain service integration for both protocols
+- ✅ Streaming support for large files
+- ✅ Error handling for corrupted files
+- ✅ Sorting and filtering capabilities

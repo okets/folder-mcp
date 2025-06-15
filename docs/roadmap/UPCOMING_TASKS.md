@@ -16,125 +16,63 @@ This document tracks current and future development phases with detailed specifi
 
 ## Current Development Status
 
-**Current Status**: Step 35/57 - Phase 8 Transport Foundation & Core Endpoints COMPLETED, Beginning Phase 9 Remote Access Implementation 🚀
+**Current Status**: Step 33/55 - Ready for End-to-End Testing 🧪
+
+**✅ Recently Completed**:
+- **Steps 29-32**: Transport Foundation & Complete Endpoints Implementation
+  - Dual-protocol transport system (MCP + gRPC)
+  - All 13 gRPC endpoints with corresponding MCP tools
+  - Local Unix Domain Socket transport working
+  - 277 tests passing
+
+**⬅️ NEXT: Step 33 - End-to-End Testing**
+Comprehensive testing of the complete system before adding remote access.
 
 ### Overall Timeline
 - **✅ Phases 1-7**: Foundation through Production Ready (Steps 1-28) - **COMPLETED**
-- **✅ Phase 8**: Transport Foundation & Core Endpoints (Steps 29-34) - **COMPLETED**
-- **🔄 Phase 9**: Advanced Endpoints & HTTP Gateway (Steps 35-42) - **IN PROGRESS**
-- **📋 Phase 10**: Release Preparation (Steps 43-48) - **PLANNED**
-- **📋 Phase 10**: Release Preparation (Steps 43-48) - **PLANNED**
-- **📋 Phase 11**: UX Refinements (Steps 49-52) - **PLANNED**
-- **📋 Phase 12**: Chat Interface Integration (Steps 53-57) - **FUTURE**
+- **✅ Phase 8**: Transport Foundation & Core Endpoints (Steps 29-32) - **COMPLETED**
+- **🔄 Phase 9**: System Testing & Remote Access (Steps 33-41) - **IN PROGRESS**
+- **📋 Phase 10**: Release Preparation (Steps 42-47) - **PLANNED**
+- **📋 Phase 11**: UX Refinements (Steps 48-51) - **PLANNED**
+- **📋 Phase 12**: Chat Interface Integration (Steps 52-56) - **FUTURE**
 
 ---
 
-## Phase 8: Transport Foundation & Core Endpoints (COMPLETED)
+## Phase 9: System Testing & Remote Access (Current)
 
-**Status**: ✅ **COMPLETED** - June 14, 2025 🎉
+**Status**: ⬅️ Current - **READY FOR TESTING** 🧪
 
-**Focus**: Implement dual-protocol transport layer (MCP + gRPC) and core document intelligence endpoints with local communication for maximum compatibility and high-performance document access.
+**Focus**: Comprehensive end-to-end testing followed by secure remote access implementation.
 
-**Final Implementation Results**:
-- **✅ MCP Protocol**: Claude Desktop integration maintained with stdio transport
-- **✅ Local gRPC**: Unix domain socket transport for maximum performance
-- **✅ All 13 Core Endpoints**: Complete gRPC endpoints implementation
-- **✅ All 10 MCP Tools**: Complete corresponding MCP tools for Claude Desktop
-- **✅ Dual-Protocol Foundation**: Both protocols use shared domain services
-- **✅ Security Foundation**: API key system ready for future remote access
+### Step 33: End-to-End System Testing
+**Task**: Comprehensive testing of the complete dual-protocol system before adding remote capabilities  
+**Status**: ⬅️ **CURRENT** - Ready for implementation  
+**Focus**: Validate all components work together correctly in real-world scenarios using `C:\ThinkingHomes\test-folder`
 
-**Key Achievements**:
-- **✅ All 263 Tests Passing**: 100% test success rate with zero TypeScript errors
-- **✅ Complete gRPC Implementation**: All 13 service endpoints with full validation and error handling
-- **✅ MCP Compatibility Maintained**: Claude Desktop integration working perfectly
-- **✅ Domain Service Integration**: Shared business logic across both protocols
-- **✅ Production-Ready Quality**: Comprehensive error handling, logging, and monitoring
-- **✅ Health Monitoring**: gRPC health check service implemented
+**Success Criteria**:
+- 📋 **Clean Server Startup**: MCP server starts without TypeScript errors, all tests pass, server listens on expected port
+- 📋 **File System Integration**: File changes trigger embedding updates within 30 seconds via filesystem watcher
+- 📋 **Claude Desktop Integration**: Complete MCP tool functionality test using structured JSON response format
+- 📋 **Real-World Document Testing**: Create/update test files (CIARA_REL_TEST.md) with realistic version release notes
+- 📋 **Cross-Protocol Validation**: Verify MCP tools can retrieve updated document information after filesystem changes
+- 📋 **Error-Free Operation**: Complete test flow executes without blocking errors (enhancement opportunities acceptable)
+- 📋 **Process Management**: Proper cleanup of running instances, port conflicts, and cache directories
+- 📋 **Log Analysis**: Claude Desktop logs show successful MCP function calls and data retrieval
 
-### ✅ Step 29: Transport Layer Foundation - COMPLETED
-**Task**: Prepare for gRPC transport system architecture with security foundation  
-**Status**: ✅ **COMPLETED** - June 13, 2025
+**Implementation Plan**:
+1. **Pre-Test Cleanup** (Steps 1-6): Kill MCP processes, clear port conflicts, delete cache, fresh terminal session
+2. **Server Validation** (Step 7): Build verification, test suite execution, clean server startup
+3. **Document Creation** (Step 8): Generate realistic test content with version increments and release notes
+4. **Filesystem Integration** (Step 9): Verify file watcher triggers and embedding updates within 30 seconds
+5. **Claude Desktop Testing** (Step 10): Structured JSON prompt for comprehensive MCP functionality validation
+6. **Results Analysis** (Steps 11-12): Parse Claude responses, identify issues, plan improvements
 
-**Success Criteria**: ✅ All Completed
-- ✅ Install gRPC dependencies (@grpc/grpc-js, @grpc/proto-loader)
-- ✅ Design Protocol Buffer schema for all endpoints
-- ✅ Create transport layer interface definitions
-- ✅ Implement transport factory pattern
-- ✅ Add transport configuration to runtime config
-- ✅ Create transport selection logic (local/remote/http)
-- ✅ Update MCP server to "hello world" baseline
-- ✅ Add security CLI commands foundation
+**Test Environment**: Uses dedicated test folder with mock version files and realistic document scenarios to validate end-to-end functionality.
 
-**Security CLI Commands**: ✅ All Implemented
-- ✅ `folder-mcp serve <folder>` - Auto-generate API key on first run
-- ✅ `folder-mcp generate-key <folder>` - Generate new API key
-- ✅ `folder-mcp rotate-key <folder>` - Rotate existing API key
-- ✅ `folder-mcp show-key <folder>` - Display current API key
-- ✅ `folder-mcp revoke-key <folder>` - Revoke API key access
-
-**Implementation Files**:
-- `src/transport/` - Complete transport layer (7 files)
-- `proto/folder-mcp.proto` - Protocol buffer schema
-- `src/interfaces/cli/commands/` - Security CLI commands (5 files)
-- `src/generated/` - Generated TypeScript types
-- Updated configuration and DI modules
-
-### ✅ Step 30: Protocol Buffer Schema Design - COMPLETED
-**Task**: Define comprehensive .proto files for all endpoints  
-**Status**: ✅ **COMPLETED** - June 13, 2025  
-**Claude Desktop Integration**: ✅ **CONFIRMED WORKING**
-
-**Success Criteria**: ✅ All Completed
-- ✅ Create folder-mcp.proto with all 13 service endpoints
-- ✅ Define message types for all request/response pairs
-- ✅ Include proper field validation and documentation
-- ✅ Generate TypeScript types from proto files
-- ✅ Validate schema against endpoint specification
-- ✅ Add token limit annotations in proto comments
-- ✅ All tests pass with new proto definitions
-- ✅ TypeScript compiles without ANY errors
-- ✅ Proto schema validates against gRPC standards
-- ✅ Claude Desktop runs the MCP server without issues
-
-**Implementation Files**:
-- `proto/folder-mcp.proto` - Complete protocol buffer schema with all 13 endpoints
-- `src/generated/` - Generated TypeScript types and validation utilities
-  - `folder-mcp.d.ts` - Complete TypeScript interface definitions
-  - `folder-mcp.js` - JavaScript implementation
-  - `message-builders.ts` - Type-safe message construction helpers
-  - `type-guards.ts` - Runtime type validation functions
-  - `validation-utils.ts` - Field validation utilities
-- `src/transport/typed-service.ts` - Type-safe service wrapper
-- `src/transport/typed-transport.ts` - DI-compliant typed transport with factory functions
-- `src/config/schema.ts` - Enhanced configuration with proto enum integration
-- `scripts/generate-proto-types.js` - Enhanced type generation script
-- `STEP_30_IMPLEMENTATION_PLAN.md` - Complete implementation documentation
-- `STEP_30_COMPLETION_SUMMARY.md` - Final completion summary
-- `CLAUDE_DESKTOP_INTEGRATION_CONFIRMED.md` - Claude Desktop test results
-
-**Architectural Achievements**:
-- ✅ 250+ tests passing (100% success rate)
-- ✅ Clean TypeScript compilation with full type safety
-- ✅ DI compliance maintained across all new components
-- ✅ Performance benchmarks met
-- ✅ Proto-enum integration in configuration system
-- ✅ Type-safe transport layer with factory pattern
-- ✅ Claude Desktop MCP server integration confirmed working
-
----
-
-## Phase 9: Advanced Endpoints & HTTP Gateway (Current)
-
-**Status**: ⬅️ Current - **READY FOR IMPLEMENTATION** 🚀
-
-**Focus**: Implement secure remote access for cloud LLM integration and advanced endpoint features.
-
-**Note**: Steps 31-34 from Phase 8 have been completed and moved to COMPLETED_TASKS.md. Phase 8 is now fully complete.
-
-### Step 35: Remote Access & Cloud LLM Integration
-**Task**: Implement secure remote access for cloud LLM integration with Cloudflare tunneling  
-**Status**: ⬅️ **CURRENT** - Ready for implementation, all dependencies completed  
-**Focus**: Enable cloud LLM access to local folder-mcp instances with zero-config tunneling
+### Step 34: Remote Access & Cloud LLM Integration  
+**Task**: Implement secure remote access for cloud LLM integration with multiple transport options  
+**Status**: 📋 **PLANNED** - Depends on Step 33 completion  
+**Focus**: Enable cloud LLM access to local folder-mcp instances with multiple connectivity options
 
 **Success Criteria**:
 - 📋 **TCP Transport**: Remote gRPC server with configurable port (50051)
@@ -143,6 +81,9 @@ This document tracks current and future development phases with detailed specifi
 - 📋 **Cloudflare Tunnel Integration**: Zero-config remote access without port forwarding
 - 📋 **Project Subdomain Service**: Users get `username.folder-mcp.com` subdomains
 - 📋 **Let's Encrypt Integration**: Automated certificate management for custom domains
+- 📋 **Rate Limiting**: Per-key request throttling and abuse prevention
+- 📋 **Audit Logging**: Security event tracking and monitoring
+- 📋 **Certificate Management**: Auto-renewal and expiration monitoring
 - 📋 **Rate Limiting**: Per-key request throttling and abuse prevention
 - 📋 **Audit Logging**: Security event tracking and monitoring
 - 📋 **Certificate Management**: Auto-renewal and expiration monitoring
@@ -197,32 +138,7 @@ This document tracks current and future development phases with detailed specifi
 
 ## Phase 9: Advanced Endpoints & HTTP Gateway (Planned)
 
-### Step 36: Summarization Endpoints & Tools
-**Task**: Implement document summarization services for both gRPC and MCP protocols  
-**Success Criteria**:
-- 📋 gRPC GetDocSummary: Single document summarization
-- 📋 gRPC BatchDocSummary: Multi-document batch processing
-- 📋 MCP summarize_document tool: Claude Desktop compatible summarization
-- 📋 MCP batch_summarize tool: Claude Desktop compatible batch processing
-- 📋 Support brief/detailed mode selection for both protocols
-- 📋 Implement token limiting (≤500 per summary) for both protocols
-- 📋 Add source range references in responses for both protocols
-- 📋 Batch processing with total token cap (≤2,000) for both protocols
-
-### Step 37: Specialized Query Endpoints & Tools
-**Task**: Implement table querying and system status for both gRPC and MCP protocols  
-**Success Criteria**:
-- 📋 gRPC TableQuery: Semantic queries over spreadsheet data
-- 📋 gRPC IngestStatus: Document processing status monitoring
-- 📋 gRPC RefreshDoc: Trigger document re-processing
-- 📋 gRPC GetEmbedding: Raw vector access for debugging
-- 📋 MCP query_table tool: Claude Desktop compatible table queries
-- 📋 MCP get_status tool: Claude Desktop compatible status monitoring
-- 📋 MCP refresh_document tool: Claude Desktop compatible re-processing
-- 📋 Handle sheet selection and cell range responses for both protocols
-- 📋 Implement job tracking for refresh operations for both protocols
-
-### Step 38: HTTP Gateway Implementation
+### Step 35: HTTP Gateway Implementation
 **Task**: Implement REST/JSON gateway for gRPC services with comprehensive authentication  
 **Success Criteria**:
 - 📋 HTTP server on configurable port (default 8080)
@@ -232,19 +148,28 @@ This document tracks current and future development phases with detailed specifi
 - 📋 CORS support for web clients
 - 📋 Request validation and sanitization
 
-**Security Implementation**:
-- **Authentication Middleware**:
-  - Check `Authorization: Bearer <KEY>` header for remote connections
-  - Accept `x-api-key: <KEY>` header as alternative
-  - Allow localhost/loopback connections without API key
-  - Return 401 Unauthorized for invalid/missing keys on remote connections
-- **Request Security**:
-  - Input validation and sanitization for all endpoints
-  - Rate limiting per API key
-  - Request size limits and timeout handling
+### Step 36: Summarization Endpoints & Tools
+**Task**: Implement advanced summarization features for both gRPC and HTTP protocols  
+**Success Criteria**:
+- 📋 Enhanced GetDocSummary with multiple modes (brief/detailed/technical)
+- 📋 BatchDocSummary with intelligent batching and progress tracking
+- 📋 Summary caching and incremental updates
+- 📋 Custom summarization templates and styles
+- 📋 Multi-language summarization support
+- 📋 Integration with HTTP gateway
 
-### Step 39: Advanced Search Features
-**Task**: Enhance search capabilities with advanced filtering  
+### Step 37: Specialized Query Enhancements
+**Task**: Enhance table querying and system monitoring capabilities  
+**Success Criteria**:
+- 📋 Advanced TableQuery with SQL-like syntax support
+- 📋 Cross-document table analysis and joining
+- 📋 Enhanced IngestStatus with real-time progress tracking
+- 📋 Batch refresh operations with dependency resolution
+- 📋 Performance analytics and optimization suggestions
+- 📋 Integration with HTTP gateway
+
+### Step 38: Advanced Search Features
+**Task**: Enhance search capabilities with advanced filtering and ranking  
 **Success Criteria**:
 - 📋 Complex metadata filtering (AND/OR operations)
 - 📋 Date range queries with RFC3339 timestamp support
@@ -253,7 +178,7 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Search history and saved queries
 - 📋 Query performance optimization
 
-### Step 40: Batch Operations & Streaming
+### Step 39: Batch Operations & Streaming
 **Task**: Implement efficient batch processing and streaming  
 **Success Criteria**:
 - 📋 Streaming responses for large result sets
@@ -263,43 +188,17 @@ This document tracks current and future development phases with detailed specifi
 - 📋 Memory-efficient processing for large files
 - 📋 Rate limiting and throttling
 
-### Step 40: Security & Authentication
-**Task**: Implement comprehensive security features with API key management  
+### Step 40: Security & Authentication Enhancement
+**Task**: Implement comprehensive security features for remote access  
 **Success Criteria**:
-- 📋 mTLS certificate generation and management for remote connections
-- 📋 API key lifecycle management (generate, rotate, revoke)
+- 📋 TLS/mTLS certificate generation and management for remote connections
+- 📋 Enhanced API key lifecycle management (generate, rotate, revoke)
 - 📋 Security audit logging with authentication events
 - 📋 Rate limiting and DDoS protection per API key
 - 📋 Access control and permission system
 - 📋 Secure key storage and retrieval
 
-**Detailed Security Implementation**:
-- **API Key System**:
-  - Strong random key generation (32-byte Base64 encoding)
-  - Secure storage in `~/.folder-mcp/api-keys.json` with folder mapping
-  - CLI commands: `generate-key`, `rotate-key`, `revoke-key`, `list-keys`
-  - Key expiration and automatic rotation policies
-- **Transport Security**:
-  - Unix Domain Socket: Filesystem permissions only (no API key)
-  - Remote gRPC: Mandatory API key in `authorization: Bearer <KEY>` metadata
-  - HTTP Gateway: API key in `Authorization: Bearer <KEY>` or `x-api-key: <KEY>`
-  - Localhost exemption: No API key required for 127.0.0.1/::1 connections
-- **Security Monitoring**:
-  - Failed authentication attempt logging
-  - Suspicious activity detection (rate limiting violations)
-  - Security event alerts and notifications
-
-### Step 41: Monitoring & Observability
-**Task**: Add comprehensive monitoring and logging  
-**Success Criteria**:
-- 📋 Metrics collection (request counts, latency, errors)
-- 📋 Health check endpoints for all services
-- 📋 Structured logging with configurable levels
-- 📋 Performance monitoring and alerting
-- 📋 Resource usage tracking (memory, CPU, disk)
-- 📋 Service discovery and load balancing support
-
-### Step 42: Integration Testing & Validation
+### Step 41: Integration Testing & Validation
 **Task**: Comprehensive testing of transport and endpoint system  
 **Success Criteria**:
 - 📋 gRPC client/server integration tests
@@ -312,7 +211,7 @@ This document tracks current and future development phases with detailed specifi
 ---
 
 ## Phase 10: Release Preparation (Planned)
-### Step 43: Hugging Face Hub Integration for Model Metadata
+### Step 42: Hugging Face Hub Integration for Model Metadata
 **Task**: Enhance Ollama model information with Hugging Face Hub metadata  
 **Success Criteria**:
 - 📋 Fetch model metadata from Hugging Face Hub API
@@ -354,7 +253,7 @@ Example Response:
 - Smart defaults: Auto-select best multilingual model for diverse document sets
 - Confidence indicators: High/Medium/Low confidence for language support data
 
-### Step 44: Performance Optimization
+### Step 43: Performance Optimization
 **Task**: Optimize for production deployment  
 **Success Criteria**:
 - 📋 Connection pooling and resource management
@@ -364,7 +263,7 @@ Example Response:
 - 📋 Concurrent request handling optimization
 - 📋 Network protocol optimization
 
-### Step 45: Test Suite Integration
+### Step 44: Test Suite Integration
 **Task**: Extend existing test suite for new transport system  
 **Success Criteria**:
 - 📋 Add gRPC transport testing to existing test infrastructure
@@ -376,7 +275,7 @@ Example Response:
 
 **Note**: Leverages existing comprehensive test system (238 tests, 99.6% pass rate) by extending with transport-specific tests while maintaining current test infrastructure and patterns.
 
-### Step 46: Documentation & API Reference
+### Step 45: Documentation & API Reference
 **Task**: Complete comprehensive documentation  
 **Success Criteria**:
 - 📋 API documentation with OpenAPI/Swagger spec
@@ -386,7 +285,7 @@ Example Response:
 - 📋 Security configuration documentation
 - 📋 Troubleshooting and debugging guide
 
-### Step 47: Containerization & Deployment
+### Step 46: Containerization & Deployment
 **Task**: Prepare for containerized deployment  
 **Success Criteria**:
 - 📋 Docker containerization with multi-stage builds
@@ -396,7 +295,7 @@ Example Response:
 - 📋 Environment variable configuration
 - 📋 Horizontal scaling support
 
-### Step 48: Release 1.0.0
+### Step 47: Release 1.0.0
 **Task**: Publish production-ready release  
 **Success Criteria**:
 - 📋 Publish to npm registry with all transport options
@@ -412,7 +311,7 @@ Example Response:
 
 **NOTE**: These remaining UX steps were moved from the original Phase 8 to allow immediate focus on transport and endpoints implementation.
 
-### Step 49: CLI Parameter Override System
+### Step 48: CLI Parameter Override System
 **Task**: Allow CLI parameters to override runtime defaults  
 **Success Criteria**:
 - 📋 Parse all CLI parameters into runtime config
@@ -423,7 +322,7 @@ Example Response:
 - 📋 Update cached runtime with successful execution
 - 📋 Update --help for the tool
 
-### Step 50: Configuration Wizard Implementation
+### Step 49: Configuration Wizard Implementation
 **Task**: Create --wizard interactive configuration generator  
 **Success Criteria**:
 - 📋 Launch with folder-mcp --wizard
@@ -433,7 +332,7 @@ Example Response:
 - 📋 Display command and ask: "Run this command? Y/n"
 - 📋 Execute command or copy to clipboard
 
-### Step 51: System Detection Integration
+### Step 50: System Detection Integration
 **Task**: Auto-detect system capabilities for smart defaults  
 **Success Criteria**:
 - 📋 Detect CPU, RAM, GPU on first run
@@ -443,7 +342,7 @@ Example Response:
 - 📋 Run only when cache missing or --detect flag
 - 📋 Show detected specs in --show-config output
 
-### Step 52: Full-Screen UI Implementation
+### Step 51: Full-Screen UI Implementation
 **Task**: Create main operation interface  
 **Success Criteria**:
 - 📋 Launch after configuration is validated
@@ -457,7 +356,7 @@ Example Response:
 
 ## Phase 12: Chat Interface Integration (Future)
 
-### Step 53: Chat Configuration Wizard
+### Step 52: Chat Configuration Wizard
 **Task**: Create interactive wizard for chat setup using new transport layer  
 **Success Criteria**:
 - 📋 Launch with `folder-mcp chat --setup`
@@ -499,7 +398,7 @@ folder-mcp chat <folder> (first time)
       └── Save config → Launch chat
 ```
 
-### Step 54: Cloud Provider Integration
+### Step 53: Cloud Provider Integration
 **Task**: Implement cloud LLM provider APIs with transport layer  
 **Success Criteria**:
 - 📋 OpenAI API integration with streaming responses
@@ -510,7 +409,7 @@ folder-mcp chat <folder> (first time)
 - 📋 API routing through gRPC or HTTP transport
 - 📋 Rate limiting and quota management via transport
 
-### Step 55: Local LLM Integration
+### Step 54: Local LLM Integration
 **Task**: Implement Ollama local LLM integration via transport  
 **Success Criteria**:
 - 📋 Ollama service detection and health checks
@@ -521,7 +420,7 @@ folder-mcp chat <folder> (first time)
 - 📋 Transport-optimized local inference
 - 📋 Performance optimization for gRPC streaming
 
-### Step 56: Interactive Chat Interface
+### Step 55: Interactive Chat Interface
 **Task**: Create the main chat experience using transport endpoints  
 **Success Criteria**:
 - 📋 CLI-based chat interface with rich formatting
@@ -563,7 +462,7 @@ Chat Interface using gRPC/HTTP endpoints:
 └────────────────────────────────────────────────────────────┘
 ```
 
-### Step 57: Chat History & Export
+### Step 56: Chat History & Export
 **Task**: Implement chat session management with transport integration  
 **Success Criteria**:
 - 📋 Save chat sessions with document references

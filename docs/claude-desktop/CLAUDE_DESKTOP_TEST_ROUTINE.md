@@ -36,8 +36,7 @@ Remove-Item "$env:APPDATA\Claude\logs\*" -Force
 ```
 
 ### 6. **MANDATORY**: Test Connection
-- Test connection from Claude Desktop
-- Get user confirmation before proceeding
+- Test that the Claude can figure out a secret we hid in a document 
 
 ### 7. **MANDATORY**: Check Claude Desktop Logs
 ```powershell
