@@ -34,7 +34,7 @@ console.info = (...args) => process.stderr.write(`[INFO] ${args.join(' ')}\n`);
 console.warn = (...args) => process.stderr.write(`[WARN] ${args.join(' ')}\n`);
 console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`);
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   debug('main() function called');
   try {
     debug('Starting MCP server');
@@ -82,11 +82,9 @@ async function main(): Promise<void> {
     } catch (error) {
       debug('Transport layer initialization failed (non-critical):', error);
       // Transport layer is optional for basic MCP functionality
-    }
-
-    debug('Resolving MCP server from container...');
-    // Resolve MCP server from container
-    const mcpServer = container.resolve(SERVICE_TOKENS.MCP_SERVER) as MCPServer;    debug('Starting MCP server...');
+    }    debug('Resolving MCP server from container...');
+    // Resolve MCP server from container (async since it's a singleton with async factory)
+    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;debug('Starting MCP server...');
     // Start the server
     await mcpServer.start();
 

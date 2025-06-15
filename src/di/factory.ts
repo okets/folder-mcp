@@ -129,12 +129,12 @@ export class ServiceFactory implements IServiceFactory {
   // =============================================================================
   // Application Layer Factory Methods
   // =============================================================================
-  
-  createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
+    createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
     return new IndexingOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CHUNKING),
       container.resolve(SERVICE_TOKENS.EMBEDDING),
+      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
@@ -150,43 +150,77 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.LOGGING),
       indexingOrchestrator
     );
+  }  async createContentServingOrchestrator(container: DependencyContainer): Promise<any> {
+    // Create the actual ContentServingOrchestrator with proper dependencies
+    try {
+      const { ContentServingOrchestrator } = await import('../application/serving/orchestrator.js');
+      
+      const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as IFileParsingService;
+      const cacheService = container.resolve(SERVICE_TOKENS.CACHE) as ICacheService;
+      const vectorSearchService = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
+      const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+      const configService = container.resolve(SERVICE_TOKENS.CONFIGURATION) as IConfigurationService;
+      const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as IEmbeddingService;
+      
+      return new ContentServingOrchestrator(
+        fileParsingService,
+        cacheService,
+        vectorSearchService,
+        loggingService,
+        configService,
+        embeddingService
+      );
+    } catch (error) {
+      console.error('Failed to create ContentServingOrchestrator:', error);
+      throw error;
+    }
+  }async createKnowledgeOperationsService(container: DependencyContainer): Promise<any> {
+    try {
+      console.log('🔧 Creating KnowledgeOperationsService...');
+      const { KnowledgeOperationsService } = await import('../application/serving/knowledge.js');
+      console.log('✅ Imported KnowledgeOperationsService');
+      
+      console.log('🔧 Resolving dependencies...');
+      const vectorSearch = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH);
+      console.log('✅ Resolved VECTOR_SEARCH');
+      const cache = container.resolve(SERVICE_TOKENS.CACHE);
+      console.log('✅ Resolved CACHE');
+      const logging = container.resolve(SERVICE_TOKENS.LOGGING);
+      console.log('✅ Resolved LOGGING');
+      const fileParsing = container.resolve(SERVICE_TOKENS.FILE_PARSING);
+      console.log('✅ Resolved FILE_PARSING');
+      const embedding = container.resolve(SERVICE_TOKENS.EMBEDDING);
+      console.log('✅ Resolved EMBEDDING');
+        const service = new KnowledgeOperationsService(
+        vectorSearch as any,
+        cache as any,
+        logging as any,
+        fileParsing as any,
+        embedding as any
+      );
+      console.log('✅ Created KnowledgeOperationsService:', typeof service);
+      console.log('✅ Methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(service)));
+      return service;
+    } catch (error) {
+      console.error('❌ Failed to create KnowledgeOperationsService:', error);
+      throw error;
+    }
   }
-  createContentServingOrchestrator(container: DependencyContainer): any {
-    const { ContentServingOrchestrator } = require('../application/serving/orchestrator.js');
-    return new ContentServingOrchestrator(
-      container.resolve(SERVICE_TOKENS.FILE_PARSING),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
-      container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(SERVICE_TOKENS.EMBEDDING)
-    );
-  }
-  createKnowledgeOperationsService(container: DependencyContainer): any {
-    const { KnowledgeOperationsService } = require('../application/serving/knowledge.js');
-    return new KnowledgeOperationsService(
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.FILE_PARSING),
-      container.resolve(SERVICE_TOKENS.EMBEDDING)
-    );
-  }
-
-  createMonitoringOrchestrator(container: DependencyContainer): any {
-    const { MonitoringOrchestrator } = require('../application/monitoring/orchestrator.js');
+  async createMonitoringOrchestrator(container: DependencyContainer): Promise<any> {
+    const { MonitoringOrchestrator } = await import('../application/monitoring/orchestrator.js');
     return new MonitoringOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION)
+      container.resolve(SERVICE_TOKENS.CONFIGURATION),
+      container.resolve(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING)
     );
   }
-
-  createHealthMonitoringService(container: DependencyContainer): any {
-    const { HealthMonitoringService } = require('../application/monitoring/health.js');
+  async createHealthMonitoringService(container: DependencyContainer): Promise<any> {
+    const { HealthMonitoringService } = await import('../application/monitoring/health.js');
     return new HealthMonitoringService(
-      container.resolve(SERVICE_TOKENS.CACHE),      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
+      container.resolve(SERVICE_TOKENS.CACHE),
+      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
       container.resolve(SERVICE_TOKENS.FILE_PARSING)
@@ -223,10 +257,10 @@ export class ServiceFactory implements IServiceFactory {
       stopAll: async () => {},
       getActiveTransports: () => []
     };
-  }  createMCPServer(
+  }  async createMCPServer(
     options: any,
     container: DependencyContainer
-  ): any {
+  ): Promise<any> {
     // Get required services
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
     
@@ -236,19 +270,19 @@ export class ServiceFactory implements IServiceFactory {
     let monitoringWorkflow = null;
     
     try {
-      knowledgeOperations = container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
+      knowledgeOperations = await container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
     } catch (e) {
       // Service not available, will use mock
     }
     
     try {
-      contentServingWorkflow = container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
+      contentServingWorkflow = await container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
     } catch (e) {
       // Service not available, will use mock
     }
     
     try {
-      monitoringWorkflow = container.resolve(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
+      monitoringWorkflow = await container.resolve(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
     } catch (e) {
       // Service not available, will use mock
     }
@@ -258,14 +292,13 @@ export class ServiceFactory implements IServiceFactory {
     let navigationService = null;
     let documentService = null;
     let specializedService = null;
-    
-    if (knowledgeOperations && contentServingWorkflow && monitoringWorkflow) {
+      if (knowledgeOperations && contentServingWorkflow && monitoringWorkflow) {
       const { 
         SearchServiceAdapter, 
         NavigationServiceAdapter, 
         DocumentServiceAdapter, 
         SpecializedServiceAdapter 
-      } = require('../interfaces/mcp/adapters.js');
+      } = await import('../interfaces/mcp/adapters.js');
       
       searchService = new SearchServiceAdapter(knowledgeOperations, loggingService);
       navigationService = new NavigationServiceAdapter(contentServingWorkflow, loggingService);

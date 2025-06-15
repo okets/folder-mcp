@@ -160,27 +160,23 @@ export function setupDependencyInjection(options: {
     // Register incremental indexer
     container.registerSingleton(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING, () => {
       return serviceFactory.createIncrementalIndexer(container);
-    });
-
-    // Register content serving orchestrator
+    });    // Register content serving orchestrator
     container.registerSingleton(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW, () => {
       return serviceFactory.createContentServingOrchestrator(container);
-    });
-
-    // Register knowledge operations service
-    container.registerSingleton(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS, () => {
-      return serviceFactory.createKnowledgeOperationsService(container);
+    });// Register knowledge operations service
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS, async () => {
+      return await serviceFactory.createKnowledgeOperationsService(container);
     });
 
     // Register monitoring orchestrator
-    container.registerSingleton(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW, () => {
-      return serviceFactory.createMonitoringOrchestrator(container);
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW, async () => {
+      return await serviceFactory.createMonitoringOrchestrator(container);
     });
 
     // Register health monitoring service
-    container.registerSingleton(MODULE_TOKENS.APPLICATION.HEALTH_MONITORING, () => {
-      return serviceFactory.createHealthMonitoringService(container);
-    });  }  // Register high-level services
+    container.registerSingleton(MODULE_TOKENS.APPLICATION.HEALTH_MONITORING, async () => {
+      return await serviceFactory.createHealthMonitoringService(container);
+    });}  // Register high-level services
   if (options.folderPath) {
     // Always use the properly resolved config
     const finalConfig = options.config || resolveConfig(options.folderPath, {});
@@ -188,21 +184,17 @@ export function setupDependencyInjection(options: {
     // Register indexing workflow
     container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, () => {
       return serviceFactory.createIndexingOrchestrator(container);
-    });
-
-    // Register content serving workflow
-    container.registerSingleton(SERVICE_TOKENS.CONTENT_SERVING_WORKFLOW, () => {
-      return serviceFactory.createContentServingOrchestrator(container);
-    });
-
-    // Register monitoring workflow
-    container.registerSingleton(SERVICE_TOKENS.MONITORING_WORKFLOW, () => {
-      return serviceFactory.createMonitoringOrchestrator(container);
+    });    // Register content serving workflow
+    container.registerSingleton(SERVICE_TOKENS.CONTENT_SERVING_WORKFLOW, async () => {
+      return await serviceFactory.createContentServingOrchestrator(container);
+    });// Register monitoring workflow
+    container.registerSingleton(SERVICE_TOKENS.MONITORING_WORKFLOW, async () => {
+      return await serviceFactory.createMonitoringOrchestrator(container);
     });
   }// Register MCP server (only needs folderPath)
   if (options.folderPath) {
-    container.registerSingleton(SERVICE_TOKENS.MCP_SERVER, () => {
-      return serviceFactory.createMCPServer({
+    container.registerSingleton(SERVICE_TOKENS.MCP_SERVER, async () => {
+      return await serviceFactory.createMCPServer({
         folderPath: options.folderPath!,
         transport: 'stdio',
         name: 'folder-mcp',

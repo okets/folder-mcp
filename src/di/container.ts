@@ -71,6 +71,46 @@ export class DependencyContainer implements IDependencyContainer {
   }
 
   /**
+   * Resolve a service instance asynchronously (for async factories)
+   */
+  async resolveAsync<T>(token: string | symbol): Promise<T> {
+    const registration = this.services.get(token);
+    
+    if (!registration) {
+      throw new Error(`Service not registered for token: ${String(token)}`);
+    }
+
+    switch (registration.type) {
+      case 'instance':
+        return registration.value;
+        
+      case 'factory':
+        try {
+          const result = registration.factory();
+          // If the factory returns a Promise, await it
+          return result instanceof Promise ? await result : result;
+        } catch (error) {
+          throw new Error(`Failed to create service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+      case 'singleton':
+        if (!registration.instance) {
+          try {
+            const result = registration.factory();
+            // If the factory returns a Promise, await it
+            registration.instance = result instanceof Promise ? await result : result;
+          } catch (error) {
+            throw new Error(`Failed to create singleton service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        }
+        return registration.instance;
+        
+      default:
+        throw new Error(`Unknown registration type for token: ${String(token)}`);
+    }
+  }
+
+  /**
    * Resolve a service instance
    */
   resolve<T>(token: string | symbol): T {

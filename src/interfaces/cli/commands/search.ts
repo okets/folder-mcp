@@ -39,21 +39,33 @@ export class SearchCommand extends BaseCommand {
         MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS
       );
       
-      const results = await knowledgeOperations.semanticSearch(query, {
-        limit: parseInt(options.limit),
+      console.log('Resolved service:', typeof knowledgeOperations);
+      console.log('Available methods:', Object.getOwnPropertyNames(knowledgeOperations));
+      console.log('Has semanticSearch:', typeof knowledgeOperations.semanticSearch);
+      
+      const searchResult = await knowledgeOperations.semanticSearch(query, {
+        maxResults: parseInt(options.limit),
         threshold: parseFloat(options.threshold)
       });
 
       // Display results
-      console.log('\nSearch Results:');
-      results.forEach((result: { title: string; score: number; path: string; excerpt?: string }, index: number) => {
-        console.log(`\n${index + 1}. ${result.title}`);
-        console.log(`   Relevance: ${(result.score * 100).toFixed(1)}%`);
-        console.log(`   Path: ${result.path}`);
-        if (result.excerpt) {
-          console.log(`   Excerpt: ${result.excerpt}`);
+      if (searchResult.success && searchResult.results.length > 0) {
+        console.log(`\nSearch Results (${searchResult.totalResults} found in ${searchResult.processingTime}ms):`);
+        searchResult.results.forEach((result: any, index: number) => {
+          console.log(`\n${index + 1}. ${result.filePath}`);
+          console.log(`   Relevance: ${(result.similarity * 100).toFixed(1)}%`);
+          console.log(`   Chunk: ${result.chunkIndex}`);
+          if (result.content) {
+            const excerpt = result.content.substring(0, 200) + (result.content.length > 200 ? '...' : '');
+            console.log(`   Content: ${excerpt}`);
+          }
+        });
+      } else {
+        console.log(`\nNo results found for "${query}"`);
+        if (!searchResult.success) {
+          console.log('Search failed - check server logs for details');
         }
-      });
+      }
     } catch (error) {
       console.error('Search failed:', error);
       process.exit(1);

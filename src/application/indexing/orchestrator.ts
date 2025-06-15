@@ -20,6 +20,7 @@ import {
   IFileParsingService,
   IChunkingService,
   IEmbeddingService,
+  IVectorSearchService,
   ICacheService,
   ILoggingService,
   IConfigurationService,
@@ -31,11 +32,11 @@ import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js'
 
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
-
   constructor(
     private readonly fileParsingService: IFileParsingService,
     private readonly chunkingService: IChunkingService,
     private readonly embeddingService: IEmbeddingService,
+    private readonly vectorSearchService: IVectorSearchService,
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
     private readonly configService: IConfigurationService,
@@ -216,8 +217,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     fingerprints: FileFingerprint[],
     options: IndexingOptions,
     status: IndexingStatus
-  ): Promise<IndexingResult> {
-    const result: IndexingResult = {
+  ): Promise<IndexingResult> {    const result: IndexingResult = {
       success: true,
       filesProcessed: 0,
       chunksGenerated: 0,
@@ -230,6 +230,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     let totalBytes = 0;
     let totalWords = 0;
     const chunkSizes: number[] = [];
+    const allEmbeddings: any[] = [];
+    const allMetadata: any[] = [];
 
     for (const fingerprint of fingerprints) {
       status.currentFile = fingerprint.path;
@@ -237,6 +239,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       try {
         const fileResult = await this.processFile(fingerprint.path, options);
         this.mergeFileResult(result, fileResult);
+        
+        // Collect embeddings and metadata for vector index
+        if (fileResult.embeddings && fileResult.metadata) {
+          allEmbeddings.push(...fileResult.embeddings);
+          allMetadata.push(...fileResult.metadata);
+        }
 
         status.progress.processedFiles++;
         this.updateProgress(status);
@@ -254,18 +262,34 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.error('File processing failed', error instanceof Error ? error : new Error(String(error)), { 
           filePath: fingerprint.path 
         });
+      }    }
+
+    // 4. Build vector index if embeddings were created
+    if (result.embeddingsCreated > 0) {
+      try {
+        this.loggingService.info('Building vector index', { 
+          embeddingsCount: result.embeddingsCreated 
+        });
+          // For now, just enable the index (actual implementation TBD)
+        await this.vectorSearchService.buildIndex(allEmbeddings, allMetadata);
+        
+        this.loggingService.info('Vector index built successfully');
+      } catch (error) {
+        this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
+        // Don't fail the whole indexing for vector index issues
       }
     }
 
     result.success = result.errors.length === 0;
     return result;
   }
-
   private async processFile(filePath: string, options: IndexingOptions): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
     words: number;
+    embeddings?: any[];
+    metadata?: any[];
   }> {
     // Parse file content - need to determine file type
     const fileType = this.getFileType(filePath);
@@ -281,9 +305,21 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
     // Generate embeddings if not skipped
     let embeddingsCreated = 0;
+    let embeddings: any[] = [];
+    let metadata: any[] = [];
+    
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
-      const embeddings = await this.embeddingService.generateEmbeddings(chunks);
+      embeddings = await this.embeddingService.generateEmbeddings(chunks);
       embeddingsCreated = embeddings.length;
+        // Create metadata for each chunk
+      metadata = chunks.map((chunk, index) => ({
+        filePath,
+        chunkId: `${filePath}_chunk_${index}`,
+        chunkIndex: index,
+        content: chunk.content,
+        startPosition: chunk.startPosition,
+        endPosition: chunk.endPosition
+      }));
     }
 
     // Cache the processed content using available cache methods
@@ -292,14 +328,18 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       parsedContent,
       chunks,
       processedAt: new Date().toISOString()
-    }, 'metadata');
-
-    return {
+    }, 'metadata');    return {
       chunksGenerated: chunks.length,
       embeddingsCreated,
       bytes: parsedContent.content.length,
-      words: this.countWords(parsedContent.content)
+      words: this.estimateWordCount(parsedContent.content),
+      embeddings,
+      metadata
     };
+  }
+
+  private estimateWordCount(content: string): number {
+    return content.trim().split(/\s+/).filter(word => word.length > 0).length;
   }
 
   private mergeFileResult(target: IndexingResult, source: {

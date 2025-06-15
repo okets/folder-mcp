@@ -36,4 +36,12 @@ export abstract class BaseCommand extends Command {
     const container = this.getContainer(folderPath, logLevel);
     return container.resolve(token) as T;
   }
+
+  /**
+   * Helper method to resolve an async service from the container
+   */
+  protected async resolveServiceAsync<T>(folderPath: string, token: symbol, logLevel: 'debug' | 'info' | 'warn' | 'error' = 'info'): Promise<T> {
+    const container = this.getContainer(folderPath, logLevel);
+    return await container.resolveAsync(token) as T;
+  }
 }

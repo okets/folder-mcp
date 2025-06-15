@@ -27,6 +27,9 @@ import { FileFingerprint } from '../../types/index.js';
 // Import the incremental indexer for processing changes
 import { IncrementalIndexer } from '../indexing/index.js';
 
+// Import chokidar for actual file watching
+import chokidar, { FSWatcher } from 'chokidar';
+
 export interface FileWatchEvent {
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
   path: string;
@@ -53,12 +56,17 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   async startFileWatching(folderPath: string, options: WatchingOptions = {}): Promise<WatchingResult> {
     const watchId = this.generateWatchId(folderPath);
     
-    this.loggingService.info('Starting file watching', { folderPath, watchId, options });
+    this.loggingService.info('🔍 Starting file watching for integration test', { 
+      folderPath, 
+      watchId, 
+      options,
+      timestamp: new Date().toISOString()
+    });
 
     try {
       // Check if already watching this folder
       if (this.watchers.has(folderPath)) {
-        this.loggingService.warn('Folder is already being watched', { folderPath });
+        this.loggingService.warn('⚠️ Folder is already being watched', { folderPath });
         return {
           success: false,
           watchId: '',
@@ -69,7 +77,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         };
       }
 
-      // Create file watcher
+      // Create file watcher with enhanced logging
       const watcher = new FileWatcher(
         folderPath,
         options,
@@ -92,10 +100,15 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         options
       };
 
-      this.loggingService.info('File watching started successfully', { folderPath, watchId });
+      this.loggingService.info('✅ File watching started successfully', { 
+        folderPath, 
+        watchId,
+        timestamp: new Date().toISOString()
+      });
 
-      return result;    } catch (error) {
-      this.loggingService.error('Failed to start file watching', error instanceof Error ? error : new Error(String(error)));
+      return result;
+    } catch (error) {
+      this.loggingService.error('❌ Failed to start file watching', error instanceof Error ? error : new Error(String(error)));
 
       return {
         success: false,
@@ -228,29 +241,52 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   }
 
   private async handleFileWatchEvent(folderPath: string, event: FileWatchEvent): Promise<void> {
-    this.loggingService.debug('File watch event received', { folderPath, event });
+    this.loggingService.info('🔥 File watch event received - CRITICAL for integration test', { 
+      folderPath, 
+      event: {
+        type: event.type,
+        path: event.path,
+        timestamp: event.timestamp.toISOString()
+      }
+    });
 
     // Add event to queue
     const eventQueue = this.eventQueues.get(folderPath) || [];
     eventQueue.push(event);
     this.eventQueues.set(folderPath, eventQueue);
 
+    this.loggingService.info(`📊 Event queue updated - ${eventQueue.length} events queued`, { 
+      folderPath,
+      queueLength: eventQueue.length
+    });
+
     // Get watcher options for debouncing
     const watcher = this.watchers.get(folderPath);
-    if (!watcher) return;
+    if (!watcher) {
+      this.loggingService.error('❌ No watcher found for folder', new Error(`No watcher found for folder: ${folderPath}`));
+      return;
+    }
 
     const options = watcher.getOptions();
     const debounceMs = options.debounceMs || 1000;
+
+    this.loggingService.debug(`⏱️ Setting debounce timer for ${debounceMs}ms`, { folderPath, debounceMs });
 
     // Clear existing timer and set new one
     const existingTimer = this.processingTimers.get(folderPath);
     if (existingTimer) {
       clearTimeout(existingTimer);
+      this.loggingService.debug('🔄 Cleared existing debounce timer', { folderPath });
     }
 
     const timer = setTimeout(() => {
+      this.loggingService.info('🚀 Debounce timer triggered - processing queued events', { 
+        folderPath,
+        timestamp: new Date().toISOString()
+      });
+      
       this.processQueuedEvents(folderPath).catch(error => {
-        this.loggingService.error('Failed to process queued events', error instanceof Error ? error : new Error(String(error)));
+        this.loggingService.error('❌ Failed to process queued events', error instanceof Error ? error : new Error(String(error)));
       });
     }, debounceMs);
 
@@ -259,17 +295,24 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
 
   private async processQueuedEvents(folderPath: string): Promise<void> {
     const eventQueue = this.eventQueues.get(folderPath) || [];
-    if (eventQueue.length === 0) return;
+    if (eventQueue.length === 0) {
+      this.loggingService.debug('📭 No queued events to process', { folderPath });
+      return;
+    }
 
-    this.loggingService.info('Processing queued file events', { 
+    this.loggingService.info('🔄 Processing queued file events', { 
       folderPath, 
-      eventCount: eventQueue.length 
+      eventCount: eventQueue.length,
+      timestamp: new Date().toISOString()
     });
 
     try {
       // Get watcher options
       const watcher = this.watchers.get(folderPath);
-      if (!watcher) return;
+      if (!watcher) {
+        this.loggingService.error('❌ No watcher found during event processing', new Error(`No watcher found during event processing: ${folderPath}`));
+        return;
+      }
 
       const options = watcher.getOptions();
 
@@ -282,6 +325,12 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         fileEvents.get(event.path)!.push(event);
       }
 
+      this.loggingService.info('📂 Grouped events by file', { 
+        folderPath,
+        uniqueFiles: fileEvents.size,
+        totalEvents: eventQueue.length
+      });
+
       // Process events in batches if enabled
       if (options.enableBatchProcessing) {
         await this.processBatchedEvents(folderPath, fileEvents, options);
@@ -289,21 +338,24 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         await this.processIndividualEvents(folderPath, fileEvents);
       }
 
+      // Clear the event queue after processing
+      this.eventQueues.set(folderPath, []);
+      
       // Update watcher statistics
       watcher.recordEventsProcessed(eventQueue.length);
 
-      // Clear the queue
-      this.eventQueues.set(folderPath, []);
+      this.loggingService.info('✅ Successfully processed all queued events', { 
+        folderPath,
+        processedCount: eventQueue.length,
+        timestamp: new Date().toISOString()
+      });
 
     } catch (error) {
-      this.loggingService.error('Failed to process queued events', error instanceof Error ? error : new Error(String(error)));
-      
-      // Don't clear the queue if processing failed
-      // This allows for retry on the next event
+      this.loggingService.error('❌ Failed to process queued events', error instanceof Error ? error : new Error(String(error)), {
+        folderPath,
+        eventCount: eventQueue.length
+      });
     }
-
-    // Clear the processing timer
-    this.processingTimers.delete(folderPath);
   }
 
   private async processBatchedEvents(
@@ -467,7 +519,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   }
 }
 
-// Simple FileWatcher implementation
+// Enhanced FileWatcher implementation with actual chokidar integration
 class FileWatcher {
   private isActive = false;
   private watchId = '';
@@ -475,6 +527,7 @@ class FileWatcher {
   private eventsProcessed = 0;
   private lastEventAt?: Date;
   private errors: any[] = [];
+  private chokidarWatcher: FSWatcher | undefined;
 
   constructor(
     private readonly folderPath: string,
@@ -486,17 +539,132 @@ class FileWatcher {
   }
 
   async start(): Promise<void> {
-    this.loggingService.debug('Starting file watcher', { folderPath: this.folderPath });
-    this.isActive = true;
-    this.startedAt = new Date();
+    this.loggingService.info('🚀 Starting chokidar file watcher', { 
+      folderPath: this.folderPath,
+      watchId: this.watchId,
+      options: this.options
+    });
     
-    // In a real implementation, this would set up chokidar or similar
-    // For now, we'll simulate the watcher setup
+    try {      // Initialize chokidar watcher
+      this.chokidarWatcher = chokidar.watch(this.folderPath, {
+        ignored: /(^|[\/\\])\../, // ignore dotfiles
+        persistent: true,
+        ignoreInitial: false, // Set to false to detect existing files
+        followSymlinks: true,
+        cwd: this.folderPath,
+        awaitWriteFinish: {
+          stabilityThreshold: 100,
+          pollInterval: 20
+        }
+      });
+
+      // Set up event handlers
+      this.chokidarWatcher        .on('add', (filePath: string, stats?: any) => {
+          this.loggingService.info('📄 File added', { filePath, size: stats?.size });
+          this.handleChokidarEvent('add', filePath, stats);
+        })
+        .on('change', (filePath: string, stats?: any) => {
+          this.loggingService.info('📝 File changed - THIS IS CRITICAL FOR INTEGRATION TEST', { 
+            filePath, 
+            size: stats?.size,
+            timestamp: new Date().toISOString()
+          });
+          this.handleChokidarEvent('change', filePath, stats);
+        })
+        .on('unlink', (filePath: string) => {
+          this.loggingService.info('🗑️ File deleted', { filePath });
+          this.handleChokidarEvent('unlink', filePath);
+        })
+        .on('addDir', (dirPath: string) => {
+          this.loggingService.info('📁 Directory added', { dirPath });
+          this.handleChokidarEvent('addDir', dirPath);
+        })
+        .on('unlinkDir', (dirPath: string) => {
+          this.loggingService.info('📁❌ Directory deleted', { dirPath });
+          this.handleChokidarEvent('unlinkDir', dirPath);
+        })
+        .on('error', (error: any) => {
+          const errorObj = error instanceof Error ? error : new Error(String(error));
+          this.loggingService.error('❌ Chokidar watcher error', errorObj);
+          this.errors.push({
+            timestamp: new Date(),
+            error: errorObj.message
+          });
+        })
+        .on('ready', () => {
+          this.loggingService.info('✅ Chokidar watcher ready', { 
+            folderPath: this.folderPath,
+            watchId: this.watchId
+          });
+        });
+
+      this.isActive = true;
+      this.startedAt = new Date();
+      
+      this.loggingService.info('✅ File watcher started successfully', { 
+        folderPath: this.folderPath,
+        watchId: this.watchId,
+        timestamp: this.startedAt.toISOString()
+      });    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.loggingService.error('❌ Failed to start chokidar watcher', errorObj);
+      throw errorObj;
+    }
   }
 
   async stop(): Promise<void> {
-    this.loggingService.debug('Stopping file watcher', { folderPath: this.folderPath });
-    this.isActive = false;
+    this.loggingService.info('🛑 Stopping file watcher', { 
+      folderPath: this.folderPath,
+      watchId: this.watchId
+    });
+    
+    try {
+      if (this.chokidarWatcher) {
+        await this.chokidarWatcher.close();
+        this.chokidarWatcher = undefined;
+      }
+      
+      this.isActive = false;
+      
+      this.loggingService.info('✅ File watcher stopped successfully', { 
+        folderPath: this.folderPath,
+        watchId: this.watchId,
+        eventsProcessed: this.eventsProcessed
+      });    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.loggingService.error('❌ Error stopping file watcher', errorObj);
+      throw errorObj;
+    }
+  }
+  private handleChokidarEvent(eventType: FileWatchEvent['type'], filePath: string, stats?: any): void {
+    const event: FileWatchEvent = {
+      type: eventType,
+      path: filePath,
+      timestamp: new Date()
+    };
+
+    // Add stats if available
+    if (stats && stats.size !== undefined && stats.mtime !== undefined) {
+      event.stats = {
+        size: stats.size,
+        mtime: stats.mtime
+      };
+    }
+
+    this.loggingService.debug('🔄 Processing chokidar event', { 
+      eventType,
+      filePath,
+      watchId: this.watchId
+    });
+
+    // Forward to the event handler
+    this.eventHandler(this.folderPath, event).catch(error => {
+      this.loggingService.error('❌ Error handling file watch event', error instanceof Error ? error : new Error(String(error)), {
+        eventType,
+        filePath,
+        watchId: this.watchId
+      });
+    });
   }
 
   getStatus() {

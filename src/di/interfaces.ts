@@ -292,7 +292,7 @@ export interface IContentServingWorkflow {
  * Provides advanced search and knowledge operations
  */
 export interface IKnowledgeOperations {
-  semanticSearch(query: string, options: any): Promise<any>;
+  semanticSearch(query: string, options: { maxResults?: number; threshold?: number; includeContext?: boolean }): Promise<{ success: boolean; results: any[]; totalResults: number; processingTime: number; query: string; options: any }>;
   enhancedSearch(query: string, options: any): Promise<any>;
   getRelatedContent(filePath: string, similarity?: number): Promise<any>;
 }
