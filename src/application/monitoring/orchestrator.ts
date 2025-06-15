@@ -356,9 +356,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         eventCount: eventQueue.length
       });
     }
-  }
-
-  private async processBatchedEvents(
+  }  private async processBatchedEvents(
     folderPath: string, 
     fileEvents: Map<string, FileWatchEvent[]>,
     options: WatchingOptions
@@ -372,10 +370,60 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
       const changedFiles = batch.filter(path => this.shouldProcessFile(path, fileEvents.get(path)!));
       
       if (changedFiles.length > 0) {
-        // Simplified processing without indexFiles method
-        this.loggingService.debug(`Processing batch of ${changedFiles.length} files`);
-        for (const filePath of changedFiles) {
-          this.loggingService.debug(`Processing file: ${filePath}`);
+        this.loggingService.info(`🔄 Processing batch of ${changedFiles.length} changed files`, {
+          folderPath,
+          batchIndex: Math.floor(i / batchSize) + 1,
+          files: changedFiles
+        });
+        
+        try {
+          // Create a simple change detection result for these files
+          const changes = {
+            newFiles: changedFiles.filter(path => {
+              const events = fileEvents.get(path) || [];
+              return events.some(e => e.type === 'add');
+            }),
+            modifiedFiles: changedFiles.filter(path => {
+              const events = fileEvents.get(path) || [];
+              return events.some(e => e.type === 'change');
+            }),
+            deletedFiles: changedFiles.filter(path => {
+              const events = fileEvents.get(path) || [];
+              return events.some(e => e.type === 'unlink');
+            }),
+            unchangedFiles: [],
+            summary: {
+              totalChanges: changedFiles.length,
+              estimatedProcessingTime: changedFiles.length * 1000,
+              requiresFullReindex: false
+            }
+          };
+          
+          // Use incremental indexer to process the changes
+          const result = await this.incrementalIndexer.indexChanges(changes, {
+            includeFileTypes: options.includeFileTypes || ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            excludePatterns: options.excludePatterns || [],
+            forceReindex: false // Incremental updates
+          });
+          
+          this.loggingService.info(`✅ Batch processing completed`, {
+            folderPath,
+            filesProcessed: result.filesProcessed,
+            chunksGenerated: result.chunksGenerated,
+            embeddingsCreated: result.embeddingsCreated,
+            errors: result.errors.length
+          });
+          
+          if (result.errors.length > 0) {
+            this.loggingService.warn(`⚠️ Batch had ${result.errors.length} errors`, {
+              errors: result.errors.map((e: any) => ({ file: e.filePath, error: e.error }))
+            });
+          }
+        } catch (error) {
+          this.loggingService.error('❌ Batch processing failed', error instanceof Error ? error : new Error(String(error)), {
+            folderPath,
+            files: changedFiles
+          });
         }
       }
     }
@@ -387,11 +435,50 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   ): Promise<void> {
     for (const [filePath, events] of fileEvents) {
       if (this.shouldProcessFile(filePath, events)) {
+        this.loggingService.info(`🔄 Processing individual file change`, { 
+          filePath,
+          eventCount: events.length,
+          eventTypes: events.map(e => e.type)
+        });
+        
         try {
-          // Simplified processing without indexFiles method
-          this.loggingService.debug(`Processing file: ${filePath}`);
+          // Create a simple change detection result for this file
+          const changes = {
+            newFiles: events.some(e => e.type === 'add') ? [filePath] : [],
+            modifiedFiles: events.some(e => e.type === 'change') ? [filePath] : [],
+            deletedFiles: events.some(e => e.type === 'unlink') ? [filePath] : [],
+            unchangedFiles: [],
+            summary: {
+              totalChanges: 1,
+              estimatedProcessingTime: 1000,
+              requiresFullReindex: false
+            }
+          };
+          
+          // Use incremental indexer to process the change
+          const result = await this.incrementalIndexer.indexChanges(changes, {
+            includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            excludePatterns: [],
+            forceReindex: false // Incremental updates
+          });
+          
+          this.loggingService.info(`✅ File processing completed`, {
+            filePath,
+            chunksGenerated: result.chunksGenerated,
+            embeddingsCreated: result.embeddingsCreated,
+            success: result.success
+          });
+          
+          if (result.errors.length > 0) {
+            this.loggingService.warn(`⚠️ File processing had errors`, {
+              filePath,
+              errors: result.errors.map((e: any) => e.error)
+            });
+          }
         } catch (error) {
-          this.loggingService.error('Failed to process individual file', error instanceof Error ? error : new Error(String(error)));
+          this.loggingService.error('❌ Individual file processing failed', error instanceof Error ? error : new Error(String(error)), {
+            filePath
+          });
         }
       }
     }

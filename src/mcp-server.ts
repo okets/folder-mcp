@@ -15,6 +15,7 @@ import { SERVICE_TOKENS } from './di/interfaces.js';
 import type { MCPServer } from './interfaces/mcp/index.js';
 import type { ITransportManager, TransportManagerConfig } from './transport/interfaces.js';
 import type { IndexingWorkflow } from './application/indexing/index.js';
+import type { MonitoringWorkflow } from './application/monitoring/index.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -110,15 +111,47 @@ export async function main(): Promise<void> {
       debug('Auto-indexing failed (non-critical):', errorMessage);
       if (errorStack) {
         debug('Error stack:', errorStack);
+      }      // Don't fail the server startup if indexing fails
+    }    debug('Starting real-time file watching...');
+    // Start file watching for real-time updates
+    try {
+      const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
+      const watchingResult = await monitoringWorkflow.startFileWatching(folderPath, {
+        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        excludePatterns: ['node_modules', '.git', '.folder-mcp'],
+        debounceMs: 1000,
+        enableBatchProcessing: true,
+        batchSize: 10
+      });
+      
+      if (watchingResult.success) {
+        debug(`✅ File watching started successfully - Watch ID: ${watchingResult.watchId}`);
+        debug(`📁 Monitoring folder: ${folderPath}`);
+        debug(`⏱️ Debounce delay: 1000ms`);
+      } else {
+        debug(`❌ File watching failed to start: ${watchingResult.error}`);
       }
-      // Don't fail the server startup if indexing fails
-    }
-
-    // Handle graceful shutdown
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      debug('File watching startup failed (non-critical):', errorMessage);
+      if (errorStack) {
+        debug('Error stack:', errorStack);
+      }
+      // Don't fail the server startup if file watching fails
+    }    // Handle graceful shutdown
     const shutdown = async () => {
       debug('Shutting down MCP server...');
-      try {
-        // Stop transport layer first
+      try {        // Stop file watching first
+        try {
+          const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
+          await monitoringWorkflow.stopFileWatching(folderPath);
+          debug('File watching stopped successfully');
+        } catch (error) {
+          debug('File watching shutdown failed (non-critical):', error);
+        }
+        
+        // Stop transport layer
         try {
           const transportManager = container.resolve(SERVICE_TOKENS.TRANSPORT_MANAGER) as ITransportManager;
           await transportManager.stop();
