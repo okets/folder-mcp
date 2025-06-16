@@ -22,10 +22,10 @@ import {
 } from './interfaces.js';
 
 // Import domain infrastructure provider interfaces
-import { 
-  FileSystemProvider, 
-  CryptographyProvider, 
-  PathProvider 
+import {
+  FileSystemProvider,
+  CryptographyProvider,
+  PathProvider
 } from '../domain/index.js';
 
 import { DEFAULT_VSCODE_MCP_CONFIG } from '../config/vscode-mcp.js';
@@ -42,7 +42,7 @@ import {
 } from './services.js';
 
 // Import enhanced logging infrastructure
-import { 
+import {
   LoggingService as EnhancedLoggingService,
   ConsoleLogFormatter,
   JsonLogFormatter,
@@ -73,7 +73,7 @@ export class ServiceFactory implements IServiceFactory {
     if (!this.loggingService) {
       // Use enhanced logging infrastructure with MCP protocol compliance
       const logLevel = config?.level || 'info';
-      
+
       let infraLogger;
       if (config?.enableFileLogging) {
         // Create dual logger (console + file) for production
@@ -84,7 +84,7 @@ export class ServiceFactory implements IServiceFactory {
         // Create console-only logger for development
         infraLogger = createConsoleLogger(logLevel);
       }
-      
+
       // Bridge to DI interface
       this.loggingService = new LoggingServiceBridge(infraLogger);
     }
@@ -130,7 +130,7 @@ export class ServiceFactory implements IServiceFactory {
     const fileSystemProvider = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as FileSystemProvider;
     const cryptographyProvider = container.resolve(SERVICE_TOKENS.DOMAIN_CRYPTOGRAPHY_PROVIDER) as CryptographyProvider;
     const pathProvider = container.resolve(SERVICE_TOKENS.DOMAIN_PATH_PROVIDER) as PathProvider;
-    
+
     return new FileSystemService(
       loggingService,
       fileSystemProvider,
@@ -152,13 +152,14 @@ export class ServiceFactory implements IServiceFactory {
     config: ResolvedConfig,
     folderPath: string,
     container: DependencyContainer
-  ): IndexingOrchestrator {    return this.createIndexingOrchestrator(container);
+  ): IndexingOrchestrator {
+    return this.createIndexingOrchestrator(container);
   }
 
   // =============================================================================
   // Application Layer Factory Methods
   // =============================================================================
-    createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
+  createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
     return new IndexingOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CHUNKING),
@@ -172,25 +173,25 @@ export class ServiceFactory implements IServiceFactory {
   }
   createIncrementalIndexer(container: DependencyContainer): IncrementalIndexer {
     const indexingOrchestrator = this.createIndexingOrchestrator(container);
-    
+
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       indexingOrchestrator
     );
-  }  async createContentServingOrchestrator(container: DependencyContainer): Promise<any> {
+  } async createContentServingOrchestrator(container: DependencyContainer): Promise<any> {
     // Create the actual ContentServingOrchestrator with proper dependencies
     try {
       const { ContentServingOrchestrator } = await import('../application/serving/orchestrator.js');
-      
+
       const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as IFileParsingService;
       const cacheService = container.resolve(SERVICE_TOKENS.CACHE) as ICacheService;
       const vectorSearchService = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
       const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
       const configService = container.resolve(SERVICE_TOKENS.CONFIGURATION) as IConfigurationService;
       const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as IEmbeddingService;
-      
+
       return new ContentServingOrchestrator(
         fileParsingService,
         cacheService,
@@ -198,7 +199,8 @@ export class ServiceFactory implements IServiceFactory {
         loggingService,
         configService,
         embeddingService
-      );    } catch (error) {
+      );
+    } catch (error) {
       // Get logging service to log the error properly
       try {
         const loggingService = this.getLoggingService();
@@ -209,13 +211,13 @@ export class ServiceFactory implements IServiceFactory {
       }
       throw error;
     }
-  }  async createKnowledgeOperationsService(container: DependencyContainer): Promise<any> {
+  } async createKnowledgeOperationsService(container: DependencyContainer): Promise<any> {
     try {
       const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
       loggingService.debug('Creating KnowledgeOperationsService...');
       const { KnowledgeOperationsService } = await import('../application/serving/knowledge.js');
       loggingService.debug('Imported KnowledgeOperationsService');
-      
+
       loggingService.debug('Resolving dependencies...');
       const vectorSearch = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH);
       const cache = container.resolve(SERVICE_TOKENS.CACHE);
@@ -223,7 +225,7 @@ export class ServiceFactory implements IServiceFactory {
       const fileParsing = container.resolve(SERVICE_TOKENS.FILE_PARSING);
       const embedding = container.resolve(SERVICE_TOKENS.EMBEDDING);
       loggingService.debug('Resolved all dependencies for KnowledgeOperationsService');
-        const service = new KnowledgeOperationsService(
+      const service = new KnowledgeOperationsService(
         vectorSearch as any,
         cache as any,
         logging as any,
@@ -271,9 +273,9 @@ export class ServiceFactory implements IServiceFactory {
       createTransport: async (config: any) => {
         // Return a stub transport
         return {
-          initialize: async () => {},
-          start: async () => {},
-          stop: async () => {},
+          initialize: async () => { },
+          start: async () => { },
+          stop: async () => { },
           isHealthy: async () => true
         };
       },
@@ -287,59 +289,75 @@ export class ServiceFactory implements IServiceFactory {
   createTransportManager(container: DependencyContainer): any {
     // For now, return a stub implementation
     return {
-      initialize: async () => {},
-      startAll: async () => {},
-      stopAll: async () => {},
+      initialize: async () => { },
+      startAll: async () => { },
+      stopAll: async () => { },
       getActiveTransports: () => []
     };
-  }  async createMCPServer(
+  } async createMCPServer(
     options: any,
     container: DependencyContainer
   ): Promise<any> {
     // Get required services
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
-    
-    // Try to get application layer services (may not be available in all configurations)
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;    // Resolve required application services with proper error handling
+    const serviceErrors: string[] = [];
     let knowledgeOperations = null;
     let contentServingWorkflow = null;
     let monitoringWorkflow = null;
-    
+
     try {
-      knowledgeOperations = await container.resolve(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
+      knowledgeOperations = await container.resolveAsync(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
     } catch (e) {
-      // Service not available, will use mock
+      serviceErrors.push(`Knowledge Operations: ${e instanceof Error ? e.message : String(e)}`);
     }
-    
+
     try {
-      contentServingWorkflow = await container.resolve(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
+      contentServingWorkflow = await container.resolveAsync(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
     } catch (e) {
-      // Service not available, will use mock
+      serviceErrors.push(`Content Serving Workflow: ${e instanceof Error ? e.message : String(e)}`);
     }
-    
+
     try {
-      monitoringWorkflow = await container.resolve(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
+      monitoringWorkflow = await container.resolveAsync(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
     } catch (e) {
-      // Service not available, will use mock
-    }
-    
-    // Create service adapters if we have the real services
-    let searchService = null;
-    let navigationService = null;
-    let documentService = null;
-    let specializedService = null;
-      if (knowledgeOperations && contentServingWorkflow && monitoringWorkflow) {
-      const { 
-        SearchServiceAdapter, 
-        NavigationServiceAdapter, 
-        DocumentServiceAdapter, 
-        SpecializedServiceAdapter 
-      } = await import('../interfaces/mcp/adapters.js');
+      serviceErrors.push(`Monitoring Workflow: ${e instanceof Error ? e.message : String(e)}`);
+    }    // FAIL FAST: If ANY core service is missing, throw detailed error
+    if (!knowledgeOperations || !contentServingWorkflow || !monitoringWorkflow) {
+      const missingServices = [];
+      if (!knowledgeOperations) missingServices.push('Knowledge Operations');
+      if (!contentServingWorkflow) missingServices.push('Content Serving Workflow');  
+      if (!monitoringWorkflow) missingServices.push('Monitoring Workflow');
       
-      searchService = new SearchServiceAdapter(knowledgeOperations, loggingService);
-      navigationService = new NavigationServiceAdapter(contentServingWorkflow, loggingService);
-      documentService = new DocumentServiceAdapter(contentServingWorkflow, loggingService);
-      specializedService = new SpecializedServiceAdapter(monitoringWorkflow, loggingService);    }
+      const errorDetails = serviceErrors.length > 0 ? `\nService resolution errors:\n${serviceErrors.join('\n')}` : '';
+      
+      throw new Error(
+        `Critical MCP services are not available: ${missingServices.join(', ')}\n` +
+        `Cannot start MCP server without all required services.${errorDetails}\n` +
+        `Please ensure the application services are properly configured and initialized.`
+      );
+    }
     
+    // Log resolved services for debugging
+    loggingService.info('Successfully resolved application services', {
+      knowledgeOperationsType: typeof knowledgeOperations,
+      contentServingWorkflowType: typeof contentServingWorkflow,
+      monitoringWorkflowType: typeof monitoringWorkflow,
+      knowledgeOperationsKeys: Object.keys(knowledgeOperations || {}),
+      contentServingWorkflowKeys: Object.keys(contentServingWorkflow || {}),
+      monitoringWorkflowKeys: Object.keys(monitoringWorkflow || {})
+    });
+
+    // Create service adapters with validated real services
+    const {
+      SearchServiceAdapter,
+      NavigationServiceAdapter,
+      DocumentServiceAdapter,
+      SpecializedServiceAdapter
+    } = await import('../interfaces/mcp/adapters.js');    const searchService = new SearchServiceAdapter(knowledgeOperations as any, loggingService);
+    const navigationService = new NavigationServiceAdapter(contentServingWorkflow as any, loggingService);
+    const documentService = new DocumentServiceAdapter(contentServingWorkflow as any, loggingService);
+    const specializedService = new SpecializedServiceAdapter(monitoringWorkflow as any, loggingService);
+
     return new MCPServer(
       options,
       loggingService,

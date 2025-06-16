@@ -76,12 +76,26 @@ export class MCPServer {
     this.transport = new MCPTransport(this.logger);
     this.basicHandler = new BasicHandler(this.logger);
     
-    // Initialize document intelligence handlers
-    this.searchHandler = new SearchHandler(this.logger, this.searchService || this.createMockSearchService());
-    this.navigationHandler = new NavigationHandler(this.logger, this.navigationService || this.createMockNavigationService());
-    this.documentAccessHandler = new DocumentAccessHandler(this.logger, this.documentService || this.createMockDocumentService());
-    this.summarizationHandler = new SummarizationHandler(this.logger, this.summarizationService || this.createMockSummarizationService());
-    this.specializedHandler = new SpecializedHandler(this.logger, this.specializedService || this.createMockSpecializedService());
+    // Initialize document intelligence handlers with required services
+    // FAIL FAST: No mock fallbacks in production
+    if (!this.searchService) {
+      throw new Error('Search service is required but not provided. Cannot initialize MCP server.');
+    }
+    if (!this.navigationService) {
+      throw new Error('Navigation service is required but not provided. Cannot initialize MCP server.');
+    }
+    if (!this.documentService) {
+      throw new Error('Document service is required but not provided. Cannot initialize MCP server.');
+    }
+    if (!this.specializedService) {
+      throw new Error('Specialized service is required but not provided. Cannot initialize MCP server.');
+    }
+    
+    this.searchHandler = new SearchHandler(this.logger, this.searchService);
+    this.navigationHandler = new NavigationHandler(this.logger, this.navigationService);
+    this.documentAccessHandler = new DocumentAccessHandler(this.logger, this.documentService);
+    this.summarizationHandler = new SummarizationHandler(this.logger, this.summarizationService || this.createMockSummarizationService()); // TODO: Remove when implemented
+    this.specializedHandler = new SpecializedHandler(this.logger, this.specializedService);
     this.resourcesHandler = new MCPResourcesHandler(this.logger);
 
     // Register handlers
