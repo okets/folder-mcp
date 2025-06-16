@@ -28,7 +28,7 @@ import {
   PathProvider
 } from '../domain/index.js';
 
-import { DEFAULT_VSCODE_MCP_CONFIG } from '../config/vscode-mcp.js';
+import { DEFAULT_ENHANCED_MCP_CONFIG } from '../config/enhanced-mcp.js';
 
 import {
   ConfigurationService,
@@ -356,12 +356,15 @@ export class ServiceFactory implements IServiceFactory {
     } = await import('../interfaces/mcp/adapters.js');    const searchService = new SearchServiceAdapter(knowledgeOperations as any, loggingService);
     const navigationService = new NavigationServiceAdapter(contentServingWorkflow as any, loggingService);
     const documentService = new DocumentServiceAdapter(contentServingWorkflow as any, loggingService);
-    const specializedService = new SpecializedServiceAdapter(monitoringWorkflow as any, loggingService);
-
-    return new MCPServer(
+    const specializedService = new SpecializedServiceAdapter(monitoringWorkflow as any, loggingService);    // Determine if VSCode-specific features should be enabled    // Only enable if explicitly requested via environment variable or config
+    const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true' || 
+                                   options.enableEnhancedFeatures === true;
+    
+    const enhancedConfig = enableEnhancedFeatures ? DEFAULT_ENHANCED_MCP_CONFIG : null;
+      return new MCPServer(
       options,
       loggingService,
-      DEFAULT_VSCODE_MCP_CONFIG, // VSCode MCP configuration
+      enhancedConfig, // Enhanced MCP configuration (null = standard MCP only)
       searchService,
       navigationService,
       documentService,

@@ -11,6 +11,7 @@ export interface MCPServerOptions {
   transport?: 'stdio';
   name?: string;
   version?: string;
+  enableEnhancedFeatures?: boolean;
 }
 
 export interface MCPServerCapabilities {

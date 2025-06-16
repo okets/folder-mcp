@@ -28,7 +28,7 @@ import {
   MCPResourcesHandler
 } from './handlers/index.js';
 import { MCPTransport } from './transport.js';
-import { DEFAULT_VSCODE_MCP_CONFIG, formatToolSetsForVSCode, type VSCodeMCPConfig } from '../../config/vscode-mcp.js';
+import { DEFAULT_ENHANCED_MCP_CONFIG, formatToolSetsForClients, type EnhancedMCPConfig } from '../../config/enhanced-mcp.js';
 
 export class MCPServer {
   private server: Server;
@@ -41,12 +41,12 @@ export class MCPServer {
   private specializedHandler: SpecializedHandler;
   private resourcesHandler: MCPResourcesHandler;
   private isRunning = false;
-  private vscodeMcpConfig: VSCodeMCPConfig;
+  private enhancedMcpConfig: EnhancedMCPConfig | null;
 
   constructor(
     private readonly options: MCPServerOptions,
     private readonly logger: ILoggingService,
-    vscodeMcpConfig: VSCodeMCPConfig = DEFAULT_VSCODE_MCP_CONFIG,
+    enhancedMcpConfig?: EnhancedMCPConfig | null,
     // TODO: Replace with proper service interfaces when available
     private readonly searchService?: any,
     private readonly navigationService?: any,
@@ -58,8 +58,8 @@ export class MCPServer {
     process.stderr.write('[INFO] Initializing MCP Server\n');
     this.logger.info('Initializing MCP Server', { options: this.options });
 
-    // Initialize VSCode MCP configuration
-    this.vscodeMcpConfig = vscodeMcpConfig || DEFAULT_VSCODE_MCP_CONFIG;
+    // Initialize VSCode MCP configuration (optional - null means standard MCP only)
+    this.enhancedMcpConfig = enhancedMcpConfig || null;
 
     // Initialize server
     this.server = new Server(
@@ -106,20 +106,34 @@ export class MCPServer {
    * Get server capabilities
    */
   private getCapabilities(): any {
-    return {
-      tools: {
-        // Support for tool sets (VSCode 1.101 feature)
-        toolSets: this.vscodeMcpConfig.toolSets ? formatToolSetsForVSCode(this.vscodeMcpConfig) : undefined
-      },
-      // Support for MCP resources (save/drag functionality)
-      resources: this.vscodeMcpConfig.resources?.enableSaveDrag ? {
-        formats: this.vscodeMcpConfig.resources.formats
-      } : undefined,
-      // Support for MCP prompts (slash commands)
-      prompts: this.vscodeMcpConfig.prompts?.enabled ? {
-        prefix: this.vscodeMcpConfig.prompts.prefix
-      } : undefined
+    // Base capabilities for standard MCP protocol
+    const capabilities: any = {
+      tools: {}
     };
+
+    // Add enhanced MCP features if configured  
+    if (this.enhancedMcpConfig) {
+      // Support for tool sets (enhanced MCP feature)
+      if (this.enhancedMcpConfig.toolSets) {
+        capabilities.tools.toolSets = formatToolSetsForClients(this.enhancedMcpConfig);
+      }
+      
+      // Support for MCP resources (save/drag functionality)
+      if (this.enhancedMcpConfig.resources?.enableSaveDrag) {
+        capabilities.resources = {
+          formats: this.enhancedMcpConfig.resources.formats
+        };
+      }
+      
+      // Support for MCP prompts (slash commands)
+      if (this.enhancedMcpConfig.prompts?.enabled) {
+        capabilities.prompts = {
+          prefix: this.enhancedMcpConfig.prompts.prefix
+        };
+      }
+    }
+
+    return capabilities;
   }
 
   /**
