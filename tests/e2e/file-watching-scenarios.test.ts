@@ -232,11 +232,9 @@ See the docs/ folder for detailed documentation.
         ...watchedFiles.map(file => fs.writeFile(file, 'Should be watched')),
       ]);
 
-      await TestUtils.sleep(800);
-
-      // Verify all files exist
+      await TestUtils.sleep(800);      // Verify all files exist
       for (const file of [...ignoredFiles, ...watchedFiles]) {
-        expect(await fs.access(file)).resolves.not.toThrow();
+        expect(fs.access(file)).resolves.not.toThrow();
       }
 
       // File watching should still be active and only processed watched files
@@ -377,11 +375,9 @@ Advanced debouncing ensures optimal performance.
       const renamedPath = path.join(tempDir, 'renamed-document.txt');
       await fs.rename(originalPath, renamedPath);
 
-      await TestUtils.sleep(800);
-
-      // Verify rename was handled
+      await TestUtils.sleep(800);      // Verify rename was handled
       await expect(fs.access(originalPath)).rejects.toThrow();
-      expect(await fs.access(renamedPath)).resolves.not.toThrow();
+      expect(fs.access(renamedPath)).resolves.not.toThrow();
 
       const content = await fs.readFile(renamedPath, 'utf8');
       expect(content).toBe('This is the original document content.');
@@ -468,11 +464,9 @@ Advanced debouncing ensures optimal performance.
       // Wait for processing
       await TestUtils.sleep(3000);
 
-      const processingTime = Date.now() - startTime;
-
-      // Verify all files were created
+      const processingTime = Date.now() - startTime;      // Verify all files were created
       for (const { path: filePath } of largeFiles) {
-        expect(await fs.access(filePath)).resolves.not.toThrow();
+        expect(fs.access(filePath)).resolves.not.toThrow();
       }
 
       // Performance should be reasonable (under 10 seconds for this test)

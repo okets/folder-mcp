@@ -115,7 +115,7 @@ export class TransportManager extends EventEmitter implements ITransportManager 
           transport.on('error', (error) => this.emit('transport-error', error));
           
         } catch (error) {
-          console.error(`Failed to create ${transportConfig.type} transport:`, error);
+          process.stderr.write(`[ERROR] Failed to create ${transportConfig.type} transport: ${error}\n`);
         }
       }
     }
@@ -137,7 +137,7 @@ export class TransportManager extends EventEmitter implements ITransportManager 
       try {
         await transport.start();
       } catch (error) {
-        console.error(`Failed to start ${transport.type} transport:`, error);
+        process.stderr.write(`[ERROR] Failed to start ${transport.type} transport: ${error}\n`);
       }
     });
     
@@ -160,7 +160,7 @@ export class TransportManager extends EventEmitter implements ITransportManager 
       try {
         await transport.stop();
       } catch (error) {
-        console.error(`Failed to stop ${transport.type} transport:`, error);
+        process.stderr.write(`[ERROR] Failed to stop ${transport.type} transport: ${error}\n`);
       }
     });
     
@@ -291,7 +291,7 @@ export class TransportManager extends EventEmitter implements ITransportManager 
         }
       }
     } catch (error) {
-      console.error('Health check failed:', error);
+      process.stderr.write(`[ERROR] Health check failed: ${error}\n`);
     }
   }
 }

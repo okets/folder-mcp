@@ -31,7 +31,6 @@ export {
   FileParsingService,
   ChunkingService,
   EmbeddingService,
-  LoggingService,
   CacheService,
   FileSystemService,
   VectorSearchService

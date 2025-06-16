@@ -225,13 +225,13 @@ export class LocalTransport extends EventEmitter implements ITransport {
     }
     
     // TODO: Create actual Unix socket or Named Pipe
-    console.log(`[LocalTransport] Would start server at ${this.config.socketPath}`);
+    process.stderr.write(`[LocalTransport] Would start server at ${this.config.socketPath}\n`);
   }
   
   private async simulateShutdown(): Promise<void> {
     // Simulate shutdown delay
     await new Promise(resolve => setTimeout(resolve, 50));
-    console.log(`[LocalTransport] Would stop server at ${this.config.socketPath}`);
+    process.stderr.write(`[LocalTransport] Would stop server at ${this.config.socketPath}\n`);
   }
   
   private async simulateHealthCheck(): Promise<void> {

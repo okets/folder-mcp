@@ -33,12 +33,26 @@ import {
   FileParsingService,
   ChunkingService,
   EmbeddingService,
-  LoggingService,
   CacheService,
   FileSystemService,
   VectorSearchService,
   ErrorRecoveryService
 } from './services.js';
+
+// Import enhanced logging infrastructure
+import { 
+  LoggingService as EnhancedLoggingService,
+  ConsoleLogFormatter,
+  JsonLogFormatter,
+  ConsoleLogTransport,
+  FileLogTransport,
+  RotatingFileTransport,
+  createConsoleLogger,
+  createFileLogger,
+  createDualLogger
+} from '../infrastructure/logging/index.js';
+
+import { LoggingServiceBridge } from '../infrastructure/logging/bridge.js';
 
 import { ResolvedConfig } from '../config/resolver.js';
 import { DependencyContainer } from './container.js';
@@ -50,14 +64,27 @@ import { MCPServer } from '../interfaces/mcp/server.js';
  * Default service factory implementation
  */
 export class ServiceFactory implements IServiceFactory {
-  private loggingService: ILoggingService | null = null;
-
-  /**
+  private loggingService: ILoggingService | null = null;  /**
    * Get or create logging service (needed by other services)
    */
   private getLoggingService(config?: any): ILoggingService {
     if (!this.loggingService) {
-      this.loggingService = new LoggingService(config);
+      // Use enhanced logging infrastructure with MCP protocol compliance
+      const logLevel = config?.level || 'info';
+      
+      let infraLogger;
+      if (config?.enableFileLogging) {
+        // Create dual logger (console + file) for production
+        const logDir = config?.logDir || './logs';
+        const logFile = `${logDir}/folder-mcp.log`;
+        infraLogger = createDualLogger(logFile, logLevel, 'debug');
+      } else {
+        // Create console-only logger for development
+        infraLogger = createConsoleLogger(logLevel);
+      }
+      
+      // Bridge to DI interface
+      this.loggingService = new LoggingServiceBridge(infraLogger);
     }
     return this.loggingService;
   }
@@ -169,28 +196,31 @@ export class ServiceFactory implements IServiceFactory {
         loggingService,
         configService,
         embeddingService
-      );
-    } catch (error) {
-      console.error('Failed to create ContentServingOrchestrator:', error);
+      );    } catch (error) {
+      // Get logging service to log the error properly
+      try {
+        const loggingService = this.getLoggingService();
+        loggingService.error('Failed to create ContentServingOrchestrator', error instanceof Error ? error : new Error(String(error)));
+      } catch (logError) {
+        // If logging fails, write directly to stderr as fallback
+        process.stderr.write(`[ERROR] Failed to create ContentServingOrchestrator: ${error}\n`);
+      }
       throw error;
     }
-  }async createKnowledgeOperationsService(container: DependencyContainer): Promise<any> {
+  }  async createKnowledgeOperationsService(container: DependencyContainer): Promise<any> {
     try {
-      console.log('🔧 Creating KnowledgeOperationsService...');
+      const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+      loggingService.debug('Creating KnowledgeOperationsService...');
       const { KnowledgeOperationsService } = await import('../application/serving/knowledge.js');
-      console.log('✅ Imported KnowledgeOperationsService');
+      loggingService.debug('Imported KnowledgeOperationsService');
       
-      console.log('🔧 Resolving dependencies...');
+      loggingService.debug('Resolving dependencies...');
       const vectorSearch = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH);
-      console.log('✅ Resolved VECTOR_SEARCH');
       const cache = container.resolve(SERVICE_TOKENS.CACHE);
-      console.log('✅ Resolved CACHE');
       const logging = container.resolve(SERVICE_TOKENS.LOGGING);
-      console.log('✅ Resolved LOGGING');
       const fileParsing = container.resolve(SERVICE_TOKENS.FILE_PARSING);
-      console.log('✅ Resolved FILE_PARSING');
       const embedding = container.resolve(SERVICE_TOKENS.EMBEDDING);
-      console.log('✅ Resolved EMBEDDING');
+      loggingService.debug('Resolved all dependencies for KnowledgeOperationsService');
         const service = new KnowledgeOperationsService(
         vectorSearch as any,
         cache as any,
@@ -198,11 +228,14 @@ export class ServiceFactory implements IServiceFactory {
         fileParsing as any,
         embedding as any
       );
-      console.log('✅ Created KnowledgeOperationsService:', typeof service);
-      console.log('✅ Methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(service)));
+      loggingService.debug('Created KnowledgeOperationsService successfully', {
+        serviceType: typeof service,
+        methods: Object.getOwnPropertyNames(Object.getPrototypeOf(service))
+      });
       return service;
     } catch (error) {
-      console.error('❌ Failed to create KnowledgeOperationsService:', error);
+      const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+      loggingService.error('Failed to create KnowledgeOperationsService', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }

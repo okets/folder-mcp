@@ -245,12 +245,12 @@ export class RemoteTransport extends EventEmitter implements ITransport {
       throw new Error('Host and port are required for remote transport');
     }
     
-    console.log(`[RemoteTransport] Would start gRPC server at ${this.config.host}:${this.config.port}`);
+    process.stderr.write(`[RemoteTransport] Would start gRPC server at ${this.config.host}:${this.config.port}\n`);
   }
   
   private async simulateShutdown(): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 100));
-    console.log(`[RemoteTransport] Would stop gRPC server at ${this.config.host}:${this.config.port}`);
+    process.stderr.write(`[RemoteTransport] Would stop gRPC server at ${this.config.host}:${this.config.port}\n`);
   }
   
   private async simulateHealthCheck(): Promise<void> {

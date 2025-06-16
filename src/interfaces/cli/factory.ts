@@ -7,6 +7,7 @@
 import { Command } from 'commander';
 import { CLIProgram } from './program.js';
 import { setupConfigCommand } from '../../config/cli.js';
+import { configureLogCommands } from './commands/log.js';
 
 export class CLIFactory {
   /**
@@ -18,10 +19,11 @@ export class CLIFactory {
     program
       .name('folder-mcp')
       .description('Universal Folder-to-MCP-Server Tool - Transform any local folder into an intelligent knowledge base')
-      .version(packageJson.version);
-
-    // Add config command (infrastructure layer)
+      .version(packageJson.version);    // Add config command (infrastructure layer)
     setupConfigCommand(program);
+    
+    // Add log management commands
+    configureLogCommands(program);
 
     // Add modular commands
     await this.addModularCommands(program);

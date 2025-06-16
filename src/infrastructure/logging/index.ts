@@ -12,6 +12,7 @@ export interface ILoggingService {
   warn(message: string, metadata?: LogMetadata): void;
   error(message: string, error?: Error, metadata?: LogMetadata): void;
   fatal(message: string, error?: Error, metadata?: LogMetadata): void;
+  setLevel?(level: LogLevel): void; // Optional for backwards compatibility
 }
 
 export interface ILogFormatter {
@@ -101,4 +102,7 @@ export interface TransportStatistics {
 // export { ConsoleTransport, FileTransport } from './transports.js';
 
 // Implementation exports
-export * from './logger';
+export * from './logger.js';
+export * from './rotating-transport.js';
+export * from './bridge.js';
+export * from './manager.js';

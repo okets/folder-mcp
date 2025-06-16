@@ -20,6 +20,7 @@ type ServiceRegistration = {
   type: 'singleton';
   factory: () => any;
   instance?: any;
+  pendingPromise?: Promise<any> | undefined;
 };
 
 /**
@@ -94,16 +95,38 @@ export class DependencyContainer implements IDependencyContainer {
         }
         
       case 'singleton':
-        if (!registration.instance) {
-          try {
-            const result = registration.factory();
-            // If the factory returns a Promise, await it
-            registration.instance = result instanceof Promise ? await result : result;
-          } catch (error) {
-            throw new Error(`Failed to create singleton service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
+        if (registration.instance !== undefined) {
+          return registration.instance;
         }
-        return registration.instance;
+        
+        // If there's already a pending Promise for this singleton, return it
+        if (registration.pendingPromise) {
+          return await registration.pendingPromise;
+        }
+        
+        try {
+          const result = registration.factory();
+          
+          if (result instanceof Promise) {
+            // Store the Promise to prevent multiple concurrent executions
+            registration.pendingPromise = result;
+            
+            try {
+              const resolvedResult = await result;
+              registration.instance = resolvedResult;
+              registration.pendingPromise = undefined; // Clear the pending promise
+              return resolvedResult;
+            } catch (error) {
+              registration.pendingPromise = undefined; // Clear the pending promise on error
+              throw error;
+            }
+          } else {
+            registration.instance = result;
+            return result;
+          }
+        } catch (error) {
+          throw new Error(`Failed to create singleton service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
         
       default:
         throw new Error(`Unknown registration type for token: ${String(token)}`);
@@ -132,14 +155,28 @@ export class DependencyContainer implements IDependencyContainer {
         }
         
       case 'singleton':
-        if (!registration.instance) {
-          try {
-            registration.instance = registration.factory();
-          } catch (error) {
-            throw new Error(`Failed to create singleton service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
+        if (registration.instance !== undefined) {
+          return registration.instance;
         }
-        return registration.instance;
+        
+        // If there's a pending Promise, it means this is an async singleton
+        // being resolved synchronously - this should fail
+        if (registration.pendingPromise) {
+          throw new Error(`Cannot resolve async singleton service synchronously for token: ${String(token)}`);
+        }
+        
+        try {
+          const result = registration.factory();
+          
+          if (result instanceof Promise) {
+            throw new Error(`Cannot resolve async service synchronously for token: ${String(token)}`);
+          }
+          
+          registration.instance = result;
+          return result;
+        } catch (error) {
+          throw new Error(`Failed to create singleton service for token ${String(token)}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
         
       default:
         throw new Error(`Unknown registration type for token: ${String(token)}`);

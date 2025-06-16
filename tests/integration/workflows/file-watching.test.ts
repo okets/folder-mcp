@@ -89,10 +89,8 @@ describe('File Watcher Lifecycle Integration', () => {
       await fs.writeFile(testFile, 'Test content for file watching');
 
       // Wait for debounce + processing
-      await TestUtils.sleep(200);
-
-      // Verify file was detected and processed
-      expect(await fs.access(testFile)).resolves.not.toThrow();
+      await TestUtils.sleep(200);      // Verify file was detected and processed
+      expect(fs.access(testFile)).resolves.not.toThrow();
     });
 
     it('should detect file modifications', async () => {
@@ -137,10 +135,9 @@ describe('File Watcher Lifecycle Integration', () => {
       await fs.writeFile(jsFile, 'Should be ignored');
       
       await TestUtils.sleep(200);
-      
-      // Both files should exist, but only .txt should be processed
-      expect(await fs.access(txtFile)).resolves.not.toThrow();
-      expect(await fs.access(jsFile)).resolves.not.toThrow();
+        // Both files should exist, but only .txt should be processed
+      expect(fs.access(txtFile)).resolves.not.toThrow();
+      expect(fs.access(jsFile)).resolves.not.toThrow();
     });
 
     it('should respect exclude patterns', async () => {
@@ -165,9 +162,8 @@ describe('File Watcher Lifecycle Integration', () => {
       await fs.writeFile(excludedFile, 'Should be ignored');
       
       await TestUtils.sleep(200);
-      
-      expect(await fs.access(normalFile)).resolves.not.toThrow();
-      expect(await fs.access(excludedFile)).resolves.not.toThrow();
+        expect(fs.access(normalFile)).resolves.not.toThrow();
+      expect(fs.access(excludedFile)).resolves.not.toThrow();
     });
   });
 
@@ -199,10 +195,9 @@ describe('File Watcher Lifecycle Integration', () => {
       
       // Wait for debounce to complete
       await TestUtils.sleep(1200);
-      
-      // All files should exist
+        // All files should exist
       for (const file of files) {
-        expect(await fs.access(file)).resolves.not.toThrow();
+        expect(fs.access(file)).resolves.not.toThrow();
       }
     });
 
@@ -282,9 +277,8 @@ describe('File Watcher Lifecycle Integration', () => {
       
       // Wait to ensure no processing happens
       await TestUtils.sleep(300);
-      
-      // File should exist but not be processed
-      expect(await fs.access(path.join(tempDir, 'after-stop.txt'))).resolves.not.toThrow();
+        // File should exist but not be processed
+      expect(fs.access(path.join(tempDir, 'after-stop.txt'))).resolves.not.toThrow();
     });
   });
 
@@ -325,7 +319,7 @@ describe('File Watcher Lifecycle Integration', () => {
       
       await TestUtils.sleep(200);
       
-      expect(await fs.access(normalFile)).resolves.not.toThrow();
+      expect(fs.access(normalFile)).resolves.not.toThrow();
     });
   });
 });

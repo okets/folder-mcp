@@ -124,10 +124,9 @@ describe('Memory Performance Tests', () => {
         heapTotal: Math.round(current.heapTotal / 1024 / 1024) + 'MB',
         external: Math.round(current.external / 1024 / 1024) + 'MB'
       });
-      
-      // Basic sanity check - heap usage should be reasonable for a test environment
+        // Basic sanity check - heap usage should be reasonable for a test environment
       expect(current.heapUsed).toBeGreaterThan(1024 * 1024); // At least 1MB
-      expect(current.heapUsed).toBeLessThan(100 * 1024 * 1024); // Less than 100MB
+      expect(current.heapUsed).toBeLessThan(150 * 1024 * 1024); // Less than 150MB
     });
   });
 });

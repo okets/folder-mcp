@@ -167,11 +167,9 @@ describe('Error Recovery and Resilience', () => {
       const testFile2 = path.join(tempDir, 'test2.txt');
       await fs.writeFile(testFile2, 'Recovery test');
 
-      await TestUtils.sleep(200);
-
-      // Both files should exist
-      expect(await fs.access(testFile)).resolves.not.toThrow();
-      expect(await fs.access(testFile2)).resolves.not.toThrow();
+      await TestUtils.sleep(200);      // Both files should exist
+      expect(fs.access(testFile)).resolves.not.toThrow();
+      expect(fs.access(testFile2)).resolves.not.toThrow();
 
       // File watching should still be active
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
@@ -206,7 +204,7 @@ describe('Error Recovery and Resilience', () => {
 
       await TestUtils.sleep(200);
 
-      expect(await fs.access(permanentFile)).resolves.not.toThrow();
+      expect(fs.access(permanentFile)).resolves.not.toThrow();
 
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
       expect(status.isActive).toBe(true);
@@ -344,10 +342,8 @@ describe('Error Recovery and Resilience', () => {
       await fs.writeFile(testFile, 'This should trigger indexing');
 
       // Wait for processing attempt
-      await TestUtils.sleep(200);
-
-      // File should exist even if indexing failed
-      expect(await fs.access(testFile)).resolves.not.toThrow();
+      await TestUtils.sleep(200);      // File should exist even if indexing failed
+      expect(fs.access(testFile)).resolves.not.toThrow();
 
       // File watching should still be active
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
@@ -374,10 +370,8 @@ describe('Error Recovery and Resilience', () => {
       const testFile = path.join(tempDir, 'embedding-test.txt');
       await fs.writeFile(testFile, 'Test content for embedding');
 
-      await TestUtils.sleep(200);
-
-      // File should be detected even if embedding fails
-      expect(await fs.access(testFile)).resolves.not.toThrow();
+      await TestUtils.sleep(200);      // File should be detected even if embedding fails
+      expect(fs.access(testFile)).resolves.not.toThrow();
 
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
       expect(status.isActive).toBe(true);
@@ -418,11 +412,9 @@ describe('Error Recovery and Resilience', () => {
 
       // Verify system is still responsive
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
-      expect(status.isActive).toBe(true);
-
-      // Verify files exist
+      expect(status.isActive).toBe(true);      // Verify files exist
       for (const file of files.slice(0, 5)) { // Check first 5 files
-        expect(await fs.access(file)).resolves.not.toThrow();
+        expect(fs.access(file)).resolves.not.toThrow();
       }
     });
   });

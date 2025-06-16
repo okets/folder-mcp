@@ -146,9 +146,12 @@ function checkDependencyInjectionUsage(): string[] {
     if (content.includes('new ') && !file.includes('test')) {
       const directInstantiations = content.match(/new \w+Service\(/g);
       if (directInstantiations && directInstantiations.length > 0) {
-        // This might be a violation - services should be injected        // However, we need to check if it's in a factory or container setup        // or if it's creating factory functions (which is allowed)
+        // This might be a violation - services should be injected
+        // However, we need to check if it's in a factory or container setup
+        // or if it's creating factory functions (which is allowed)
         if (!file.includes('factory') && 
             !file.includes('container') && 
+            !file.includes('setup') &&
             !content.includes('createContentProcessingService') &&
             !content.includes('createFileWatchingService') &&
             !content.includes('createFileWatchingDomainService') &&

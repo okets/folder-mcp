@@ -256,12 +256,12 @@ export class HttpTransport extends EventEmitter implements ITransport {
     
     const protocol = this.config.enableHTTPS ? 'https' : 'http';
     const basePath = this.config.basePath || '/v1';
-    console.log(`[HttpTransport] Would start HTTP server at ${protocol}://${this.config.host}:${this.config.port}${basePath}`);
+    process.stderr.write(`[HttpTransport] Would start HTTP server at ${protocol}://${this.config.host}:${this.config.port}${basePath}\n`);
   }
   
   private async simulateShutdown(): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 75));
-    console.log(`[HttpTransport] Would stop HTTP server at ${this.config.host}:${this.config.port}`);
+    process.stderr.write(`[HttpTransport] Would stop HTTP server at ${this.config.host}:${this.config.port}\n`);
   }
   
   private async simulateHealthCheck(): Promise<void> {

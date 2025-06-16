@@ -7,6 +7,8 @@
 import { writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import { ILoggingService, ILogFormatter, ILogTransport, LogEntry, LogLevel, LogMetadata, LogConfiguration } from './index';
+import { correlationManager } from '../../shared/utils/correlation-id.js';
+import { LogConfigManager } from './manager.js';
 
 /**
  * Console log formatter
@@ -68,7 +70,6 @@ export class ConsoleLogTransport implements ILogTransport {
     this.formatter = formatter;
     this.minLevel = minLevel;
   }
-
   async log(entry: LogEntry): Promise<void> {
     if (!this.shouldLog(entry.level)) {
       return;
@@ -76,17 +77,19 @@ export class ConsoleLogTransport implements ILogTransport {
 
     const formatted = this.formatter.format(entry);
     
+    // MCP Protocol Safety: ALL console output must go to stderr
+    // Never use stdout as it's reserved for JSON-RPC messages
     switch (entry.level) {
       case 'debug':
       case 'info':
-        console.log(formatted);
+        process.stderr.write(formatted + '\n');
         break;
       case 'warn':
-        console.warn(formatted);
+        process.stderr.write(formatted + '\n');
         break;
       case 'error':
       case 'fatal':
-        console.error(formatted);
+        process.stderr.write(formatted + '\n');
         break;
     }
   }
@@ -135,7 +138,7 @@ export class FileLogTransport implements ILogTransport {
     try {
       appendFileSync(this.filePath, formatted);
     } catch (error) {
-      console.error(`Failed to write to log file ${this.filePath}:`, error);
+      process.stderr.write(`[ERROR] Failed to write to log file ${this.filePath}: ${error}\n`);
     }
   }
 
@@ -157,11 +160,22 @@ export class FileLogTransport implements ILogTransport {
  * Main logging service implementation
  */
 export class LoggingService implements ILoggingService {
-  private transports: ILogTransport[] = [];
-  private source: string;
-
-  constructor(source: string = 'folder-mcp') {
+  private transports: ILogTransport[] = [];  private source: string;
+  private correlationIdCounter = 0;
+  private logQueue: LogEntry[] = [];
+  private batchSize = 10;
+  private flushInterval = 1000; // 1 second
+  private flushTimer?: NodeJS.Timeout | undefined;
+  private minLevel: LogLevel = 'info';  constructor(source: string = 'folder-mcp', options: { enableBatching?: boolean } = {}) {
     this.source = source;
+    
+    // Register this logger instance for runtime configuration
+    LogConfigManager.registerLogger(source, this);
+    
+    // Only enable batching in production (when explicitly requested)
+    if (options.enableBatching) {
+      this.startBatchProcessor();
+    }
   }
 
   addTransport(transport: ILogTransport): void {
@@ -190,12 +204,29 @@ export class LoggingService implements ILoggingService {
   error(message: string, error?: Error, metadata?: LogMetadata): void {
     this.log('error', message, error, metadata);
   }
-
   fatal(message: string, error?: Error, metadata?: LogMetadata): void {
     this.log('fatal', message, error, metadata);
+  }  setLevel(level: LogLevel): void {
+    this.minLevel = level;
   }
 
-  private async log(level: LogLevel, message: string, error?: Error, metadata?: LogMetadata): Promise<void> {
+  get level(): LogLevel {
+    return this.minLevel;
+  }
+
+  getTransports(): any[] {
+    return this.transports;
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    const levels = ['debug', 'info', 'warn', 'error', 'fatal'];
+    return levels.indexOf(level) >= levels.indexOf(this.minLevel);
+  }  private async log(level: LogLevel, message: string, error?: Error, metadata?: LogMetadata): Promise<void> {
+    // Check level filtering first
+    if (!this.shouldLog(level)) {
+      return;
+    }
+
     const entry: LogEntry = {
       level,
       message,
@@ -206,26 +237,78 @@ export class LoggingService implements ILoggingService {
       correlationId: this.generateCorrelationId()
     };
 
+    if (this.flushTimer) {
+      // Batching mode: Add to queue
+      this.logQueue.push(entry);
+
+      // Flush immediately for error/fatal levels
+      if (level === 'error' || level === 'fatal') {
+        await this.processBatch();
+      }
+    } else {
+      // Immediate mode: Process directly
+      await this.processLogEntry(entry);
+    }
+  }
+
+  private async processLogEntry(entry: LogEntry): Promise<void> {
     // Send to all transports
     const promises = this.transports.map(transport => 
       transport.log(entry).catch(err => 
-        console.error('Transport error:', err)
+        process.stderr.write(`[TRANSPORT-ERROR] ${err.message}\n`)
       )
     );
 
     await Promise.all(promises);
   }
-
   private generateCorrelationId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Try to get correlation ID from async context first
+    const contextId = correlationManager.getCurrentId();
+    if (contextId) {
+      return contextId;
+    }
+    
+    // Fallback to generated ID
+    return `${this.source}-${Date.now()}-${++this.correlationIdCounter}`;
   }
 
+  private startBatchProcessor(): void {
+    this.flushTimer = setInterval(() => {
+      if (this.logQueue.length > 0) {
+        this.processBatch();
+      }
+    }, this.flushInterval);
+  }
+  private async processBatch(): Promise<void> {
+    if (this.logQueue.length === 0) return;
+
+    const batch = this.logQueue.splice(0, this.batchSize);
+    
+    // Process each entry
+    for (const entry of batch) {
+      await this.processLogEntry(entry);
+    }
+  }
   async flush(): Promise<void> {
+    // Process any remaining logs in queue
+    await this.processBatch();
+    
+    // Flush all transports
     const promises = this.transports.map(transport => transport.flush());
     await Promise.all(promises);
   }
 
   async close(): Promise<void> {
+    // Clear flush timer
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+
+    // Process any remaining logs
+    await this.flush();
+    
+    // Close all transports
     const promises = this.transports.map(transport => transport.close());
     await Promise.all(promises);
   }
@@ -240,6 +323,7 @@ export function createConsoleLogger(minLevel: LogLevel = 'info'): ILoggingServic
   const transport = new ConsoleLogTransport(formatter, minLevel);
   
   logger.addTransport(transport);
+  logger.setLevel(minLevel); // Set the logger level to match transport
   return logger;
 }
 
@@ -249,6 +333,7 @@ export function createFileLogger(filePath: string, minLevel: LogLevel = 'info'):
   const transport = new FileLogTransport(filePath, formatter, minLevel);
   
   logger.addTransport(transport);
+  logger.setLevel(minLevel); // Set the logger level to match transport
   return logger;
 }
 
@@ -264,6 +349,13 @@ export function createDualLogger(filePath: string, consoleLevel: LogLevel = 'inf
   const fileFormatter = new JsonLogFormatter();
   const fileTransport = new FileLogTransport(filePath, fileFormatter, fileLevel);
   logger.addTransport(fileTransport);
+  
+  // Set logger level to the most permissive (lowest) level
+  const levels = ['debug', 'info', 'warn', 'error', 'fatal'];
+  const minLevel = levels.includes(fileLevel) && levels.indexOf(fileLevel) < levels.indexOf(consoleLevel) 
+    ? fileLevel 
+    : consoleLevel;
+  logger.setLevel(minLevel as LogLevel);
   
   return logger;
 }

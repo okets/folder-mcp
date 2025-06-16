@@ -112,11 +112,9 @@ describe('Server Shutdown Integration', () => {
       // Create file after shutdown
       const testFile2 = path.join(tempDir, 'after-shutdown.txt');
       await fs.writeFile(testFile2, 'After shutdown');
-      await TestUtils.sleep(300); // Wait to ensure no processing happens
-
-      // Both files should exist but only the first should have been processed
-      expect(await fs.access(testFile1)).resolves.not.toThrow();
-      expect(await fs.access(testFile2)).resolves.not.toThrow();
+      await TestUtils.sleep(300); // Wait to ensure no processing happens      // Both files should exist but only the first should have been processed
+      expect(fs.access(testFile1)).resolves.not.toThrow();
+      expect(fs.access(testFile2)).resolves.not.toThrow();
 
       // Verify watcher is inactive
       const status = await monitoringWorkflow.getWatchingStatus(tempDir);
