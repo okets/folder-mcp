@@ -12,6 +12,8 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import type { ILoggingService } from '../../di/interfaces.js';
@@ -22,9 +24,11 @@ import {
   NavigationHandler, 
   DocumentAccessHandler, 
   SummarizationHandler, 
-  SpecializedHandler 
+  SpecializedHandler,
+  MCPResourcesHandler
 } from './handlers/index.js';
 import { MCPTransport } from './transport.js';
+import { DEFAULT_VSCODE_MCP_CONFIG, formatToolSetsForVSCode, type VSCodeMCPConfig } from '../../config/vscode-mcp.js';
 
 export class MCPServer {
   private server: Server;
@@ -35,11 +39,14 @@ export class MCPServer {
   private documentAccessHandler: DocumentAccessHandler;
   private summarizationHandler: SummarizationHandler;
   private specializedHandler: SpecializedHandler;
+  private resourcesHandler: MCPResourcesHandler;
   private isRunning = false;
+  private vscodeMcpConfig: VSCodeMCPConfig;
 
   constructor(
     private readonly options: MCPServerOptions,
     private readonly logger: ILoggingService,
+    vscodeMcpConfig: VSCodeMCPConfig = DEFAULT_VSCODE_MCP_CONFIG,
     // TODO: Replace with proper service interfaces when available
     private readonly searchService?: any,
     private readonly navigationService?: any,
@@ -50,6 +57,9 @@ export class MCPServer {
     // Write to stderr, not stdout
     process.stderr.write('[INFO] Initializing MCP Server\n');
     this.logger.info('Initializing MCP Server', { options: this.options });
+
+    // Initialize VSCode MCP configuration
+    this.vscodeMcpConfig = vscodeMcpConfig || DEFAULT_VSCODE_MCP_CONFIG;
 
     // Initialize server
     this.server = new Server(
@@ -72,6 +82,7 @@ export class MCPServer {
     this.documentAccessHandler = new DocumentAccessHandler(this.logger, this.documentService || this.createMockDocumentService());
     this.summarizationHandler = new SummarizationHandler(this.logger, this.summarizationService || this.createMockSummarizationService());
     this.specializedHandler = new SpecializedHandler(this.logger, this.specializedService || this.createMockSpecializedService());
+    this.resourcesHandler = new MCPResourcesHandler(this.logger);
 
     // Register handlers
     this.registerHandlers();
@@ -82,7 +93,18 @@ export class MCPServer {
    */
   private getCapabilities(): any {
     return {
-      tools: {},
+      tools: {
+        // Support for tool sets (VSCode 1.101 feature)
+        toolSets: this.vscodeMcpConfig.toolSets ? formatToolSetsForVSCode(this.vscodeMcpConfig) : undefined
+      },
+      // Support for MCP resources (save/drag functionality)
+      resources: this.vscodeMcpConfig.resources?.enableSaveDrag ? {
+        formats: this.vscodeMcpConfig.resources.formats
+      } : undefined,
+      // Support for MCP prompts (slash commands)
+      prompts: this.vscodeMcpConfig.prompts?.enabled ? {
+        prefix: this.vscodeMcpConfig.prompts.prefix
+      } : undefined
     };
   }
 
@@ -113,6 +135,47 @@ export class MCPServer {
       process.stderr.write(`[INFO] Returning tools list (count: ${tools.length})\n`);
       this.logger.info('Returning tools list', { toolCount: tools.length });
       return { tools };
+    });
+
+    // List resources handler (for save/drag functionality)
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      process.stderr.write('[INFO] Handling list_resources request\n');
+      this.logger.info('Handling list_resources request');
+      
+      // Return empty array for now - resources are created dynamically by tools
+      const resources: any[] = [];
+      
+      process.stderr.write(`[INFO] Returning resources list (count: ${resources.length})\n`);
+      this.logger.info('Returning resources list', { resourceCount: resources.length });
+      return { resources };
+    });
+
+    // Read resource handler (for save/drag functionality)
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      process.stderr.write(`[INFO] Handling read_resource request: ${request.params.uri}\n`);
+      this.logger.info('Handling read_resource request', { uri: request.params.uri });
+
+      try {
+        const content = await this.resourcesHandler.getResourceContent(request.params.uri);
+        
+        process.stderr.write(`[INFO] Resource content retrieved successfully: ${request.params.uri}\n`);
+        this.logger.info('Resource content retrieved successfully', { uri: request.params.uri });
+        
+        return {
+          contents: [
+            {
+              uri: content.uri,
+              mimeType: content.mimeType,
+              text: content.text,
+              blob: content.blob
+            }
+          ]
+        };
+      } catch (error) {
+        process.stderr.write(`[ERROR] Resource retrieval failed: ${error}\n`);
+        this.logger.error('Resource retrieval failed', error instanceof Error ? error : new Error(String(error)));
+        throw error;
+      }
     });
 
     // Call tool handler

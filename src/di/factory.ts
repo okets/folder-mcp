@@ -28,6 +28,8 @@ import {
   PathProvider 
 } from '../domain/index.js';
 
+import { DEFAULT_VSCODE_MCP_CONFIG } from '../config/vscode-mcp.js';
+
 import {
   ConfigurationService,
   FileParsingService,
@@ -336,12 +338,12 @@ export class ServiceFactory implements IServiceFactory {
       searchService = new SearchServiceAdapter(knowledgeOperations, loggingService);
       navigationService = new NavigationServiceAdapter(contentServingWorkflow, loggingService);
       documentService = new DocumentServiceAdapter(contentServingWorkflow, loggingService);
-      specializedService = new SpecializedServiceAdapter(monitoringWorkflow, loggingService);
-    }
+      specializedService = new SpecializedServiceAdapter(monitoringWorkflow, loggingService);    }
     
     return new MCPServer(
       options,
       loggingService,
+      DEFAULT_VSCODE_MCP_CONFIG, // VSCode MCP configuration
       searchService,
       navigationService,
       documentService,

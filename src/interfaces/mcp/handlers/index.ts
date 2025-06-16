@@ -11,3 +11,5 @@ export { NavigationHandler } from './navigation.js';
 export { DocumentAccessHandler } from './document-access.js';
 export { SummarizationHandler } from './summarization.js';
 export { SpecializedHandler } from './specialized.js';
+export { MCPResourcesHandler } from './resources.js';
+export type { MCPResource, MCPResourceContent } from './resources.js';

@@ -80,3 +80,34 @@ development:
   enableDebugOutput: false  # Show detailed debug information
   mockOllamaApi: false      # Use mock Ollama API for testing
   skipGpuDetection: false   # Skip GPU detection for testing
+
+# VSCode MCP Development Configuration
+vscode:
+  # Development mode for VSCode MCP integration
+  dev:
+    # Watch patterns for hot reload (supports VSCode dev key format)
+    watch: "dist/**/*.js"
+    # Debug configuration for VSCode integration
+    debug:
+      type: "node"
+      port: 9229
+      enabled: true
+    # Enable hot reload functionality
+    hotReload: true
+    # Auto-restart server on file changes
+    autoRestart: true
+  
+  # MCP Prompts Configuration (slash commands)
+  prompts:
+    enabled: true
+    # Slash command prefix (uses /mcp.server.promptname format)
+    prefix: "/mcp.folder-mcp"
+    
+  # Agent mode configuration for VSCode integration
+  agent:
+    # Enable implicit context from current file
+    implicitContext: true
+    # Integration mode with VSCode
+    integrationMode: "enhanced"
+    # Context awareness features
+    contextAware: true
