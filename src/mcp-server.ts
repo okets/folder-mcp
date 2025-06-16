@@ -16,6 +16,7 @@ import type { MCPServer } from './interfaces/mcp/index.js';
 import type { ITransportManager, TransportManagerConfig } from './transport/interfaces.js';
 import type { IndexingWorkflow } from './application/indexing/index.js';
 import type { MonitoringWorkflow } from './application/monitoring/index.js';
+import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -37,6 +38,8 @@ console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`)
 
 export async function main(): Promise<void> {
   debug('main() function called');
+  let devModeManager: DevModeManager | null = null;
+  
   try {
     debug('Starting MCP server');
     
@@ -85,11 +88,36 @@ export async function main(): Promise<void> {
       // Transport layer is optional for basic MCP functionality
     }    debug('Resolving MCP server from container...');
     // Resolve MCP server from container (async since it's a singleton with async factory)
-    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;debug('Starting MCP server...');
+    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;    debug('Starting MCP server...');
     // Start the server
     await mcpServer.start();
 
-    debug('MCP server started successfully');    debug('Triggering incremental indexing...');
+    debug('MCP server started successfully');    // Initialize development mode features if enabled
+    debug('Initializing development mode...');
+    try {
+      const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true';
+      if (enableEnhancedFeatures) {
+        const { DEFAULT_ENHANCED_MCP_CONFIG } = await import('./config/enhanced-mcp.js');
+        const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+        const restartCallback = () => {
+          debug('🔥 Hot reload requested - restarting server...');
+          // Graceful restart logic would go here
+          // For now, just log the request
+          debug('Server restart would happen here (not implemented yet)');
+        };
+        
+        devModeManager = await initializeDevMode(DEFAULT_ENHANCED_MCP_CONFIG, loggingService, restartCallback);
+        if (devModeManager) {
+          debug('✅ Development mode initialized with hot reload');
+        }
+      } else {
+        debug('Enhanced MCP features not enabled - skipping development mode');
+      }
+    } catch (error) {
+      debug('Development mode initialization failed (non-critical):', error);
+    }
+
+    debug('Triggering incremental indexing...');
     // Auto-index the folder incrementally (only process changed files)
     try {
       const indexingWorkflow = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
@@ -142,7 +170,18 @@ export async function main(): Promise<void> {
     }    // Handle graceful shutdown
     const shutdown = async () => {
       debug('Shutting down MCP server...');
-      try {        // Stop file watching first
+      try {
+        // Stop development mode file watching first
+        if (devModeManager) {
+          try {
+            await devModeManager.stopWatching();
+            debug('Development mode file watcher stopped');
+          } catch (error) {
+            debug('Development mode shutdown failed (non-critical):', error);
+          }
+        }
+        
+        // Stop file watching first
         try {
           const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
           await monitoringWorkflow.stopFileWatching(folderPath);

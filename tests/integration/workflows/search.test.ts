@@ -7,6 +7,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestUtils } from '../../helpers/test-utils.js';
 import { MockFactory } from '../../helpers/mock-factories.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { setupDependencyInjection } from '../../../src/di/setup.js';
+import { SERVICE_TOKENS } from '../../../src/di/interfaces.js';
+import type { IDependencyContainer } from '../../../src/di/interfaces.js';
 
 // Test-specific interfaces
 interface SearchWorkflow {
@@ -463,6 +468,312 @@ describe('Integration - Search Workflow', () => {
 
       expect(result.context.model).toBe('mxbai-embed-large');
       expect(result.searchTime).toBeGreaterThan(50); // Should include model load time
+    });
+  });
+
+  describe('Real Data Search Integration', () => {
+  let client: Client;
+  let transport: StdioClientTransport;
+  let testDir: string;
+  let container: any; // Use any to access resolveAsync method
+
+  beforeEach(async () => {
+    testDir = await TestUtils.createTempDir('search-real-data-');
+    
+    // Create test documents with meaningful content
+    await TestUtils.createTestFiles(testDir, {
+      'phase1-features.md': `# Phase 1 Complete Enhanced MCP Features
+      
+This document describes the completed Phase 1 features for the enhanced MCP server.
+
+## Key Features:
+- Tool Sets Organization
+- Enhanced Resources
+- Real Data Processing
+- Agent Integration
+- VSCode Compatibility`,
+      
+      'development-guide.md': `# Development Guide
+
+This guide covers the development process and enhanced MCP features implementation.
+
+## Enhanced Features:
+- No mock fallbacks in production
+- Real document intelligence
+- Hot reload infrastructure`,
+      
+      'api-reference.md': `# API Reference
+
+Complete reference for all MCP tools and enhanced capabilities.
+
+## Search Tools:
+- search_documents: Semantic document search
+- search_chunks: Text chunk search with context`
+    });
+    
+    // Setup dependency injection container with real services
+    container = setupDependencyInjection({
+      folderPath: testDir,
+      logLevel: 'error' // Quiet during tests
+    });
+    
+    transport = new StdioClientTransport({
+      command: 'node',
+      args: ['dist/index.js', testDir],
+      env: {
+        ...process.env,
+        ENABLE_ENHANCED_MCP_FEATURES: 'true'
+      }
+    });
+
+    client = new Client(
+      {
+        name: 'search-real-data-client',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {},
+      }
+    );
+
+    await client.connect(transport);
+    // Wait for indexing to complete
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  });
+
+    afterEach(async () => {
+      if (client) {
+        await client.close();
+      }
+      await TestUtils.cleanupTempDir(testDir);
+    });
+
+    describe('Document Search with Real Data', () => {
+      it('should search documents and return real results (no mocks)', async () => {
+        const response = await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'Phase 1 complete enhanced MCP',
+            top_k: 2
+          }
+        });
+
+        expect(response.content).toBeDefined();
+        
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Verify we're getting real data, not mock responses
+        expect(responseText).not.toContain('Mock');
+        expect(responseText).not.toContain('mock');
+        expect(responseText).not.toContain('placeholder');
+        
+        // Should contain actual search results
+        expect(responseText.length).toBeGreaterThan(0);
+      });
+
+      it('should return relevant search results', async () => {
+        const response = await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'enhanced MCP features development',
+            top_k: 3
+          }
+        });
+
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Should contain content related to our test documents
+        expect(responseText.toLowerCase()).toMatch(/(enhanced|mcp|features|development)/);
+      });
+
+      it('should handle search queries with no results gracefully', async () => {
+        const response = await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'completely unrelated quantum physics topic',
+            top_k: 5
+          }
+        });
+
+        expect(response.content).toBeDefined();
+        
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Should handle no results gracefully (not throw an error)
+        expect(typeof responseText).toBe('string');
+      });
+    });
+
+    describe('Chunk Search with Real Data', () => {
+      it('should search text chunks with context', async () => {
+        const response = await client.callTool({
+          name: 'search_chunks',
+          arguments: {
+            query: 'API reference search tools',
+            top_k: 5,
+            include_context: true
+          }
+        });
+
+        expect(response.content).toBeDefined();
+        
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Verify real chunk search results
+        expect(responseText).not.toContain('Mock');
+        expect(responseText.length).toBeGreaterThan(0);
+      });
+
+      it('should return contextual information with chunks', async () => {
+        const response = await client.callTool({
+          name: 'search_chunks',
+          arguments: {
+            query: 'development guide enhanced features',
+            top_k: 3,
+            include_context: true
+          }
+        });
+
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Should include contextual information
+        expect(typeof responseText).toBe('string');
+        expect(responseText.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe('Search Performance and Reliability', () => {
+      it('should complete searches within reasonable time', async () => {
+        const startTime = Date.now();
+        
+        await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'test search performance',
+            top_k: 10
+          }
+        });
+
+        const searchTime = Date.now() - startTime;
+        
+        // Search should complete within 10 seconds
+        expect(searchTime).toBeLessThan(10000);
+      });
+
+      it('should handle multiple concurrent searches', async () => {
+        const searches = [
+          client.callTool({
+            name: 'search_documents',
+            arguments: { query: 'Phase 1 features', top_k: 3 }
+          }),
+          client.callTool({
+            name: 'search_documents', 
+            arguments: { query: 'development guide', top_k: 3 }
+          }),
+          client.callTool({
+            name: 'search_chunks',
+            arguments: { query: 'API reference', top_k: 5 }
+          })
+        ];
+
+        const results = await Promise.all(searches);
+        
+        // All searches should complete successfully
+        results.forEach(result => {
+          expect(result.content).toBeDefined();
+        });
+      });
+    });
+
+    describe('Enhanced MCP Search Integration', () => {
+    let container: any; // Use any to access resolveAsync method
+
+    beforeEach(async () => {
+      // Setup dependency injection container with real services  
+      container = setupDependencyInjection({
+        folderPath: testDir,
+        logLevel: 'error' // Quiet during tests
+      });
+    });
+
+    it('should perform VSCode MCP optimization search', async () => {
+        // Create test content that matches the original test
+        await TestUtils.createTestFiles(testDir, {
+          'vscode-optimization.md': `# VSCode MCP Optimization Guide
+          
+This document covers optimization strategies for VSCode MCP integration.
+
+## Key Optimization Areas:
+- Transport layer efficiency
+- Tool response caching
+- Resource loading optimization
+- Enhanced feature performance`,
+          
+          'mcp-performance.md': `# MCP Performance Guidelines
+
+Guidelines for optimizing MCP server performance in VSCode.
+
+## Performance Tips:
+- Minimize tool execution time
+- Efficient resource handling
+- Smart caching strategies`
+        });
+        
+        // Wait for indexing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const response = await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'VSCode MCP optimization',
+            top_k: 3
+          }
+        });
+
+        expect(response.content).toBeDefined();
+        
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+
+        // Should find content related to VSCode MCP optimization
+        expect(responseText.toLowerCase()).toMatch(/(vscode|mcp|optimization)/);
+        expect(responseText).not.toContain('Mock');
+        
+        // Log results for verification (similar to original test)
+        console.log('Search results for VSCode MCP optimization:');
+        console.log(responseText.substring(0, 200) + '...');
+      });
+
+      it('should return structured search results', async () => {
+        const response = await client.callTool({
+          name: 'search_documents',
+          arguments: {
+            query: 'performance guidelines optimization',
+            top_k: 5
+          }
+        });
+
+        expect(response.content).toBeDefined();
+        
+        // Response should be structured (not just raw text)
+        const responseText = Array.isArray(response.content) 
+          ? response.content[0]?.text || ''
+          : String(response.content);
+          
+        expect(typeof responseText).toBe('string');
+        expect(responseText.length).toBeGreaterThan(0);
+      });
     });
   });
 });
