@@ -1,20 +1,76 @@
 # MCP Enhanced Features Plan
 
+## 🚨 **CRITICAL: TEST FOLDER CONFIGURATION**
+
+**⚠️ MANDATORY TESTING REQUIREMENT**: 
+
+**Test Folder Location**: `C:\ThinkingHomes\test-folder`
+**Project Folder**: `C:\ThinkingHomes\folder-mcp`
+
+### **🔴 ALWAYS USE TEST FOLDER - NO EXCEPTIONS!**
+### **This Week - Start Phase 1**
+1. **🔧 Set Up Development Mode** - Use documented `dev` configuration format with test folder `C:\ThinkingHomes\test-folder`
+2. **🔧 Implement Tool Sets** - Use confirmed JSON format with icons and descriptions
+3. **🔧 Create Basic Resources** - Implement save/drag functionality as documented
+4. **🔧 Test with VSCode 1.101** - Validate implementation with actual VSCode MCP features using test folder
+
+### **⚠️ CRITICAL: Always Use Test Folder Path**
+- **Document Operations**: All indexing, search, and content operations must target `C:\ThinkingHomes\test-folder`
+- **MCP Server Args**: Always pass test folder path as argument: `["dist/index.js", "C:\\ThinkingHomes\\test-folder"]`
+- **Configuration Files**: Update all MCP configuration files to reference test folder for document operations*Configuration Files**: Always point to `C:\ThinkingHomes\test-folder` for:
+   - MCP server folder path configuration
+   - Document indexing and search operations
+   - All testing and development workflows
+
+2. **Example Configuration**:
+```json
+{
+  "servers": {
+    "folder-mcp": {
+      "command": "node",
+      "args": ["C:\\ThinkingHomes\\folder-mcp\\dist\\index.js", "C:\\ThinkingHomes\\test-folder"],
+      "dev": {
+        "watch": "C:\\ThinkingHomes\\folder-mcp\\dist/**/*.js",
+        "debug": { "type": "node" }
+      }
+    }
+  }
+}
+```
+
+3. **Environment Variables**:
+```bash
+FOLDER_PATH=C:\ThinkingHomes\test-folder
+MCP_SERVER_PATH=C:\ThinkingHomes\folder-mcp
+```
+
+4. **Testing Commands**:
+```powershell
+# Run MCP server pointing to test folder
+node dist/index.js "C:\ThinkingHomes\test-folder"
+
+# VSCode MCP configuration should reference test folder for all operations
+```
+
+**🚨 REMINDER**: The project folder (`C:\ThinkingHomes\folder-mcp`) contains the source code. The test folder (`C:\ThinkingHomes\test-folder`) contains the documents to be indexed and searched. NEVER confuse these two paths!
+
+---
+
 ## 🎯 **Executive Summary**
 
 **Goal**: Implement enhanced MCP protocol features that provide better client integration and user experience. These features were originally documented as part of VSCode 1.101 MCP support but are generic protocol extensions that can be supported by any MCP client.
 
 **Architecture Decision**: ✅ **RESOLVED** - Features implemented as client-agnostic MCP extensions, not VSCode-specific behavior.
 
-### **Phase 1: Foundation Features (Week 1)**
+### **Phase 1: Foundation Features (Week 1)** ✅ **COMPLETED**
 **Timeline**: 3-5 days  
 **Goal**: Implement core enhanced MCP features with immediate impact
 
-- [x] **🔧 IMPLEMENT**: Development mode configuration (`dev` key with `watch` and `debug`)
-- [x] **🔧 IMPLEMENT**: Tool sets with JSON format: `{"name": {"tools": [...], "description": "...", "icon": "..."}}`
-- [x] **🔧 IMPLEMENT**: Basic MCP resources for search results (save/drag functionality)
-- [x] **🔧 IMPLEMENT**: Agent mode configuration for enhanced client integration
-- [x] **📋 DOCUMENT**: Configuration examples and setup instructions---
+- [x] **🔧 IMPLEMENTED**: Development mode configuration (`dev` key with `watch` and `debug`)
+- [x] **🔧 IMPLEMENTED**: Tool sets with JSON format: `{"name": {"tools": [...], "description": "...", "icon": "..."}}`
+- [x] **🔧 IMPLEMENTED**: Basic MCP resources for search results (save/drag functionality)
+- [x] **🔧 IMPLEMENTED**: Agent mode configuration for enhanced client integration
+- [x] **📋 DOCUMENTED**: Configuration examples and setup instructions---
 
 ## 🚀 **Next Steps - Ready for Implementation**
 
@@ -185,9 +241,9 @@
   "servers": {
     "folder-mcp": {
       "command": "node",
-      "args": ["dist/index.js"],
+      "args": ["C:\\ThinkingHomes\\folder-mcp\\dist\\index.js", "C:\\ThinkingHomes\\test-folder"],
       "dev": {
-        "watch": "dist/**/*.js",
+        "watch": "C:\\ThinkingHomes\\folder-mcp\\dist/**/*.js",
         "debug": { "type": "node" }
       }
     }
@@ -244,11 +300,12 @@
 
 ## 🚨 **Critical Success Factors**
 
-1. **Follow Documented Formats**: Use exact JSON schemas and syntax from VSCode 1.101 documentation
-2. **Iterative Development**: Build incrementally with testing at each phase
-3. **Test with Real VSCode**: Validate implementation against actual VSCode 1.101 MCP features
-4. **Focus on VSCode UX**: Prioritize features that enhance the VSCode development workflow
-5. **Performance First**: Ensure responsive performance for all MCP operations
+1. **🔴 ALWAYS Use Test Folder**: All document operations must target `C:\ThinkingHomes\test-folder` - NEVER the project folder
+2. **Follow Documented Formats**: Use exact JSON schemas and syntax from VSCode 1.101 documentation
+3. **Iterative Development**: Build incrementally with testing at each phase
+4. **Test with Real VSCode**: Validate implementation against actual VSCode 1.101 MCP features
+5. **Focus on VSCode UX**: Prioritize features that enhance the VSCode development workflow
+6. **Performance First**: Ensure responsive performance for all MCP operations
 
 ---
 
