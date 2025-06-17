@@ -31,11 +31,9 @@
     "test:application": "vitest run tests/unit/application",
     "test:infrastructure": "vitest run tests/unit/infrastructure",
     "test:interfaces": "vitest run tests/unit/interfaces",
-    "test:watch:unit": "vitest tests/unit",
-    "test:watch:integration": "vitest tests/integration",
+    "test:watch:unit": "vitest tests/unit",    "test:watch:integration": "vitest tests/integration",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "vitest run --reporter=junit --outputFile=test-results.xml",
-    "generate-proto": "node scripts/generate-proto-types.js"
+    "test:ci": "vitest run --reporter=junit --outputFile=test-results.xml"
   },
   "keywords": [
     "mcp",
