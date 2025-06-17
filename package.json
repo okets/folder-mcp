@@ -11,16 +11,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "test-embeddings": "node dist/cli.js test-embeddings",
-    "test": "vitest run",
+    "test-embeddings": "node dist/cli.js test-embeddings",    "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
-    "test:mcp": "vitest run tests/integration/mcp",
-    "test:mcp:transport": "vitest run tests/integration/mcp/transport.test.ts",
-    "test:mcp:tools": "vitest run tests/integration/mcp/tools.test.ts",
-    "test:mcp:resources": "vitest run tests/integration/mcp/resources.test.ts",
-    "test:mcp:agents": "vitest run tests/integration/mcp/agent-integration.test.ts",
     "test:search:real-data": "vitest run tests/integration/workflows/search.test.ts -t 'Real Data Search'",
     "test:hot-reload": "vitest run tests/integration/workflows/hot-reload.test.ts",
     "test:workflows": "vitest run tests/integration/workflows",
@@ -44,22 +38,14 @@
     "typescript"
   ],
   "author": "",
-  "license": "MIT",
-  "devDependencies": {
+  "license": "MIT",  "devDependencies": {
     "@types/commander": "^2.12.0",
     "@types/glob": "^8.1.0",
-    "@types/google-protobuf": "^3.15.12",
     "@types/node": "^20.0.0",
     "@types/pdf-parse": "^1.1.5",
-    "grpc-tools": "^1.13.0",
-    "protobufjs-cli": "^1.1.3",
-    "protoc-gen-validate": "^1.0.11",
     "typescript": "^5.0.0",
     "vitest": "^1.3.1"
-  },
-  "dependencies": {
-    "@grpc/grpc-js": "^1.10.8",
-    "@grpc/proto-loader": "^0.7.12",
+  },  "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@types/chokidar": "^2.1.7",
     "@types/js-yaml": "^4.0.9",
@@ -75,7 +61,6 @@
     "mammoth": "^1.9.1",
     "pdf-parse": "^1.1.1",
     "pizzip": "^3.2.0",
-    "protobufjs": "^7.5.3",
     "xlsx": "^0.18.5",
     "xml2js": "^0.6.2"
   }
