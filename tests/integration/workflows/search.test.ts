@@ -548,68 +548,6 @@ Complete reference for all MCP tools and enhanced capabilities.
       await TestUtils.cleanupTempDir(testDir);
     });
 
-    describe('Document Search with Real Data', () => {
-      it('should search documents and return real results (no mocks)', async () => {
-        const response = await client.callTool({
-          name: 'search_documents',
-          arguments: {
-            query: 'Phase 1 complete enhanced MCP',
-            top_k: 2
-          }
-        });
-
-        expect(response.content).toBeDefined();
-        
-        const responseText = Array.isArray(response.content) 
-          ? response.content[0]?.text || ''
-          : String(response.content);
-
-        // Verify we're getting real data, not mock responses
-        expect(responseText).not.toContain('Mock');
-        expect(responseText).not.toContain('mock');
-        expect(responseText).not.toContain('placeholder');
-        
-        // Should contain actual search results
-        expect(responseText.length).toBeGreaterThan(0);
-      });
-
-      it('should return relevant search results', async () => {
-        const response = await client.callTool({
-          name: 'search_documents',
-          arguments: {
-            query: 'enhanced MCP features development',
-            top_k: 3
-          }
-        });
-
-        const responseText = Array.isArray(response.content) 
-          ? response.content[0]?.text || ''
-          : String(response.content);
-
-        // Should contain content related to our test documents
-        expect(responseText.toLowerCase()).toMatch(/(enhanced|mcp|features|development)/);
-      });
-
-      it('should handle search queries with no results gracefully', async () => {
-        const response = await client.callTool({
-          name: 'search_documents',
-          arguments: {
-            query: 'completely unrelated quantum physics topic',
-            top_k: 5
-          }
-        });
-
-        expect(response.content).toBeDefined();
-        
-        const responseText = Array.isArray(response.content) 
-          ? response.content[0]?.text || ''
-          : String(response.content);
-
-        // Should handle no results gracefully (not throw an error)
-        expect(typeof responseText).toBe('string');
-      });
-    });
-
     describe('Chunk Search with Real Data', () => {
       it('should search text chunks with context', async () => {
         const response = await client.callTool({

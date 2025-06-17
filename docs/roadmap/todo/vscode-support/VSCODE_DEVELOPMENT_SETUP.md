@@ -75,7 +75,7 @@ The server now organizes tools into logical groups:
 - `search_chunks`
 
 ### System Operations
-- `hello_world`
+- `get_status`
 - `refresh_document`
 - `get_embeddings`
 

@@ -76,7 +76,6 @@ export class TestMcpCommand extends BaseCommand {
       
       // Test available MCP tools
       const expectedTools = [
-        'hello_world',
         'search_documents',
         'search_chunks',
         'list_folders',

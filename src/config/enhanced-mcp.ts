@@ -264,7 +264,7 @@ export const DEFAULT_ENHANCED_MCP_CONFIG: EnhancedMCPConfig = {
       icon: "search"
     },
     "system-operations": {
-      tools: ["hello_world", "refresh_document", "get_embeddings"],
+      tools: ["get_status", "refresh_document", "get_embeddings"],
       description: "System utilities and debugging tools",
       icon: "tools"
     }

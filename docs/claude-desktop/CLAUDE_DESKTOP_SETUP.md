@@ -35,22 +35,22 @@
 # Test tool discovery
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | node ./dist/mcp-server.js .
 
-# Test hello_world tool
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"hello_world","arguments":{}}}' | node ./dist/mcp-server.js .
+# Test get_status tool
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_status","arguments":{}}}' | node ./dist/mcp-server.js .
 ```
 
 ### Claude Desktop Testing
 1. **Restart Claude Desktop** completely (close and reopen)
 2. **Check for MCP Server**: Look for "folder-mcp" in the available tools
-3. **Test hello_world tool**: Should be available in Claude's tool list
-4. **Execute hello_world**: Should return "Hello World!" message
+3. **Test get_status tool**: Should be available in Claude's tool list
+4. **Execute get_status**: Should return system status information
 
 ## Expected Behavior
 
 ### ✅ Success Indicators
 - [ ] Claude Desktop shows "folder-mcp" server as connected
-- [ ] "hello_world" tool appears in tool list
-- [ ] Executing "hello_world" returns "Hello World!" message
+- [ ] "get_status" tool appears in tool list
+- [ ] Executing "get_status" returns system status information
 - [ ] No error messages in Claude Desktop
 - [ ] Server logs show connection and tool execution
 
@@ -81,15 +81,15 @@ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"hello_worl
 
 ## Current Available Tools
 
-### hello_world
-- **Description**: Returns a hello world message
-- **Arguments**: None
-- **Response**: "Hello World!" text message
-- **Purpose**: Verify MCP server connection and basic functionality
+### get_status
+- **Description**: Returns system status and processing information
+- **Arguments**: Optional document_id or job_id for specific status
+- **Response**: System status with job information and processing details
+- **Purpose**: Verify MCP server connection and check system health
 
 ## Next Steps
 
-Once hello_world is working in Claude Desktop:
+Once get_status is working in Claude Desktop:
 1. Add file operation tools (read_file, list_files, search_files)
 2. Add system information tools (get_folder_info)
 3. Integrate with existing application layer services

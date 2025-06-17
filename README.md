@@ -141,7 +141,7 @@ This server is designed to be used with MCP clients like Claude Desktop. Add it 
 
 The server currently provides the following tools:
 
-1. **hello_world** - A simple tool that returns a greeting message to verify connection
+1. **get_status** - A system status tool that returns processing information to verify connection
    - Optional parameter: `name` - A name to include in the greeting
 
 #### 1. `read_file`

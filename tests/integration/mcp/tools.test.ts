@@ -130,7 +130,7 @@ describe('MCP Tools Integration', () => {
       const toolNames = response.tools.map(t => t.name);
       
       const systemTools = [
-        'hello_world',
+        'get_status',
         'refresh_document',
         'get_embeddings'
       ];

@@ -85,7 +85,7 @@ For the full VSCode MCP experience with tool sets and enhanced features:
           "icon": "search"
         },
         "system-operations": {
-          "tools": ["hello_world", "refresh_document", "get_embeddings"],
+          "tools": ["get_status", "refresh_document", "get_embeddings"],
           "description": "System utilities and debugging tools",
           "icon": "tools"
         }
@@ -123,7 +123,7 @@ Search results and document content can be:
 1. Restart VSCode after adding the configuration
 2. Open the workspace folder specified in your config
 3. Test the connection with: `/mcp.folder-mcp.hello` (if prompts are enabled)
-4. Use `hello_world` tool to verify basic connectivity
+4. Use `get_status` tool to verify basic connectivity
 
 ## Troubleshooting
 

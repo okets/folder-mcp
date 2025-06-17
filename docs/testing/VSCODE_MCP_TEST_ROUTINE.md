@@ -225,7 +225,7 @@ Start-Sleep -Seconds 10
 4. Look for folder-mcp tools in the list
 
 **Expected Tools** (should see these 9+ tools):
-- `hello_world` - Test connectivity
+- `get_status` - System status information
 - `search_documents` - Search through documents  
 - `search_chunks` - Search document chunks
 - `list_folders` - List folders in workspace
@@ -233,7 +233,7 @@ Start-Sleep -Seconds 10
 - `get_document_content` - Get document content
 - `get_document_metadata` - Get document info
 - `summarize_document` - Summarize documents
-- `get_status` - System status
+- `refresh_document` - Refresh document processing
 
 **❌ If no tools appear**:
 1. Wait 30 seconds and refresh
@@ -291,14 +291,14 @@ Performance is optimized for local development workflows.
 **Actions**:
 1. In VSCode Chat (Agent mode), enter this prompt:
 ```
-Please use the hello_world tool to test our MCP connection, then use get_status to show me the current system status.
+Please use the get_status tool to check our system status, then use search_documents to search for any available documents in the workspace.
 ```
 2. Wait for tools to execute
 3. Observe the responses
 
 **Expected Results**:
-- `hello_world` executes and returns greeting message
-- `get_status` executes and returns system information
+- `get_status` executes and returns system status information
+- `search_documents` executes and returns document search results
 - Both tools complete without errors
 - Responses are well-formatted and readable
 
@@ -377,18 +377,18 @@ Please analyze all documents in this workspace. What are the main topics and wha
 **Setup**: Note current time for measuring reload speed
 
 **Actions**:
-1. Open `C:\ThinkingHomes\folder-mcp\src\interfaces\mcp\handlers\basic.ts`
-2. Find the hello_world handler
-3. Change the greeting message from "Hello, World!" to "Hello, VSCode Developer!"
+1. Open `C:\ThinkingHomes\folder-mcp\src\interfaces\mcp\handlers\specialized.ts`
+2. Find the get_status handler
+3. Add a debug message to the status response, such as modifying the message format
 4. Save the file (`Ctrl+S`)
 5. Wait for automatic rebuild and server restart
-6. In VSCode Chat, test the hello_world tool again
+6. In VSCode Chat, test the get_status tool again
 
 **Expected Results**:
 - File watching detects the change automatically
 - Server rebuilds and restarts without manual intervention
 - Total time from save to working tool is under 10 seconds
-- New greeting message appears in tool response
+- Modified status response appears in tool output
 
 **❌ If hot reload fails**:
 - Check MCP output logs for restart messages
@@ -474,10 +474,10 @@ Please analyze all documents in this workspace. What are the main topics and wha
 - [ ] All 9+ tools are discoverable
 
 **Core Functionality**:
-- [ ] hello_world tool works
-- [ ] get_status returns system info
-- [ ] Document search finds relevant results
+- [ ] get_status tool works
+- [ ] search_documents returns relevant results
 - [ ] Document analysis provides insights
+- [ ] Document listing shows files correctly
 
 **Development Experience**:
 - [ ] Hot reload works in under 10 seconds
@@ -506,7 +506,7 @@ Please analyze all documents in this workspace. What are the main topics and wha
 ### **Tools Fail to Execute**
 - **Cause**: Runtime errors in server code
 - **Fix**: Check server logs for JavaScript/TypeScript errors  
-- **Test**: Try hello_world tool first (simplest)
+- **Test**: Try get_status tool first (basic system tool)
 
 ### **Poor Performance**
 - **Cause**: Large document set or indexing issues

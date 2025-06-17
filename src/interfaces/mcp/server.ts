@@ -19,7 +19,6 @@ import {
 import type { ILoggingService } from '../../di/interfaces.js';
 import type { MCPServerOptions, MCPServerCapabilities } from './types.js';
 import { 
-  BasicHandler, 
   SearchHandler, 
   NavigationHandler, 
   DocumentAccessHandler, 
@@ -33,7 +32,6 @@ import { DEFAULT_ENHANCED_MCP_CONFIG, formatToolSetsForClients, type EnhancedMCP
 export class MCPServer {
   private server: Server;
   private transport: MCPTransport;
-  private basicHandler: BasicHandler;
   private searchHandler: SearchHandler;
   private navigationHandler: NavigationHandler;
   private documentAccessHandler: DocumentAccessHandler;
@@ -74,7 +72,6 @@ export class MCPServer {
 
     // Initialize transport and handlers
     this.transport = new MCPTransport(this.logger);
-    this.basicHandler = new BasicHandler(this.logger);
     
     // Initialize document intelligence handlers with required services
     // FAIL FAST: No mock fallbacks in production
@@ -152,7 +149,6 @@ export class MCPServer {
       
       // Collect all tool definitions from all handlers
       const tools = [
-        ...this.basicHandler.getToolDefinitions(),
         ...this.searchHandler.getToolDefinitions(),
         ...this.navigationHandler.getToolDefinitions(),
         ...this.documentAccessHandler.getToolDefinitions(),
@@ -165,46 +161,49 @@ export class MCPServer {
       return { tools };
     });
 
-    // List resources handler (for save/drag functionality)
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      process.stderr.write('[INFO] Handling list_resources request\n');
-      this.logger.info('Handling list_resources request');
-      
-      // Return empty array for now - resources are created dynamically by tools
-      const resources: any[] = [];
-      
-      process.stderr.write(`[INFO] Returning resources list (count: ${resources.length})\n`);
-      this.logger.info('Returning resources list', { resourceCount: resources.length });
-      return { resources };
-    });
-
-    // Read resource handler (for save/drag functionality)
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      process.stderr.write(`[INFO] Handling read_resource request: ${request.params.uri}\n`);
-      this.logger.info('Handling read_resource request', { uri: request.params.uri });
-
-      try {
-        const content = await this.resourcesHandler.getResourceContent(request.params.uri);
+    // Only register resource handlers if resources capability is enabled
+    if (this.enhancedMcpConfig?.resources?.enableSaveDrag) {
+      // List resources handler (for save/drag functionality)
+      this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+        process.stderr.write('[INFO] Handling list_resources request\n');
+        this.logger.info('Handling list_resources request');
         
-        process.stderr.write(`[INFO] Resource content retrieved successfully: ${request.params.uri}\n`);
-        this.logger.info('Resource content retrieved successfully', { uri: request.params.uri });
+        // Return empty array for now - resources are created dynamically by tools
+        const resources: any[] = [];
         
-        return {
-          contents: [
-            {
-              uri: content.uri,
-              mimeType: content.mimeType,
-              text: content.text,
-              blob: content.blob
-            }
-          ]
-        };
-      } catch (error) {
-        process.stderr.write(`[ERROR] Resource retrieval failed: ${error}\n`);
-        this.logger.error('Resource retrieval failed', error instanceof Error ? error : new Error(String(error)));
-        throw error;
-      }
-    });
+        process.stderr.write(`[INFO] Returning resources list (count: ${resources.length})\n`);
+        this.logger.info('Returning resources list', { resourceCount: resources.length });
+        return { resources };
+      });
+
+      // Read resource handler (for save/drag functionality)
+      this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+        process.stderr.write(`[INFO] Handling read_resource request: ${request.params.uri}\n`);
+        this.logger.info('Handling read_resource request', { uri: request.params.uri });
+
+        try {
+          const content = await this.resourcesHandler.getResourceContent(request.params.uri);
+          
+          process.stderr.write(`[INFO] Resource content retrieved successfully: ${request.params.uri}\n`);
+          this.logger.info('Resource content retrieved successfully', { uri: request.params.uri });
+          
+          return {
+            contents: [
+              {
+                uri: content.uri,
+                mimeType: content.mimeType,
+                text: content.text,
+                blob: content.blob
+              }
+            ]
+          };
+        } catch (error) {
+          process.stderr.write(`[ERROR] Resource retrieval failed: ${error}\n`);
+          this.logger.error('Resource retrieval failed', error instanceof Error ? error : new Error(String(error)));
+          throw error;
+        }
+      });
+    }
 
     // Call tool handler
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -221,17 +220,7 @@ export class MCPServer {
         let result: any;
         
         // Route to appropriate handler based on tool name
-        if (name === 'hello_world') {
-          const basicResult = await this.basicHandler.handleHelloWorld(args || {});
-          result = {
-            content: [
-              {
-                type: 'text',
-                text: basicResult.message,
-              },
-            ],
-          };
-        } else if (name === 'search_documents') {
+        if (name === 'search_documents') {
           result = await this.searchHandler.handleSearchDocuments(args as any);
         } else if (name === 'search_chunks') {
           result = await this.searchHandler.handleSearchChunks(args as any);

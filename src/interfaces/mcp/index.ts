@@ -7,4 +7,3 @@
 export { MCPServer } from './server.js';
 export { MCPTransport } from './transport.js';
 export * from './types.js';
-export { BasicHandler } from './handlers/basic.js';

@@ -239,13 +239,13 @@ export class TestClass implements TestInterface {
 }
 `,
         python: `
-def hello_world():
-    """A simple hello world function"""
-    print("Hello, World!")
+def get_system_status():
+    """A simple system status function"""
+    print("System Status: OK")
     return "success"
 
 if __name__ == "__main__":
-    hello_world()
+    get_system_status()
 `
       };
       return examples[language as keyof typeof examples] || examples.javascript;
