@@ -14,8 +14,6 @@ import { GenerateKeyCommand } from './generate-key.js';
 import { RotateKeyCommand } from './rotate-key.js';
 import { ShowKeyCommand } from './show-key.js';
 import { RevokeKeyCommand } from './revoke-key.js';
-import { TestGrpcCommand } from './test-grpc.js';
-import { TestMcpCommand } from './test-mcp.js';
 import { StatusCommand } from './status.js';
 
 export function setupCommands(program: CLIProgram): void {
@@ -34,8 +32,6 @@ export function setupCommands(program: CLIProgram): void {
   program.addCommand(new ShowKeyCommand());
   program.addCommand(new RevokeKeyCommand());
   
-  // Transport testing and status commands
-  program.addCommand(new TestGrpcCommand());
-  program.addCommand(new TestMcpCommand());
+  // Status commands
   program.addCommand(new StatusCommand());
 }
