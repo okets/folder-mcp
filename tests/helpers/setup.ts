@@ -1,8 +1,25 @@
 /**
- * Basic test environment setup
+ * Test environment setup and cleanup utilities
  */
 
-export function setupTestEnvironment(): void {
-  // Basic setup for architectural tests - no complex configurations needed
+export interface TestEnvironment {
+  folderPath: string;
+  tempDir?: string;
+}
+
+export async function setupTestEnvironment(): Promise<TestEnvironment> {
+  // Basic setup for tests
   process.env.NODE_ENV = 'test';
+  
+  // Use the existing test knowledge base
+  const folderPath = 'c:\\ThinkingHomes\\folder-mcp\\tests\\fixtures\\test-knowledge-base';
+  
+  return {
+    folderPath
+  };
+}
+
+export async function cleanupTestEnvironment(testEnv: TestEnvironment): Promise<void> {
+  // Clean up any temporary resources if created
+  // For now, we're using the static test knowledge base, so no cleanup needed
 }

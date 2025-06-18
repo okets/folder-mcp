@@ -245,9 +245,14 @@ export interface ILoggingService {
   error(message: string, error?: Error, context?: any): void;
   
   /**
+   * Log fatal message
+   */
+  fatal(message: string, error?: Error, context?: any): void;
+  
+  /**
    * Set log level
    */
-  setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void;
+  setLevel(level: 'debug' | 'info' | 'warn' | 'error' | 'fatal'): void;
 }
 
 // =============================================================================

@@ -294,74 +294,47 @@ export class ServiceFactory implements IServiceFactory {
       stopAll: async () => { },
       getActiveTransports: () => []
     };
-  } async createMCPServer(
+  }  async createMCPServer(
     options: any,
     container: DependencyContainer
   ): Promise<any> {
     // Get required services
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;    // Resolve required application services with proper error handling
-    const serviceErrors: string[] = [];
-    let knowledgeOperations = null;
-    let contentServingWorkflow = null;
-    let monitoringWorkflow = null;
-
-    try {
-      knowledgeOperations = await container.resolveAsync(MODULE_TOKENS.APPLICATION.KNOWLEDGE_OPERATIONS);
-    } catch (e) {
-      serviceErrors.push(`Knowledge Operations: ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    try {
-      contentServingWorkflow = await container.resolveAsync(MODULE_TOKENS.APPLICATION.CONTENT_SERVING_WORKFLOW);
-    } catch (e) {
-      serviceErrors.push(`Content Serving Workflow: ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    try {
-      monitoringWorkflow = await container.resolveAsync(MODULE_TOKENS.APPLICATION.MONITORING_WORKFLOW);
-    } catch (e) {
-      serviceErrors.push(`Monitoring Workflow: ${e instanceof Error ? e.message : String(e)}`);
-    }    // FAIL FAST: If ANY core service is missing, throw detailed error
-    if (!knowledgeOperations || !contentServingWorkflow || !monitoringWorkflow) {
-      const missingServices = [];
-      if (!knowledgeOperations) missingServices.push('Knowledge Operations');
-      if (!contentServingWorkflow) missingServices.push('Content Serving Workflow');  
-      if (!monitoringWorkflow) missingServices.push('Monitoring Workflow');
-      
-      const errorDetails = serviceErrors.length > 0 ? `\nService resolution errors:\n${serviceErrors.join('\n')}` : '';
-      
-      throw new Error(
-        `Critical MCP services are not available: ${missingServices.join(', ')}\n` +
-        `Cannot start MCP server without all required services.${errorDetails}\n` +
-        `Please ensure the application services are properly configured and initialized.`
-      );
-    }
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
     
-    // Log resolved services for debugging
-    loggingService.info('Successfully resolved application services', {
-      knowledgeOperationsType: typeof knowledgeOperations,
-      contentServingWorkflowType: typeof contentServingWorkflow,
-      monitoringWorkflowType: typeof monitoringWorkflow,
-      knowledgeOperationsKeys: Object.keys(knowledgeOperations || {}),
-      contentServingWorkflowKeys: Object.keys(contentServingWorkflow || {}),
-      monitoringWorkflowKeys: Object.keys(monitoringWorkflow || {})
-    });
+    // Get core infrastructure services for new endpoints
+    const vectorSearchService = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH) as any;
+    const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as any;
+    const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as any;
+    const fileSystemService = container.resolve(SERVICE_TOKENS.FILE_SYSTEM) as any;
+    
+    // Get domain file system
+    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as any;
 
-    // Create service adapters with validated real services
-    const {
-      SearchServiceAdapter,
-      NavigationServiceAdapter,
-      DocumentServiceAdapter,
-      SpecializedServiceAdapter
-    } = await import('../interfaces/mcp/adapters.js');    const searchService = new SearchServiceAdapter(knowledgeOperations as any, loggingService);
-    const navigationService = new NavigationServiceAdapter(contentServingWorkflow as any, loggingService);
-    const documentService = new DocumentServiceAdapter(contentServingWorkflow as any, loggingService);
-    const specializedService = new SpecializedServiceAdapter(monitoringWorkflow as any, loggingService);    // Determine if VSCode-specific features should be enabled    // Only enable if explicitly requested via environment variable or config
-    const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true' || 
-                                   options.enableEnhancedFeatures === true;
-      const enhancedConfig = enableEnhancedFeatures ? DEFAULT_ENHANCED_MCP_CONFIG : null;    return new MCPServer(
-      options,
-      {} // Basic MCP capabilities
+    // Import MCPServer
+    const { MCPServer } = await import('../interfaces/mcp/server.js');
+
+    // Create MCP server with new endpoint-enabled constructor
+    return new MCPServer(
+      {
+        name: options.name || 'folder-mcp',
+        version: options.version || '1.0.0',
+        transport: options.transport || 'stdio',
+        port: options.port,
+        host: options.host
+      },
+      {
+        tools: true,
+        resources: true,
+        prompts: false,
+        completion: false
+      },
+      options.folderPath,
+      vectorSearchService,
+      fileParsingService,
+      embeddingService,
+      fileSystemService,
+      fileSystem,
+      loggingService
     );
   }
 }

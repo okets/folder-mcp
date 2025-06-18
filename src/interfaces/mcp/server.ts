@@ -1,9 +1,16 @@
-// Minimal MCP Server Framework
-// This provides the basic structure for MCP server functionality
-// without any specific endpoint implementations
+// Enhanced MCP Server Framework
+// This provides the MCP server functionality with new endpoint implementations
 
 import { EventEmitter } from 'events';
 import { ILoggingService } from '../../infrastructure/logging/index.js';
+import { MCPEndpoints, type IMCPEndpoints } from './endpoints.js';
+import type { 
+  IVectorSearchService, 
+  IFileParsingService, 
+  IEmbeddingService,
+  IFileSystemService
+} from '../../di/interfaces.js';
+import type { IFileSystem } from '../../domain/files/interfaces.js';
 
 export interface MCPServerConfig {
   name: string;
@@ -40,9 +47,20 @@ export class MCPServer extends EventEmitter {
   private readonly logger: ILoggingService;
   private readonly config: MCPServerConfig;
   private readonly capabilities: MCPCapabilities;
+  private readonly endpoints: IMCPEndpoints;
   private isRunning = false;
 
-  constructor(config: MCPServerConfig, capabilities: MCPCapabilities = {}, logger?: ILoggingService) {
+  constructor(
+    config: MCPServerConfig, 
+    capabilities: MCPCapabilities = {},
+    folderPath: string,
+    vectorSearchService: IVectorSearchService,
+    fileParsingService: IFileParsingService,
+    embeddingService: IEmbeddingService,
+    fileSystemService: IFileSystemService,
+    fileSystem: IFileSystem,
+    logger?: ILoggingService
+  ) {
     super();
     this.config = config;
     this.capabilities = capabilities;
@@ -53,6 +71,17 @@ export class MCPServer extends EventEmitter {
       error: (msg: string) => console.error(`[MCPServer] ${msg}`),
       fatal: (msg: string) => console.error(`[MCPServer] FATAL: ${msg}`)
     };
+
+    // Initialize the endpoints
+    this.endpoints = new MCPEndpoints(
+      folderPath,
+      vectorSearchService,
+      fileParsingService,
+      embeddingService,
+      fileSystemService,
+      fileSystem,
+      this.logger
+    );
   }
 
   async start(): Promise<void> {
@@ -84,20 +113,86 @@ export class MCPServer extends EventEmitter {
   async handleRequest(request: MCPRequest): Promise<MCPResponse> {
     this.logger.debug(`Handling request: ${request.method}`, { id: request.id });
 
-    // Basic method routing - to be extended by implementations
-    switch (request.method) {
-      case 'initialize':
-        return this.handleInitialize(request);
-      case 'ping':
-        return this.handlePing(request);
-      default:
-        return {
-          id: request.id,
-          error: {
-            code: -32601,
-            message: `Method not found: ${request.method}`
-          }
-        };
+    try {
+      // Route to appropriate endpoint or handler
+      switch (request.method) {
+        case 'initialize':
+          return this.handleInitialize(request);
+        case 'ping':
+          return this.handlePing(request);
+        
+        // New MCP Endpoints
+        case 'search_documents':
+          return {
+            id: request.id,
+            result: await this.endpoints.search(request.params)
+          };
+        case 'get_document_outline':
+          return {
+            id: request.id,
+            result: await this.endpoints.getDocumentOutline(request.params)
+          };
+        case 'get_document_data':
+          return {
+            id: request.id,
+            result: await this.endpoints.getDocumentData(request.params)
+          };
+        case 'list_folders':
+          return {
+            id: request.id,
+            result: await this.endpoints.listFolders()
+          };
+        case 'list_documents':
+          return {
+            id: request.id,
+            result: await this.endpoints.listDocuments(request.params)
+          };
+        case 'get_sheet_data':
+          return {
+            id: request.id,
+            result: await this.endpoints.getSheetData(request.params)
+          };
+        case 'get_slides':
+          return {
+            id: request.id,
+            result: await this.endpoints.getSlides(request.params)
+          };
+        case 'get_pages':
+          return {
+            id: request.id,
+            result: await this.endpoints.getPages(request.params)
+          };
+        case 'get_embedding':
+          return {
+            id: request.id,
+            result: await this.endpoints.getEmbedding(request.params)
+          };
+        case 'get_status':
+          return {
+            id: request.id,
+            result: await this.endpoints.getStatus(request.params)
+          };
+        
+        default:
+          return {
+            id: request.id,
+            error: {
+              code: -32601,
+              message: `Method not found: ${request.method}`
+            }
+          };
+      }
+    } catch (error) {
+      this.logger.error(`Error handling ${request.method}`, error as Error);
+      
+      return {
+        id: request.id,
+        error: {
+          code: -32000,
+          message: error instanceof Error ? error.message : 'Unknown error',
+          data: { method: request.method, params: request.params }
+        }
+      };
     }
   }
 
@@ -132,5 +227,9 @@ export class MCPServer extends EventEmitter {
 
   isServerRunning(): boolean {
     return this.isRunning;
+  }
+
+  getEndpoints(): IMCPEndpoints {
+    return this.endpoints;
   }
 }

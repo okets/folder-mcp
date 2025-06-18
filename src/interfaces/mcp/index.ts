@@ -6,4 +6,5 @@
 
 export { MCPServer } from './server.js';
 export { MCPTransport } from './transport.js';
+export { MCPEndpoints, type IMCPEndpoints } from './endpoints.js';
 export * from './types.js';
