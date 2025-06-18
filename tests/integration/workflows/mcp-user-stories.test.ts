@@ -131,7 +131,10 @@ describe('MCP User Story Integration Tests', () => {
 
         // Find pages with legal terms based on search results
         const docResults = contractSearch.data.results.filter(r => r.document_id === docId);
-        const pageNumbers = [...new Set(docResults.map(r => r.location.page).filter((p): p is number => p !== null))];
+        const validPages = docResults
+          .map(r => r.location?.page)
+          .filter((p): p is number => typeof p === 'number' && p > 0);
+        const pageNumbers = [...new Set(validPages)] as number[];
         
         if (pageNumbers.length > 0) {
           const pageRange = pageNumbers.sort((a, b) => a - b).join(',');

@@ -26,9 +26,15 @@ export class LoggingServiceBridge implements DILoggingService {
     this.infraLogger.error(message, error, context);
   }
 
-  setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
+  fatal(message: string, error?: Error, context?: any): void {
+    this.infraLogger.error(message, error, context); // Use error level for fatal
+  }
+
+  setLevel(level: 'debug' | 'info' | 'warn' | 'error' | 'fatal'): void {
     if (this.infraLogger.setLevel) {
-      this.infraLogger.setLevel(level as LogLevel);
+      // Map fatal to error for infrastructure logger
+      const mappedLevel = level === 'fatal' ? 'error' : level;
+      this.infraLogger.setLevel(mappedLevel as LogLevel);
     }
   }
 }

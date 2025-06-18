@@ -66,7 +66,9 @@ import { MCPServer } from '../interfaces/mcp/server.js';
  * Default service factory implementation
  */
 export class ServiceFactory implements IServiceFactory {
-  private loggingService: ILoggingService | null = null;  /**
+  private loggingService: ILoggingService | null = null;
+
+  /**
    * Get or create logging service (needed by other services)
    */
   private getLoggingService(config?: any): ILoggingService {
@@ -88,7 +90,8 @@ export class ServiceFactory implements IServiceFactory {
       // Bridge to DI interface
       this.loggingService = new LoggingServiceBridge(infraLogger);
     }
-    return this.loggingService;
+    // TypeScript knows this.loggingService is not null here due to the check above
+    return this.loggingService!;
   }
 
   createConfigurationService(): IConfigurationService {

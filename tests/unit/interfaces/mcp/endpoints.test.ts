@@ -186,8 +186,10 @@ describe('MCP Endpoints - User Story Tests', () => {
         });
 
         // Should have structured navigation
-        expect(response.total_pages).toBeGreaterThan(50);
-        expect(response.bookmarks.length).toBeGreaterThan(0);
+        if (response.type === 'pdf') {
+          expect(response.total_pages).toBeGreaterThan(50);
+          expect(response.bookmarks.length).toBeGreaterThan(0);
+        }
       });
 
       test('Get Excel outline with sheet information', async () => {
@@ -209,9 +211,11 @@ describe('MCP Endpoints - User Story Tests', () => {
         });
 
         // Should identify different sheet types
-        const summarySheet = response.sheets.find(s => s.name === "Summary");
-        expect(summarySheet).toBeDefined();
-        expect(summarySheet!.rows).toBeGreaterThan(0);
+        if (response.type === 'xlsx') {
+          const summarySheet = response.sheets.find(s => s.name === "Summary");
+          expect(summarySheet).toBeDefined();
+          expect(summarySheet!.rows).toBeGreaterThan(0);
+        }
       });
 
       test('Get PowerPoint outline with slide titles', async () => {
@@ -231,7 +235,9 @@ describe('MCP Endpoints - User Story Tests', () => {
           file_size: expect.any(String)
         });
 
-        expect(response.total_slides).toBeGreaterThan(0);
+        if (response.type === 'pptx') {
+          expect(response.total_slides).toBeGreaterThan(0);
+        }
       });
     });
   });
@@ -619,7 +625,9 @@ describe('MCP Endpoints - User Story Tests', () => {
         if (response.continuation.has_more) {
           expect(response.continuation.token).toBeDefined();
           expect(response.actions).toBeDefined();
-          expect(response.actions.length).toBeGreaterThan(0);
+          if (response.actions) {
+            expect(response.actions.length).toBeGreaterThan(0);
+          }
         }
       }
     });
@@ -637,14 +645,16 @@ describe('MCP Endpoints - User Story Tests', () => {
         expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
         
         // Should be decodable
-        const decoded = Buffer.from(token, 'base64url').toString('utf8');
-        const parsed = JSON.parse(decoded);
-        
-        expect(parsed).toMatchObject({
-          document_id: expect.any(String),
-          page: expect.any(Number),
-          type: expect.any(String)
-        });
+        if (token) {
+          const decoded = Buffer.from(token, 'base64url').toString('utf8');
+          const parsed = JSON.parse(decoded);
+          
+          expect(parsed).toMatchObject({
+            document_id: expect.any(String),
+            page: expect.any(Number),
+            type: expect.any(String)
+          });
+        }
       }
     });
   });

@@ -2,7 +2,7 @@
 // This provides the MCP server functionality with new endpoint implementations
 
 import { EventEmitter } from 'events';
-import { ILoggingService } from '../../infrastructure/logging/index.js';
+import { ILoggingService } from '../../di/interfaces.js';
 import { MCPEndpoints, type IMCPEndpoints } from './endpoints.js';
 import type { 
   IVectorSearchService, 
@@ -63,13 +63,13 @@ export class MCPServer extends EventEmitter {
   ) {
     super();
     this.config = config;
-    this.capabilities = capabilities;
-    this.logger = logger || {
+    this.capabilities = capabilities;    this.logger = logger || {
       debug: (msg: string) => console.debug(`[MCPServer] ${msg}`),
       info: (msg: string) => console.info(`[MCPServer] ${msg}`),
       warn: (msg: string) => console.warn(`[MCPServer] ${msg}`),
       error: (msg: string) => console.error(`[MCPServer] ${msg}`),
-      fatal: (msg: string) => console.error(`[MCPServer] FATAL: ${msg}`)
+      fatal: (msg: string) => console.error(`[MCPServer] FATAL: ${msg}`),
+      setLevel: () => {} // No-op for fallback logger
     };
 
     // Initialize the endpoints
