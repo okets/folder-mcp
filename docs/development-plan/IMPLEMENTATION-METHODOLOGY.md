@@ -9,7 +9,7 @@
 ### **Your New Workflow (Safety-First Approach)**
 
 1. **Create Design Document**: Focus on WHAT you want built
-2. **Request Safety Setup**: "Set up safety framework for my design document"  
+2. **Request Safety Setup**: "Set up safety framework and implementation plan for my design document"
 3. **Establish Safety Container**: Agent creates backup branches, rollback commands, and validation checkpoints FIRST
 4. **Then Break Down Tasks**: Within the safety container, break tasks into manageable steps as needed
 5. **Execute with Confidence**: Work within the pre-established safety framework
