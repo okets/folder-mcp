@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Specification</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .endpoint { background: #f5f5f5; padding: 20px; margin: 20px 0; }
+        .method { color: #0066cc; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Knowledge Base API Specification</h1>
+    
+    <div class="endpoint">
+        <h2><span class="method">POST</span> /search</h2>
+        <p>Search documents or chunks using semantic similarity or regex patterns.</p>
+        <h3>Request Body</h3>
+        <pre>{
+  "query": "Q1 financial results",
+  "mode": "semantic",
+  "scope": "documents",
+  "filters": { "folder": "Finance", "fileType": "pdf" },
+  "max_tokens": 2000
+}</pre>
+        <h3>Response</h3>
+        <pre>{
+  "data": {
+    "results": [
+      {
+        "document_id": "annual_report_2024",
+        "preview": "Revenue grew by 15%...",
+        "score": 0.92,
+        "location": {
+          "page": 23,
+          "section": "Financial Results"
+        }
+      }
+    ]
+  }
+}</pre>
+    </div>
+
+    <div class="endpoint">
+        <h2><span class="method">GET</span> /get_document_data</h2>
+        <p>Fetch content in raw, structured, or summarized form.</p>
+        <p>Email patterns for testing: john@acme.com, sarah.smith@bigco.com</p>
+        <p>Financial keywords: quarterly results, Q1 revenue, $1.2M</p>
+        <p>Legal terms: force majeure, confidential information, indemnification</p>
+    </div>
+
+    <footer>
+        <p>Last updated: March 31, 2024</p>
+        <p>Contact: procurement@supplier.com for questions</p>
+    </footer>
+</body>
+</html>

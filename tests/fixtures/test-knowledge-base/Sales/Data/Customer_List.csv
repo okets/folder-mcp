@@ -1,0 +1,11 @@
+customer_id,company_name,contact_email,phone,city,state,revenue,contract_date,renewal_date,account_manager
+1,Acme Corporation,john@acme.com,555-0101,New York,NY,125000,2024-01-15,2025-01-15,Sarah Smith
+2,BigCo Industries,sarah.smith@bigco.com,555-0102,Los Angeles,CA,275000,2024-02-20,2025-02-20,John Davis
+3,TechStart LLC,info@techstart.com,555-0103,Austin,TX,85000,2024-03-01,2025-03-01,Mike Johnson
+4,Global Suppliers,procurement@supplier.com,555-0104,Chicago,IL,450000,2024-01-30,2025-01-30,Lisa Wong
+5,Innovation Labs,labs@innovation.com,555-0105,Seattle,WA,195000,2024-02-14,2025-02-14,Tom Brown
+6,Enterprise Solutions,sales@enterprise.com,555-0106,Miami,FL,320000,2024-03-10,2025-03-10,Anna Garcia
+7,Digital Dynamics,contact@digital.com,555-0107,Denver,CO,180000,2024-01-25,2025-01-25,Chris Lee
+8,Future Systems,info@future.com,555-0108,Portland,OR,220000,2024-02-28,2025-02-28,Emma Wilson
+9,Smart Solutions,team@smart.com,555-0109,Atlanta,GA,290000,2024-03-15,2025-03-15,David Miller
+10,Premier Corp,hello@premier.com,555-0110,Boston,MA,380000,2024-01-10,2025-01-10,Rachel Green

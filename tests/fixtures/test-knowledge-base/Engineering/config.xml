@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <database>
+        <host>localhost</host>
+        <port>5432</port>
+        <name>knowledge_base</name>
+        <credentials>
+            <!-- Contact john@acme.com for database access -->
+            <username>app_user</username>
+            <password>encrypted_password</password>
+        </credentials>
+    </database>
+    
+    <search>
+        <default_tokens>2000</default_tokens>
+        <embedding_model>text-embedding-ada-002</embedding_model>
+        <similarity_threshold>0.7</similarity_threshold>
+    </search>
+    
+    <financial_reporting>
+        <quarterly_schedule>
+            <q1_deadline>2024-03-31</q1_deadline>
+            <q2_deadline>2024-06-30</q2_deadline>
+            <q3_deadline>2024-09-30</q3_deadline>
+            <q4_deadline>2024-12-31</q4_deadline>
+        </quarterly_schedule>
+        <revenue_targets>
+            <q1_target>$1.2M</q1_target>
+            <annual_target>$5.5M</annual_target>
+        </revenue_targets>
+    </financial_reporting>
+    
+    <legal_compliance>
+        <clauses>
+            <force_majeure>enabled</force_majeure>
+            <confidential_information>strict</confidential_information>
+            <indemnification>mutual</indemnification>
+        </clauses>
+        <contact>sarah.smith@bigco.com</contact>
+    </legal_compliance>
+    
+    <remote_work>
+        <policy>WFH allowed 3 days per week</policy>
+        <approval_required>true</approval_required>
+    </remote_work>
+</configuration>
