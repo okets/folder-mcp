@@ -1,0 +1,181 @@
+{
+  "parsedContent": {
+    "content": "=== Sheet: Tablib Dataset ===\nname,residency\nWesley Carpenter,\"119 Cathy Glen\nLake Matthewchester, NJ 27255\"\nBrian Fowler,\"3933 Baldwin Drive\nEast Michaelburgh, CA 42775\"\nTaylor Nelson,\"9262 Michael Plain\nKellyfort, TX 61320\"\nJohn Beasley,\"884 Jennifer Green Apt. 997\nNew Ashley, SD 95391\"\nLinda Austin,\"49995 Banks Roads\nNorth Susan, MD 58082\"\nGregory Young,\"Unit 0518 Box 6070\nDPO AE 68836\"\nFelicia Lynch,\"474 Jane Estate Apt. 244\nPort Diana, PW 62762\"\nMichael Flores,\"56641 Blake Corners\nJosephbury, KS 99663\"\nRobert White,\"832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316\"\nAaron Adams,\"023 Savannah Row\nThomasview, AR 31431\"",
+    "type": "excel",
+    "originalPath": "tests\\fixtures\\test-knowledge-base\\Finance\\2024\\Q4\\Q4_Forecast.xlsx",
+    "metadata": {
+      "type": "xlsx",
+      "originalPath": "tests\\fixtures\\test-knowledge-base\\Finance\\2024\\Q4\\Q4_Forecast.xlsx",
+      "size": 5518,
+      "lastModified": "2025-06-18T13:58:32.725Z",
+      "sheets": [
+        "Tablib Dataset"
+      ],
+      "sheetCount": 1,
+      "charCount": 637,
+      "worksheets": [
+        {
+          "name": "Tablib Dataset",
+          "index": 0,
+          "csvContent": "name,residency\nWesley Carpenter,\"119 Cathy Glen\nLake Matthewchester, NJ 27255\"\nBrian Fowler,\"3933 Baldwin Drive\nEast Michaelburgh, CA 42775\"\nTaylor Nelson,\"9262 Michael Plain\nKellyfort, TX 61320\"\nJohn Beasley,\"884 Jennifer Green Apt. 997\nNew Ashley, SD 95391\"\nLinda Austin,\"49995 Banks Roads\nNorth Susan, MD 58082\"\nGregory Young,\"Unit 0518 Box 6070\nDPO AE 68836\"\nFelicia Lynch,\"474 Jane Estate Apt. 244\nPort Diana, PW 62762\"\nMichael Flores,\"56641 Blake Corners\nJosephbury, KS 99663\"\nRobert White,\"832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316\"\nAaron Adams,\"023 Savannah Row\nThomasview, AR 31431\"",
+          "jsonData": [
+            [
+              "name",
+              "residency"
+            ],
+            [
+              "Wesley Carpenter",
+              "119 Cathy Glen\nLake Matthewchester, NJ 27255"
+            ],
+            [
+              "Brian Fowler",
+              "3933 Baldwin Drive\nEast Michaelburgh, CA 42775"
+            ],
+            [
+              "Taylor Nelson",
+              "9262 Michael Plain\nKellyfort, TX 61320"
+            ],
+            [
+              "John Beasley",
+              "884 Jennifer Green Apt. 997\nNew Ashley, SD 95391"
+            ],
+            [
+              "Linda Austin",
+              "49995 Banks Roads\nNorth Susan, MD 58082"
+            ],
+            [
+              "Gregory Young",
+              "Unit 0518 Box 6070\nDPO AE 68836"
+            ],
+            [
+              "Felicia Lynch",
+              "474 Jane Estate Apt. 244\nPort Diana, PW 62762"
+            ],
+            [
+              "Michael Flores",
+              "56641 Blake Corners\nJosephbury, KS 99663"
+            ],
+            [
+              "Robert White",
+              "832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316"
+            ],
+            [
+              "Aaron Adams",
+              "023 Savannah Row\nThomasview, AR 31431"
+            ]
+          ],
+          "rowCount": 11,
+          "colCount": 2,
+          "cellCount": 22,
+          "hasFormulas": false,
+          "formulas": [],
+          "range": "A1:B11"
+        }
+      ],
+      "totalRows": 11,
+      "totalCells": 22,
+      "totalFormulas": 0,
+      "hasFormulas": false,
+      "workbookProperties": {
+        "author": "openpyxl",
+        "created": "2025-06-18T13:58:32.000Z",
+        "modified": "2025-06-18T13:58:32.000Z"
+      }
+    }
+  },
+  "chunks": [
+    {
+      "content": "=== Sheet: Tablib Dataset ===\nname,residency\nWesley Carpenter,\"119 Cathy Glen\nLake Matthewchester, NJ 27255\"\nBrian Fowler,\"3933 Baldwin Drive\nEast Michaelburgh, CA 42775\"\nTaylor Nelson,\"9262 Michael Plain\nKellyfort, TX 61320\"\nJohn Beasley,\"884 Jennifer Green Apt. 997\nNew Ashley, SD 95391\"\nLinda Austin,\"49995 Banks Roads\nNorth Susan, MD 58082\"\nGregory Young,\"Unit 0518 Box 6070\nDPO AE 68836\"\nFelicia Lynch,\"474 Jane Estate Apt. 244\nPort Diana, PW 62762\"\nMichael Flores,\"56641 Blake Corners\nJosephbury, KS 99663\"\nRobert White,\"832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316\"\nAaron Adams,\"023 Savannah Row\nThomasview, AR 31431\"",
+      "startPosition": 0,
+      "endPosition": 635,
+      "tokenCount": 116,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "tests\\fixtures\\test-knowledge-base\\Finance\\2024\\Q4\\Q4_Forecast.xlsx",
+        "sourceType": "excel",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "xlsx",
+          "originalPath": "tests\\fixtures\\test-knowledge-base\\Finance\\2024\\Q4\\Q4_Forecast.xlsx",
+          "size": 5518,
+          "lastModified": "2025-06-18T13:58:32.725Z",
+          "sheets": [
+            "Tablib Dataset"
+          ],
+          "sheetCount": 1,
+          "charCount": 637,
+          "worksheets": [
+            {
+              "name": "Tablib Dataset",
+              "index": 0,
+              "csvContent": "name,residency\nWesley Carpenter,\"119 Cathy Glen\nLake Matthewchester, NJ 27255\"\nBrian Fowler,\"3933 Baldwin Drive\nEast Michaelburgh, CA 42775\"\nTaylor Nelson,\"9262 Michael Plain\nKellyfort, TX 61320\"\nJohn Beasley,\"884 Jennifer Green Apt. 997\nNew Ashley, SD 95391\"\nLinda Austin,\"49995 Banks Roads\nNorth Susan, MD 58082\"\nGregory Young,\"Unit 0518 Box 6070\nDPO AE 68836\"\nFelicia Lynch,\"474 Jane Estate Apt. 244\nPort Diana, PW 62762\"\nMichael Flores,\"56641 Blake Corners\nJosephbury, KS 99663\"\nRobert White,\"832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316\"\nAaron Adams,\"023 Savannah Row\nThomasview, AR 31431\"",
+              "jsonData": [
+                [
+                  "name",
+                  "residency"
+                ],
+                [
+                  "Wesley Carpenter",
+                  "119 Cathy Glen\nLake Matthewchester, NJ 27255"
+                ],
+                [
+                  "Brian Fowler",
+                  "3933 Baldwin Drive\nEast Michaelburgh, CA 42775"
+                ],
+                [
+                  "Taylor Nelson",
+                  "9262 Michael Plain\nKellyfort, TX 61320"
+                ],
+                [
+                  "John Beasley",
+                  "884 Jennifer Green Apt. 997\nNew Ashley, SD 95391"
+                ],
+                [
+                  "Linda Austin",
+                  "49995 Banks Roads\nNorth Susan, MD 58082"
+                ],
+                [
+                  "Gregory Young",
+                  "Unit 0518 Box 6070\nDPO AE 68836"
+                ],
+                [
+                  "Felicia Lynch",
+                  "474 Jane Estate Apt. 244\nPort Diana, PW 62762"
+                ],
+                [
+                  "Michael Flores",
+                  "56641 Blake Corners\nJosephbury, KS 99663"
+                ],
+                [
+                  "Robert White",
+                  "832 Hughes Underpass Apt. 889\nNorth Coreyberg, CT 62316"
+                ],
+                [
+                  "Aaron Adams",
+                  "023 Savannah Row\nThomasview, AR 31431"
+                ]
+              ],
+              "rowCount": 11,
+              "colCount": 2,
+              "cellCount": 22,
+              "hasFormulas": false,
+              "formulas": [],
+              "range": "A1:B11"
+            }
+          ],
+          "totalRows": 11,
+          "totalCells": 22,
+          "totalFormulas": 0,
+          "hasFormulas": false,
+          "workbookProperties": {
+            "author": "openpyxl",
+            "created": "2025-06-18T13:58:32.000Z",
+            "modified": "2025-06-18T13:58:32.000Z"
+          }
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.480Z"
+}

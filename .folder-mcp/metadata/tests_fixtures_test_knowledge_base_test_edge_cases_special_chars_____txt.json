@@ -1,0 +1,39 @@
+{
+  "parsedContent": {
+    "content": "This is a test file with special characters and unicode in the filename.\nContent includes test patterns for search functionality:\n\nEmail addresses: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com\nFinancial terms: Q1 revenue, quarterly results, $1.2M\nLegal terms: force majeure, confidential information, indemnification  \nDates: March 31, 2024, Q1 2024, 2024-03-31\nRemote work: WFH, remote work policy\n\nThis file tests unicode filename handling in the knowledge base system.\n",
+    "type": "txt",
+    "originalPath": "tests\\fixtures\\test-knowledge-base\\test-edge-cases\\special_chars_文件名.txt",
+    "metadata": {
+      "type": "txt",
+      "originalPath": "tests\\fixtures\\test-knowledge-base\\test-edge-cases\\special_chars_文件名.txt",
+      "size": 490,
+      "lastModified": "2025-06-18T13:12:36.165Z",
+      "lines": 11,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "This is a test file with special characters and unicode in the filename.\nContent includes test patterns for search functionality:\n\nEmail addresses: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com\nFinancial terms: Q1 revenue, quarterly results, $1.2M\nLegal terms: force majeure, confidential information, indemnification  \nDates: March 31, 2024, Q1 2024, 2024-03-31\nRemote work: WFH, remote work policy\n\nThis file tests unicode filename handling in the knowledge base system.",
+      "startPosition": 0,
+      "endPosition": 489,
+      "tokenCount": 82,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "tests\\fixtures\\test-knowledge-base\\test-edge-cases\\special_chars_文件名.txt",
+        "sourceType": "txt",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "txt",
+          "originalPath": "tests\\fixtures\\test-knowledge-base\\test-edge-cases\\special_chars_文件名.txt",
+          "size": 490,
+          "lastModified": "2025-06-18T13:12:36.165Z",
+          "lines": 11,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:34.941Z"
+}

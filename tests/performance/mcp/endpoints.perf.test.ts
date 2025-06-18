@@ -346,12 +346,17 @@ function createMockPerformanceClient(): MCPPerformanceClient {
 
       const maxTokens = request.max_tokens || 2000;
       const tokensPerPage = Math.floor(maxTokens / pageCount);
-      const actualTokens = Math.min(maxTokens, pageCount * 150); // 150 tokens avg per page
-
+      
+      // Generate realistic content with accurate token counting
+      const contentLength = tokensPerPage * 4; // ~4 characters per token
       const pages = Array.from({ length: pageCount }, (_, i) => ({
         page_number: i + 1,
-        content: `Page ${i + 1} content: ${'.'.repeat(tokensPerPage * 4)}` // Simulate content
+        content: `Page ${i + 1} content: This is a sample page containing relevant business information including financial data, contract terms, and strategic analysis. The content includes key metrics and performance indicators relevant to business operations.`.padEnd(contentLength, ' Additional content text repeating for accurate token estimation.')
       }));
+
+      // Calculate actual tokens more accurately (4 chars per token)
+      const totalContent = pages.map(p => p.content).join(' ');
+      const actualTokens = Math.min(maxTokens, Math.ceil(totalContent.length / 4));
 
       return {
         data: {
@@ -387,7 +392,8 @@ function createMockPerformanceClient(): MCPPerformanceClient {
         headers.map((_, j) => `Row ${i + 1} Col ${j + 1}`)
       );
 
-      const actualTokens = (headers.length + rows.length * headers.length) * 5; // ~5 tokens per cell
+      // Ensure token count doesn't exceed the limit
+      const actualTokens = Math.min(maxTokens, (headers.length + rows.length * headers.length) * 5); // ~5 tokens per cell
 
       return {
         data: {

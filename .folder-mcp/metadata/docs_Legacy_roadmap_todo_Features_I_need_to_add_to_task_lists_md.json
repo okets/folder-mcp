@@ -1,0 +1,39 @@
+{
+  "parsedContent": {
+    "content": "# Features I Need to Add to Task Lists\n\n-------------------------------------------------\n## Tests I Need to Run\n1. Choosing Ollama model, then deleting it from Ollama.\n\n-------------------------------------------------\n## Features I Need to Support\n### 1. Support BitNet for Very Weak Machines\n- Reference: https://www.geektime.co.il/pc-with-pentium-ii-128mb-ram-and-windows-98-ran-llm/\n\n### 2. *** CLI should notify the user when the server is ready (consider the async design nature of the server)\n### 3. Support Legacy Doc, Xls, Ppt Formats\n ",
+    "type": "md",
+    "originalPath": "docs\\Legacy\\roadmap\\todo\\Features I need to add to task lists.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "docs\\Legacy\\roadmap\\todo\\Features I need to add to task lists.md",
+      "size": 546,
+      "lastModified": "2025-06-17T00:02:49.491Z",
+      "lines": 14,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# Features I Need to Add to Task Lists\n\n-------------------------------------------------\n## Tests I Need to Run\n1. Choosing Ollama model, then deleting it from Ollama.\n\n-------------------------------------------------\n## Features I Need to Support\n### 1. Support BitNet for Very Weak Machines\n- Reference: https://www.geektime.co.il/pc-with-pentium-ii-128mb-ram-and-windows-98-ran-llm/\n\n### 2. *** CLI should notify the user when the server is ready (consider the async design nature of the server)\n### 3. Support Legacy Doc, Xls, Ppt Formats",
+      "startPosition": 0,
+      "endPosition": 544,
+      "tokenCount": 94,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\todo\\Features I need to add to task lists.md",
+        "sourceType": "md",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\todo\\Features I need to add to task lists.md",
+          "size": 546,
+          "lastModified": "2025-06-17T00:02:49.491Z",
+          "lines": 14,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.016Z"
+}

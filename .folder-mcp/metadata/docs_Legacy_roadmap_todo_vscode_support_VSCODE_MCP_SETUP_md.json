@@ -1,0 +1,60 @@
+{
+  "parsedContent": {
+    "content": "# VSCode MCP Configuration Example\n\nThis document provides VSCode-specific configuration examples for the enhanced folder-mcp MCP server.\n\n## 🚨 CRITICAL: Test Folder Setup\n\n**⚠️ ALWAYS USE THE DEDICATED TEST FOLDER**: `C:\\ThinkingHomes\\test-folder`\n\n- **✅ CORRECT**: Use `C:\\ThinkingHomes\\test-folder` as the target folder in ALL configurations\n- **❌ WRONG**: NEVER use `C:\\ThinkingHomes\\folder-mcp` (the project folder) as the target\n\nThis prevents:\n- Cache pollution in the project directory\n- `.folder-mcp` folders appearing in your source code\n- Indexing of source files during development\n- Confusion between project files and test content\n\n## VSCode Settings Configuration\n\nAdd this to your VSCode `settings.json` file to enable folder-mcp with VSCode MCP features:\n\n```json\n{\n  \"mcpServers\": {\n    \"folder-mcp\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"C:\\\\ThinkingHomes\\\\folder-mcp\\\\dist\\\\index.js\",\n        \"C:\\\\ThinkingHomes\\\\test-folder\"  \n      ],\n      \"env\": {},\n      \"dev\": {\n        \"watch\": \"dist/**/*.js\",\n        \"debug\": { \n          \"type\": \"node\" \n        }\n      }\n    }\n  }\n}\n```\n\n## Enhanced Configuration with Tool Sets\n\nFor the full VSCode MCP experience with tool sets and enhanced features:\n\n```json\n{\n  \"mcpServers\": {\n    \"folder-mcp\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"C:\\\\ThinkingHomes\\\\folder-mcp\\\\dist\\\\index.js\",\n        \"C:\\\\ThinkingHomes\\\\test-folder\"\n      ],\n      \"env\": {\n        \"DEBUG\": \"folder-mcp:*\"\n      },\n      \"dev\": {\n        \"watch\": \"dist/**/*.js\",\n        \"debug\": { \n          \"type\": \"node\",\n          \"port\": 9229\n        }\n      },\n      \"toolSets\": {\n        \"document-access\": {\n          \"tools\": [\"get_document_content\", \"get_document_metadata\", \"get_chunks\"],\n          \"description\": \"Direct document access and content retrieval\",\n          \"icon\": \"file-text\"\n        },\n        \"content-analysis\": {\n          \"tools\": [\"summarize_document\", \"batch_summarize\", \"query_table\"],\n          \"description\": \"Document analysis and summarization\", \n          \"icon\": \"graph\"\n        },\n        \"workspace-navigation\": {\n          \"tools\": [\"list_folders\", \"list_documents\", \"get_status\"],\n          \"description\": \"Workspace exploration and status monitoring\",\n          \"icon\": \"folder\"\n        },\n        \"search-intelligence\": {\n          \"tools\": [\"search_documents\", \"search_chunks\"],\n          \"description\": \"Semantic search and content discovery\",\n          \"icon\": \"search\"\n        },\n        \"system-operations\": {\n          \"tools\": [\"get_status\", \"refresh_document\", \"get_embeddings\"],\n          \"description\": \"System utilities and debugging tools\",\n          \"icon\": \"tools\"\n        }\n      }\n    }\n  }\n}\n```\n\n## MCP Prompts (Slash Commands)\n\nWith the enhanced configuration, you can use these slash commands in VSCode:\n\n- `/mcp.folder-mcp.search` - Quick document search\n- `/mcp.folder-mcp.analyze` - Document analysis\n- `/mcp.folder-mcp.navigate` - Workspace navigation\n- `/mcp.folder-mcp.status` - System status check\n\n## Development Mode Benefits\n\n1. **Hot Reload**: Changes to the server code automatically restart the MCP connection\n2. **Debug Support**: Node.js debugging available on port 9229\n3. **Watch Mode**: Automatic file watching for `dist/**/*.js` files\n4. **Enhanced Logging**: Debug information available when needed\n\n## Resource Management\n\nSearch results and document content can be:\n- **Saved** via the Save button in chat\n- **Dragged** to the Explorer view\n- **Added as context** via \"Add Context... > MCP Resources\"\n\n## Testing the Configuration\n\n1. Restart VSCode after adding the configuration\n2. Open the workspace folder specified in your config\n3. Test the connection with: `/mcp.folder-mcp.hello` (if prompts are enabled)\n4. Use `get_status` tool to verify basic connectivity\n\n## Troubleshooting\n\n### Common Issues\n\n1. **Server not starting**: Check the paths in your configuration\n2. **Tools not showing**: Verify the build completed successfully with `npm run build`\n3. **Debug not working**: Ensure port 9229 is available\n\n### Debug Logs\n\nEnable debug logging by setting the `DEBUG` environment variable:\n```json\n\"env\": {\n  \"DEBUG\": \"folder-mcp:*\"\n}\n```\n\nAll MCP protocol logs go to stderr to avoid interfering with the JSON-RPC communication on stdout.\n",
+    "type": "md",
+    "originalPath": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+      "size": 4302,
+      "lastModified": "2025-06-16T23:32:54.801Z",
+      "lines": 146,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# VSCode MCP Configuration Example\n\nThis document provides VSCode-specific configuration examples for the enhanced folder-mcp MCP server.\n\n## 🚨 CRITICAL: Test Folder Setup\n\n**⚠️ ALWAYS USE THE DEDICATED TEST FOLDER**: `C:\\ThinkingHomes\\test-folder`\n\n- **✅ CORRECT**: Use `C:\\ThinkingHomes\\test-folder` as the target folder in ALL configurations\n- **❌ WRONG**: NEVER use `C:\\ThinkingHomes\\folder-mcp` (the project folder) as the target\n\nThis prevents:\n- Cache pollution in the project directory\n- `.folder-mcp` folders appearing in your source code\n- Indexing of source files during development\n- Confusion between project files and test content\n\n## VSCode Settings Configuration\n\nAdd this to your VSCode `settings.json` file to enable folder-mcp with VSCode MCP features:\n\n```json\n{\n  \"mcpServers\": {\n    \"folder-mcp\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"C:\\\\ThinkingHomes\\\\folder-mcp\\\\dist\\\\index.js\",\n        \"C:\\\\ThinkingHomes\\\\test-folder\"  \n      ],\n      \"env\": {},\n      \"dev\": {\n        \"watch\": \"dist/**/*.js\",\n        \"debug\": { \n          \"type\": \"node\" \n        }\n      }\n    }\n  }\n}\n```\n\n## Enhanced Configuration with Tool Sets\n\nFor the full VSCode MCP experience with tool sets and enhanced features:\n\n```json\n{\n  \"mcpServers\": {\n    \"folder-mcp\": {\n      \"command\": \"node\",\n      \"args\": [\n        \"C:\\\\ThinkingHomes\\\\folder-mcp\\\\dist\\\\index.js\",\n        \"C:\\\\ThinkingHomes\\\\test-folder\"\n      ],\n      \"env\": {\n        \"DEBUG\": \"folder-mcp:*\"\n      },\n      \"dev\": {\n        \"watch\": \"dist/**/*.js\",\n        \"debug\": { \n          \"type\": \"node\",\n          \"port\": 9229\n        }\n      },\n      \"toolSets\": {\n        \"document-access\": {\n          \"tools\": [\"get_document_content\", \"get_document_metadata\", \"get_chunks\"],\n          \"description\": \"Direct document access and content retrieval\",\n          \"icon\": \"file-text\"\n        },\n        \"content-analysis\": {\n          \"tools\": [\"summarize_document\", \"batch_summarize\", \"query_table\"],\n          \"description\": \"Document analysis and summarization\", \n          \"icon\": \"graph\"\n        },\n        \"workspace-navigation\": {\n          \"tools\": [\"list_folders\", \"list_documents\", \"get_status\"],\n          \"description\": \"Workspace exploration and status monitoring\",\n          \"icon\": \"folder\"\n        },\n        \"search-intelligence\": {\n          \"tools\": [\"search_documents\", \"search_chunks\"],\n          \"description\": \"Semantic search and content discovery\",\n          \"icon\": \"search\"\n        },\n        \"system-operations\": {\n          \"tools\": [\"get_status\", \"refresh_document\", \"get_embeddings\"],\n          \"description\": \"System utilities and debugging tools\",\n          \"icon\": \"tools\"\n        }\n      }\n    }\n  }\n}\n```\n\n## MCP Prompts (Slash Commands)\n\nWith the enhanced configuration, you can use these slash commands in VSCode:\n\n- `/mcp.folder-mcp.search` - Quick document search\n- `/mcp.folder-mcp.analyze` - Document analysis\n- `/mcp.folder-mcp.navigate` - Workspace navigation\n- `/mcp.folder-mcp.status` - System status check\n\n## Development Mode Benefits\n\n1. **Hot Reload**: Changes to the server code automatically restart the MCP connection\n2. **Debug Support**: Node.js debugging available on port 9229\n3. **Watch Mode**: Automatic file watching for `dist/**/*.js` files\n4. **Enhanced Logging**: Debug information available when needed\n\n## Resource Management\n\nSearch results and document content can be:\n- **Saved** via the Save button in chat\n- **Dragged** to the Explorer view\n- **Added as context** via \"Add Context... > MCP Resources\"\n\n## Testing the Configuration",
+      "startPosition": 0,
+      "endPosition": 3574,
+      "tokenCount": 498,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+          "size": 4302,
+          "lastModified": "2025-06-16T23:32:54.801Z",
+          "lines": 146,
+          "encoding": "utf-8"
+        }
+      }
+    },
+    {
+      "content": "**Enhanced Logging**: Debug information available when needed\n\n## Resource Management\n\nSearch results and document content can be:\n- **Saved** via the Save button in chat\n- **Dragged** to the Explorer view\n- **Added as context** via \"Add Context... > MCP Resources\"\n\n## Testing the Configuration\n\n1. Restart VSCode after adding the configuration\n2. Open the workspace folder specified in your config\n3. Test the connection with: `/mcp.folder-mcp.hello` (if prompts are enabled)\n4. Use `get_status` tool to verify basic connectivity\n\n## Troubleshooting\n\n### Common Issues\n\n1. **Server not starting**: Check the paths in your configuration\n2. **Tools not showing**: Verify the build completed successfully with `npm run build`\n3. **Debug not working**: Ensure port 9229 is available\n\n### Debug Logs\n\nEnable debug logging by setting the `DEBUG` environment variable:\n```json\n\"env\": {\n  \"DEBUG\": \"folder-mcp:*\"\n}\n```\n\nAll MCP protocol logs go to stderr to avoid interfering with the JSON-RPC communication on stdout.",
+      "startPosition": 3279,
+      "endPosition": 4291,
+      "tokenCount": 197,
+      "chunkIndex": 1,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": true,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\todo\\vscode-support\\VSCODE_MCP_SETUP.md",
+          "size": 4302,
+          "lastModified": "2025-06-16T23:32:54.801Z",
+          "lines": 146,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.464Z"
+}

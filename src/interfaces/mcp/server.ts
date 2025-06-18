@@ -120,9 +120,8 @@ export class MCPServer extends EventEmitter {
           return this.handleInitialize(request);
         case 'ping':
           return this.handlePing(request);
-        
-        // New MCP Endpoints
-        case 'search_documents':
+          // New MCP Endpoints
+        case 'search':
           return {
             id: request.id,
             result: await this.endpoints.search(request.params)

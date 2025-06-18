@@ -1,0 +1,39 @@
+{
+  "parsedContent": {
+    "content": "Engineering Meeting Notes - Q1 2024\n\nDate: March 31, 2024\nAttendees: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com\n\nQUARTERLY RESULTS REVIEW:\n- Q1 revenue exceeded targets at $1.2M (15% above projection)\n- System performance improved significantly\n- Remote work policy (WFH) implementation successful\n\nTECHNICAL UPDATES:\n- API endpoint redesign completed\n- Search functionality enhanced with semantic similarity\n- Token-based pagination implemented (default: 2000 tokens)\n\nLEGAL & COMPLIANCE:\n- Updated contracts include force majeure clauses\n- Confidential information handling procedures reviewed\n- Indemnification terms standardized across agreements\n\nFINANCIAL NOTES:\n- Quarterly results show strong growth\n- Budget allocation for Q2 approved\n- Revenue tracking systems operational\n\nACTION ITEMS:\n1. Review remote work guidelines\n2. Update API documentation \n3. Prepare financial summary for board\n4. Complete legal compliance audit\n\nCONTACT INFO:\n- Finance: john@acme.com\n- Legal: sarah.smith@bigco.com  \n- Procurement: procurement@supplier.com\n\nNext meeting: Q2 2024 planning session\n",
+    "type": "txt",
+    "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\notes.txt",
+    "metadata": {
+      "type": "txt",
+      "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\notes.txt",
+      "size": 1107,
+      "lastModified": "2025-06-18T13:12:36.163Z",
+      "lines": 38,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "Engineering Meeting Notes - Q1 2024\n\nDate: March 31, 2024\nAttendees: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com\n\nQUARTERLY RESULTS REVIEW:\n- Q1 revenue exceeded targets at $1.2M (15% above projection)\n- System performance improved significantly\n- Remote work policy (WFH) implementation successful\n\nTECHNICAL UPDATES:\n- API endpoint redesign completed\n- Search functionality enhanced with semantic similarity\n- Token-based pagination implemented (default: 2000 tokens)\n\nLEGAL & COMPLIANCE:\n- Updated contracts include force majeure clauses\n- Confidential information handling procedures reviewed\n- Indemnification terms standardized across agreements\n\nFINANCIAL NOTES:\n- Quarterly results show strong growth\n- Budget allocation for Q2 approved\n- Revenue tracking systems operational\n\nACTION ITEMS:\n1. Review remote work guidelines\n2. Update API documentation \n3. Prepare financial summary for board\n4. Complete legal compliance audit\n\nCONTACT INFO:\n- Finance: john@acme.com\n- Legal: sarah.smith@bigco.com  \n- Procurement: procurement@supplier.com\n\nNext meeting: Q2 2024 planning session",
+      "startPosition": 0,
+      "endPosition": 1106,
+      "tokenCount": 182,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "tests\\fixtures\\test-knowledge-base\\Engineering\\notes.txt",
+        "sourceType": "txt",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "txt",
+          "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\notes.txt",
+          "size": 1107,
+          "lastModified": "2025-06-18T13:12:36.163Z",
+          "lines": 38,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.007Z"
+}

@@ -1,0 +1,39 @@
+{
+  "parsedContent": {
+    "content": "# Engineering Documentation\n\n## API Endpoints\n\n### Search Endpoint\n```typescript\ninterface SearchRequest {\n  query: string;\n  mode: \"semantic\" | \"regex\";\n  scope: \"documents\" | \"chunks\";\n  filters?: {\n    folder?: string;\n    fileType?: string;\n  };\n  max_tokens?: number;\n  continuation_token?: string;\n}\n```\n\n### Document Retrieval\nThe `get_document_data` endpoint supports multiple formats:\n- `raw`: Full document text\n- `chunks`: Chunked content with metadata\n- `metadata`: Document metadata only\n\n## Configuration\n\nDatabase connection settings:\n```yaml\ndatabase:\n  host: localhost\n  port: 5432\n  name: knowledge_base\n```\n\n## Testing Notes\n\nFor testing search functionality with \"Q1 financial results\", ensure the following test data patterns are included across documents:\n- Emails: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com  \n- Financial: \"Q1 revenue\", \"quarterly results\", \"$1.2M\"\n- Dates: \"March 31, 2024\", \"Q1 2024\", \"2024-03-31\"\n- Legal: \"force majeure\", \"confidential information\", \"indemnification\"\n\n## Remote Work Guidelines\n\nThis document contains references to remote work policies and WFH guidelines for testing search functionality.\n",
+    "type": "md",
+    "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\README.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\README.md",
+      "size": 1171,
+      "lastModified": "2025-06-18T13:12:36.163Z",
+      "lines": 47,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# Engineering Documentation\n\n## API Endpoints\n\n### Search Endpoint\n```typescript\ninterface SearchRequest {\n  query: string;\n  mode: \"semantic\" | \"regex\";\n  scope: \"documents\" | \"chunks\";\n  filters?: {\n    folder?: string;\n    fileType?: string;\n  };\n  max_tokens?: number;\n  continuation_token?: string;\n}\n```\n\n### Document Retrieval\nThe `get_document_data` endpoint supports multiple formats:\n- `raw`: Full document text\n- `chunks`: Chunked content with metadata\n- `metadata`: Document metadata only\n\n## Configuration\n\nDatabase connection settings:\n```yaml\ndatabase:\n  host: localhost\n  port: 5432\n  name: knowledge_base\n```\n\n## Testing Notes\n\nFor testing search functionality with \"Q1 financial results\", ensure the following test data patterns are included across documents:\n- Emails: john@acme.com, sarah.smith@bigco.com, procurement@supplier.com  \n- Financial: \"Q1 revenue\", \"quarterly results\", \"$1.2M\"\n- Dates: \"March 31, 2024\", \"Q1 2024\", \"2024-03-31\"\n- Legal: \"force majeure\", \"confidential information\", \"indemnification\"\n\n## Remote Work Guidelines\n\nThis document contains references to remote work policies and WFH guidelines for testing search functionality.",
+      "startPosition": 0,
+      "endPosition": 1170,
+      "tokenCount": 185,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "tests\\fixtures\\test-knowledge-base\\Engineering\\README.md",
+        "sourceType": "md",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "tests\\fixtures\\test-knowledge-base\\Engineering\\README.md",
+          "size": 1171,
+          "lastModified": "2025-06-18T13:12:36.163Z",
+          "lines": 47,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.005Z"
+}

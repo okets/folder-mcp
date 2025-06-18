@@ -371,6 +371,33 @@ function createMockWorkflowClient(): MCPWorkflowClient {
           continuation: { has_more: false },
           actions: []
         };
+      } else if (request.query.includes('board presentation')) {
+        return {
+          data: {
+            results: [
+              {
+                document_id: 'Q4_Board_Deck.pptx',
+                preview: 'Board presentation for Q4 2024 business review and strategic planning...',
+                score: 0.95,
+                location: { slide: 1, page: null, section: null, sheet: null },
+                context: { before: '', after: 'Executive summary...' },
+                metadata: { document_type: 'pptx', total_pages: null }
+              },
+              {
+                document_id: 'Board_Deck_Q3.pptx',
+                preview: 'Q3 board deck with financial results and market analysis...',
+                score: 0.88,
+                location: { slide: 5, page: null, section: null, sheet: null },
+                context: { before: 'Previous quarter...', after: 'Growth projections...' },
+                metadata: { document_type: 'pptx', total_pages: null }
+              }
+            ],
+            token_count: 420
+          },
+          status: { code: 'success', message: 'SEARCH_COMPLETED' },
+          continuation: { has_more: false },
+          actions: []
+        };
       } else if (request.mode === 'regex' && request.query.includes('contract')) {
         return {
           data: {
@@ -521,7 +548,10 @@ function createMockWorkflowClient(): MCPWorkflowClient {
           token_count: 1200
         },
         status: { code: 'success', message: 'SUCCESS' },
-        continuation: { has_more: pages.length < 10 },
+        continuation: { 
+          has_more: pages.length < 10,
+          token: pages.length < 10 ? 'continuation_token_' + Date.now() : undefined
+        },
         actions: pages.length < 10 ? [
           { id: 'CONTINUE', description: 'Get next batch of pages', params: {} }
         ] : []

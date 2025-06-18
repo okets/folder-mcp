@@ -726,13 +726,226 @@ function createMockServices() {
   } as any;
 
   const mockFileParsingService: IFileParsingService = {
-    parseDocument: async () => ({ content: '', metadata: {} })
-  } as any;
+    parseFile: async (filePath: string, fileType: string) => {
+      // Create mock parsed content based on file type
+      const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'unknown';
+      const type = fileType.startsWith('.') ? fileType.substring(1) : fileType;
+      
+      // Handle empty files edge case
+      if (fileName === 'empty.txt' || filePath.includes('empty.txt')) {
+        return {
+          content: '',
+          type: 'txt',
+          originalPath: filePath,
+          metadata: {
+            originalPath: filePath,
+            type: 'txt',
+            size: 0,
+            lastModified: new Date().toISOString(),
+            lines: 0,
+            encoding: 'utf-8'
+          } as any
+        };
+      }
+      
+      // Handle huge file edge case for token limit testing
+      if (fileName === 'huge_text.txt' || filePath.includes('huge_text.txt')) {
+        const hugeContent = 'This is a very long document with extremely detailed content that contains many paragraphs and sections. '.repeat(100);
+        return {
+          content: hugeContent,
+          type: 'txt',
+          originalPath: filePath,
+          pages: [
+            {
+              content: hugeContent  // Very large content that exceeds 100 token limit
+            }
+          ],
+          metadata: {
+            originalPath: filePath,
+            type: 'txt',
+            size: hugeContent.length,
+            lastModified: new Date().toISOString(),
+            lines: 1,
+            encoding: 'utf-8'
+          } as any
+        };
+      }
+      
+      if (type === 'xlsx' || type === 'xls') {
+        return {
+          content: 'Mock Excel Content',
+          type: 'xlsx',
+          originalPath: filePath,
+          sheets: {  // Changed from metadata.sheets array to sheets object
+            'Summary': {
+              headers: ['Name', 'Q3 Revenue', 'Q4 Revenue', 'Growth'],
+              rows: [
+                ['Product A', '$45,000', '$52,000', '15.6%'],
+                ['Product B', '$32,000', '$38,000', '18.8%'],
+                ['Product C', '$28,000', '$31,000', '10.7%']
+              ]
+            },
+            'Data': {
+              headers: ['ID', 'Value1', 'Value2'],
+              rows: Array.from({length: 100}, (_, i) => [
+                `Row ${i + 1}`,
+                Math.floor(Math.random() * 1000),
+                Math.floor(Math.random() * 1000)
+              ])
+            }
+          },
+          metadata: {
+            originalPath: filePath,
+            type: 'xlsx',
+            size: 1024,
+            lastModified: new Date().toISOString(),
+            sheets: [
+              {
+                name: 'Summary',
+                data: [
+                  ['Name', 'Q3 Revenue', 'Q4 Revenue', 'Growth'],
+                  ['Product A', 45000, 52000, '15.6%'],
+                  ['Product B', 32000, 38000, '18.8%']
+                ]
+              },
+              {
+                name: 'Data',
+                data: Array.from({length: 100}, (_, i) => [
+                  `Row ${i + 1}`,
+                  Math.floor(Math.random() * 1000),
+                  Math.floor(Math.random() * 1000)
+                ])
+              }
+            ]
+          } as any
+        };
+      } else if (type === 'pptx' || type === 'ppt') {
+        return {
+          content: 'Mock PowerPoint Content',
+          type: 'pptx',
+          originalPath: filePath,
+          slides: [  // Added slides array for PowerPoint outline testing
+            {
+              title: 'Executive Summary',
+              content: 'Overview of company performance and key metrics',
+              slideNumber: 1
+            },
+            {
+              title: 'Financial Results',
+              content: 'Q4 financial performance and revenue analysis',
+              slideNumber: 2
+            },
+            {
+              title: 'Market Analysis',
+              content: 'Current market trends and competitive landscape',
+              slideNumber: 3
+            }
+          ],
+          metadata: {
+            originalPath: filePath,
+            type: 'pptx',
+            size: 1024,
+            lastModified: new Date().toISOString(),
+            slides: 3,
+            slideTitles: ['Executive Summary', 'Financial Results', 'Market Analysis']
+          } as any
+        };
+      } else if (type === 'pdf') {
+        return {
+          content: 'Mock PDF Content',
+          type: 'pdf',
+          originalPath: filePath,
+          pages: [  // Added pages array for PDF page extraction testing (100-page report)
+            ...Array.from({length: 100}, (_, i) => ({
+              content: `Page ${i + 1} content with detailed analysis and information. This page contains important business data and technical specifications.`
+            }))
+          ],
+          bookmarks: [  // Added bookmarks for PDF outline testing
+            {
+              title: 'Executive Summary',
+              page: 1
+            },
+            {
+              title: 'Financial Analysis',
+              page: 2
+            },
+            {
+              title: 'Market Overview',
+              page: 3
+            }
+          ],
+          metadata: {
+            originalPath: filePath,
+            type: 'pdf',
+            size: 1024,
+            lastModified: new Date().toISOString(),
+            pages: 100,
+            pdfInfo: {
+              title: fileName,
+              author: 'Test Author'
+            }
+          } as any
+        };
+      } else if (type === 'csv') {
+        return {
+          content: 'Name,Revenue,Department\nJohn,50000,Sales\nJane,60000,Marketing',
+          type: 'csv',
+          originalPath: filePath,
+          sheets: {  // Add sheets structure for CSV to work with sheet data endpoint
+            'Sheet1': {
+              headers: ['Name', 'Revenue', 'Department'],
+              rows: [
+                ['John', '50000', 'Sales'],
+                ['Jane', '60000', 'Marketing']
+              ]
+            }
+          },
+          metadata: {
+            originalPath: filePath,
+            type: 'csv',
+            size: 1024,
+            lastModified: new Date().toISOString(),
+            lines: 3,
+            encoding: 'utf-8'
+          } as any
+        };
+      } else {
+        return {
+          content: 'Mock text content for document analysis',
+          type: 'txt',
+          originalPath: filePath,
+          metadata: {
+            originalPath: filePath,
+            type: 'txt',
+            size: 1024,
+            lastModified: new Date().toISOString(),
+            lines: 1,
+            encoding: 'utf-8'
+          } as any
+        };
+      }
+    },
+    isSupported: (fileExtension: string) => true,
+    getSupportedExtensions: () => ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx', '.csv']
+  };
 
   const mockEmbeddingService: IEmbeddingService = {
-    generateQueryEmbedding: async () => new Array(384).fill(0),
-    generateDocumentEmbedding: async () => new Array(384).fill(0)
-  } as any;
+    initialize: async () => {},
+    generateEmbeddings: async () => [{
+      vector: new Array(384).fill(0),
+      dimensions: 384,
+      model: 'mock-model',
+      createdAt: new Date().toISOString()
+    }],
+    generateQueryEmbedding: async () => ({
+      vector: new Array(384).fill(0),
+      dimensions: 384,
+      model: 'mock-model',
+      createdAt: new Date().toISOString()
+    }),
+    getModelConfig: () => ({ model: 'mock-model', dimensions: 384 }),
+    isInitialized: () => true
+  };
 
   const mockFileSystemService: IFileSystemService = {
     exists: async () => true,
@@ -741,12 +954,30 @@ function createMockServices() {
   } as any;
 
   const mockFileSystem: IFileSystem = {
-    exists: async () => true,
     readFile: async () => 'mock content',
-    writeFile: async () => {},
-    createDirectory: async () => {},
-    listDirectory: async () => []
-  } as any;
+    stat: async () => ({
+      size: 1024,
+      mtime: new Date(),
+      isDirectory: () => false,
+      isFile: () => true,
+      isReadOnly: () => false
+    }),
+    readDir: async () => [
+      // Mock directory entries for folder listing tests
+      { name: 'Finance', isDirectory: () => true, isFile: () => false },
+      { name: 'Sales', isDirectory: () => true, isFile: () => false },
+      { name: 'Marketing', isDirectory: () => true, isFile: () => false },
+      { name: 'Legal', isDirectory: () => true, isFile: () => false },
+      { name: 'Engineering', isDirectory: () => true, isFile: () => false },
+      { name: 'README.md', isDirectory: () => false, isFile: () => true },
+      { name: 'config.yaml', isDirectory: () => false, isFile: () => true }
+    ],
+    join: (...paths: string[]) => paths.join('/'),
+    extname: (filePath: string) => {
+      const lastDot = filePath.lastIndexOf('.');
+      return lastDot === -1 ? '' : filePath.substring(lastDot);
+    }
+  };
 
   return {
     logger: mockLogger,

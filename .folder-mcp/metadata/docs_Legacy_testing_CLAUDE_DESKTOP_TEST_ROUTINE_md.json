@@ -1,0 +1,60 @@
+{
+  "parsedContent": {
+    "content": "# End-to-End Claude Desktop Integration Test\n\n**Main Goal**: Verify all systems work together seamlessly  \n**Sub Goal**: Update e2e tests based on discovered gaps and issues  \n**Test Environment**: `C:\\ThinkingHomes\\test-folder`\n\n## Pre-Test Cleanup (Steps 1-6)\n\n### 1. Kill Running MCP Server Instances\n```powershell\nGet-Process | Where-Object {$_.ProcessName -like \"*node*\" -and $_.CommandLine -like \"*mcp*\"} | Stop-Process -Force\n```\n\n### 2. Check for Port Conflicts\n```powershell\nnetstat -ano | findstr :3000\n# If conflicts found, note PIDs and kill if necessary\n```\n*(Adjust port number as needed for your configuration)*\n\n### 3. Clear Stuck Processes\n```powershell\ntaskkill /f /im node.exe\n```\n\n### 4. Clear Claude Desktop Logs (MANDATORY)\n```powershell\nRemove-Item \"$env:APPDATA\\Claude\\logs\\*\" -Force -ErrorAction SilentlyContinue\n```\n\n### 5. Delete MCP Cache Folder\n```powershell\nRemove-Item \"C:\\ThinkingHomes\\test-folder\\.folder-mcp\" -Recurse -Force -ErrorAction SilentlyContinue\n```\n\n### 6. Fresh Terminal Session\n- Close current PowerShell\n- Open new PowerShell as Administrator\n- Navigate to project directory\n\n## Test Execution (Steps 7-11)\n\n### 7. Start MCP Server\n- Verify zero TypeScript errors: `npm run build` or `tsc --noEmit`\n- Ensure all tests pass: `npm test`\n- Launch server and verify startup logs\n- Confirm server is listening on expected port\n- **Success Criteria**: No TS errors, all tests pass, server starts without errors, port is active\n\n### 8. Create/Update Mock Version File\n- **If file doesn't exist**: Create `CIARA_REL_TEST.md` (tests creation scenario)\n- **If file exists**: Append new version entry (tests update scenario)\n- Use incremental version numbering (read existing file to determine next version)\n- Include current timestamp\n- **Agent Task**: Generate 3-4 realistic, randomly generated release notes for each new version entry\n- Make the release notes varied and believable (features, fixes, improvements, etc.)\n- **Success Criteria**: File is created/updated with unique, realistic content and proper version incrementing\n\n### 9. Verify Filesystem Trigger & Embeddings Update\n- Wait 10-15 seconds for file system watcher to detect changes\n- **Verification Method**: Check server logs for embedding update messages\n- **Success Criteria**: New file content appears in embeddings within 30 seconds\n\n### 10. Claude Desktop Integration Test (MANDATORY)\n- If there are no issues with the MCP server and file updates, proceed to test Claude Desktop's integration.\n- If there are issues, address them first before proceeding.\n**Generated Prompt for User:**\n```\nI'm testing our MCP server implementation and need a comprehensive functionality report in JSON format. Please:\n\n1. Tell me about Ciara's most recent version information\n2. List all endpoints/functions you used to retrieve this information  \n3. Provide suggestions for improving information retrieval efficiency\n\nFormat your response as JSON with these keys:\n- \"ciara_version_info\": [the version details you found]\n- \"endpoints_used\": [array of function calls made]\n- \"retrieval_success\": [true/false]\n- \"suggestions\": [array of improvement recommendations]\n- \"issues_encountered\": [array of any problems]\n```\n\n### 11. User Confirmation & Analysis\n- **Input Required**: User pastes Claude Desktop's JSON response\n- **Analysis**: Parse response for:\n  - Did it find the new Ciara version?\n  - Which functions were called?\n  - Were there any errors?\n  - Are suggestions actionable?\n\n### 12. Issue Resolution & Planning\n- If issues found, document them in a temporary .md file in the /roadmap/issues directory, explain clearly what isn't working, and why\n- If suggestions are actionable, create tasks for implementation\n- If everything works, note it and plan for minor enhancements\n- Define clear success criteria for each task\n\n## Success Metrics\n- [ ] MCP server starts cleanly\n- [ ] File changes trigger embedding updates within 30 seconds  \n- [ ] Claude Desktop successfully retrieves new version information\n- [ ] All MCP functions work as expected\n- [ ] JSON response is well-formed and complete\n\n**This step concludes when the entire flow executes successfully with only minor enhancement opportunities remaining.**",
+    "type": "md",
+    "originalPath": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+      "size": 4324,
+      "lastModified": "2025-06-16T23:30:53.362Z",
+      "lines": 104,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# End-to-End Claude Desktop Integration Test\n\n**Main Goal**: Verify all systems work together seamlessly  \n**Sub Goal**: Update e2e tests based on discovered gaps and issues  \n**Test Environment**: `C:\\ThinkingHomes\\test-folder`\n\n## Pre-Test Cleanup (Steps 1-6)\n\n### 1. Kill Running MCP Server Instances\n```powershell\nGet-Process | Where-Object {$_.ProcessName -like \"*node*\" -and $_.CommandLine -like \"*mcp*\"} | Stop-Process -Force\n```\n\n### 2. Check for Port Conflicts\n```powershell\nnetstat -ano | findstr :3000\n# If conflicts found, note PIDs and kill if necessary\n```\n*(Adjust port number as needed for your configuration)*\n\n### 3. Clear Stuck Processes\n```powershell\ntaskkill /f /im node.exe\n```\n\n### 4. Clear Claude Desktop Logs (MANDATORY)\n```powershell\nRemove-Item \"$env:APPDATA\\Claude\\logs\\*\" -Force -ErrorAction SilentlyContinue\n```\n\n### 5. Delete MCP Cache Folder\n```powershell\nRemove-Item \"C:\\ThinkingHomes\\test-folder\\.folder-mcp\" -Recurse -Force -ErrorAction SilentlyContinue\n```\n\n### 6. Fresh Terminal Session\n- Close current PowerShell\n- Open new PowerShell as Administrator\n- Navigate to project directory\n\n## Test Execution (Steps 7-11)\n\n### 7. Start MCP Server\n- Verify zero TypeScript errors: `npm run build` or `tsc --noEmit`\n- Ensure all tests pass: `npm test`\n- Launch server and verify startup logs\n- Confirm server is listening on expected port\n- **Success Criteria**: No TS errors, all tests pass, server starts without errors, port is active\n\n### 8. Create/Update Mock Version File\n- **If file doesn't exist**: Create `CIARA_REL_TEST.md` (tests creation scenario)\n- **If file exists**: Append new version entry (tests update scenario)\n- Use incremental version numbering (read existing file to determine next version)\n- Include current timestamp\n- **Agent Task**: Generate 3-4 realistic, randomly generated release notes for each new version entry\n- Make the release notes varied and believable (features, fixes, improvements, etc.)\n- **Success Criteria**: File is created/updated with unique, realistic content and proper version incrementing\n\n### 9. Verify Filesystem Trigger & Embeddings Update\n- Wait 10-15 seconds for file system watcher to detect changes\n- **Verification Method**: Check server logs for embedding update messages\n- **Success Criteria**: New file content appears in embeddings within 30 seconds",
+      "startPosition": 0,
+      "endPosition": 2342,
+      "tokenCount": 428,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+          "size": 4324,
+          "lastModified": "2025-06-16T23:30:53.362Z",
+          "lines": 104,
+          "encoding": "utf-8"
+        }
+      }
+    },
+    {
+      "content": "\n\n### 10. Claude Desktop Integration Test (MANDATORY)\n- If there are no issues with the MCP server and file updates, proceed to test Claude Desktop's integration.\n- If there are issues, address them first before proceeding.\n**Generated Prompt for User:**\n```\nI'm testing our MCP server implementation and need a comprehensive functionality report in JSON format. Please:\n\n1. Tell me about Ciara's most recent version information\n2. List all endpoints/functions you used to retrieve this information  \n3. Provide suggestions for improving information retrieval efficiency\n\nFormat your response as JSON with these keys:\n- \"ciara_version_info\": [the version details you found]\n- \"endpoints_used\": [array of function calls made]\n- \"retrieval_success\": [true/false]\n- \"suggestions\": [array of improvement recommendations]\n- \"issues_encountered\": [array of any problems]\n```\n\n### 11. User Confirmation & Analysis\n- **Input Required**: User pastes Claude Desktop's JSON response\n- **Analysis**: Parse response for:\n  - Did it find the new Ciara version?\n  - Which functions were called?\n  - Were there any errors?\n  - Are suggestions actionable?\n\n### 12. Issue Resolution & Planning\n- If issues found, document them in a temporary .md file in the /roadmap/issues directory, explain clearly what isn't working, and why\n- If suggestions are actionable, create tasks for implementation\n- If everything works, note it and plan for minor enhancements\n- Define clear success criteria for each task\n\n## Success Metrics\n- [ ] MCP server starts cleanly\n- [ ] File changes trigger embedding updates within 30 seconds  \n- [ ] Claude Desktop successfully retrieves new version information\n- [ ] All MCP functions work as expected\n- [ ] JSON response is well-formed and complete\n\n**This step concludes when the entire flow executes successfully with only minor enhancement opportunities remaining.**",
+      "startPosition": 2342,
+      "endPosition": 4221,
+      "tokenCount": 370,
+      "chunkIndex": 1,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": true,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\testing\\CLAUDE_DESKTOP_TEST_ROUTINE.md",
+          "size": 4324,
+          "lastModified": "2025-06-16T23:30:53.362Z",
+          "lines": 104,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:34.920Z"
+}

@@ -1,0 +1,60 @@
+{
+  "parsedContent": {
+    "content": "# Immediate Development Tasks\n---\n## � **VSCode MCP Optimization** (NEW TOP PRIORITY)\n**Priority**: 🥇 **CRITICAL** - Main Goal: Efficient VSCode Integration\n\n**BACKGROUND**: VSCode 1.101 adds extensive MCP support with tool sets, prompts, resources, dev mode, and advanced agent integration. This is now the primary development focus.\n\n**IMMEDIATE TASKS** - See `VSCODE_MCP_OPTIMIZATION_PLAN.md`:\n- [ ] **V1**: Implement MCP Development Mode for instant testing (fastest ROI)\n- [ ] **V2**: Create smart tool set organization (search, document, analysis, navigation, system)\n- [ ] **V3**: Design MCP prompts for common workflows (/mcp.folder-mcp.analyze-folder)\n- [ ] **V4**: Implement resource-based responses (save/drag to editor functionality)\n- [ ] **V5**: Add VSCode-specific context awareness and agent mode optimization\n- [ ] **V6**: Create custom chat modes for document analysis workflows\n\n**SUCCESS CRITERIA**:\n- ✅ Hot reload < 2 seconds for development cycle\n- ✅ Tool sets logically organized with icons\n- ✅ Common tasks accessible via prompt shortcuts  \n- ✅ Search results can be saved/dragged to VSCode editor\n- ✅ Seamless integration with VSCode agent mode\n\n---\n\n## �🔧 **Enhanced Logging & Monitoring** (Foundation Complete ✅)\n**Priority**: � Medium (Foundation ready, enhanced features ready to implement)\n\n**INFRASTRUCTURE COMPLETED** ✅ - See `LOGGING_INFRASTRUCTURE_PLAN.md`\n- [x] **Foundation**: Production-ready logging infrastructure with MCP compliance\n- [x] **CLI**: Complete log management commands (`folder-mcp log --help`)\n- [x] **Testing**: Full test coverage and validation\n- [x] **Integration**: DI bridge and runtime configuration\n\n**READY FOR ENHANCED FEATURES**:\n- [x] **E3**: Add MCP request/response logging with payloads (easy - infrastructure ready)\n- [x] **E4**: Add search query logging with results count (easy - infrastructure ready)  \n- [x] **E5**: Add performance timing logs for indexing operations (easy - infrastructure ready)\n- [x] **E6**: Implement log level configuration for debugging (✅ DONE - CLI commands available)\n\n---\n\n                                                                    understand if DI works with a constructor injection or a framework.\n\n## 🌐 **MCP Protocol Polish**\n\n**Priority**: 🥈 Medium (Professional touch for client integrations)\n\n- [ ] **G1**: Fix any identified MCP protocol compliance issues\n- [ ] **G2**: Improve error messages in MCP responses\n- [ ] **G3**: Add request validation to MCP endpoints\n- [ ] **G4**: Implement proper timeout handling for MCP operations\n- [ ] **G5**: Add MCP protocol version compatibility checks\n- [ ] **G6**: Implement graceful degradation for unsupported operations\n\n---\n\n## 🧪 **Advanced Testing Suite**\n\n**Priority**: 🥉 Low (Nice for CI/CD, but manual testing works)\n\n- [ ] **I1**: Create automated file watcher test suite\n- [ ] **I2**: Create MCP protocol compliance test suite\n- [ ] **I3**: Create search functionality test suite\n- [ ] **I4**: Create end-to-end integration test\n- [ ] **I5**: Test with various file types and sizes\n- [ ] **I6**: Test with concurrent file modifications\n- [ ] **I7**: Stress test with large number of files\n- [ ] **I8**: Test error recovery scenarios\n\n---\n\n## 📈 **Smart Document Features** (From Claude Desktop Feedback)\n\n**Priority**: 🥉 Low (Advanced features for specific use cases)\n\n- [ ] **ENH-1**: Add version-specific metadata fields for software documentation\n- [ ] **ENH-2**: Implement document freshness scoring for search ranking\n- [ ] **ENH-3**: Create software-specific search templates and categorization\n- [ ] **ENH-4**: Add automated version detection in software documentation\n- [ ] **ENH-5**: Implement change log tracking and version history\n\n---\n\n## 🚀 **Advanced Capabilities**\n\n**Priority**: 🥉 Low (Future expansion features)\n\n- [ ] **IMP-1**: Add comprehensive document validation during ingestion\n- [ ] **IMP-2**: Create automated categorization system (software vs. general docs)\n- [ ] **IMP-3**: Implement better integration between document and web search\n\n---\n\n## 📝 **Implementation Notes**\n\n### Recommended Work Order:\n1. **Start with Enhanced Logging** (E3-E6) - Foundation for debugging future work\n2. **Add File Watcher Robustness** (F3-F5) - System reliability improvements  \n3. **Polish MCP Protocol** (G1-G6) - Client experience enhancements\n4. **Expand Testing** (I1-I8) - Quality assurance automation\n5. **Smart Features** (ENH1-ENH5) - Advanced functionality\n6. **Future Capabilities** (IMP1-IMP3) - Long-term expansion\n\n### Context:\n- Core system is **fully functional** ✅\n- These tasks **improve quality and capabilities**\n- Pick tasks based on **current priorities and time available**\n- Each category can be tackled **independently**\n\n### Original Source:\nReferenced from `STEP_33_INTEGRATION_ISSUES.md` - Phase 2 and Phase 3 incomplete tasks, plus Claude Desktop feedback suggestions.\n",
+    "type": "md",
+    "originalPath": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+      "size": 4931,
+      "lastModified": "2025-06-16T17:47:16.702Z",
+      "lines": 112,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# Immediate Development Tasks\n---\n## � **VSCode MCP Optimization** (NEW TOP PRIORITY)\n**Priority**: 🥇 **CRITICAL** - Main Goal: Efficient VSCode Integration\n\n**BACKGROUND**: VSCode 1.101 adds extensive MCP support with tool sets, prompts, resources, dev mode, and advanced agent integration. This is now the primary development focus.\n\n**IMMEDIATE TASKS** - See `VSCODE_MCP_OPTIMIZATION_PLAN.md`:\n- [ ] **V1**: Implement MCP Development Mode for instant testing (fastest ROI)\n- [ ] **V2**: Create smart tool set organization (search, document, analysis, navigation, system)\n- [ ] **V3**: Design MCP prompts for common workflows (/mcp.folder-mcp.analyze-folder)\n- [ ] **V4**: Implement resource-based responses (save/drag to editor functionality)\n- [ ] **V5**: Add VSCode-specific context awareness and agent mode optimization\n- [ ] **V6**: Create custom chat modes for document analysis workflows\n\n**SUCCESS CRITERIA**:\n- ✅ Hot reload < 2 seconds for development cycle\n- ✅ Tool sets logically organized with icons\n- ✅ Common tasks accessible via prompt shortcuts  \n- ✅ Search results can be saved/dragged to VSCode editor\n- ✅ Seamless integration with VSCode agent mode\n\n---\n\n## �🔧 **Enhanced Logging & Monitoring** (Foundation Complete ✅)\n**Priority**: � Medium (Foundation ready, enhanced features ready to implement)\n\n**INFRASTRUCTURE COMPLETED** ✅ - See `LOGGING_INFRASTRUCTURE_PLAN.md`\n- [x] **Foundation**: Production-ready logging infrastructure with MCP compliance\n- [x] **CLI**: Complete log management commands (`folder-mcp log --help`)\n- [x] **Testing**: Full test coverage and validation\n- [x] **Integration**: DI bridge and runtime configuration\n\n**READY FOR ENHANCED FEATURES**:\n- [x] **E3**: Add MCP request/response logging with payloads (easy - infrastructure ready)\n- [x] **E4**: Add search query logging with results count (easy - infrastructure ready)  \n- [x] **E5**: Add performance timing logs for indexing operations (easy - infrastructure ready)\n- [x] **E6**: Implement log level configuration for debugging (✅ DONE - CLI commands available)\n\n---\n\nunderstand if DI works with a constructor injection or a framework.\n\n## 🌐 **MCP Protocol Polish**\n\n**Priority**: 🥈 Medium (Professional touch for client integrations)\n\n- [ ] **G1**: Fix any identified MCP protocol compliance issues\n- [ ] **G2**: Improve error messages in MCP responses\n- [ ] **G3**: Add request validation to MCP endpoints\n- [ ] **G4**: Implement proper timeout handling for MCP operations\n- [ ] **G5**: Add MCP protocol version compatibility checks\n- [ ] **G6**: Implement graceful degradation for unsupported operations\n\n---",
+      "startPosition": 0,
+      "endPosition": 2619,
+      "tokenCount": 494,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+          "size": 4931,
+          "lastModified": "2025-06-16T17:47:16.702Z",
+          "lines": 112,
+          "encoding": "utf-8"
+        }
+      }
+    },
+    {
+      "content": "\n\n## 🧪 **Advanced Testing Suite**\n\n**Priority**: 🥉 Low (Nice for CI/CD, but manual testing works)\n\n- [ ] **I1**: Create automated file watcher test suite\n- [ ] **I2**: Create MCP protocol compliance test suite\n- [ ] **I3**: Create search functionality test suite\n- [ ] **I4**: Create end-to-end integration test\n- [ ] **I5**: Test with various file types and sizes\n- [ ] **I6**: Test with concurrent file modifications\n- [ ] **I7**: Stress test with large number of files\n- [ ] **I8**: Test error recovery scenarios\n\n---\n\n## 📈 **Smart Document Features** (From Claude Desktop Feedback)\n\n**Priority**: 🥉 Low (Advanced features for specific use cases)\n\n- [ ] **ENH-1**: Add version-specific metadata fields for software documentation\n- [ ] **ENH-2**: Implement document freshness scoring for search ranking\n- [ ] **ENH-3**: Create software-specific search templates and categorization\n- [ ] **ENH-4**: Add automated version detection in software documentation\n- [ ] **ENH-5**: Implement change log tracking and version history\n\n---\n\n## 🚀 **Advanced Capabilities**\n\n**Priority**: 🥉 Low (Future expansion features)\n\n- [ ] **IMP-1**: Add comprehensive document validation during ingestion\n- [ ] **IMP-2**: Create automated categorization system (software vs. general docs)\n- [ ] **IMP-3**: Implement better integration between document and web search\n\n---\n\n## 📝 **Implementation Notes**\n\n### Recommended Work Order:\n1. **Start with Enhanced Logging** (E3-E6) - Foundation for debugging future work\n2. **Add File Watcher Robustness** (F3-F5) - System reliability improvements  \n3. **Polish MCP Protocol** (G1-G6) - Client experience enhancements\n4. **Expand Testing** (I1-I8) - Quality assurance automation\n5. **Smart Features** (ENH1-ENH5) - Advanced functionality\n6. **Future Capabilities** (IMP1-IMP3) - Long-term expansion\n\n### Context:\n- Core system is **fully functional** ✅\n- These tasks **improve quality and capabilities**\n- Pick tasks based on **current priorities and time available**\n- Each category can be tackled **independently**\n\n### Original Source:\nReferenced from `STEP_33_INTEGRATION_ISSUES.md` - Phase 2 and Phase 3 incomplete tasks, plus Claude Desktop feedback suggestions.",
+      "startPosition": 2619,
+      "endPosition": 4816,
+      "tokenCount": 420,
+      "chunkIndex": 1,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": true,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\todo\\0.IMMEDIATE_DEVELOPMENT_TASKS.md",
+          "size": 4931,
+          "lastModified": "2025-06-16T17:47:16.702Z",
+          "lines": 112,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:36.018Z"
+}

@@ -1,0 +1,60 @@
+{
+  "parsedContent": {
+    "content": "# 🧭 MCP Step Lifecycle Prompts\nThis guide organizes your AI prompts into breaking out a step into manageable tasks, ensuring clarity and efficiency in your development process.\nCopy and paste the relevant prompts into the agent as needed.\nKeep this file updated with any new prompts or modifications to existing ones.\n\n\n\n\n## 1. 🧱 PLANNING A STEP\nUse **before coding** starts for the current step.\n\n### ✅ Create Step Implementation Plan .md File\n```\nIdentify the next Step from `UPCOMING_TASKS.md`.  \nFrom now on, we will refer to this step as `STEP_[current_step_number]`. e.g. `STEP_31`.\n\nGenerate the file `STEP_[current_step_number]_IMPLEMENTATION_PLAN.md` and save it to the roadmap folder. Include these sections in the file:\n1. A description of the step.\n\n2. A checklist of all tasks in **linear execution order**.  \n   - For each task:\n     - A short **description**.\n     - A **clear success criterion**.\n   - Format the tasks using markdown checkboxes: `- [ ]`.\n\n3. The last task of the plan should be \"Run a real world example with Claude Desktop.\"  \n   - The procedure for testing Claude Desktop is described in `CLAUDE_DESKTOP_TEST_ROUTINE.md`.  \n   - Ask the Agent to supply a prompt to test MCP server functionality and this step's implementation.  \n   - When you create this last task, also insert a link to the `CLAUDE_DESKTOP_TEST_ROUTINE.md` file.\n\n4. Add a section for **Agent Instructions** at the end of the file with the following content:  \n   - This tool is in pre-production, so do **not** preserve any legacy code.  \n   - Test folder paths:\n     - Full test folder: `C:\\ThinkingHomes\\test-folder`\n     - Simple test folder: `C:\\ThinkingHomes\\test-simple`\n   - On Windows, use PowerShell command chaining with `;` instead of `&&`.\n   - Regularly update the file and mark completed steps: `- [x]`.\n   - Keep the plan file as the **single source of truth** for progress tracking.\n```\n\n\n## 2. 🛠️ STEP MID EXECUTION INTERVENTION PROMPTS\nUse **during** implementation.\n\n### 2.1 🧾 Figure out where we left off in our tasklist.\n```\n**Figure out where we left off in our tasklist**:\n   - Identify the next Step from `UPCOMING_TASKS.md`. from now on, we will refer to this step as `STEP_[current_step_number]`. eg `STEP_31`.\n   - Read the STEP_[current_step_number]_IMPLEMENTATION_PLAN.md file.\n   - check if the progress is up to date. fix it if not.\n   - let me know where we left off in the task list.\n```\n\n\n## 3. 📚 CONCLUDING A STEP\nUse **once cleanup is done**, before starting the next step.\n### DOCUMENTATION & ROADMAP UPDATE\n#### 3.1 📘 Update Roadmap Docs Prompt\n```\n**[Step 31] is Complete, Update UPCOMING_TASKS.md and COMPLETED_TASKS.md in roadmap documents folder**:\n   - Mark the step as \"✅ COMPLETED\"\n   - Update \"current\" status to the next step\n   - review the rest of our upcoming tasks and suggest if any decision we took to complete the current step has affected any of the upcoming tasks.\n   - move this step, along with other completed steps, to the \"COMPLETED_TASKS.md\" file.\n```\n#### 3.2 📘 Running manual tests\n```\n**Lets verify that the MCP server is working correctly**:\n   - Make sure there are no typescript compilation errors.\n   - Run npm test to verify that ALL tests pass.\n   - Run the `CLAUDE_DESKTOP_TEST_ROUTINE.md` routine to verify that the MCP server is working correctly.\n\n```\n#### 3.3 📘GIT & GITHUB OPERATIONS\n##### 3.3.1 ✅ Close Current Step Issue Prompt\n```\n**Close the current step issue in GitHub**:\n   - Using gh tool Find the GitHub issue for the step\n   - Update step body to the content of `STEP_X_IMPLEMENTATION_PLAN.md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)\n   - Close the issue with completion comment\n```\n##### 3.3.2 🆕 Create Next Step Issue Prompt\n```\n**Create a new GitHub issue for the next step in the roadmap.**:\n1. Check the labels using `gh label list` since you tend to invent non-existing labels.\n2. Create a new issue for the upcoming step\n   - For the body use the Step's description from `UPCOMING_TASKS.md`\n```\n\n\n[Work in Progress]\n####  ☁️ Cloudflare Tunnel plan prompt\nGive me full implementation plan for implementing cloudflare Tunnel. with all required steps, including registering the domain mcp-folder.link (or folder-mcp.app, haven't decided yet) with the  service.\nmy goal is to have the user run my CLI app locally, have it process the data -> serve it using MCP server\nthe user should have a connection address with this format fdsl3442356lkl.folder-mcp.link\nalso, check what are the implications if the user shuts off his computer for the night.\nwill it still work after starting it again?",
+    "type": "md",
+    "originalPath": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+    "metadata": {
+      "type": "md",
+      "originalPath": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+      "size": 4661,
+      "lastModified": "2025-06-14T12:20:06.992Z",
+      "lines": 97,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "# 🧭 MCP Step Lifecycle Prompts\nThis guide organizes your AI prompts into breaking out a step into manageable tasks, ensuring clarity and efficiency in your development process.\nCopy and paste the relevant prompts into the agent as needed.\nKeep this file updated with any new prompts or modifications to existing ones.\n\n## 1. 🧱 PLANNING A STEP\nUse **before coding** starts for the current step.\n\n### ✅ Create Step Implementation Plan .md File\n```\nIdentify the next Step from `UPCOMING_TASKS.md`.  \nFrom now on, we will refer to this step as `STEP_[current_step_number]`. e.g. `STEP_31`.\n\nGenerate the file `STEP_[current_step_number]_IMPLEMENTATION_PLAN.md` and save it to the roadmap folder. Include these sections in the file:\n1. A description of the step.\n\n2. A checklist of all tasks in **linear execution order**.  \n   - For each task:\n     - A short **description**.\n     - A **clear success criterion**.\n   - Format the tasks using markdown checkboxes: `- [ ]`.\n\n3. The last task of the plan should be \"Run a real world example with Claude Desktop.\"  \n   - The procedure for testing Claude Desktop is described in `CLAUDE_DESKTOP_TEST_ROUTINE.md`.  \n   - Ask the Agent to supply a prompt to test MCP server functionality and this step's implementation.  \n   - When you create this last task, also insert a link to the `CLAUDE_DESKTOP_TEST_ROUTINE.md` file.\n\n4. Add a section for **Agent Instructions** at the end of the file with the following content:  \n   - This tool is in pre-production, so do **not** preserve any legacy code.  \n   - Test folder paths:\n     - Full test folder: `C:\\ThinkingHomes\\test-folder`\n     - Simple test folder: `C:\\ThinkingHomes\\test-simple`\n   - On Windows, use PowerShell command chaining with `;` instead of `&&`.\n   - Regularly update the file and mark completed steps: `- [x]`.\n   - Keep the plan file as the **single source of truth** for progress tracking.\n```\n\n## 2. 🛠️ STEP MID EXECUTION INTERVENTION PROMPTS\nUse **during** implementation.\n\n### 2.1 🧾 Figure out where we left off in our tasklist.\n```\n**Figure out where we left off in our tasklist**:\n   - Identify the next Step from `UPCOMING_TASKS.md`. from now on, we will refer to this step as `STEP_[current_step_number]`. eg `STEP_31`.\n   - Read the STEP_[current_step_number]_IMPLEMENTATION_PLAN.md file.\n   - check if the progress is up to date. fix it if not.\n   - let me know where we left off in the task list.\n```",
+      "startPosition": 0,
+      "endPosition": 2424,
+      "tokenCount": 489,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+          "size": 4661,
+          "lastModified": "2025-06-14T12:20:06.992Z",
+          "lines": 97,
+          "encoding": "utf-8"
+        }
+      }
+    },
+    {
+      "content": "eg `STEP_31`.\n   - Read the STEP_[current_step_number]_IMPLEMENTATION_PLAN.md file.\n   - check if the progress is up to date. fix it if not.\n   - let me know where we left off in the task list.\n```\n\n## 3. 📚 CONCLUDING A STEP\nUse **once cleanup is done**, before starting the next step.\n### DOCUMENTATION & ROADMAP UPDATE\n#### 3.1 📘 Update Roadmap Docs Prompt\n```\n**[Step 31] is Complete, Update UPCOMING_TASKS.md and COMPLETED_TASKS.md in roadmap documents folder**:\n   - Mark the step as \"✅ COMPLETED\"\n   - Update \"current\" status to the next step\n   - review the rest of our upcoming tasks and suggest if any decision we took to complete the current step has affected any of the upcoming tasks.\n   - move this step, along with other completed steps, to the \"COMPLETED_TASKS.md\" file.\n```\n#### 3.2 📘 Running manual tests\n```\n**Lets verify that the MCP server is working correctly**:\n   - Make sure there are no typescript compilation errors.\n   - Run npm test to verify that ALL tests pass.\n   - Run the `CLAUDE_DESKTOP_TEST_ROUTINE.md` routine to verify that the MCP server is working correctly.\n\n```\n#### 3.3 📘GIT & GITHUB OPERATIONS\n##### 3.3.1 ✅ Close Current Step Issue Prompt\n```\n**Close the current step issue in GitHub**:\n   - Using gh tool Find the GitHub issue for the step\n   - Update step body to the content of `STEP_X_IMPLEMENTATION_PLAN.md` (make sure all the tasks are marked as completed, otherwise warn me and stop!)\n   - Close the issue with completion comment\n```\n##### 3.3.2 🆕 Create Next Step Issue Prompt\n```\n**Create a new GitHub issue for the next step in the roadmap.**:\n1. Check the labels using `gh label list` since you tend to invent non-existing labels.\n2. Create a new issue for the upcoming step\n   - For the body use the Step's description from `UPCOMING_TASKS.md`\n```\n\n[Work in Progress]\n####  ☁️ Cloudflare Tunnel plan prompt\nGive me full implementation plan for implementing cloudflare Tunnel. with all required steps, including registering the domain mcp-folder.link (or folder-mcp.app, haven't decided yet) with the  service.\nmy goal is to have the user run my CLI app locally, have it process the data -> serve it using MCP server\nthe user should have a connection address with this format fdsl3442356lkl.folder-mcp.link\nalso, check what are the implications if the user shuts off his computer for the night.\nwill it still work after starting it again?",
+      "startPosition": 2227,
+      "endPosition": 4625,
+      "tokenCount": 511,
+      "chunkIndex": 1,
+      "metadata": {
+        "sourceFile": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+        "sourceType": "md",
+        "totalChunks": 2,
+        "hasOverlap": true,
+        "originalMetadata": {
+          "type": "md",
+          "originalPath": "docs\\Legacy\\roadmap\\MCP_Step_Lifecycle_Prompts.md",
+          "size": 4661,
+          "lastModified": "2025-06-14T12:20:06.992Z",
+          "lines": 97,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-06-18T20:41:34.878Z"
+}
