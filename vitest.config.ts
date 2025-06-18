@@ -18,16 +18,15 @@ export default defineConfig({
     exclude: [
       'tests/legacy/**',
       'node_modules/**',
-      'dist/**'
-    ],
+      'dist/**'    ],
+    
+    // Reporter configuration - fix for strikethrough font issues
+    reporters: process.env.CI ? ['junit'] : ['basic'],
+    outputFile: process.env.CI ? 'test-results.xml' : undefined,
     
     // Memory-safe timeout settings
     testTimeout: 10000, // 10 seconds
     hookTimeout: 5000, // 5 seconds
-    
-    // Reporter configuration
-    reporters: process.env.CI ? ['junit'] : ['verbose'],
-    outputFile: process.env.CI ? 'test-results.xml' : undefined,
     
     // Coverage configuration
     coverage: {
