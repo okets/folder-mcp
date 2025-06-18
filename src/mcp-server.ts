@@ -13,7 +13,6 @@
 import { setupDependencyInjection } from './di/setup.js';
 import { SERVICE_TOKENS } from './di/interfaces.js';
 import type { MCPServer } from './interfaces/mcp/index.js';
-import type { ITransportManager, TransportManagerConfig } from './transport/interfaces.js';
 import type { IndexingWorkflow } from './application/indexing/index.js';
 import type { MonitoringWorkflow } from './application/monitoring/index.js';
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
@@ -57,38 +56,15 @@ export async function main(): Promise<void> {
     const config = resolveConfig(folderPath, {});
     
     const container = setupDependencyInjection({
-      folderPath,
-      config,
+      folderPath,      config,
       logLevel: 'info'
     });
 
-    debug('Initializing transport layer...');
-    // Initialize transport layer
-    try {
-      const transportManager = container.resolve(SERVICE_TOKENS.TRANSPORT_MANAGER) as ITransportManager;
-      
-      // Create a basic transport manager configuration
-      const transportConfig = {
-        transports: [],
-        selection: {
-          strategy: 'prefer-local' as const,
-          fallback: true,
-          healthCheckInterval: 30000
-        },
-        authentication: {
-          enabled: false,
-          algorithms: ['HS256']
-        }
-      };
-      
-      await transportManager.initialize(transportConfig);
-      debug('Transport layer initialized successfully');
-    } catch (error) {
-      debug('Transport layer initialization failed (non-critical):', error);
-      // Transport layer is optional for basic MCP functionality
-    }    debug('Resolving MCP server from container...');
+    debug('Resolving MCP server from container...');
     // Resolve MCP server from container (async since it's a singleton with async factory)
-    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;    debug('Starting MCP server...');
+    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;
+
+    debug('Starting MCP server...');
     // Start the server
     await mcpServer.start();
 
@@ -185,18 +161,8 @@ export async function main(): Promise<void> {
         try {
           const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
           await monitoringWorkflow.stopFileWatching(folderPath);
-          debug('File watching stopped successfully');
-        } catch (error) {
+          debug('File watching stopped successfully');        } catch (error) {
           debug('File watching shutdown failed (non-critical):', error);
-        }
-        
-        // Stop transport layer
-        try {
-          const transportManager = container.resolve(SERVICE_TOKENS.TRANSPORT_MANAGER) as ITransportManager;
-          await transportManager.stop();
-          debug('Transport layer shutdown complete');
-        } catch (error) {
-          debug('Transport layer shutdown failed (non-critical):', error);
         }
         
         // Stop MCP server

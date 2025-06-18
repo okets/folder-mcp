@@ -359,17 +359,9 @@ export class ServiceFactory implements IServiceFactory {
     const specializedService = new SpecializedServiceAdapter(monitoringWorkflow as any, loggingService);    // Determine if VSCode-specific features should be enabled    // Only enable if explicitly requested via environment variable or config
     const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true' || 
                                    options.enableEnhancedFeatures === true;
-    
-    const enhancedConfig = enableEnhancedFeatures ? DEFAULT_ENHANCED_MCP_CONFIG : null;
-      return new MCPServer(
+      const enhancedConfig = enableEnhancedFeatures ? DEFAULT_ENHANCED_MCP_CONFIG : null;    return new MCPServer(
       options,
-      loggingService,
-      enhancedConfig, // Enhanced MCP configuration (null = standard MCP only)
-      searchService,
-      navigationService,
-      documentService,
-      null, // summarization service not implemented yet
-      specializedService
+      {} // Basic MCP capabilities
     );
   }
 }

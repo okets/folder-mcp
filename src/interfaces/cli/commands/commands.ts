@@ -10,10 +10,6 @@ import { ServeCommand } from './serve.js';
 import { EmbeddingsCommand } from './embed.js';
 import { SearchCommand } from './search.js';
 import { WatchCommand } from './watch.js';
-import { GenerateKeyCommand } from './generate-key.js';
-import { RotateKeyCommand } from './rotate-key.js';
-import { ShowKeyCommand } from './show-key.js';
-import { RevokeKeyCommand } from './revoke-key.js';
 import { StatusCommand } from './status.js';
 
 export function setupCommands(program: CLIProgram): void {
@@ -25,12 +21,6 @@ export function setupCommands(program: CLIProgram): void {
   program.addCommand(new EmbeddingsCommand());
   program.addCommand(new SearchCommand());
   program.addCommand(new WatchCommand());
-  
-  // Security management commands
-  program.addCommand(new GenerateKeyCommand());
-  program.addCommand(new RotateKeyCommand());
-  program.addCommand(new ShowKeyCommand());
-  program.addCommand(new RevokeKeyCommand());
   
   // Status commands
   program.addCommand(new StatusCommand());

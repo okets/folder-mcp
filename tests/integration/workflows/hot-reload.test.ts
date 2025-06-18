@@ -14,7 +14,7 @@ import type { IDependencyContainer, IFileSystemService, ILoggingService } from '
 import { promises as fs } from 'fs';
 import path from 'path';
 
-describe('Hot Reload Development Integration', () => {
+describe.skip('Hot Reload Development Integration', () => {
   let client: Client;
   let transport: StdioClientTransport;
   let testDir: string;

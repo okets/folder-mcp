@@ -14,16 +14,16 @@ export interface ProcessingConfig {
   chunkSize: number;
   overlap: number;
   batchSize: number;
-  maxWorkers?: number;  // Only in runtime config (system-optimized)
-  timeoutMs?: number;   // Only in runtime config
-  maxConcurrentOperations?: number; // Only in local/resolved configs
+  maxWorkers: number;
+  timeoutMs: number;
+  maxConcurrentOperations: number;
 }
 
 // Server configuration (shared across configs)
 export interface ServerConfig {
   port: number;
   transport: 'stdio' | 'http';
-  autoStart?: boolean;  // Only in runtime config
+  autoStart: boolean;
   host: string;
 }
 
@@ -31,8 +31,8 @@ export interface ServerConfig {
 export interface FileConfig {
   extensions: string[];
   ignorePatterns: string[];
-  maxFileSize?: number;  // Only in runtime config
-  encoding?: string;     // Only in runtime config
+  maxFileSize: number;
+  encoding: string;
 }
 
 // UI/UX configuration (only in runtime config)
@@ -468,3 +468,67 @@ export const DEFAULT_VALUES = {
 };
 // Re-export types for backward compatibility
 export type { SystemCapabilities } from './system.js';
+
+/**
+ * Default value functions for different configuration sections
+ */
+export function getProcessingDefaults(): ProcessingConfig {
+  return {
+    modelName: DEFAULT_VALUES.processing.modelName,
+    chunkSize: DEFAULT_VALUES.processing.chunkSize,
+    overlap: DEFAULT_VALUES.processing.overlap,
+    batchSize: DEFAULT_VALUES.processing.batchSize,
+    maxWorkers: DEFAULT_VALUES.processing.maxWorkers,
+    timeoutMs: DEFAULT_VALUES.processing.timeoutMs,
+    maxConcurrentOperations: DEFAULT_VALUES.processing.maxConcurrentOperations
+  };
+}
+
+export function getServerDefaults(): ServerConfig {
+  return {
+    port: DEFAULT_VALUES.server.port,
+    transport: DEFAULT_VALUES.server.transport,
+    autoStart: DEFAULT_VALUES.server.autoStart,
+    host: DEFAULT_VALUES.server.host
+  };
+}
+
+export function getUIDefaults(): UIConfig {
+  return {
+    fullScreen: DEFAULT_VALUES.ui.fullScreen,
+    verboseLogging: DEFAULT_VALUES.ui.verboseLogging,
+    showProgress: DEFAULT_VALUES.ui.showProgress,
+    theme: DEFAULT_VALUES.ui.theme,
+    logLevel: DEFAULT_VALUES.ui.logLevel
+  };
+}
+
+export function getFileDefaults(): FileConfig {
+  return {
+    extensions: [...DEFAULT_VALUES.files.extensions],
+    ignorePatterns: [...DEFAULT_VALUES.files.ignorePatterns],
+    maxFileSize: DEFAULT_VALUES.files.maxFileSize,
+    encoding: DEFAULT_VALUES.files.encoding
+  };
+}
+
+export function getCacheDefaults(): CacheConfig {
+  return {
+    enabled: DEFAULT_VALUES.cache.enabled,
+    maxSize: DEFAULT_VALUES.cache.maxSize,
+    cleanupInterval: DEFAULT_VALUES.cache.cleanupInterval,
+    compressionEnabled: DEFAULT_VALUES.cache.compressionEnabled
+  };
+}
+
+export function getTransportDefaults(): TransportConfig {
+  return {
+    enabled: DEFAULT_VALUES.transport.enabled,
+    activeTransports: [...DEFAULT_VALUES.transport.activeTransports],
+    selection: { ...DEFAULT_VALUES.transport.selection },
+    local: { ...DEFAULT_VALUES.transport.local },
+    remote: { ...DEFAULT_VALUES.transport.remote },
+    http: { ...DEFAULT_VALUES.transport.http },
+    security: { ...DEFAULT_VALUES.transport.security }
+  };
+}

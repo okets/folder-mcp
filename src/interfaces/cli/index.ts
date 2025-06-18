@@ -53,9 +53,3 @@ export { ServeCommand } from './commands/serve.js';
 export { EmbeddingsCommand } from './commands/embed.js';
 export { SearchCommand } from './commands/search.js';
 export { WatchCommand } from './commands/watch.js';
-
-// Security command implementations (new)
-export { GenerateKeyCommand } from './commands/generate-key.js';
-export { RotateKeyCommand } from './commands/rotate-key.js';
-export { ShowKeyCommand } from './commands/show-key.js';
-export { RevokeKeyCommand } from './commands/revoke-key.js';
