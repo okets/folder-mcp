@@ -44,16 +44,11 @@ describe('Domain Layer - Files Module', () => {
         .toThrow('ENOENT');
     });
 
-    it('should handle file permissions', async () => {
-      if (process.platform === 'win32') {
-        console.log('Skipping file permission test on Windows');
-        return;
-      }
-
+    const isLinux = process.platform === 'linux';
+    (isLinux ? it : it.skip)('should handle file permissions', async () => {
       const filePath = path.join(tempDir, 'permission.txt');
       mockFs.addFile(filePath, 'content');
       mockFs.setReadOnly(filePath);
-
       await expect(fileOps.parseFile(filePath))
         .rejects
         .toThrow('EACCES');
