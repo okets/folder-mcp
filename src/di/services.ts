@@ -364,6 +364,17 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
+  async generateSingleEmbedding(text: string): Promise<EmbeddingVector> {
+    return this.generateQueryEmbedding(text);
+  }
+  
+  calculateSimilarity(vector1: EmbeddingVector, vector2: EmbeddingVector): number {
+    if (!this.embeddingModel) {
+      throw new Error('Embedding service not initialized');
+    }
+    return this.embeddingModel.calculateSimilarity(vector1, vector2);
+  }
+
   getModelConfig(): any {
     return this.embeddingModel?.getCurrentModelConfig?.() || null;
   }

@@ -25,6 +25,7 @@ export interface EmbeddingVector {
   vector: number[];
   dimensions: number;
   model: string;
+  createdAt: string;
   chunkId?: string;
   metadata?: EmbeddingMetadata;
 }
@@ -84,6 +85,7 @@ export class DefaultEmbeddingOperations implements EmbeddingOperations, BatchEmb
       vector,
       dimensions: this.model.dimensions,
       model: this.model.name,
+      createdAt: new Date().toISOString(),
       metadata: {
         generatedAt: new Date().toISOString(),
         modelVersion: '1.0',
