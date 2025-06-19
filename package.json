@@ -11,7 +11,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
-    "test-embeddings": "node dist/cli.js test-embeddings",    "test": "vitest run",
+    "test-embeddings": "node dist/cli.js test-embeddings",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
@@ -25,7 +26,8 @@
     "test:application": "vitest run tests/unit/application",
     "test:infrastructure": "vitest run tests/unit/infrastructure",
     "test:interfaces": "vitest run tests/unit/interfaces",
-    "test:watch:unit": "vitest tests/unit",    "test:watch:integration": "vitest tests/integration",
+    "test:watch:unit": "vitest tests/unit",
+    "test:watch:integration": "vitest tests/integration",
     "test:coverage": "vitest run --coverage",
     "test:ci": "vitest run --reporter=junit --outputFile=test-results.xml"
   },
@@ -38,14 +40,16 @@
     "typescript"
   ],
   "author": "",
-  "license": "MIT",  "devDependencies": {
+  "license": "MIT",
+  "devDependencies": {
     "@types/commander": "^2.12.0",
     "@types/glob": "^8.1.0",
     "@types/node": "^20.0.0",
     "@types/pdf-parse": "^1.1.5",
     "typescript": "^5.0.0",
     "vitest": "^1.3.1"
-  },  "dependencies": {
+  },
+  "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@types/chokidar": "^2.1.7",
     "@types/js-yaml": "^4.0.9",

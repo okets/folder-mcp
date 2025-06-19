@@ -153,6 +153,12 @@ export class FileParser implements FileParsingOperations {
       size: stats.size,
       lastModified: stats.mtime.toISOString(),
       pages: pdfData.numpages || pages.length,
+      // Top-level fields for test compatibility
+      ...(pdfData.info && {
+        author: pdfData.info.Author,
+        created: pdfData.info.CreationDate,
+        keywords: pdfData.info.Keywords || pdfData.info.Subject,
+      }),
       ...(pdfData.info && {
         pdfInfo: {
           title: pdfData.info.Title,
@@ -199,6 +205,28 @@ export class FileParser implements FileParsingOperations {
     // Count words (simple whitespace split)
     const words = textContent.trim().split(/\s+/).filter(w => w.length > 0);
 
+    // Extract core properties from DOCX (author, created, keywords)
+    let author: string | undefined;
+    let created: string | undefined;
+    let keywords: string | undefined;
+    try {
+      const zip = new JSZip();
+      const docxBuffer = this.fileSystem.readFileBuffer(filePath);
+      const loaded = await zip.loadAsync(docxBuffer);
+      const coreXmlFile = loaded.file('docProps/core.xml');
+      if (coreXmlFile) {
+        const coreXml = await coreXmlFile.async('string');
+        const parser = new xml2js.Parser();
+        const coreProps = await parser.parseStringPromise(coreXml);
+        const cp = coreProps['cp:coreProperties'] || {};
+        author = cp['dc:creator']?.[0];
+        created = cp['dcterms:created']?.[0]?._ || cp['dcterms:created']?.[0];
+        keywords = cp['cp:keywords']?.[0];
+      }
+    } catch (e) {
+      // ignore errors, fallback to undefined
+    }
+
     const metadata: WordMetadata = {
       type: 'docx',
       originalPath: relativePath,
@@ -212,7 +240,10 @@ export class FileParser implements FileParsingOperations {
       hasTables: htmlContent.includes('<table'),
       hasLinks: htmlContent.includes('<a '),
       warnings: warnings.length > 0 ? warnings.map(w => w.message) : [],
-      htmlWarnings: htmlWarnings.length > 0 ? htmlWarnings.map(w => w.message) : []
+      htmlWarnings: htmlWarnings.length > 0 ? htmlWarnings.map(w => w.message) : [],
+      ...(author && { author }),
+      ...(created && { created }),
+      ...(keywords && { keywords })
     };
     
     return {
