@@ -120,13 +120,11 @@ describe('Edge Case Real Tests - All Endpoints', () => {
         await expect(env.services.fileParsing.parseFile(unicodeFilePath, 'pdf')).resolves.toBeDefined();
 
         const mismatchFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.fileTypeMismatch);
-        // Accept empty result for empty file, only throw for non-empty mismatches
-        const mismatchResult = await env.services.fileParsing.parseFile(mismatchFilePath, 'pdf');
-        expect(mismatchResult).toBeDefined();
-        expect(mismatchResult.content === '' || mismatchResult.content == null).toBe(true);
+        // .bin files are unsupported, should throw error
+        await expect(env.services.fileParsing.parseFile(mismatchFilePath, 'pdf')).rejects.toThrow('Unsupported file type: .bin');
 
-        const malformedRegexFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.emptyTxt);
-        await expect(env.services.fileParsing.parseFile(malformedRegexFilePath, 'pdf')).rejects.toThrow();
+        const corruptedFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.corruptedPdf);
+        await expect(env.services.fileParsing.parseFile(corruptedFilePath, 'pdf')).rejects.toThrow();
 
         const missingFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
         await expect(env.services.fileParsing.parseFile(missingFilePath, 'pdf')).rejects.toThrow();
@@ -150,16 +148,14 @@ describe('Edge Case Real Tests - All Endpoints', () => {
         await expect(env.services.fileParsing.parseFile(unicodeFilePath, 'xlsx')).resolves.toBeDefined();
 
         const mismatchFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.fileTypeMismatch);
-        // Accept empty result for empty file, only throw for non-empty mismatches
-        const mismatchResult = await env.services.fileParsing.parseFile(mismatchFilePath, 'xlsx');
-        expect(mismatchResult).toBeDefined();
-        expect(mismatchResult.content === '' || mismatchResult.content == null).toBe(true);
+        // .bin files are unsupported, should throw error
+        await expect(env.services.fileParsing.parseFile(mismatchFilePath, 'xlsx')).rejects.toThrow('Unsupported file type: .bin');
 
-        const malformedRegexFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.emptyTxt);
-        await expect(env.services.fileParsing.parseFile(malformedRegexFilePath, 'xlsx')).rejects.toThrow();
+        const corruptedSheetsFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.corruptedPdf);
+        await expect(env.services.fileParsing.parseFile(corruptedSheetsFilePath, 'xlsx')).rejects.toThrow();
 
-        const missingFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
-        await expect(env.services.fileParsing.parseFile(missingFilePath, 'xlsx')).rejects.toThrow();
+        const missingSheetsFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
+        await expect(env.services.fileParsing.parseFile(missingSheetsFilePath, 'xlsx')).rejects.toThrow();
       });
     });
     describe('Slides Endpoint', () => {
@@ -180,16 +176,14 @@ describe('Edge Case Real Tests - All Endpoints', () => {
         await expect(env.services.fileParsing.parseFile(unicodeFilePath, 'pptx')).resolves.toBeDefined();
 
         const mismatchFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.fileTypeMismatch);
-        // Accept empty result for empty file, only throw for non-empty mismatches
-        const mismatchResult = await env.services.fileParsing.parseFile(mismatchFilePath, 'pptx');
-        expect(mismatchResult).toBeDefined();
-        expect(mismatchResult.content === '' || mismatchResult.content == null).toBe(true);
+        // .bin files are unsupported, should throw error
+        await expect(env.services.fileParsing.parseFile(mismatchFilePath, 'pptx')).rejects.toThrow('Unsupported file type: .bin');
 
-        const malformedRegexFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.emptyTxt);
-        await expect(env.services.fileParsing.parseFile(malformedRegexFilePath, 'pptx')).rejects.toThrow();
+        const corruptedSlidesFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.corruptedPdf);
+        await expect(env.services.fileParsing.parseFile(corruptedSlidesFilePath, 'pptx')).rejects.toThrow();
 
-        const missingFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
-        await expect(env.services.fileParsing.parseFile(missingFilePath, 'pptx')).rejects.toThrow();
+        const missingSlidesFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
+        await expect(env.services.fileParsing.parseFile(missingSlidesFilePath, 'pptx')).rejects.toThrow();
       });
     });
     describe('Pages Endpoint', () => {
@@ -210,13 +204,11 @@ describe('Edge Case Real Tests - All Endpoints', () => {
         await expect(env.services.fileParsing.parseFile(unicodeFilePath, 'pdf')).resolves.toBeDefined();
 
         const mismatchFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.fileTypeMismatch);
-        // Accept empty result for empty file, only throw for non-empty mismatches
-        const mismatchResult = await env.services.fileParsing.parseFile(mismatchFilePath, 'pdf');
-        expect(mismatchResult).toBeDefined();
-        expect(mismatchResult.content === '' || mismatchResult.content == null).toBe(true);
+        // .bin files are unsupported, should throw error
+        await expect(env.services.fileParsing.parseFile(mismatchFilePath, 'pdf')).rejects.toThrow('Unsupported file type: .bin');
 
-        const malformedRegexFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.emptyTxt);
-        await expect(env.services.fileParsing.parseFile(malformedRegexFilePath, 'pdf')).rejects.toThrow();
+        const corruptedFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.corruptedPdf);
+        await expect(env.services.fileParsing.parseFile(corruptedFilePath, 'pdf')).rejects.toThrow();
 
         const missingFilePath = path.join(EDGE_CASES_DIR, edgeCaseFiles.missingFile);
         await expect(env.services.fileParsing.parseFile(missingFilePath, 'pdf')).rejects.toThrow();

@@ -66,6 +66,11 @@ describe('Cache and System Validation Real Tests', () => {
     test('should create .folder-mcp cache directory during indexing simulation', async () => {
       // Critical requirement: Cache directory must be created during indexing
       
+      // Clean up any existing cache directory first
+      if (existsSync(cacheDir)) {
+        await fs.rm(cacheDir, { recursive: true, force: true });
+      }
+      
       expect(existsSync(cacheDir)).toBe(false);
       console.log('📁 Initial state: No cache directory exists');
       

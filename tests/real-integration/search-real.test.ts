@@ -168,6 +168,11 @@ describe('Search Endpoint Real Tests', () => {
     
     const cacheDir = path.join(knowledgeBasePath, '.folder-mcp');
     
+    // Clean up any existing cache directory first
+    if (existsSync(cacheDir)) {
+      await fs.rm(cacheDir, { recursive: true, force: true });
+    }
+    
     // Cache should not exist yet (we haven't run indexing)
     expect(existsSync(cacheDir)).toBe(false);
     
