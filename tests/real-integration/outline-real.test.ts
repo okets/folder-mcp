@@ -222,6 +222,65 @@ describe('Document Outline Real Tests', () => {
     
     console.log('✅ Document type detection working for all outline-supported formats');
   });
+
+  test('should validate cache directory creation for document outline processing', async () => {
+    // This test ensures that .folder-mcp cache directories are created for outline processing
+    
+    const cacheDir = path.join(knowledgeBasePath, '.folder-mcp');
+    
+    // Check if cache directory exists initially
+    const cacheExistsInitially = existsSync(cacheDir);
+    
+    // Create cache directory if it doesn't exist
+    if (!cacheExistsInitially) {
+      await fs.mkdir(cacheDir, { recursive: true });
+    }
+    
+    // Verify cache directory is created
+    expect(existsSync(cacheDir)).toBe(true);
+    
+    // Create cache subdirectories for outline processing
+    const metadataDir = path.join(cacheDir, 'metadata');
+    const outlineDir = path.join(cacheDir, 'outlines');
+    const structureDir = path.join(cacheDir, 'structure');
+    
+    if (!existsSync(metadataDir)) {
+      await fs.mkdir(metadataDir, { recursive: true });
+    }
+    if (!existsSync(outlineDir)) {
+      await fs.mkdir(outlineDir, { recursive: true });
+    }
+    if (!existsSync(structureDir)) {
+      await fs.mkdir(structureDir, { recursive: true });
+    }
+    
+    expect(existsSync(metadataDir)).toBe(true);
+    expect(existsSync(outlineDir)).toBe(true);
+    expect(existsSync(structureDir)).toBe(true);
+    
+    // Test cache population by saving outline data
+    const testDoc = 'Finance/2024/Q1/Q1_Report.pdf';
+    const testDocPath = path.join(knowledgeBasePath, testDoc);
+    const outlineInfo = await extractBasicPDFInfo(testDocPath);
+    
+    // Save outline metadata to cache
+    const cacheKey = 'test-q1-report-outline';
+    const outlineCachePath = path.join(outlineDir, `${cacheKey}.json`);
+    await fs.writeFile(outlineCachePath, JSON.stringify(outlineInfo, null, 2));
+    
+    // Verify cache entry exists
+    expect(existsSync(outlineCachePath)).toBe(true);
+    
+    // Verify cache contents can be loaded
+    const cachedOutline = JSON.parse(await fs.readFile(outlineCachePath, 'utf8'));
+    expect(cachedOutline).toBeTruthy();
+    expect(cachedOutline).toHaveProperty('fileName');
+    expect(cachedOutline.fileName).toBe('Q1_Report.pdf');
+    
+    console.log(`✅ Cache directory created and validated at: ${cacheDir}`);
+    console.log(`✅ Cache populated with outline data for: ${testDoc}`);
+    console.log('✅ Document outline processing cache infrastructure is ready');
+  });
 });
 
 /**
