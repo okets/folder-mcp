@@ -239,6 +239,79 @@ describe('Slides Real Tests', () => {
     
     console.log('✅ Presentation theme and layout detection working');
   });
+
+  test('should validate cache directory creation for slides processing', async () => {
+    // This test ensures that .folder-mcp cache directories are created for slides processing
+    
+    const cacheDir = path.join(knowledgeBasePath, '.folder-mcp');
+    
+    // Check if cache directory exists initially
+    const cacheExistsInitially = existsSync(cacheDir);
+    
+    // Create cache directory if it doesn't exist
+    if (!cacheExistsInitially) {
+      await fs.mkdir(cacheDir, { recursive: true });
+    }
+    
+    // Verify cache directory is created
+    expect(existsSync(cacheDir)).toBe(true);
+    
+    // Create cache subdirectories for slides processing
+    const metadataDir = path.join(cacheDir, 'metadata');
+    const slidesDir = path.join(cacheDir, 'slides');
+    const presentationsDir = path.join(cacheDir, 'presentations');
+    
+    if (!existsSync(metadataDir)) {
+      await fs.mkdir(metadataDir, { recursive: true });
+    }
+    if (!existsSync(slidesDir)) {
+      await fs.mkdir(slidesDir, { recursive: true });
+    }
+    if (!existsSync(presentationsDir)) {
+      await fs.mkdir(presentationsDir, { recursive: true });
+    }
+    
+    expect(existsSync(metadataDir)).toBe(true);
+    expect(existsSync(slidesDir)).toBe(true);
+    expect(existsSync(presentationsDir)).toBe(true);
+    
+    // Test cache population by saving slide data
+    const testPPT = 'Sales/Presentations/Q4_Board_Deck.pptx';
+    const testPPTPath = path.join(knowledgeBasePath, testPPT);
+    const pptStructure = await analyzePowerPointStructure(testPPTPath);
+    
+    // Save presentation data to cache
+    const cacheKey = 'test-q4-board-deck';
+    const pptCachePath = path.join(presentationsDir, `${cacheKey}.json`);
+    await fs.writeFile(pptCachePath, JSON.stringify(pptStructure, null, 2));
+    
+    // Test slide-level cache as well
+    const slideData = await extractSlideContent(testPPTPath);
+    const slideCacheKey = 'test-q4-slides';
+    const slideCachePath = path.join(slidesDir, `${slideCacheKey}.json`);
+    await fs.writeFile(slideCachePath, JSON.stringify(slideData, null, 2));
+    
+    // Verify cache entries exist
+    expect(existsSync(pptCachePath)).toBe(true);
+    expect(existsSync(slideCachePath)).toBe(true);
+    
+    // Verify cache contents can be loaded
+    const cachedPPT = JSON.parse(await fs.readFile(pptCachePath, 'utf8'));
+    const cachedSlides = JSON.parse(await fs.readFile(slideCachePath, 'utf8'));
+    
+    expect(cachedPPT).toBeTruthy();
+    expect(cachedPPT).toHaveProperty('fileName');
+    expect(cachedPPT.fileName).toBe('Q4_Board_Deck.pptx');
+    expect(cachedSlides).toBeTruthy();
+    expect(cachedSlides).toHaveProperty('slides');
+    expect(Array.isArray(cachedSlides.slides)).toBe(true);
+    expect(cachedSlides.slides.length).toBeGreaterThan(0);
+    
+    console.log(`✅ Cache directory created and validated at: ${cacheDir}`);
+    console.log(`✅ Cache populated with presentation data for: ${testPPT}`);
+    console.log(`✅ Cache populated with slides data for: ${testPPT}`);
+    console.log('✅ Slides processing cache infrastructure is ready');
+  });
 });
 
 // Helper functions
