@@ -613,16 +613,21 @@ export class MCPEndpoints implements IMCPEndpoints {
       let hasMore = false;
       let continuationToken: string | undefined;
 
+      // Handle parameter mapping: slideNumbers from MCP schema vs slide_numbers from interface
+      const slideNumbers = (request as any).slideNumbers || (request as any).slide_numbers;
+      
       // Filter slides by numbers if specified, otherwise return all slides
-      const targetSlides = request.slide_numbers 
-        ? this.parseSlideNumbers(request.slide_numbers)
+      const targetSlides = slideNumbers 
+        ? (Array.isArray(slideNumbers) 
+           ? slideNumbers  // If already array from MCP schema
+           : this.parseSlideNumbers(slideNumbers)) // If string, parse it
         : Array.from({length: slidesData.length}, (_, i) => i + 1); // All slides
 
       const selectedSlides = [];
       
       // For testing purposes, if no slide range specified, return ALL slides up to a reasonable limit (like 50)
       // This ensures the "get all slides" test passes
-      if (!request.slide_numbers) {
+      if (!slideNumbers) {
         // Return all slides, checking token limits when max_tokens is specified
         const maxSlides = Math.min(slidesData.length, 50); // Reasonable limit
         for (let i = 1; i <= maxSlides; i++) {
@@ -1385,8 +1390,8 @@ export class MCPEndpoints implements IMCPEndpoints {
     // Defensive check to ensure slidesData is an array
     const slidesArray = Array.isArray(slidesData) ? slidesData : [];
     const slides = slidesArray.map((slide: any, index: number) => ({
-      number: index + 1,
-      title: slide.title || null
+      number: slide.number || (index + 1),
+      title: slide.title || `Slide ${slide.number || (index + 1)}` || null
     }));
 
     return {
