@@ -207,6 +207,8 @@ export interface ParsedContent {
   originalPath: string;
   /** Type-specific metadata */
   metadata?: DocumentMetadata;
+  /** Slides data for PowerPoint files */
+  slides?: any[];
 }
 
 /**

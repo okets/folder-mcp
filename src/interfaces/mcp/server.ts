@@ -204,7 +204,19 @@ export class MCPServer extends EventEmitter {
         serverInfo: {
           name: this.config.name,
           version: this.config.version
-        }
+        },
+        endpoints: [
+          'search',
+          'get_document_outline',
+          'get_document_data',
+          'list_folders',
+          'list_documents',
+          'get_sheet_data',
+          'get_slides',
+          'get_pages',
+          'get_embedding',
+          'get_status'
+        ]
       }
     };
   }

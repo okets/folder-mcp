@@ -443,14 +443,16 @@ export class FileParser implements FileParsingOperations {
       charCount: allTextContent.length,
       hasImages: slides.some(s => s.hasImages),
       hasShapes: slides.some(s => s.hasShapes),
-      hasTables: slides.some(s => s.hasTables)
+      hasTables: slides.some(s => s.hasTables),
+      slideData: slides
     };
     
     return {
       content: allTextContent.trim(),
       type: 'powerpoint',
       originalPath: relativePath,
-      metadata
+      metadata,
+      slides: slides
     };
   }
 }

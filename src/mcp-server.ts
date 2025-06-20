@@ -3,18 +3,22 @@
 /**
  * MCP Server Entry Point
  * 
- * Simple entry script that creates and starts the MCP server with proper
- * dependency injection setup and transport layer integration.
+ * Uses the official MCP SDK to create a proper JSON-RPC server that bridges
+ * to our custom endpoint implementations.
  * 
  * IMPORTANT: For MCP protocol, we must ONLY write valid JSON-RPC messages to stdout.
  * All logs must go to stderr only. Claude Desktop expects only valid JSON on stdout.
  */
 
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
 import { setupDependencyInjection } from './di/setup.js';
 import { SERVICE_TOKENS } from './di/interfaces.js';
-import type { MCPServer } from './interfaces/mcp/index.js';
 import type { IndexingWorkflow } from './application/indexing/index.js';
 import type { MonitoringWorkflow } from './application/monitoring/index.js';
+import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js';
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
@@ -50,39 +54,240 @@ export async function main(): Promise<void> {
       process.exit(1);
     }
     
-    debug(`Using folder path: ${folderPath}`);    debug('Setting up dependency injection...');
+    debug(`Using folder path: ${folderPath}`);
+    debug('Setting up dependency injection...');
+    
     // Setup dependency injection with real config to enable all services
     const { resolveConfig } = await import('./config/resolver.js');
     const config = resolveConfig(folderPath, {});
     
     const container = setupDependencyInjection({
-      folderPath,      config,
+      folderPath,
+      config,
       logLevel: 'info'
     });
 
-    debug('Resolving MCP server from container...');
-    // Resolve MCP server from container (async since it's a singleton with async factory)
-    const mcpServer = await container.resolveAsync(SERVICE_TOKENS.MCP_SERVER) as MCPServer;
+    // Create the official MCP SDK server
+    debug('Creating official MCP SDK server...');
+    const server = new Server(
+      {
+        name: 'folder-mcp',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          tools: {},
+        },
+      }
+    );
 
-    debug('Starting MCP server...');
-    // Start the server
-    await mcpServer.start();
+    // Create our custom endpoints handler
+    debug('Setting up custom endpoints...');
+    const vectorSearchService = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
+    const fileParsingService = await container.resolveAsync(SERVICE_TOKENS.FILE_PARSING);
+    const embeddingService = await container.resolveAsync(SERVICE_TOKENS.EMBEDDING);
+    const fileSystemService = await container.resolveAsync(SERVICE_TOKENS.FILE_SYSTEM);
+    const fileSystem = container.resolve(SERVICE_TOKENS.FILE_SYSTEM);
+    const logger = container.resolve(SERVICE_TOKENS.LOGGING);
 
-    debug('MCP server started successfully');    // Initialize development mode features if enabled
+    const endpoints = new MCPEndpoints(
+      folderPath,
+      vectorSearchService as any,
+      fileParsingService as any,
+      embeddingService as any,
+      fileSystemService as any,
+      fileSystem as any,
+      logger as any
+    );
+
+    // Register tool handlers with the official SDK
+    debug('Registering tool handlers...');
+    
+    // Register list tools handler
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
+        tools: [
+          {
+            name: 'search',
+            description: 'Semantic search across documents',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'Search query' },
+                limit: { type: 'number', description: 'Maximum results to return' }
+              },
+              required: ['query']
+            }
+          },
+          {
+            name: 'get_document_outline',
+            description: 'Get the structure/outline of a document',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: { type: 'string', description: 'Path to the document' }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'get_document_data', 
+            description: 'Get document content and metadata',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: { type: 'string', description: 'Path to the document' },
+                format: { type: 'string', enum: ['raw', 'chunks', 'metadata'], description: 'Output format', default: 'raw' }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'list_folders',
+            description: 'List all folders in the knowledge base',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'list_documents',
+            description: 'List documents in a specific folder',
+            inputSchema: {
+              type: 'object', 
+              properties: {
+                folderPath: { type: 'string', description: 'Path to the folder' }
+              }
+            }
+          },
+          {
+            name: 'get_sheet_data',
+            description: 'Extract data from spreadsheet files',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: { type: 'string', description: 'Path to the spreadsheet' },
+                sheetName: { type: 'string', description: 'Name of the sheet' }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'get_slides',
+            description: 'Extract slides from presentation files',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: { type: 'string', description: 'Path to the presentation' },
+                slideNumbers: { type: 'array', items: { type: 'number' }, description: 'Specific slide numbers' }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'get_pages',
+            description: 'Extract specific pages from documents',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: { type: 'string', description: 'Path to the document' },
+                pageNumbers: { type: 'array', items: { type: 'number' }, description: 'Specific page numbers' }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'get_status',
+            description: 'Get system status and health information',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          }
+        ]
+      };
+    });
+
+    // Register call tool handler that bridges to our endpoints
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+      
+      try {
+        let result;
+        
+        switch (name) {
+          case 'search':
+            result = await endpoints.search(args as any);
+            break;
+          case 'get_document_outline':
+            result = await endpoints.getDocumentOutline(args as any);
+            break;
+          case 'get_document_data':
+            result = await endpoints.getDocumentData(args as any);
+            break;
+          case 'list_folders':
+            result = await endpoints.listFolders();
+            break;
+          case 'list_documents':
+            result = await endpoints.listDocuments(args as any);
+            break;
+          case 'get_sheet_data':
+            result = await endpoints.getSheetData(args as any);
+            break;
+          case 'get_slides':
+            result = await endpoints.getSlides(args as any);
+            break;
+          case 'get_pages':
+            result = await endpoints.getPages(args as any);
+            break;
+          case 'get_status':
+            result = await endpoints.getStatus(args as any);
+            break;
+          default:
+            throw new Error(`Unknown tool: ${name}`);
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2)
+            }
+          ]
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        debug(`Error in tool ${name}:`, errorMessage);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${errorMessage}`
+            }
+          ],
+          isError: true
+        };
+      }
+    });
+
+    // Connect to stdio transport
+    debug('Connecting to stdio transport...');
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    debug('MCP server connected successfully');
+
+    // Initialize development mode (after server is connected)
     debug('Initializing development mode...');
     try {
       const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true';
       if (enableEnhancedFeatures) {
         const { DEFAULT_ENHANCED_MCP_CONFIG } = await import('./config/enhanced-mcp.js');
-        const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
         const restartCallback = () => {
           debug('🔥 Hot reload requested - restarting server...');
-          // Graceful restart logic would go here
-          // For now, just log the request
           debug('Server restart would happen here (not implemented yet)');
         };
         
-        devModeManager = await initializeDevMode(DEFAULT_ENHANCED_MCP_CONFIG, loggingService, restartCallback);
+        devModeManager = await initializeDevMode(DEFAULT_ENHANCED_MCP_CONFIG, logger as any, restartCallback);
         if (devModeManager) {
           debug('✅ Development mode initialized with hot reload');
         }
@@ -93,80 +298,75 @@ export async function main(): Promise<void> {
       debug('Development mode initialization failed (non-critical):', error);
     }
 
-    debug('Triggering incremental indexing...');
-    // Auto-index the folder incrementally (only process changed files)
-    try {
-      const indexingWorkflow = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
-      debug('Starting folder indexing with incremental processing...');
+    // Defer indexing to avoid initialization timeout (MCP server is already responding)
+    debug('Scheduling background indexing...');
+    setTimeout(async () => {
+      try {
+        const indexingWorkflow = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
+        debug('Starting folder indexing with incremental processing...');
         const indexingResult = await indexingWorkflow.indexFolder(folderPath, {
-        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-        excludePatterns: ['node_modules', '.git', '.folder-mcp'],
-        embeddingModel: 'nomic-embed-text',
-        forceReindex: true  // Force full reindex on startup to ensure content is indexed
-      });
-      
-      debug(`Indexing completed: ${indexingResult.filesProcessed} files processed, ${indexingResult.chunksGenerated} chunks generated`);
-      if (indexingResult.errors.length > 0) {
-        debug(`Indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
+          includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+          excludePatterns: ['node_modules', '.git', '.folder-mcp'],
+          embeddingModel: 'nomic-embed-text',
+          forceReindex: true
+        });
+        
+        debug(`Indexing completed: ${indexingResult.filesProcessed} files processed, ${indexingResult.chunksGenerated} chunks generated`);
+        if (indexingResult.errors.length > 0) {
+          debug(`Indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        debug('Auto-indexing failed (non-critical):', errorMessage);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      debug('Auto-indexing failed (non-critical):', errorMessage);
-      if (errorStack) {
-        debug('Error stack:', errorStack);
-      }      // Don't fail the server startup if indexing fails
-    }    debug('Starting real-time file watching...');
-    // Start file watching for real-time updates
-    try {
-      const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
-      const watchingResult = await monitoringWorkflow.startFileWatching(folderPath, {
-        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-        excludePatterns: ['node_modules', '.git', '.folder-mcp'],
-        debounceMs: 1000,
-        enableBatchProcessing: true,
-        batchSize: 10
-      });
-      
-      if (watchingResult.success) {
-        debug(`✅ File watching started successfully - Watch ID: ${watchingResult.watchId}`);
-        debug(`📁 Monitoring folder: ${folderPath}`);
-        debug(`⏱️ Debounce delay: 1000ms`);
-      } else {
-        debug(`❌ File watching failed to start: ${watchingResult.error}`);
+    }, 1000);
+
+    // Defer file watching
+    debug('Scheduling background file watching...');
+    setTimeout(async () => {
+      try {
+        const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
+        debug('Starting real-time file watching...');
+        const watchingResult = await monitoringWorkflow.startFileWatching(folderPath, {
+          includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+          excludePatterns: ['node_modules', '.git', '.folder-mcp'],
+          debounceMs: 1000,
+          enableBatchProcessing: true,
+          batchSize: 10
+        });
+        
+        if (watchingResult.success) {
+          debug(`✅ File watching started successfully - Watch ID: ${watchingResult.watchId}`);
+          debug(`📁 Monitoring folder: ${folderPath}`);
+          debug(`⏱️ Debounce delay: 1000ms`);
+        } else {
+          debug(`❌ File watching failed to start: ${watchingResult.error}`);
+        }
+      } catch (error) {
+        debug('File watching startup failed (non-critical):', error);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      debug('File watching startup failed (non-critical):', errorMessage);
-      if (errorStack) {
-        debug('Error stack:', errorStack);
-      }
-      // Don't fail the server startup if file watching fails
-    }    // Handle graceful shutdown
+    }, 500);
+
+    // Handle graceful shutdown
     const shutdown = async () => {
       debug('Shutting down MCP server...');
       try {
-        // Stop development mode file watching first
         if (devModeManager) {
-          try {
-            await devModeManager.stopWatching();
-            debug('Development mode file watcher stopped');
-          } catch (error) {
-            debug('Development mode shutdown failed (non-critical):', error);
-          }
+          await devModeManager.stopWatching();
+          debug('Development mode file watcher stopped');
         }
         
-        // Stop file watching first
         try {
           const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
           await monitoringWorkflow.stopFileWatching(folderPath);
-          debug('File watching stopped successfully');        } catch (error) {
+          debug('File watching stopped successfully');
+        } catch (error) {
           debug('File watching shutdown failed (non-critical):', error);
         }
         
-        // Stop MCP server
-        await mcpServer.stop();
+        // Close server transport
+        await server.close();
+        debug('MCP server closed');
         process.exit(0);
       } catch (error) {
         debug('Error during shutdown:', error);
@@ -186,18 +386,12 @@ export async function main(): Promise<void> {
       shutdown();
     });
 
-    // Keep the process running
     debug('MCP server is running. Press Ctrl+C to stop.');
 
   } catch (error) {
-    // Ensure error is properly logged with Error object
     const errorObj = error instanceof Error ? error : new Error(String(error));
-    
-    // Use consistent error logging patterns for test
     debug('Failed to start MCP server:', errorObj.message);
     process.stderr.write(`[ERROR] ${errorObj.stack || errorObj.message}\n`);
-    console.error('Fatal error:', errorObj.message);
-    
     process.exit(1);
   }
 }
@@ -211,7 +405,7 @@ debug('process.argv[1]:', process.argv[1]);
 const argv1 = process.argv[1];
 if (argv1) {
   const scriptPath = argv1.replace(/\\/g, '/');
-  const expectedUrl = `file:///${scriptPath}`;
+  const expectedUrl = `file://${scriptPath}`;
   debug('expectedUrl:', expectedUrl);
 
   if (import.meta.url === expectedUrl) {
