@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../helpers/setup.ts';
+import { setupTestEnvironment } from '../helpers/setup';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -53,7 +53,7 @@ function extractImports(filePath: string): string[] {
   let match;
   
   while ((match = importRegex.exec(content)) !== null) {
-    imports.push(match[1]);
+    if (match[1]) imports.push(match[1]);
   }
   
   return imports;

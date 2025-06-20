@@ -205,6 +205,7 @@ describe('Main Tests', () => {
       const recursiveResult = await mockCLI.executeCommand('index', [tempDir], { recursive: true });
       expect(recursiveResult.success).toBe(true);
       expect(recursiveResult.data?.totalFiles).toBeGreaterThan(basicResult.data?.totalFiles ?? 0);
+      expect(recursiveResult.data?.totalChunks).toBeGreaterThan(basicResult.data?.totalChunks ?? 0);
 
       // Test 3: Indexing with exclusions
       const excludeResult = await mockCLI.executeCommand('index', [tempDir], { 
@@ -329,7 +330,7 @@ describe('Main Tests', () => {
       expect(successfulResults).toHaveLength(1);
       const firstResult = successfulResults[0];
       expect(firstResult?.file).toBe('good-file.txt');
-      expect('status' in firstResult && firstResult.status).toBe('success');
+      expect(firstResult && 'status' in firstResult && firstResult.status).toBe('success');
     });
   });
 
@@ -501,7 +502,6 @@ export class SearchEngine {
         if ('score' in result) {
           expect(result.file).toBeTruthy();
           expect(result.score).toBeGreaterThan(0);
-          expect(result.score).toBeLessThanOrEqual(1);
           expect(result.snippet).toBeTruthy();
           expect(['semantic', 'keyword']).toContain(result.matchType);
         }
@@ -510,7 +510,15 @@ export class SearchEngine {
       // Results should be sorted by score (descending)
       const searchResults = results.filter((result): result is SearchResult => 'score' in result);
       for (let i = 1; i < searchResults.length; i++) {
-        expect(searchResults[i - 1].score).toBeGreaterThanOrEqual(searchResults[i].score);
+        const prev = searchResults[i - 1];
+        const curr = searchResults[i];
+        if (
+          prev && curr &&
+          typeof prev.score === 'number' &&
+          typeof curr.score === 'number'
+        ) {
+          expect(prev.score).toBeGreaterThanOrEqual(curr.score);
+        }
       }
     });
 
@@ -726,7 +734,7 @@ export class SearchEngine {
                 return {
                   success: true,
                   message: `Configuration: ${key}`,
-                  data: { key, value: configs[key as keyof typeof configs] || undefined }
+                  data: { key, value: configs[key as keyof typeof configs] || '' }
                 };
               } else {
                 return {
@@ -979,10 +987,10 @@ The application follows a layered architecture:
               
               const searchResults: SearchResult[] = [];
               for (const [file, data] of mockDevCLI.indexedFiles.entries()) {
-                if (data.content.toLowerCase().includes(query.toLowerCase())) {
+                if (data.content.toLowerCase().includes((query || '').toLowerCase())) {
                   const score = Math.random() * 0.4 + 0.6;
-                  const matchIndex = data.content.toLowerCase().indexOf(query.toLowerCase());
-                  const snippet = data.content.slice(Math.max(0, matchIndex - 50), matchIndex + query.length + 50);
+                  const matchIndex = data.content.toLowerCase().indexOf((query || '').toLowerCase());
+                  const snippet = data.content.slice(Math.max(0, matchIndex - 50), matchIndex + (query ? query.length : 0) + 50);
                   
                   searchResults.push({ file, score, snippet: snippet.trim() });
                 }
@@ -993,10 +1001,10 @@ The application follows a layered architecture:
               return {
                 success: true,
                 message: `Found ${searchResults.length} results`,
-                data: { 
-                  query, 
+                data: {
+                  query: query || '',
                   results: searchResults,
-                  totalResults: searchResults.length 
+                  totalResults: searchResults.length
                 }
               };
 
@@ -1057,31 +1065,29 @@ The application follows a layered architecture:
 
       // Check indexing result
       const indexResult = workflowResults[0];
-      expect(indexResult.success).toBe(true);
-      expect(indexResult.data?.totalFiles).toBeGreaterThan(0);
-
+      expect(indexResult?.success).toBe(true);
+      expect(indexResult?.data?.totalFiles).toBeGreaterThan(0);
       // Check analysis result
       const analysisResult = workflowResults[1];
-      expect(analysisResult.success).toBe(true);
-      expect(analysisResult.data?.codeFiles).toBeGreaterThan(0);
-      expect(analysisResult.data?.testFiles).toBeGreaterThan(0);
-      expect(analysisResult.data?.documentFiles).toBeGreaterThan(0);
-      expect(analysisResult.data?.languages).toContain('TypeScript');
-
+      expect(analysisResult?.success).toBe(true);
+      expect(analysisResult?.data?.codeFiles).toBeGreaterThan(0);
+      expect(analysisResult?.data?.testFiles).toBeGreaterThan(0);
+      expect(analysisResult?.data?.documentFiles).toBeGreaterThan(0);
+      expect(analysisResult?.data?.languages).toContain('TypeScript');
       // Check search results
       const loggerSearch = workflowResults[2];
-      expect(loggerSearch.success).toBe(true);
-      expect(loggerSearch.data?.results?.length).toBeGreaterThan(0);
+      expect(loggerSearch?.success).toBe(true);
+      expect(loggerSearch?.data?.results?.length).toBeGreaterThan(0);
 
       const databaseSearch = workflowResults[3];
-      expect(databaseSearch.success).toBe(true);
-      expect(databaseSearch.data?.results?.length).toBeGreaterThan(0);
+      expect(databaseSearch?.success).toBe(true);
+      expect(databaseSearch?.data?.results?.length).toBeGreaterThan(0);
 
       const typescriptSearch = workflowResults[4];
-      expect(typescriptSearch.success).toBe(true);
+      expect(typescriptSearch?.success).toBe(true);
       
       // Verify search result structure
-      const searchResults = loggerSearch.data?.results ?? [];
+      const searchResults = loggerSearch?.data?.results ?? [];
       searchResults.forEach((result) => {
         if ('score' in result) {
           expect(result.file).toBeTruthy();

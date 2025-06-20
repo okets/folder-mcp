@@ -65,8 +65,11 @@ describe('Infrastructure Layer - Cache', () => {
       };
 
       const mockSet = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
-        const expiry = ttl ? Date.now() + ttl : undefined;
-        cache.set(key, { value, expiry });
+        const entry: any = { value };
+        if (ttl !== undefined) {
+          entry.expiry = Date.now() + ttl;
+        }
+        cache.set(key, entry);
       };
 
       // Test basic operations
@@ -88,8 +91,11 @@ describe('Infrastructure Layer - Cache', () => {
       const cache = new Map<string, { value: any; expiry?: number }>();
 
       const mockSet = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
-        const expiry = ttl ? Date.now() + ttl : undefined;
-        cache.set(key, { value, expiry });
+        const entry: any = { value };
+        if (ttl !== undefined) {
+          entry.expiry = Date.now() + ttl;
+        }
+        cache.set(key, entry);
       };
 
       const mockGet = async <T>(key: string): Promise<T | null> => {

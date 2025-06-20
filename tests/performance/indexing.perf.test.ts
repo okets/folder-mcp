@@ -174,9 +174,9 @@ describe('Performance - Indexing', () => {
       expect(memoryIncrease).toBeLessThan(500 * 1024 * 1024); // Memory increase should be reasonable (500MB)
       
       // Verify processing results
-      expect(result[0].chunks).toBeGreaterThan(90); // ~100KB in 1KB chunks
-      expect(result[1].chunks).toBeGreaterThan(190); // ~200KB in 1KB chunks
-      expect(result[2].chunks).toBeGreaterThan(490); // ~500KB in 1KB chunks
+      expect(result[0]!.chunks).toBeGreaterThan(90); // ~100KB in 1KB chunks
+      expect(result[1]!.chunks).toBeGreaterThan(190); // ~200KB in 1KB chunks
+      expect(result[2]!.chunks).toBeGreaterThan(490); // ~500KB in 1KB chunks
     });
 
     it('should handle concurrent file processing efficiently', async () => {
@@ -433,7 +433,7 @@ describe('Performance - Indexing', () => {
       const sortedByPerformance = Object.entries(results)
         .sort(([, a], [, b]) => a.duration - b.duration);
 
-      const fastestBatchSize = parseInt(sortedByPerformance[0][0]);
+      const fastestBatchSize = parseInt(sortedByPerformance[0]![0]);
       expect(fastestBatchSize).toBeGreaterThanOrEqual(16);
       expect(fastestBatchSize).toBeLessThanOrEqual(128);
 
@@ -476,9 +476,9 @@ describe('Performance - Indexing', () => {
             
             // Process file
             const result = {
-              path: file.name,
-              size: file.content.length,
-              chunks: Math.ceil(file.content.length / 1000)
+              path: file!.name,
+              size: file!.content.length,
+              chunks: Math.ceil(file!.content.length / 1000)
             };
             
             results.push(result);
@@ -512,8 +512,8 @@ describe('Performance - Indexing', () => {
       expect(result).toHaveLength(fileCount);
 
       // Memory usage assertions
-      const initialMemory = memorySnapshots[0].memory.heapUsed;
-      const finalMemory = memorySnapshots[memorySnapshots.length - 1].memory.heapUsed;
+      const initialMemory = memorySnapshots[0]!.memory.heapUsed;
+      const finalMemory = memorySnapshots[memorySnapshots.length - 1]!.memory.heapUsed;
       const memoryIncrease = finalMemory - initialMemory;
 
       // Memory increase should be reasonable (less than 500MB for this test)
@@ -522,8 +522,8 @@ describe('Performance - Indexing', () => {
       // Check for memory leaks - memory shouldn't continuously increase
       const processedSnapshots = memorySnapshots.filter(s => s.stage.startsWith('processed_'));
       if (processedSnapshots.length > 2) {
-        const firstProcessed = processedSnapshots[0].memory.heapUsed;
-        const lastProcessed = processedSnapshots[processedSnapshots.length - 1].memory.heapUsed;
+        const firstProcessed = processedSnapshots[0]!.memory.heapUsed;
+        const lastProcessed = processedSnapshots[processedSnapshots.length - 1]!.memory.heapUsed;
         const processingMemoryIncrease = lastProcessed - firstProcessed;
         
         // Memory shouldn't grow significantly during processing

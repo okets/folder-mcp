@@ -167,7 +167,7 @@ describe('Integration - Indexing Workflow', () => {
 
       expect(result.success).toBe(false);
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0].filePath).toBe('corrupted.txt');
+      expect(result.errors[0]!.filePath).toBe('corrupted.txt');
     });
   });
 

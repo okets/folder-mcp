@@ -234,9 +234,9 @@ describe('Integration - Content Serving Workflow', () => {
       const responses = await mockServingWorkflow.getMultipleContents!(requests);
 
       expect(responses).toHaveLength(3);
-      expect(responses[0].filePath).toBe('src/types.ts');
-      expect(responses[1].filePath).toBe('docs/readme.md');
-      expect(responses[2].filePath).toBe('config.json');
+      expect(responses[0]!.filePath).toBe('src/types.ts');
+      expect(responses[1]!.filePath).toBe('docs/readme.md');
+      expect(responses[2]!.filePath).toBe('config.json');
       
       responses.forEach(response => {
         expect(response.content).toBeTruthy();
@@ -296,9 +296,9 @@ describe('Integration - Content Serving Workflow', () => {
       const responses = await mockWorkflowWithErrors.getMultipleContents!(requests);
 
       expect(responses).toHaveLength(3);
-      expect(responses[0].content).toBeTruthy(); // Successful
-      expect(responses[1].metadata.error).toContain('File not found'); // Failed
-      expect(responses[2].content).toBeTruthy(); // Successful
+      expect(responses[0]!.content).toBeTruthy(); // Successful
+      expect(responses[1]!.metadata.error).toContain('File not found'); // Failed
+      expect(responses[2]!.content).toBeTruthy(); // Successful
     });
   });
 

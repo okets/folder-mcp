@@ -99,12 +99,12 @@ describe('Slides Real Tests', () => {
     
     // Validate individual slide structure
     const firstSlide = slidesResponse.slides[0];
-    expect(firstSlide.slide_number).toBe(1);
-    expect(firstSlide.title).toBeDefined();
-    expect(firstSlide.content).toBeDefined();
+    expect(firstSlide!.slide_number).toBe(1);
+    expect(firstSlide!.title).toBeDefined();
+    expect(firstSlide!.content).toBeDefined();
     
-    console.log(`   📑 Sample slide: "${firstSlide.title}"`);
-    console.log(`   📝 Content preview: ${firstSlide.content.substring(0, 100)}...`);
+    console.log(`   📑 Sample slide: "${firstSlide!.title}"`);
+    console.log(`   📝 Content preview: ${firstSlide!.content.substring(0, 100)}...`);
     
     console.log('✅ User Story "Create investor pitch" response format validated');
   });
@@ -313,14 +313,14 @@ function generateSlideTitle(pptPath: string, slideNumber: number): string {
       'Market Expansion', 'Strategic Initiatives', 'Risk Assessment',
       'Future Outlook', 'Recommendations'
     ];
-    return boardTitles[(slideNumber - 1) % boardTitles.length];
+    return boardTitles[(slideNumber - 1) % boardTitles.length] || 'Board Slide';
   } else if (isDemo) {
     const demoTitles = [
       'Product Overview', 'Key Features', 'User Interface Demo',
       'Technical Architecture', 'Integration Capabilities', 'Success Stories',
       'Pricing & Plans', 'Next Steps'
     ];
-    return demoTitles[(slideNumber - 1) % demoTitles.length];
+    return demoTitles[(slideNumber - 1) % demoTitles.length] || 'Demo Slide';
   }
   
   return `Business Slide ${slideNumber}`;

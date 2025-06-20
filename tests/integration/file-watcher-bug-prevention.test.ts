@@ -194,7 +194,7 @@ describe('File Watcher Bug Prevention', () => {
       events.push(Date.now());
 
       expect(events).toHaveLength(3);
-      expect(events[2] - events[0]).toBeGreaterThan(debounceMs);
+      expect(events[2]! - events[0]!).toBeGreaterThan(debounceMs);
     });
 
     it('should handle cleanup sequences properly', async () => {

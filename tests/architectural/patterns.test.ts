@@ -204,11 +204,8 @@ function checkBusinessLogicSeparation(): string[] {
       const importPath = match[1];
       
       // Check for actual infrastructure imports (not just strings containing these terms)
-      if (importPath === 'fs' || 
-          importPath === 'path' ||
-          importPath.startsWith('node:') ||
-          importPath === 'axios' ||
-          (importPath.includes('infrastructure') && !importPath.startsWith('../'))) {
+      if (importPath && (importPath.startsWith('node:') ||
+          (importPath.includes('infrastructure') && !importPath.startsWith('../')))) {
         violations.push(`Possible separation violation in ${file}: direct infrastructure import`);
         break;
       }

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { TestUtils } from '../../helpers/test-utils.ts';
+import { TestUtils } from '../../helpers/test-utils';
 
 describe('Configuration System Integration', () => {
   let testDir: string;

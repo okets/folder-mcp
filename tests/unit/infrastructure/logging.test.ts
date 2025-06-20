@@ -41,51 +41,70 @@ describe('Infrastructure Layer - Logging', () => {
       
       const mockLogger: Partial<ILoggingService> = {
         debug: (message: string, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'debug',
             message,
             timestamp: new Date(),
-            metadata,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          logEntries.push(entry);
         },
         info: (message: string, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'info',
             message,
             timestamp: new Date(),
-            metadata,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          logEntries.push(entry);
         },
         warn: (message: string, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'warn',
             message,
             timestamp: new Date(),
-            metadata,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          logEntries.push(entry);
         },
         error: (message: string, error?: Error, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'error',
             message,
             timestamp: new Date(),
-            metadata,
-            error,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          if (error !== undefined) {
+            entry.error = error;
+          }
+          logEntries.push(entry);
         },
         fatal: (message: string, error?: Error, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'fatal',
             message,
             timestamp: new Date(),
-            metadata,
-            error,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          if (error !== undefined) {
+            entry.error = error;
+          }
+          logEntries.push(entry);
         }
       };
 
@@ -97,11 +116,11 @@ describe('Infrastructure Layer - Logging', () => {
       mockLogger.fatal?.('Fatal message', new Error('Test fatal'), { fatal: true });
 
       expect(logEntries).toHaveLength(5);
-      expect(logEntries[0].level).toBe('debug');
-      expect(logEntries[1].level).toBe('info');
-      expect(logEntries[2].level).toBe('warn');
-      expect(logEntries[3].level).toBe('error');
-      expect(logEntries[4].level).toBe('fatal');
+      expect(logEntries[0]!.level).toBe('debug');
+      expect(logEntries[1]!.level).toBe('info');
+      expect(logEntries[2]!.level).toBe('warn');
+      expect(logEntries[3]!.level).toBe('error');
+      expect(logEntries[4]!.level).toBe('fatal');
     });
 
     it('should support contextual logging with metadata', () => {
@@ -109,13 +128,16 @@ describe('Infrastructure Layer - Logging', () => {
       
       const mockLogger: Partial<ILoggingService> = {
         info: (message: string, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'info',
             message,
             timestamp: new Date(),
-            metadata,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          logEntries.push(entry);
         }
       };
 
@@ -131,7 +153,7 @@ describe('Infrastructure Layer - Logging', () => {
       mockLogger.info?.('Processing file', metadata);
 
       expect(logEntries).toHaveLength(1);
-      expect(logEntries[0].metadata).toEqual(metadata);
+      expect(logEntries[0]!.metadata).toEqual(metadata);
     });
   });
 
@@ -309,10 +331,10 @@ describe('Infrastructure Layer - Logging', () => {
       ];
 
       expect(transports).toHaveLength(4);
-      expect(transports[0].type).toBe('console');
-      expect(transports[1].type).toBe('file');
-      expect(transports[2].type).toBe('http');
-      expect(transports[3].type).toBe('syslog');
+      expect(transports[0]!.type).toBe('console');
+      expect(transports[1]!.type).toBe('file');
+      expect(transports[2]!.type).toBe('http');
+      expect(transports[3]!.type).toBe('syslog');
     });
 
     it('should handle transport-specific configurations', () => {
@@ -419,13 +441,16 @@ describe('Infrastructure Layer - Logging', () => {
       
       const mockLogger: Partial<ILoggingService> = {
         info: (message: string, metadata?: LogMetadata): void => {
-          logEntries.push({
+          const entry: any = {
             level: 'info',
             message,
             timestamp: new Date(),
-            metadata,
             source: 'test'
-          });
+          };
+          if (metadata !== undefined) {
+            entry.metadata = metadata;
+          }
+          logEntries.push(entry);
         }
       };
 

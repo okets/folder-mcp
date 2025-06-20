@@ -69,6 +69,7 @@ export class DefaultEmbeddingOperations implements EmbeddingOperations, BatchEmb
         vector: new Array(this.model.dimensions).fill(0),
         dimensions: this.model.dimensions,
         model: this.model.name,
+        createdAt: new Date().toISOString(), // <-- Fix: add createdAt
         metadata: {
           generatedAt: new Date().toISOString(),
           modelVersion: '1.0',
@@ -126,6 +127,7 @@ export class DefaultEmbeddingOperations implements EmbeddingOperations, BatchEmb
                   vector: new Array(this.model.dimensions).fill(0),
                   dimensions: this.model.dimensions,
                   model: this.model.name,
+                  createdAt: new Date().toISOString(), // <-- Fix: add createdAt
                   metadata: {
                     generatedAt: new Date().toISOString(),
                     modelVersion: '1.0',
@@ -150,6 +152,7 @@ export class DefaultEmbeddingOperations implements EmbeddingOperations, BatchEmb
                 vector: new Array(this.model.dimensions).fill(0),
                 dimensions: this.model.dimensions,
                 model: this.model.name,
+                createdAt: new Date().toISOString(), // <-- Fix: add createdAt
                 metadata: {
                   generatedAt: new Date().toISOString(),
                   modelVersion: '1.0',

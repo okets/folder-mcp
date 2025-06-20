@@ -360,8 +360,8 @@ describe('Integration - DI Container', () => {
       expect(indexResult.success).toBe(true);
       expect(indexResult.totalFiles).toBe(3);
       expect(indexResult.results).toHaveLength(3);
-      expect(indexResult.results[0].chunks).toBe(3);
-      expect(indexResult.results[0].embeddings).toBe(3);
+      expect(indexResult.results[0]!.chunks).toBe(3);
+      expect(indexResult.results[0]!.embeddings).toBe(3);
 
       // Cache the results
       await mockInfrastructureServices.cacheService.set('last-index', indexResult);
@@ -374,7 +374,7 @@ describe('Integration - DI Container', () => {
       expect(searchResult.success).toBe(true);
       expect(searchResult.query).toBe('test query');
       expect(searchResult.results).toHaveLength(2);
-      expect(searchResult.results[0].score).toBe(0.95);
+      expect(searchResult.results[0]!.score).toBe(0.95);
 
       // Log operations
       mockInfrastructureServices.logger.info('Indexing completed successfully');
@@ -440,21 +440,20 @@ describe('Integration - DI Container', () => {
 
       expect(result.totalErrors).toBe(1);
       expect(errors).toHaveLength(2); // One domain error, one application error
-      
-      expect(errors[0].layer).toBe('domain');
-      expect(errors[0].error).toBe('Invalid file path');
-      expect(errors[0].context?.path).toBe('invalid-file.txt');
-      
-      expect(errors[1].layer).toBe('application');
-      expect(errors[1].error).toBe('Failed to process file');
-      expect(errors[1].context?.originalError).toBe('Invalid file path');
+       expect(errors[0]!.layer).toBe('domain');
+      expect(errors[0]!.error).toBe('Invalid file path');
+      expect(errors[0]!.context?.path).toBe('invalid-file.txt');
+
+      expect(errors[1]!.layer).toBe('application');
+      expect(errors[1]!.error).toBe('Failed to process file');
+      expect(errors[1]!.context?.originalError).toBe('Invalid file path');
 
       // Test infrastructure error handling
       mockServices.infrastructureService.logError({ message: 'Disk full' });
       
       expect(errors).toHaveLength(3);
-      expect(errors[2].layer).toBe('infrastructure');
-      expect(errors[2].error).toBe('Logging error');
+      expect(errors[2]!.layer).toBe('infrastructure');
+      expect(errors[2]!.error).toBe('Logging error');
     });
   });
 
@@ -622,11 +621,11 @@ describe('Integration - DI Container', () => {
       
       const fileProcessedEvents = events.filter(e => e.type === 'file.processed');
       expect(fileProcessedEvents).toHaveLength(3);
-      expect(fileProcessedEvents[0].source).toBe('domain');
+      expect(fileProcessedEvents[0]!.source).toBe('domain');
 
       const progressEvents = events.filter(e => e.type === 'indexing.progress');
       expect(progressEvents).toHaveLength(3);
-      expect(progressEvents[0].source).toBe('application');
+      expect(progressEvents[0]!.source).toBe('application');
     });
   });
 });

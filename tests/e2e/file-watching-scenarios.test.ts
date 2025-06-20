@@ -412,8 +412,8 @@ Advanced debouncing ensures optimal performance.
       await fs.mkdir(newDir);
 
       // Move files to new structure
-      await fs.rename(files[0], path.join(newDir, 'file1.txt'));
-      await fs.rename(files[1], path.join(newDir, 'file2.md'));
+      await fs.rename(files[0]!, path.join(newDir, 'file1.txt'));
+      await fs.rename(files[1]!, path.join(newDir, 'file2.md'));
 
       // Remove old directory
       await fs.rmdir(oldDir);
@@ -427,7 +427,7 @@ Advanced debouncing ensures optimal performance.
       ];
 
       for (let i = 0; i < newFiles.length; i++) {
-        const content = await fs.readFile(newFiles[i], 'utf8');
+        const content = await fs.readFile(newFiles[i]!, 'utf8');
         expect(content).toBe(`Content of file ${i + 1}`);
       }
 

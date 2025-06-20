@@ -51,7 +51,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`🔍 Found ${searchResults.data.results.length} relevant documents`);
 
       // Step 2: User explores the structure of the sales spreadsheet
-      const spreadsheetDoc = searchResults.data.results.find(r => 
+      const spreadsheetDoc = searchResults.data.results.find((r: any) => 
         r.document_id.includes('Sales_Pipeline') || r.document_id.includes('xlsx')
       );
       expect(spreadsheetDoc).toBeDefined();
@@ -62,10 +62,10 @@ describe('MCP User Story Integration Tests', () => {
 
       expect(outline.type).toBe('xlsx');
       expect(outline.sheets.length).toBeGreaterThan(0);
-      console.log(`📋 Spreadsheet has ${outline.sheets.length} sheets: ${outline.sheets.map(s => s.name).join(', ')}`);
+      console.log(`📋 Spreadsheet has ${outline.sheets.length} sheets: ${outline.sheets.map((s: any) => s.name).join(', ')}`);
 
       // Step 3: Extract summary data for analysis
-      const summarySheet = outline.sheets.find(s => s.name.toLowerCase().includes('summary'));
+      const summarySheet = outline.sheets.find((s: any) => s.name.toLowerCase().includes('summary'));
       if (summarySheet) {
         const sheetData = await client.getSheetData({
           document_id: spreadsheetDoc.document_id,
@@ -85,7 +85,7 @@ describe('MCP User Story Integration Tests', () => {
       }
 
       // Step 4: Get presentation slides for context
-      const presentationDoc = searchResults.data.results.find(r => 
+      const presentationDoc = searchResults.data.results.find((r: any) => 
         r.document_id.includes('Board_Deck') || r.document_id.includes('pptx')
       );
       
@@ -99,7 +99,7 @@ describe('MCP User Story Integration Tests', () => {
         console.log(`🎯 Retrieved ${slides.data.slides.length} key presentation slides`);
 
         // Verify slides contain relevant content
-        const slideContent = slides.data.slides.map(s => s.content + ' ' + s.title).join(' ');
+        const slideContent = slides.data.slides.map((s: any) => s.content + ' ' + s.title).join(' ');
         expect(slideContent.toLowerCase()).toMatch(/sales|revenue|performance|growth/);
       }
 
@@ -122,7 +122,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`🔍 Found ${contractSearch.data.results.length} contract references`);
 
       // Step 2: Group results by document
-      const contractDocs = new Set(contractSearch.data.results.map(r => r.document_id));
+      const contractDocs = new Set(contractSearch.data.results.map((r: any) => r.document_id));
       console.log(`📑 Identified ${contractDocs.size} contract documents`);
 
       // Step 3: For each contract, extract the key legal pages
@@ -130,14 +130,14 @@ describe('MCP User Story Integration Tests', () => {
         console.log(`📖 Analyzing contract: ${docId}`);
 
         // Find pages with legal terms based on search results
-        const docResults = contractSearch.data.results.filter(r => r.document_id === docId);
+        const docResults = contractSearch.data.results.filter((r: any) => r.document_id === docId);
         const validPages = docResults
-          .map(r => r.location?.page)
-          .filter((p): p is number => typeof p === 'number' && p > 0);
+          .map((r: any) => r.location?.page)
+          .filter((p: any): p is number => typeof p === 'number' && p > 0);
         const pageNumbers = [...new Set(validPages)] as number[];
         
         if (pageNumbers.length > 0) {
-          const pageRange = pageNumbers.sort((a, b) => a - b).join(',');
+          const pageRange = pageNumbers.sort((a: any, b: any) => a - b).join(',');
           const pages = await client.getPages({
             document_id: docId as string,
             page_range: pageRange
@@ -147,7 +147,7 @@ describe('MCP User Story Integration Tests', () => {
           console.log(`📄 Extracted ${pages.data.pages.length} pages with contract terms`);
 
           // Verify we found contract-related content
-          const pageContent = pages.data.pages.map(p => p.content).join(' ');
+          const pageContent = pages.data.pages.map((p: any) => p.content).join(' ');
           expect(pageContent.toLowerCase()).toMatch(/contract|agreement|vendor|supplier|expir|term/);
 
           // Look for expiration dates (basic pattern matching)
@@ -184,7 +184,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`📖 Report has ${outline.total_pages} pages with ${outline.bookmarks.length} sections`);
 
       // Step 2: Find the financial section using bookmarks
-      const financialBookmark = outline.bookmarks.find(b => 
+      const financialBookmark = outline.bookmarks.find((b: any) => 
         b.title.toLowerCase().includes('financial') || 
         b.title.toLowerCase().includes('finance')
       );
@@ -203,7 +203,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`📊 Extracted ${financialPages.data.pages.length} pages from financial section`);
 
       // Step 4: Verify financial content
-      const financialContent = financialPages.data.pages.map(p => p.content).join(' ');
+      const financialContent = financialPages.data.pages.map((p: any) => p.content).join(' ');
       const hasFinancialTerms = /revenue|profit|loss|earnings|financial|balance|income/i.test(financialContent);
       expect(hasFinancialTerms).toBe(true);
 
@@ -211,7 +211,7 @@ describe('MCP User Story Integration Tests', () => {
       if (financialPages.continuation.has_more) {
         console.log("📖 Additional financial pages available via pagination");
         expect(financialPages.continuation.token).toBeDefined();
-        expect(financialPages.actions.some(a => a.id === 'CONTINUE')).toBe(true);
+        expect(financialPages.actions.some((a: any) => a.id === 'CONTINUE')).toBe(true);
       }
 
       console.log("✅ Complete document navigation workflow executed successfully");
@@ -233,7 +233,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`🔍 Found ${boardPresentations.data.results.length} board presentations`);
 
       // Step 2: Get outline of the main board deck
-      const mainDeck = boardPresentations.data.results.find(r => 
+      const mainDeck = boardPresentations.data.results.find((r: any) => 
         r.document_id.includes('Board_Deck') || r.document_id.includes('Q4')
       );
       expect(mainDeck).toBeDefined();
@@ -255,7 +255,7 @@ describe('MCP User Story Integration Tests', () => {
       console.log(`📊 Extracted ${keySlides.data.slides.length} key slides for investor pitch`);
 
       // Step 4: Verify slide content quality
-      keySlides.data.slides.forEach((slide, index) => {
+      keySlides.data.slides.forEach((slide: any, index: any) => {
         expect(slide.slide_number).toBeTypeOf('number');
         expect(slide.title).toBeTypeOf('string');
         expect(slide.content).toBeTypeOf('string');
@@ -266,7 +266,7 @@ describe('MCP User Story Integration Tests', () => {
 
       // Step 5: Verify business-relevant content
       const allSlideContent = keySlides.data.slides
-        .map(s => `${s.title} ${s.content} ${s.notes}`)
+        .map((s: any) => `${s.title} ${s.content} ${s.notes}`)
         .join(' ');
       
       const hasBusinessMetrics = /revenue|growth|market|customer|strategy|financial/i.test(allSlideContent);
@@ -321,7 +321,7 @@ describe('MCP User Story Integration Tests', () => {
       const allQ4Docs = [
         ...searchResult.data.results,
         ...Array.from(departmentDocs.values()).flat(),
-        ...q4Documents.data.documents.map(d => ({ document_id: d.document_id, preview: d.name }))
+        ...q4Documents.data.documents.map((d: any) => ({ document_id: d.document_id, preview: d.name }))
       ];
 
       const uniqueQ4Docs = Array.from(

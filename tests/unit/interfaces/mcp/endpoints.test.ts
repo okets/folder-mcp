@@ -404,7 +404,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
         expect(response.status.code).toBe('success');
         expect(response.data.pages.length).toBe(1);
-        expect(response.data.pages[0].page_number).toBe(1);
+        expect(response.data.pages[0]!.page_number).toBe(1);
       });
 
       test('Handle all pages when no range specified', async () => {
@@ -943,6 +943,13 @@ function createMockServices() {
       model: 'mock-model',
       createdAt: new Date().toISOString()
     }),
+    generateSingleEmbedding: async () => ({
+      vector: new Array(384).fill(0),
+      dimensions: 384,
+      model: 'mock-model',
+      createdAt: new Date().toISOString()
+    }),
+    calculateSimilarity: () => 0.95,
     getModelConfig: () => ({ model: 'mock-model', dimensions: 384 }),
     isInitialized: () => true
   };

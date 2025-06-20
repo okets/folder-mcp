@@ -122,7 +122,7 @@ describe('Cache and System Validation Real Tests', () => {
       
       // Validate at least one embedding file structure
       if (embeddingFiles.length > 0) {
-        const firstEmbeddingFile = path.join(embeddingsDir, embeddingFiles[0]);
+        const firstEmbeddingFile = path.join(embeddingsDir, embeddingFiles[0]!);
         const embeddingContent = JSON.parse(await fs.readFile(firstEmbeddingFile, 'utf-8'));
         
         expect(embeddingContent).toHaveProperty('documentId');
@@ -430,8 +430,8 @@ describe('Cache and System Validation Real Tests', () => {
         // Validate vector dimensions and values
         const vectors = embeddingData.vectors;
         expect(vectors.length).toBeGreaterThan(300); // Typical embedding size
-        expect(vectors.every(v => typeof v === 'number')).toBe(true);
-        expect(vectors.some(v => v !== 0)).toBe(true); // Not all zeros
+        expect(vectors.every((v: any) => typeof v === 'number')).toBe(true);
+        expect(vectors.some((v: any) => v !== 0)).toBe(true); // Not all zeros
         
         totalVectors += vectors.length;
         validEmbeddings++;
@@ -453,8 +453,8 @@ describe('Cache and System Validation Real Tests', () => {
       
       if (embeddingFiles.length >= 2) {
         // Load two different embeddings
-        const embedding1Data = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[0]), 'utf-8'));
-        const embedding2Data = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[1]), 'utf-8'));
+        const embedding1Data = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[0]!), 'utf-8'));
+        const embedding2Data = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[1]!), 'utf-8'));
         
         // Calculate cosine similarity
         const similarity = calculateCosineSimilarity(embedding1Data.vectors, embedding2Data.vectors);
@@ -632,7 +632,7 @@ async function simulateIndexingWithCacheCreation(knowledgeBasePath: string) {
   // Create sample embedding files
   for (let i = 0; i < Math.min(documentFiles.length, 10); i++) {
     const embeddingData = {
-      documentId: path.basename(documentFiles[i]),
+      documentId: path.basename(documentFiles[i]!),
       vectors: Array(384).fill(0).map(() => Math.random() - 0.5),
       created: new Date().toISOString()
     };
@@ -812,7 +812,7 @@ async function simulateEmbeddingAccess(knowledgeBasePath: string) {
   const embeddingFiles = await fs.readdir(embeddingsDir);
   
   if (embeddingFiles.length > 0) {
-    const firstEmbedding = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[0]), 'utf-8'));
+    const firstEmbedding = JSON.parse(await fs.readFile(path.join(embeddingsDir, embeddingFiles[0]!), 'utf-8'));
     return { embedding: firstEmbedding, accessTime: Date.now() };
   }
   
@@ -855,9 +855,9 @@ function calculateCosineSimilarity(vectorA: number[], vectorB: number[]): number
   let normB = 0;
   
   for (let i = 0; i < vectorA.length; i++) {
-    dotProduct += vectorA[i] * vectorB[i];
-    normA += vectorA[i] * vectorA[i];
-    normB += vectorB[i] * vectorB[i];
+    dotProduct += vectorA[i]! * vectorB[i]!;
+    normA += vectorA[i]! * vectorA[i]!;
+    normB += vectorB[i]! * vectorB[i]!;
   }
   
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));

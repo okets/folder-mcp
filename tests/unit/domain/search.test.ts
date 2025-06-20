@@ -208,7 +208,7 @@ describe('Domain Layer - Search Module', () => {
               title: filePath.split('/').pop() || '',
               lastModified: new Date(),
               size: results.reduce((sum, r) => sum + r.chunk.content.length, 0),
-              type: results[0].chunk.metadata?.sourceType || 'unknown'
+              type: results[0]!.chunk.metadata?.sourceType || 'unknown'
             }
           })),
           totalResults: results.length,
@@ -304,9 +304,9 @@ describe('Domain Layer - Search Module', () => {
       ] as SearchResult[];
 
       const ranked = searchOps.rankResults(results);
-      expect(ranked[0].similarity).toBe(0.8);
-      expect(ranked[1].similarity).toBe(0.5);
-      expect(ranked[2].similarity).toBe(0.3);
+      expect(ranked[0]!.similarity).toBe(0.8);
+      expect(ranked[1]!.similarity).toBe(0.5);
+      expect(ranked[2]!.similarity).toBe(0.3);
     });
   });
 

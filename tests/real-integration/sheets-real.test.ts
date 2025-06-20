@@ -101,7 +101,7 @@ describe('Sheet Data Real Tests', () => {
     }));
     
     expect(customerData.length).toBeGreaterThan(0);
-    expect(customerData[0].revenue).toBeGreaterThan(0);
+    expect(customerData[0]!.revenue).toBeGreaterThan(0);
     
     console.log('✅ Real customer data extracted for churn analysis');
   });
@@ -224,9 +224,9 @@ describe('Sheet Data Real Tests', () => {
     
     // Test specific data type examples
     const firstRow = csvData.rows[0];
-    expect(firstRow.customer_id).toMatch(/^\d+$/); // Should be numeric
-    expect(firstRow.contact_email).toMatch(/.*@.*\..*/); // Should be email format
-    expect(firstRow.phone).toMatch(/\d{3}-\d{4}/); // Should be phone format
+    expect(firstRow!.customer_id).toMatch(/^\d+$/); // Should be numeric
+    expect(firstRow!.contact_email).toMatch(/.*@.*\..*/); // Should be email format
+    expect(firstRow!.phone).toMatch(/\d{3}-\d{4}/); // Should be phone format
     
     console.log('✅ Real data type preservation validated');
   });
@@ -280,7 +280,7 @@ async function copyDirectory(source: string, destination: string): Promise<void>
 async function extractCSVData(csvPath: string) {
   const content = await fs.readFile(csvPath, 'utf-8');
   const lines = content.trim().split('\n');
-  const headers = lines[0].split(',');
+  const headers = lines[0]!.split(',');
   
   const rows = lines.slice(1).map(line => {
     const values = line.split(',');

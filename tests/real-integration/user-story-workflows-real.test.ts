@@ -152,7 +152,7 @@ describe('Multi-Endpoint User Story Workflow Tests', () => {
     // Validate cross-endpoint data consistency
     const consistencyChecks = {
       salesDataPresent: salesSearchResults.results.length > 0,
-      reportStructureValid: reportOutline.total_pages > 0,
+      reportStructureValid: (reportOutline.total_pages ?? 0) > 0,
       customerDataValid: churnData.rows.length > 0,
       q4DocumentsFound: q4Documents.documents.length > 0,
       totalRevenueCalculated: totalRevenue > 0
@@ -677,7 +677,7 @@ async function getSheetData(filePath: string) {
   if (filePath.endsWith('.csv')) {
     const content = await fs.readFile(filePath, 'utf-8');
     const lines = content.trim().split('\n');
-    const headers = lines[0].split(',');
+    const headers = lines[0]!.split(',');
     const rows = lines.slice(1).map(line => line.split(','));
     
     return {

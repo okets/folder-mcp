@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { TestUtils } from '../../helpers/test-utils.ts';
+import { TestUtils } from '../../helpers/test-utils';
 import { setupDependencyInjection } from '../../../src/di/setup.js';
 import { SERVICE_TOKENS } from '../../../src/di/interfaces.js';
 import type { IDependencyContainer, IFileSystemService, ILoggingService } from '../../../src/di/interfaces.js';

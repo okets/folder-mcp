@@ -183,11 +183,14 @@ describe('MCP Endpoints - Performance Tests', () => {
       let pageCount = 0;
       
       do {
-        const response = await client.getPages({
+        const request: any = {
           document_id: "Annual_Report_2024.pdf",
-          max_tokens: 500, // Very small to force many pages
-          continuation_token: continuationToken
-        });
+          max_tokens: 500 // Very small to force many pages
+        };
+        if (continuationToken !== undefined) {
+          request.continuation_token = continuationToken;
+        }
+        const response = await client.getPages(request);
         
         pageCount += response.data.pages.length;
         continuationToken = response.data.continuation?.token;
@@ -240,9 +243,9 @@ describe('MCP Endpoints - Performance Tests', () => {
       const responses = await Promise.all(mixedPromises);
       
       expect(responses.length).toBe(3);
-      expect(responses[0].data.results).toBeDefined(); // Search response
-      expect(responses[1].data.pages).toBeDefined(); // Pages response
-      expect(responses[2].data.headers).toBeDefined(); // Sheet response
+      expect(responses[0]!.data.results).toBeDefined(); // Search response
+      expect(responses[1]!.data.pages).toBeDefined(); // Pages response
+      expect(responses[2]!.data.headers).toBeDefined(); // Sheet response
       
       console.log('🔄 Mixed concurrent requests handled successfully');
     });
@@ -286,7 +289,7 @@ describe('MCP Endpoints - Performance Tests', () => {
       expect(response.data.token_count).toBeGreaterThan(0);
 
       // Estimate tokens (rough calculation: 4 chars per token)
-      const actualContent = response.data.pages.map(p => p.content).join(' ');
+      const actualContent = response.data.pages.map((p: any) => p.content).join(' ');
       const estimatedTokens = Math.ceil(actualContent.length / 4);
       
       // Token count should be reasonably accurate (within 20%)

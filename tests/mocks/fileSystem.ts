@@ -70,6 +70,7 @@ export class MockFileSystem implements IFileSystem {
         mtime: new Date(),
         isDirectory: () => false,
         isFile: () => true,
+        isReadOnly: () => false,
         ...stats
       }
     });

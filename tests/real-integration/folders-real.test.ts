@@ -130,9 +130,11 @@ async function listDocuments(basePath: string, folder: string, maxTokens?: numbe
         code: 'success',
         message: `Found ${limitedDocuments.length} documents in ${folder}`
       },
-      continuation: {
+      continuation: hasMore ? {
         has_more: hasMore,
-        token: hasMore ? `${maxTokens}` : undefined
+        token: `${maxTokens}`
+      } : {
+        has_more: hasMore
       }
     };
   } catch (error) {
@@ -280,9 +282,9 @@ describe('Folders/Documents Endpoints - Real Integration Tests', () => {
 
       // Validate Q4_Forecast.xlsx is found
       const q4Doc = result.data.documents[0];
-      expect(q4Doc.name).toBe('Q4_Forecast.xlsx');
-      expect(q4Doc.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
-      expect(q4Doc.modified).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(q4Doc!.name).toBe('Q4_Forecast.xlsx');
+      expect(q4Doc!.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
+      expect(q4Doc!.modified).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     });
   });
 
@@ -432,7 +434,7 @@ describe('Folders/Documents Endpoints - Real Integration Tests', () => {
       
       const doc = result.data.documents[0];
       // Document ID should use forward slashes regardless of input
-      expect(doc.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
+      expect(doc!.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
 
       console.log('✅ Windows path separator handling validated');
     });
@@ -591,7 +593,7 @@ describe('Folders/Documents Endpoints - Real Integration Tests', () => {
       // Step 5: Validate Q4 financial document details
       const q4Doc = q4Documents.data.documents[0];
       const step5Start = Date.now();
-      const fileStats = await getFileStats(path.join(knowledgeBasePath, q4Doc.document_id));
+      const fileStats = await getFileStats(path.join(knowledgeBasePath, q4Doc!.document_id));
       const step5Time = Date.now() - step5Start;
       totalProcessingTime += step5Time;
       
@@ -602,8 +604,8 @@ describe('Folders/Documents Endpoints - Real Integration Tests', () => {
         processing_time_ms: step5Time
       });
       
-      expect(q4Doc.name).toBe('Q4_Forecast.xlsx');
-      expect(q4Doc.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
+      expect(q4Doc!.name).toBe('Q4_Forecast.xlsx');
+      expect(q4Doc!.document_id).toBe('Finance/2024/Q4/Q4_Forecast.xlsx');
       expect(fileStats).not.toBeNull();
       expect(fileStats!.size).toBeGreaterThan(0);
 

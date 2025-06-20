@@ -307,7 +307,7 @@ describe('Search Endpoint Real Tests', () => {
     
     // Verify the highest scoring result makes sense
     const topResult = scoredResults[0];
-    expect(topResult.score).toBeGreaterThan(0);
+    expect(topResult!.score).toBeGreaterThan(0);
     
     // More flexible validation - check that we have results with "customer" somewhere
     const customerFileResult = scoredResults.find(result => 
@@ -320,8 +320,8 @@ describe('Search Endpoint Real Tests', () => {
     console.log(`✅ Search scoring results:`);
     console.log(`   🔍 Search term: "${searchTerm}"`);
     console.log(`   📊 Results found: ${scoredResults.length}`);
-    console.log(`   🏆 Top result: ${path.basename(topResult.path)} (score: ${topResult.score})`);
-    console.log(`   📄 Preview: ${topResult.preview.substring(0, 100)}...`);
+    console.log(`   🏆 Top result: ${path.basename(topResult!.path)} (score: ${topResult!.score})`);
+    console.log(`   📄 Preview: ${topResult!.preview.substring(0, 100)}...`);
     console.log(`   👥 Customer-related result found: ${customerFileResult ? path.basename(customerFileResult.path) : 'None'}`);
     
     console.log('✅ Real search scoring and ranking infrastructure validated');

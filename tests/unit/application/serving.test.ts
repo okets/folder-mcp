@@ -235,8 +235,8 @@ describe('Application Layer - Serving', () => {
 
       expect(result.success).toBe(true);
       expect(result.results).toHaveLength(1);
-      expect(result.results[0].similarity).toBe(0.95);
-      expect(result.results[0].context).toBeDefined();
+      expect(result.results[0]!.similarity).toBe(0.95);
+      expect(result.results[0]!.context).toBeDefined();
       expect(result.totalResults).toBe(1);
       expect(result.processingTime).toBe(50);
     });
@@ -246,8 +246,8 @@ describe('Application Layer - Serving', () => {
       
       expect(result.success).toBe(true);
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].type).toBe('text/plain');
-      expect(result.files[0].isIndexed).toBe(true);
+      expect(result.files[0]!.type).toBe('text/plain');
+      expect(result.files[0]!.isIndexed).toBe(true);
       expect(result.totalFiles).toBe(1);
     });
 
@@ -271,7 +271,7 @@ describe('Application Layer - Serving', () => {
 
       expect(result.success).toBe(true);
       expect(result.results).toHaveLength(1);
-      expect(result.results[0].similarity).toBe(0.9);
+      expect(result.results[0]!.similarity).toBe(0.9);
       expect(result.processingTime).toBe(75);
     });
 
@@ -303,8 +303,8 @@ describe('Application Layer - Serving', () => {
       
       expect(result.success).toBe(true);
       expect(result.relatedFiles).toHaveLength(1);
-      expect(result.relatedFiles[0].similarity).toBe(0.8);
-      expect(result.relatedFiles[0].relationship).toBe('content');
+      expect(result.relatedFiles[0]!.similarity).toBe(0.8);
+      expect(result.relatedFiles[0]!.relationship).toBe('content');
       expect(result.totalFound).toBe(1);
     });
   });

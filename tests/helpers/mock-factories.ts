@@ -183,7 +183,7 @@ export class MockFactory {
       throw new Error('Embeddings must have same dimensions');
     }
     
-    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const dotProduct = a.reduce((sum, val, i) => sum + val * (b[i] ?? 0), 0);
     const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
     const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
     
@@ -280,10 +280,7 @@ export class MockFactory {
                 }
               },
               score: similarity,
-              context: {
-                previous: undefined,
-                next: undefined
-              }
+              context: {}
             });
           }
         }
@@ -350,10 +347,7 @@ export class MockFactory {
                   }
                 },
                 score: similarity,
-                context: {
-                  previous: undefined,
-                  next: undefined
-                }
+                context: {}
               });
             }
           }
@@ -588,20 +582,24 @@ export class MockFactory {
         }),
         score: 0.9 - (i * 0.1),
         context: {
-          previous: i > 0 ? MockFactory.createTextChunk({
-            content: `Previous ${i}`,
-            startPosition: (i - 1) * 100,
-            endPosition: i * 100,
-            tokenCount: 10,
-            chunkIndex: i - 1
-          }) : undefined,
-          next: i < count - 1 ? MockFactory.createTextChunk({
-            content: `Next ${i}`,
-            startPosition: (i + 1) * 100,
-            endPosition: (i + 2) * 100,
-            tokenCount: 10,
-            chunkIndex: i + 1
-          }) : undefined
+          ...(i > 0 && {
+            previous: MockFactory.createTextChunk({
+              content: `Previous ${i}`,
+              startPosition: (i - 1) * 100,
+              endPosition: i * 100,
+              tokenCount: 10,
+              chunkIndex: i - 1
+            })
+          }),
+          ...(i < count - 1 && {
+            next: MockFactory.createTextChunk({
+              content: `Next ${i}`,
+              startPosition: (i + 1) * 100,
+              endPosition: (i + 2) * 100,
+              tokenCount: 10,
+              chunkIndex: i + 1
+            })
+          })
         }
       }));
     }

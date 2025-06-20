@@ -29,6 +29,7 @@ describe('Domain Layer - Embeddings Module', () => {
           dimensions: 384,
           model: 'test-model',
           chunkId: `chunk-${index}`,
+          createdAt: new Date().toISOString(),
           metadata: {
             generatedAt: new Date().toISOString(),
             modelVersion: '1.0.0',
@@ -43,6 +44,7 @@ describe('Domain Layer - Embeddings Module', () => {
           vector: Array(384).fill(0).map(() => Math.random() * 2 - 1),
           dimensions: 384,
           model: 'test-model',
+          createdAt: new Date().toISOString(),
           metadata: {
             generatedAt: new Date().toISOString(),
             modelVersion: '1.0.0',
@@ -54,7 +56,7 @@ describe('Domain Layer - Embeddings Module', () => {
 
       calculateSimilarity: (vector1: EmbeddingVector, vector2: EmbeddingVector): number => {
         // Calculate cosine similarity
-        const dotProduct = vector1.vector.reduce((sum, val, i) => sum + val * vector2.vector[i], 0);
+        const dotProduct = vector1.vector.reduce((sum, val, i) => sum + val * vector2.vector[i]!, 0);
         const magnitude1 = Math.sqrt(vector1.vector.reduce((sum, val) => sum + val * val, 0));
         const magnitude2 = Math.sqrt(vector2.vector.reduce((sum, val) => sum + val * val, 0));
         return dotProduct / (magnitude1 * magnitude2);
@@ -74,12 +76,15 @@ describe('Domain Layer - Embeddings Module', () => {
           await new Promise(resolve => setTimeout(resolve, 10));
           
           batch.forEach((chunk, j) => {
-            results.push({
-              chunk,
-              embedding: embeddings[j],
-              processingTime: Date.now() - batchStartTime,
-              success: true
-            });
+            const embedding = embeddings[j];
+            if (embedding) {
+              results.push({
+                chunk,
+                embedding,
+                processingTime: Date.now() - batchStartTime,
+                success: true
+              });
+            }
           });
         }
 
@@ -167,13 +172,15 @@ describe('Domain Layer - Embeddings Module', () => {
       const vector1: EmbeddingVector = {
         vector: Array(384).fill(0.5),
         dimensions: 384,
-        model: 'test-model'
+        model: 'test-model',
+        createdAt: new Date().toISOString()
       };
       
       const vector2: EmbeddingVector = {
         vector: Array(384).fill(0.5),
         dimensions: 384,
-        model: 'test-model'
+        model: 'test-model',
+        createdAt: new Date().toISOString()
       };
 
       const similarity = embeddingOps.calculateSimilarity(vector1, vector2);
@@ -260,8 +267,8 @@ describe('Domain Layer - Embeddings Module', () => {
 
       const results = await batchOps.processBatch(chunks);
       expect(results).toHaveLength(1);
-      expect(results[0].success).toBe(true);
-      expect(results[0].embedding.metadata?.tokensUsed).toBe(0);
+      expect(results[0]?.success).toBe(true);
+      expect(results[0]?.embedding.metadata?.tokensUsed).toBe(0);
     });
   });
 });

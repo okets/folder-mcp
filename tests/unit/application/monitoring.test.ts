@@ -491,7 +491,7 @@ describe('Application Layer - Monitoring', () => {
       }
 
       expect(metricsHistory).toHaveLength(5);
-      expect(metricsHistory[0].timestamp).not.toEqual(metricsHistory[4].timestamp);
+      expect(metricsHistory[0]!.timestamp).not.toEqual(metricsHistory[4]!.timestamp);
       
       // Verify all metrics have reasonable values
       metricsHistory.forEach(metrics => {
@@ -522,15 +522,15 @@ describe('Application Layer - Monitoring', () => {
 
       // Stop profiling
       for (const operation of operations) {
-        profiles[operation].endTime = performance.now();
+        profiles[operation]!.endTime = performance.now();
       }
 
       // Verify all profiles were created and completed
       operations.forEach(operation => {
         const profile = profiles[operation];
-        expect(profile.id).toMatch(new RegExp(`profile-${operation}-\\d+`));
-        expect(profile.startTime).toBeGreaterThan(0);
-        expect(profile.endTime).toBeGreaterThan(profile.startTime);
+        expect(profile!.id).toMatch(new RegExp(`profile-${operation}-\\d+`));
+        expect(profile!.startTime).toBeGreaterThan(0);
+        expect(profile!.endTime).toBeGreaterThan(profile!.startTime);
       });
     });
   });
