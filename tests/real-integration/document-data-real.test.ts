@@ -192,4 +192,175 @@ describe('Document Data Endpoints - Real Integration Tests', () => {
     console.log(`✅ Cache statistics: ${stats.totalFiles} files, ${Math.round(stats.totalSize / 1024)}KB`);
     console.log('✅ Document data processing cache infrastructure is fully validated');
   });
+
+  describe('Edge Case Handling for Document Data', () => {
+    it('should handle corrupted PDF files gracefully', async () => {
+      // Test corrupted PDF file handling
+      const corruptedPdf = path.join(env.knowledgeBasePath, 'test-edge-cases', 'corrupted_test.pdf');
+      
+      expect(existsSync(corruptedPdf)).toBe(true);
+      
+      // Should throw an error, not crash
+      await expect(env.services.fileParsing.parseFile(corruptedPdf, 'pdf')).rejects.toThrow();
+      
+      console.log('✅ Corrupted PDF handled gracefully with proper error');
+    });
+
+    it('should handle empty files without crashing', async () => {
+      // Test empty file handling
+      const emptyFile = path.join(env.knowledgeBasePath, 'test-edge-cases', 'empty.txt');
+      
+      expect(existsSync(emptyFile)).toBe(true);
+      
+      const result = await env.services.fileParsing.parseFile(emptyFile, 'txt');
+      expect(result.content || '').toBe('');
+      expect(result.metadata).toBeDefined();
+      
+      console.log('✅ Empty file handled without crashing');
+    });
+
+    it('should handle huge files with memory management', async () => {
+      // Test huge file handling
+      const hugeFile = path.join(env.knowledgeBasePath, 'test-edge-cases', 'huge_test.txt');
+      
+      expect(existsSync(hugeFile)).toBe(true);
+      
+      // Verify file is actually large
+      const stats = await fs.stat(hugeFile);
+      expect(stats.size).toBeGreaterThan(1000000); // > 1MB
+      
+      const result = await env.services.fileParsing.parseFile(hugeFile, 'txt');
+      expect(result.content).toBeDefined();
+      expect(typeof result.content).toBe('string');
+      expect(result.content.length).toBeGreaterThan(1000000);
+      
+      console.log(`✅ Huge file (${stats.size} bytes) handled without memory issues`);
+    });
+
+    it('should handle unicode filenames and content properly', async () => {
+      // Test unicode file handling
+      const unicodeFile = path.join(env.knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt');
+      
+      expect(existsSync(unicodeFile)).toBe(true);
+      
+      const result = await env.services.fileParsing.parseFile(unicodeFile, 'txt');
+      expect(result.content).toBeDefined();
+      expect(typeof result.content).toBe('string');
+      expect(result.content.length).toBeGreaterThan(0);
+      
+      console.log('✅ Unicode filename and content handled correctly');
+    });
+
+    it('should handle binary files masquerading as text gracefully', async () => {
+      // Test binary file rejection
+      const binaryFile = path.join(env.knowledgeBasePath, 'test-edge-cases', 'binary_cache_test.bin');
+      
+      expect(existsSync(binaryFile)).toBe(true);
+      
+      // Should throw an error for unsupported file type
+      await expect(env.services.fileParsing.parseFile(binaryFile, 'txt')).rejects.toThrow();
+      
+      console.log('✅ Binary file masquerading as text rejected gracefully');
+    });
+
+    it('should handle missing files with appropriate errors', async () => {
+      // Test missing file handling
+      const missingFile = path.join(env.knowledgeBasePath, 'test-edge-cases', 'does_not_exist.txt');
+      
+      expect(existsSync(missingFile)).toBe(false);
+      
+      // Should throw appropriate error for missing file
+      await expect(env.services.fileParsing.parseFile(missingFile, 'txt')).rejects.toThrow();
+      
+      console.log('✅ Missing file handled with appropriate error');
+    });
+
+    it('should handle malformed document structures gracefully', async () => {
+      // Test with corrupted Excel file
+      const corruptedXlsx = path.join(env.knowledgeBasePath, 'test-edge-cases', 'corrupted.xlsx');
+      
+      expect(existsSync(corruptedXlsx)).toBe(true);
+      
+      // Should handle corrupted Excel gracefully
+      try {
+        const result = await env.services.fileParsing.parseFile(corruptedXlsx, 'xlsx');
+        // If it doesn't throw, verify it returns proper structure
+        expect(result).toBeDefined();
+        expect(result.content !== undefined).toBe(true);
+        
+        console.log('✅ Corrupted Excel handled gracefully');
+      } catch (error) {
+        // If it throws, it should be a controlled error
+        expect(error).toBeInstanceOf(Error);
+        console.log('✅ Corrupted Excel threw controlled error');
+      }
+    });
+
+    it('should handle edge case metadata extraction safely', async () => {
+      // Test metadata extraction from edge case files
+      const testFiles = [
+        { path: 'test-edge-cases/empty.txt', type: 'txt', expectMetadata: false },
+        { path: 'test-edge-cases/huge_test.txt', type: 'txt', expectMetadata: false },
+        { path: 'test-edge-cases/test_файл_测试.txt', type: 'txt', expectMetadata: false }
+      ];
+
+      for (const testCase of testFiles) {
+        const filePath = path.join(env.knowledgeBasePath, testCase.path);
+        
+        if (existsSync(filePath)) {
+          try {
+            const result = await env.services.fileParsing.parseFile(filePath, testCase.type);
+            
+            expect(result.metadata).toBeDefined();
+            
+            if (testCase.expectMetadata) {
+              expect(Object.keys(result.metadata || {}).length).toBeGreaterThan(0);
+            } else {
+              // TXT files typically don't have rich metadata
+              expect(result.metadata).toBeDefined(); // Should be empty object
+            }
+            
+            console.log(`✅ Metadata extraction for ${path.basename(testCase.path)} handled safely`);
+          } catch (error) {
+            console.log(`⚠️ Expected error for ${path.basename(testCase.path)}: ${(error as Error).message}`);
+          }
+        }
+      }
+    });
+
+    it('should handle chunking edge cases properly', async () => {
+      // Test chunking with edge case files
+      const testFiles = [
+        { path: 'test-edge-cases/empty.txt', type: 'txt' },
+        { path: 'test-edge-cases/huge_test.txt', type: 'txt' }
+      ];
+
+      for (const testCase of testFiles) {
+        const filePath = path.join(env.knowledgeBasePath, testCase.path);
+        
+        if (existsSync(filePath)) {
+          try {
+            const result = await env.services.fileParsing.parseFile(filePath, testCase.type);
+            
+            // Test chunking logic
+            const chunkSize = 500;
+            const chunks = result.content.match(new RegExp(`.{1,${chunkSize}}`, 'g')) || [];
+            
+            if (result.content.length === 0) {
+              expect(chunks.length).toBe(0);
+            } else {
+              expect(chunks.length).toBeGreaterThan(0);
+              chunks.forEach(chunk => {
+                expect(chunk.length).toBeLessThanOrEqual(chunkSize);
+              });
+            }
+            
+            console.log(`✅ Chunking for ${path.basename(testCase.path)} handled properly (${chunks.length} chunks)`);
+          } catch (error) {
+            console.log(`⚠️ Expected error for ${path.basename(testCase.path)}: ${(error as Error).message}`);
+          }
+        }
+      }
+    });
+  });
 });

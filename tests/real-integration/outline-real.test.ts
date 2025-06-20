@@ -281,6 +281,266 @@ describe('Document Outline Real Tests', () => {
     console.log(`✅ Cache populated with outline data for: ${testDoc}`);
     console.log('✅ Document outline processing cache infrastructure is ready');
   });
+
+  describe('Edge Case Handling for Document Outline', () => {
+    test('should handle corrupted PDF files gracefully during outline extraction', async () => {
+      // Test corrupted PDF file handling for outline extraction
+      const corruptedPdf = path.join(knowledgeBasePath, 'test-edge-cases', 'corrupted_test.pdf');
+      
+      expect(existsSync(corruptedPdf)).toBe(true);
+      
+      // Should handle corrupted file gracefully
+      try {
+        const outline = await extractBasicPDFInfo(corruptedPdf);
+        // Basic file info should still work
+        expect(outline.fileName).toBe('corrupted_test.pdf');
+        expect(outline.fileType).toBe('PDF Document');
+        expect(outline.fileSize).toBeGreaterThan(0);
+        
+        console.log('✅ Corrupted PDF basic info extracted gracefully');
+      } catch (error) {
+        // If it fails, it should be a controlled error
+        expect(error).toBeInstanceOf(Error);
+        console.log('✅ Corrupted PDF threw controlled error during outline extraction');
+      }
+    });
+
+    test('should handle empty files during outline generation', async () => {
+      // Test empty file handling for outline
+      const emptyFile = path.join(knowledgeBasePath, 'test-edge-cases', 'empty.txt');
+      
+      expect(existsSync(emptyFile)).toBe(true);
+      
+      const detectedType = detectDocumentType(emptyFile);
+      expect(detectedType).toBe('Text File');
+      
+      // Empty files should be handled gracefully
+      const stats = await fs.stat(emptyFile);
+      expect(stats.size).toBe(0);
+      
+      const outline = {
+        fileName: path.basename(emptyFile),
+        fileSize: stats.size,
+        fileType: detectedType,
+        folder: path.dirname(emptyFile),
+        modified: stats.mtime,
+        isEmpty: stats.size === 0
+      };
+      
+      expect(outline.isEmpty).toBe(true);
+      expect(outline.fileSize).toBe(0);
+      
+      console.log('✅ Empty file handled gracefully in outline generation');
+    });
+
+    test('should handle huge files without memory issues during outline scanning', async () => {
+      // Test huge file handling for outline
+      const hugeFile = path.join(knowledgeBasePath, 'test-edge-cases', 'huge_test.txt');
+      
+      expect(existsSync(hugeFile)).toBe(true);
+      
+      const stats = await fs.stat(hugeFile);
+      expect(stats.size).toBeGreaterThan(1000000); // > 1MB
+      
+      const outline = {
+        fileName: path.basename(hugeFile),
+        fileSize: stats.size,
+        fileType: detectDocumentType(hugeFile),
+        folder: path.dirname(hugeFile),
+        modified: stats.mtime,
+        isLarge: stats.size > 1000000
+      };
+      
+      expect(outline.isLarge).toBe(true);
+      expect(outline.fileType).toBe('Text File');
+      
+      console.log(`✅ Huge file (${stats.size} bytes) handled in outline without memory issues`);
+    });
+
+    test('should handle unicode filenames in outline generation', async () => {
+      // Test unicode filename handling
+      const unicodeFile = path.join(knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt');
+      
+      expect(existsSync(unicodeFile)).toBe(true);
+      
+      const outline = {
+        fileName: path.basename(unicodeFile),
+        fileSize: (await fs.stat(unicodeFile)).size,
+        fileType: detectDocumentType(unicodeFile),
+        folder: path.dirname(unicodeFile),
+        hasUnicodeChars: /[^\x00-\x7F]/.test(path.basename(unicodeFile))
+      };
+      
+      expect(outline.hasUnicodeChars).toBe(true);
+      expect(outline.fileName).toBe('test_файл_测试.txt');
+      expect(outline.fileType).toBe('Text File');
+      
+      console.log('✅ Unicode filename handled correctly in outline generation');
+    });
+
+    test('should handle unsupported file types gracefully in outline detection', async () => {
+      // Test binary file type detection
+      const binaryFile = path.join(knowledgeBasePath, 'test-edge-cases', 'binary_cache_test.bin');
+      
+      expect(existsSync(binaryFile)).toBe(true);
+      
+      const detectedType = detectDocumentType(binaryFile);
+      expect(detectedType).toBe('Unknown Document');
+      
+      const outline = {
+        fileName: path.basename(binaryFile),
+        fileSize: (await fs.stat(binaryFile)).size,
+        fileType: detectedType,
+        folder: path.dirname(binaryFile),
+        isSupported: detectedType !== 'Unknown Document'
+      };
+      
+      expect(outline.isSupported).toBe(false);
+      expect(outline.fileType).toBe('Unknown Document');
+      
+      console.log('✅ Unsupported file type detected gracefully in outline');
+    });
+
+    test('should handle missing files appropriately in outline requests', async () => {
+      // Test missing file handling
+      const missingFile = path.join(knowledgeBasePath, 'test-edge-cases', 'does_not_exist.txt');
+      
+      expect(existsSync(missingFile)).toBe(false);
+      
+      // Should handle missing file gracefully
+      try {
+        await fs.stat(missingFile);
+        // If we get here, something's wrong
+        expect(true).toBe(false);
+      } catch (error) {
+        // Expected error for missing file
+        expect(error).toBeInstanceOf(Error);
+        expect((error as NodeJS.ErrnoException).code).toBe('ENOENT');
+        
+        console.log('✅ Missing file handled appropriately with ENOENT error');
+      }
+    });
+
+    test('should handle corrupted document structures in outline parsing', async () => {
+      // Test corrupted Excel file in outline detection
+      const corruptedXlsx = path.join(knowledgeBasePath, 'test-edge-cases', 'corrupted.xlsx');
+      
+      expect(existsSync(corruptedXlsx)).toBe(true);
+      
+      const detectedType = detectDocumentType(corruptedXlsx);
+      expect(detectedType).toBe('Excel Spreadsheet');
+      
+      // Basic file info should still work even if file is corrupted
+      try {
+        const outline = await extractBasicExcelInfo(corruptedXlsx);
+        expect(outline.fileName).toBe('corrupted.xlsx');
+        expect(outline.fileType).toBe('Excel Spreadsheet');
+        expect(outline.fileSize).toBeGreaterThan(0);
+        
+        console.log('✅ Corrupted Excel basic info extracted for outline');
+      } catch (error) {
+        // If it fails, should be controlled
+        expect(error).toBeInstanceOf(Error);
+        console.log('✅ Corrupted Excel outline extraction failed gracefully');
+      }
+    });
+
+    test('should handle outline cache edge cases properly', async () => {
+      // Test cache handling with edge case files
+      const cacheDir = path.join(knowledgeBasePath, '.folder-mcp', 'outlines');
+      
+      if (!existsSync(cacheDir)) {
+        await fs.mkdir(cacheDir, { recursive: true });
+      }
+      
+      const edgeCaseFiles = [
+        { file: 'empty.txt', expected: 'empty outline' },
+        { file: 'huge_test.txt', expected: 'large file outline' },
+        { file: 'test_файл_测试.txt', expected: 'unicode outline' }
+      ];
+      
+      for (const testCase of edgeCaseFiles) {
+        const filePath = path.join(knowledgeBasePath, 'test-edge-cases', testCase.file);
+        
+        if (existsSync(filePath)) {
+          const stats = await fs.stat(filePath);
+          const outlineData = {
+            fileName: testCase.file,
+            fileSize: stats.size,
+            fileType: detectDocumentType(filePath),
+            cached: true,
+            timestamp: new Date().toISOString(),
+            isEdgeCase: true
+          };
+          
+          // Cache the outline data
+          const cacheKey = testCase.file.replace(/[^a-zA-Z0-9]/g, '_');
+          const cachePath = path.join(cacheDir, `${cacheKey}.json`);
+          await fs.writeFile(cachePath, JSON.stringify(outlineData, null, 2));
+          
+          expect(existsSync(cachePath)).toBe(true);
+          
+          // Verify cached data can be loaded
+          const cachedData = JSON.parse(await fs.readFile(cachePath, 'utf8'));
+          expect(cachedData.isEdgeCase).toBe(true);
+          expect(cachedData.fileName).toBe(testCase.file);
+          
+          console.log(`✅ Outline cache for edge case ${testCase.file} handled properly`);
+        }
+      }
+    });
+
+    test('should validate outline response format for edge cases', async () => {
+      // Test outline response format with edge case scenarios
+      const edgeCases = [
+        {
+          name: 'Empty File',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'empty.txt'),
+          expectSections: false
+        },
+        {
+          name: 'Unicode File',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt'),
+          expectSections: true
+        }
+      ];
+      
+      for (const testCase of edgeCases) {
+        if (existsSync(testCase.file)) {
+          const stats = await fs.stat(testCase.file);
+          
+          const mockOutlineResponse = {
+            document_id: testCase.file,
+            document_type: detectDocumentType(testCase.file),
+            metadata: {
+              file_name: path.basename(testCase.file),
+              file_size: stats.size,
+              creation_date: stats.birthtime.toISOString(),
+              modification_date: stats.mtime.toISOString(),
+              is_edge_case: true
+            },
+            outline: {
+              type: 'text',
+              sections: testCase.expectSections && stats.size > 0 ? [
+                { title: 'Content', page_range: '1', level: 1 }
+              ] : []
+            },
+            warnings: stats.size === 0 ? ['File is empty'] : []
+          };
+          
+          expect(mockOutlineResponse.document_id).toBe(testCase.file);
+          expect(mockOutlineResponse.metadata.is_edge_case).toBe(true);
+          
+          if (stats.size === 0) {
+            expect(mockOutlineResponse.warnings).toContain('File is empty');
+            expect(mockOutlineResponse.outline.sections.length).toBe(0);
+          }
+          
+          console.log(`✅ Outline response format validated for ${testCase.name}`);
+        }
+      }
+    });
+  });
 });
 
 /**

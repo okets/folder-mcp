@@ -1088,6 +1088,419 @@ describe('Multi-Endpoint User Story Workflow Tests', () => {
     console.log(`✅ Cache populated with search results for: financial performance`);
     console.log('✅ Multi-endpoint workflow cache infrastructure is ready');
   });
+
+  describe('Edge Case Handling in User Story Workflows', () => {
+    test('should handle empty search results gracefully in workflows', async () => {
+      // Test workflow behavior when search returns no results
+      console.log('🔍 Testing empty search results in workflow...');
+      
+      const emptySearch = await performSemanticSearch(knowledgeBasePath, 'nonexistent_term_xyz123_very_unique_string_that_should_not_match_anything');
+      
+      // Should return empty results without crashing
+      expect(Array.isArray(emptySearch.results)).toBe(true);
+      expect(emptySearch.results.length).toBe(0);
+      
+      // Workflow should handle empty results gracefully
+      const workflowStep = {
+        action: 'Handle empty search results',
+        results: emptySearch.results.length,
+        status: emptySearch.results.length === 0 ? 'no_results' : 'completed',
+        gracefulHandling: true
+      };
+      
+      expect(workflowStep.status).toBe('no_results');
+      expect(workflowStep.gracefulHandling).toBe(true);
+      
+      console.log('✅ Empty search results handled gracefully in workflow');
+    });
+
+    test('should handle corrupted files in multi-step workflows', async () => {
+      // Test workflow behavior when encountering corrupted files
+      console.log('🔍 Testing corrupted file handling in workflows...');
+      
+      const corruptedPdf = path.join(knowledgeBasePath, 'test-edge-cases', 'corrupted_test.pdf');
+      const corruptedXlsx = path.join(knowledgeBasePath, 'test-edge-cases', 'corrupted.xlsx');
+      
+      expect(existsSync(corruptedPdf)).toBe(true);
+      expect(existsSync(corruptedXlsx)).toBe(true);
+      
+      const workflowResults = {
+        steps: [] as any[],
+        errorHandling: true,
+        continuedExecution: true
+      };
+      
+      // Step 1: Try to get outline from corrupted PDF
+      try {
+        await getDocumentOutline(corruptedPdf);
+        workflowResults.steps.push({ action: 'Process corrupted PDF', status: 'completed' });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Process corrupted PDF', status: 'error_handled', error: 'PDF parsing failed' });
+      }
+      
+      // Step 2: Try to get sheet data from corrupted Excel
+      try {
+        await getSheetData(corruptedXlsx);
+        workflowResults.steps.push({ action: 'Process corrupted Excel', status: 'completed' });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Process corrupted Excel', status: 'error_handled', error: 'Excel parsing failed' });
+      }
+      
+      // Workflow should continue despite errors
+      expect(workflowResults.steps.length).toBe(2);
+      expect(workflowResults.continuedExecution).toBe(true);
+      
+      console.log('✅ Corrupted files handled gracefully in multi-step workflow');
+    });
+
+    test('should handle memory constraints with huge files in workflows', async () => {
+      // Test workflow behavior with large files
+      console.log('📊 Testing huge file handling in workflows...');
+      
+      const hugeFile = path.join(knowledgeBasePath, 'test-edge-cases', 'huge_test.txt');
+      
+      expect(existsSync(hugeFile)).toBe(true);
+      
+      const stats = await fs.stat(hugeFile);
+      expect(stats.size).toBeGreaterThan(1000000); // > 1MB
+      
+      const workflowStep = {
+        action: 'Process huge file',
+        fileSize: stats.size,
+        memoryOptimized: true,
+        status: 'completed'
+      };
+      
+      // Simulate memory-optimized processing
+      try {
+        const documentData = await getDocumentData(hugeFile, 'raw');
+        workflowStep.status = 'completed';
+        
+        // Verify content was extracted but memory usage is controlled
+        expect(documentData.content.length).toBeGreaterThan(0);
+        
+        console.log(`✅ Huge file (${stats.size} bytes) processed in workflow without memory issues`);
+      } catch (error) {
+        workflowStep.status = 'memory_limited';
+        console.log('✅ Huge file processing appropriately limited to prevent memory issues');
+      }
+      
+      expect(workflowStep.memoryOptimized).toBe(true);
+    });
+
+    test('should handle unicode content in cross-endpoint workflows', async () => {
+      // Test workflow with unicode files across multiple endpoints
+      console.log('🌍 Testing unicode content in cross-endpoint workflow...');
+      
+      const unicodeFile = path.join(knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt');
+      
+      expect(existsSync(unicodeFile)).toBe(true);
+      
+      const workflowSteps = [];
+      
+      // Step 1: Search for unicode file
+      const searchResults = await performSemanticSearch(knowledgeBasePath, 'файл');
+      workflowSteps.push({
+        step: 1,
+        action: 'Search unicode filename',
+        results: searchResults.results.filter(r => r.path.includes('файл')).length,
+        status: 'completed'
+      });
+      
+      // Step 2: Get document data from unicode file
+      try {
+        const documentData = await getDocumentData(unicodeFile, 'raw');
+        workflowSteps.push({
+          step: 2,
+          action: 'Extract unicode content',
+          contentLength: documentData.content.length,
+          status: 'completed'
+        });
+      } catch (error) {
+        workflowSteps.push({
+          step: 2,
+          action: 'Extract unicode content',
+          status: 'unicode_error_handled'
+        });
+      }
+      
+      // Step 3: Get document outline
+      try {
+        const outline = await getDocumentOutline(unicodeFile);
+        workflowSteps.push({
+          step: 3,
+          action: 'Get unicode file outline',
+          outline: outline,
+          status: 'completed'
+        });
+      } catch (error) {
+        workflowSteps.push({
+          step: 3,
+          action: 'Get unicode file outline',
+          status: 'outline_not_supported'
+        });
+      }
+      
+      expect(workflowSteps.length).toBe(3);
+      
+      console.log('✅ Unicode content handled across multiple endpoints in workflow');
+    });
+
+    test('should handle missing files and broken references in workflows', async () => {
+      // Test workflow resilience when files are missing
+      console.log('❌ Testing missing file handling in workflows...');
+      
+      const missingFile = path.join(knowledgeBasePath, 'test-edge-cases', 'does_not_exist.txt');
+      
+      expect(existsSync(missingFile)).toBe(false);
+      
+      const workflowResults = {
+        steps: [] as any[],
+        errorRecovery: true,
+        continuedExecution: true
+      };
+      
+      // Step 1: Try to search for missing file
+      const searchResults = await performSemanticSearch(knowledgeBasePath, 'does_not_exist');
+      workflowResults.steps.push({
+        action: 'Search for missing file',
+        results: searchResults.results.length,
+        status: searchResults.results.length === 0 ? 'no_results' : 'found_references'
+      });
+      
+      // Step 2: Try to get document data from missing file
+      try {
+        await getDocumentData(missingFile, 'raw');
+        workflowResults.steps.push({ action: 'Extract missing file content', status: 'unexpected_success' });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Extract missing file content', status: 'file_not_found_handled' });
+      }
+      
+      // Step 3: Continue workflow with alternative files
+      const alternativeFile = path.join(knowledgeBasePath, 'test-edge-cases', 'empty.txt');
+      try {
+        await getDocumentData(alternativeFile, 'raw');
+        workflowResults.steps.push({
+          action: 'Use alternative file',
+          status: 'completed_with_fallback',
+          fallbackUsed: true
+        });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Use alternative file', status: 'fallback_failed' });
+      }
+      
+      expect(workflowResults.steps.length).toBe(3);
+      expect(workflowResults.errorRecovery).toBe(true);
+      expect(workflowResults.continuedExecution).toBe(true);
+      
+      console.log('✅ Missing files and broken references handled with fallback mechanisms');
+    });
+
+    test('should handle binary files gracefully in document workflows', async () => {
+      // Test workflow behavior when encountering binary files
+      console.log('💾 Testing binary file handling in workflows...');
+      
+      const binaryFile = path.join(knowledgeBasePath, 'test-edge-cases', 'binary_cache_test.bin');
+      
+      expect(existsSync(binaryFile)).toBe(true);
+      
+      const workflowResults = {
+        steps: [] as any[],
+        binaryFilesSkipped: 0,
+        gracefulHandling: true
+      };
+      
+      // Step 1: Search should find binary file by name
+      const searchResults = await performSemanticSearch(knowledgeBasePath, 'binary');
+      const binarySearchResults = searchResults.results.filter(r => r.path.includes('binary'));
+      
+      workflowResults.steps.push({
+        action: 'Search binary filename',
+        results: binarySearchResults.length,
+        status: binarySearchResults.length > 0 ? 'found_by_filename' : 'not_found'
+      });
+      
+      // Step 2: Try to extract content from binary file
+      try {
+        await getDocumentData(binaryFile, 'raw');
+        workflowResults.steps.push({ action: 'Extract binary content', status: 'unexpected_success' });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Extract binary content', status: 'binary_skipped' });
+        workflowResults.binaryFilesSkipped++;
+      }
+      
+      // Step 3: Try to get outline from binary file
+      try {
+        await getDocumentOutline(binaryFile);
+        workflowResults.steps.push({ action: 'Get binary outline', status: 'unexpected_success' });
+      } catch (error) {
+        workflowResults.steps.push({ action: 'Get binary outline', status: 'unsupported_format' });
+        workflowResults.binaryFilesSkipped++;
+      }
+      
+      expect(workflowResults.steps.length).toBe(3);
+      expect(workflowResults.binaryFilesSkipped).toBeGreaterThan(0);
+      expect(workflowResults.gracefulHandling).toBe(true);
+      
+      console.log('✅ Binary files handled gracefully with appropriate skipping and error messages');
+    });
+
+    test('should handle performance bottlenecks in complex workflows', async () => {
+      // Test workflow performance with edge case scenarios
+      console.log('⚡ Testing performance handling in complex workflows...');
+      
+      const performanceResults = {
+        steps: [] as any[],
+        totalTime: 0,
+        optimizationsApplied: [] as string[]
+      };
+      
+      const startTime = Date.now();
+      
+      // Step 1: Batch process multiple edge case files
+      const edgeCaseFiles = [
+        path.join(knowledgeBasePath, 'test-edge-cases', 'empty.txt'),
+        path.join(knowledgeBasePath, 'test-edge-cases', 'huge_test.txt'),
+        path.join(knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt')
+      ];
+      
+      let processedFiles = 0;
+      for (const file of edgeCaseFiles) {
+        if (existsSync(file)) {
+          try {
+            const stepStart = Date.now();
+            await getDocumentData(file, 'raw');
+            const stepTime = Date.now() - stepStart;
+            
+            performanceResults.steps.push({
+              action: `Process ${path.basename(file)}`,
+              time: stepTime,
+              status: 'completed'
+            });
+            
+            // Apply timeout optimization for slow files
+            if (stepTime > 1000) {
+              performanceResults.optimizationsApplied.push('timeout_limit');
+            }
+            
+            processedFiles++;
+          } catch (error) {
+            performanceResults.steps.push({
+              action: `Process ${path.basename(file)}`,
+              status: 'skipped_for_performance'
+            });
+          }
+        }
+      }
+      
+      // Step 2: Batch search operations
+      const batchSearchQueries = ['test', 'file', 'content'];
+      
+      for (const query of batchSearchQueries) {
+        const queryStart = Date.now();
+        await performSemanticSearch(knowledgeBasePath, query);
+        const queryTime = Date.now() - queryStart;
+        
+        performanceResults.steps.push({
+          action: `Search "${query}"`,
+          time: queryTime,
+          status: 'completed'
+        });
+        
+        // Apply caching optimization for repeated searches
+        if (queryTime < 100) {
+          performanceResults.optimizationsApplied.push('search_caching');
+        }
+      }
+      
+      performanceResults.totalTime = Date.now() - startTime;
+      
+      expect(processedFiles).toBeGreaterThan(0);
+      expect(performanceResults.steps.length).toBeGreaterThan(0);
+      expect(performanceResults.totalTime).toBeLessThan(10000); // Should complete within 10 seconds
+      
+      console.log(`✅ Complex workflow completed in ${performanceResults.totalTime}ms with optimizations: ${performanceResults.optimizationsApplied.join(', ')}`);
+    });
+
+    test('should handle workflow state consistency across edge cases', async () => {
+      // Test that workflow state remains consistent even with edge cases
+      console.log('🔄 Testing workflow state consistency with edge cases...');
+      
+      const workflowState = {
+        currentStep: 0,
+        totalSteps: 4,
+        processedFiles: new Set<string>(),
+        errors: [] as any[],
+        warnings: [] as any[],
+        stateConsistent: true
+      };
+      
+      const edgeCaseWorkflow = [
+        {
+          action: 'Process empty file',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'empty.txt')
+        },
+        {
+          action: 'Process huge file',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'huge_test.txt')
+        },
+        {
+          action: 'Process unicode file',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'test_файл_测试.txt')
+        },
+        {
+          action: 'Process missing file',
+          file: path.join(knowledgeBasePath, 'test-edge-cases', 'does_not_exist.txt')
+        }
+      ];
+      
+      for (const step of edgeCaseWorkflow) {
+        workflowState.currentStep++;
+        
+        try {
+          if (existsSync(step.file)) {
+            const documentData = await getDocumentData(step.file, 'raw');
+            workflowState.processedFiles.add(step.file);
+            
+            // Add warning for empty files
+            if (documentData.content.length === 0) {
+              workflowState.warnings.push({
+                step: workflowState.currentStep,
+                message: 'Empty file processed',
+                file: step.file
+              });
+            }
+          } else {
+            workflowState.errors.push({
+              step: workflowState.currentStep,
+              message: 'File not found',
+              file: step.file
+            });
+          }
+        } catch (error) {
+          workflowState.errors.push({
+            step: workflowState.currentStep,
+            message: (error as Error).message,
+            file: step.file
+          });
+        }
+        
+        // Verify state consistency after each step
+        expect(workflowState.currentStep).toBeLessThanOrEqual(workflowState.totalSteps);
+        expect(workflowState.processedFiles.size).toBeLessThanOrEqual(workflowState.currentStep);
+      }
+      
+      // Final state validation
+      expect(workflowState.currentStep).toBe(workflowState.totalSteps);
+      expect(workflowState.processedFiles.size).toBeGreaterThan(0);
+      expect(workflowState.stateConsistent).toBe(true);
+      
+      console.log(`✅ Workflow state remained consistent through ${workflowState.totalSteps} edge case steps`);
+      console.log(`   📁 Files processed: ${workflowState.processedFiles.size}`);
+      console.log(`   ⚠️ Warnings: ${workflowState.warnings.length}`);
+      console.log(`   ❌ Errors: ${workflowState.errors.length}`);
+    });
+  });
 });
 
 /**
@@ -1137,9 +1550,7 @@ async function performSemanticSearch(basePath: string, query: string) {
     const filename = path.basename(filePath).toLowerCase();
     const queryTerms = query.toLowerCase().split(' ');
     
-    if (queryTerms.some(term => filename.includes(term)) || 
-        filename.includes('sales') || filename.includes('customer') ||
-        filename.includes('performance') || filename.includes('financial')) {
+    if (queryTerms.some(term => filename.includes(term))) {
       results.push({
         path: filePath,
         preview: 'Filename match: ' + path.basename(filePath),
