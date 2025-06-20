@@ -337,7 +337,7 @@ export class CacheTestHelper {
             if (fileStat.isFile()) {
               stats.totalFiles++;
               stats.totalSize += fileStat.size;
-              stats.byType[subdir.name]++;
+              stats.byType[subdir.name] = (stats.byType[subdir.name] || 0) + 1;
             }
           }
         }
