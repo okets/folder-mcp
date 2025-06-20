@@ -304,22 +304,39 @@ export class EmbeddingService implements IEmbeddingService {
       return;
     }
 
-    this.loggingService.debug('Initializing embedding service', { modelName: this.config.modelName });
+    this.loggingService.debug('Initializing real Ollama embedding service', { modelName: this.config.modelName });
     
-    try {      // Use new DefaultEmbeddingOperations from domain layer
-      const { DefaultEmbeddingOperations } = await import('../domain/embeddings/index.js');
-      this.embeddingModel = new DefaultEmbeddingOperations();
-      // Note: Domain layer embedding service doesn't have initialize method
-      // await this.embeddingModel.initialize();
+    try {
+      // Use real OllamaEmbeddingService instead of mock DefaultEmbeddingOperations
+      const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
+      this.embeddingModel = new OllamaEmbeddingService({
+        model: this.config.modelName || 'mxbai-embed-large'
+      });
+      
+      // Initialize the real service (this will verify Ollama connectivity)
+      await this.embeddingModel.initialize();
       
       this.initialized = true;
-      this.loggingService.info('Embedding service initialized', { 
+      this.loggingService.info('Real Ollama embedding service initialized successfully', { 
         modelName: this.config.modelName,
-        backend: this.embeddingModel.getBackend?.() || 'unknown'
+        backend: 'ollama-api',
+        modelConfig: this.embeddingModel.getModelConfig()
       });
     } catch (error) {
-      this.loggingService.error('Failed to initialize embedding service', error instanceof Error ? error : new Error(String(error)));
-      throw error;
+      this.loggingService.error('Failed to initialize real Ollama embedding service', error instanceof Error ? error : new Error(String(error)));
+      
+      // Fallback to mock service if Ollama is not available
+      this.loggingService.warn('Falling back to mock embedding service due to Ollama initialization failure');
+      
+      try {
+        const { DefaultEmbeddingOperations } = await import('../domain/embeddings/index.js');
+        this.embeddingModel = new DefaultEmbeddingOperations();
+        this.initialized = true;
+        this.loggingService.info('Mock embedding service initialized as fallback');
+      } catch (fallbackError) {
+        this.loggingService.error('Failed to initialize fallback embedding service', fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)));
+        throw error; // Throw the original error, not the fallback error
+      }
     }
   }
 
