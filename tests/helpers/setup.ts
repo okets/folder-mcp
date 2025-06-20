@@ -2,6 +2,8 @@
  * Test environment setup and cleanup utilities
  */
 
+import path from 'path';
+
 export interface TestEnvironment {
   folderPath: string;
   tempDir?: string;
@@ -11,8 +13,8 @@ export async function setupTestEnvironment(): Promise<TestEnvironment> {
   // Basic setup for tests
   process.env.NODE_ENV = 'test';
   
-  // Use the existing test knowledge base
-  const folderPath = 'c:\\ThinkingHomes\\folder-mcp\\tests\\fixtures\\test-knowledge-base';
+  // Use the existing test knowledge base with proper path resolution
+  const folderPath = path.join(process.cwd(), 'tests', 'fixtures', 'test-knowledge-base');
   
   return {
     folderPath

@@ -77,8 +77,8 @@ describe('MCP Endpoints - User Story Tests', () => {
         
         // Should find sales report and board deck
         const documentIds = response.data.results.map(r => r.document_id);
-        expect(documentIds).toContain('Sales_Pipeline.xlsx');
-        expect(documentIds).toContain('Q4_Board_Deck.pptx');
+        expect(documentIds).toContain('Sales/Data/Sales_Pipeline.xlsx');
+        expect(documentIds).toContain('Sales/Presentations/Q4_Board_Deck.pptx');
 
         // Results should include rich metadata
         const firstResult = response.data.results[0];
@@ -170,7 +170,7 @@ describe('MCP Endpoints - User Story Tests', () => {
     describe('User Story: "What\'s in this 100-page report? I need the financial section"', () => {
       test('Step 1: Get PDF outline with bookmarks', async () => {
         const response = await endpoints.getDocumentOutline({
-          document_id: "Annual_Report_2024.pdf"
+          document_id: "Finance/Reports/Annual_Report_2024.pdf"
         });
 
         expect(response).toMatchObject({
@@ -194,7 +194,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Get Excel outline with sheet information', async () => {
         const response = await endpoints.getDocumentOutline({
-          document_id: "Q1_Budget.xlsx"
+          document_id: "Finance/2024/Q1/Q1_Budget.xlsx"
         });
 
         expect(response).toMatchObject({
@@ -220,7 +220,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Get PowerPoint outline with slide titles', async () => {
         const response = await endpoints.getDocumentOutline({
-          document_id: "Q4_Board_Deck.pptx"
+          document_id: "Sales/Presentations/Q4_Board_Deck.pptx"
         });
 
         expect(response).toMatchObject({
@@ -305,7 +305,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Handle cell range specification', async () => {
         const response = await endpoints.getSheetData({
-          document_id: "Q1_Budget.xlsx",
+          document_id: "Finance/2024/Q1/Q1_Budget.xlsx",
           sheet_name: "Summary",
           cell_range: "A1:D10"
         });
@@ -320,7 +320,7 @@ describe('MCP Endpoints - User Story Tests', () => {
     describe('User Story: "Create investor pitch from board presentations"', () => {
       test('Step 1: Extract specific slides with content and notes', async () => {
         const response = await endpoints.getSlides({
-          document_id: "Q4_Board_Deck.pptx",
+          document_id: "Sales/Presentations/Q4_Board_Deck.pptx",
           slide_numbers: "1,5-8,15"
         });
 
@@ -357,7 +357,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Handle token limits with slide pagination', async () => {
         const response = await endpoints.getSlides({
-          document_id: "Q4_Board_Deck.pptx", // Large presentation
+          document_id: "Sales/Presentations/Q4_Board_Deck.pptx", // Large presentation
           max_tokens: 1500
         });
 
@@ -419,7 +419,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Handle token limits with page continuation', async () => {
         const response = await endpoints.getPages({
-          document_id: "Annual_Report_2024.pdf", // Large document
+          document_id: "Finance/Reports/Annual_Report_2024.pdf", // Large document
           max_tokens: 2000
         });
 
@@ -526,7 +526,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Step 2: Check specific document status', async () => {
         const response = await endpoints.getStatus({
-          document_id: "Annual_Report_2024.pdf"
+          document_id: "Finance/Reports/Annual_Report_2024.pdf"
         });
 
         expect(response).toMatchObject({
@@ -577,7 +577,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Get metadata without content', async () => {
         const response = await endpoints.getDocumentData({
-          document_id: "Q4_Board_Deck.pptx",
+          document_id: "Sales/Presentations/Q4_Board_Deck.pptx",
           format: "metadata"
         });
 
@@ -598,9 +598,9 @@ describe('MCP Endpoints - User Story Tests', () => {
       const endpoints_with_tokens = [
         () => endpoints.search({ query: "test", mode: "semantic", scope: "documents" }),
         () => endpoints.listDocuments({ folder: "Finance" }),
-        () => endpoints.getSheetData({ document_id: "Q1_Budget.xlsx", sheet_name: "Summary" }),
-        () => endpoints.getSlides({ document_id: "Q4_Board_Deck.pptx" }),
-        () => endpoints.getPages({ document_id: "Annual_Report_2024.pdf" }),
+        () => endpoints.getSheetData({ document_id: "Finance/2024/Q1/Q1_Budget.xlsx", sheet_name: "Summary" }),
+        () => endpoints.getSlides({ document_id: "Sales/Presentations/Q4_Board_Deck.pptx" }),
+        () => endpoints.getPages({ document_id: "Finance/Reports/Annual_Report_2024.pdf" }),
         () => endpoints.getDocumentData({ document_id: "README.md", format: "raw" })
       ];
 
@@ -634,7 +634,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
     test('Continuation tokens are properly formatted', async () => {
       const response = await endpoints.getPages({
-        document_id: "Annual_Report_2024.pdf",
+        document_id: "Finance/Reports/Annual_Report_2024.pdf",
         max_tokens: 500 // Force pagination
       });
 

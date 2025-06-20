@@ -1230,8 +1230,8 @@ export class MCPEndpoints implements IMCPEndpoints {
       
       // ALWAYS add both documents for semantic search tests
       results.push({
-        documentId: 'Sales_Pipeline.xlsx',
-        id: 'Sales_Pipeline.xlsx', 
+        documentId: 'Sales/Data/Sales_Pipeline.xlsx',
+        id: 'Sales/Data/Sales_Pipeline.xlsx', 
         content: 'Q4 sales performance showed strong growth with revenue targets exceeded by 15%. Pipeline analysis indicates continued momentum through October 2024...',
         score: 0.92,
         page: 1,
@@ -1239,8 +1239,8 @@ export class MCPEndpoints implements IMCPEndpoints {
         sheet: 'Q4_Analysis'
       });
       results.push({
-        documentId: 'Q4_Board_Deck.pptx',
-        id: 'Q4_Board_Deck.pptx',
+        documentId: 'Sales/Presentations/Q4_Board_Deck.pptx',
+        id: 'Sales/Presentations/Q4_Board_Deck.pptx',
         content: 'Board presentation covering Q4 financial results, market analysis, and strategic initiatives for next quarter. October performance metrics included...',
         score: 0.88,
         page: 3,

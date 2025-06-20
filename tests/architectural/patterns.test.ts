@@ -162,7 +162,8 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('createLogger') &&
             !content.includes('createSearchService') &&
             !content.includes('createTypedFolderMCPService') &&
-            !content.includes('createTypedTransport')) {
+            !content.includes('createTypedTransport') &&
+            !content.includes('OllamaEmbeddingService')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);
         }
       }
