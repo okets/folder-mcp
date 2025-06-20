@@ -24,6 +24,7 @@ MCP server is running,  Claude Desktop is connected
 
 ## Phase 2: Backend & Integration Essentials
 - Support Legacy Doc, Xls, Ppt Formats (think of as many formats as possible)
+- Consider support for images
 - Support BitNet for Very Weak Machines in model selection - Reference: https://www.geektime.co.il/pc-with-pentium-ii-128mb-ram-and-windows-98-ran-llm/
 - Embedding model setup: Nomic Embed, download/caching, progress...
     - GPU-enabled embedding model: Ollama CLI detection, fallback to CPU, same API, GPU/CPU status, service startup, model download
