@@ -55,64 +55,21 @@ export class FlushingAnimation {
   
   // For a progress bar position (0-1), get the character and color info
   getCharacterAtPosition(position: number, barProgress: number): { char: string; intensity: number; effect: string } {
-    const state = this.getFlushingState();
-    const { primaryWavePosition, secondaryWavePosition, sparklePositions, pulseIntensity, gradientShift } = state;
-    
     // Check if this position is filled by the progress
     const isFilled = position <= barProgress;
     
     if (!isFilled) {
-      // Even empty areas can have sparkles passing through
-      const hasSparkle = sparklePositions.some(sparklePos => 
-        Math.abs(position - sparklePos) < 0.02
-      );
       return { 
-        char: hasSparkle ? '✦' : '░', 
-        intensity: hasSparkle ? 1.0 : 0.3,
-        effect: hasSparkle ? 'sparkle' : 'empty'
+        char: '░', 
+        intensity: 0.0,
+        effect: 'empty'
       };
     }
     
-    // Check for sparkles (highest priority)
-    const sparkleDistance = Math.min(...sparklePositions.map(pos => Math.abs(position - pos)));
-    if (sparkleDistance < 0.03) {
-      const sparkleIntensity = 1.0 - (sparkleDistance / 0.03);
-      return { 
-        char: sparkleIntensity > 0.7 ? '✨' : sparkleIntensity > 0.4 ? '✦' : '◦',
-        intensity: 1.2 + (sparkleIntensity * 0.5),
-        effect: 'sparkle'
-      };
-    }
-    
-    // Check for primary wave
-    const primaryDistance = Math.abs(position - primaryWavePosition);
-    if (primaryDistance < this.waveWidth) {
-      const waveIntensity = 1.0 - (primaryDistance / this.waveWidth);
-      return { 
-        char: waveIntensity > 0.8 ? '▓' : waveIntensity > 0.5 ? '▒' : '░',
-        intensity: 0.7 + (waveIntensity * 0.4),
-        effect: 'primary_wave'
-      };
-    }
-    
-    // Check for secondary wave
-    const secondaryDistance = Math.abs(position - secondaryWavePosition);
-    if (secondaryDistance < this.waveWidth * 0.7) {
-      const waveIntensity = 1.0 - (secondaryDistance / (this.waveWidth * 0.7));
-      return { 
-        char: waveIntensity > 0.6 ? '▒' : '░',
-        intensity: 0.6 + (waveIntensity * 0.3),
-        effect: 'secondary_wave'
-      };
-    }
-    
-    // Base filled character with gradient effect
-    const gradientEffect = 0.8 + (gradientShift * 0.2);
-    const pulseEffect = 0.9 + (pulseIntensity * 0.2);
-    
+    // Static progress bar - no animation
     return { 
       char: '█',
-      intensity: gradientEffect * pulseEffect,
+      intensity: 1.0,
       effect: 'filled'
     };
   }
@@ -128,13 +85,7 @@ export class FlushingAnimation {
       const charInfo = this.getCharacterAtPosition(position, barProgress);
       result += charInfo.char;
       
-      if (charInfo.effect !== 'filled' && charInfo.effect !== 'empty') {
-        effects.push({
-          pos: i,
-          effect: charInfo.effect,
-          intensity: charInfo.intensity
-        });
-      }
+      // No effects needed for static progress bar
     }
     
     return { text: result, effects };
@@ -143,6 +94,29 @@ export class FlushingAnimation {
   // Generate simple progress bar string (for compatibility)
   generateSimpleProgressBar(progress: number, width: number): string {
     return this.generateProgressBar(progress, width).text;
+  }
+  
+  // Get current spinner character or completion indicator
+  getSpinner(progress: number, status: 'active' | 'complete' | 'error' | 'warning' = 'active'): string {
+    // Show status indicator when complete
+    if (progress >= 100) {
+      switch (status) {
+        case 'complete':
+          return '✓';  // checkmark for success
+        case 'error':
+          return '✗';  // X for error
+        case 'warning':
+          return '⚠';  // warning triangle
+        default:
+          return '✓';  // default to success
+      }
+    }
+    
+    // Show spinner while in progress
+    const spinnerChars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const elapsed = Date.now() - this.startTime;
+    const frameIndex = Math.floor(elapsed / 80) % spinnerChars.length; // 80ms per frame
+    return spinnerChars[frameIndex] || '⠋';
   }
   
   getColor(baseColor: string): string {

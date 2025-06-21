@@ -6,8 +6,10 @@ TUI Demo notes:
 - Add breadcrumbs to the top of the screen path devided by a diamond bullet shape
 - Interactive Toggles: mark current selection as a highlighted color without background.
 - Interactive Toggles: checkmarks are tiny, use other signs.
-- Rounded corners borders works great, but the vertical lines (left, right) are gray and don't match the horizontal lines (top, bottom) colors. sometimes the right one is misalligned.
 - Form elements: it doesn't work, cant make a selection.
+
+Rounded corners borders works great, but the vertical lines (left, right) are gray and don't match the horizontal lines (top, bottom) colors. sometimes the right one is misalligned.
+--------------
 
 # Implementation Roadmap
 
@@ -78,3 +80,4 @@ this feature will be awesome! mcp that knows your frontend code when working on 
 - Comprehensive documentation (API docs, integration guides, troubleshooting, performance, best practices, usage examples)
 - Open source release preparation (license, contribution guidelines, community engagement)
 - developer guides (setup, usage, integration, testing, troubleshooting)
+- Add npx tool support so this project runs using npx command (npx folder-mcp [command] [args])

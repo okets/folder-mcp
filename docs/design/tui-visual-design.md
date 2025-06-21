@@ -84,42 +84,26 @@ Code - Monospace    14px equivalent  ██████████████�
 ─ ━ ═  Horizontal lines (light, bold, double)
 ```
 
-### Status Indicators (Modern Unicode)
+### Status Indicators (Simple)
 ```
-◯◉⦿  Radio buttons (unselected, selected, focused)
-☐☑☒  Checkboxes (unchecked, checked, indeterminate)
+◯◉  Radio buttons (unselected, selected)
+☐☑  Checkboxes (unchecked, checked)
 ⏵⏸⏹  Media controls (play, pause, stop)
-▸▾▴▪  Directional arrows (right, down, up, bullet)
-◦•●  Bullets (light, medium, heavy)
-⚬⚭⚮  Atomic symbols (nucleus, orbital, electron)
+▸▾▴  Directional arrows (right, down, up)
+◦•  Bullets (light, heavy)
 ```
 
-### Progress Elements (Ultra-Modern)
+### Progress Elements (Clean)
 ```
 █▓▒░  Progress bar fill (100%, 75%, 50%, 25%)
-⣿⣶⣤⣀  Braille patterns for smooth progress
 ▁▂▃▄▅▆▇█  Bar chart elements
-◐◓◑◒  Spinning indicators (classic)
-⟲⟳⌖⌗  Advanced spinners (rotate left/right, targets)
-⧗⧖⧕⧔  Time-based progress (hourglasses)
-⬢⬡⬟⬞  Hexagonal progress states
-◯◉⊙⊚  Ring progress indicators
-⚬⚭⚮⚯  Atomic orbital animations
 ```
 
-### Special Symbols (Groundbreaking Modern)
+### Special Symbols (Essential Only)
 ```
-√✗✘  Success/failure (mathematical check, crosses)
-⚠⚡⚑  Warning, attention, flag
+√✗  Success/failure
+⚠  Warning
 →←↑↓  Directional arrows
-⭐✨💫  Stars, sparkles, highlights  
-🔒🔓🔑  Security states (locked, unlocked, key)
-⟢⟣⟡  Advanced arrows (curved, wave, lightning)
-⧗⧖⧕  Time indicators (hourglass, clock, timer)
-◈◇◆  Diamonds (outline, light, filled)
-⬢⬡⬟  Hexagons (outline, light, filled)
-◎⊙⊚  Targets and focus rings
-⦿⦾⦽  Sophisticated bullets
 ```
 
 ## Spacing Grid
@@ -552,24 +536,18 @@ Search Box Styling:
 No Tab Navigation - Everything accessible via directional arrows + typing!
 ```
 
-### Progress Bars (Ultra-Modern Style)
+### Progress Bars (Clean & Simple)
 ```
 Standard Progress:
-Progress: [█████████▓░] 80% Complete
+Progress: [████████░░] 80% Complete
 
-Indeterminate Progress (Orbital):
-Loading:  [⚬⚭⚮] Please wait...
-
-Advanced Indeterminate:
-Loading:  [⟲] Analyzing documents...
+Indeterminate Progress:
+Loading:  [▓▒░▒▓▒░▒] Please wait...
 
 Multi-line Progress:
-Server Status:  [████████▓░] 80% Indexing files...
-Current Task:   ⏵ Processing document 45/67
-Embeddings:     [██████████] √ Complete
-
-Hexagonal Progress:
-System Check:   [⬢⬡⬢⬡⬢] Detecting capabilities...
+Server Status:  [████████░░] 80% Indexing files...
+Current Task:   Processing document 45/67
+Embeddings:     [██████████] Complete
 ```
 
 ### Modal Dialogs (Claude Code Style)
@@ -786,31 +764,23 @@ Bar Fill:    Progressive fill left-to-right
 Pulse Ring:  Expanding ring effect for completion
 ```
 
-### Progress Bar Breathing Animation
+### Progress Bar Colors
 ```
-Breathing Cycle (2000ms total):
-Phase 1 (500ms): Base color → Bright        [ease-out]
-Phase 2 (500ms): Bright → Peak              [ease]
-Phase 3 (500ms): Peak → Bright              [ease]
-Phase 4 (500ms): Bright → Base              [ease-in]
+Standard States:
+Progress: [████████▓░] 80%  [gradient: bright → medium → dim blue]
+Complete: [██████████] 100% [solid bright blue]
+Error:    [████▓░░░░░] 40%  [gradient: bright → medium → dim red]
 
-Color Progression:
-Base:    #3B82F6 (primary blue)
-Bright:  #60A5FA (30% brighter)
-Peak:    #93C5FD (60% brighter)
+Indeterminate Animation:
+Loading: [▓▒░▒▓▒░▒] Please wait...
+        ↑ Simple wave pattern, no sparkles or decorations
 
-Progress Bar States:
-Loading:     [████████▓▓] 80% ⟲ Indexing files...
-            ↑ Breathing colors cycle through base → bright → peak
-            
-Indeterminate: [⚬⚭⚮⚯] ⟲ Please wait...
-              ↑ Orbital symbols pulse with breathing effect
+Color Values:
+Filled:   #3B82F6 (bright blue)
+Partial:  #1E40AF (medium blue) 
+Empty:    #374151 (dim gray)
 
-Implementation:
-- Use CSS-like color transitions with linear interpolation
-- Apply breathing effect to all progress indicators
-- Synchronize breathing cycle across multiple progress bars
-- Pause breathing on user interaction (focus/hover)
+NO SPARKLES (✨✦), NO CIRCLES (◦), NO DECORATIVE SYMBOLS
 ```
 
 ## Accessibility Guidelines
@@ -833,10 +803,10 @@ Error States:          Multiple indicators (color + text + symbol)
 
 ## Groundbreaking Interface Patterns
 
-### Orbital Loading Animation
+### Simple Loading Animation
 ```
-Step 1: ⚬        Step 2: ⚭        Step 3: ⚮        Step 4: ⚯
-       nucleus          electron         orbital          fusion
+Step 1: ▓        Step 2: ▒        Step 3: ░        Step 4: ▒
+       bright          medium          dim           medium
 ```
 
 ### Modern Configuration Form
@@ -873,40 +843,40 @@ Step 1: ⚬        Step 2: ⚭        Step 3: ⚮        Step 4: ⚯
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-### Futuristic Progress Dashboard
+### Processing Status Dashboard
 ```
 ╭─ Processing Status ──────────────────────────────────────────────╮
 │                                                                  │
-│ Server Status:  [████████▓░] 80% ⏵ Indexing files...           │
-│ Current Task:   ⟲ Processing document 45/67                     │
-│ Embeddings:     [██████████] √ Complete                         │
-│ Vector Index:   [⬢⬡⬢⬡⬢⬡⬢] ⚬ Building spatial index...        │
+│ Server Status:  [████████▓░] 80% Indexing files...              │
+│ Current Task:   Processing document 45/67                       │
+│ Embeddings:     [██████████] Complete                           │
+│ Vector Index:   [▓▒░▒▓▒░▒] Building spatial index...           │
 │                                                                  │
-│ ◎ Estimated time remaining: 2m 15s                              │
+│ Estimated time remaining: 2m 15s                                │
 │                                                                  │
 │ [h] Help  [q] Quit  [space] Pause                               │
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 
-### Ultra-Modern Command Interface
+### Clean Command Interface
 ```
-╭─ ⭐ folder-mcp Server Running ───────────────────────────────────╮
+╭─ folder-mcp Server Running ─────────────────────────────────────╮
 │                                                                  │
-│ ◎ Port: 3000  ⬢ Model: nomic-embed-text  ◈ Documents: 67       │
+│ Port: 3000  Model: nomic-embed-text  Documents: 67              │
 │                                                                  │
 │ ╭─ Command Input ───────────────────────────────────────────╮   │
 │ │ > █                                                       │   │
 │ │                                                           │   │
-│ │ ◦ Type commands or press [Tab] for suggestions            │   │
+│ │ Type commands or press [Tab] for suggestions              │   │
 │ ╰───────────────────────────────────────────────────────────╯   │
 │                                                                  │
 │ Quick Actions:                                                   │
-│ ⟢ \model    ⟢ \status    ⟢ \config    ⟢ \help                  │
+│ \model    \status    \config    \help                           │
 │                                                                  │
 │ Recent Activity:                                                 │
 │ √ Server started successfully                                    │
 │ √ Embeddings loaded (2,341 vectors)                             │
-│ ⏵ Ready for connections                                          │
+│ Ready for connections                                            │
 ╰──────────────────────────────────────────────────────────────────╯
 ```
 

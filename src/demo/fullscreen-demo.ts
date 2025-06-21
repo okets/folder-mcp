@@ -13,6 +13,7 @@ interface ProgressBar {
   flushing: FlushingAnimation;
   targetProgress: number;
   speed: number;
+  status: 'active' | 'complete' | 'error' | 'warning';
 }
 
 interface ToggleOption {
@@ -87,21 +88,24 @@ class FullScreenTUIDemo {
         progress: 0,
         flushing: new FlushingAnimation(2000, 0.15),
         targetProgress: 85,
-        speed: 0.8
+        speed: 0.8,
+        status: 'active'
       },
       {
         label: 'Building embeddings...',
         progress: 0,
         flushing: new FlushingAnimation(2200, 0.2),
         targetProgress: 65,
-        speed: 0.6
+        speed: 0.6,
+        status: 'active'
       },
       {
         label: 'Server startup...',
         progress: 0,
         flushing: new FlushingAnimation(1800, 0.18),
         targetProgress: 100,
-        speed: 1.2
+        speed: 1.2,
+        status: 'complete'
       }
     ];
 
@@ -234,6 +238,15 @@ class FullScreenTUIDemo {
       this.progressBars.forEach(bar => {
         if (bar.progress < bar.targetProgress) {
           bar.progress = Math.min(bar.targetProgress, bar.progress + bar.speed);
+          
+          // Update status when reaching target
+          if (bar.progress >= bar.targetProgress) {
+            if (bar.targetProgress >= 100) {
+              bar.status = 'complete';
+            } else if (bar.targetProgress < 70) {
+              bar.status = 'warning'; // Show warning for incomplete tasks
+            }
+          }
         }
       });
       
@@ -320,42 +333,38 @@ class FullScreenTUIDemo {
   }
 
   private renderProgressBar(bar: ProgressBar, width: number): string {
-    const barWidth = width - 10; // Leave space for percentage
+    const barWidth = width - 8; // Leave space for brackets, spinner and percentage
     
-    // Generate impressive progress bar with multiple effects
+    // Generate static progress bar
     const progressData = bar.flushing.generateProgressBar(bar.progress, barWidth);
     const percentage = Math.floor(bar.progress).toString().padStart(3, ' ');
+    const spinner = bar.flushing.getSpinner(bar.progress, bar.status);
     
-    // Apply different colors based on effects
-    let colorizedText = '';
-    for (let i = 0; i < progressData.text.length; i++) {
-      const char = progressData.text[i] || ' ';
-      const effect = progressData.effects.find(e => e.pos === i);
-      
-      if (effect) {
-        switch (effect.effect) {
-          case 'sparkle':
-            // Bright sparkles in pastel yellow
-            colorizedText += this.colorize(char, '#F5E6A3'); // pastel yellow
-            break;
-          case 'primary_wave':
-            // Main wave in bright royal blue
-            colorizedText += this.colorize(char, '#5B7FE5'); // bright royal blue
-            break;
-          case 'secondary_wave':
-            // Secondary wave in sage green
-            colorizedText += this.colorize(char, '#9CAF88'); // sage green
-            break;
-          default:
-            colorizedText += this.colorize(char, '#4169E1'); // royal blue
-        }
-      } else {
-        // Base color for normal filled areas
-        colorizedText += this.colorize(char, '#4169E1'); // royal blue
+    // Simple royal blue coloring - no effects
+    const colorizedText = this.colorize(progressData.text, '#4169E1');
+    
+    // Color the spinner based on status
+    let spinnerColor = colors.text_secondary;
+    if (bar.progress >= 100) {
+      switch (bar.status) {
+        case 'complete':
+          spinnerColor = colors.green;
+          break;
+        case 'error':
+          spinnerColor = colors.red;
+          break;
+        case 'warning':
+          spinnerColor = colors.orange;
+          break;
       }
     }
     
-    return `[${colorizedText}] ${this.colorize(percentage + '%', colors.text_primary)}`;
+    return `[${colorizedText}] ${this.colorize(spinner, spinnerColor)} ${this.colorize(percentage + '%', colors.text_primary)}`;
+  }
+  
+  private getDisplayLength(text: string): number {
+    // Remove ANSI escape sequences to get actual display length
+    return text.replace(/\x1b\[[0-9;]*m/g, '').length;
   }
 
   private render() {
@@ -402,121 +411,179 @@ class FullScreenTUIDemo {
   }
 
   private renderProgressScreen(width: number, height: number) {
-    console.log(this.colorize('╭─ Flushing Progress Bars ─╮', colors.royal_blue));
-    console.log('│                           │');
+    const boxWidth = 27; // Fixed box width
+    const title = ' Flushing Progress Bars ';
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.royal_blue));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.royal_blue));
     
     this.progressBars.forEach((bar, index) => {
-      console.log(`│ ${bar.label}`);
-      console.log(`│ ${this.renderProgressBar(bar, 25)}`);
+      // Label line
+      const labelPadding = ' '.repeat(Math.max(0, boxWidth - bar.label.length - 1));
+      console.log(this.colorize('│', colors.royal_blue) + ` ${bar.label}${labelPadding}` + this.colorize('│', colors.royal_blue));
+      
+      // Progress bar line  
+      const progressContent = this.renderProgressBar(bar, 20);
+      const displayLength = this.getDisplayLength(progressContent);
+      const progressPadding = ' '.repeat(Math.max(0, boxWidth - displayLength - 1));
+      console.log(this.colorize('│', colors.royal_blue) + ` ${progressContent}${progressPadding}` + this.colorize('│', colors.royal_blue));
+      
       if (index < this.progressBars.length - 1) {
-        console.log('│                           │');
+        console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.royal_blue));
       }
     });
     
-    console.log('│                           │');
-    console.log(this.colorize('╰─────────────────────────╯', colors.royal_blue));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.royal_blue));
+    console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.royal_blue));
     console.log('');
-    console.log(this.colorize('• Multiple wave effects: primary + secondary waves', colors.text_secondary));
-    console.log(this.colorize('• Dynamic sparkles (✨✦) racing across bars', colors.text_secondary));
-    console.log(this.colorize('• Gradient pulsing and color shifting effects', colors.text_secondary));
-    console.log(this.colorize('• 20fps smooth animation with impressive visual depth', colors.text_secondary));
+    console.log(this.colorize('• Static progress bars', colors.text_secondary));
+    console.log(this.colorize('• Simple spinner animation', colors.text_secondary));
+    console.log(this.colorize('• Clean royal blue styling', colors.text_secondary));
   }
 
   private renderTogglesScreen(width: number, height: number) {
-    console.log(this.colorize('╭─ Interactive Toggles ─╮', colors.green));
-    console.log('│                       │');
+    const boxWidth = 30; // Increased to fit longer content
+    const title = ' Interactive Toggles ';
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.green));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.green));
     
     this.toggleOptions.forEach((option, index) => {
       const isSelected = index === this.selectedIndex;
       const checkbox = option.enabled ? symbols.checkbox_checked : symbols.checkbox_empty;
       const textColor = option.enabled ? colors.text_primary : colors.text_muted;
-      const line = `│ ${checkbox} ${option.label}`;
+      const content = `${checkbox} ${option.label.slice(0, boxWidth - 3)}`; // Truncate if too long
+      const padding = ' '.repeat(Math.max(0, boxWidth - content.length - 1));
+      const line = this.colorize('│', colors.green) + ` ${content}${padding}` + this.colorize('│', colors.green);
       
       if (isSelected) {
         console.log(this.highlight(line, true));
       } else {
-        console.log(this.colorize(line, textColor));
+        console.log(line);
       }
     });
     
-    console.log('│                       │');
-    console.log(this.colorize('╰─────────────────────╯', colors.green));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.green));
+    console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.green));
     console.log('');
     console.log(this.colorize('• ↑↓ Navigate • Space/Enter Toggle • Focus highlighting', colors.text_secondary));
   }
 
   private renderButtonsScreen(width: number, height: number) {
-    console.log(this.colorize('╭─ Modern Button States ─╮', colors.orange));
-    console.log('│                        │');
+    const boxWidth = 24;
+    const title = ' Modern Button States ';
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.orange));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.orange));
     
     this.buttons.forEach((button, index) => {
       const isSelected = index === this.selectedIndex;
       const icon = this.getButtonIcon(button.state);
       const color = this.getButtonColor(button.state);
-      const line = `│ ${icon} ${button.label}`;
+      const content = `${icon} ${button.label}`;
+      const padding = ' '.repeat(Math.max(0, boxWidth - content.length - 1));
+      const line = this.colorize('│', colors.orange) + ` ${content}${padding}` + this.colorize('│', colors.orange);
       
       if (isSelected) {
         console.log(this.highlight(line, true));
       } else {
-        console.log(this.colorize(line, color));
+        console.log(line);
       }
     });
     
-    console.log('│                        │');
-    console.log(this.colorize('╰──────────────────────╯', colors.orange));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.orange));
+    console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.orange));
     console.log('');
     console.log(this.colorize('• ↑↓ Navigate • Enter/Space Trigger • Real async state changes', colors.text_secondary));
   }
 
   private renderFormsScreen(width: number, height: number) {
-    console.log(this.colorize('╭─ Form Elements ─╮', colors.blue));
-    console.log('│                 │');
-    console.log('│ Server Name:    │');
-    console.log('│ ╭─────────────╮ │');
-    console.log('│ │folder-mcp   │ │');
-    console.log('│ ╰─────────────╯ │');
-    console.log('│                 │');
-    console.log('│ Language:       │');
-    console.log(`│ ${symbols.radio_selected} Multi-language │`);
-    console.log(`│ ${symbols.radio_empty} English only   │`);
-    console.log('│                 │');
-    console.log(this.colorize('╰───────────────╯', colors.blue));
+    const boxWidth = 18;
+    const title = ' Form Elements ';
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.blue));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
+    
+    // Server Name line
+    const serverNameContent = 'Server Name:';
+    const serverNamePadding = ' '.repeat(Math.max(0, boxWidth - serverNameContent.length - 1));
+    console.log(this.colorize('│', colors.blue) + ` ${serverNameContent}${serverNamePadding}` + this.colorize('│', colors.blue));
+    
+    // Textbox with proper alignment
+    const textboxWidth = 13; // Inner textbox width
+    const textboxPadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3)); // -3 for │ ╭ ╮
+    console.log(this.colorize('│', colors.blue) + ` ╭${'─'.repeat(textboxWidth)}╮${textboxPadding}` + this.colorize('│', colors.blue));
+    
+    const textboxContent = 'folder-mcp';
+    const textboxContentPadding = ' '.repeat(Math.max(0, textboxWidth - textboxContent.length));
+    const textboxLinePadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3)); // -3 for │ │ │
+    console.log(this.colorize('│', colors.blue) + ` │${textboxContent}${textboxContentPadding}│${textboxLinePadding}` + this.colorize('│', colors.blue));
+    
+    console.log(this.colorize('│', colors.blue) + ` ╰${'─'.repeat(textboxWidth)}╯${textboxPadding}` + this.colorize('│', colors.blue));
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
+    
+    // Language line
+    const languageContent = 'Language:';
+    const languagePadding = ' '.repeat(Math.max(0, boxWidth - languageContent.length - 1));
+    console.log(this.colorize('│', colors.blue) + ` ${languageContent}${languagePadding}` + this.colorize('│', colors.blue));
+    
+    // Radio button lines
+    const radioContent1 = `${symbols.radio_selected} Multi-language`;
+    const radioPadding1 = ' '.repeat(Math.max(0, boxWidth - radioContent1.length - 1));
+    console.log(this.colorize('│', colors.blue) + ` ${radioContent1}${radioPadding1}` + this.colorize('│', colors.blue));
+    
+    const radioContent2 = `${symbols.radio_empty} English only`;
+    const radioPadding2 = ' '.repeat(Math.max(0, boxWidth - radioContent2.length - 1));
+    console.log(this.colorize('│', colors.blue) + ` ${radioContent2}${radioPadding2}` + this.colorize('│', colors.blue));
+    
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
+    console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.blue));
     console.log('');
     console.log(this.colorize('• Rounded borders • Tab navigation • Focus management', colors.text_secondary));
   }
 
   private renderCombinedScreen(width: number, height: number) {
     // Split screen showing multiple components
-    console.log(this.colorize('╭─ All Components Combined ─╮', colors.purple));
+    const boxWidth = 27;
+    const title = ' All Components Combined ';
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.purple));
     
     // Progress section
-    console.log('│ Progress:                  │');
+    console.log(this.colorize('│ Progress:                 │', colors.purple));
     const firstBar = this.progressBars[0];
     if (firstBar) {
-      console.log(`│ ${this.renderProgressBar(firstBar, 25).slice(0, 25)} │`);
+      const barContent = this.renderProgressBar(firstBar, 18);
+      const displayLength = this.getDisplayLength(barContent);
+      const padding = ' '.repeat(Math.max(0, boxWidth - displayLength - 1));
+      console.log(this.colorize('│', colors.purple) + ` ${barContent}${padding}` + this.colorize('│', colors.purple));
     }
     
-    console.log('│                           │');
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.purple));
     
     // Toggles section  
-    console.log('│ Settings:                 │');
+    console.log(this.colorize('│ Settings:                 │', colors.purple));
     const firstToggle = this.toggleOptions[0];
     if (firstToggle) {
       const checkbox = firstToggle.enabled ? symbols.checkbox_checked : symbols.checkbox_empty;
-      console.log(`│ ${checkbox} ${firstToggle.label.slice(0, 20)}  │`);
+      const content = `${checkbox} ${firstToggle.label.slice(0, 18)}`;
+      const padding = ' '.repeat(Math.max(0, boxWidth - content.length - 1));
+      console.log(this.colorize('│', colors.purple) + ` ${content}${padding}` + this.colorize('│', colors.purple));
     }
     
-    console.log('│                           │');
+    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.purple));
     
     // Button section
-    console.log('│ Actions:                  │');
+    console.log(this.colorize('│ Actions:                  │', colors.purple));
     const firstButton = this.buttons[0];
     if (firstButton) {
       const icon = this.getButtonIcon(firstButton.state);
-      console.log(`│ ${icon} ${firstButton.label.slice(0, 20)}    │`);
+      const content = `${icon} ${firstButton.label.slice(0, 18)}`;
+      const padding = ' '.repeat(Math.max(0, boxWidth - content.length - 1));
+      console.log(this.colorize('│', colors.purple) + ` ${content}${padding}` + this.colorize('│', colors.purple));
     }
     
-    console.log(this.colorize('╰─────────────────────────╯', colors.purple));
+    console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.purple));
     console.log('');
     console.log(this.colorize('• Live demonstration of all components working together', colors.text_secondary));
   }
