@@ -34,6 +34,7 @@ MCP server is running,  Claude Desktop is connected
 
 ## Phase 2: Backend & Integration Essentials
 - Support Legacy Doc, Xls, Ppt Formats (think of as many formats as possible)
+- Consider support for images
 - Check Similarity search using embeddings in real life: query embedding, top-K, similarity scores (0-1), chunk metadata, empty index handling
 - Search CLI command: `folder-mcp search <folder> <query>`, -k param, source/line info, content snippets, works offline
 - MCP Access Management:
