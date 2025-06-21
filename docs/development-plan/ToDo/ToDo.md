@@ -1,6 +1,14 @@
 State of my project now:
 MCP server is running,  Claude Desktop is connected
 
+TUI Demo notes:
+- progress bars: Roll back the pazzaz! just subtle changes of color! thats it. but with a gradient of brightness.
+- Add breadcrumbs to the top of the screen path devided by a diamond bullet shape
+- Interactive Toggles: mark current selection as a highlighted color without background.
+- Interactive Toggles: checkmarks are tiny, use other signs.
+- Rounded corners borders works great, but the vertical lines (left, right) are gray and don't match the horizontal lines (top, bottom) colors. sometimes the right one is misalligned.
+- Form elements: it doesn't work, cant make a selection.
+
 # Implementation Roadmap
 
 ## Phase 1: Core CLI TUI MVP
