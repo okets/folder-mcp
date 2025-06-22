@@ -19,7 +19,7 @@ TUI (Text User Interface) main Screen design ToDo:
     - Once focused, pressing right arrow or [Enter] makes the element "Active".
     - Pressing left arrow or [Esc] exits the "Active" state, returning to the truncated view but keeping the element focused.
 - Our first round-box-element will be "list-item":
-    (In the status round-box, there are many list items (with bullets) that are perfect candidates for round-box-elements.)
+    (In the status round-box-container, there are many list items (with bullets) that are perfect candidates for round-box-elements.)
     - When focused, the line or bullet can change color.
     - When "Active", the list-item expands to show its full content, wrapping text as needed and expanding vertically.
     - While "Active", scrolling within the element is line-by-line if the content overflows the parent round-box.
@@ -28,9 +28,11 @@ TUI (Text User Interface) main Screen design ToDo:
     [↑↓/PgUp/PgDn] Next/Prev, [←] Back, [→/Enter] Open.
     when a round-box-element is active, it shows:
     [↑↓] Scroll, [←/Esc] Back.
-- Replace all content of the Configuration and Status round-boxes with round-box-elements (just list-items for now, some with long text for debugging scroll).
-
-
+- Replace all content of the Configuration and Status round-boxe-containers with round-box-elements (just list-items for now, some with long text for debugging scroll).
+- Status row is always visible and changed acording to the currently "Active" element. (I might have interchanged focused and active in my implementation because the first time I had to make the distinction in now)
+- keep the status row similar to how it appears now. I like how it looks.
+- Maintain proper DI throughout this task!
+- Apply the same "focused" and "active" states logic to both the round-box-container and roundbox-element
 --------------
 
 # Implementation Roadmap
