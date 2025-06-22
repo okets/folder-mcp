@@ -11,8 +11,8 @@ export const symbols = {
   solid_bullet: '●',
   
   // Checkboxes and selection
-  checkbox_empty: '☐',
-  checkbox_checked: '☑',
+  checkbox_empty: '[ ]',
+  checkbox_checked: '[✓]',
   radio_empty: '◯',
   radio_selected: '◉',
   

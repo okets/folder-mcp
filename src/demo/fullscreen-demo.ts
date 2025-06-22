@@ -28,12 +28,23 @@ interface ButtonState {
   lastStateChange: number;
 }
 
+interface FormElement {
+  id: string;
+  type: 'textbox' | 'radio';
+  label: string;
+  value: string;
+  options?: string[];
+  selectedOption?: number;
+}
+
 class FullScreenTUIDemo {
   private currentScreen = 0;
   private selectedIndex = 0;
   private progressBars: ProgressBar[] = [];
   private toggleOptions: ToggleOption[] = [];
   private buttons: ButtonState[] = [];
+  private formElements: FormElement[] = [];
+  private selectedLanguage = 'multi'; // Track which language option is selected
   private animationFrame: NodeJS.Timeout | null = null;
   private isRunning = true;
   private terminalSize = { width: 80, height: 24 };
@@ -124,6 +135,32 @@ class FullScreenTUIDemo {
       { label: 'Generate Embeddings', state: 'idle', lastStateChange: Date.now() },
       { label: 'Reset Server', state: 'idle', lastStateChange: Date.now() }
     ];
+
+    // Initialize form elements - only interactive elements are selectable
+    this.formElements = [
+      {
+        id: 'server-name', 
+        type: 'textbox',
+        label: 'Server Name:',
+        value: 'folder-mcp'
+      },
+      {
+        id: 'language-multi',
+        type: 'radio',
+        label: 'Multi-language',
+        value: 'multi',
+        options: [],
+        selectedOption: 0
+      },
+      {
+        id: 'language-english',
+        type: 'radio',
+        label: 'English only', 
+        value: 'english',
+        options: [],
+        selectedOption: 0
+      }
+    ];
   }
 
   private bindEvents() {
@@ -160,6 +197,8 @@ class FullScreenTUIDemo {
       this.selectedIndex = Math.max(0, this.selectedIndex - 1);
     } else if (this.currentScreen === 3) { // buttons
       this.selectedIndex = Math.max(0, this.selectedIndex - 1);
+    } else if (this.currentScreen === 4) { // forms
+      this.selectedIndex = Math.max(0, this.selectedIndex - 1);
     }
     this.render();
   }
@@ -171,6 +210,8 @@ class FullScreenTUIDemo {
       this.selectedIndex = Math.min(this.toggleOptions.length - 1, this.selectedIndex + 1);
     } else if (this.currentScreen === 3) { // buttons
       this.selectedIndex = Math.min(this.buttons.length - 1, this.selectedIndex + 1);
+    } else if (this.currentScreen === 4) { // forms
+      this.selectedIndex = Math.min(this.formElements.length - 1, this.selectedIndex + 1);
     }
     this.render();
   }
@@ -226,6 +267,21 @@ class FullScreenTUIDemo {
             }, 2000);
           }
         }, 1500);
+      }
+    } else if (this.currentScreen === 4) { // forms
+      // Handle form element interaction
+      const formElement = this.formElements[this.selectedIndex];
+      if (formElement) {
+        if (formElement.type === 'radio' && formElement.id.startsWith('language-')) {
+          // Select the specific language option
+          if (formElement.id === 'language-multi') {
+            this.selectedLanguage = 'multi';
+          } else if (formElement.id === 'language-english') {
+            this.selectedLanguage = 'english';
+          }
+          this.render();
+        }
+        // Note: textbox editing would require more complex input handling
       }
     }
   }
@@ -451,16 +507,21 @@ class FullScreenTUIDemo {
     this.toggleOptions.forEach((option, index) => {
       const isSelected = index === this.selectedIndex;
       const checkbox = option.enabled ? symbols.checkbox_checked : symbols.checkbox_empty;
-      const textColor = option.enabled ? colors.text_primary : colors.text_muted;
-      const content = `${checkbox} ${option.label.slice(0, boxWidth - 3)}`; // Truncate if too long
+      const content = `${checkbox} ${option.label.slice(0, boxWidth - 5)}`; // Adjusted for larger checkbox symbols
       const padding = ' '.repeat(Math.max(0, boxWidth - content.length - 1));
-      const line = this.colorize('│', colors.green) + ` ${content}${padding}` + this.colorize('│', colors.green);
       
+      // Use color highlighting without background for current selection
+      let textColor;
       if (isSelected) {
-        console.log(this.highlight(line, true));
+        textColor = colors.cyan; // Bright cyan for current selection
+      } else if (option.enabled) {
+        textColor = colors.text_primary;
       } else {
-        console.log(line);
+        textColor = colors.text_muted;
       }
+      
+      const line = this.colorize('│', colors.green) + ` ${this.colorize(content, textColor)}${padding}` + this.colorize('│', colors.green);
+      console.log(line);
     });
     
     console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.green));
@@ -498,48 +559,75 @@ class FullScreenTUIDemo {
   }
 
   private renderFormsScreen(width: number, height: number) {
-    const boxWidth = 18;
+    const boxWidth = 25; // Increased width for better layout
     const title = ' Form Elements ';
-    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1)); // -1 for the ─ before title
+    const titlePadding = '─'.repeat(Math.max(0, boxWidth - title.length - 1));
     console.log(this.colorize(`╭─${title}${titlePadding}╮`, colors.blue));
     console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
     
-    // Server Name line
-    const serverNameContent = 'Server Name:';
-    const serverNamePadding = ' '.repeat(Math.max(0, boxWidth - serverNameContent.length - 1));
-    console.log(this.colorize('│', colors.blue) + ` ${serverNameContent}${serverNamePadding}` + this.colorize('│', colors.blue));
+    let languageLabelShown = false;
     
-    // Textbox with proper alignment
-    const textboxWidth = 13; // Inner textbox width
-    const textboxPadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3)); // -3 for │ ╭ ╮
-    console.log(this.colorize('│', colors.blue) + ` ╭${'─'.repeat(textboxWidth)}╮${textboxPadding}` + this.colorize('│', colors.blue));
-    
-    const textboxContent = 'folder-mcp';
-    const textboxContentPadding = ' '.repeat(Math.max(0, textboxWidth - textboxContent.length));
-    const textboxLinePadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3)); // -3 for │ │ │
-    console.log(this.colorize('│', colors.blue) + ` │${textboxContent}${textboxContentPadding}│${textboxLinePadding}` + this.colorize('│', colors.blue));
-    
-    console.log(this.colorize('│', colors.blue) + ` ╰${'─'.repeat(textboxWidth)}╯${textboxPadding}` + this.colorize('│', colors.blue));
-    console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
-    
-    // Language line
-    const languageContent = 'Language:';
-    const languagePadding = ' '.repeat(Math.max(0, boxWidth - languageContent.length - 1));
-    console.log(this.colorize('│', colors.blue) + ` ${languageContent}${languagePadding}` + this.colorize('│', colors.blue));
-    
-    // Radio button lines
-    const radioContent1 = `${symbols.radio_selected} Multi-language`;
-    const radioPadding1 = ' '.repeat(Math.max(0, boxWidth - radioContent1.length - 1));
-    console.log(this.colorize('│', colors.blue) + ` ${radioContent1}${radioPadding1}` + this.colorize('│', colors.blue));
-    
-    const radioContent2 = `${symbols.radio_empty} English only`;
-    const radioPadding2 = ' '.repeat(Math.max(0, boxWidth - radioContent2.length - 1));
-    console.log(this.colorize('│', colors.blue) + ` ${radioContent2}${radioPadding2}` + this.colorize('│', colors.blue));
+    this.formElements.forEach((element, index) => {
+      const isSelected = index === this.selectedIndex;
+      
+      if (element.type === 'textbox') {
+        // Label line
+        const labelColor = isSelected ? colors.cyan : colors.text_primary;
+        const labelContent = element.label;
+        const labelPadding = ' '.repeat(Math.max(0, boxWidth - labelContent.length - 1));
+        console.log(this.colorize('│', colors.blue) + ` ${this.colorize(labelContent, labelColor)}${labelPadding}` + this.colorize('│', colors.blue));
+        
+        // Textbox
+        const textboxWidth = 13;
+        const textboxBorderColor = isSelected ? colors.cyan : colors.text_muted;
+        const textboxPadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3));
+        console.log(this.colorize('│', colors.blue) + ` ${this.colorize('╭' + '─'.repeat(textboxWidth) + '╮', textboxBorderColor)}${textboxPadding}` + this.colorize('│', colors.blue));
+        
+        const textboxContent = element.value + (isSelected ? '█' : ''); // Show cursor if selected
+        const textboxContentPadding = ' '.repeat(Math.max(0, textboxWidth - textboxContent.length));
+        const textboxLinePadding = ' '.repeat(Math.max(0, boxWidth - textboxWidth - 3));
+        console.log(this.colorize('│', colors.blue) + ` ${this.colorize('│', textboxBorderColor)}${textboxContent}${textboxContentPadding}${this.colorize('│', textboxBorderColor)}${textboxLinePadding}` + this.colorize('│', colors.blue));
+        
+        console.log(this.colorize('│', colors.blue) + ` ${this.colorize('╰' + '─'.repeat(textboxWidth) + '╯', textboxBorderColor)}${textboxPadding}` + this.colorize('│', colors.blue));
+        
+      } else if (element.type === 'radio') {
+        // Show "Language:" label before first radio option
+        if (!languageLabelShown) {
+          console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
+          const languageLabelPadding = ' '.repeat(Math.max(0, boxWidth - 'Language:'.length - 1));
+          console.log(this.colorize('│', colors.blue) + ` ${this.colorize('Language:', colors.text_primary)}${languageLabelPadding}` + this.colorize('│', colors.blue));
+          languageLabelShown = true;
+        }
+        
+        // Radio option
+        const isRadioSelected = (element.id === 'language-multi' && this.selectedLanguage === 'multi') || 
+                               (element.id === 'language-english' && this.selectedLanguage === 'english');
+        const radioSymbol = isRadioSelected ? symbols.radio_selected : symbols.radio_empty;
+        const radioContent = `${radioSymbol} ${element.label}`;
+        
+        // Color highlighting for selected element navigation
+        let textColor;
+        if (isSelected) {
+          textColor = colors.cyan; // Bright cyan for current navigation selection
+        } else if (isRadioSelected) {
+          textColor = colors.text_primary; // Normal text for selected radio option
+        } else {
+          textColor = colors.text_muted; // Muted for unselected options
+        }
+        
+        const radioPadding = ' '.repeat(Math.max(0, boxWidth - radioContent.length - 1));
+        console.log(this.colorize('│', colors.blue) + ` ${this.colorize(radioContent, textColor)}${radioPadding}` + this.colorize('│', colors.blue));
+      }
+      
+      if (index < this.formElements.length - 1) {
+        console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
+      }
+    });
     
     console.log(this.colorize('│' + ' '.repeat(boxWidth) + '│', colors.blue));
     console.log(this.colorize('╰' + '─'.repeat(boxWidth) + '╯', colors.blue));
     console.log('');
-    console.log(this.colorize('• Rounded borders • Tab navigation • Focus management', colors.text_secondary));
+    console.log(this.colorize('• ↑↓ Navigate • Enter/Space Select • Text input: demo only', colors.text_secondary));
   }
 
   private renderCombinedScreen(width: number, height: number) {
