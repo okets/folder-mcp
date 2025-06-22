@@ -1,6 +1,6 @@
 // ANSI color mapping utility for precise color control
 export const useColors = () => {
-  const colorize = (text: string, color: string): string => {
+  const colorize = (text: string, color: string, options?: { bold?: boolean }): string => {
     const colorCodes: Record<string, string> = {
       // Custom colors with specific RGB values
       '#A65EF6': '\x1b[38;2;166;94;246m',  // Exact logo purple rgb(166,94,246)
@@ -21,7 +21,10 @@ export const useColors = () => {
       'gray': '\x1b[90m'
     };
     
-    return (colorCodes[color] || '') + text + '\x1b[0m';
+    const boldPrefix = options?.bold ? '\x1b[1m' : '';
+    const colorCode = colorCodes[color] || '';
+    
+    return boldPrefix + colorCode + text + '\x1b[0m';
   };
 
   return { colorize };

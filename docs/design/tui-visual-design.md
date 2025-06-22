@@ -87,7 +87,7 @@ Code - Monospace    14px equivalent  ██████████████�
 ### Status Indicators (Simple)
 ```
 ◯◉  Radio buttons (unselected, selected)
-☐☑  Checkboxes (unchecked, checked)
+[ ][✓]  Checkboxes (unchecked, checked) - Clean bracket style
 ⏵⏸⏹  Media controls (play, pause, stop)
 ▸▾▴  Directional arrows (right, down, up)
 ◦•  Bullets (light, heavy)
@@ -152,9 +152,14 @@ Default State:
 │ placeholder text                             │
 ╰──────────────────────────────────────────────╯
 
-Focused State:
+Focused State (Overwrite Mode):
 ╭─ Label ──────────────────────────────────────╮ [blue border]
-│ █cursor here                                 │ [blue cursor]
+│ █placeholder text                            │ [cursor at beginning for overwrite]
+╰──────────────────────────────────────────────╯
+
+Typing State:
+╭─ Label ──────────────────────────────────────╮ [blue border]
+│ user input█                                  │ [cursor at end while typing]
 ╰──────────────────────────────────────────────╯
 
 Error State:
@@ -210,16 +215,16 @@ Model Selection List:
 │ [↑↓] Navigate  [→] Enter  [←/Esc] Back       │
 ╰──────────────────────────────────────────────╯
 
-Checkbox List (Multiple Selection):
+Multi-Select List (Clean Bracket Style):
 ╭─ Language Support ───────────────────────────╮
 │                                              │
 │ Select supported languages:                  │
 │                                              │
-│  ⏵ ☑ English                                │ ← [current position, vibrant cyan bg]
-│  ◦ ☑ Python                                 │ [checked, bright green text]
-│  ◦ ☐ JavaScript                             │
-│  ◦ ☐ Markdown                               │
-│  ◦ ☐ All Languages                          │
+│  ⏵ [✓] English                              │ ← [current position, vibrant cyan bg]
+│  ◦ [✓] Python                               │ [checked, bright green text]
+│  ◦ [ ] JavaScript                           │
+│  ◦ [ ] Markdown                             │
+│  ◦ [ ] All Languages                        │
 │                                              │
 │ [↑↓] Navigate  [Space] Toggle  [Enter] Done  │
 ╰──────────────────────────────────────────────╯
@@ -229,11 +234,11 @@ After Arrow Down + Space:
 │                                              │
 │ Select supported languages:                  │
 │                                              │
-│  ◦ ☑ English                                │ [checked, bright green text]
-│  ⏵ ☑ Python                                 │ ← [current + checked, vibrant cyan bg]
-│  ◦ ☐ JavaScript                             │
-│  ◦ ☐ Markdown                               │
-│  ◦ ☐ All Languages                          │
+│  ◦ [✓] English                              │ [checked, bright green text]
+│  ⏵ [✓] Python                               │ ← [current + checked, vibrant cyan bg]
+│  ◦ [ ] JavaScript                           │
+│  ◦ [ ] Markdown                             │
+│  ◦ [ ] All Languages                        │
 │                                              │
 │ [↑↓] Navigate  [Space] Toggle  [Enter] Done  │
 ╰──────────────────────────────────────────────╯
@@ -248,6 +253,16 @@ Radio Button List (Single Selection):
 │  ◦ ◯ Debug (verbose logging)                │
 │                                              │
 │ [↑↓] Navigate  [→] Enter  [←/Esc] Back       │
+╰──────────────────────────────────────────────╯
+
+Yes/No Questions (Horizontal Layout):
+╭─ Confirmation ───────────────────────────────╮
+│                                              │
+│ Continue with this action?                   │
+│                                              │
+│    ● Yes    ○ No                            │ ← [horizontal layout]
+│                                              │
+│ [←→] Navigate  [Y/N] Quick  [Enter] Confirm  │
 ╰──────────────────────────────────────────────╯
 
 Action List (Command Selection):
@@ -274,8 +289,8 @@ Form Field List (Sequential Navigation):
 │    │ Python web application repository     ││
 │    ╰────────────────────────────────────────╯│
 │                                              │
-│  ◦ Embedding Model:                         │
-│    nomic-embed-text (current)               │
+│  ◦ Language:                                │ [non-selectable label]
+│    ● Multi-language    ○ English only       │ [individual radio options]
 │                                              │
 │  ◦ Server Port:                             │
 │    3000                                      │
@@ -538,16 +553,19 @@ No Tab Navigation - Everything accessible via directional arrows + typing!
 
 ### Progress Bars (Clean & Simple)
 ```
-Standard Progress:
-Progress: [████████░░] 80% Complete
+Progress with Spinner:
+Progress: [████████░░] ⠋ 80% Indexing files...
 
-Indeterminate Progress:
-Loading:  [▓▒░▒▓▒░▒] Please wait...
+Progress with Status Icons:
+Indexing:   [████████░░] ✓ 80% Complete
+Embeddings: [██████████] ✓ 100% Complete
+Startup:    [▓▒░▒▓▒░▒] ⠙ Starting server...
 
 Multi-line Progress:
-Server Status:  [████████░░] 80% Indexing files...
+Server Status:  [████████░░] ⠸ 80% Indexing files...
 Current Task:   Processing document 45/67
-Embeddings:     [██████████] Complete
+Embeddings:     [██████████] ✓ Complete
+Vector Index:   [▓▒░▒▓▒░▒] ⠦ Building spatial index...
 ```
 
 ### Modal Dialogs (Claude Code Style)
@@ -781,6 +799,43 @@ Partial:  #1E40AF (medium blue)
 Empty:    #374151 (dim gray)
 
 NO SPARKLES (✨✦), NO CIRCLES (◦), NO DECORATIVE SYMBOLS
+```
+
+## Improved UX Patterns
+
+### Text Input Behavior
+```
+Overwrite Mode Indication:
+- Cursor blinks at beginning of placeholder
+- Shows intent to replace entire placeholder
+- Stable positioning prevents text jumping
+
+Typing Mode:
+- Cursor moves to end when user starts typing
+- Natural append behavior for continued input
+- Clear visual distinction between modes
+```
+
+### Navigation Improvements
+```
+Individual Radio Options:
+- Each radio choice is separately navigable
+- No confusing group cycling behavior
+- Arrow keys move between actual options
+
+Horizontal Yes/No Layout:
+- Side-by-side presentation
+- Left/right arrows for intuitive navigation
+- Y/N keys for quick selection
+```
+
+### Border Consistency
+```
+Uniform Border Coloring:
+- All border segments use same color
+- Proper padding calculations
+- Consistent right border alignment
+- Visual coherence across all screens
 ```
 
 ## Accessibility Guidelines

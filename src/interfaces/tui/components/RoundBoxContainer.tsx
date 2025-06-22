@@ -10,6 +10,8 @@ interface RoundBoxContainerProps {
   height?: number;
   flexGrow?: number;
   isFocused?: boolean;
+  isFocusable?: boolean;
+  focusHint?: string;  // e.g., "Tab" for the key to focus this element
   scrollPosition?: number;
   content?: string[];
 }
@@ -27,15 +29,26 @@ export const RoundBoxContainer: React.FC<RoundBoxContainerProps> = ({
   height = 10,
   flexGrow,
   isFocused = false,
+  isFocusable = false,
+  focusHint,
   scrollPosition = 0,
   content
 }) => {
   const { colorize } = useColors();
   
-  // Calculate proper dimensions
+  // Calculate proper dimensions and title formatting
   const titleText = title ? ` ${title} ` : '';
+  
+  // Calculate the full title length including hints
+  let fullTitleLength = getDisplayLength(titleText);
+  if (isFocused) {
+    fullTitleLength += getDisplayLength('⁽ⁱⁿ ᶠᵒᶜᵘˢ⁾');
+  } else if (!isFocused && isFocusable && focusHint) {
+    fullTitleLength += getDisplayLength(focusHint);
+  }
+  
   const innerWidth = width - 2; // Space for content (excluding left and right │)
-  const titlePadding = '─'.repeat(Math.max(0, innerWidth - titleText.length));
+  const titlePadding = '─'.repeat(Math.max(0, innerWidth - fullTitleLength));
   
   // Support hex colors through colorize
   const renderBorder = (text: string) => {
@@ -43,6 +56,40 @@ export const RoundBoxContainer: React.FC<RoundBoxContainerProps> = ({
       return colorize(text, borderColor);
     }
     return text; // Let Ink handle standard colors
+  };
+  
+  // Render title with proper styling
+  const renderTitle = () => {
+    if (!title) return '';
+    
+    if (isFocused) {
+      // Bold title when focused, with focus indicator
+      return (
+        <>
+          {borderColor.startsWith('#') 
+            ? colorize(titleText, borderColor, { bold: true })
+            : <Text bold color={borderColor}>{titleText}</Text>
+          }
+          <Text color="gray">⁽ⁱⁿ ᶠᵒᶜᵘˢ⁾</Text>
+        </>
+      );
+    } else if (isFocusable && focusHint) {
+      // Normal title + white hint when focusable but not focused
+      return (
+        <>
+          {borderColor.startsWith('#') 
+            ? colorize(titleText, borderColor)
+            : <Text color={borderColor}>{titleText}</Text>
+          }
+          <Text color="white">{focusHint}</Text>
+        </>
+      );
+    } else {
+      // Normal title
+      return borderColor.startsWith('#') 
+        ? colorize(titleText, borderColor)
+        : <Text color={borderColor}>{titleText}</Text>;
+    }
   };
   
   // Render a single content line with proper padding and scrollbar
@@ -160,8 +207,8 @@ export const RoundBoxContainer: React.FC<RoundBoxContainerProps> = ({
   const clampedScrollPosition = Math.min(scrollPosition, maxScroll);
   const visibleLines = contentLines.slice(clampedScrollPosition, clampedScrollPosition + availableContentHeight - 1);
   
-  // Remove focus indicator from title
-  const titlePaddingFinal = '─'.repeat(Math.max(0, innerWidth - titleText.length));
+  // Use the calculated title padding
+  const titlePaddingFinal = titlePadding;
   
   // Calculate scrollbar
   const canScrollUp = clampedScrollPosition > 0;
@@ -195,12 +242,20 @@ export const RoundBoxContainer: React.FC<RoundBoxContainerProps> = ({
   
   return (
     <Box flexDirection="column" width={width} height={height} flexGrow={flexGrow}>
-      {/* Top border without focus indicator */}
+      {/* Top border with styled title */}
       <Box>
         {borderColor.startsWith('#') ? (
-          <Text>{renderBorder(`╭${titleText}${titlePaddingFinal}╮`)}</Text>
+          <Text>
+            {renderBorder('╭')}
+            {renderTitle()}
+            {renderBorder(titlePaddingFinal + '╮')}
+          </Text>
         ) : (
-          <Text color={borderColor}>{renderBorder(`╭${titleText}${titlePaddingFinal}╮`)}</Text>
+          <Text color={borderColor}>
+            {renderBorder('╭')}
+            {renderTitle()}
+            {renderBorder(titlePaddingFinal + '╮')}
+          </Text>
         )}
       </Box>
       

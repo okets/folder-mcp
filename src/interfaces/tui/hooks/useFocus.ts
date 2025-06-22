@@ -26,6 +26,20 @@ export const useFocus = () => {
     }));
   };
 
+  const focusConfiguration = () => {
+    setFocusState(prev => ({
+      ...prev,
+      currentFocus: 'main'
+    }));
+  };
+
+  const focusStatus = () => {
+    setFocusState(prev => ({
+      ...prev,
+      currentFocus: 'status'
+    }));
+  };
+
   const scrollUp = () => {
     setFocusState(prev => ({
       ...prev,
@@ -69,6 +83,8 @@ export const useFocus = () => {
   return {
     focusState,
     switchFocus,
+    focusConfiguration,
+    focusStatus,
     scrollUp,
     scrollDown,
     resetScroll

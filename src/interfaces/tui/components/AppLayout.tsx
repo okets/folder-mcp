@@ -40,6 +40,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           width={layout.mainWidth}
           height={Math.floor((terminalSize.height - 10) * 0.8)}
           isFocused={focusState?.currentFocus === 'main'}
+          isFocusable={true}
+          {...(focusState?.currentFocus !== 'main' && { focusHint: 'ᵀᵃᵇ⁺ᶜ' })}
           scrollPosition={focusState?.scrollPosition.main || 0}
         >
           {mainChildren}
@@ -53,6 +55,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             width={layout.notificationWidth}
             height={Math.floor((terminalSize.height - 10) * 0.2)}
             isFocused={focusState?.currentFocus === 'status'}
+            isFocusable={true}
+            {...(focusState?.currentFocus !== 'status' && { focusHint: 'ᵀᵃᵇ⁺ˢ' })}
             scrollPosition={focusState?.scrollPosition.status || 0}
           >
             {notificationChildren}
@@ -72,6 +76,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         width={layout.mainWidth}
         height={terminalSize.height - 10}
         isFocused={focusState?.currentFocus === 'main'}
+        isFocusable={true}
+        {...(focusState?.currentFocus !== 'main' && { focusHint: 'ᵀᵃᵇ⁺ᶜ' })}
         scrollPosition={focusState?.scrollPosition.main || 0}
       >
         {mainChildren}
@@ -85,6 +91,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           width={layout.notificationWidth}
           height={terminalSize.height - 10}
           isFocused={focusState?.currentFocus === 'status'}
+          isFocusable={true}
+          {...(focusState?.currentFocus !== 'status' && { focusHint: 'ᵀᵃᵇ⁺ˢ' })}
           scrollPosition={focusState?.scrollPosition.status || 0}
         >
           {notificationChildren}

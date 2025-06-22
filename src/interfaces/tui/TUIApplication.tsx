@@ -1,18 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { ConfigScreen } from './screens/ConfigScreen.js';
 import { Logo } from './components/Logo.js';
+import { StatusBar } from './components/StatusBar.js';
 import { useTerminal } from './hooks/useTerminal.js';
 import { useFocus } from './hooks/useFocus.js';
+import { DIContext, SimpleDIContainer } from './di/DIContext.js';
+import { ShortcutRegistry } from './shortcuts/ShortcutRegistry.js';
+import { WindowProvider } from './shortcuts/providers/WindowProvider.js';
+import { PanelProvider } from './shortcuts/providers/PanelProvider.js';
+import { ShortcutContext, FocusElement } from './shortcuts/types.js';
 
 type AppState = 'welcome' | 'config' | 'main';
 
 export const TUIApplication: React.FC = () => {
   const [currentState, setCurrentState] = useState<AppState>('config');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [tabPressed, setTabPressed] = useState(false);
+  const [tabTimeout, setTabTimeout] = useState<NodeJS.Timeout | null>(null);
   const { size } = useTerminal();
-  const { focusState, switchFocus, scrollUp, scrollDown, resetScroll } = useFocus();
+  const { focusState, switchFocus, focusConfiguration, focusStatus, scrollUp, scrollDown, resetScroll } = useFocus();
+
+  // Setup DI container and shortcut system
+  const diContainer = useMemo(() => {
+    const container = new SimpleDIContainer();
+    const registry = new ShortcutRegistry();
+    
+    // Register providers
+    const windowProvider = new WindowProvider();
+    const configProvider = new PanelProvider('configuration');
+    const statusProvider = new PanelProvider('status');
+    
+    registry.register('window', windowProvider);
+    registry.register('config-panel', configProvider);
+    registry.register('status-panel', statusProvider);
+    
+    container.set('shortcutRegistry', registry);
+    container.set('windowProvider', windowProvider);
+    container.set('configProvider', configProvider);
+    container.set('statusProvider', statusProvider);
+    
+    return container;
+  }, []);
+
+  // Build shortcut context
+  const buildShortcutContext = (): ShortcutContext => {
+    const hierarchy: FocusElement[] = [];
+    const windowProvider = diContainer.get<WindowProvider>('windowProvider')!;
+    const configProvider = diContainer.get<PanelProvider>('configProvider')!;
+    const statusProvider = diContainer.get<PanelProvider>('statusProvider')!;
+    
+    // Add focus hierarchy (most specific first)
+    if (focusState.currentFocus === 'main') {
+      hierarchy.push({ id: 'configuration', type: 'panel', provider: configProvider });
+    } else if (focusState.currentFocus === 'status') {
+      hierarchy.push({ id: 'status', type: 'panel', provider: statusProvider });
+    }
+    
+    // Always add window as base level
+    hierarchy.push({ id: 'window', type: 'window', provider: windowProvider });
+    
+    return {
+      focusHierarchy: hierarchy,
+      globalState: {
+        canScroll: true,
+        canNavigate: true,
+        isEditing: false,
+        currentFocus: focusState.currentFocus
+      }
+    };
+  };
+
+  const shortcutContext = buildShortcutContext();
 
   useEffect(() => {
     // Simulate initialization
@@ -37,8 +97,36 @@ export const TUIApplication: React.FC = () => {
     
     // Focus and scroll controls (only in config state)
     if (currentState === 'config') {
+      // Tab combination handling
       if (key.tab || input === '\t') {
-        switchFocus();
+        if (!tabPressed) {
+          setTabPressed(true);
+          // Set a timeout to handle single Tab press
+          const timeout = setTimeout(() => {
+            switchFocus();
+            setTabPressed(false);
+            setTabTimeout(null);
+          }, 300); // 300ms window for combination
+          setTabTimeout(timeout);
+        }
+      } else if (tabPressed) {
+        // Clear the timeout since we have a combination
+        if (tabTimeout) {
+          clearTimeout(tabTimeout);
+          setTabTimeout(null);
+        }
+        
+        // Handle Tab + key combinations
+        if (input.toLowerCase() === 'c') {
+          focusConfiguration();
+          setTabPressed(false);
+        } else if (input.toLowerCase() === 's') {
+          focusStatus();
+          setTabPressed(false);
+        } else {
+          // Any other key cancels Tab mode
+          setTabPressed(false);
+        }
       } else if (key.pageUp || (key.ctrl && input === 'u')) {
         scrollUp();
       } else if (key.pageDown || (key.ctrl && input === 'd')) {
@@ -82,14 +170,9 @@ export const TUIApplication: React.FC = () => {
               />
             </Box>
             
-            {/* Status bar at bottom */}
+            {/* Dynamic status bar at bottom */}
             <Box>
-              <Box paddingX={1} justifyContent="space-between">
-                <Text color="gray">folder-mcp TUI v1.0.0</Text>
-                <Text color="gray">
-                  Tab: Switch Focus • ↑↓/PgUp/PgDn: Scroll • q: Quit
-                </Text>
-              </Box>
+              <StatusBar context={shortcutContext} />
             </Box>
           </Box>
         );
@@ -107,8 +190,10 @@ export const TUIApplication: React.FC = () => {
   };
 
   return (
-    <Box width={size.width} height={size.height}>
-      {renderCurrentScreen()}
-    </Box>
+    <DIContext.Provider value={diContainer}>
+      <Box width={size.width} height={size.height}>
+        {renderCurrentScreen()}
+      </Box>
+    </DIContext.Provider>
   );
 };
