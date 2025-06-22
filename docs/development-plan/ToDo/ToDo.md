@@ -1,14 +1,36 @@
 State of my project now:
 MCP server is running,  Claude Desktop is connected
 
-TUI Demo notes:
-- progress bars: Roll back the pazzaz! just subtle changes of color! thats it. but with a gradient of brightness.
 - Add breadcrumbs to the top of the screen path devided by a diamond bullet shape
-- Interactive Toggles: mark current selection as a highlighted color without background.
-- Interactive Toggles: checkmarks are tiny, use other signs.
-- Form elements: it doesn't work, cant make a selection.
 
-Rounded corners borders works great, but the vertical lines (left, right) are gray and don't match the horizontal lines (top, bottom) colors. sometimes the right one is misalligned.
+TUI (Text User Interface) main Screen design ToDo:
+
+### Scrolling and Navigation Vision
+
+- The current scrolling behavior moves up and down by text lines, but this limits our ability to use the up and down arrows for more intuitive actions.
+- We should change scrolling so that, instead of moving one line at a time, pressing the up or down arrow brings the current element fully into view:
+    - Pressing up brings the current element to the top of the screen. (only if the current element is not already visible of course)
+    - Pressing down brings the current element to the bottom. (only if the current element is not already visible of course)
+- To support this, introduce an abstraction called a "round-box-element":
+    - Only "round-box-element" types can be children of a round-box.
+    - Elements can be various things (e.g., list items).
+- Navigation and focus:
+    - When navigating with up/down, the focused "round-box-element" receives a "focused" event and can visually indicate focus (e.g., highlight/change bullet color...whatever looks best for this element).
+    - Once focused, pressing right arrow or [Enter] makes the element "Active".
+    - Pressing left arrow or [Esc] exits the "Active" state, returning to the truncated view but keeping the element focused.
+- Our first round-box-element will be "list-item":
+    (In the status round-box, there are many list items (with bullets) that are perfect candidates for round-box-elements.)
+    - When focused, the line or bullet can change color.
+    - When "Active", the list-item expands to show its full content, wrapping text as needed and expanding vertically.
+    - While "Active", scrolling within the element is line-by-line if the content overflows the parent round-box.
+    This complements our override mechanism for current active keyboard shortcuts (includeing the status row that shows the current active keyboard shortcuts).
+    When the round-box-container itself is active (for round-box-containers, Active also=Focused BTW) it shows:
+    [↑↓/PgUp/PgDn] Next/Prev, [←] Back, [→/Enter] Open.
+    when a round-box-element is active, it shows:
+    [↑↓] Scroll, [←/Esc] Back.
+- Replace all content of the Configuration and Status round-boxes with round-box-elements (just list-items for now, some with long text for debugging scroll).
+
+
 --------------
 
 # Implementation Roadmap
