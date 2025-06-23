@@ -1,18 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { ShortcutContext } from '../shortcuts/types.js';
-import { useShortcuts } from '../shortcuts/hooks/useShortcuts.js';
+import { KeyboardManager } from '../keyboard/KeyboardManager.js';
 
-interface StatusBarProps {
-  context: ShortcutContext;
-  version?: string;
-}
-
-export const StatusBar: React.FC<StatusBarProps> = ({ 
-  context, 
-  version = 'v1.0.0' 
-}) => {
-  const { shortcuts } = useShortcuts(context);
+export const StatusBar: React.FC = () => {
+  const [renderTrigger, setRenderTrigger] = useState(0);
+  
+  // Register for updates from KeyboardManager
+  useEffect(() => {
+    const keyboardManager = KeyboardManager.getInstance();
+    const renderCallback = () => setRenderTrigger(prev => prev + 1);
+    keyboardManager.addRenderCallback(renderCallback);
+    
+    return () => {
+      keyboardManager.removeRenderCallback(renderCallback);
+    };
+  }, []);
+  
+  const shortcuts = KeyboardManager.getInstance().getStatusBarShortcuts();
   
   // Format shortcuts with bold keys in brackets
   const formatShortcut = (shortcut: { key: string; description: string }) => (

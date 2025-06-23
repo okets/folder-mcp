@@ -7,6 +7,7 @@ import { KeyboardHandler } from '../keyboard/KeyboardHandler.js';
 import { RoundBoxContainer } from '../components/roundbox/RoundBoxContainer.js';
 import { VisualElement } from '../components/VisualElement.js';
 import { KeyBinding, KeyboardManager } from '../keyboard/KeyboardManager.js';
+import { useVisualElement } from '../hooks/useVisualElement.js';
 
 interface ConfigScreenProps {
   terminalSize: TerminalSize;
@@ -40,30 +41,42 @@ class ConfigScreenElement extends VisualElement {
   }
 
   processKeystroke(key: string): boolean {
-    console.error(`ConfigScreenElement: Processing "${key}"`);
-    
-    // Handle tab navigation
+    // Handle tab navigation to switch between containers
     if (key === 'tab') {
-      console.error('ConfigScreenElement: Tab will be handled by parent');
-      // This will be handled by parent TUIApplication
-      return false;
-    }
-    
-    // Delegate to active container based on focus
-    const activeContainer = this.focusState?.currentFocus === 'main' ? 
-      this.configContainer : this.statusContainer;
-    
-    console.error(`ConfigScreenElement: Delegating to ${activeContainer?.constructor.name || 'none'} (focus: ${this.focusState?.currentFocus})`);
-    
-    if (activeContainer && activeContainer.processKeystroke(key)) {
-      console.error(`ConfigScreenElement: Container handled "${key}"`);
+      const keyboardManager = KeyboardManager.getInstance();
+      
+      // Switch between config and status containers
+      if (this.focusState?.currentFocus === 'main') {
+        keyboardManager.setActiveElement(this.statusContainer);
+        // Update legacy focus state for display
+        if (this.focusState) {
+          this.focusState.currentFocus = 'status';
+        }
+      } else {
+        keyboardManager.setActiveElement(this.configContainer);
+        // Update legacy focus state for display
+        if (this.focusState) {
+          this.focusState.currentFocus = 'main';
+        }
+      }
+      
       if (this.onRender) {
         this.onRender();
       }
       return true;
     }
     
-    console.error(`ConfigScreenElement: Container did not handle "${key}"`);
+    // Delegate to active container based on focus
+    const activeContainer = this.focusState?.currentFocus === 'main' ? 
+      this.configContainer : this.statusContainer;
+    
+    if (activeContainer && activeContainer.processKeystroke(key)) {
+      if (this.onRender) {
+        this.onRender();
+      }
+      return true;
+    }
+    
     return false;
   }
 
@@ -86,7 +99,7 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
   focusState,
   tuiAppElement
 }) => {
-  console.error(`ConfigScreen: Rendering with focusState.currentFocus = ${focusState.currentFocus}`);
+  // ConfigScreen rendering
   // Static data - raw data for round-box-elements
   const configItemsData = useMemo(() => [
     { 
@@ -159,8 +172,6 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
   ], []);
 
   // Create VisualElement instances
-  const [renderTrigger, setRenderTrigger] = React.useState(0);
-  
   const configScreenElement = useMemo(() => {
     return new ConfigScreenElement();
   }, []);
@@ -177,13 +188,30 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
     return container;
   }, []); // Remove dependency on statusItemsData since it's stable
 
+  // Use React hooks to subscribe to container changes
+  const observedConfigContainer = useVisualElement(configContainer);
+  const observedStatusContainer = useVisualElement(statusContainer);
+
   // Setup ConfigScreen element hierarchy
   useEffect(() => {
     configScreenElement.setContainers(configContainer, statusContainer);
-    configScreenElement.setFocusState(focusState, () => setRenderTrigger(prev => prev + 1));
+    configScreenElement.setFocusState(focusState, () => {}); // Empty callback since we use the hook now
     
     // Add ConfigScreen as child of TUIApplication
     tuiAppElement.addChild(configScreenElement);
+    
+    // Set initial active element based on focusState
+    // Using setImmediate to ensure React has finished rendering
+    const keyboardManager = KeyboardManager.getInstance();
+    setImmediate(() => {
+      console.error('ConfigScreen: Setting initial active element, focusState:', focusState.currentFocus);
+      if (focusState.currentFocus === 'main') {
+        console.error('ConfigScreen: Setting configContainer as active');
+        keyboardManager.setActiveElement(configContainer);
+      } else if (focusState.currentFocus === 'status') {
+        keyboardManager.setActiveElement(statusContainer);
+      }
+    });
     
     return () => {
       tuiAppElement.removeChild(configScreenElement);
@@ -193,60 +221,69 @@ export const ConfigScreen: React.FC<ConfigScreenProps> = ({
   // Update ConfigScreen's focus state when focus changes
   useEffect(() => {
     try {
-      console.error(`ConfigScreen: useEffect triggered with focusState.currentFocus = ${focusState.currentFocus}`);
-      console.error(`ConfigScreen: configContainer = ${configContainer ? configContainer.constructor.name : 'null'}, statusContainer = ${statusContainer ? statusContainer.constructor.name : 'null'}`);
-      
       // Update the ConfigScreenElement's internal state
-      configScreenElement.setFocusState(focusState, () => setRenderTrigger(prev => prev + 1));
+      configScreenElement.setFocusState(focusState, () => {}); // Empty callback since we use the hook
       
       // Set the appropriate container as the active element in KeyboardManager
       const keyboardManager = KeyboardManager.getInstance();
-      console.error(`ConfigScreen: KeyboardManager instance obtained`);
       
       if (focusState.currentFocus === 'main') {
-        console.error('ConfigScreen: About to set config container as active');
         keyboardManager.setActiveElement(configContainer);
-        console.error('ConfigScreen: Config container set as active');
       } else if (focusState.currentFocus === 'status') {
-        console.error('ConfigScreen: About to set status container as active');
         keyboardManager.setActiveElement(statusContainer);
-        console.error('ConfigScreen: Status container set as active');
       }
-      
-      // Trigger re-render
-      setRenderTrigger(prev => prev + 1);
     } catch (error) {
-      console.error(`ConfigScreen: Error in useEffect:`, error);
+      // Silently handle error
     }
   }, [focusState.currentFocus, configScreenElement, configContainer, statusContainer]);
 
-  // Generate content - Re-render on focus or navigation changes
+  // Generate content - Re-render when containers change
   const configContent = useMemo(() => {
-    return configContainer.getRenderContent();
-  }, [configContainer, focusState.currentFocus, renderTrigger]);
+    return observedConfigContainer.getRenderContent();
+  }, [observedConfigContainer]);
 
   const statusContent = useMemo(() => {
-    return statusContainer.getRenderContent();
-  }, [statusContainer, focusState.currentFocus]); // Remove renderTrigger dependency for status
+    return observedStatusContainer.getRenderContent();
+  }, [observedStatusContainer]);
 
   // Convert string arrays to React elements for AppLayout
   const mainContent = (
     <Box flexDirection="column" paddingY={1}>
-      {configContent.map((line: string, index: number) => (
-        <Box key={index}>
-          <Text>{line}</Text>
-        </Box>
-      ))}
+      {configContent.map((line: string, index: number) => {
+        // Check if this line contains ANSI color codes for royal blue
+        const hasRoyalBlue = line.includes('\x1b[38;2;65;105;225m');
+        const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
+        
+        return (
+          <Box key={index}>
+            {hasRoyalBlue ? (
+              <Text color="#4169E1">{cleanLine}</Text>
+            ) : (
+              <Text>{cleanLine}</Text>
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 
   const notificationContent = (
     <Box flexDirection="column" paddingY={1}>
-      {statusContent.map((line: string, index: number) => (
-        <Box key={index}>
-          <Text>{line}</Text>
-        </Box>
-      ))}
+      {statusContent.map((line: string, index: number) => {
+        // Check if this line contains ANSI color codes for royal blue
+        const hasRoyalBlue = line.includes('\x1b[38;2;65;105;225m');
+        const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
+        
+        return (
+          <Box key={index}>
+            {hasRoyalBlue ? (
+              <Text color="#4169E1">{cleanLine}</Text>
+            ) : (
+              <Text>{cleanLine}</Text>
+            )}
+          </Box>
+        );
+      })}
     </Box>
   );
 

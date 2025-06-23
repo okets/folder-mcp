@@ -1,5 +1,5 @@
 import { VisualElement } from '../VisualElement.js';
-import { KeyBinding } from '../../keyboard/KeyboardManager.js';
+import { KeyBinding, KeyboardManager } from '../../keyboard/KeyboardManager.js';
 
 export interface RoundBoxElementData {
   content: string;
@@ -27,7 +27,12 @@ export class RoundBoxElement extends VisualElement {
         return this.scrollDown();
       case 'escape':
       case 'left':
-        // Deactivate this element - handled by parent container
+        // Deactivate this element and make parent active
+        if (this._parent) {
+          const keyboardManager = KeyboardManager.getInstance();
+          keyboardManager.setActiveElement(this._parent);
+          return true;
+        }
         return false;
       default:
         return false;

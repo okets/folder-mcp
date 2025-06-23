@@ -11,6 +11,339 @@ The TUI is built on a hierarchical system of VisualElements where keyboard contr
 3. **Focus propagates up the entire parent chain** - when an element is InFocus, all its ancestors are too
 4. **The Active element decides everything** - it receives all keystrokes first and chooses what to do
 
+## Neo-Blessed Implementation Strategy
+
+### Why Neo-Blessed?
+
+Neo-blessed provides the perfect foundation for our VisualElement architecture:
+- **Imperative API**: Direct control over rendering and state
+- **Built-in focus system**: Only one element can be focused (matches our Active concept)
+- **Event bubbling**: Events propagate up the widget tree naturally
+- **Custom widgets**: Easy to extend blessed.Element for our VisualElements
+- **No virtual DOM**: We control exactly when to render
+
+### Mapping Our Design to Neo-Blessed
+
+| Our Concept | Neo-Blessed Equivalent |
+|-------------|----------------------|
+| VisualElement | blessed.Element (extended) |
+| Active element | Focused element in blessed |
+| processKeystroke() | element.key() handlers |
+| getRenderContent() | element.setContent() / render |
+| Parent/child hierarchy | Built-in widget tree |
+| KeyboardManager | blessed.screen + focus events |
+| Royal blue focus | style.focus property |
+
+### Implementation Steps
+
+#### Step 1: Create Base VisualElement Wrapper
+```javascript
+const blessed = require('neo-blessed');
+
+class VisualElement extends blessed.Box {
+  constructor(options) {
+    super({
+      ...options,
+      keys: true,
+      mouse: true
+    });
+    
+    // Map our concepts to blessed
+    this._isActive = false;
+    this._isFocused = false;
+    
+    // Hook into blessed's focus system
+    this.on('focus', () => {
+      this._isActive = true;
+      this.onActivated();
+      this.propagateFocusUp();
+    });
+    
+    this.on('blur', () => {
+      this._isActive = false;
+      this.onDeactivated();
+    });
+  }
+  
+  // Our abstract methods (to be overridden)
+  onActivated() {}
+  onDeactivated() {}
+  onFocused() {}
+  onBlurred() {}
+  
+  // Map processKeystroke to blessed's key handling
+  processKeystroke(key) {
+    // Implemented via this.key() in subclasses
+  }
+}
+```
+
+#### Step 2: Implement RoundBoxContainer
+```javascript
+class RoundBoxContainer extends VisualElement {
+  constructor(options) {
+    super({
+      ...options,
+      label: options.title,
+      border: {
+        type: 'line',
+        fg: '#A65EF6'  // Purple border
+      },
+      style: {
+        focus: {
+          border: {
+            fg: '#4169E1'  // Royal blue when focused!
+          }
+        }
+      }
+    });
+    
+    this.items = [];
+    this.selectedIndex = 0;
+    
+    // Navigation keys
+    this.key(['up', 'k'], () => this.selectPrevious());
+    this.key(['down', 'j'], () => this.selectNext());
+    this.key(['right', 'enter', 'l'], () => this.activateSelected());
+    this.key(['left', 'escape', 'h'], () => this.deactivateToParent());
+  }
+  
+  addItem(item) {
+    const listItem = new ListItem({
+      content: item.content,
+      parent: this,
+      top: this.items.length,
+      height: 1
+    });
+    
+    this.items.push(listItem);
+    this.updateVisualState();
+  }
+  
+  selectPrevious() {
+    if (this.selectedIndex > 0) {
+      this.selectedIndex--;
+      this.updateVisualState();
+    }
+  }
+  
+  selectNext() {
+    if (this.selectedIndex < this.items.length - 1) {
+      this.selectedIndex++;
+      this.updateVisualState();
+    }
+  }
+  
+  activateSelected() {
+    const selected = this.items[this.selectedIndex];
+    if (selected) {
+      selected.focus();  // Blessed handles focus transfer
+    }
+  }
+  
+  updateVisualState() {
+    this.items.forEach((item, index) => {
+      item.setSelected(index === this.selectedIndex);
+    });
+    this.screen.render();
+  }
+}
+```
+
+#### Step 3: Implement ListItem
+```javascript
+class ListItem extends VisualElement {
+  constructor(options) {
+    super({
+      ...options,
+      height: 'shrink',
+      style: {
+        fg: 'white',
+        focus: {
+          fg: '#4169E1',  // Royal blue text when active
+          bold: true
+        }
+      }
+    });
+    
+    this.fullContent = options.fullContent || options.content;
+    this.collapsed = true;
+    this.selected = false;
+    
+    // Content control keys
+    this.key(['up', 'k'], () => this.scrollUp());
+    this.key(['down', 'j'], () => this.scrollDown());
+    this.key(['left', 'escape', 'h'], () => this.deactivateToParent());
+    
+    this.updateContent();
+  }
+  
+  setSelected(selected) {
+    this.selected = selected;
+    this.updateContent();
+  }
+  
+  onActivated() {
+    this.collapsed = false;
+    this.updateContent();
+  }
+  
+  onDeactivated() {
+    this.collapsed = true;
+    this.updateContent();
+  }
+  
+  updateContent() {
+    const bullet = this.focused ? '●' : (this.selected ? '→' : '•');
+    const content = this.collapsed ? 
+      `${bullet} ${this.content}` : 
+      this.fullContent;
+    
+    this.setContent(content);
+    this.screen.render();
+  }
+  
+  deactivateToParent() {
+    if (this.parent) {
+      this.parent.focus();  // Return focus to container
+    }
+  }
+}
+```
+
+#### Step 4: Create the Screen and Application
+```javascript
+class TUIApplication {
+  constructor() {
+    // Create the blessed screen
+    this.screen = blessed.screen({
+      smartCSR: true,
+      title: 'Folder MCP',
+      fullUnicode: true
+    });
+    
+    // Global quit
+    this.screen.key(['q', 'C-c'], () => {
+      process.exit(0);
+    });
+    
+    // Create main container
+    this.configContainer = new RoundBoxContainer({
+      parent: this.screen,
+      label: ' Configuration ',
+      left: 0,
+      top: 2,
+      width: '70%',
+      height: '80%'
+    });
+    
+    // Add items
+    configItems.forEach(item => {
+      this.configContainer.addItem(item);
+    });
+    
+    // Create status bar
+    this.statusBar = blessed.box({
+      parent: this.screen,
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 1,
+      style: {
+        fg: 'white',
+        bg: 'blue'
+      }
+    });
+    
+    // Update status bar on focus changes
+    this.screen.on('element focus', (el) => {
+      this.updateStatusBar(el);
+    });
+    
+    // Initial focus
+    this.configContainer.focus();
+    this.screen.render();
+  }
+  
+  updateStatusBar(activeElement) {
+    const shortcuts = [];
+    let current = activeElement;
+    
+    // Collect shortcuts up the chain
+    while (current) {
+      if (current.getShortcuts) {
+        shortcuts.push(...current.getShortcuts());
+      }
+      current = current.parent;
+    }
+    
+    this.statusBar.setContent(
+      shortcuts.map(s => `${s.key}: ${s.desc}`).join(' | ')
+    );
+    this.screen.render();
+  }
+}
+```
+
+#### Step 5: Visual Styling
+```javascript
+// Royal blue focus throughout the app
+const theme = {
+  colors: {
+    primary: '#A65EF6',      // Purple
+    focus: '#4169E1',        // Royal blue
+    warning: '#F59E0B',      // Orange
+    text: '#FFFFFF',         // White
+    muted: '#9CA3AF'         // Gray
+  },
+  
+  // Component styles
+  container: {
+    border: {
+      type: 'line',
+      fg: '#A65EF6'
+    },
+    style: {
+      focus: {
+        border: { fg: '#4169E1' }  // Royal blue border when focused
+      }
+    }
+  },
+  
+  listItem: {
+    style: {
+      fg: 'white',
+      selected: {
+        fg: '#4169E1',  // Royal blue text
+        bold: true
+      },
+      focus: {
+        bg: '#4169E1',  // Royal blue background
+        fg: 'white',
+        bold: true
+      }
+    }
+  }
+};
+```
+
+### Key Advantages Over React/Ink
+
+1. **Direct Focus Control**: `element.focus()` just works
+2. **Event Bubbling**: Return false to stop propagation
+3. **No Re-render Issues**: `screen.render()` when you want
+4. **Style Inheritance**: Focus styles cascade naturally
+5. **Keyboard Handling**: Built-in key binding system
+6. **Royal Blue Works**: Just set `style.focus.fg`
+
+### Migration Path
+
+1. **Remove all React/Ink dependencies**
+2. **Create blessed-based VisualElement base class**
+3. **Port existing components one by one**
+4. **Leverage blessed's built-in focus system**
+5. **Royal blue focus works immediately!**
+
 ## VisualElement Base Class
 
 ```typescript

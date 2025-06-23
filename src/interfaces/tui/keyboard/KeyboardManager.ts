@@ -17,6 +17,7 @@ export interface IVisualElement {
 export class KeyboardManager {
   private static instance: KeyboardManager;
   private activeElement: IVisualElement | null = null;
+  private renderCallbacks: (() => void)[] = [];
 
   private constructor() {}
 
@@ -31,11 +32,8 @@ export class KeyboardManager {
    * Set the currently active element (only ONE can be active at any time)
    */
   public setActiveElement(element: IVisualElement | null): void {
-    console.error(`KeyboardManager: setActiveElement called with ${element ? element.constructor.name + '(' + (element as any).id + ')' : 'null'}`);
-    
     // Deactivate previous active element
     if (this.activeElement && this.activeElement !== element) {
-      console.error(`KeyboardManager: Deactivating previous element ${this.activeElement.constructor.name}(${(this.activeElement as any).id})`);
       this.activeElement.setActive(false);
     }
     
@@ -43,10 +41,12 @@ export class KeyboardManager {
     
     // Activate new element and propagate focus up the chain
     if (element) {
-      console.error(`KeyboardManager: Activating element ${element.constructor.name}(${(element as any).id})`);
       element.setActive(true);
       this.propagateFocusToParentChain(element);
     }
+    
+    // Trigger re-render
+    this.triggerRender();
   }
 
   /**
@@ -61,7 +61,12 @@ export class KeyboardManager {
    */
   public processKeystroke(key: string): boolean {
     if (this.activeElement) {
-      return this.activeElement.processKeystroke(key);
+      const handled = this.activeElement.processKeystroke(key);
+      if (handled) {
+        // Trigger re-render after successful keystroke handling
+        this.triggerRender();
+      }
+      return handled;
     }
     return false;
   }
@@ -132,5 +137,35 @@ export class KeyboardManager {
     if (parent) {
       this.collectShortcutsFromChain(parent, shortcuts, visited);
     }
+  }
+
+  /**
+   * Add a render callback that will be called when UI updates are needed
+   */
+  public addRenderCallback(callback: () => void): void {
+    this.renderCallbacks.push(callback);
+  }
+
+  /**
+   * Remove a render callback
+   */
+  public removeRenderCallback(callback: () => void): void {
+    const index = this.renderCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.renderCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
+   * Trigger all render callbacks
+   */
+  private triggerRender(): void {
+    this.renderCallbacks.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('KeyboardManager: Error in render callback:', error);
+      }
+    });
   }
 }

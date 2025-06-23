@@ -7,6 +7,7 @@ export abstract class VisualElement implements IVisualElement {
   protected _parent: VisualElement | null = null;
   protected _children: VisualElement[] = [];
   public keyboardManager: KeyboardManager;
+  private listeners: Set<() => void> = new Set();
 
   constructor(id: string) {
     this._id = id;
@@ -53,13 +54,20 @@ export abstract class VisualElement implements IVisualElement {
 
   // State management - enforced by KeyboardManager
   setActive(active: boolean): void { 
-    this._active = active;
+    if (this._active !== active) {
+      this._active = active;
+      console.error(`VisualElement[${this.id}].setActive: ${active}, notifying ${this.listeners.size} listeners`);
+      this.notifyChange();
+    }
     // NOTE: Do NOT call keyboardManager.setActiveElement here as it creates circular dependency
     // KeyboardManager should call setActive directly
   }
 
   setFocused(focused: boolean): void { 
-    this._focused = focused; 
+    if (this._focused !== focused) {
+      this._focused = focused;
+      this.notifyChange();
+    }
   }
 
   // Child management
@@ -76,6 +84,16 @@ export abstract class VisualElement implements IVisualElement {
       this._children.splice(index, 1);
       child._parent = null;
     }
+  }
+
+  // Event system for React integration
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  protected notifyChange(): void {
+    this.listeners.forEach(listener => listener());
   }
 
   // Abstract methods that must be implemented

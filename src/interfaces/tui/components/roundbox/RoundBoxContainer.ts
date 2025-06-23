@@ -46,7 +46,24 @@ export class RoundBoxContainer extends VisualElement {
   }
 
   getRenderContent(): string[] {
-    return this.elements.flatMap(element => element.getRenderContent());
+    // Debug: log active state
+    console.error(`RoundBoxContainer[${this.id}].getRenderContent: active=${this.active}, focusedIndex=${this.focusedIndex}`);
+    
+    return this.elements.flatMap((element, index) => {
+      // When container is active and no child is active, show navigation arrows
+      if (this.active && !this.activeElement && index === this.focusedIndex) {
+        const content = element.getRenderContent();
+        // Replace the bullet with navigation arrow for focused item and apply royal blue color
+        return content.map(line => {
+          // Remove any existing color codes first
+          const cleanLine = line.replace(/\x1b\[[0-9;]*m/g, '');
+          const lineWithArrow = cleanLine.replace(/^[•◦●]/, '→');
+          // Apply royal blue color to the focused item
+          return `\x1b[38;2;65;105;225m${lineWithArrow}\x1b[0m`;
+        });
+      }
+      return element.getRenderContent();
+    });
   }
 
   getRenderState() {
@@ -95,7 +112,7 @@ export class RoundBoxContainer extends VisualElement {
     if (this.focusedIndex > 0) {
       this.focusedIndex--;
       this.updateElementFocus();
-      // Do NOT set child as active - just update visual focus
+      this.notifyChange(); // Trigger React re-render
       return true;
     }
     return false;
@@ -109,21 +126,23 @@ export class RoundBoxContainer extends VisualElement {
     if (this.focusedIndex < this.elements.length - 1) {
       this.focusedIndex++;
       this.updateElementFocus();
-      // Do NOT set child as active - just update visual focus
+      this.notifyChange(); // Trigger React re-render
       return true;
     }
     return false;
   }
 
   private activateCurrentElement(): boolean {
-    if (this.focusedIndex >= 0 && this.focusedIndex < this.elements.length) {
-      const element = this.elements[this.focusedIndex];
-      if (element) {
-        this.activeElement = element;
-        // Use KeyboardManager to set as active element
-        this.keyboardManager.setActiveElement(element);
-        return true;
-      }
+    if (this.elements.length === 0 || this.focusedIndex < 0 || this.focusedIndex >= this.elements.length) {
+      return false;
+    }
+    
+    const element = this.elements[this.focusedIndex];
+    if (element) {
+      this.activeElement = element;
+      this.keyboardManager.setActiveElement(element);
+      this.notifyChange(); // Trigger React re-render
+      return true;
     }
     return false;
   }
@@ -134,6 +153,7 @@ export class RoundBoxContainer extends VisualElement {
       this.activeElement = null;
       // Return focus to this container
       this.keyboardManager.setActiveElement(this);
+      this.notifyChange(); // Trigger React re-render
       return true;
     }
     return false;
@@ -155,11 +175,9 @@ export class RoundBoxContainer extends VisualElement {
   }
 
   private updateElementFocus(): void {
-    console.error(`RoundBoxContainer: updateElementFocus - active: ${this.active}, focusedIndex: ${this.focusedIndex}, elements: ${this.elements.length}`);
     this.elements.forEach((element, index) => {
       // An element should be focused if it's the currently focused index and the container is active
       const shouldBeFocused = index === this.focusedIndex && this.active;
-      console.error(`RoundBoxContainer: Element ${index} (${element.id}) shouldBeFocused: ${shouldBeFocused}`);
       element.setFocused(shouldBeFocused);
     });
   }
@@ -170,13 +188,9 @@ export class RoundBoxContainer extends VisualElement {
     
     if (active && this.elements.length > 0) {
       // Ensure we have a valid focused index
-      if (this.focusedIndex === -1) {
+      if (this.focusedIndex === -1 || this.focusedIndex >= this.elements.length) {
         this.focusedIndex = 0;
       }
-      
-      // When container becomes active, do NOT delegate to child
-      // The container itself should handle navigation until user presses right/enter
-      // Only set visual focus on the focused child
     } else if (!active) {
       // When container becomes inactive, deactivate any active child
       if (this.activeElement) {
