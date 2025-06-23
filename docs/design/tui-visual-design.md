@@ -17,7 +17,7 @@ This document defines the visual design system for the folder-mcp TUI interface,
 ```
 Primary Blue    #3B82F6  [bright-blue]     ██████ Action items, primary buttons
 Secondary Blue  #1E40AF  [blue]            ██████ Secondary elements, borders
-Accent Cyan     #06B6D4  [cyan]            ██████ Highlights, success states
+Purple #780b7c  [purple]                   ██████ Highlights, success states
 ```
 
 ### Status Colors

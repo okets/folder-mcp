@@ -11,6 +11,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
+    "tui": "npm run build && node dist/src/interfaces/tui/index.js",
     "test-embeddings": "node dist/cli.js test-embeddings",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -51,6 +52,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "@types/blessed": "^0.1.25",
     "@types/chokidar": "^2.1.7",
     "@types/js-yaml": "^4.0.9",
     "@types/xlsx": "^0.0.35",
@@ -63,6 +65,7 @@
     "js-yaml": "^4.1.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.9.1",
+    "neo-blessed": "^0.2.0",
     "pdf-parse": "^1.1.1",
     "pizzip": "^3.2.0",
     "xlsx": "^0.18.5",
