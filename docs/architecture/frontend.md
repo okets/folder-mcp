@@ -1,5 +1,44 @@
 # TUI Frontend Architecture
 
+## Target UI Design
+
+```
+╭────────────────╮
+│ 📁 folder-mcp  │
+╰────────────────╯
+
+╭ Configuration ⁽ⁱⁿ ᶠᵒᶜᵘˢ⁾────────────────────────────────────────────────────────────╮  ╭ Status ᵀᵃᵇ⁺ˢ───────────────╮
+│                                                                                     │  │                            │
+│ • Create optimized configuration for my machine                                     │  │                            │
+│                                                                                     │  │ All core components ha...  │
+│ Will detect:                                                                        │  │                            │
+│ • Available memory                                                                  │  │ • Checking cached conf...  │
+│ • Select embedding model manually                                                   │  │ • Loading default sett...  │
+│ • Configure advanced options                                                        │  │ • Validating embedding...  │
+│ • Set custom cache directory                                                        │  │                            │
+│ • Configure network timeouts                                                        │  │                            │
+│ • Enable debug logging                                                              │  │                            │
+│ • Set memory limits                                                                 │  │                            │
+│ • Load from existing config file                                                    │  │                            │
+│ • Reset to factory defaults                                                         │  │                            │
+│ • Export current configuration                                                      │  │                            │
+│ • Run configuration wizard                                                          │  │                            │
+│                                                                                     │  │                            │
+╰─────────────────────────────────────────────────────────────────────────────────────╯  ╰────────────────────────────╯
+
+
+
+
+
+ [Tab] Switch Focus • [Tab+S] Focus Status • [↑↓/PgUp/PgDn] Scroll • [Enter] Select Option • [q] Quit
+```
+
+This is our first goal - creating this exact interface using neo-blessed. Note the visual indicators:
+- The Configuration container shows ⁽ⁱⁿ ᶠᵒᶜᵘˢ⁾ indicator
+- The Status container shows ᵀᵃᵇ⁺ˢ shortcut hint
+- The status bar at the bottom shows context-aware keyboard shortcuts
+- Royal blue (#4169E1) focus color will highlight the active container border
+
 ## Core Concept: VisualElement Hierarchy
 
 The TUI is built on a hierarchical system of VisualElements where keyboard control and focus management follow strict rules.
@@ -327,22 +366,14 @@ const theme = {
 };
 ```
 
-### Key Advantages Over React/Ink
+### Key Features of Neo-Blessed
 
-1. **Direct Focus Control**: `element.focus()` just works
-2. **Event Bubbling**: Return false to stop propagation
-3. **No Re-render Issues**: `screen.render()` when you want
-4. **Style Inheritance**: Focus styles cascade naturally
-5. **Keyboard Handling**: Built-in key binding system
-6. **Royal Blue Works**: Just set `style.focus.fg`
-
-### Migration Path
-
-1. **Remove all React/Ink dependencies**
-2. **Create blessed-based VisualElement base class**
-3. **Port existing components one by one**
-4. **Leverage blessed's built-in focus system**
-5. **Royal blue focus works immediately!**
+1. **Direct Focus Control**: `element.focus()` transfers focus immediately
+2. **Event Bubbling**: Return false from any handler to stop propagation
+3. **Imperative Rendering**: Call `screen.render()` exactly when needed
+4. **Style Inheritance**: Focus styles cascade through the widget tree
+5. **Built-in Key Bindings**: `element.key()` for clean keyboard handling
+6. **Royal Blue Focus**: Simple `style.focus` property - no hacks needed!
 
 ## VisualElement Base Class
 
@@ -561,64 +592,81 @@ class TextInput extends VisualElement {
 }
 ```
 
-## Implementation Roadmap
+## Neo-Blessed Implementation Roadmap
 
-### Phase 1: Fix StatusBar Integration ✅ Success: Status bar shows shortcuts from KeyboardManager
-1. Update `StatusBar.tsx` to import KeyboardManager
-2. Replace `useShortcuts()` with `KeyboardManager.getInstance().getStatusBarShortcuts()`
-3. Remove ShortcutContext dependencies from StatusBar
-4. Verify status bar updates when active element changes
+### Phase 1: Project Setup
+1. Install neo-blessed: `npm install neo-blessed`
+2. Create basic project structure:
+   - `src/interfaces/tui/index.js` - Entry point
+   - `src/interfaces/tui/components/` - Visual components
+   - `src/interfaces/tui/screens/` - Screen layouts
+   - `src/interfaces/tui/theme.js` - Visual styling
+3. Create initial blessed screen with proper terminal setup
+4. Verify basic rendering and keyboard input works
 
-### Phase 2: Remove Duplicate RoundBoxContainer ✅ Success: Only one RoundBoxContainer exists
-1. Delete the React component at `components/RoundBoxContainer.tsx`
-2. Update all imports to use `components/roundbox/RoundBoxContainer.ts`
-3. Ensure ConfigScreen creates VisualElement-based RoundBoxContainers
-4. Fix any TypeScript errors from the component removal
+### Phase 2: Base VisualElement Implementation
+1. Create `VisualElement.js` extending blessed.Box
+2. Implement focus state management:
+   - Hook into blessed's focus/blur events
+   - Add `onActivated()` and `onDeactivated()` lifecycle methods
+   - Implement focus propagation up parent chain
+3. Add keyboard handling infrastructure:
+   - Map our `processKeystroke()` to blessed's `key()` method
+   - Implement proper event bubbling with return false
+4. Test with a simple box that changes color on focus
 
-### Phase 3: Fix Rendering Pipeline ✅ Success: Navigation causes visible UI updates
-1. Update ConfigScreen to render VisualElement content:
-   - Replace React `<RoundBoxContainer>` with `container.getRenderContent()`
-   - Convert string arrays to React elements properly
-2. Add render trigger to KeyboardManager:
-   - Call `setRenderTrigger()` after any active/focus change
-   - Ensure all VisualElement state changes trigger re-render
-3. Update Box rendering to show active/focused states visually
+### Phase 3: RoundBoxContainer Component
+1. Extend VisualElement to create RoundBoxContainer
+2. Implement container-specific features:
+   - Purple border by default (#A65EF6)
+   - Royal blue border on focus (#4169E1)
+   - Track selected child index
+3. Add navigation keyboard handlers:
+   - ↑/↓ to move selection between children
+   - →/Enter to activate selected child
+   - ←/Esc to deactivate back to parent
+4. Implement visual state updates with proper rendering
 
-### Phase 4: Remove Legacy Focus System ✅ Success: No useFocus hooks remain
-1. Remove `useFocus` hook usage from all components
-2. Delete the focus utility functions
-3. Remove `activeContainerId` and related state from ConfigScreen
-4. Ensure Tab key is handled by ConfigScreen's processKeystroke()
+### Phase 4: ListItem Component
+1. Extend VisualElement to create ListItem
+2. Implement collapsed/expanded states:
+   - Show bullet + title when collapsed
+   - Show full content when active/expanded
+3. Add content scrolling for long items:
+   - Track scroll position
+   - ↑/↓ scrolls when active
+4. Visual indicators:
+   - • = default bullet
+   - → = selected (parent navigating)
+   - ● = active (has keyboard control)
 
-### Phase 5: Implement Proper Navigation ✅ Success: Can navigate with arrows and activate with enter
-1. Fix RoundBoxContainer keyboard handling:
-   - When Active: ↑/↓ changes focused child, →/Enter activates child
-   - Track focused child index properly
-2. Fix ListItem keyboard handling:
-   - When Active: ↑/↓ scrolls content, ←/Esc deactivates to parent
-3. Test full navigation flow:
-   - Start with RoundBoxContainer active
-   - Navigate between items with arrows
-   - Activate item with enter
-   - Deactivate back to container with escape
+### Phase 5: StatusBar Implementation
+1. Create StatusBar as blessed.Box at screen bottom
+2. Implement shortcut collection:
+   - Listen to 'element focus' events on screen
+   - Walk up parent chain collecting shortcuts
+   - Format as "key: description | key: description"
+3. Style with consistent theme colors
+4. Update automatically on any focus change
 
-### Phase 6: Visual Feedback ✅ Success: Can see which element is active/focused
-1. Update Box component to accept and display focus/active states
-2. Modify getRenderContent() to include visual indicators:
-   - Active container: double-line border
-   - Focused container: highlighted border
-   - Active item: highlighted background
-   - Focused item: arrow or bullet indicator
-3. Ensure visual states update immediately on navigation
+### Phase 6: Configuration Screen
+1. Create ConfigScreen layout:
+   - Logo at top
+   - Main RoundBoxContainer (70% width)
+   - Status RoundBoxContainer (30% width)
+   - StatusBar at bottom
+2. Populate with configuration items and status messages
+3. Implement Tab navigation between containers
+4. Test full keyboard navigation flow
 
-### Phase 7: Cleanup and Polish ✅ Success: No console errors, smooth navigation
-1. Remove all console.log statements except errors
-2. Remove old keyboard handling code
-3. Ensure graceful handling of edge cases:
+### Phase 7: Polish and Edge Cases
+1. Handle edge cases:
    - Empty containers
    - Single item containers
-   - Keyboard input when no active element
-4. Add proper TypeScript types for all VisualElement interactions
+   - No focused element on startup
+2. Add smooth scrolling for long lists
+3. Implement proper cleanup on exit
+4. Add TypeScript definitions if needed
 
 ### Success Criteria Checklist
 After all phases, verify:
