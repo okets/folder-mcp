@@ -64,22 +64,22 @@ export const AppFullscreen: React.FC = () => {
         }
     });
     
-    // Fixed height calculations
-    const HEADER_HEIGHT = 3;
+    // Fixed height calculations (accounting for header margin)
+    const HEADER_HEIGHT = 4; // 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = 3;
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
     if (isNarrow) {
-        // Portrait mode - vertical stack with 80/20 split
-        const configHeight = Math.max(6, Math.floor(availableHeight * 0.8));
-        const statusHeight = Math.max(4, availableHeight - configHeight);
+        // Portrait mode - vertical stack with better proportions  
+        const statusHeight = Math.max(8, Math.floor(availableHeight * 0.4));
+        const configHeight = Math.max(6, availableHeight - statusHeight);
         
         // Visible items accounting for box chrome (border + title + padding)
         const configVisibleCount = Math.max(1, configHeight - 5);
         const statusVisibleCount = Math.max(0, statusHeight - 5);
         
         return (
-            <Box flexDirection="column">
+            <Box flexDirection="column" height={rows} width={columns}>
                 <Header />
                 
                 {/* Configuration Box */}
@@ -122,26 +122,28 @@ export const AppFullscreen: React.FC = () => {
                     </Box>
                     <Box flexDirection="column" marginTop={1}>
                         {statusVisibleCount > 0 ? (
-                            statusItems.slice(0, statusVisibleCount).map((item, idx) => (
-                                <Box key={`sts-${idx}`} flexDirection="row">
-                                    <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text}</Text>
-                                    {item.status && (
-                                        <Text color={
-                                            item.status === '✓' ? theme.colors.successGreen :
-                                            item.status === '⚠' ? theme.colors.warningOrange :
-                                            item.status === '⋯' ? theme.colors.accent : undefined
-                                        }> {item.status}</Text>
-                                    )}
-                                </Box>
-                            ))
+                            <>
+                                {statusItems.slice(0, statusVisibleCount).map((item, idx) => (
+                                    <Box key={`sts-${idx}`} flexDirection="row">
+                                        <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text}</Text>
+                                        {item.status && (
+                                            <Text color={
+                                                item.status === '✓' ? theme.colors.successGreen :
+                                                item.status === '⚠' ? theme.colors.warningOrange :
+                                                item.status === '⋯' ? theme.colors.accent : undefined
+                                            }> {item.status}</Text>
+                                        )}
+                                    </Box>
+                                ))}
+                                {statusItems.length > statusVisibleCount && (
+                                    <Text color={theme.colors.textMuted}>
+                                        ↓ {statusItems.length - statusVisibleCount} more
+                                    </Text>
+                                )}
+                            </>
                         ) : (
                             <Text color={theme.colors.textMuted}>
                                 ↓ {statusItems.length} items
-                            </Text>
-                        )}
-                        {statusVisibleCount > 0 && statusItems.length > statusVisibleCount && (
-                            <Text color={theme.colors.textMuted}>
-                                ↓ {statusItems.length - statusVisibleCount} more
                             </Text>
                         )}
                     </Box>
@@ -157,13 +159,13 @@ export const AppFullscreen: React.FC = () => {
     const statusVisibleCount = Math.max(1, availableHeight - 5);
     
     return (
-        <Box flexDirection="column">
+        <Box flexDirection="column" height={rows} width={columns}>
             <Header />
             
             <Box height={availableHeight}>
-                {/* Configuration Box - 80% width */}
+                {/* Configuration Box - 70% width */}
                 <Box 
-                    width="80%"
+                    width="70%"
                     borderStyle="round" 
                     borderColor={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border} 
                     paddingX={1}
@@ -187,9 +189,9 @@ export const AppFullscreen: React.FC = () => {
                     </Box>
                 </Box>
                 
-                {/* Status Box - 20% width */}
+                {/* Status Box - 30% width */}
                 <Box 
-                    width="20%"
+                    width="30%"
                     borderStyle="round" 
                     borderColor={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border} 
                     paddingX={1}
@@ -201,17 +203,15 @@ export const AppFullscreen: React.FC = () => {
                     </Box>
                     <Box flexDirection="column" marginTop={1}>
                         {statusItems.slice(0, statusVisibleCount).map((item, idx) => (
-                            <Box key={`sts-${idx}`} width="100%">
-                                <Box flexDirection="row">
-                                    <Text wrap="truncate-end">{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text.substring(0, 12)}</Text>
-                                    {item.status && (
-                                        <Text color={
-                                            item.status === '✓' ? theme.colors.successGreen :
-                                            item.status === '⚠' ? theme.colors.warningOrange :
-                                            item.status === '⋯' ? theme.colors.accent : undefined
-                                        }> {item.status}</Text>
-                                    )}
-                                </Box>
+                            <Box key={`sts-${idx}`} flexDirection="row">
+                                <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text}</Text>
+                                {item.status && (
+                                    <Text color={
+                                        item.status === '✓' ? theme.colors.successGreen :
+                                        item.status === '⚠' ? theme.colors.warningOrange :
+                                        item.status === '⋯' ? theme.colors.accent : undefined
+                                    }> {item.status}</Text>
+                                )}
                             </Box>
                         ))}
                         {statusItems.length > statusVisibleCount && (
