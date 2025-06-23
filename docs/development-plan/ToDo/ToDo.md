@@ -31,6 +31,7 @@ MCP server is running,  Claude Desktop is connected
 - **Backend Integration Essentials (moved from Phase 2):**
     - **Embedding model setup with caching and progress**
     - **FAISS vector index integration for progress display**
+- support Blessed mouse events!!!
 
 ## Phase 2: Backend & Integration Essentials
 - Support Legacy Doc, Xls, Ppt Formats (think of as many formats as possible)

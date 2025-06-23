@@ -1,6 +1,6 @@
 import blessed from 'neo-blessed';
 import { VisualElement, KeyboardShortcut } from './VisualElement.js';
-import { theme } from '../design/theme.js';
+import { modernTheme } from '../design/modernTheme.js';
 
 /**
  * StatusBar - Shows keyboard shortcuts from active element and parent chain
@@ -9,6 +9,8 @@ import { theme } from '../design/theme.js';
 export class StatusBar {
     private element: blessed.Widgets.BoxElement;
     private shortcuts: KeyboardShortcut[] = [];
+    private messageTimeout: NodeJS.Timeout | null = null;
+    private originalContent: string = '';
 
     constructor(options: blessed.Widgets.BoxOptions = {}) {
         this.element = blessed.box({
@@ -18,8 +20,8 @@ export class StatusBar {
             width: '100%',
             height: 1,
             style: {
-                fg: theme.colors.textPrimary,
-                bg: theme.colors.secondaryBlue,
+                fg: modernTheme.colors.textPrimary,
+                bg: modernTheme.colors.surface,
                 ...options.style
             },
             tags: true
@@ -56,6 +58,7 @@ export class StatusBar {
 
         // Add global shortcuts
         this.shortcuts.push({ key: 'q', description: 'Quit' });
+        this.shortcuts.push({ key: 'h/?', description: 'Help' });
 
         this.render();
     }
@@ -108,5 +111,30 @@ export class StatusBar {
     clearShortcuts(): void {
         this.shortcuts = [];
         this.render();
+    }
+
+    /**
+     * Show a temporary message, then restore shortcuts
+     */
+    showMessage(message: string, duration: number = 3000): void {
+        // Clear any existing timeout
+        if (this.messageTimeout) {
+            clearTimeout(this.messageTimeout);
+        }
+
+        // Store current content
+        this.originalContent = this.element.content || '';
+
+        // Show message
+        this.element.setContent(` ${message}`);
+        if (this.element.screen) {
+            this.element.screen.render();
+        }
+
+        // Restore shortcuts after duration
+        this.messageTimeout = setTimeout(() => {
+            this.render();
+            this.messageTimeout = null;
+        }, duration);
     }
 }

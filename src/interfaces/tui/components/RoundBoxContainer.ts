@@ -1,6 +1,6 @@
 import blessed from 'neo-blessed';
 import { VisualElement, KeyboardShortcut } from './VisualElement.js';
-import { theme, createRoundedBorder, getCurrentPositionStyle, getNormalItemStyle } from '../design/theme.js';
+import { modernTheme, getSelectionStyle, getBorderStyle } from '../design/modernTheme.js';
 
 /**
  * RoundBoxContainer - Container with rounded borders and item navigation
@@ -21,13 +21,15 @@ export class RoundBoxContainer extends VisualElement {
             },
             style: {
                 border: {
-                    fg: 'magenta'
+                    fg: modernTheme.colors.border
                 },
                 focus: {
                     border: {
-                        fg: 'blue'
+                        fg: modernTheme.colors.borderFocus
                     }
                 },
+                bg: modernTheme.colors.background,
+                fg: modernTheme.colors.textPrimary,
                 ...options.style
             }
         });
@@ -129,17 +131,14 @@ export class RoundBoxContainer extends VisualElement {
             const isSelected = index === this.selectedIndex;
             const isActive = this.activeChild && item.element === this.activeChild;
             
-            let bullet: string;
-
+            // Modern symbols
+            let symbol: string;
             if (isActive) {
-                // Active item (has keyboard control)
-                bullet = theme.symbols.bullets.heavy; // ●
+                symbol = modernTheme.symbols.expanded; // ▼ (expanded/active)
             } else if (isSelected && this._isActive) {
-                // Selected item when container is active
-                bullet = theme.symbols.bullets.current; // ⏵
+                symbol = modernTheme.symbols.selected; // ▶ (selected)
             } else {
-                // Normal item
-                bullet = theme.symbols.bullets.light; // ◦
+                symbol = modernTheme.symbols.unselected; // ○ (normal)
             }
 
             // Show expanded content for active items
@@ -147,25 +146,29 @@ export class RoundBoxContainer extends VisualElement {
                 const lines = item.fullContent.split('\n');
                 const formattedLines = lines.map((line, lineIndex) => {
                     if (lineIndex === 0) {
-                        return `{blue-bg}{white-fg}${bullet} ${line}{/}`;
+                        // Main line with highlight
+                        const styledLine = `${symbol} ${line}`;
+                        return `{${modernTheme.colors.purple}-bg}{${modernTheme.colors.textPrimary}-fg}${styledLine}{/}`;
                     } else {
-                        return `{blue-bg}{white-fg}  ${line}{/}`;
+                        // Content lines with subtle background
+                        const indentedLine = `  ${line}`;
+                        return `{${modernTheme.colors.surface}-bg}{${modernTheme.colors.textSecondary}-fg}${indentedLine}{/}`;
                     }
                 });
                 return formattedLines.join('\n');
             } else {
                 // Normal single-line display
-                const line = `${bullet} ${item.content}`;
+                const line = `${symbol} ${item.content}`;
                 
-                if (isSelected && this._isActive && !isActive) {
-                    // Use vibrant cyan background for current position
-                    return `{cyan-bg}{white-fg}${line}{/}`;
+                if (isSelected && this._isActive) {
+                    // Selected item - purple highlight
+                    return `{${modernTheme.colors.selection}-bg}{${modernTheme.colors.textPrimary}-fg}${line}{/}`;
                 } else {
-                    // Normal styling
-                    return `{gray-fg}${line}{/}`;
+                    // Normal item - secondary text
+                    return `{${modernTheme.colors.textSecondary}-fg}${line}{/}`;
                 }
             }
-        }).join('\n\n'); // Add spacing between items
+        }).join('\n\n'); // Modern spacing between items
 
         this.setContent(content);
         

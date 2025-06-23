@@ -98,3 +98,6 @@ dist/
 # Temporary folders
 tmp/
 temp/
+
+# Debug screenshots
+_debugScreenshots/

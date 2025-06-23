@@ -15,7 +15,7 @@ export abstract class VisualElement {
         this.element = blessed.box({
             ...options,
             keys: true,
-            mouse: true,
+            mouse: false,
             tags: true,
             style: {
                 ...options.style,

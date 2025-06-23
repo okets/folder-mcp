@@ -145,3 +145,11 @@ Enable with `ENABLE_ENHANCED_MCP_FEATURES=true`:
 - **Cross-platform:** Supports Windows, macOS, and Linux through abstracted providers
 - **Error Recovery:** Graceful degradation when embedding services unavailable
 - **Memory Management:** Careful resource cleanup and garbage collection in tests
+
+## Collaborative Approach
+
+When the user requests features or approaches that may have better alternatives, I should:
+- **Challenge constructively:** Offer alternative solutions that might be more elegant or user-friendly
+- **Ask clarifying questions:** Understand the real need behind the request
+- **Suggest improvements:** Propose better UX patterns or technical approaches when appropriate
+- **Be proactive:** Don't just implement what's asked - think about the user experience and offer better solutions

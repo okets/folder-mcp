@@ -3,7 +3,7 @@ import { RoundBoxContainer, ContainerItem } from './components/RoundBoxContainer
 import { ListItem } from './components/ListItem.js';
 import { StatusBar } from './components/StatusBar.js';
 import { VisualElement } from './components/VisualElement.js';
-import { theme } from './design/theme.js';
+import { modernTheme } from './design/modernTheme.js';
 
 /**
  * Main TUI Application - Creates the interface matching our target design
@@ -15,14 +15,20 @@ export class TUIApplication {
     private configContainer!: RoundBoxContainer;
     private statusContainer!: RoundBoxContainer;
     private headerBox!: blessed.Widgets.BoxElement;
+    private cameraButton!: blessed.Widgets.BoxElement;
     private activeElement: VisualElement | null = null;
 
     constructor() {
         try {
+            console.error('TUI: Setting up screen...');
             this.setupScreen();
+            console.error('TUI: Creating components...');
             this.createComponents();
+            console.error('TUI: Setting up keyboard handling...');
             this.setupKeyboardHandling();
+            console.error('TUI: Populating with data...');
             this.populateWithData();
+            console.error('TUI: Starting...');
             this.start();
         } catch (error) {
             console.error('Error during TUI initialization:', error);
@@ -36,8 +42,9 @@ export class TUIApplication {
             title: 'folder-mcp TUI',
             fullUnicode: true,
             dockBorders: false,
+            mouse: false,
             style: {
-                bg: theme.colors.background
+                bg: modernTheme.colors.background
             }
         });
 
@@ -57,7 +64,7 @@ export class TUIApplication {
             height: 3,
             content: '╭────────────────╮\n│ 📁 folder-mcp  │\n╰────────────────╯',
             style: {
-                fg: theme.colors.textPrimary
+                fg: modernTheme.colors.textPrimary
             },
             tags: true
         });
@@ -92,6 +99,26 @@ export class TUIApplication {
         this.statusBar = new StatusBar({});
         this.screen.append(this.statusBar.blessedElement);
 
+        // Camera button at bottom right
+        this.cameraButton = blessed.box({
+            parent: this.screen,
+            bottom: 0,
+            right: 0,
+            width: 3,
+            height: 1,
+            content: '📷',
+            style: {
+                fg: modernTheme.colors.textSecondary,
+                hover: {
+                    fg: modernTheme.colors.accent,
+                    bg: modernTheme.colors.surface
+                }
+            },
+            clickable: false,
+            mouse: false,
+            tags: true
+        });
+
         // Set up focus change handling
         this.screen.on('element focus', (el) => {
             // Find the VisualElement wrapper for this blessed element
@@ -100,6 +127,57 @@ export class TUIApplication {
                 this.setActiveElement(visualElement);
             }
         });
+
+        // Camera button click handler
+        this.cameraButton.on('click', () => {
+            this.captureScreen();
+        });
+
+        // Also add keyboard shortcut for screen capture
+        this.screen.key(['C-s'], () => {
+            this.captureScreen();
+        });
+    }
+
+    private captureScreen(): void {
+        try {
+            // Get the screen content as text
+            const screenContent = this.screen.screenshot();
+            
+            // Copy to clipboard using pbcopy (macOS) or xclip (Linux)
+            const { spawn } = require('child_process');
+            const process = require('process');
+            
+            let clipboardCmd: string;
+            let clipboardArgs: string[];
+            
+            if (process.platform === 'darwin') {
+                clipboardCmd = 'pbcopy';
+                clipboardArgs = [];
+            } else if (process.platform === 'linux') {
+                clipboardCmd = 'xclip';
+                clipboardArgs = ['-selection', 'clipboard'];
+            } else {
+                console.error('Screen capture not supported on this platform');
+                return;
+            }
+            
+            const clipboardProcess = spawn(clipboardCmd, clipboardArgs);
+            clipboardProcess.stdin.write(screenContent);
+            clipboardProcess.stdin.end();
+            
+            clipboardProcess.on('exit', (code: number | null) => {
+                if (code === 0) {
+                    // Show brief success message
+                    this.statusBar.showMessage('📷 Screen copied to clipboard!', 2000);
+                } else {
+                    console.error('Failed to copy to clipboard');
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error capturing screen:', error);
+        }
     }
 
     private findVisualElement(blessedElement: any): VisualElement | null {
@@ -247,6 +325,7 @@ System is ready for configuration.`
         
         // Keep the screen active by not exiting
         // The screen will handle the event loop
+        console.error('TUI started successfully'); // Debug log to stderr
     }
 
     /**

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { TUIApplication } from './TUIApplication.js';
+import { ModernTUIApplication } from './ModernTUIApplication.js';
 
 /**
  * TUI Entry Point - Neo-blessed implementation
@@ -8,8 +8,8 @@ import { TUIApplication } from './TUIApplication.js';
  */
 function main() {
     try {
-        // Create and start the TUI application
-        const app = new TUIApplication();
+        // Create and start the modern TUI application
+        const app = new ModernTUIApplication();
         
         // Handle cleanup on exit
         process.on('SIGINT', () => {
@@ -34,4 +34,4 @@ function main() {
 // For now, always launch to test the TUI
 main();
 
-export { TUIApplication };
+export { ModernTUIApplication };
