@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { ConfigScreen } from './screens/ConfigScreen.js';
@@ -11,15 +11,79 @@ import { ShortcutRegistry } from './shortcuts/ShortcutRegistry.js';
 import { WindowProvider } from './shortcuts/providers/WindowProvider.js';
 import { PanelProvider } from './shortcuts/providers/PanelProvider.js';
 import { ShortcutContext, FocusElement } from './shortcuts/types.js';
+import { VisualElement } from './components/VisualElement.js';
+import { KeyboardManager, KeyBinding } from './keyboard/KeyboardManager.js';
 
 type AppState = 'welcome' | 'config' | 'main';
+
+class TUIApplicationElement extends VisualElement {
+  private appState: AppState = 'config';
+  private setAppState: ((state: AppState) => void) | null = null;
+  private onRender: (() => void) | null = null;
+
+  constructor() {
+    super('tui-application');
+  }
+
+  setStateHandler(setAppState: (state: AppState) => void, onRender: () => void): void {
+    this.setAppState = setAppState;
+    this.onRender = onRender;
+  }
+
+  processKeystroke(key: string): boolean {
+    console.error(`TUIApplicationElement: Processing "${key}"`);
+    
+    // Global quit command
+    if (key === 'q') {
+      console.error('TUIApplicationElement: Quitting application');
+      process.exit(0);
+      return true;
+    }
+    
+    // Delegate to children first
+    console.error(`TUIApplicationElement: Delegating to ${this._children.length} children`);
+    for (const child of this._children) {
+      console.error(`TUIApplicationElement: Trying child ${child.constructor.name}`);
+      if (child.processKeystroke(key)) {
+        console.error(`TUIApplicationElement: Child ${child.constructor.name} handled "${key}"`);
+        return true;
+      }
+    }
+    
+    console.error(`TUIApplicationElement: No child handled "${key}"`);
+    return false;
+  }
+
+  getRenderContent(): string[] {
+    return [`TUIApplication (${this.appState})`];
+  }
+
+  getShortcuts(): KeyBinding[] {
+    return [{ key: 'q', description: 'Quit' }];
+  }
+}
 
 export const TUIApplication: React.FC = () => {
   const [currentState, setCurrentState] = useState<AppState>('config');
   const [isInitialized, setIsInitialized] = useState(false);
   const [tabPressed, setTabPressed] = useState(false);
   const [tabTimeout, setTabTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [renderTrigger, setRenderTrigger] = useState(0);
   const { size } = useTerminal();
+  
+  // Create TUI application element
+  const tuiAppElement = useMemo(() => {
+    const element = new TUIApplicationElement();
+    element.setStateHandler(setCurrentState, () => setRenderTrigger(prev => prev + 1));
+    return element;
+  }, []);
+  
+  // Set as active element on mount
+  useEffect(() => {
+    const keyboardManager = KeyboardManager.getInstance();
+    keyboardManager.setActiveElement(tuiAppElement);
+  }, [tuiAppElement]);
+
   const { focusState, switchFocus, focusConfiguration, focusStatus, scrollUp, scrollDown, resetScroll } = useFocus();
 
   // Setup DI container and shortcut system
@@ -84,39 +148,56 @@ export const TUIApplication: React.FC = () => {
   }, []);
 
   useInput((input: string, key: any) => {
+    // Convert ink key events to our simplified format
+    const keyString = key.upArrow ? 'up' : 
+                     key.downArrow ? 'down' : 
+                     key.leftArrow ? 'left' : 
+                     key.rightArrow ? 'right' : 
+                     key.return ? 'enter' :
+                     key.tab ? 'tab' :
+                     key.ctrl && input === 'c' ? 'q' :
+                     input;
+    
+    console.error(`TUIApplication: Received input "${input}", key: ${JSON.stringify(key)}, converted to: "${keyString}"`);
+    
+    // Route through KeyboardManager
+    const keyboardManager = KeyboardManager.getInstance();
+    const activeElement = keyboardManager.getActiveElement();
+    console.error(`TUIApplication: Active element: ${activeElement ? activeElement.constructor.name : 'none'}`);
+    
+    const handled = keyboardManager.processKeystroke(keyString);
+    console.error(`TUIApplication: KeyboardManager ${handled ? 'handled' : 'did not handle'} "${keyString}"`);
+    
+    if (handled) {
+      setRenderTrigger(prev => prev + 1); // Force re-render
+      return;
+    }
+    
+    // Fallback for unhandled keys
     if (currentState === 'welcome' && isInitialized) {
       if (key.return || input === ' ') {
         setCurrentState('config');
       }
     }
     
-    // Global keys
-    if (input === 'q' || key.ctrl && input === 'c') {
-      process.exit(0);
-    }
-    
-    // Focus and scroll controls (only in config state)
+    // Legacy focus controls for Tab combinations
     if (currentState === 'config') {
-      // Tab combination handling
       if (key.tab || input === '\t') {
         if (!tabPressed) {
           setTabPressed(true);
-          // Set a timeout to handle single Tab press
           const timeout = setTimeout(() => {
             switchFocus();
             setTabPressed(false);
             setTabTimeout(null);
-          }, 300); // 300ms window for combination
+          }, 300);
           setTabTimeout(timeout);
         }
       } else if (tabPressed) {
-        // Clear the timeout since we have a combination
         if (tabTimeout) {
           clearTimeout(tabTimeout);
           setTabTimeout(null);
         }
         
-        // Handle Tab + key combinations
         if (input.toLowerCase() === 'c') {
           focusConfiguration();
           setTabPressed(false);
@@ -124,16 +205,11 @@ export const TUIApplication: React.FC = () => {
           focusStatus();
           setTabPressed(false);
         } else {
-          // Any other key cancels Tab mode
           setTabPressed(false);
         }
       } else if (key.pageUp || (key.ctrl && input === 'u')) {
         scrollUp();
       } else if (key.pageDown || (key.ctrl && input === 'd')) {
-        scrollDown(20); // Max scroll, will be clamped in component
-      } else if (key.upArrow && focusState.currentFocus === 'status') {
-        scrollUp();
-      } else if (key.downArrow && focusState.currentFocus === 'status') {
         scrollDown(20);
       }
     }
@@ -167,6 +243,7 @@ export const TUIApplication: React.FC = () => {
                 terminalSize={size}
                 onNext={() => setCurrentState('main')}
                 focusState={focusState}
+                tuiAppElement={tuiAppElement}
               />
             </Box>
             

@@ -11,9 +11,11 @@ interface AppLayoutProps {
   mainTitle: string;
   mainBorderColor?: string;
   mainChildren: React.ReactNode;
+  mainContent?: string[];
   notificationTitle: string;
   notificationBorderColor?: string;
   notificationChildren: React.ReactNode;
+  notificationContent?: string[];
   focusState?: FocusState;
 }
 
@@ -22,9 +24,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   mainTitle,
   mainBorderColor = 'cyan',
   mainChildren,
+  mainContent,
   notificationTitle,
   notificationBorderColor = 'yellow',
   notificationChildren,
+  notificationContent,
   focusState
 }) => {
   const layout = useResponsive(terminalSize);
@@ -43,6 +47,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           isFocusable={true}
           {...(focusState?.currentFocus !== 'main' && { focusHint: 'ᵀᵃᵇ⁺ᶜ' })}
           scrollPosition={focusState?.scrollPosition.main || 0}
+          content={mainContent}
         >
           {mainChildren}
         </RoundBoxContainer>
@@ -58,6 +63,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             isFocusable={true}
             {...(focusState?.currentFocus !== 'status' && { focusHint: 'ᵀᵃᵇ⁺ˢ' })}
             scrollPosition={focusState?.scrollPosition.status || 0}
+            content={notificationContent}
           >
             {notificationChildren}
           </RoundBoxContainer>
@@ -79,6 +85,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         isFocusable={true}
         {...(focusState?.currentFocus !== 'main' && { focusHint: 'ᵀᵃᵇ⁺ᶜ' })}
         scrollPosition={focusState?.scrollPosition.main || 0}
+        content={mainContent}
       >
         {mainChildren}
       </RoundBoxContainer>
@@ -94,6 +101,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           isFocusable={true}
           {...(focusState?.currentFocus !== 'status' && { focusHint: 'ᵀᵃᵇ⁺ˢ' })}
           scrollPosition={focusState?.scrollPosition.status || 0}
+          content={notificationContent}
         >
           {notificationChildren}
         </RoundBoxContainer>

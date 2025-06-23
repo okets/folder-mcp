@@ -13,7 +13,7 @@ interface RoundBoxContainerProps {
   isFocusable?: boolean;
   focusHint?: string;  // e.g., "Tab" for the key to focus this element
   scrollPosition?: number;
-  content?: string[];
+  content?: string[] | undefined;
 }
 
 // Helper to get display length (ANSI-aware)
@@ -123,7 +123,7 @@ export const RoundBoxContainer: React.FC<RoundBoxContainerProps> = ({
   
   // Use provided content or fallback to hardcoded
   const getContentLines = (): string[] => {
-    if (content) return content;
+    if (content !== undefined) return content;
     
     if (title === 'Configuration') {
       return [
