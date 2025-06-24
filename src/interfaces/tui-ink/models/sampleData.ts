@@ -1,4 +1,3 @@
-import { ConfigItem } from './ConfigItem.js';
 import { StatusItem } from './StatusItem.js';
 
 export const configItems: string[] = [

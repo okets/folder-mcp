@@ -7,15 +7,13 @@ interface NavigationState {
     activeContainer: ContainerType;
     configSelectedIndex: number;
     statusSelectedIndex: number;
-    expandedItems: Set<string>;
 }
 
 export const useNavigation = () => {
     const [state, setState] = useState<NavigationState>({
         activeContainer: 'config',
         configSelectedIndex: 0,
-        statusSelectedIndex: 0,
-        expandedItems: new Set()
+        statusSelectedIndex: 0
     });
 
     const switchContainer = useCallback(() => {
@@ -46,17 +44,6 @@ export const useNavigation = () => {
         });
     }, []);
 
-    const toggleExpanded = useCallback((itemId: string) => {
-        setState(prev => {
-            const newExpanded = new Set(prev.expandedItems);
-            if (newExpanded.has(itemId)) {
-                newExpanded.delete(itemId);
-            } else {
-                newExpanded.add(itemId);
-            }
-            return { ...prev, expandedItems: newExpanded };
-        });
-    }, []);
 
     useInput((input, key) => {
         if (key.tab || (input === '\t')) {
@@ -65,10 +52,6 @@ export const useNavigation = () => {
             navigateUp();
         } else if (key.downArrow || input === 'j') {
             navigateDown(20); // Support more items
-        } else if (key.return || key.rightArrow || input === 'l') {
-            // Toggle expansion - needs item ID from context
-        } else if (key.escape || key.leftArrow || input === 'h') {
-            // Collapse or go back
         }
     });
 
@@ -77,7 +60,6 @@ export const useNavigation = () => {
         switchContainer,
         navigateUp,
         navigateDown,
-        toggleExpanded,
         isConfigFocused: state.activeContainer === 'config',
         isStatusFocused: state.activeContainer === 'status'
     };

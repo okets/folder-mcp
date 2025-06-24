@@ -1,5 +1,13 @@
 # TUI Incremental Refactoring Plan
 
+## Completion Status
+- ✅ Phase 1: Extract Data and Types - **COMPLETED**
+- ✅ Phase 2: Create Container Components - **COMPLETED**
+- ✅ Phase 3: Service Layer Foundation - **COMPLETED**
+- ✅ Phase 4: Minimal DI Container - **COMPLETED**
+- ✅ Phase 5: Gradual Component Migration - **COMPLETED**
+- 🔄 Phase 6: AppFullscreen Cleanup and Legacy Code Removal - **IN PROGRESS**
+
 ## Overview
 This document outlines a careful, incremental approach to refactoring the TUI application to introduce proper Dependency Injection (DI) and module boundaries. Each step is designed to have **zero visual impact** while improving the architecture.
 
@@ -308,28 +316,33 @@ Move from scattered functions to proper encapsulated components that own their b
   ```
 - **Verification**: Run `npm run tui` - should look identical
 
-## Phase 6: AppFullscreen Cleanup (No Visual Impact)
+## Phase 6: AppFullscreen Cleanup and Legacy Code Removal (No Visual Impact)
 
-### Step 6.1: Use Injected Services in AppFullscreen
-- Replace direct imports with service calls:
-  ```typescript
-  const di = useDI();
-  const dataService = di.resolve(ServiceTokens.DataService);
-  const terminalService = di.resolve(ServiceTokens.TerminalService);
-  const navigationService = di.resolve(ServiceTokens.NavigationService);
-  
-  const configItems = dataService.getConfigItems();
-  const statusItems = dataService.getStatusItems();
-  const { columns, rows, isNarrow } = terminalService.getSize();
-  ```
-- Remove direct hook usage (useTerminalSize, useNavigation)
+### Step 6.1: Clean Up AppFullscreen
+- Remove inline helper functions that are now in components:
+  - ✅ `createBorder` - Already removed (replaced by BorderedBox)
+  - `calculateScrollbar` - Still used by ConfigurationPanel and StatusPanel
+- Extract panel components to separate files:
+  - Move `ConfigurationPanel` to `components/ConfigurationPanel.tsx`
+  - Move `StatusPanel` to `components/StatusPanel.tsx`
 - **Verification**: Run `npm run tui` - should look identical
 
-### Step 6.2: Clean Up AppFullscreen
-- Remove inline helper functions (now in components)
-- Remove calculateScrollbar (handled by components)
-- Remove createBorder (replaced by BorderedBox)
-- AppFullscreen becomes a thin orchestration layer
+### Step 6.2: Use Injected Services Where Appropriate
+- ConfigurationPanel and StatusPanel can optionally use services
+- Keep hooks where they make sense (useNavigation for interactivity)
+- **Verification**: Run `npm run tui` - should look identical
+
+### Step 6.3: Clean Up Legacy Code and Temporary Files
+- Remove all `.backup` files created during refactoring
+- Remove unused imports and dead code
+- Ensure all components follow consistent patterns
+- Update imports to use proper paths
+- **Verification**: Run `npm run tui` - should look identical
+
+### Step 6.4: Final Code Organization
+- Ensure consistent file naming and organization
+- Update barrel exports if needed
+- Document the new architecture in comments
 - **Verification**: Run `npm run tui` - should look identical
 
 ## Testing Protocol for Each Step
