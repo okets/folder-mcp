@@ -94,16 +94,19 @@ Move from scattered functions to proper encapsulated components that own their b
 ### Step 2.3: Create LayoutContainer Component
 - Create `src/interfaces/tui-ink/components/LayoutContainer.tsx`
 - Extract layout decision logic from AppFullscreen
-- Manages portrait vs landscape arrangement
+- Manages narrow vs wide terminal arrangement
 - Handles space allocation between panels:
   ```typescript
   interface LayoutContainerProps {
     availableHeight: number;
     availableWidth: number;
     children: React.ReactElement[];
-    mode: 'portrait' | 'landscape' | 'auto';
+    narrowBreakpoint?: number; // Optional, defaults to 100 columns
   }
   ```
+- Automatically arranges children based on terminal width:
+  - **Narrow terminals** (<100 columns): Stack panels vertically
+  - **Wide terminals** (>=100 columns): Arrange panels side-by-side
 - Encapsulates responsive behavior and breakpoints
 - **Verification**: Run `npm run tui` - should look identical
 
