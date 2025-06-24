@@ -4,6 +4,89 @@
 ## Overview
 This document defines the visual design system for the folder-mcp TUI interface, targeting Claude Code-level polish and user experience. All designs are optimized for modern terminal emulators with 256-color support.
 
+## Current Implementation Status
+
+### ✅ Implemented Visual Elements
+- **Rounded Borders** - Using ╭╮╰╯ characters (BorderedBox component)
+- **Navigation Bar** - Tab navigation between panels with smooth transitions
+- **Scrollable Lists** - With visual scrollbar indicators (▲ ┃ ▼)
+- **Responsive Design** - Layout adapts to terminal size (LayoutContainer)
+- **Focus States** - Border color changes on focus (#475569 → #3B82F6)
+- **Selection Indicators** - ▶ for selected, ○ for unselected items
+- **Tab Transitions** - Smooth keyboard navigation between panels
+
+### ❌ Missing Interactive Elements (Required for Configuration)
+- **Text Input Fields** - Single-line and multi-line text entry
+- **Yes/No Questions** - Confirmation dialogs
+- **Radio Buttons** - Single choice selection (◯ ◉)
+- **Checkboxes** - Multiple choice selection (☐ ☑)
+- **Dropdown/Select Menus** - Model selection with options
+- **Form Management** - Submit/cancel actions, validation
+- **Progress Indicators** - For long operations
+- **Modal Dialogs** - For confirmations and alerts
+- **Command Input** - For slash commands
+- **Loading States** - Spinners and progress bars
+
+## Priority Implementation Plan
+
+### Phase 1: Essential Configuration Components
+These components are required for the configuration wizard described in the development plan:
+
+1. **Text Input Component**
+   - Single-line input with cursor and editing
+   - Support for placeholder text
+   - Validation states (error/success)
+   - Example: Port number, folder path input
+
+2. **Radio Button Group**
+   - Single selection from multiple options
+   - Visual states: ◯ (unselected) → ◉ (selected)
+   - Example: Language support (single/multi)
+
+3. **Select/Dropdown Component**
+   - List of options with current selection
+   - Scrollable for long lists
+   - Type-to-filter functionality
+   - Example: Embedding model selection
+
+4. **Yes/No Dialog**
+   - Modal overlay with question
+   - Keyboard shortcuts (y/n)
+   - Example: "Regenerate embeddings?"
+
+5. **Progress Bar**
+   - Determinate progress with percentage
+   - Indeterminate for unknown duration
+   - Example: Model download, embedding generation
+
+### Phase 2: Enhanced User Experience
+These components improve the overall experience:
+
+1. **Checkbox List**
+   - Multiple selections
+   - Visual states: ☐ → ☑
+   - Example: Language selection
+
+2. **Command Palette**
+   - Slash command input
+   - Autocomplete suggestions
+   - Example: \model, \status, \config
+
+3. **Loading Animations**
+   - Spinner variations (⟲, ⚬⚭⚮)
+   - Smooth transitions
+   - Example: Server startup
+
+4. **Form Validation**
+   - Real-time validation feedback
+   - Error messages
+   - Submit/cancel actions
+
+5. **Modal System**
+   - Overlay dialogs
+   - Keyboard navigation
+   - Multiple modal types
+
 ## Design Principles
 - **Clarity**: Information hierarchy through typography and spacing
 - **Elegance**: Subtle animations and smooth transitions
@@ -185,6 +268,123 @@ Multi-line Input:
 │ files for a web application backend         │
 │                                              │
 ╰──────────────────────────────────────────────╯
+```
+
+### Interactive Components (Updated Specifications)
+
+Based on current implementation and required functionality:
+
+#### Text Input Field
+```
+Default State:
+╭─ Folder Path ────────────────────────────────────╮
+│ /Users/example/documents█                        │
+╰──────────────────────────────────────────────────╯
+
+Placeholder State:
+╭─ Content Description ────────────────────────────╮
+│ Tell me about your folder content...             │ [dim gray text]
+╰──────────────────────────────────────────────────╯
+
+Error State:
+╭─ Server Port ────────────────────────────────────╮ [red border]
+│ 80█                                              │
+│ ⚠ Port 80 requires admin privileges             │ [red text]
+╰──────────────────────────────────────────────────╯
+
+Editing Keys:
+- Left/Right arrows: Move cursor
+- Backspace: Delete character before cursor
+- Delete: Delete character at cursor
+- Home/End: Jump to start/end
+- Ctrl+U: Clear input
+- Enter: Submit
+- Esc: Cancel editing
+```
+
+#### Radio Button Group (Single Selection)
+```
+Language Support:
+  ◯ Single-language (recommended for better accuracy)
+  ◉ Multi-language (current setting)
+
+Model Selection:
+  ◉ nomic-embed-text (recommended) ← [current, blue background]
+  ◯ all-MiniLM-L6-v2 (balanced)
+  ◯ bge-large-en-v1.5 (high performance)
+
+Navigation:
+- ↑↓: Move selection
+- Space/Enter: Select option
+- Selection changes immediately (no submit needed)
+```
+
+#### Yes/No Dialog
+```
+╭─ Confirm Configuration Change ───────────────────╮
+│                                                  │
+│  Changing the embedding model will require       │
+│  regenerating all embeddings.                   │
+│                                                  │
+│  This may take 5-10 minutes.                    │
+│                                                  │
+│  Continue? (Y/n)                                │
+│                                                  │
+╰──────────────────────────────────────────────────╯
+
+Keys:
+- Y/y: Confirm (default)
+- N/n: Cancel
+- Enter: Confirm (if Y is default)
+- Esc: Cancel
+```
+
+#### Select/Dropdown with Filter
+```
+Closed State:
+╭─ Embedding Model ────────────────────────────────╮
+│ nomic-embed-text (current) ▼                    │
+╰──────────────────────────────────────────────────╯
+
+Open State (with type-to-filter):
+╭─ Embedding Model ────────────────────────────────╮
+│ ╭─ Filter: min█ ───────────────────────────────╮ │
+│ │                                              │ │
+│ │ ▶ all-MiniLM-L6-v2 (balanced)               │ │ [filtered]
+│ │                                              │ │
+│ │ 1 of 6 models                                │ │
+│ ╰──────────────────────────────────────────────╯ │
+╰──────────────────────────────────────────────────╯
+
+Features:
+- Type to filter options
+- ↑↓ to navigate
+- Enter to select
+- Esc to close without selecting
+```
+
+#### Progress Bar (Determinate)
+```
+Downloading Model:
+[████████████████████░░░░░░░░░░] 67% (45.2MB/67.8MB)
+
+Generating Embeddings:
+[████████████░░░░░░░░░░░░░░░░░░] 40% (156/389 documents)
+
+With Time Estimate:
+[████████████████░░░░░░░░░░░░░░] 53% | ETA: 2m 15s
+```
+
+#### Progress Bar (Indeterminate)
+```
+Initializing Server:
+[⟲] Starting server...
+
+Loading Configuration:
+[⚬⚭⚮] Please wait...
+
+Building Index:
+[████▓▓▒▒░░ ░░▒▒▓▓████] Processing...
 ```
 
 ### Interactive Actions (Keyboard-First Design)
@@ -831,6 +1031,77 @@ Error States:          Multiple indicators (color + text + symbol)
 - Clear state changes and navigation cues
 ```
 
+## Configuration Wizard Flow
+
+### Complete Configuration Form Example
+This shows how all the interactive components work together in the actual configuration wizard:
+
+```
+╭─ folder-mcp Configuration Wizard ────────────────────────────────╮
+│                                                                  │
+│  Let's set up your folder-mcp server                           │
+│                                                                  │
+│  ╭─ Content Description ──────────────────────────────────────╮  │
+│  │ Python web application with ML components█                │  │ [text input]
+│  ╰───────────────────────────────────────────────────────────╯  │
+│                                                                  │
+│  Language Support:                                               │
+│    ◯ Single-language (better accuracy)                          │
+│    ◉ Multi-language (recommended for mixed codebases)          │ [radio group]
+│                                                                  │
+│  ╭─ Embedding Model ──────────────────────────────────────────╮  │
+│  │ nomic-embed-text (recommended) ▼                          │  │ [dropdown]
+│  ╰───────────────────────────────────────────────────────────╯  │
+│                                                                  │
+│  ╭─ Server Port ──────────────────────────────────────────────╮  │
+│  │ 3000█                                                      │  │ [text input]
+│  ╰───────────────────────────────────────────────────────────╯  │
+│                                                                  │
+│  Advanced Options:                                               │
+│    ☑ Enable hot reload                                          │
+│    ☐ Enable debug logging                                       │ [checkboxes]
+│    ☑ Auto-index on startup                                      │
+│                                                                  │
+│  [Tab] Next Field  [Enter] Submit  [Esc] Cancel                │
+╰──────────────────────────────────────────────────────────────────╯
+```
+
+### Configuration Confirmation Dialog
+```
+╭─ Review Configuration ───────────────────────────────────────────╮
+│                                                                  │
+│  Content: Python web application with ML components             │
+│  Language: Multi-language support                               │
+│  Model: nomic-embed-text                                        │
+│  Port: 3000                                                      │
+│                                                                  │
+│  ⚠ This configuration requires downloading the embedding        │
+│    model (256MB) and generating embeddings for all files.      │
+│                                                                  │
+│  Estimated time: 5-10 minutes                                   │
+│                                                                  │
+│  Continue with this configuration? (Y/n)                        │
+│                                                                  │
+╰──────────────────────────────────────────────────────────────────╯
+```
+
+### Progress During Setup
+```
+╭─ Setting Up folder-mcp ──────────────────────────────────────────╮
+│                                                                  │
+│  Downloading embedding model:                                    │
+│  [████████████████████░░░░░░░░░░] 72% (184MB/256MB)           │
+│                                                                  │
+│  Generating embeddings:                                          │
+│  [████████░░░░░░░░░░░░░░░░░░░░░░] 32% (45/142 files)         │
+│                                                                  │
+│  Current: Processing main.py                                     │
+│  Speed: 12 files/sec | ETA: 1m 23s                             │
+│                                                                  │
+│  [Space] Pause  [Esc] Cancel                                    │
+╰──────────────────────────────────────────────────────────────────╯
+```
+
 ## Groundbreaking Interface Patterns
 
 ### Orbital Loading Animation
@@ -909,6 +1180,182 @@ Step 1: ⚬        Step 2: ⚭        Step 3: ⚮        Step 4: ⚯
 │ ⏵ Ready for connections                                          │
 ╰──────────────────────────────────────────────────────────────────╯
 ```
+
+## Safe Implementation Practices
+
+### Development Guidelines
+1. **Test Each Component in Isolation**
+   - Create standalone test files for each component
+   - Verify keyboard navigation works correctly
+   - Test edge cases (empty states, long text, special characters)
+   - Ensure terminal compatibility
+
+2. **Incremental Integration**
+   - Build components independently first
+   - Test in demo app before integrating
+   - Add one component at a time to main app
+   - Verify existing functionality remains intact
+
+3. **User Confirmation Points**
+   - Show component demo before integration
+   - Get approval on visual design
+   - Confirm keyboard behavior meets expectations
+   - Wait for green light before proceeding to next component
+
+4. **Rollback Strategy**
+   - Keep existing code unchanged until new component is proven
+   - Use feature flags for new components
+   - Maintain ability to revert to previous state
+   - Document any breaking changes
+
+## Component-by-Component Implementation Plan
+
+### Component 1: TextInput
+**Files to create:**
+```
+src/interfaces/tui-ink/components/TextInput.tsx
+src/interfaces/tui-ink/components/__tests__/TextInput.test.tsx
+src/interfaces/tui-ink/examples/TextInputDemo.tsx
+```
+
+**Tasks:**
+1. Create basic TextInput with cursor rendering
+2. Implement keyboard navigation (arrows, home/end)
+3. Add editing operations (insert, delete, backspace)
+4. Support placeholder text
+5. Add validation states (error, success)
+6. Create demo showing all features
+7. **CHECKPOINT: Review and approve before integration**
+
+### Component 2: RadioGroup
+**Files to create:**
+```
+src/interfaces/tui-ink/components/RadioGroup.tsx
+src/interfaces/tui-ink/components/__tests__/RadioGroup.test.tsx
+src/interfaces/tui-ink/examples/RadioGroupDemo.tsx
+```
+
+**Tasks:**
+1. Create RadioGroup container component
+2. Implement RadioButton item component
+3. Add keyboard navigation (up/down arrows)
+4. Handle selection state changes
+5. Support disabled options
+6. Create demo with multiple examples
+7. **CHECKPOINT: Review and approve before integration**
+
+### Component 3: YesNoDialog
+**Files to create:**
+```
+src/interfaces/tui-ink/components/YesNoDialog.tsx
+src/interfaces/tui-ink/components/__tests__/YesNoDialog.test.tsx
+src/interfaces/tui-ink/examples/YesNoDialogDemo.tsx
+```
+
+**Tasks:**
+1. Create modal overlay system
+2. Implement dialog box with message
+3. Add Y/N keyboard shortcuts
+4. Support default selection
+5. Handle escape key for cancel
+6. Create demo showing different dialog types
+7. **CHECKPOINT: Review and approve before integration**
+
+### Component 4: ProgressBar
+**Files to create:**
+```
+src/interfaces/tui-ink/components/ProgressBar.tsx
+src/interfaces/tui-ink/components/__tests__/ProgressBar.test.tsx
+src/interfaces/tui-ink/examples/ProgressBarDemo.tsx
+```
+
+**Tasks:**
+1. Create determinate progress bar
+2. Add percentage and size displays
+3. Implement indeterminate progress
+4. Add smooth animation updates
+5. Support different visual styles
+6. Create demo with various progress scenarios
+7. **CHECKPOINT: Review and approve before integration**
+
+### Component 5: CheckboxList
+**Files to create:**
+```
+src/interfaces/tui-ink/components/CheckboxList.tsx
+src/interfaces/tui-ink/components/__tests__/CheckboxList.test.tsx
+src/interfaces/tui-ink/examples/CheckboxListDemo.tsx
+```
+
+**Tasks:**
+1. Create CheckboxList container
+2. Implement Checkbox item component
+3. Add space key for toggle
+4. Support select all/none
+5. Handle disabled items
+6. Create demo with interactive examples
+7. **CHECKPOINT: Review and approve before integration**
+
+### Component 6: SelectDropdown
+**Files to create:**
+```
+src/interfaces/tui-ink/components/SelectDropdown.tsx
+src/interfaces/tui-ink/components/__tests__/SelectDropdown.test.tsx
+src/interfaces/tui-ink/examples/SelectDropdownDemo.tsx
+```
+
+**Tasks:**
+1. Create collapsed/expanded states
+2. Implement dropdown animation
+3. Add type-to-filter functionality
+4. Support keyboard navigation
+5. Handle long option lists
+6. Create demo with filtering examples
+7. **CHECKPOINT: Review and approve before integration**
+
+### Testing Strategy for Each Component
+1. **Unit Tests**
+   - Test all keyboard interactions
+   - Verify state management
+   - Check edge cases
+
+2. **Visual Tests**
+   - Screenshot comparisons
+   - Terminal size variations
+   - Theme compatibility
+
+3. **Integration Tests**
+   - Test with existing navigation
+   - Verify focus management
+   - Check memory usage
+
+4. **User Acceptance**
+   - Demo to user
+   - Gather feedback
+   - Make adjustments
+   - Get explicit approval
+
+## Implementation Roadmap
+
+### Immediate Priorities (Phase 1)
+1. **Text Input Component** - Essential for configuration fields
+2. **Radio Button Groups** - For language and model selection
+3. **Yes/No Dialogs** - For confirmation prompts
+4. **Progress Bars** - For long operations feedback
+5. **Form Validation** - For input validation
+
+### Next Steps (Phase 2)
+1. **Checkbox Lists** - For multiple selections
+2. **Dropdown/Select** - Enhanced model selection
+3. **Modal System** - For dialogs and overlays
+4. **Command Input** - For slash commands
+5. **Loading Animations** - Enhanced visual feedback
+
+### Integration Requirements
+- All components must work with existing Ink/React setup
+- Maintain consistent visual style with BorderedBox
+- Support keyboard-only navigation
+- Preserve responsive behavior
+- Follow existing theme colors and symbols
 
 ---
 
