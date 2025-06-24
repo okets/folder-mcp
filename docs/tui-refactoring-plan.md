@@ -152,30 +152,51 @@ Move from scattered functions to proper encapsulated components that own their b
 
 ## Phase 4: Minimal DI Container (No Visual Impact)
 
-### Step 4.1: Create Simple DI Container
+### Step 4.1: Create DI Container with Type Safety
+- Create `src/interfaces/tui-ink/di/tokens.ts`:
+  ```typescript
+  import { IThemeService, IDataService, INavigationService, ITerminalService } from '../services/interfaces.js';
+  
+  export const ServiceTokens = {
+    ThemeService: Symbol('ThemeService') as symbol & { __type: IThemeService },
+    DataService: Symbol('DataService') as symbol & { __type: IDataService },
+    NavigationService: Symbol('NavigationService') as symbol & { __type: INavigationService },
+    TerminalService: Symbol('TerminalService') as symbol & { __type: ITerminalService }
+  };
+  ```
+
 - Create `src/interfaces/tui-ink/di/container.ts`:
   ```typescript
   export class DIContainer {
-    private services = new Map<string, any>();
+    private services = new Map<symbol, any>();
     
-    register<T>(token: string, factory: () => T): void {
-      this.services.set(token, factory());
+    register<T>(token: symbol & { __type: T }, instance: T): void {
+      this.services.set(token, instance);
     }
     
-    resolve<T>(token: string): T {
-      return this.services.get(token);
+    resolve<T>(token: symbol & { __type: T }): T {
+      const service = this.services.get(token);
+      if (!service) {
+        throw new Error(`Service not found for token: ${token.toString()}`);
+      }
+      return service;
     }
   }
   ```
-- Register services with same behavior
 - **Verification**: Run `npm run tui` - should look identical
 
 ### Step 4.2: Create React Context for DI
-- Create `di/DIContext.tsx`:
+- Create `src/interfaces/tui-ink/di/DIContext.tsx`:
   ```typescript
-  const DIContext = React.createContext<DIContainer | null>(null);
+  import React, { createContext, useContext } from 'react';
+  import { DIContainer } from './container.js';
   
-  export const DIProvider: React.FC<{ container: DIContainer }> = ({ container, children }) => {
+  const DIContext = createContext<DIContainer | null>(null);
+  
+  export const DIProvider: React.FC<{ container: DIContainer; children: React.ReactNode }> = ({ 
+    container, 
+    children 
+  }) => {
     return <DIContext.Provider value={container}>{children}</DIContext.Provider>;
   };
   
@@ -185,8 +206,41 @@ Move from scattered functions to proper encapsulated components that own their b
     return container;
   };
   ```
-- Wrap App in index.tsx with provider
-- Components still use direct imports
+
+### Step 4.3: Setup DI Container
+- Create `src/interfaces/tui-ink/di/setup.ts`:
+  ```typescript
+  import { DIContainer } from './container.js';
+  import { ServiceTokens } from './tokens.js';
+  import { ThemeService, DataService, NavigationService, TerminalService } from '../services/index.js';
+  
+  export const setupDIContainer = (): DIContainer => {
+    const container = new DIContainer();
+    
+    // Register all services
+    container.register(ServiceTokens.ThemeService, new ThemeService());
+    container.register(ServiceTokens.DataService, new DataService());
+    container.register(ServiceTokens.NavigationService, new NavigationService());
+    container.register(ServiceTokens.TerminalService, new TerminalService());
+    
+    return container;
+  };
+  ```
+
+- Update `index.tsx` to wrap App with DIProvider:
+  ```typescript
+  import { DIProvider } from './di/DIContext.js';
+  import { setupDIContainer } from './di/setup.js';
+  
+  const container = setupDIContainer();
+  
+  const app = render(
+    <DIProvider container={container}>
+      <App />
+    </DIProvider>
+  );
+  ```
+- Components still use direct imports (migration happens in Phase 5)
 - **Verification**: Run `npm run tui` - should look identical
 
 ## Phase 5: Gradual Component Migration (No Visual Impact)
@@ -194,12 +248,18 @@ Move from scattered functions to proper encapsulated components that own their b
 ### Step 5.1: Migrate Header Component
 - Update Header.tsx:
   ```typescript
+  import { useDI } from '../di/DIContext.js';
+  import { ServiceTokens } from '../di/tokens.js';
+  
   export const Header: React.FC = () => {
     const di = useDI();
-    const themeService = di.resolve<IThemeService>('theme');
-    const colors = themeService.getColors();
+    const themeService = di.resolve(ServiceTokens.ThemeService);
+    const { colors, symbols } = {
+      colors: themeService.getColors(),
+      symbols: themeService.getSymbols()
+    };
     
-    // Rest of component remains identical
+    // Rest of component remains identical, using colors.accent instead of theme.colors.accent
   };
   ```
 - Keep exact same render output
