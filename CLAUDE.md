@@ -153,3 +153,12 @@ When the user requests features or approaches that may have better alternatives,
 - **Ask clarifying questions:** Understand the real need behind the request
 - **Suggest improvements:** Propose better UX patterns or technical approaches when appropriate
 - **Be proactive:** Don't just implement what's asked - think about the user experience and offer better solutions
+
+## Visual Design and UX Guidelines
+
+**CRITICAL:** When working on visual elements, TUI layouts, or UX features:
+- **NEVER break consistency** by changing design patterns without explicit permission
+- **ASK BEFORE DECIDING** - Always ask the user before making fundamental changes to visual design or UX patterns
+- **Test visual changes** by running the code and verifying the output before claiming completion
+- **Preserve existing functionality** - Don't remove features to solve problems unless explicitly requested
+- When fixing visual bugs, maintain the original design intent and only fix the specific issue requested

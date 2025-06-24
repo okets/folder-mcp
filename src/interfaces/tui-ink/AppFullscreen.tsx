@@ -53,6 +53,67 @@ const statusItems = [
     { text: 'Plugins: 3 active', status: '' }
 ];
 
+// Helper function to create borders with embedded titles
+const createBorder = (
+    title: string,
+    subtitle?: string,
+    focused?: boolean,
+    width?: number,
+    hasScrollUp?: boolean,
+    hasScrollDown?: boolean,
+    moreCount?: number
+) => {
+    const { border } = theme.symbols;
+    const borderWidth = width || 76;
+    
+    // Create top border with embedded title
+    const createTopBorder = () => {
+        const scrollIndicator = hasScrollUp ? ' ↑' : '';
+        const titleWithScroll = `${title}${scrollIndicator}`;
+        
+        if (focused) {
+            // Total content: title + scroll + 2 spaces around title + 2 corner chars = title.length + 4
+            const padding = Math.max(0, borderWidth - titleWithScroll.length - 4);
+            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${border.horizontal.repeat(padding)}${border.topRight}`;
+        } else {
+            const tabText = '⁽ᵗᵃᵇ⁾';
+            // Total content: title + scroll + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
+            const totalContentLength = titleWithScroll.length + tabText.length + 6;
+            const padding = Math.max(0, borderWidth - totalContentLength);
+            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+        }
+    };
+    
+    // Create bottom border with scroll indicator
+    const createBottomBorder = () => {
+        if (hasScrollDown && moreCount) {
+            const scrollText = `↓ ${moreCount} more`;
+            // Total content: scroll text + 2 spaces + 2 corner chars = scrollText.length + 4
+            const padding = Math.max(0, borderWidth - scrollText.length - 4);
+            return `${border.bottomLeft}${border.horizontal} ${scrollText} ${border.horizontal.repeat(padding)}${border.bottomRight}`;
+        }
+        // Total content: just horizontal lines + 2 corner chars
+        return `${border.bottomLeft}${border.horizontal.repeat(borderWidth - 2)}${border.bottomRight}`;
+    };
+    
+    // Create side borders
+    const createSideBorder = (content?: React.ReactNode) => {
+        return (
+            <Box>
+                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{border.vertical} </Text>
+                <Box width={borderWidth - 2}>{content}</Box>
+                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{border.vertical}</Text>
+            </Box>
+        );
+    };
+    
+    return {
+        topBorder: createTopBorder(),
+        bottomBorder: createBottomBorder(),
+        sideBorder: createSideBorder
+    };
+};
+
 export const AppFullscreen: React.FC = () => {
     const { exit } = useApp();
     const navigation = useNavigation();
@@ -92,123 +153,124 @@ export const AppFullscreen: React.FC = () => {
                 <Header />
                 
                 {/* Configuration Box */}
-                <Box 
-                    height={configHeight}
-                    borderStyle="round" 
-                    borderColor={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border} 
-                    paddingX={1}
-                    flexDirection="column"
-                    overflow="hidden"
-                >
-                    <Box flexDirection="column">
-                        {navigation.isConfigFocused ? (
-                            <Text>Configuration</Text>
-                        ) : (
-                            <Box flexDirection="row" justifyContent="space-between">
-                                <Text>Configuration</Text>
-                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
-                            </Box>
-                        )}
-                        <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
-                    </Box>
-                    <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
-                        {(() => {
-                            // Calculate scroll offset to keep selected item visible
-                            let scrollOffset = 0;
-                            if (navigation.configSelectedIndex >= configVisibleCount) {
-                                scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
-                            }
-                            const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
-                            
-                            return visibleItems.map((item, visualIndex) => {
-                                const actualIndex = scrollOffset + visualIndex;
-                                return (
-                                    <Box key={`cfg-${actualIndex}`} width="100%" height={1}>
-                                        <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
-                                            {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                        </Text>
-                                    </Box>
-                                );
-                            });
-                        })()}
-                        {configItems.length > configVisibleCount && (
-                            <Text color={theme.colors.textMuted}>
-                                ↓ {(() => {
-                                    let scrollOffset = 0;
-                                    if (navigation.configSelectedIndex >= configVisibleCount) {
-                                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
-                                    }
-                                    return configItems.length - scrollOffset - configVisibleCount;
-                                })()} more
+                {(() => {
+                    // Calculate scroll offset to keep selected item visible
+                    let scrollOffset = 0;
+                    if (navigation.configSelectedIndex >= configVisibleCount) {
+                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                    }
+                    const hasScrollUp = scrollOffset > 0;
+                    const hasScrollDown = configItems.length > configVisibleCount;
+                    const moreCount = hasScrollDown ? configItems.length - scrollOffset - configVisibleCount : 0;
+                    
+                    const borders = createBorder(
+                        'Configuration', 
+                        'Setup your folder-mcp server',
+                        navigation.isConfigFocused,
+                        columns - 2,
+                        hasScrollUp,
+                        hasScrollDown,
+                        moreCount
+                    );
+                    
+                    const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
+                    
+                    return (
+                        <Box flexDirection="column" height={configHeight} overflow="hidden">
+                            {/* Top border with embedded title */}
+                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.topBorder}
                             </Text>
-                        )}
-                    </Box>
-                </Box>
+                            
+                            {/* Subtitle line */}
+                            {borders.sideBorder(
+                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
+                            )}
+                            
+                            {/* Content */}
+                            {visibleItems.map((item, visualIndex) => {
+                                const actualIndex = scrollOffset + visualIndex;
+                                return borders.sideBorder(
+                                    <Text key={`cfg-${actualIndex}`} color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                        {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                                    </Text>
+                                );
+                            })}
+                            
+                            {/* Bottom border with scroll indicator */}
+                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.bottomBorder}
+                            </Text>
+                        </Box>
+                    );
+                })()}
                 
                 {/* Status Box */}
-                <Box 
-                    height={statusHeight}
-                    borderStyle="round" 
-                    borderColor={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border} 
-                    paddingX={1}
-                    flexDirection="column"
-                >
-                    <Box flexDirection="column">
-                        {navigation.isStatusFocused ? (
-                            <Text>System Status</Text>
-                        ) : (
-                            <Box flexDirection="row" justifyContent="space-between">
-                                <Text>System Status</Text>
-                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
-                            </Box>
-                        )}
-                        {statusHeight > 5 && <Text color={theme.colors.textMuted}>Current state</Text>}
-                    </Box>
-                    <Box flexDirection="column" marginTop={1}>
-                        {statusVisibleCount > 0 ? (
-                            <>
-                                {(() => {
-                                    let scrollOffset = 0;
-                                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
-                                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
-                                    }
-                                    const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
-                                    
-                                    return visibleItems.map((item, visualIndex) => {
-                                        const actualIndex = scrollOffset + visualIndex;
-                                        return (
-                                            <Box key={`sts-${actualIndex}`} flexDirection="row">
-                                                <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>{navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}</Text>
-                                                {item.status && (
-                                                    <Text color={
-                                                        item.status === '✓' ? theme.colors.successGreen :
-                                                        item.status === '⚠' ? theme.colors.warningOrange :
-                                                        item.status === '⋯' ? theme.colors.accent : undefined
-                                                    }> {item.status}</Text>
-                                                )}
-                                            </Box>
-                                        );
-                                    });
-                                })()}
-                                {statusItems.length > statusVisibleCount && (
-                                    <Text color={theme.colors.textMuted}>
-                                        ↓ {(() => {
-                                            let scrollOffset = 0;
-                                            if (navigation.statusSelectedIndex >= statusVisibleCount) {
-                                                scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
-                                            }
-                                            return statusItems.length - scrollOffset - statusVisibleCount;
-                                        })()} more
-                                    </Text>
-                                )}
-                            </>
-                        ) : (
-                            <Text color={theme.colors.textMuted}>
-                                ↓ {statusItems.length} items
+                {(() => {
+                    let scrollOffset = 0;
+                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                    }
+                    const hasScrollUp = scrollOffset > 0;
+                    const hasScrollDown = statusItems.length > statusVisibleCount;
+                    const moreCount = hasScrollDown ? statusItems.length - scrollOffset - statusVisibleCount : 0;
+                    
+                    const borders = createBorder(
+                        'System Status',
+                        'Current state', 
+                        navigation.isStatusFocused,
+                        columns - 2,
+                        hasScrollUp,
+                        hasScrollDown,
+                        moreCount
+                    );
+                    
+                    const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
+                    
+                    return (
+                        <Box flexDirection="column" height={statusHeight}>
+                            {/* Top border with embedded title */}
+                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.topBorder}
                             </Text>
-                        )}
-                    </Box>
-                </Box>
+                            
+                            {/* Subtitle line */}
+                            {statusHeight > 5 && borders.sideBorder(
+                                <Text color={theme.colors.textMuted}>Current state</Text>
+                            )}
+                            
+                            {/* Content */}
+                            {statusVisibleCount > 0 ? (
+                                visibleItems.map((item, visualIndex) => {
+                                    const actualIndex = scrollOffset + visualIndex;
+                                    return borders.sideBorder(
+                                        <Box key={`sts-${actualIndex}`} flexDirection="row">
+                                            <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
+                                                {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
+                                            </Text>
+                                            {item.status && (
+                                                <Text color={
+                                                    item.status === '✓' ? theme.colors.successGreen :
+                                                    item.status === '⚠' ? theme.colors.warningOrange :
+                                                    item.status === '⋯' ? theme.colors.accent : undefined
+                                                }> {item.status}</Text>
+                                            )}
+                                        </Box>
+                                    );
+                                })
+                            ) : (
+                                borders.sideBorder(
+                                    <Text color={theme.colors.textMuted}>↓ {statusItems.length} items</Text>
+                                )
+                            )}
+                            
+                            {/* Bottom border with scroll indicator */}
+                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.bottomBorder}
+                            </Text>
+                        </Box>
+                    );
+                })()}
                 
                 <StatusBar />
             </Box>
@@ -235,89 +297,99 @@ export const AppFullscreen: React.FC = () => {
             
             <Box height={availableHeight}>
                 {/* Configuration Box - 70% width */}
-                <Box 
-                    width="70%"
-                    borderStyle="round" 
-                    borderColor={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border} 
-                    paddingX={1}
-                    flexDirection="column"
-                >
-                    <Box flexDirection="column">
-                        {navigation.isConfigFocused ? (
-                            <Text>Configuration</Text>
-                        ) : (
-                            <Box flexDirection="row" justifyContent="space-between">
-                                <Text>Configuration</Text>
-                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
-                            </Box>
-                        )}
-                        <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
-                    </Box>
-                    <Box flexDirection="column" marginTop={1} overflow="hidden">
-                        {(() => {
-                            // Calculate scroll offset to keep selected item visible
-                            let scrollOffset = 0;
-                            if (navigation.configSelectedIndex >= configVisibleCount) {
-                                scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
-                            }
-                            const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
-                            
-                            return visibleItems.map((item, visualIndex) => {
-                                const actualIndex = scrollOffset + visualIndex;
-                                return (
-                                    <Box key={`cfg-${actualIndex}`} width="100%" height={1}>
-                                        <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
-                                            {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                        </Text>
-                                    </Box>
-                                );
-                            });
-                        })()}
-                        {configItems.length > configVisibleCount && (
-                            <Text color={theme.colors.textMuted}>
-                                ↓ {(() => {
-                                    let scrollOffset = 0;
-                                    if (navigation.configSelectedIndex >= configVisibleCount) {
-                                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
-                                    }
-                                    return configItems.length - scrollOffset - configVisibleCount;
-                                })()} more
+                {(() => {
+                    // Calculate scroll offset to keep selected item visible
+                    let scrollOffset = 0;
+                    if (navigation.configSelectedIndex >= configVisibleCount) {
+                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                    }
+                    const hasScrollUp = scrollOffset > 0;
+                    const hasScrollDown = configItems.length > configVisibleCount;
+                    const moreCount = hasScrollDown ? configItems.length - scrollOffset - configVisibleCount : 0;
+                    
+                    const configWidth = Math.floor(columns * 0.7) - 2; // Account for Box padding/margins
+                    const borders = createBorder(
+                        'Configuration',
+                        'Setup your folder-mcp server',
+                        navigation.isConfigFocused,
+                        configWidth,
+                        hasScrollUp,
+                        hasScrollDown,
+                        moreCount
+                    );
+                    
+                    const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
+                    
+                    return (
+                        <Box width="70%" flexDirection="column">
+                            {/* Top border with embedded title */}
+                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.topBorder}
                             </Text>
-                        )}
-                    </Box>
-                </Box>
+                            
+                            {/* Subtitle line */}
+                            {borders.sideBorder(
+                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
+                            )}
+                            
+                            {/* Content */}
+                            {visibleItems.map((item, visualIndex) => {
+                                const actualIndex = scrollOffset + visualIndex;
+                                return borders.sideBorder(
+                                    <Text key={`cfg-${actualIndex}`} color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                        {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                                    </Text>
+                                );
+                            })}
+                            
+                            {/* Bottom border with scroll indicator */}
+                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.bottomBorder}
+                            </Text>
+                        </Box>
+                    );
+                })()}
                 
                 {/* Status Box - 30% width */}
-                <Box 
-                    width="30%"
-                    borderStyle="round" 
-                    borderColor={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border} 
-                    paddingX={1}
-                    flexDirection="column"
-                >
-                    <Box flexDirection="column">
-                        {navigation.isStatusFocused ? (
-                            <Text>System Status</Text>
-                        ) : (
-                            <Box flexDirection="row" justifyContent="space-between">
-                                <Text>System Status</Text>
-                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
-                            </Box>
-                        )}
-                        <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
-                    </Box>
-                    <Box flexDirection="column" marginTop={1}>
-                        {(() => {
-                            // Calculate scroll offset to keep selected item visible
-                            let scrollOffset = 0;
-                            if (navigation.statusSelectedIndex >= statusVisibleCount) {
-                                scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
-                            }
-                            const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
+                {(() => {
+                    // Calculate scroll offset to keep selected item visible
+                    let scrollOffset = 0;
+                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                    }
+                    const hasScrollUp = scrollOffset > 0;
+                    const hasScrollDown = statusItems.length > statusVisibleCount;
+                    const moreCount = hasScrollDown ? statusItems.length - scrollOffset - statusVisibleCount : 0;
+                    
+                    const statusWidth = Math.floor(columns * 0.3) - 2; // Account for Box padding/margins
+                    const borders = createBorder(
+                        'System Status',
+                        'Current state',
+                        navigation.isStatusFocused,
+                        statusWidth,
+                        hasScrollUp,
+                        hasScrollDown,
+                        moreCount
+                    );
+                    
+                    const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
+                    
+                    return (
+                        <Box width="30%" flexDirection="column">
+                            {/* Top border with embedded title */}
+                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.topBorder}
+                            </Text>
                             
-                            return visibleItems.map((item, visualIndex) => {
+                            {/* Subtitle line */}
+                            {borders.sideBorder(
+                                <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
+                            )}
+                            
+                            {/* Content */}
+                            {visibleItems.map((item, visualIndex) => {
                                 const actualIndex = scrollOffset + visualIndex;
-                                return (
+                                return borders.sideBorder(
                                     <Box key={`sts-${actualIndex}`} flexDirection="row">
                                         <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
                                             {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
@@ -331,21 +403,15 @@ export const AppFullscreen: React.FC = () => {
                                         )}
                                     </Box>
                                 );
-                            });
-                        })()}
-                        {statusItems.length > statusVisibleCount && (
-                            <Text color={theme.colors.textMuted}>
-                                ↓ {(() => {
-                                    let scrollOffset = 0;
-                                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
-                                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
-                                    }
-                                    return statusItems.length - scrollOffset - statusVisibleCount;
-                                })()} more
+                            })}
+                            
+                            {/* Bottom border with scroll indicator */}
+                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
+                                {borders.bottomBorder}
                             </Text>
-                        )}
-                    </Box>
-                </Box>
+                        </Box>
+                    );
+                })()}
             </Box>
             
             <StatusBar />

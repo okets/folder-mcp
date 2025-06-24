@@ -30,14 +30,11 @@ export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({
     // Fixed height for content area to prevent overlap
     // This is a conservative estimate that works across different terminal sizes
     const ITEM_HEIGHT = 1; // Each item takes 1 line
-    const HEADER_HEIGHT = 1; // Title line
     const SUBTITLE_HEIGHT = subtitle ? 1 : 0;
-    const BORDER_HEIGHT = 2; // Top and bottom borders
-    const SCROLL_INDICATOR_HEIGHT = 1; // "↓ X more" line  
-    const MARGIN_HEIGHT = 1; // marginTop
+    const BORDER_HEIGHT = 2; // Top and bottom borders (titles now embedded)
     const PADDING_HEIGHT = 1; // Extra safety padding
     
-    const totalChromeHeight = HEADER_HEIGHT + SUBTITLE_HEIGHT + BORDER_HEIGHT + SCROLL_INDICATOR_HEIGHT + MARGIN_HEIGHT + PADDING_HEIGHT;
+    const totalChromeHeight = SUBTITLE_HEIGHT + BORDER_HEIGHT + PADDING_HEIGHT;
     
     // Calculate how many items we can show
     const availableHeight = height || 20; // Default to reasonable height
@@ -71,41 +68,63 @@ export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({
     const hasScrollUp = scrollOffset > 0;
     const hasScrollDown = scrollOffset + visibleItems < itemCount;
     
+    const { border } = theme.symbols;
+    
+    // Create top border with embedded title  
+    const createTopBorder = () => {
+        const scrollIndicator = hasScrollUp ? ' ↑' : '';
+        const titleWithScroll = `${title}${scrollIndicator}`;
+        
+        if (focused) {
+            // Focused: just title and scroll indicator
+            const padding = border.horizontal.repeat(Math.max(0, 76 - titleWithScroll.length - 4));
+            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${padding}${border.topRight}`;
+        } else {
+            // Unfocused: title, scroll indicator, and tab hint
+            const tabText = '⁽ᵗᵃᵇ⁾';
+            const totalContent = `${titleWithScroll} ${tabText}`;
+            const padding = border.horizontal.repeat(Math.max(0, 76 - totalContent.length - 4));
+            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${padding} ${tabText} ${border.topRight}`;
+        }
+    };
+    
+    // Create bottom border with scroll indicator
+    const createBottomBorder = () => {
+        if (hasScrollDown) {
+            const scrollText = `↓ ${itemCount - scrollOffset - visibleItems} more`;
+            const padding = border.horizontal.repeat(Math.max(0, 76 - scrollText.length - 4));
+            return `${border.bottomLeft}${border.horizontal} ${scrollText} ${padding}${border.bottomRight}`;
+        }
+        return `${border.bottomLeft}${border.horizontal.repeat(76)}${border.bottomRight}`;
+    };
+
     return (
-        <Box 
-            flexDirection="column"
-            borderStyle="round"
-            borderColor={borderColor}
-            paddingX={1}
-            width="100%"
-        >
-            <Box flexDirection="row" justifyContent="space-between">
-                {focused ? (
-                    <Text color={theme.colors.textPrimary}>{title}</Text>
-                ) : (
-                    <Box flexDirection="row" justifyContent="space-between" width="100%">
-                        <Text color={theme.colors.textPrimary}>{title}</Text>
-                        <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
-                    </Box>
-                )}
-                {hasScrollUp && <Text color={theme.colors.textMuted}>↑</Text>}
-            </Box>
+        <Box flexDirection="column" width="100%">
+            {/* Top border with embedded title */}
+            <Text color={borderColor}>{createTopBorder()}</Text>
+            
+            {/* Subtitle line if present */}
             {subtitle && (
-                <Text color={theme.colors.textMuted}>{subtitle}</Text>
-            )}
-            <Box 
-                marginTop={1} 
-                flexDirection="column" 
-                width="100%"
-                height={visibleItems}
-            >
-                {visibleChildren}
-            </Box>
-            {hasScrollDown && (
-                <Box justifyContent="flex-end">
-                    <Text color={theme.colors.textMuted}>↓ {itemCount - scrollOffset - visibleItems} more</Text>
+                <Box>
+                    <Text color={borderColor}>{border.vertical} </Text>
+                    <Text color={theme.colors.textMuted}>{subtitle}</Text>
+                    <Text color={borderColor}> {border.vertical}</Text>
                 </Box>
             )}
+            
+            {/* Content */}
+            <Box flexDirection="column">
+                {visibleChildren.map((child, index) => (
+                    <Box key={index}>
+                        <Text color={borderColor}>{border.vertical} </Text>
+                        <Box width="100%">{child}</Box>
+                        <Text color={borderColor}> {border.vertical}</Text>
+                    </Box>
+                ))}
+            </Box>
+            
+            {/* Bottom border with scroll indicator */}
+            <Text color={borderColor}>{createBottomBorder()}</Text>
         </Box>
     );
 };
