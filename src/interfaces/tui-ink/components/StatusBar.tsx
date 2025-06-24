@@ -3,31 +3,38 @@ import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 
-interface Shortcut {
-    key: string;
-    description: string;
-}
-
 interface StatusBarProps {
-    shortcuts?: Shortcut[];
     message?: string;
 }
 
-const defaultShortcuts: Shortcut[] = [
-    { key: '↑↓', description: 'Navigate' },
-    { key: '→/Enter', description: 'Expand' },
-    { key: 'Tab', description: 'Switch Focus' },
-    { key: '←/Esc', description: 'Back' },
-    { key: 'q', description: 'Quit' },
-    { key: 'h/?', description: 'Help' }
-];
-
-export const StatusBar: React.FC<StatusBarProps> = ({ shortcuts = defaultShortcuts, message }) => {
+export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const di = useDI();
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
     
-    const content = message || shortcuts.map(s => `[${s.key}] ${s.description}`).join(' • ');
+    // Try to get StatusBarService if it exists
+    let content = message;
+    try {
+        if (di.has(ServiceTokens.StatusBarService)) {
+            const statusBarService = di.resolve(ServiceTokens.StatusBarService);
+            const bindings = statusBarService.getKeyBindings();
+            if (!message && bindings.length > 0) {
+                content = bindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+            }
+        }
+    } catch {
+        // Fallback if StatusBarService not registered
+        const defaultBindings = [
+            { key: '↑↓', description: 'Navigate' },
+            { key: '→/Enter', description: 'Expand' },
+            { key: 'Tab', description: 'Switch Focus' },
+            { key: '←/Esc', description: 'Back' },
+            { key: 'q', description: 'Quit' }
+        ];
+        if (!content) {
+            content = defaultBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+        }
+    }
     
     return (
         <Box 
