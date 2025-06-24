@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../utils/theme.js';
+import { ILayoutConstraints } from '../models/types.js';
+import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
 
 interface BorderedBoxProps {
     title: string;
@@ -11,6 +13,7 @@ interface BorderedBoxProps {
     children: React.ReactNode;
     showScrollbar?: boolean;
     scrollbarElements?: string[];
+    constraints?: ILayoutConstraints;
 }
 
 export const BorderedBox: React.FC<BorderedBoxProps> = ({
@@ -21,10 +24,28 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     height,
     children,
     showScrollbar = false,
-    scrollbarElements = []
+    scrollbarElements = [],
+    constraints
 }) => {
     const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
+    
+    // Calculate exact content width
+    // Border chars (|) and spaces on each side = 4 chars total
+    // If scrollbar is shown, we need 1 more char
+    const contentWidth = width - 4 - (showScrollbar ? 1 : 0);
+    
+    // Calculate content height
+    // Top border (1) + bottom border (1) = 2
+    // Subtitle line if present (1)
+    const contentHeight = height - 2 - (subtitle ? 1 : 0);
+    
+    // Create constraints for children
+    const childConstraints: ILayoutConstraints = constraints || {
+        maxWidth: contentWidth,
+        maxHeight: contentHeight,
+        overflow: 'truncate'
+    };
     
     // Create top border with embedded title
     const createTopBorder = () => {
@@ -52,7 +73,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
         return (
             <Box key={key}>
                 <Text color={borderColor}>{border.vertical} </Text>
-                <Box width={width - 5}>{content}</Box>
+                <Box width={contentWidth}>{content}</Box>
                 <Text color={borderColor}> {scrollbarChar}{border.vertical}</Text>
             </Box>
         );
@@ -61,26 +82,28 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     const childrenArray = React.Children.toArray(children);
     
     return (
-        <Box flexDirection="column" height={height} width={width}>
-            {/* Top border with embedded title */}
-            <Text color={borderColor}>{createTopBorder()}</Text>
-            
-            {/* Subtitle line if present */}
-            {subtitle && createSideBorder(
-                <Text color={theme.colors.textMuted}>{subtitle}</Text>,
-                ' '
-            )}
-            
-            {/* Content with optional scrollbar */}
-            {childrenArray.map((child, index) => {
-                const scrollbarChar = showScrollbar && scrollbarElements.length > 0 && index < scrollbarElements.length
-                    ? scrollbarElements[index]
-                    : ' ';
-                return createSideBorder(child, scrollbarChar, `content-${index}`);
-            })}
-            
-            {/* Bottom border */}
-            <Text color={borderColor}>{createBottomBorder()}</Text>
-        </Box>
+        <LayoutConstraintProvider constraints={childConstraints}>
+            <Box flexDirection="column" height={height} width={width}>
+                {/* Top border with embedded title */}
+                <Text color={borderColor}>{createTopBorder()}</Text>
+                
+                {/* Subtitle line if present */}
+                {subtitle && createSideBorder(
+                    <Text color={theme.colors.textMuted}>{subtitle}</Text>,
+                    ' '
+                )}
+                
+                {/* Content with optional scrollbar */}
+                {childrenArray.map((child, index) => {
+                    const scrollbarChar = showScrollbar && scrollbarElements.length > 0 && index < scrollbarElements.length
+                        ? scrollbarElements[index]
+                        : ' ';
+                    return createSideBorder(child, scrollbarChar, `content-${index}`);
+                })}
+                
+                {/* Bottom border */}
+                <Text color={borderColor}>{createBottomBorder()}</Text>
+            </Box>
+        </LayoutConstraintProvider>
     );
 };
