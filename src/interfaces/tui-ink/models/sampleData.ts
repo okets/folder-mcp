@@ -25,7 +25,7 @@ export const configItems: string[] = [
 
 export const statusItems: StatusItem[] = [
     { text: 'System components loaded', status: '✓' },
-    { text: 'Checking cached configuration', status: '⋯' },
+    { text: 'Checking cached configuration with an extremely long description that would overflow', status: '⋯' },
     { text: 'Loading default settings', status: '' },
     { text: 'Validating embedding models', status: '⚠' },
     { text: 'Memory usage: 1.2GB / 8GB', status: '✓' },

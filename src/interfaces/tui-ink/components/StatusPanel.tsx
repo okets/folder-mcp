@@ -5,6 +5,7 @@ import { theme } from '../utils/theme.js';
 import { useNavigation } from '../hooks/useNavigation.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { statusItems } from '../models/sampleData.js';
+import { StatusItemLayout } from './StatusItemLayout.js';
 
 // Helper function to calculate scrollbar visual representation
 const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
@@ -79,18 +80,17 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                 visibleItems.map((item, visualIndex) => {
                     const actualIndex = scrollOffset + visualIndex;
                     return (
-                        <Box key={`panel-status-item-${actualIndex}`} flexDirection="row">
-                            <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
-                                {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
-                            </Text>
-                            {item.status && (
-                                <Text color={
-                                    item.status === '✓' ? theme.colors.successGreen :
-                                    item.status === '⚠' ? theme.colors.warningOrange :
-                                    item.status === '⋯' ? theme.colors.accent : undefined
-                                }> {item.status}</Text>
-                            )}
-                        </Box>
+                        <StatusItemLayout
+                            key={`panel-status-item-${actualIndex}`}
+                            text={`${navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} ${item.text}`}
+                            status={item.status}
+                            color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}
+                            statusColor={
+                                item.status === '✓' ? theme.colors.successGreen :
+                                item.status === '⚠' ? theme.colors.warningOrange :
+                                item.status === '⋯' ? theme.colors.accent : undefined
+                            }
+                        />
                     );
                 })
             ) : (
