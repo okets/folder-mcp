@@ -5,6 +5,8 @@ import { theme } from '../utils/theme.js';
 import { useNavigation } from '../hooks/useNavigation.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { configItems } from '../models/sampleData.js';
+import { useLayoutConstraints } from '../contexts/LayoutContext.js';
+import { ConstrainedContent } from './ConstrainedContent.js';
 
 // Helper function to calculate scrollbar visual representation
 const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
@@ -49,11 +51,17 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
 export const ConfigurationPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
     const navigation = useNavigation();
     const { columns } = useTerminalSize();
+    const constraints = useLayoutConstraints();
     
     // Calculate visible count based on height
     const boxOverhead = 4;
     const maxItems = Math.max(1, (height || 20) - boxOverhead);
     const visibleCount = configItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
+    
+    // Calculate content width for items
+    // Account for selection indicator (2 chars: "▶ " or "○ ")
+    const panelWidth = width || columns - 2;
+    const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
     
     // Calculate scroll offset
     let scrollOffset = 0;
@@ -79,8 +87,7 @@ export const ConfigurationPanel: React.FC<{ width?: number; height?: number }> =
                 return (
                     <Text 
                         key={`panel-config-item-${actualIndex}`}
-                        color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} 
-                        wrap="truncate"
+                        color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined}
                     >
                         {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
                     </Text>
