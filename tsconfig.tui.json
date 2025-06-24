@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "jsxImportSource": "ink",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "src/interfaces/tui-ink/**/*"
+  ]
+}

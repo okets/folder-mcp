@@ -9,7 +9,10 @@ import {
     IFormNavigationService,
     IInputService,
     IValidationService,
-    IStatusBarService
+    IStatusBarService,
+    IFocusChainService,
+    IInputContextService,
+    IRenderSlotService
 } from '../services/interfaces.js';
 
 // Type-safe service tokens using symbols
@@ -24,5 +27,8 @@ export const ServiceTokens = {
     FormNavigationService: Symbol('FormNavigationService') as symbol & { __type: IFormNavigationService },
     InputService: Symbol('InputService') as symbol & { __type: IInputService },
     ValidationService: Symbol('ValidationService') as symbol & { __type: IValidationService },
-    StatusBarService: Symbol('StatusBarService') as symbol & { __type: IStatusBarService }
+    StatusBarService: Symbol('StatusBarService') as symbol & { __type: IStatusBarService },
+    FocusChainService: Symbol('FocusChainService') as symbol & { __type: IFocusChainService },
+    InputContextService: Symbol('InputContextService') as symbol & { __type: IInputContextService },
+    RenderSlotService: Symbol('RenderSlotService') as symbol & { __type: IRenderSlotService }
 };

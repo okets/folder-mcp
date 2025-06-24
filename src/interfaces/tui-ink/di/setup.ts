@@ -7,6 +7,9 @@ import { FormNavigationService } from '../services/FormNavigationService.js';
 import { ValidationService } from '../services/ValidationService.js';
 import { InputService } from '../services/InputService.js';
 import { StatusBarService } from '../services/StatusBarService.js';
+import { FocusChainService } from '../services/FocusChainService.js';
+import { InputContextService } from '../services/InputContextService.js';
+import { RenderSlotService } from '../services/RenderSlotService.js';
 
 export const setupDIContainer = (): DIContainer => {
     const container = new DIContainer();
@@ -27,6 +30,13 @@ export const setupDIContainer = (): DIContainer => {
     container.register(ServiceTokens.ConfigurationService, new ConfigurationService(
         container.resolve(ServiceTokens.ValidationService)
     ));
+    
+    // Register focus chain services
+    container.register(ServiceTokens.FocusChainService, new FocusChainService());
+    container.register(ServiceTokens.InputContextService, new InputContextService(
+        container.resolve(ServiceTokens.FocusChainService)
+    ));
+    container.register(ServiceTokens.RenderSlotService, new RenderSlotService());
     
     return container;
 };

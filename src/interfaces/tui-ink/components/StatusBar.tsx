@@ -12,10 +12,18 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
     
-    // Try to get StatusBarService if it exists
+    // Try to get key bindings from InputContextService (preferred) or StatusBarService
     let content = message;
     try {
-        if (di.has(ServiceTokens.StatusBarService)) {
+        // First try InputContextService which gets bindings from focus chain
+        if (di.has(ServiceTokens.InputContextService)) {
+            const inputContextService = di.resolve(ServiceTokens.InputContextService);
+            const bindings = inputContextService.getActiveKeyBindings();
+            if (!message && bindings.length > 0) {
+                content = bindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+            }
+        } else if (di.has(ServiceTokens.StatusBarService)) {
+            // Fallback to StatusBarService
             const statusBarService = di.resolve(ServiceTokens.StatusBarService);
             const bindings = statusBarService.getKeyBindings();
             if (!message && bindings.length > 0) {
@@ -23,12 +31,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
             }
         }
     } catch {
-        // Fallback if StatusBarService not registered
+        // Fallback if services not registered
         const defaultBindings = [
             { key: '↑↓', description: 'Navigate' },
-            { key: '→/Enter', description: 'Expand' },
-            { key: 'Tab', description: 'Switch Focus' },
-            { key: '←/Esc', description: 'Back' },
+            { key: '→/Enter', description: 'Edit' },
+            { key: 'Tab', description: 'Switch Panel' },
             { key: 'q', description: 'Quit' }
         ];
         if (!content) {

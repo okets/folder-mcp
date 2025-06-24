@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput } from 'ink';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './BorderedBox.js';
 import { theme } from '../utils/theme.js';
 import { useNavigation } from '../hooks/useNavigation.js';
@@ -7,6 +7,8 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
+import { useFocusChain } from '../hooks/useFocusChain.js';
+import { useRenderSlots } from '../hooks/useRenderSlots.js';
 
 // Simple configuration items for testing
 const configurationItems = [
@@ -71,6 +73,14 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
     const [editValue, setEditValue] = useState('');
     const [cursorVisible, setCursorVisible] = useState(true);
     
+    // Use render slots when an item is expanded
+    const { totalSlots } = useRenderSlots({
+        elementId: 'config-panel-expanded',
+        containerId: 'config-panel',
+        slots: expandedIndex !== null ? 3 : 0, // Expanded item needs 3 extra lines
+        enabled: expandedIndex !== null
+    });
+    
     // Update status bar based on editing state
     useEffect(() => {
         if (expandedIndex !== null) {
@@ -99,11 +109,8 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
     // When an item is expanded, reduce visible items to make room
     let visibleCount = configurationItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
     
-    // If we have an expanded item, we need to show fewer items
-    if (expandedIndex !== null) {
-        // An expanded item takes about 4 lines, so reduce visible count by 3
-        visibleCount = Math.max(1, visibleCount - 3);
-    }
+    // Adjust visible count based on total render slots claimed
+    visibleCount = Math.max(1, visibleCount - totalSlots);
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
@@ -124,13 +131,23 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
         }
     }
     
-    const scrollbar = calculateScrollbar(configurationItems.length, visibleCount, scrollOffset);
     const visibleItems = configurationItems.slice(scrollOffset, scrollOffset + visibleCount);
     
-    // Handle input for expand/edit only (navigation is handled by useNavigation hook)
-    useInput((input, key) => {
-        if (!navigation.isConfigFocused) return;
-        
+    // Calculate total visible lines (accounting for expanded items)
+    let totalVisibleLines = 0;
+    visibleItems.forEach((item, index) => {
+        const actualIndex = scrollOffset + index;
+        if (expandedIndex === actualIndex) {
+            totalVisibleLines += 3; // Expanded item takes 3 lines
+        } else {
+            totalVisibleLines += 1; // Collapsed item takes 1 line
+        }
+    });
+    
+    const scrollbar = calculateScrollbar(configurationItems.length, totalVisibleLines, scrollOffset);
+    
+    // Handle configuration panel input
+    const handleConfigInput = useCallback((input: string, key: Key): boolean => {
         const actualIndex = navigation.configSelectedIndex;
         
         if (expandedIndex === null) {
@@ -139,26 +156,49 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
                 // Expand for editing
                 setExpandedIndex(actualIndex);
                 setEditValue(configurationItems[actualIndex].value);
+                return true;
             }
+            return false;
         } else {
-            // Editing mode
+            // Editing mode - handle all input
             if (key.escape) {
                 // Cancel editing
                 setExpandedIndex(null);
                 setEditValue('');
+                return true;
             } else if (key.return) {
                 // Save changes
                 configurationItems[expandedIndex].value = editValue;
                 setExpandedIndex(null);
                 setEditValue('');
+                return true;
             } else if (key.backspace || key.delete) {
                 // Delete character
                 setEditValue(prev => prev.slice(0, -1));
+                return true;
             } else if (input && !key.ctrl && !key.meta) {
                 // Add character
                 setEditValue(prev => prev + input);
+                return true;
             }
+            return true; // Consume all input when editing
         }
+    }, [expandedIndex, editValue, navigation.configSelectedIndex]);
+    
+    // Use focus chain - active when config panel is focused and especially when editing
+    const { isInFocusChain } = useFocusChain({
+        elementId: 'config-panel',
+        parentId: 'app',
+        isActive: navigation.isConfigFocused,
+        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
+        keyBindings: expandedIndex !== null ? [
+            { key: 'Esc', description: 'Cancel' },
+            { key: 'Enter', description: 'Save' }
+        ] : [
+            { key: '→/Enter', description: 'Edit' },
+            { key: '↑↓', description: 'Navigate' }
+        ],
+        priority: expandedIndex !== null ? 100 : 50 // Higher priority when editing
     });
     
     return (
@@ -171,46 +211,40 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
             showScrollbar={true}
             scrollbarElements={scrollbar}
         >
-            {visibleItems.map((item, visualIndex) => {
+            {visibleItems.flatMap((item, visualIndex) => {
                 const actualIndex = scrollOffset + visualIndex;
                 const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
                 const isExpanded = expandedIndex === actualIndex;
                 
                 if (isExpanded) {
-                    // Expanded view for editing
-                    return (
-                        <Box key={item.id} flexDirection="column">
-                            <Text color={theme.colors.accent}>
-                                ▶ {item.label}:
-                            </Text>
-                            <Box paddingLeft={2} marginTop={1}>
-                                <Text color={theme.colors.textPrimary}>
-                                    {editValue}
-                                    {cursorVisible ? (
-                                        <Text backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
-                                    ) : (
-                                        <Text> </Text>
-                                    )}
-                                </Text>
-                            </Box>
-                            <Box paddingLeft={2} marginTop={1}>
-                                <Text color={theme.colors.textMuted} dimColor>
-                                    [Esc] Cancel  [Enter] Save
-                                </Text>
-                            </Box>
-                        </Box>
-                    );
+                    // Expanded view for editing - return array of elements
+                    return [
+                        <Text key={`${item.id}-label`} color={theme.colors.accent}>
+                            ▶ {item.label}:
+                        </Text>,
+                        <Text key={`${item.id}-value`} color={theme.colors.textPrimary}>
+                            {'  '}{editValue}
+                            {cursorVisible ? (
+                                <Text backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
+                            ) : (
+                                <Text> </Text>
+                            )}
+                        </Text>,
+                        <Text key={`${item.id}-help`} color={theme.colors.textMuted} dimColor>
+                            {'  '}[Esc] Cancel  [Enter] Save
+                        </Text>
+                    ];
                 }
                 
-                // Collapsed view
-                return (
+                // Collapsed view - return array with single element
+                return [
                     <Text 
                         key={item.id}
                         color={isSelected ? theme.colors.accent : undefined}
                     >
                         {isSelected ? '▶' : '│'} {item.label}: [{item.value}] →
                     </Text>
-                );
+                ];
             })}
         </BorderedBox>
     );

@@ -132,3 +132,61 @@ export interface IKeyBinding {
     key: string;
     description: string;
 }
+
+// Focus Chain Management
+export interface IFocusChainService {
+    // Active element management (only one can be active)
+    setActive(elementId: string | null): void;
+    getActive(): string | null;
+    
+    // Parent-child relationship for focus chain
+    registerParent(childId: string, parentId: string): void;
+    
+    // Get the entire focus chain [active, ...ancestors]
+    getFocusChain(): string[];
+    
+    // Check if element is in focus chain
+    isInFocusChain(elementId: string): boolean;
+    
+    // Cleanup
+    unregisterElement(elementId: string): void;
+}
+
+// Input Context Management
+import type { Key } from 'ink';
+
+export type InputHandler = (input: string, key: Key) => boolean;
+
+export interface IInputContextService {
+    // Register handler for an element (with optional key bindings for status bar)
+    registerHandler(
+        elementId: string, 
+        handler: InputHandler, 
+        priority: number,
+        keyBindings?: IKeyBinding[]
+    ): void;
+    
+    // Unregister handler
+    unregisterHandler(elementId: string): void;
+    
+    // Route input through handlers based on focus chain
+    handleInput(input: string, key: Key): boolean;
+    
+    // Get key bindings from all focused elements
+    getActiveKeyBindings(): IKeyBinding[];
+}
+
+// Render Slot Management
+export interface IRenderSlotService {
+    // Claim render slots for an element
+    claimSlots(elementId: string, count: number, containerId: string): void;
+    
+    // Release slots claimed by an element
+    releaseSlots(elementId: string, containerId: string): void;
+    
+    // Get total slots needed by a container
+    getTotalSlots(containerId: string): number;
+    
+    // Clear all allocations for a container
+    clearContainer(containerId: string): void;
+}

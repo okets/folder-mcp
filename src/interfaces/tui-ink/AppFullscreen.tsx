@@ -1,20 +1,43 @@
-import React from 'react';
-import { Box, useApp, useInput } from 'ink';
+import React, { useCallback } from 'react';
+import { Box, useApp, Key } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LayoutContainer } from './components/LayoutContainer.js';
 import { ConfigurationPanelSimple } from './components/ConfigurationPanelSimple.js';
 import { StatusPanel } from './components/StatusPanel.js';
 import { useTerminalSize } from './hooks/useTerminalSize.js';
+import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
+import { useDI } from './di/DIContext.js';
+import { ServiceTokens } from './di/tokens.js';
 
 export const AppFullscreen: React.FC = () => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
+    const di = useDI();
+    const focusChainService = di.resolve(ServiceTokens.FocusChainService);
+    const inputContextService = di.resolve(ServiceTokens.InputContextService);
     
-    useInput((input) => {
-        if (input === 'q') {
+    // Set up root input handler
+    useRootInput();
+    
+    // Register app-level input handler
+    const handleAppInput = useCallback((input: string, key: Key): boolean => {
+        // Only handle 'q' to quit if no element is actively using input
+        if (input === 'q' && !focusChainService.getActive()) {
             exit();
+            return true;
         }
+        return false;
+    }, [exit, focusChainService]);
+    
+    // Use focus chain for app-level component
+    useFocusChain({
+        elementId: 'app',
+        onInput: handleAppInput,
+        keyBindings: [
+            { key: 'q', description: 'Quit' }
+        ],
+        priority: -100 // Low priority so active elements can override
     });
     
     // Fixed height calculations (accounting for header margin)
