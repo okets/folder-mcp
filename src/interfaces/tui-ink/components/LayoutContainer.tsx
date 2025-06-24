@@ -1,7 +1,9 @@
 import React from 'react';
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
 import { ILayoutConstraints } from '../models/types.js';
+import { useDI } from '../di/DIContext.js';
+import { ServiceTokens } from '../di/tokens.js';
 
 interface LayoutContainerProps {
     availableHeight: number;
@@ -16,7 +18,15 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
     children,
     narrowBreakpoint = 100
 }) => {
+    const di = useDI();
+    const debugService = di.resolve(ServiceTokens.DebugService);
     const isNarrow = availableWidth < narrowBreakpoint;
+    
+    // Log layout decisions in debug mode
+    if (debugService.isEnabled()) {
+        debugService.logLayout('LayoutContainer', { width: availableWidth, height: availableHeight });
+        debugService.log('LayoutContainer', `Mode: ${isNarrow ? 'narrow' : 'wide'}`);
+    }
     
     if (isNarrow) {
         // Narrow layout: Stack panels vertically
@@ -58,23 +68,25 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         // Wide layout: Panels side-by-side
         // For wide mode, allocate width proportionally
         // Currently mimics the 70%/30% split for 2 panels
+        // Subtract 1 for safety margin to prevent edge case overflow
+        const safeWidth = availableWidth - 1;
         const widths = children.length === 2
             ? (() => {
-                const firstWidth = Math.floor(availableWidth * 0.7);
-                const secondWidth = availableWidth - firstWidth; // Ensure no rounding errors
+                const firstWidth = Math.floor(safeWidth * 0.7);
+                const secondWidth = safeWidth - firstWidth; // Ensure no rounding errors
                 return [firstWidth, secondWidth];
               })()
             : (() => {
                 // Distribute width evenly, accounting for rounding
-                const baseWidth = Math.floor(availableWidth / children.length);
-                const remainder = availableWidth - (baseWidth * children.length);
+                const baseWidth = Math.floor(safeWidth / children.length);
+                const remainder = safeWidth - (baseWidth * children.length);
                 return children.map((_, index) => 
                     index < remainder ? baseWidth + 1 : baseWidth
                 );
               })();
         
         return (
-            <Box height={availableHeight} width={availableWidth}>
+            <Box height={availableHeight} width={availableWidth} flexDirection="row" flexWrap="nowrap" alignItems="flex-start">
                 {children.map((child, index) => {
                     const constraints: ILayoutConstraints = {
                         maxWidth: widths[index],
@@ -84,7 +96,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     
                     return (
                         <LayoutConstraintProvider key={index} constraints={constraints}>
-                            <Box width={widths[index]} height={availableHeight}>
+                            <Box width={widths[index]} height={availableHeight} flexShrink={0}>
                                 {React.cloneElement(child, {
                                     height: availableHeight,
                                     width: widths[index]

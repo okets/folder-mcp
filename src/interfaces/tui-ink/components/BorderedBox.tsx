@@ -4,6 +4,8 @@ import { theme } from '../utils/theme.js';
 import { ILayoutConstraints } from '../models/types.js';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
 import { ConstrainedContent } from './ConstrainedContent.js';
+import { useDI } from '../di/DIContext.js';
+import { ServiceTokens } from '../di/tokens.js';
 
 interface BorderedBoxProps {
     title: string;
@@ -28,8 +30,15 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     scrollbarElements = [],
     constraints
 }) => {
+    const di = useDI();
+    const debugService = di.resolve(ServiceTokens.DebugService);
     const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
+    
+    // Log border dimensions in debug mode
+    if (debugService.isEnabled()) {
+        debugService.logLayout(`BorderedBox[${title}]`, { width, height });
+    }
     
     // Calculate exact content width
     // Border chars (|) and spaces on each side = 4 chars total

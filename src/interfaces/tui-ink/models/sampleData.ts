@@ -2,7 +2,7 @@ import { StatusItem } from './StatusItem.js';
 
 export const configItems: string[] = [
     'Create optimized configuration for my machine',
-    'Manual configuration wizard with extremely long text that should definitely overflow the container boundaries and break things if not handled properly',
+    'Manual configuration wizard',
     'Load existing configuration',
     'Select embedding model',
     'Configure cache directory',
@@ -25,9 +25,10 @@ export const configItems: string[] = [
 
 export const statusItems: StatusItem[] = [
     { text: 'System components loaded', status: '✓' },
-    { text: 'Checking cached configuration with an extremely long description that would overflow', status: '⋯' },
+    { text: 'Validating embedding models', status: '⚠' },  // Swapped position
     { text: 'Loading default settings', status: '' },
-    { text: 'Validating embedding models', status: '⚠' },
+    { text: 'Checking cached configuration', status: '⋯' },  // Swapped position
+    { text: 'Validating embedding model types', status: '⚠' },  // Added longer variant
     { text: 'Memory usage: 1.2GB / 8GB', status: '✓' },
     { text: 'Cache size: 456MB', status: '' },
     { text: 'Indexed files: 1,234', status: '✓' },

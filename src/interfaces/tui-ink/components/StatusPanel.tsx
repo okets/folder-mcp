@@ -82,8 +82,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     return (
                         <StatusItemLayout
                             key={`panel-status-item-${actualIndex}`}
-                            text={`${navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} ${item.text}`}
+                            text={item.text}
                             status={item.status}
+                            selectionIndicator={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'}
                             color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}
                             statusColor={
                                 item.status === '✓' ? theme.colors.successGreen :

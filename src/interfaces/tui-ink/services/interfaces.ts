@@ -36,3 +36,10 @@ export interface IContentService {
     truncateText(text: string, maxWidth: number, ellipsis?: string): string;
     wrapText(text: string, maxWidth: number): string[];
 }
+
+export interface IDebugService {
+    isEnabled(): boolean;
+    log(component: string, message: string): void;
+    logLayout(component: string, constraints: { width: number; height: number }): void;
+    renderLayoutBoundaries(width: number, height: number): string;
+}
