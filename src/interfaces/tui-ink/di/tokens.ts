@@ -1,4 +1,16 @@
-import { IThemeService, IDataService, INavigationService, ITerminalService, IContentService, IDebugService } from '../services/interfaces.js';
+import { 
+    IThemeService, 
+    IDataService, 
+    INavigationService, 
+    ITerminalService, 
+    IContentService, 
+    IDebugService,
+    IConfigurationService,
+    IFormNavigationService,
+    IInputService,
+    IValidationService,
+    IStatusBarService
+} from '../services/interfaces.js';
 
 // Type-safe service tokens using symbols
 export const ServiceTokens = {
@@ -7,5 +19,10 @@ export const ServiceTokens = {
     NavigationService: Symbol('NavigationService') as symbol & { __type: INavigationService },
     TerminalService: Symbol('TerminalService') as symbol & { __type: ITerminalService },
     ContentService: Symbol('ContentService') as symbol & { __type: IContentService },
-    DebugService: Symbol('DebugService') as symbol & { __type: IDebugService }
+    DebugService: Symbol('DebugService') as symbol & { __type: IDebugService },
+    ConfigurationService: Symbol('ConfigurationService') as symbol & { __type: IConfigurationService },
+    FormNavigationService: Symbol('FormNavigationService') as symbol & { __type: IFormNavigationService },
+    InputService: Symbol('InputService') as symbol & { __type: IInputService },
+    ValidationService: Symbol('ValidationService') as symbol & { __type: IValidationService },
+    StatusBarService: Symbol('StatusBarService') as symbol & { __type: IStatusBarService }
 };
