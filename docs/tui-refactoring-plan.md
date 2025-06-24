@@ -6,7 +6,7 @@
 - ✅ Phase 3: Service Layer Foundation - **COMPLETED**
 - ✅ Phase 4: Minimal DI Container - **COMPLETED**
 - ✅ Phase 5: Gradual Component Migration - **COMPLETED**
-- 🔄 Phase 6: AppFullscreen Cleanup and Legacy Code Removal - **IN PROGRESS**
+- ✅ Phase 6: AppFullscreen Cleanup and Legacy Code Removal - **COMPLETED**
 
 ## Overview
 This document outlines a careful, incremental approach to refactoring the TUI application to introduce proper Dependency Injection (DI) and module boundaries. Each step is designed to have **zero visual impact** while improving the architecture.
