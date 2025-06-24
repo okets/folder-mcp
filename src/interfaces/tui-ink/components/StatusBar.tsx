@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../utils/theme.js';
+import { useDI } from '../di/DIContext.js';
+import { ServiceTokens } from '../di/tokens.js';
 
 interface Shortcut {
     key: string;
@@ -22,16 +23,20 @@ const defaultShortcuts: Shortcut[] = [
 ];
 
 export const StatusBar: React.FC<StatusBarProps> = ({ shortcuts = defaultShortcuts, message }) => {
+    const di = useDI();
+    const themeService = di.resolve(ServiceTokens.ThemeService);
+    const colors = themeService.getColors();
+    
     const content = message || shortcuts.map(s => `[${s.key}] ${s.description}`).join(' • ');
     
     return (
         <Box 
             borderStyle="single" 
-            borderColor={theme.colors.border}
+            borderColor={colors.border}
             paddingX={1}
             width="100%"
         >
-            <Text color={theme.colors.textSecondary}>{content}</Text>
+            <Text color={colors.textSecondary}>{content}</Text>
         </Box>
     );
 };
