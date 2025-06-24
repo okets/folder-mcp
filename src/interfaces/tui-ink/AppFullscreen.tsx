@@ -110,13 +110,13 @@ const createBorder = (
     const createTopBorder = () => {
         if (focused) {
             // Total content: title + 2 spaces around title + 2 corner chars = title.length + 4
-            const padding = Math.max(0, borderWidth - title.length - 4);
+            const padding = Math.max(0, borderWidth - title.length - 5);
             return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
             // Total content: title + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
             const totalContentLength = title.length + tabText.length + 6;
-            const padding = Math.max(0, borderWidth - totalContentLength);
+            const padding = Math.max(0, borderWidth - totalContentLength - 1);
             return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
         }
     };
@@ -132,8 +132,8 @@ const createBorder = (
         return (
             <Box key={key}>
                 <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{border.vertical} </Text>
-                <Box width={borderWidth - 4}>{content}</Box>
-                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{scrollbarChar} {border.vertical}</Text>
+                <Box width={borderWidth - 5}>{content}</Box>
+                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}> {scrollbarChar}{border.vertical}</Text>
             </Box>
         );
     };
