@@ -245,6 +245,8 @@ Move from scattered functions to proper encapsulated components that own their b
 
 ## Phase 5: Gradual Component Migration (No Visual Impact)
 
+**Note**: This phase will use the components created in Phase 2 (BorderedBox, LayoutContainer) and services from Phase 3-4.
+
 ### Step 5.1: Migrate Header Component
 - Update Header.tsx:
   ```typescript
@@ -271,45 +273,63 @@ Move from scattered functions to proper encapsulated components that own their b
 - Maintain exact same props interface
 - **Verification**: Run `npm run tui` - should look identical
 
-### Step 5.3: Extract ConfigurationBox Component
-- Create `components/ConfigurationBox.tsx`
-- Move lines 193-248 (portrait) and 349-405 (landscape)
-- Accept all needed props:
+### Step 5.3: Use BorderedBox in AppFullscreen
+- Replace inline `createBorder` usage with BorderedBox component
+- Pass scrollbar elements from calculateScrollbar
+- Maintain exact same visual output:
   ```typescript
-  interface ConfigurationBoxProps {
-    items: ConfigItem[];
-    selectedIndex: number;
-    isFocused: boolean;
-    visibleCount: number;
-    scrollOffset: number;
-    width: number;
-    height: number;
-  }
+  <BorderedBox
+    title="Configuration"
+    subtitle="Setup your folder-mcp server"
+    focused={navigation.isConfigFocused}
+    width={configWidth}
+    height={configHeight}
+    showScrollbar={true}
+    scrollbarElements={scrollbar}
+  >
+    {/* Render config items */}
+  </BorderedBox>
   ```
 - **Verification**: Run `npm run tui` - should look identical
 
-### Step 5.4: Extract StatusBox Component
-- Create `components/StatusBox.tsx`
-- Move lines 251-322 (portrait) and 408-473 (landscape)
-- Similar props pattern as ConfigurationBox
+### Step 5.4: Use LayoutContainer in AppFullscreen
+- Replace manual narrow/wide layout logic with LayoutContainer
+- Pass configuration and status panels as children
+- Let LayoutContainer handle the arrangement:
+  ```typescript
+  <LayoutContainer
+    availableHeight={availableHeight}
+    availableWidth={columns}
+    narrowBreakpoint={100}
+  >
+    <ConfigurationPanel />
+    <StatusPanel />
+  </LayoutContainer>
+  ```
 - **Verification**: Run `npm run tui` - should look identical
 
 ## Phase 6: AppFullscreen Cleanup (No Visual Impact)
 
-### Step 6.1: Use Injected Services
+### Step 6.1: Use Injected Services in AppFullscreen
 - Replace direct imports with service calls:
   ```typescript
   const di = useDI();
-  const layoutService = di.resolve<ILayoutService>('layout');
-  const dataService = di.resolve<IDataService>('data');
+  const dataService = di.resolve(ServiceTokens.DataService);
+  const terminalService = di.resolve(ServiceTokens.TerminalService);
+  const navigationService = di.resolve(ServiceTokens.NavigationService);
+  
+  const configItems = dataService.getConfigItems();
+  const statusItems = dataService.getStatusItems();
+  const { columns, rows, isNarrow } = terminalService.getSize();
   ```
-- Keep all calculations identical
+- Remove direct hook usage (useTerminalSize, useNavigation)
 - **Verification**: Run `npm run tui` - should look identical
 
-### Step 6.2: Extract Layout Orchestration
-- Move portrait/landscape decision to LayoutService
-- Service returns configuration for component placement
-- AppFullscreen becomes thin orchestration layer
+### Step 6.2: Clean Up AppFullscreen
+- Remove inline helper functions (now in components)
+- Remove calculateScrollbar (handled by components)
+- Remove createBorder (replaced by BorderedBox)
+- AppFullscreen becomes a thin orchestration layer
 - **Verification**: Run `npm run tui` - should look identical
 
 ## Testing Protocol for Each Step
