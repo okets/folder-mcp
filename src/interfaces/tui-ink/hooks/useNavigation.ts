@@ -51,7 +51,7 @@ export const useNavigation = () => {
         } else if (key.upArrow || input === 'k') {
             navigateUp();
         } else if (key.downArrow || input === 'j') {
-            navigateDown(20); // Support more items
+            navigateDown(20); // TODO: This should be dynamic based on actual item count
         }
     });
 

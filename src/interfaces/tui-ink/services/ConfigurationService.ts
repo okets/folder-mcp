@@ -28,7 +28,12 @@ export class ConfigurationService implements IConfigurationService {
     }
 
     getNode(id: string): ConfigurationNode | undefined {
-        return this.nodes.get(id);
+        const node = this.nodes.get(id);
+        if (node && this.values.has(id)) {
+            // Return node with current value
+            return { ...node, value: this.values.get(id) };
+        }
+        return node;
     }
 
     updateNodeValue(id: string, value: any): void {

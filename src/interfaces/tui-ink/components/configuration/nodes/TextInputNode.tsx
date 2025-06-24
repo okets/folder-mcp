@@ -53,10 +53,12 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
             // Save changes
             configService.updateNodeValue(node.id, localValue);
             formNavService.collapseNode();
+            statusBarService.setContext('form');
         } else if (key.escape) {
             // Cancel changes
             setLocalValue(node.value);
             formNavService.collapseNode();
+            statusBarService.setContext('form');
         }
     });
 
@@ -82,34 +84,27 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
         );
     }
 
-    // Expanded view
+    // Expanded view - keep it simple without nested borders
     return (
         <Box flexDirection="column">
-            <Text color={theme.colors.accent}>
-                ▶ {node.label}:
-            </Text>
-            <Box marginLeft={2}>
-                <BorderedBox
-                    title=""
-                    focused={true}
-                    width={width - 2}
-                    height={3}
-                >
-                    <TextInput
-                        value={localValue}
-                        onChange={handleChange}
-                        cursorPosition={cursorPosition}
-                        onCursorMove={handleCursorMove}
-                        placeholder={node.placeholder}
-                        maxLength={node.maxLength}
-                        isActive={true}
-                        width={width - 6}
-                    />
-                </BorderedBox>
+            <Box>
+                <Text color={theme.colors.accent}>▶ {node.label}:</Text>
+            </Box>
+            <Box paddingLeft={2} paddingTop={1}>
+                <TextInput
+                    value={localValue}
+                    onChange={handleChange}
+                    cursorPosition={cursorPosition}
+                    onCursorMove={handleCursorMove}
+                    placeholder={node.placeholder}
+                    maxLength={node.maxLength}
+                    isActive={true}
+                    width={width - 4}
+                />
             </Box>
             {node.description && (
-                <Box marginLeft={2} marginTop={1}>
-                    <Text color={theme.colors.textMuted}>
+                <Box paddingLeft={2} paddingTop={1}>
+                    <Text color={theme.colors.textMuted} wrap="wrap">
                         {node.description}
                     </Text>
                 </Box>

@@ -49,6 +49,9 @@ import type { ConfigurationNode, IValidationRule } from '../models/configuration
 import type { IValidationResult } from '../models/validation.js';
 
 export interface IConfigurationService {
+    // Initialize with nodes
+    initialize(nodes: ConfigurationNode[]): void;
+    
     // Node management
     getNodes(): ConfigurationNode[];
     getNode(id: string): ConfigurationNode | undefined;
@@ -64,6 +67,9 @@ export interface IConfigurationService {
 }
 
 export interface IFormNavigationService {
+    // Initialize with node IDs
+    setNodeIds(nodeIds: string[]): void;
+    
     // Node navigation
     getCurrentNodeId(): string | null;
     expandNode(nodeId: string): void;
@@ -77,6 +83,12 @@ export interface IFormNavigationService {
     // Form-level navigation
     moveToNextNode(): void;
     moveToPreviousNode(): void;
+    
+    // Helper methods
+    getCurrentNodeIndex(): number;
+    setCurrentNodeIndex(index: number): void;
+    isAnyNodeExpanded(): boolean;
+    reset(): void;
 }
 
 export interface IInputService {
@@ -90,6 +102,14 @@ export interface IInputService {
     getFilterText(): string;
     setFilterText(text: string): void;
     clearFilter(): void;
+    
+    // Helper methods
+    getCurrentText(): string;
+    setCurrentText(text: string): void;
+    moveCursorLeft(): void;
+    moveCursorRight(): void;
+    moveCursorToStart(): void;
+    moveCursorToEnd(): void;
 }
 
 export interface IValidationService {

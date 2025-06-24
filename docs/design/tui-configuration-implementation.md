@@ -422,40 +422,102 @@ const updateStatusBar = (navService: IFormNavigationService, statusBarService: I
 };
 ```
 
-## Implementation Order
+## Implementation Order (Revised)
 
-### Phase 1: Core Infrastructure
-1. **Domain Models** (`models/configuration.ts`)
-   - Define all interfaces and types
-   - Create validation rule types
+### Development Approach
+- **Direct Integration**: Implement components directly in the main TUI (`npm run tui`)
+- **Incremental Development**: One configuration type at a time
+- **Visual Testing**: Test each component visually before proceeding
+- **No Demo Environment**: Work in the actual application context
 
-2. **Base Services**
-   - `ValidationService` - Validation engine
-   - `InputService` - Text input handling
-   - `FormNavigationService` - Navigation state
+### Phase 1: Replace ConfigurationPanel ✅
+Replace the current static ConfigurationPanel with a dynamic configuration system.
 
-3. **Service Registration**
-   - Update DI tokens
-   - Create service implementations
-   - Register in container
+### Phase 2: TextInput Configuration ✅
+1. **Simplify TextInputNode** ✅ - Created ConfigurationPanelSimple without complex services
+2. **Fix Navigation** ✅ - Arrow keys work for navigating between items
+3. **Fix Enter/Expand** ✅ - Configuration items display with values in brackets
+4. **Test Visual Result** ✅ - Verified configuration panel shows all items with values
+5. **Status**: Configuration items are displaying correctly with collapsed summaries
 
-### Phase 2: Primitive Components
-1. **TextInput** - Basic text input with cursor
-2. **RadioButton** - Single radio button
-3. **Checkbox** - Single checkbox
-4. **SelectList** - Scrollable option list
+**Visual Output Achieved:**
+```
+╭─ Configuration ──────────────────────────────────────────────────────────────╮
+│ Setup your folder-mcp server                                                 │
+│ ▶ Folder Path: [/Users/example/documents] →                                  │
+│ │ Embedding Model: [nomic-embed-text] →                                      │
+│ │ Cache Directory: [~/.folder-mcp/cache] →                                   │
+│ │ Memory Limit: [2048] →                                                     │
+│ │ Enable Hot Reload: [Yes] →                                                 │
+│ │ Enable Debug Logging: [No] →                                               │
+│ │ Network Timeout: [30] →                                                    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
 
-### Phase 3: Configuration Nodes
-1. **NodeWrapper** - Handles collapsed/expanded states
-2. **TextInputNode** - Complete text input configuration
-3. **RadioGroupNode** - Radio button groups (includes Yes/No)
-4. **CheckboxListNode** - Multiple selection
-5. **SelectDropdownNode** - Dropdown with filtering
+**Current Status**: Basic collapsed view is working. Need to implement expanded editing view.
 
-### Phase 4: Form Integration
-1. **ConfigurationForm** - Main container
-2. **ConfigurationService** - State management
-3. **Integration with existing TUI** - Replace current config panel
+### Phase 2.1: TextInput Editing (In Progress)
+1. **Current State**: 
+   - Collapsed view shows configuration items with values in brackets ✅
+   - Enter/→ key handling is implemented but needs testing
+   - **Issue Found**: Arrow key navigation moves by 2 items instead of 1
+   
+2. **Navigation Bug**:
+   - The `useNavigation` hook responds to arrow keys
+   - The `ConfigurationPanelSimple` also had arrow key handlers
+   - This caused double navigation (now fixed by removing duplicate handlers)
+   - However, navigation still seems stuck on first item - needs investigation
+   
+3. **Next Steps**:
+   - Fix navigation to move one item at a time
+   - Test if Enter/→ properly expands items
+   - Verify text editing functionality works
+   - Ensure Esc cancels and Enter saves changes
+   - Update status bar to show editing context
+
+3. **Expected Expanded View**:
+   ```
+   ▶ Folder Path:
+     ╭────────────────────────────────────────────╮
+     │ /Users/example/documents█                  │
+     ╰────────────────────────────────────────────╯
+     [Esc] Cancel  [Enter] Save
+   ```
+
+### Phase 3: Yes/No Configuration
+1. **Create YesNoNode** - Simple binary choice
+2. **Implement Navigation** - Up/down between Yes/No
+3. **Test Visual Result**
+4. **Get User Feedback**
+
+### Phase 4: Radio Group Configuration
+1. **Create RadioGroupNode** - Single selection from options
+2. **Implement Navigation** - Arrow keys through options
+3. **Test Visual Result**
+4. **Get User Feedback**
+
+### Phase 5: Checkbox List Configuration
+1. **Create CheckboxListNode** - Multiple selections
+2. **Implement Toggle** - Space to check/uncheck
+3. **Test Visual Result**
+4. **Get User Feedback**
+
+### Phase 6: Select/Dropdown Configuration
+1. **Create SelectDropdownNode** - With type-to-filter
+2. **Implement Filter** - Real-time filtering
+3. **Test Visual Result**
+4. **Get User Feedback**
+
+### Testing Protocol
+For each component:
+1. Implement the component
+2. Integrate into main TUI
+3. Run `npm run tui`
+4. Verify visual appearance
+5. Test keyboard navigation
+6. Fix any issues
+7. Only then request user feedback
 
 ## Component Implementation Patterns
 

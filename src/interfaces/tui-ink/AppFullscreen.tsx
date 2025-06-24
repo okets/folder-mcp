@@ -3,7 +3,7 @@ import { Box, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LayoutContainer } from './components/LayoutContainer.js';
-import { ConfigurationPanel } from './components/ConfigurationPanel.js';
+import { ConfigurationPanelSimple } from './components/ConfigurationPanelSimple.js';
 import { StatusPanel } from './components/StatusPanel.js';
 import { useTerminalSize } from './hooks/useTerminalSize.js';
 
@@ -35,7 +35,7 @@ export const AppFullscreen: React.FC = () => {
                 availableWidth={columns}
                 narrowBreakpoint={100}
             >
-                <ConfigurationPanel />
+                <ConfigurationPanelSimple />
                 <StatusPanel />
             </LayoutContainer>
             
