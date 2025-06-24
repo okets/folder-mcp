@@ -118,16 +118,24 @@ Move from scattered functions to proper encapsulated components that own their b
   export interface IThemeService {
     getColors(): ThemeColors;
     getSymbols(): ThemeSymbols;
+    getBorderStyle(): BorderStyle;
   }
   
-  export interface ILayoutService {
-    calculateScrollbar(total: number, visible: number, offset: number): string[];
-    calculateBoxHeights(available: number, narrow: boolean): BoxHeights;
+  export interface INavigationService {
+    getState(): NavigationState;
+    switchFocus(): void;
+    moveSelection(panel: FocusedPanel, direction: 'up' | 'down'): void;
+    getSelectedIndex(panel: FocusedPanel): number;
   }
   
   export interface IDataService {
-    getConfigItems(): ConfigItem[];
+    getConfigItems(): string[];
     getStatusItems(): StatusItem[];
+  }
+  
+  export interface ITerminalService {
+    getSize(): TerminalSize;
+    isNarrow(): boolean;
   }
   ```
 - No implementation yet
@@ -135,9 +143,10 @@ Move from scattered functions to proper encapsulated components that own their b
 
 ### Step 3.2: Create Service Implementations
 - Implement services in `services/` directory:
-  - `ThemeService`: Wraps existing theme.ts
-  - `LayoutService`: Uses extracted layout functions
-  - `DataService`: Returns sample data
+  - `ThemeService`: Wraps existing theme.ts with proper interface
+  - `NavigationService`: Encapsulates navigation state and logic from useNavigation hook
+  - `DataService`: Returns sample data (will move from models/sampleData.ts)
+  - `TerminalService`: Wraps useTerminalSize hook logic
 - Services must return **exact same values** as current code
 - **Verification**: Run `npm run tui` - should look identical
 
