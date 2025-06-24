@@ -7,6 +7,7 @@
 - ✅ Phase 4: Minimal DI Container - **COMPLETED**
 - ✅ Phase 5: Gradual Component Migration - **COMPLETED**
 - ✅ Phase 6: AppFullscreen Cleanup and Legacy Code Removal - **COMPLETED**
+- 📋 Phase 7: Fix Horizontal Overflow Bug (Module-Boundary Driven) - **PLANNED**
 
 ## Overview
 This document outlines a careful, incremental approach to refactoring the TUI application to introduce proper Dependency Injection (DI) and module boundaries. Each step is designed to have **zero visual impact** while improving the architecture.
@@ -419,9 +420,92 @@ rm -rf [any new directories created]
 - Take screenshots before major changes
 - Have rollback commands ready
 
+## Phase 7: Fix Horizontal Overflow Bug (Module-Boundary Driven)
+
+### Problem Statement
+Horizontal overflow breaks container borders when content exceeds allocated width. This occurs due to contract mismatches between components - no component is properly enforcing overflow boundaries.
+
+### Root Cause Analysis
+1. **BorderedBox**: Makes assumptions about content width without enforcing constraints
+2. **StatusPanel**: Uses `flexDirection="row"` without width constraints  
+3. **LayoutContainer**: Doesn't enforce overflow boundaries on children
+4. **Missing contracts**: No explicit layout contracts between parent/child components
+
+### Step 7.1: Define Clear Component Contracts
+- Create `ILayoutConstraints` interface in `models/types.ts`:
+  ```typescript
+  export interface ILayoutConstraints {
+    maxWidth: number;
+    maxHeight: number;
+    overflow: 'truncate' | 'wrap' | 'hidden';
+  }
+  ```
+- Create `IContentService` interface for text measurement and truncation
+- Implement `ContentService` with text width calculation logic
+- Register ContentService in DI container
+- **Verification**: Run `npm run tui` - no visual changes
+
+### Step 7.2: BorderedBox Enforces Its Contract
+- Accept `ILayoutConstraints` prop in BorderedBox
+- Calculate exact content area: `contentWidth = width - 4 - (showScrollbar ? 1 : 0)`
+- Create `LayoutConstraintContext` to pass constraints to children
+- Wrap all content with constraints enforcement
+- **Verification**: Run `npm run tui` - no visual changes
+
+### Step 7.3: Create ConstrainedContent Wrapper
+- New component `src/interfaces/tui-ink/components/ConstrainedContent.tsx`
+- Uses ContentService from DI to measure and truncate text
+- Enforces width constraints on all children
+- BorderedBox uses this to wrap content
+- **Verification**: Run `npm run tui` - borders should stay intact
+
+### Step 7.4: Fix ConfigurationPanel Boundaries
+- Create `useLayoutConstraints` hook to access parent constraints
+- Calculate item width: `constraints.maxWidth - 3` (for selection indicator)
+- Pass explicit width to Text components
+- Use ConstrainedContent wrapper for each item
+- **Verification**: Run `npm run tui` - config items shouldn't overflow
+
+### Step 7.5: Fix StatusPanel Smart Layout
+- Create `StatusItemLayout` component for row layout logic
+- Intelligently allocate space between text and status indicator
+- Use ContentService to truncate text while preserving status
+- Ensure status indicators always remain visible
+- **Verification**: Run `npm run tui` - status items properly formatted
+
+### Step 7.6: LayoutContainer as Layout Authority
+- Calculate precise widths accounting for all spacing
+- Create `LayoutContext` providing constraints to all children
+- Fix rounding errors in width distribution
+- Ensure panels fit exactly in allocated space
+- **Verification**: Run `npm run tui` - panels fit perfectly side-by-side
+
+### Step 7.7: Add Debug Mode and Testing
+- Create `IDebugService` for layout debugging
+- Add layout boundary visualization in development mode
+- Create test fixtures with extremely long text
+- Test with terminal widths: 50, 80, 100, 120 columns
+- Add layout invariant assertions
+- **Verification**: Resize terminal while running - borders never break
+
+### Success Criteria
+- ✅ Borders remain intact at all terminal widths
+- ✅ Text truncates properly without breaking layout
+- ✅ Status indicators always visible
+- ✅ No horizontal scrolling needed
+- ✅ Clean component contracts established
+- ✅ Layout logic properly encapsulated
+
+### Key Principles
+1. **Each component owns its boundaries** - enforces its layout contract
+2. **Explicit contracts** - no implicit assumptions about space
+3. **Service layer for complex logic** - content measurement via DI
+4. **Incremental verification** - test after each small change
+5. **Debugging support** - make layout issues visible
+
 ## Future Considerations
 
-Once refactoring is complete, we can safely add:
+Once Phase 7 is complete, we can safely add:
 - Proper text overflow handling (truncation with "...")
 - Horizontal scrolling for long items
 - Dynamic width calculations

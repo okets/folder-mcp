@@ -59,3 +59,10 @@ export interface TerminalSize {
     rows: number;
     isNarrow: boolean;
 }
+
+// Layout constraints for content overflow management
+export interface ILayoutConstraints {
+    maxWidth: number;
+    maxHeight: number;
+    overflow: 'truncate' | 'wrap' | 'hidden';
+}

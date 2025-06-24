@@ -30,3 +30,9 @@ export interface ITerminalService {
     getSize(): TerminalSize;
     isNarrow(): boolean;
 }
+
+export interface IContentService {
+    measureText(text: string): number;
+    truncateText(text: string, maxWidth: number, ellipsis?: string): string;
+    wrapText(text: string, maxWidth: number): string[];
+}
