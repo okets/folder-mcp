@@ -52,36 +52,59 @@ This document outlines a careful, incremental approach to refactoring the TUI ap
 - Extract theme type definitions
 - **Verification**: Run `npm run tui` - should look identical
 
-## Phase 2: Extract Pure Functions (No Visual Impact)
+## Phase 2: Create Container Components (No Visual Impact)
+Move from scattered functions to proper encapsulated components that own their behavior.
 
-### Step 2.1: Extract Layout Calculations
-- Create `src/interfaces/tui-ink/utils/layout.ts`
-- Move `calculateScrollbar` function (lines 57-94)
-- Extract height calculation logic:
+### Step 2.1: Enhance ScrollableContainer Component
+- Move `calculateScrollbar` function into ScrollableContainer as private method
+- Container should own its scroll state and scrollbar rendering
+- Remove hardcoded width assumptions (currently 76 characters)
+- Make it truly reusable:
   ```typescript
-  export const calculateBoxHeights = (
-    availableHeight: number,
-    isNarrow: boolean
-  ) => {
-    if (isNarrow) {
-      const statusHeight = Math.max(10, Math.floor(availableHeight * 0.35));
-      const configHeight = availableHeight - statusHeight;
-      return { configHeight, statusHeight };
-    }
-    // Landscape mode uses full height for both
-    return { 
-      configHeight: availableHeight, 
-      statusHeight: availableHeight 
-    };
-  };
+  interface ScrollableContainerProps {
+    children: React.ReactNode;
+    height: number;
+    width: number;
+    scrollOffset?: number;
+    totalItems?: number;
+    onScroll?: (offset: number) => void;
+  }
   ```
 - **Verification**: Run `npm run tui` - should look identical
 
-### Step 2.2: Extract Border Rendering
-- Create `src/interfaces/tui-ink/utils/borders.ts`
-- Move `createBorder` function (lines 96-152)
-- Preserve exact formatting and spacing
-- Export helper types for border components
+### Step 2.2: Create BorderedBox Component
+- Create `src/interfaces/tui-ink/components/BorderedBox.tsx`
+- Move `createBorder` logic into a proper component
+- Encapsulate all border rendering concerns:
+  ```typescript
+  interface BorderedBoxProps {
+    title: string;
+    subtitle?: string;
+    focused?: boolean;
+    width: number;
+    height: number;
+    children: React.ReactNode;
+    showScrollbar?: boolean;
+    scrollbarElements?: string[];
+  }
+  ```
+- Component handles title embedding, focus states, and border drawing
+- **Verification**: Run `npm run tui` - should look identical
+
+### Step 2.3: Create LayoutContainer Component
+- Create `src/interfaces/tui-ink/components/LayoutContainer.tsx`
+- Extract layout decision logic from AppFullscreen
+- Manages portrait vs landscape arrangement
+- Handles space allocation between panels:
+  ```typescript
+  interface LayoutContainerProps {
+    availableHeight: number;
+    availableWidth: number;
+    children: React.ReactElement[];
+    mode: 'portrait' | 'landscape' | 'auto';
+  }
+  ```
+- Encapsulates responsive behavior and breakpoints
 - **Verification**: Run `npm run tui` - should look identical
 
 ## Phase 3: Service Layer Foundation (No Visual Impact)
