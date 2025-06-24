@@ -180,10 +180,9 @@ export const App: React.FC = () => {
         }
     });
     
-    // Calculate heights: header (3) + status bar (3) = 6
-    const availableHeight = rows - 6;
-    const configHeight = isNarrow ? Math.floor(availableHeight * 0.8) : availableHeight;
-    const statusHeight = isNarrow ? Math.floor(availableHeight * 0.2) : availableHeight;
+    // Calculate available height for containers
+    // Header (4) + StatusBar (3) = 7
+    const availableHeight = Math.max(10, rows - 7);
     
     return (
         <Box flexDirection="column" height={rows} width={columns}>

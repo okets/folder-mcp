@@ -74,9 +74,29 @@ export const AppFullscreen: React.FC = () => {
         const statusHeight = Math.max(8, Math.floor(availableHeight * 0.4));
         const configHeight = Math.max(6, availableHeight - statusHeight);
         
-        // Visible items accounting for box chrome (border + title + padding)
-        const configVisibleCount = Math.max(1, configHeight - 5);
-        const statusVisibleCount = Math.max(0, statusHeight - 5);
+        // Calculate exact space for items
+        // Box overhead: top border(1) + title(1) + subtitle(1) + marginTop(1) + bottom border(1) = 5
+        const boxOverhead = 5;
+        
+        // Calculate available lines for content (items + optional "more" indicator)
+        const configContentLines = Math.max(0, configHeight - boxOverhead);
+        const statusContentLines = Math.max(0, statusHeight - boxOverhead);
+        
+        // We need to show at least 1 item, and reserve 1 line for "more" if needed
+        let configVisibleCount = configContentLines;
+        let statusVisibleCount = statusContentLines;
+        
+        // If we can't show all items, reserve space for "more" indicator
+        if (configItems.length > configContentLines && configContentLines > 1) {
+            configVisibleCount = configContentLines - 1; // Reserve 1 line for "more"
+        }
+        if (statusItems.length > statusContentLines && statusContentLines > 1) {
+            statusVisibleCount = statusContentLines - 1; // Reserve 1 line for "more"
+        }
+        
+        // Ensure we show at least 1 item
+        configVisibleCount = Math.max(1, configVisibleCount);
+        statusVisibleCount = Math.max(0, statusVisibleCount);
         
         return (
             <Box flexDirection="column" height={rows} width={columns}>
@@ -89,20 +109,41 @@ export const AppFullscreen: React.FC = () => {
                     borderColor={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border} 
                     paddingX={1}
                     flexDirection="column"
+                    overflow="hidden"
                 >
                     <Box flexDirection="column">
                         <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     </Box>
-                    <Box flexDirection="column" marginTop={1}>
-                        {configItems.slice(0, configVisibleCount).map((item, index) => (
-                            <Text key={`cfg-${index}`}>
-                                {navigation.isConfigFocused && navigation.configSelectedIndex === index ? '▶' : '○'} {item}
-                            </Text>
-                        ))}
+                    <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
+                        {(() => {
+                            // Calculate scroll offset to keep selected item visible
+                            let scrollOffset = 0;
+                            if (navigation.configSelectedIndex >= configVisibleCount) {
+                                scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                            }
+                            const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
+                            
+                            return visibleItems.map((item, visualIndex) => {
+                                const actualIndex = scrollOffset + visualIndex;
+                                return (
+                                    <Box key={`cfg-${actualIndex}`} width="100%" height={1}>
+                                        <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                            {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                                        </Text>
+                                    </Box>
+                                );
+                            });
+                        })()}
                         {configItems.length > configVisibleCount && (
                             <Text color={theme.colors.textMuted}>
-                                ↓ {configItems.length - configVisibleCount} more
+                                ↓ {(() => {
+                                    let scrollOffset = 0;
+                                    if (navigation.configSelectedIndex >= configVisibleCount) {
+                                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                                    }
+                                    return configItems.length - scrollOffset - configVisibleCount;
+                                })()} more
                             </Text>
                         )}
                     </Box>
@@ -123,21 +164,38 @@ export const AppFullscreen: React.FC = () => {
                     <Box flexDirection="column" marginTop={1}>
                         {statusVisibleCount > 0 ? (
                             <>
-                                {statusItems.slice(0, statusVisibleCount).map((item, idx) => (
-                                    <Box key={`sts-${idx}`} flexDirection="row">
-                                        <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text}</Text>
-                                        {item.status && (
-                                            <Text color={
-                                                item.status === '✓' ? theme.colors.successGreen :
-                                                item.status === '⚠' ? theme.colors.warningOrange :
-                                                item.status === '⋯' ? theme.colors.accent : undefined
-                                            }> {item.status}</Text>
-                                        )}
-                                    </Box>
-                                ))}
+                                {(() => {
+                                    let scrollOffset = 0;
+                                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                                    }
+                                    const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
+                                    
+                                    return visibleItems.map((item, visualIndex) => {
+                                        const actualIndex = scrollOffset + visualIndex;
+                                        return (
+                                            <Box key={`sts-${actualIndex}`} flexDirection="row">
+                                                <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>{navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}</Text>
+                                                {item.status && (
+                                                    <Text color={
+                                                        item.status === '✓' ? theme.colors.successGreen :
+                                                        item.status === '⚠' ? theme.colors.warningOrange :
+                                                        item.status === '⋯' ? theme.colors.accent : undefined
+                                                    }> {item.status}</Text>
+                                                )}
+                                            </Box>
+                                        );
+                                    });
+                                })()}
                                 {statusItems.length > statusVisibleCount && (
                                     <Text color={theme.colors.textMuted}>
-                                        ↓ {statusItems.length - statusVisibleCount} more
+                                        ↓ {(() => {
+                                            let scrollOffset = 0;
+                                            if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                                                scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                                            }
+                                            return statusItems.length - scrollOffset - statusVisibleCount;
+                                        })()} more
                                     </Text>
                                 )}
                             </>
@@ -155,8 +213,9 @@ export const AppFullscreen: React.FC = () => {
     }
     
     // Landscape mode - side by side
-    const configVisibleCount = Math.max(1, availableHeight - 5);
-    const statusVisibleCount = Math.max(1, availableHeight - 5);
+    // More conservative calculation to prevent overlap
+    const configVisibleCount = Math.max(1, availableHeight - 7);
+    const statusVisibleCount = Math.max(1, availableHeight - 7);
     
     return (
         <Box flexDirection="column" height={rows} width={columns}>
@@ -175,15 +234,35 @@ export const AppFullscreen: React.FC = () => {
                         <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     </Box>
-                    <Box flexDirection="column" marginTop={1}>
-                        {configItems.slice(0, configVisibleCount).map((item, index) => (
-                            <Text key={`cfg-${index}`}>
-                                {navigation.isConfigFocused && navigation.configSelectedIndex === index ? '▶' : '○'} {item}
-                            </Text>
-                        ))}
+                    <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
+                        {(() => {
+                            // Calculate scroll offset to keep selected item visible
+                            let scrollOffset = 0;
+                            if (navigation.configSelectedIndex >= configVisibleCount) {
+                                scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                            }
+                            const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
+                            
+                            return visibleItems.map((item, visualIndex) => {
+                                const actualIndex = scrollOffset + visualIndex;
+                                return (
+                                    <Box key={`cfg-${actualIndex}`} width="100%" height={1}>
+                                        <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                            {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                                        </Text>
+                                    </Box>
+                                );
+                            });
+                        })()}
                         {configItems.length > configVisibleCount && (
                             <Text color={theme.colors.textMuted}>
-                                ↓ {configItems.length - configVisibleCount} more
+                                ↓ {(() => {
+                                    let scrollOffset = 0;
+                                    if (navigation.configSelectedIndex >= configVisibleCount) {
+                                        scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
+                                    }
+                                    return configItems.length - scrollOffset - configVisibleCount;
+                                })()} more
                             </Text>
                         )}
                     </Box>

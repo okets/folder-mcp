@@ -27,8 +27,8 @@ export const theme = {
         
         // Special Effects
         glow: '#60A5FA',
-        accent: '#E879F9',
-        selection: '#7C3AED',
+        accent: '#2f70d8',
+        selection: '#2f70d8',
     },
     
     symbols: {

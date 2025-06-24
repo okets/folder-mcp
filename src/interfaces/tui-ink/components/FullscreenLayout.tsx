@@ -17,23 +17,20 @@ export const FullscreenLayout: React.FC<FullscreenLayoutProps> = ({ children }) 
     
     if (isNarrow) {
         // Portrait mode - stack vertically
-        const availableHeight = rows - 6; // header + status bar
-        const configHeight = Math.floor(availableHeight * 0.8);
-        const statusHeight = availableHeight - configHeight;
-        
+        // Use flexbox for better height distribution
         return (
-            <Box flexDirection="column" width={columns}>
-                <Box height={configHeight}>{configChild}</Box>
-                <Box height={statusHeight}>{statusChild}</Box>
+            <Box flexDirection="column" width={columns} height="100%">
+                <Box flexGrow={4} width={columns}>{configChild}</Box>
+                <Box flexGrow={1} width={columns}>{statusChild}</Box>
             </Box>
         );
     }
     
     // Landscape mode - side by side
     return (
-        <Box width={columns}>
-            <Box width={configWidth}>{configChild}</Box>
-            <Box width={statusWidth}>{statusChild}</Box>
+        <Box width={columns} height="100%">
+            <Box width={configWidth} height="100%">{configChild}</Box>
+            <Box width={statusWidth} height="100%">{statusChild}</Box>
         </Box>
     );
 };

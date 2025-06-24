@@ -37,29 +37,31 @@ export const ListItem: React.FC<ListItemProps> = ({
     
     if (isExpanded && fullContent) {
         return (
-            <Box flexDirection="column">
-                <Box>
-                    <Text color={isSelected ? theme.colors.accent : theme.colors.textSecondary}>
-                        {symbol} {content}
+            <Box flexDirection="column" width="100%">
+                <Box width="100%">
+                    <Text 
+                        color={isSelected ? theme.colors.accent : theme.colors.textSecondary}
+                        wrap="truncate-end"
+                    >
+                        {symbol} {content}{getStatusIndicator()}
                     </Text>
-                    {getStatusIndicator()}
                 </Box>
-                <Box paddingLeft={2} marginTop={1}>
-                    <Text color={theme.colors.textMuted}>{fullContent}</Text>
+                <Box paddingLeft={2} marginTop={1} width="100%">
+                    <Text color={theme.colors.textMuted} wrap="wrap">{fullContent}</Text>
                 </Box>
             </Box>
         );
     }
     
     return (
-        <Box>
+        <Box width="100%">
             <Text 
                 color={isSelected ? theme.colors.accent : theme.colors.textSecondary}
                 backgroundColor={isSelected ? theme.colors.selection : undefined}
+                wrap="truncate-end"
             >
-                {symbol} {content}
+                {symbol} {content}{getStatusIndicator()}
             </Text>
-            {getStatusIndicator()}
         </Box>
     );
 };
