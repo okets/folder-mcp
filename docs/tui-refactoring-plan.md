@@ -35,11 +35,11 @@ This document outlines a careful, incremental approach to refactoring the TUI ap
 ### Step 1.2: Create Types for UI State
 - Define state interfaces in `models/types.ts`:
   ```typescript
+  export type FocusedPanel = 'config' | 'status';
+  
   export interface NavigationState {
-    isConfigFocused: boolean;
-    isStatusFocused: boolean;
-    configSelectedIndex: number;
-    statusSelectedIndex: number;
+    focusedPanel: FocusedPanel;
+    selectedIndices: Record<FocusedPanel, number>;
   }
   
   export interface ScrollState {

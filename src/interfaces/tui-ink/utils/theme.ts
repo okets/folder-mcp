@@ -2,50 +2,21 @@
  * Ink-adapted theme system from modernTheme.ts
  */
 
-export const theme = {
+import { Theme } from '../models/types.js';
+
+export const theme: Theme = {
     colors: {
-        // Primary Colors
-        primaryBlue: '#3B82F6',
-        secondaryBlue: '#1E40AF',
-        purple: '#780b7c',
-        
-        // Status Colors
-        successGreen: '#10B981',
-        warningOrange: '#F59E0B',
-        errorRed: '#EF4444',
-        infoPurple: '#8B5CF6',
-        
-        // Neutral Colors
+        accent: '#2f70d8',
+        border: '#475569',
+        borderFocus: '#3B82F6',
         textPrimary: '#F8FAFC',
         textSecondary: '#94A3B8',
         textMuted: '#64748B',
-        background: '#0F172A',
-        surface: '#1E293B',
-        surfaceHover: '#334155',
-        border: '#475569',
-        borderFocus: '#3B82F6',
-        
-        // Special Effects
-        glow: '#60A5FA',
-        accent: '#2f70d8',
-        selection: '#2f70d8',
+        successGreen: '#10B981',
+        warningOrange: '#F59E0B',
     },
     
     symbols: {
-        // Navigation & Selection
-        selected: '▶',
-        unselected: '○',
-        expanded: '▼',
-        collapsed: '▶',
-        
-        // Status Indicators
-        success: '✓',
-        error: '✗',
-        warning: '⚠',
-        info: 'ⓘ',
-        loading: '⋯',
-        
-        // Borders
         border: {
             topLeft: '╭',
             topRight: '╮',
@@ -54,8 +25,33 @@ export const theme = {
             horizontal: '─',
             vertical: '│'
         },
-        
-        // Special Characters
+    }
+};
+
+// Additional theme values not in the main interface
+export const themeExtras = {
+    colors: {
+        primaryBlue: '#3B82F6',
+        secondaryBlue: '#1E40AF',
+        purple: '#780b7c',
+        errorRed: '#EF4444',
+        infoPurple: '#8B5CF6',
+        background: '#0F172A',
+        surface: '#1E293B',
+        surfaceHover: '#334155',
+        glow: '#60A5FA',
+        selection: '#2f70d8',
+    },
+    symbols: {
+        selected: '▶',
+        unselected: '○',
+        expanded: '▼',
+        collapsed: '▶',
+        success: '✓',
+        error: '✗',
+        warning: '⚠',
+        info: 'ⓘ',
+        loading: '⋯',
         bullet: '•',
         separator: '│',
         arrow: '→',
