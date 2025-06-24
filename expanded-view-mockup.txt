@@ -1,0 +1,24 @@
+Expected Expanded View After Fixes:
+
+╭─ Configuration ──────────────────────────────────────────────────────────────╮
+│ Setup your folder-mcp server                                                 │
+│ ▶ Folder Path:                                                               │
+│   ╭─────────────────────────────────────╮                                   │
+│   │ /Users/example/documents█           │                                   │
+│   ╰─────────────────────────────────────╯                                   │
+│   [Esc] Cancel  [Enter] Save                                                 │
+│ │ Embedding Model: [nomic-embed-text] →                                      │
+│ │ Cache Directory: [~/.folder-mcp/cache] →                                   │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+Changes Made:
+1. Replaced nested Box with borderStyle with manual border drawing using box-drawing characters
+2. Added blinking cursor effect (cursor visible/invisible every 500ms)
+3. Border is now drawn character by character to avoid conflicts with parent BorderedBox
+
+The expanded input now:
+- Shows a proper bordered text input area
+- Has a blinking cursor (█) that appears/disappears
+- Doesn't break the parent configuration panel borders
+- Shows helper text below the input

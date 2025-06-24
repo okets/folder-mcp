@@ -69,6 +69,7 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
     // Local state for expanded item
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [cursorVisible, setCursorVisible] = useState(true);
     
     // Update status bar based on editing state
     useEffect(() => {
@@ -79,10 +80,30 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
         }
     }, [expandedIndex, statusBarService]);
     
+    // Blinking cursor effect
+    useEffect(() => {
+        if (expandedIndex !== null) {
+            const timer = setInterval(() => {
+                setCursorVisible(prev => !prev);
+            }, 500);
+            return () => clearInterval(timer);
+        } else {
+            setCursorVisible(true);
+        }
+    }, [expandedIndex]);
+    
     // Calculate visible count based on height
     const boxOverhead = 4;
     const maxItems = Math.max(1, (height || 20) - boxOverhead);
-    const visibleCount = configurationItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
+    
+    // When an item is expanded, reduce visible items to make room
+    let visibleCount = configurationItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
+    
+    // If we have an expanded item, we need to show fewer items
+    if (expandedIndex !== null) {
+        // An expanded item takes about 4 lines, so reduce visible count by 3
+        visibleCount = Math.max(1, visibleCount - 3);
+    }
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
@@ -92,6 +113,15 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
     let scrollOffset = 0;
     if (navigation.configSelectedIndex >= visibleCount) {
         scrollOffset = navigation.configSelectedIndex - visibleCount + 1;
+    }
+    
+    // Ensure the expanded item is visible
+    if (expandedIndex !== null) {
+        if (expandedIndex < scrollOffset) {
+            scrollOffset = expandedIndex;
+        } else if (expandedIndex >= scrollOffset + visibleCount) {
+            scrollOffset = expandedIndex - visibleCount + 1;
+        }
     }
     
     const scrollbar = calculateScrollbar(configurationItems.length, visibleCount, scrollOffset);
@@ -153,15 +183,17 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
                             <Text color={theme.colors.accent}>
                                 ▶ {item.label}:
                             </Text>
-                            <Box paddingLeft={2} paddingTop={1}>
-                                <Box borderStyle="round" borderColor={theme.colors.textMuted} paddingX={1}>
-                                    <Text color={theme.colors.textPrimary}>
-                                        {editValue}
+                            <Box paddingLeft={2} marginTop={1}>
+                                <Text color={theme.colors.textPrimary}>
+                                    {editValue}
+                                    {cursorVisible ? (
                                         <Text backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
-                                    </Text>
-                                </Box>
+                                    ) : (
+                                        <Text> </Text>
+                                    )}
+                                </Text>
                             </Box>
-                            <Box paddingLeft={2} paddingTop={1}>
+                            <Box paddingLeft={2} marginTop={1}>
                                 <Text color={theme.colors.textMuted} dimColor>
                                     [Esc] Cancel  [Enter] Save
                                 </Text>

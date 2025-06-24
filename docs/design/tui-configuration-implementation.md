@@ -457,24 +457,30 @@ Replace the current static ConfigurationPanel with a dynamic configuration syste
 
 **Current Status**: Basic collapsed view is working. Need to implement expanded editing view.
 
-### Phase 2.1: TextInput Editing (In Progress)
+### Phase 2.1: TextInput Editing - Issues Found
 1. **Current State**: 
    - Collapsed view shows configuration items with values in brackets ✅
-   - Enter/→ key handling is implemented but needs testing
-   - **Issue Found**: Arrow key navigation moves by 2 items instead of 1
+   - Basic expand/collapse mechanism implemented
+   - Blinking cursor implemented ✅
    
-2. **Navigation Bug**:
-   - The `useNavigation` hook responds to arrow keys
-   - The `ConfigurationPanelSimple` also had arrow key handlers
-   - This caused double navigation (now fixed by removing duplicate handlers)
-   - However, navigation still seems stuck on first item - needs investigation
+2. **Critical Issues Discovered**:
    
-3. **Next Steps**:
-   - Fix navigation to move one item at a time
-   - Test if Enter/→ properly expands items
-   - Verify text editing functionality works
-   - Ensure Esc cancels and Enter saves changes
-   - Update status bar to show editing context
+   **Issue 1: Box Gap Problem**
+   - When expanding a configuration item, it breaks the BorderedBox layout
+   - Root cause: BorderedBox expects each child to be single-line
+   - Expanded items render as multi-line components, causing overflow
+   
+   **Issue 2: Keyboard Control Problem**
+   - Multiple `useInput` hooks compete for keyboard input
+   - 'q' key is globally bound to quit, unavailable for text input
+   - Arrow keys continue navigating while editing text
+   - No concept of "input ownership" or "active element"
+   
+3. **Root Cause Analysis**:
+   - Both issues stem from lack of proper ownership boundaries
+   - No hierarchical focus management
+   - No concept of render space allocation
+   - Components can't properly claim keyboard input or screen space
 
 3. **Expected Expanded View**:
    ```
@@ -693,3 +699,70 @@ useInput((input, key) => {
 - All configuration types working correctly
 - Proper validation and error handling
 - Seamless integration with existing TUI
+
+## Phase 3: Architectural Refactoring (NEW)
+
+### Problem Statement
+The current implementation has two critical architectural issues:
+
+1. **Box Gap Problem**: Expanded configuration items break the BorderedBox layout because it expects single-line children
+2. **Keyboard Control Problem**: Multiple components compete for keyboard input, and active fields can't claim exclusive control
+
+### Architectural Solution: Focus Chain & Render Slots
+
+Based on hierarchical ownership principles:
+- Only ONE element can be "active" in the entire application
+- Active element and its ancestors form the "focus chain"
+- Active element owns keyboard input and can claim screen space
+
+### New Services to Implement
+
+#### IFocusChainService
+```typescript
+interface IFocusChainService {
+  setActive(elementId: string | null): void;
+  getActive(): string | null;
+  registerParent(childId: string, parentId: string): void;
+  getFocusChain(): string[]; // Returns [active, ...ancestors]
+  isInFocusChain(elementId: string): boolean;
+}
+```
+
+#### IInputContextService
+```typescript
+interface IInputContextService {
+  registerHandler(elementId: string, handler: InputHandler, priority: number): void;
+  unregisterHandler(elementId: string): void;
+  handleInput(input: string, key: Key): boolean;
+  getActiveKeyBindings(): IKeyBinding[];
+}
+```
+
+#### IRenderSlotService
+```typescript
+interface IRenderSlotService {
+  claimSlots(elementId: string, count: number): void;
+  releaseSlots(elementId: string): void;
+  getTotalSlots(containerId: string): number;
+}
+```
+
+### Implementation Plan
+
+1. **Phase 3.1: Focus Chain & Input Control**
+   - Implement focus chain service
+   - Implement input context service
+   - Update components to use focus chain
+   - Remove competing useInput hooks
+
+2. **Phase 3.2: Render Slot System**
+   - Implement render slot service
+   - Update configuration items to claim slots
+   - Update BorderedBox to respect slot allocation
+
+3. **Phase 3.3: Integration & Polish**
+   - Update status bar with context-aware bindings
+   - Add visual indicators for active state
+   - Comprehensive testing
+
+This architectural refactoring will provide a solid foundation for all future interactive components.
