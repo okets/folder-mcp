@@ -53,64 +53,101 @@ const statusItems = [
     { text: 'Plugins: 3 active', status: '' }
 ];
 
+// Helper function to calculate scrollbar visual representation
+const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
+    // Only show scrollbar if scrolling is needed
+    if (totalItems <= visibleItems) {
+        return [];
+    }
+
+    // Create scrollbar array with exactly visibleItems elements
+    const scrollbar: string[] = [];
+    
+    // First row always shows top triangle
+    scrollbar.push('▲');
+    
+    // Last row always shows bottom triangle (will be added at the end)
+    // Available space for indicator = visibleItems - 2 (excluding top and bottom triangles)
+    const availableSpace = Math.max(1, visibleItems - 2);
+    
+    if (availableSpace > 0) {
+        const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
+        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
+        const bottomSpace = availableSpace - lineLength - topSpace;
+        
+        // Add middle rows (top space + line + bottom space)
+        for (let i = 0; i < topSpace; i++) {
+            scrollbar.push(' ');
+        }
+        for (let i = 0; i < lineLength; i++) {
+            scrollbar.push('┃');
+        }
+        for (let i = 0; i < bottomSpace; i++) {
+            scrollbar.push(' ');
+        }
+    }
+    
+    // Last row always shows bottom triangle
+    scrollbar.push('▼');
+    
+    return scrollbar;
+};
+
 // Helper function to create borders with embedded titles
 const createBorder = (
     title: string,
     subtitle?: string,
     focused?: boolean,
     width?: number,
-    hasScrollUp?: boolean,
-    hasScrollDown?: boolean,
-    moreCount?: number
+    totalItems?: number,
+    visibleItems?: number,
+    scrollOffset?: number
 ) => {
     const { border } = theme.symbols;
     const borderWidth = width || 76;
     
-    // Create top border with embedded title
+    // Create top border with embedded title (no scroll indicators)
     const createTopBorder = () => {
-        const scrollIndicator = hasScrollUp ? ' ↑' : '';
-        const titleWithScroll = `${title}${scrollIndicator}`;
-        
         if (focused) {
-            // Total content: title + scroll + 2 spaces around title + 2 corner chars = title.length + 4
-            const padding = Math.max(0, borderWidth - titleWithScroll.length - 4);
-            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${border.horizontal.repeat(padding)}${border.topRight}`;
+            // Total content: title + 2 spaces around title + 2 corner chars = title.length + 4
+            const padding = Math.max(0, borderWidth - title.length - 4);
+            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
-            // Total content: title + scroll + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
-            const totalContentLength = titleWithScroll.length + tabText.length + 6;
+            // Total content: title + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
+            const totalContentLength = title.length + tabText.length + 6;
             const padding = Math.max(0, borderWidth - totalContentLength);
-            return `${border.topLeft}${border.horizontal} ${titleWithScroll} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
         }
     };
     
-    // Create bottom border with scroll indicator
+    // Create bottom border (no scroll indicators)
     const createBottomBorder = () => {
-        if (hasScrollDown && moreCount) {
-            const scrollText = `↓ ${moreCount} more`;
-            // Total content: scroll text + 2 spaces + 2 corner chars = scrollText.length + 4
-            const padding = Math.max(0, borderWidth - scrollText.length - 4);
-            return `${border.bottomLeft}${border.horizontal} ${scrollText} ${border.horizontal.repeat(padding)}${border.bottomRight}`;
-        }
         // Total content: just horizontal lines + 2 corner chars
         return `${border.bottomLeft}${border.horizontal.repeat(borderWidth - 2)}${border.bottomRight}`;
     };
     
-    // Create side borders
-    const createSideBorder = (content?: React.ReactNode) => {
+    // Create side borders with scrollbar support
+    const createSideBorder = (content?: React.ReactNode, scrollbarChar: string = ' ', key?: string) => {
         return (
-            <Box>
+            <Box key={key}>
                 <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{border.vertical} </Text>
-                <Box width={borderWidth - 2}>{content}</Box>
-                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{border.vertical}</Text>
+                <Box width={borderWidth - 4}>{content}</Box>
+                <Text color={focused ? theme.colors.borderFocus : theme.colors.border}>{scrollbarChar} {border.vertical}</Text>
             </Box>
         );
     };
     
+    // Calculate scrollbar for this container
+    const scrollbar = totalItems && visibleItems && scrollOffset !== undefined 
+        ? calculateScrollbar(totalItems, visibleItems, scrollOffset) 
+        : [];
+    
     return {
         topBorder: createTopBorder(),
         bottomBorder: createBottomBorder(),
-        sideBorder: createSideBorder
+        sideBorder: createSideBorder,
+        scrollbar
     };
 };
 
@@ -159,18 +196,16 @@ export const AppFullscreen: React.FC = () => {
                     if (navigation.configSelectedIndex >= configVisibleCount) {
                         scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
                     }
-                    const hasScrollUp = scrollOffset > 0;
-                    const hasScrollDown = configItems.length > configVisibleCount;
-                    const moreCount = hasScrollDown ? configItems.length - scrollOffset - configVisibleCount : 0;
+                    // Scroll calculations are now handled by the scrollbar
                     
                     const borders = createBorder(
                         'Configuration', 
                         'Setup your folder-mcp server',
                         navigation.isConfigFocused,
                         columns - 2,
-                        hasScrollUp,
-                        hasScrollDown,
-                        moreCount
+                        configItems.length,
+                        configVisibleCount,
+                        scrollOffset
                     );
                     
                     const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
@@ -184,16 +219,23 @@ export const AppFullscreen: React.FC = () => {
                             
                             {/* Subtitle line */}
                             {borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
+                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>,
+                                ' ',
+                                'portrait-cfg-subtitle'
                             )}
                             
                             {/* Content */}
                             {visibleItems.map((item, visualIndex) => {
                                 const actualIndex = scrollOffset + visualIndex;
+                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
+                                    ? borders.scrollbar[visualIndex] 
+                                    : ' ';
                                 return borders.sideBorder(
-                                    <Text key={`cfg-${actualIndex}`} color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                    <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
                                         {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                    </Text>
+                                    </Text>,
+                                    scrollbarChar,
+                                    `portrait-cfg-${actualIndex}`
                                 );
                             })}
                             
@@ -211,18 +253,16 @@ export const AppFullscreen: React.FC = () => {
                     if (navigation.statusSelectedIndex >= statusVisibleCount) {
                         scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
                     }
-                    const hasScrollUp = scrollOffset > 0;
-                    const hasScrollDown = statusItems.length > statusVisibleCount;
-                    const moreCount = hasScrollDown ? statusItems.length - scrollOffset - statusVisibleCount : 0;
+                    // Scroll calculations are now handled by the scrollbar
                     
                     const borders = createBorder(
                         'System Status',
                         'Current state', 
                         navigation.isStatusFocused,
                         columns - 2,
-                        hasScrollUp,
-                        hasScrollDown,
-                        moreCount
+                        statusItems.length,
+                        statusVisibleCount,
+                        scrollOffset
                     );
                     
                     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
@@ -236,15 +276,20 @@ export const AppFullscreen: React.FC = () => {
                             
                             {/* Subtitle line */}
                             {statusHeight > 5 && borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Current state</Text>
+                                <Text color={theme.colors.textMuted}>Current state</Text>,
+                                ' ',
+                                'portrait-sts-subtitle'
                             )}
                             
                             {/* Content */}
                             {statusVisibleCount > 0 ? (
                                 visibleItems.map((item, visualIndex) => {
                                     const actualIndex = scrollOffset + visualIndex;
+                                    const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
+                                        ? borders.scrollbar[visualIndex] 
+                                        : ' ';
                                     return borders.sideBorder(
-                                        <Box key={`sts-${actualIndex}`} flexDirection="row">
+                                        <Box flexDirection="row">
                                             <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
                                                 {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
                                             </Text>
@@ -255,12 +300,16 @@ export const AppFullscreen: React.FC = () => {
                                                     item.status === '⋯' ? theme.colors.accent : undefined
                                                 }> {item.status}</Text>
                                             )}
-                                        </Box>
+                                        </Box>,
+                                        scrollbarChar,
+                                        `portrait-sts-${actualIndex}`
                                     );
                                 })
                             ) : (
                                 borders.sideBorder(
-                                    <Text color={theme.colors.textMuted}>↓ {statusItems.length} items</Text>
+                                    <Text color={theme.colors.textMuted}>{statusItems.length} items</Text>,
+                                    ' ',
+                                    'portrait-sts-empty'
                                 )
                             )}
                             
@@ -303,9 +352,7 @@ export const AppFullscreen: React.FC = () => {
                     if (navigation.configSelectedIndex >= configVisibleCount) {
                         scrollOffset = navigation.configSelectedIndex - configVisibleCount + 1;
                     }
-                    const hasScrollUp = scrollOffset > 0;
-                    const hasScrollDown = configItems.length > configVisibleCount;
-                    const moreCount = hasScrollDown ? configItems.length - scrollOffset - configVisibleCount : 0;
+                    // Scroll calculations are now handled by the scrollbar
                     
                     const configWidth = Math.floor(columns * 0.7) - 2; // Account for Box padding/margins
                     const borders = createBorder(
@@ -313,9 +360,9 @@ export const AppFullscreen: React.FC = () => {
                         'Setup your folder-mcp server',
                         navigation.isConfigFocused,
                         configWidth,
-                        hasScrollUp,
-                        hasScrollDown,
-                        moreCount
+                        configItems.length,
+                        configVisibleCount,
+                        scrollOffset
                     );
                     
                     const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
@@ -329,16 +376,23 @@ export const AppFullscreen: React.FC = () => {
                             
                             {/* Subtitle line */}
                             {borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
+                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>,
+                                ' ',
+                                'landscape-cfg-subtitle'
                             )}
                             
                             {/* Content */}
                             {visibleItems.map((item, visualIndex) => {
                                 const actualIndex = scrollOffset + visualIndex;
+                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
+                                    ? borders.scrollbar[visualIndex] 
+                                    : ' ';
                                 return borders.sideBorder(
-                                    <Text key={`cfg-${actualIndex}`} color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                    <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
                                         {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                    </Text>
+                                    </Text>,
+                                    scrollbarChar,
+                                    `landscape-cfg-${actualIndex}`
                                 );
                             })}
                             
@@ -357,9 +411,7 @@ export const AppFullscreen: React.FC = () => {
                     if (navigation.statusSelectedIndex >= statusVisibleCount) {
                         scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
                     }
-                    const hasScrollUp = scrollOffset > 0;
-                    const hasScrollDown = statusItems.length > statusVisibleCount;
-                    const moreCount = hasScrollDown ? statusItems.length - scrollOffset - statusVisibleCount : 0;
+                    // Scroll calculations are now handled by the scrollbar
                     
                     const statusWidth = Math.floor(columns * 0.3) - 2; // Account for Box padding/margins
                     const borders = createBorder(
@@ -367,9 +419,9 @@ export const AppFullscreen: React.FC = () => {
                         'Current state',
                         navigation.isStatusFocused,
                         statusWidth,
-                        hasScrollUp,
-                        hasScrollDown,
-                        moreCount
+                        statusItems.length,
+                        statusVisibleCount,
+                        scrollOffset
                     );
                     
                     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
@@ -383,14 +435,19 @@ export const AppFullscreen: React.FC = () => {
                             
                             {/* Subtitle line */}
                             {borders.sideBorder(
-                                <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
+                                <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>,
+                                ' ',
+                                'landscape-sts-subtitle'
                             )}
                             
                             {/* Content */}
                             {visibleItems.map((item, visualIndex) => {
                                 const actualIndex = scrollOffset + visualIndex;
+                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
+                                    ? borders.scrollbar[visualIndex] 
+                                    : ' ';
                                 return borders.sideBorder(
-                                    <Box key={`sts-${actualIndex}`} flexDirection="row">
+                                    <Box flexDirection="row">
                                         <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
                                             {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
                                         </Text>
@@ -401,7 +458,9 @@ export const AppFullscreen: React.FC = () => {
                                                 item.status === '⋯' ? theme.colors.accent : undefined
                                             }> {item.status}</Text>
                                         )}
-                                    </Box>
+                                    </Box>,
+                                    scrollbarChar,
+                                    `landscape-sts-${actualIndex}`
                                 );
                             })}
                             
