@@ -2,14 +2,23 @@
 import React from 'react';
 import { render } from 'ink';
 import { AppFullscreen as App } from './AppFullscreen.js';
+import { DIProvider, setupDIContainer } from './di/index.js';
 
 // Clear screen and position at top
 process.stdout.write('\x1b[2J\x1b[H');
 
+// Setup DI container
+const container = setupDIContainer();
+
 // Start the Ink TUI in fullscreen mode
-const app = render(<App />, {
-    exitOnCtrlC: false  // We handle this in useInput
-});
+const app = render(
+    <DIProvider container={container}>
+        <App />
+    </DIProvider>,
+    {
+        exitOnCtrlC: false  // We handle this in useInput
+    }
+);
 
 // Handle graceful exit
 const cleanup = () => {
