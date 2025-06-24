@@ -7,7 +7,7 @@
 - ✅ Phase 4: Minimal DI Container - **COMPLETED**
 - ✅ Phase 5: Gradual Component Migration - **COMPLETED**
 - ✅ Phase 6: AppFullscreen Cleanup and Legacy Code Removal - **COMPLETED**
-- 📋 Phase 7: Fix Horizontal Overflow Bug (Module-Boundary Driven) - **PLANNED**
+- ✅ Phase 7: Fix Horizontal Overflow Bug (Module-Boundary Driven) - **COMPLETED**
 
 ## Overview
 This document outlines a careful, incremental approach to refactoring the TUI application to introduce proper Dependency Injection (DI) and module boundaries. Each step is designed to have **zero visual impact** while improving the architecture.

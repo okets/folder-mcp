@@ -22,6 +22,10 @@ export const AppFullscreen: React.FC = () => {
     const STATUS_BAR_HEIGHT = 3; // border + content + border
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
+    if (process.env.TUI_DEBUG) {
+        console.error(`[AppFullscreen] Terminal: ${columns}x${rows}, Available: ${columns}x${availableHeight}`);
+    }
+    
     return (
         <Box flexDirection="column" height={rows} width={columns}>
             <Header />

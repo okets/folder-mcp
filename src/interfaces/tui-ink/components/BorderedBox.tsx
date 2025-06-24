@@ -115,6 +115,15 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
                     return createSideBorder(child, scrollbarChar, `content-${index}`);
                 })}
                 
+                {/* Fill remaining space with empty rows */}
+                {Array.from({ length: Math.max(0, contentHeight - childrenArray.length) }).map((_, index) => {
+                    const emptyRowIndex = childrenArray.length + index;
+                    const scrollbarChar = showScrollbar && scrollbarElements.length > 0 && emptyRowIndex < scrollbarElements.length
+                        ? scrollbarElements[emptyRowIndex]
+                        : ' ';
+                    return createSideBorder(<Text> </Text>, scrollbarChar, `empty-${index}`);
+                })}
+                
                 {/* Bottom border */}
                 <Text color={borderColor}>{createBottomBorder()}</Text>
             </Box>
