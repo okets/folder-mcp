@@ -71,9 +71,17 @@ export const AppSimple: React.FC = () => {
     
     // Helper to render config box
     const renderConfigBox = (width: string | number, height: number) => {
-        const visibleItems = Math.max(1, height - 4); // account for border and title
-        const visibleConfigItems = configItems.slice(0, visibleItems);
-        const remaining = configItems.length - visibleItems;
+        // Box overhead: title(1) + subtitle(1) + marginTop(1) + borders(1) = 4 (optimized)
+        const boxOverhead = 4;
+        const maxItems = Math.max(1, height - boxOverhead);
+        const visibleItems = configItems.length > maxItems ? maxItems - 1 : maxItems; // Reserve line for "more" if needed
+        // Calculate scroll offset to keep selected item visible
+        let scrollOffset = 0;
+        if (navigation.configSelectedIndex >= visibleItems) {
+            scrollOffset = navigation.configSelectedIndex - visibleItems + 1;
+        }
+        const visibleConfigItems = configItems.slice(scrollOffset, scrollOffset + visibleItems);
+        const remaining = configItems.length - scrollOffset - visibleItems;
         
         return (
             <Box 
@@ -94,12 +102,16 @@ export const AppSimple: React.FC = () => {
                         )}
                 <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                 <Box flexDirection="column" marginTop={1}>
-                    {visibleConfigItems.map((item, index) => (
-                        <Text key={`config-${index}`}>
-                            <Text>{navigation.isConfigFocused && navigation.configSelectedIndex === index ? '▶' : '○'} </Text>
-                            <Text>{item}</Text>
-                        </Text>
-                    ))}
+                    {visibleConfigItems.map((item, visualIndex) => {
+                        const actualIndex = scrollOffset + visualIndex;
+                        return (
+                            <Text key={`config-${actualIndex}`}>
+                                <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
+                                    {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} </Text>
+                                <Text>{item}</Text>
+                            </Text>
+                        );
+                    })}
                     {remaining > 0 && (
                         <Text color={theme.colors.textMuted}>
                             <Text>↓ </Text>
@@ -113,9 +125,17 @@ export const AppSimple: React.FC = () => {
     
     // Helper to render status box
     const renderStatusBox = (width: string | number, height: number) => {
-        const visibleItems = Math.max(1, height - 4); // account for border and title
-        const visibleStatusItems = statusItems.slice(0, visibleItems);
-        const remaining = statusItems.length - visibleItems;
+        // Box overhead: title(1) + subtitle(1) + marginTop(1) + borders(1) = 4 (optimized)
+        const boxOverhead = 4;
+        const maxItems = Math.max(1, height - boxOverhead);
+        const visibleItems = statusItems.length > maxItems ? maxItems - 1 : maxItems; // Reserve line for "more" if needed
+        // Calculate scroll offset to keep selected item visible
+        let scrollOffset = 0;
+        if (navigation.statusSelectedIndex >= visibleItems) {
+            scrollOffset = navigation.statusSelectedIndex - visibleItems + 1;
+        }
+        const visibleStatusItems = statusItems.slice(scrollOffset, scrollOffset + visibleItems);
+        const remaining = statusItems.length - scrollOffset - visibleItems;
         
         return (
             <Box 
@@ -136,13 +156,15 @@ export const AppSimple: React.FC = () => {
                         )}
                 <Text color={theme.colors.textMuted}>Current state</Text>
                 <Box flexDirection="column" marginTop={1}>
-                    {visibleStatusItems.map((item, idx) => {
+                    {visibleStatusItems.map((item, visualIndex) => {
+                        const actualIndex = scrollOffset + visualIndex;
                         const statusColor = item.status === '✓' ? theme.colors.successGreen :
                                           item.status === '⚠' ? theme.colors.warningOrange :
                                           item.status === '⋯' ? theme.colors.accent : undefined;
                         return (
-                            <Text key={`status-${idx}`}>
-                                <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} </Text>
+                            <Text key={`status-${actualIndex}`}>
+                                <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
+                                    {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} </Text>
                                 <Text>{item.text}</Text>
                                 {item.status && (
                                     <>

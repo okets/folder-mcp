@@ -66,37 +66,26 @@ export const AppFullscreen: React.FC = () => {
     
     // Fixed height calculations (accounting for header margin)
     const HEADER_HEIGHT = 4; // 3 lines + 1 margin
-    const STATUS_BAR_HEIGHT = 3;
+    const STATUS_BAR_HEIGHT = 3; // border + content + border
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
     if (isNarrow) {
-        // Portrait mode - vertical stack with better proportions  
-        const statusHeight = Math.max(8, Math.floor(availableHeight * 0.4));
-        const configHeight = Math.max(6, availableHeight - statusHeight);
+        // Portrait mode - maximize space usage
+        // Give status a reasonable minimum, rest to config
+        const statusHeight = Math.max(10, Math.floor(availableHeight * 0.35)); // Slightly less for status
+        const configHeight = availableHeight - statusHeight; // Use all remaining space
         
         // Calculate exact space for items
-        // Box overhead: top border(1) + title(1) + subtitle(1) + marginTop(1) + bottom border(1) = 5
-        const boxOverhead = 5;
+        // Box overhead: title(1) + subtitle(1) + marginTop(1) + borders(1) = 4 (optimized)
+        const boxOverhead = 4;
         
-        // Calculate available lines for content (items + optional "more" indicator)
-        const configContentLines = Math.max(0, configHeight - boxOverhead);
-        const statusContentLines = Math.max(0, statusHeight - boxOverhead);
+        // Calculate maximum possible items that fit
+        const configMaxItems = Math.max(1, configHeight - boxOverhead);
+        const statusMaxItems = Math.max(1, statusHeight - boxOverhead);
         
-        // We need to show at least 1 item, and reserve 1 line for "more" if needed
-        let configVisibleCount = configContentLines;
-        let statusVisibleCount = statusContentLines;
-        
-        // If we can't show all items, reserve space for "more" indicator
-        if (configItems.length > configContentLines && configContentLines > 1) {
-            configVisibleCount = configContentLines - 1; // Reserve 1 line for "more"
-        }
-        if (statusItems.length > statusContentLines && statusContentLines > 1) {
-            statusVisibleCount = statusContentLines - 1; // Reserve 1 line for "more"
-        }
-        
-        // Ensure we show at least 1 item
-        configVisibleCount = Math.max(1, configVisibleCount);
-        statusVisibleCount = Math.max(0, statusVisibleCount);
+        // Reserve 1 line for "more" indicator only if we can't show all items
+        const configVisibleCount = configItems.length > configMaxItems ? Math.max(1, configMaxItems - 1) : configMaxItems;
+        const statusVisibleCount = statusItems.length > statusMaxItems ? Math.max(1, statusMaxItems - 1) : statusMaxItems;
         
         return (
             <Box flexDirection="column" height={rows} width={columns}>
@@ -227,9 +216,18 @@ export const AppFullscreen: React.FC = () => {
     }
     
     // Landscape mode - side by side
-    // More conservative calculation to prevent overlap
-    const configVisibleCount = Math.max(1, availableHeight - 7);
-    const statusVisibleCount = Math.max(1, availableHeight - 7);
+    // Optimized calculation: title(1) + subtitle(1) + marginTop(1) + borders(1.5) = 4.5 ≈ 4 overhead  
+    // Try reducing just slightly to gain one row
+    const boxOverhead = 4;
+    const maxVisibleItems = Math.max(1, availableHeight - boxOverhead);
+    
+    // Optimized calculation for both boxes
+    const configMaxItems = Math.max(1, availableHeight - 4); // title(1) + subtitle(1) + margin(1) + more(1) = 4
+    const statusMaxItems = Math.max(1, availableHeight - 4); // Same calculation for consistency
+    
+    // Reserve 1 line for "more" indicator if needed
+    const configVisibleCount = configItems.length > configMaxItems ? configMaxItems - 1 : configMaxItems;
+    const statusVisibleCount = statusItems.length > statusMaxItems ? statusMaxItems - 1 : statusMaxItems;
     
     return (
         <Box flexDirection="column" height={rows} width={columns}>
@@ -255,7 +253,7 @@ export const AppFullscreen: React.FC = () => {
                         )}
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     </Box>
-                    <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
+                    <Box flexDirection="column" marginTop={1} overflow="hidden">
                         {(() => {
                             // Calculate scroll offset to keep selected item visible
                             let scrollOffset = 0;
@@ -309,21 +307,41 @@ export const AppFullscreen: React.FC = () => {
                         <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
                     </Box>
                     <Box flexDirection="column" marginTop={1}>
-                        {statusItems.slice(0, statusVisibleCount).map((item, idx) => (
-                            <Box key={`sts-${idx}`} flexDirection="row">
-                                <Text>{navigation.isStatusFocused && navigation.statusSelectedIndex === idx ? '▶' : '○'} {item.text}</Text>
-                                {item.status && (
-                                    <Text color={
-                                        item.status === '✓' ? theme.colors.successGreen :
-                                        item.status === '⚠' ? theme.colors.warningOrange :
-                                        item.status === '⋯' ? theme.colors.accent : undefined
-                                    }> {item.status}</Text>
-                                )}
-                            </Box>
-                        ))}
+                        {(() => {
+                            // Calculate scroll offset to keep selected item visible
+                            let scrollOffset = 0;
+                            if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                                scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                            }
+                            const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
+                            
+                            return visibleItems.map((item, visualIndex) => {
+                                const actualIndex = scrollOffset + visualIndex;
+                                return (
+                                    <Box key={`sts-${actualIndex}`} flexDirection="row">
+                                        <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
+                                            {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
+                                        </Text>
+                                        {item.status && (
+                                            <Text color={
+                                                item.status === '✓' ? theme.colors.successGreen :
+                                                item.status === '⚠' ? theme.colors.warningOrange :
+                                                item.status === '⋯' ? theme.colors.accent : undefined
+                                            }> {item.status}</Text>
+                                        )}
+                                    </Box>
+                                );
+                            });
+                        })()}
                         {statusItems.length > statusVisibleCount && (
                             <Text color={theme.colors.textMuted}>
-                                ↓ {statusItems.length - statusVisibleCount} more
+                                ↓ {(() => {
+                                    let scrollOffset = 0;
+                                    if (navigation.statusSelectedIndex >= statusVisibleCount) {
+                                        scrollOffset = navigation.statusSelectedIndex - statusVisibleCount + 1;
+                                    }
+                                    return statusItems.length - scrollOffset - statusVisibleCount;
+                                })()} more
                             </Text>
                         )}
                     </Box>
