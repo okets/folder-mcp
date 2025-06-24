@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
+import { BorderedBox } from './components/BorderedBox.js';
 import { theme } from './utils/theme.js';
 import { useNavigation } from './hooks/useNavigation.js';
 import { useTerminalSize } from './hooks/useTerminalSize.js';
@@ -152,11 +153,7 @@ export const AppFullscreen: React.FC = () => {
                     }
                     // Scroll calculations are now handled by the scrollbar
                     
-                    const borders = createBorder(
-                        'Configuration', 
-                        'Setup your folder-mcp server',
-                        navigation.isConfigFocused,
-                        columns - 2,
+                    const scrollbar = calculateScrollbar(
                         configItems.length,
                         configVisibleCount,
                         scrollOffset
@@ -165,39 +162,28 @@ export const AppFullscreen: React.FC = () => {
                     const visibleItems = configItems.slice(scrollOffset, scrollOffset + configVisibleCount);
                     
                     return (
-                        <Box flexDirection="column" height={configHeight} overflow="hidden">
-                            {/* Top border with embedded title */}
-                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.topBorder}
-                            </Text>
-                            
-                            {/* Subtitle line */}
-                            {borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>,
-                                ' ',
-                                'portrait-cfg-subtitle'
-                            )}
-                            
-                            {/* Content */}
+                        <BorderedBox
+                            title="Configuration"
+                            subtitle="Setup your folder-mcp server"
+                            focused={navigation.isConfigFocused}
+                            width={columns - 2}
+                            height={configHeight}
+                            showScrollbar={true}
+                            scrollbarElements={scrollbar}
+                        >
                             {visibleItems.map((item, visualIndex) => {
                                 const actualIndex = scrollOffset + visualIndex;
-                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
-                                    ? borders.scrollbar[visualIndex] 
-                                    : ' ';
-                                return borders.sideBorder(
-                                    <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
+                                return (
+                                    <Text 
+                                        key={`portrait-cfg-${actualIndex}`}
+                                        color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} 
+                                        wrap="truncate"
+                                    >
                                         {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                    </Text>,
-                                    scrollbarChar,
-                                    `portrait-cfg-${actualIndex}`
+                                    </Text>
                                 );
                             })}
-                            
-                            {/* Bottom border with scroll indicator */}
-                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.bottomBorder}
-                            </Text>
-                        </Box>
+                        </BorderedBox>
                     );
                 })()}
                 
@@ -209,11 +195,7 @@ export const AppFullscreen: React.FC = () => {
                     }
                     // Scroll calculations are now handled by the scrollbar
                     
-                    const borders = createBorder(
-                        'System Status',
-                        'Current state', 
-                        navigation.isStatusFocused,
-                        columns - 2,
+                    const scrollbar = calculateScrollbar(
                         statusItems.length,
                         statusVisibleCount,
                         scrollOffset
@@ -222,28 +204,20 @@ export const AppFullscreen: React.FC = () => {
                     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + statusVisibleCount);
                     
                     return (
-                        <Box flexDirection="column" height={statusHeight}>
-                            {/* Top border with embedded title */}
-                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.topBorder}
-                            </Text>
-                            
-                            {/* Subtitle line */}
-                            {statusHeight > 5 && borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Current state</Text>,
-                                ' ',
-                                'portrait-sts-subtitle'
-                            )}
-                            
-                            {/* Content */}
+                        <BorderedBox
+                            title="System Status"
+                            subtitle={statusHeight > 5 ? "Current state" : undefined}
+                            focused={navigation.isStatusFocused}
+                            width={columns - 2}
+                            height={statusHeight}
+                            showScrollbar={true}
+                            scrollbarElements={scrollbar}
+                        >
                             {statusVisibleCount > 0 ? (
                                 visibleItems.map((item, visualIndex) => {
                                     const actualIndex = scrollOffset + visualIndex;
-                                    const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
-                                        ? borders.scrollbar[visualIndex] 
-                                        : ' ';
-                                    return borders.sideBorder(
-                                        <Box flexDirection="row">
+                                    return (
+                                        <Box key={`portrait-sts-${actualIndex}`} flexDirection="row">
                                             <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
                                                 {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
                                             </Text>
@@ -254,24 +228,13 @@ export const AppFullscreen: React.FC = () => {
                                                     item.status === '⋯' ? theme.colors.accent : undefined
                                                 }> {item.status}</Text>
                                             )}
-                                        </Box>,
-                                        scrollbarChar,
-                                        `portrait-sts-${actualIndex}`
+                                        </Box>
                                     );
                                 })
                             ) : (
-                                borders.sideBorder(
-                                    <Text color={theme.colors.textMuted}>{statusItems.length} items</Text>,
-                                    ' ',
-                                    'portrait-sts-empty'
-                                )
+                                <Text key="portrait-sts-empty" color={theme.colors.textMuted}>{statusItems.length} items</Text>
                             )}
-                            
-                            {/* Bottom border with scroll indicator */}
-                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.bottomBorder}
-                            </Text>
-                        </Box>
+                        </BorderedBox>
                     );
                 })()}
                 
@@ -309,11 +272,7 @@ export const AppFullscreen: React.FC = () => {
                     // Scroll calculations are now handled by the scrollbar
                     
                     const configWidth = Math.floor(columns * 0.7) - 2; // Account for Box padding/margins
-                    const borders = createBorder(
-                        'Configuration',
-                        'Setup your folder-mcp server',
-                        navigation.isConfigFocused,
-                        configWidth,
+                    const scrollbar = calculateScrollbar(
                         configItems.length,
                         configVisibleCount,
                         scrollOffset
@@ -323,37 +282,28 @@ export const AppFullscreen: React.FC = () => {
                     
                     return (
                         <Box width="70%" flexDirection="column">
-                            {/* Top border with embedded title */}
-                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.topBorder}
-                            </Text>
-                            
-                            {/* Subtitle line */}
-                            {borders.sideBorder(
-                                <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>,
-                                ' ',
-                                'landscape-cfg-subtitle'
-                            )}
-                            
-                            {/* Content */}
-                            {visibleItems.map((item, visualIndex) => {
-                                const actualIndex = scrollOffset + visualIndex;
-                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
-                                    ? borders.scrollbar[visualIndex] 
-                                    : ' ';
-                                return borders.sideBorder(
-                                    <Text color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} wrap="truncate">
-                                        {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
-                                    </Text>,
-                                    scrollbarChar,
-                                    `landscape-cfg-${actualIndex}`
-                                );
-                            })}
-                            
-                            {/* Bottom border with scroll indicator */}
-                            <Text color={navigation.isConfigFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.bottomBorder}
-                            </Text>
+                            <BorderedBox
+                                title="Configuration"
+                                subtitle="Setup your folder-mcp server"
+                                focused={navigation.isConfigFocused}
+                                width={configWidth}
+                                height={availableHeight}
+                                showScrollbar={true}
+                                scrollbarElements={scrollbar}
+                            >
+                                {visibleItems.map((item, visualIndex) => {
+                                    const actualIndex = scrollOffset + visualIndex;
+                                    return (
+                                        <Text 
+                                            key={`landscape-cfg-${actualIndex}`}
+                                            color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined} 
+                                            wrap="truncate"
+                                        >
+                                            {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                                        </Text>
+                                    );
+                                })}
+                            </BorderedBox>
                         </Box>
                     );
                 })()}
@@ -368,11 +318,7 @@ export const AppFullscreen: React.FC = () => {
                     // Scroll calculations are now handled by the scrollbar
                     
                     const statusWidth = Math.floor(columns * 0.3) - 2; // Account for Box padding/margins
-                    const borders = createBorder(
-                        'System Status',
-                        'Current state',
-                        navigation.isStatusFocused,
-                        statusWidth,
+                    const scrollbar = calculateScrollbar(
                         statusItems.length,
                         statusVisibleCount,
                         scrollOffset
@@ -382,46 +328,33 @@ export const AppFullscreen: React.FC = () => {
                     
                     return (
                         <Box width="30%" flexDirection="column">
-                            {/* Top border with embedded title */}
-                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.topBorder}
-                            </Text>
-                            
-                            {/* Subtitle line */}
-                            {borders.sideBorder(
-                                <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>,
-                                ' ',
-                                'landscape-sts-subtitle'
-                            )}
-                            
-                            {/* Content */}
-                            {visibleItems.map((item, visualIndex) => {
-                                const actualIndex = scrollOffset + visualIndex;
-                                const scrollbarChar = borders.scrollbar.length > 0 && visualIndex < borders.scrollbar.length 
-                                    ? borders.scrollbar[visualIndex] 
-                                    : ' ';
-                                return borders.sideBorder(
-                                    <Box flexDirection="row">
-                                        <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
-                                            {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
-                                        </Text>
-                                        {item.status && (
-                                            <Text color={
-                                                item.status === '✓' ? theme.colors.successGreen :
-                                                item.status === '⚠' ? theme.colors.warningOrange :
-                                                item.status === '⋯' ? theme.colors.accent : undefined
-                                            }> {item.status}</Text>
-                                        )}
-                                    </Box>,
-                                    scrollbarChar,
-                                    `landscape-sts-${actualIndex}`
-                                );
-                            })}
-                            
-                            {/* Bottom border with scroll indicator */}
-                            <Text color={navigation.isStatusFocused ? theme.colors.borderFocus : theme.colors.border}>
-                                {borders.bottomBorder}
-                            </Text>
+                            <BorderedBox
+                                title="System Status"
+                                subtitle="Current state"
+                                focused={navigation.isStatusFocused}
+                                width={statusWidth}
+                                height={availableHeight}
+                                showScrollbar={true}
+                                scrollbarElements={scrollbar}
+                            >
+                                {visibleItems.map((item, visualIndex) => {
+                                    const actualIndex = scrollOffset + visualIndex;
+                                    return (
+                                        <Box key={`landscape-sts-${actualIndex}`} flexDirection="row">
+                                            <Text color={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? theme.colors.accent : undefined}>
+                                                {navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'} {item.text}
+                                            </Text>
+                                            {item.status && (
+                                                <Text color={
+                                                    item.status === '✓' ? theme.colors.successGreen :
+                                                    item.status === '⚠' ? theme.colors.warningOrange :
+                                                    item.status === '⋯' ? theme.colors.accent : undefined
+                                                }> {item.status}</Text>
+                                            )}
+                                        </Box>
+                                    );
+                                })}
+                            </BorderedBox>
                         </Box>
                     );
                 })()}
