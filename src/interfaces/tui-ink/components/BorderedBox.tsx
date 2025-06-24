@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { theme } from '../utils/theme.js';
 import { ILayoutConstraints } from '../models/types.js';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
+import { ConstrainedContent } from './ConstrainedContent.js';
 
 interface BorderedBoxProps {
     title: string;
@@ -73,7 +74,11 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
         return (
             <Box key={key}>
                 <Text color={borderColor}>{border.vertical} </Text>
-                <Box width={contentWidth}>{content}</Box>
+                <Box width={contentWidth}>
+                    <ConstrainedContent width={contentWidth}>
+                        {content}
+                    </ConstrainedContent>
+                </Box>
                 <Text color={borderColor}> {scrollbarChar}{border.vertical}</Text>
             </Box>
         );

@@ -2,7 +2,7 @@ import { StatusItem } from './StatusItem.js';
 
 export const configItems: string[] = [
     'Create optimized configuration for my machine',
-    'Manual configuration wizard',
+    'Manual configuration wizard with extremely long text that should definitely overflow the container boundaries and break things if not handled properly',
     'Load existing configuration',
     'Select embedding model',
     'Configure cache directory',
