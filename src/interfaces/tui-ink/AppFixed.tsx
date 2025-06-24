@@ -90,7 +90,7 @@ export const AppFixed: React.FC = () => {
                         paddingX={1}
                         flexDirection="column"
                     >
-                        <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        <Text>{navigation.isConfigFocused ? 'Configuration' : 'Configuration ⁽ᵗᵃᵇ⁾'}</Text>
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                         <Box marginTop={1} flexDirection="column" flexGrow={1}>
                             {visibleConfigItems.map((item, index) => {
@@ -116,7 +116,7 @@ export const AppFixed: React.FC = () => {
                         paddingX={1}
                         flexDirection="column"
                     >
-                        <Text>System Status {navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        <Text>{navigation.isStatusFocused ? 'System Status' : 'System Status ⁽ᵗᵃᵇ⁾'}</Text>
                         <Text color={theme.colors.textMuted}>Current state</Text>
                         <Box flexDirection="column" marginTop={1}>
                             {statusItems.slice(0, Math.max(1, portraitStatusHeight - 4)).map((item, index) => {
@@ -159,7 +159,7 @@ export const AppFixed: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                    <Text>{navigation.isConfigFocused ? 'Configuration' : 'Configuration ⁽ᵗᵃᵇ⁾'}</Text>
                     <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     <Box marginTop={1} flexDirection="column">
                         {visibleConfigItems.map((item, index) => {
@@ -185,7 +185,7 @@ export const AppFixed: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>System Status {navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                    <Text>{navigation.isStatusFocused ? 'System Status' : 'System Status ⁽ᵗᵃᵇ⁾'}</Text>
                     <Text color={theme.colors.textMuted}>Current state</Text>
                     <Box marginTop={1} flexDirection="column">
                         {visibleStatusItems.map((item, index) => {

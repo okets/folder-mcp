@@ -31,7 +31,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ shortcuts = defaultShortcu
             paddingX={1}
             width="100%"
         >
-            <Text color={theme.colors.textPrimary}>{content}</Text>
+            <Text color={theme.colors.textSecondary}>{content}</Text>
         </Box>
     );
 };

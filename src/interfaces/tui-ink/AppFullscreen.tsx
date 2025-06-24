@@ -112,7 +112,14 @@ export const AppFullscreen: React.FC = () => {
                     overflow="hidden"
                 >
                     <Box flexDirection="column">
-                        <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        {navigation.isConfigFocused ? (
+                            <Text>Configuration</Text>
+                        ) : (
+                            <Box flexDirection="row" justifyContent="space-between">
+                                <Text>Configuration</Text>
+                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                            </Box>
+                        )}
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     </Box>
                     <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
@@ -158,7 +165,14 @@ export const AppFullscreen: React.FC = () => {
                     flexDirection="column"
                 >
                     <Box flexDirection="column">
-                        <Text>System Status {navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        {navigation.isStatusFocused ? (
+                            <Text>System Status</Text>
+                        ) : (
+                            <Box flexDirection="row" justifyContent="space-between">
+                                <Text>System Status</Text>
+                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                            </Box>
+                        )}
                         {statusHeight > 5 && <Text color={theme.colors.textMuted}>Current state</Text>}
                     </Box>
                     <Box flexDirection="column" marginTop={1}>
@@ -231,7 +245,14 @@ export const AppFullscreen: React.FC = () => {
                     flexDirection="column"
                 >
                     <Box flexDirection="column">
-                        <Text>Configuration {navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        {navigation.isConfigFocused ? (
+                            <Text>Configuration</Text>
+                        ) : (
+                            <Box flexDirection="row" justifyContent="space-between">
+                                <Text>Configuration</Text>
+                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                            </Box>
+                        )}
                         <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     </Box>
                     <Box flexDirection="column" marginTop={1} height={configVisibleCount} overflow="hidden">
@@ -277,7 +298,14 @@ export const AppFullscreen: React.FC = () => {
                     flexDirection="column"
                 >
                     <Box flexDirection="column">
-                        <Text>System Status {navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}</Text>
+                        {navigation.isStatusFocused ? (
+                            <Text>System Status</Text>
+                        ) : (
+                            <Box flexDirection="row" justifyContent="space-between">
+                                <Text>System Status</Text>
+                                <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                            </Box>
+                        )}
                         <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
                     </Box>
                     <Box flexDirection="column" marginTop={1}>

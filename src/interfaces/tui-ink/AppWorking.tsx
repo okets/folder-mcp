@@ -90,7 +90,7 @@ export const AppWorking: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>{`Configuration ${navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}`}</Text>
+                    <Text>{`${navigation.isConfigFocused ? 'Configuration' : 'Configuration ⁽ᵗᵃᵇ⁾'}`}</Text>
                     <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     <Box flexDirection="column" marginTop={1}>
                         {configItems.slice(0, configVisibleCount).map((item, index) => (
@@ -114,7 +114,7 @@ export const AppWorking: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>{`System Status ${navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}`}</Text>
+                    <Text>{`${navigation.isStatusFocused ? 'System Status' : 'System Status ⁽ᵗᵃᵇ⁾'}`}</Text>
                     <Text color={theme.colors.textMuted}>Current state</Text>
                     <Box flexDirection="column" marginTop={1}>
                         {statusItems.slice(0, statusVisibleCount).map((item, idx) => {
@@ -159,7 +159,7 @@ export const AppWorking: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>{`Configuration ${navigation.isConfigFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}`}</Text>
+                    <Text>{`${navigation.isConfigFocused ? 'Configuration' : 'Configuration ⁽ᵗᵃᵇ⁾'}`}</Text>
                     <Text color={theme.colors.textMuted}>Setup your folder-mcp server</Text>
                     <Box flexDirection="column" marginTop={1}>
                         {configItems.slice(0, configVisibleCount).map((item, index) => (
@@ -183,7 +183,7 @@ export const AppWorking: React.FC = () => {
                     paddingX={1}
                     flexDirection="column"
                 >
-                    <Text>{`System Status ${navigation.isStatusFocused ? '⁽ᶠᵒᶜᵘˢᵉᵈ⁾' : 'ᵗᵃᵇ'}`}</Text>
+                    <Text>{`${navigation.isStatusFocused ? 'System Status' : 'System Status ⁽ᵗᵃᵇ⁾'}`}</Text>
                     <Text color={theme.colors.textMuted} wrap="truncate">Current state</Text>
                     <Box flexDirection="column" marginTop={1}>
                         {statusItems.slice(0, statusVisibleCount).map((item, idx) => {

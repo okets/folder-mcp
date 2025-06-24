@@ -22,7 +22,6 @@ export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({
     height
 }) => {
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
-    const titleText = focused ? `${title} ⁽ᶠᵒᶜᵘˢᵉᵈ⁾` : `${title} ᵗᵃᵇ`;
     
     // Calculate visible items based on container height
     const items = React.Children.toArray(children);
@@ -81,7 +80,14 @@ export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({
             width="100%"
         >
             <Box flexDirection="row" justifyContent="space-between">
-                <Text color={theme.colors.textPrimary}>{titleText}</Text>
+                {focused ? (
+                    <Text color={theme.colors.textPrimary}>{title}</Text>
+                ) : (
+                    <Box flexDirection="row" justifyContent="space-between" width="100%">
+                        <Text color={theme.colors.textPrimary}>{title}</Text>
+                        <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                    </Box>
+                )}
                 {hasScrollUp && <Text color={theme.colors.textMuted}>↑</Text>}
             </Box>
             {subtitle && (

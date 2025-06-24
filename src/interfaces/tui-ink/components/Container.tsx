@@ -23,9 +23,16 @@ export const Container: React.FC<ContainerProps> = ({
     const { border } = theme.symbols;
     
     // Create top border with title
-    const titleText = focused ? `${title} ⁽ᶠᵒᶜᵘˢᵉᵈ⁾` : `${title} ᵗᵃᵇ`;
-    const titlePadding = Math.max(0, width - titleText.length - 6);
-    const topBorder = `${border.topLeft}${border.horizontal} ${titleText} ${border.horizontal.repeat(titlePadding)}${border.topRight}`;
+    let topBorder: string;
+    if (focused) {
+        const titlePadding = Math.max(0, width - title.length - 6);
+        topBorder = `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(titlePadding)}${border.topRight}`;
+    } else {
+        const tabText = '⁽ᵗᵃᵇ⁾';
+        const totalContentLength = title.length + tabText.length + 2; // +2 for spaces
+        const remainingPadding = Math.max(0, width - totalContentLength - 4); // -4 for corners and spaces
+        topBorder = `${border.topLeft}${border.horizontal} ${title}${' '.repeat(remainingPadding)} ${tabText} ${border.topRight}`;
+    }
     
     // Create empty lines for padding
     const emptyLine = `${border.vertical}${' '.repeat(width - 2)}${border.vertical}`;

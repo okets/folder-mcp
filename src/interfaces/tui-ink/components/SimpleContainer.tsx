@@ -16,7 +16,6 @@ export const SimpleContainer: React.FC<SimpleContainerProps> = ({
     children 
 }) => {
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
-    const titleText = focused ? `${title} ⁽ᶠᵒᶜᵘˢᵉᵈ⁾` : `${title} ᵗᵃᵇ`;
     
     return (
         <Box 
@@ -27,7 +26,14 @@ export const SimpleContainer: React.FC<SimpleContainerProps> = ({
             height="100%"
             overflow="hidden"
         >
-            <Text color={theme.colors.textPrimary}>{titleText}</Text>
+            {focused ? (
+                <Text color={theme.colors.textPrimary}>{title}</Text>
+            ) : (
+                <Box flexDirection="row" justifyContent="space-between">
+                    <Text color={theme.colors.textPrimary}>{title}</Text>
+                    <Text color={theme.colors.textMuted}>⁽ᵗᵃᵇ⁾</Text>
+                </Box>
+            )}
             {subtitle && (
                 <Text color={theme.colors.textMuted}>{subtitle}</Text>
             )}
