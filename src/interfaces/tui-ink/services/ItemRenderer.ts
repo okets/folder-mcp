@@ -16,6 +16,8 @@ export interface ListItemData {
     status?: string;
     /** Text color */
     color?: string;
+    /** Status indicator color */
+    statusColor?: string;
     /** Whether item is selectable */
     selectable?: boolean;
     /** Additional metadata */
@@ -80,7 +82,7 @@ export class ItemRenderer {
         }
         
         // Status item format { text, status, color }
-        if (item.text && (item.status || item.color)) {
+        if (item.text && (item.status !== undefined || item.color)) {
             return {
                 id: item.id || `status-${index}`,
                 text: item.text,
@@ -151,7 +153,7 @@ export class ItemRenderer {
             value,
             status: item.status,
             color,
-            statusColor: item.color // Keep original color for status
+            statusColor: item.statusColor || item.color // Use statusColor if provided, otherwise item.color
         };
     }
     
