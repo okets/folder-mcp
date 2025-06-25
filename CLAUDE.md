@@ -176,6 +176,7 @@ When the user requests features or approaches that may have better alternatives,
 When the user mentions "visual bugs", "TUI bugs", or provides ASCII screenshots of terminal interfaces, use this systematic approach:
 
 ### 1. Count and Measure First
+- Start every investigation by understanding the resolution.
 - Count the exact number of rows/columns in the provided ASCII screenshot
 - Identify each visual element and its position
 - Note empty lines, spaces, and special characters
