@@ -18,6 +18,7 @@ interface RegisteredHandler {
 export class InputContextService implements IInputContextService {
     private handlers = new Map<string, RegisteredHandler>();
     
+    
     constructor(
         private focusChainService: IFocusChainService
     ) {}
@@ -54,16 +55,19 @@ export class InputContextService implements IInputContextService {
     handleInput(input: string, key: Key): boolean {
         const focusChain = this.focusChainService.getFocusChain();
         
-        // Get handlers for elements in focus chain
-        const activeHandlers = focusChain
-            .map(elementId => this.handlers.get(elementId))
-            .filter((handler): handler is RegisteredHandler => handler !== undefined)
+        // Get all registered handlers and sort by priority
+        // This allows handlers to work even if not in the strict focus chain
+        const allHandlers = Array.from(this.handlers.values())
             .sort((a, b) => b.priority - a.priority);
         
         // Try each handler in priority order
-        for (const handler of activeHandlers) {
-            if (handler.handler(input, key)) {
-                return true; // Input was handled
+        for (const handler of allHandlers) {
+            try {
+                if (handler.handler(input, key)) {
+                    return true; // Input was handled
+                }
+            } catch (error) {
+                // Silently ignore handler errors
             }
         }
         

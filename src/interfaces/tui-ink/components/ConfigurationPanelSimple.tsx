@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './BorderedBox.js';
 import { theme } from '../utils/theme.js';
-import { useNavigation } from '../hooks/useNavigation.js';
+import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { useDI } from '../di/DIContext.js';
@@ -61,17 +61,23 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
     return scrollbar;
 };
 
-export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
-    const navigation = useNavigation();
-    const { columns } = useTerminalSize();
-    const constraints = useLayoutConstraints();
-    const di = useDI();
-    const statusBarService = di.resolve(ServiceTokens.StatusBarService);
-    
+export const ConfigurationPanelSimple: React.FC<{ 
+    width?: number; 
+    height?: number;
+    onEditingChange?: (isEditing: boolean) => void;
+}> = ({ width, height, onEditingChange }) => {
     // Local state for expanded item
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const [cursorVisible, setCursorVisible] = useState(true);
+    
+    // Use shared navigation context
+    const navigation = useNavigationContext();
+    const { columns } = useTerminalSize();
+    const constraints = useLayoutConstraints();
+    const di = useDI();
+    const statusBarService = di.resolve(ServiceTokens.StatusBarService);
+    const inputContextService = di.resolve(ServiceTokens.InputContextService);
     
     // Use render slots when an item is expanded
     const { totalSlots } = useRenderSlots({
@@ -81,14 +87,10 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
         enabled: expandedIndex !== null
     });
     
-    // Update status bar based on editing state
+    // Notify parent about editing state changes
     useEffect(() => {
-        if (expandedIndex !== null) {
-            statusBarService.setContext('editing');
-        } else {
-            statusBarService.setContext('form');
-        }
-    }, [expandedIndex, statusBarService]);
+        onEditingChange?.(expandedIndex !== null);
+    }, [expandedIndex, onEditingChange]);
     
     // Blinking cursor effect
     useEffect(() => {
@@ -185,20 +187,20 @@ export const ConfigurationPanelSimple: React.FC<{ width?: number; height?: numbe
         }
     }, [expandedIndex, editValue, navigation.configSelectedIndex]);
     
-    // Use focus chain - active when config panel is focused and especially when editing
+    // Use focus chain - register for both viewing and editing
     const { isInFocusChain } = useFocusChain({
-        elementId: 'config-panel',
-        parentId: 'app',
-        isActive: navigation.isConfigFocused,
-        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
+        elementId: `config-panel-${expandedIndex !== null ? 'edit' : 'view'}`,
+        parentId: 'navigation',  // Child of navigation, not app
+        isActive: expandedIndex !== null,  // Only active when editing
+        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
         keyBindings: expandedIndex !== null ? [
             { key: 'Esc', description: 'Cancel' },
-            { key: 'Enter', description: 'Save' }
-        ] : [
-            { key: '→/Enter', description: 'Edit' },
-            { key: '↑↓', description: 'Navigate' }
-        ],
-        priority: expandedIndex !== null ? 100 : 50 // Higher priority when editing
+            { key: 'Enter', description: 'Save' },
+            { key: 'Backspace', description: 'Delete' }
+        ] : navigation.isConfigFocused ? [
+            { key: '→/Enter', description: 'Edit' }
+        ] : [],
+        priority: expandedIndex !== null ? 1000 : 50 // Very high priority when editing
     });
     
     return (

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
+import type { IKeyBinding } from '../services/interfaces.js';
 
 interface StatusBarProps {
     message?: string;
@@ -11,34 +12,41 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const di = useDI();
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
+    const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
     
-    // Try to get key bindings from InputContextService (preferred) or StatusBarService
+    // Update key bindings whenever they change
+    useEffect(() => {
+        const updateBindings = () => {
+            try {
+                const inputContextService = di.resolve(ServiceTokens.InputContextService);
+                const bindings = inputContextService.getActiveKeyBindings();
+                setKeyBindings(bindings);
+            } catch {
+                // Service not available
+            }
+        };
+        
+        // Initial update
+        updateBindings();
+        
+        // Update periodically
+        const interval = setInterval(updateBindings, 250);
+        return () => clearInterval(interval);
+    }, [di]);
+    
+    // Use message if provided, otherwise show key bindings
     let content = message;
-    try {
-        // First try InputContextService which gets bindings from focus chain
-        if (di.has(ServiceTokens.InputContextService)) {
-            const inputContextService = di.resolve(ServiceTokens.InputContextService);
-            const bindings = inputContextService.getActiveKeyBindings();
-            if (!message && bindings.length > 0) {
-                content = bindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
-            }
-        } else if (di.has(ServiceTokens.StatusBarService)) {
-            // Fallback to StatusBarService
-            const statusBarService = di.resolve(ServiceTokens.StatusBarService);
-            const bindings = statusBarService.getKeyBindings();
-            if (!message && bindings.length > 0) {
-                content = bindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
-            }
-        }
-    } catch {
-        // Fallback if services not registered
-        const defaultBindings = [
-            { key: '↑↓', description: 'Navigate' },
-            { key: '→/Enter', description: 'Edit' },
-            { key: 'Tab', description: 'Switch Panel' },
-            { key: 'q', description: 'Quit' }
-        ];
-        if (!content) {
+    if (!message) {
+        if (keyBindings.length > 0) {
+            content = keyBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+        } else {
+            // Fallback to default bindings if no active bindings
+            const defaultBindings = [
+                { key: '↑↓', description: 'Navigate' },
+                { key: '→/Enter', description: 'Edit' },
+                { key: 'Tab', description: 'Switch Panel' },
+                { key: 'q', description: 'Quit' }
+            ];
             content = defaultBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
         }
     }

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, useApp, Key } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
@@ -9,6 +9,7 @@ import { useTerminalSize } from './hooks/useTerminalSize.js';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
 import { useDI } from './di/DIContext.js';
 import { ServiceTokens } from './di/tokens.js';
+import { NavigationProvider } from './contexts/NavigationContext.js';
 
 export const AppFullscreen: React.FC = () => {
     const { exit } = useApp();
@@ -16,19 +17,20 @@ export const AppFullscreen: React.FC = () => {
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
+    const [isEditingConfig, setIsEditingConfig] = useState(false);
     
     // Set up root input handler
     useRootInput();
     
     // Register app-level input handler
     const handleAppInput = useCallback((input: string, key: Key): boolean => {
-        // Only handle 'q' to quit if no element is actively using input
-        if (input === 'q' && !focusChainService.getActive()) {
+        // Handle 'q' to quit - always available unless something with higher priority handles it
+        if (input === 'q') {
             exit();
             return true;
         }
         return false;
-    }, [exit, focusChainService]);
+    }, [exit]);
     
     // Use focus chain for app-level component
     useFocusChain({
@@ -50,19 +52,21 @@ export const AppFullscreen: React.FC = () => {
     }
     
     return (
-        <Box flexDirection="column" height={rows} width={columns}>
-            <Header />
-            
-            <LayoutContainer
-                availableHeight={availableHeight}
-                availableWidth={columns}
-                narrowBreakpoint={100}
-            >
-                <ConfigurationPanelSimple />
-                <StatusPanel />
-            </LayoutContainer>
-            
-            <StatusBar />
-        </Box>
+        <NavigationProvider isBlocked={isEditingConfig}>
+            <Box flexDirection="column" height={rows} width={columns}>
+                <Header />
+                
+                <LayoutContainer
+                    availableHeight={availableHeight}
+                    availableWidth={columns}
+                    narrowBreakpoint={100}
+                >
+                    <ConfigurationPanelSimple onEditingChange={setIsEditingConfig} />
+                    <StatusPanel />
+                </LayoutContainer>
+                
+                <StatusBar />
+            </Box>
+        </NavigationProvider>
     );
 };

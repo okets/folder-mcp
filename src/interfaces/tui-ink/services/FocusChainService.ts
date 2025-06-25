@@ -35,23 +35,27 @@ export class FocusChainService implements IFocusChainService {
     /**
      * Get the focus chain: [active element, ...ancestors]
      * The entire chain is considered "focused"
+     * If no active element, returns chain starting from 'app' (root)
      */
     getFocusChain(): string[] {
-        if (!this.activeElementId) {
-            return [];
+        // If there's an active element, return it and its ancestors
+        if (this.activeElementId) {
+            const chain: string[] = [this.activeElementId];
+            let currentId = this.activeElementId;
+            
+            // Walk up the parent chain
+            while (this.parentMap.has(currentId)) {
+                const parentId = this.parentMap.get(currentId)!;
+                chain.push(parentId);
+                currentId = parentId;
+            }
+            
+            return chain;
         }
         
-        const chain: string[] = [this.activeElementId];
-        let currentId = this.activeElementId;
-        
-        // Walk up the parent chain
-        while (this.parentMap.has(currentId)) {
-            const parentId = this.parentMap.get(currentId)!;
-            chain.push(parentId);
-            currentId = parentId;
-        }
-        
-        return chain;
+        // If no active element, return empty array
+        // The InputContextService will handle this case
+        return [];
     }
     
     /**

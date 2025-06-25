@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { BorderedBox } from './BorderedBox.js';
 import { theme } from '../utils/theme.js';
-import { useNavigation } from '../hooks/useNavigation.js';
+import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { statusItems } from '../models/sampleData.js';
 import { StatusItemLayout } from './StatusItemLayout.js';
@@ -48,7 +48,7 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
 };
 
 export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
-    const navigation = useNavigation();
+    const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     
     // Calculate visible count based on height
