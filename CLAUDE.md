@@ -170,3 +170,59 @@ When the user requests features or approaches that may have better alternatives,
 - **VERIFY FIXES** - Actually test and verify that the problem is solved, don't just assume it's fixed
 - **NO AUTO-COMMITS** - Don't commit "partial fixes" or "work in progress" without user approval
 - **WAIT FOR APPROVAL** - The user must explicitly say the task is complete before any git commit is made
+
+## TUI Visual Debugging Methodology
+
+When the user mentions "visual bugs", "TUI bugs", or provides ASCII screenshots of terminal interfaces, use this systematic approach:
+
+### 1. Count and Measure First
+- Count the exact number of rows/columns in the provided ASCII screenshot
+- Identify each visual element and its position
+- Note empty lines, spaces, and special characters
+- Create a mental or written map of what you see
+
+### 2. Compare Against Code
+- Look up the actual data arrays in the code (e.g., how many items exist)
+- Find the relevant calculation functions (height, width, scrollbar, etc.)
+- Identify what the expected values should be based on the code
+
+### 3. Reconstruct the Visual
+- Create a simple test script to verify calculations
+- Use console.log to show the visual representation
+- Test edge cases (first item, last item, middle positions)
+- Show the math step-by-step
+
+### 4. Analyze Discrepancies
+- Compare calculated vs actual visible elements
+- Identify where counts don't match
+- Trace through the exact calculations with real numbers
+- Use comments like "but screenshot shows X" when there's a mismatch
+
+### 5. Test Your Solution
+- Create small test files to verify the fix
+- Show before/after calculations
+- Verify edge cases still work
+- Clean up test files after verification
+
+### Example Analysis Format
+```
+From the screenshot:
+- Total rows in panel: X (excluding borders)
+- Visible items: Y
+- Empty lines: Z
+- Scrollbar length: N cells
+
+From the code:
+- Total items: A (from array length)
+- Calculated visible: B
+- Box overhead: C
+
+Discrepancy: Expected X but seeing Y
+```
+
+### Key Principles
+- Don't guess - count and calculate
+- Show your math explicitly
+- Test edge cases (top, bottom, middle)
+- Verify visually that the fix matches the screenshot
+- Use descriptive variable names in test scripts
