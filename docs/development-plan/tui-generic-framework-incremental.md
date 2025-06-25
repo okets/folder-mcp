@@ -226,22 +226,57 @@ After each phase, verify:
 - Add search functionality
 - Test: Performance with large number of logs
 
-## Phase 7: Advanced Features
+## Phase 7: System Status Panel with LogItems
 
-### Step 7.1: Create Additional Item Types
+### Step 7.1: Create Status-to-Log Transformer
+- Create `src/interfaces/tui-ink/utils/statusToLog.ts`
+- Transform StatusItem format to LogEntry format
+- Map status indicators to log levels (✓→info, ⚠→warn, etc.)
+- Parse metrics from text for metadata extraction
+- Generate meaningful detail content for expansion
+
+### Step 7.2: Create SystemStatusLogPanel Component
+- Create `src/interfaces/tui-ink/components/SystemStatusLogPanel.tsx`
+- Use ExpandableDataPanel with LogItem components
+- Maintain exact visual appearance when collapsed
+- Add smart expanded content based on status type
+- Test: Verify identical appearance to current StatusPanel
+
+### Step 7.3: Implement Dynamic Status Details
+- Memory usage items → Show detailed breakdown
+- Network status → Connection info and latency
+- Processing queue → Queue statistics and items
+- Error counts → Recent error list if any
+- Test: Each status type has meaningful expansion
+
+### Step 7.4: Replace Original StatusPanel
+- Update main app to use SystemStatusLogPanel
+- Ensure navigation works identically
+- Verify scrolling behavior matches
+- Test: Full regression test with no visual changes
+
+### Step 7.5: Add Real-time Updates
+- Periodic refresh of status data
+- Maintain expansion state during updates
+- Visual indicators for changed values
+- Test: Updates don't disrupt user interaction
+
+## Phase 8: Advanced Features
+
+### Step 8.1: Create Additional Item Types
 - SelectItem - Dropdown selection with options
 - ToggleItem - Boolean on/off switch
 - SliderItem - Numeric value with min/max
 - FilePickerItem - File/folder selection
 - Test each with real use cases
 
-### Step 7.2: Add Nested Expansion Support
+### Step 8.2: Add Nested Expansion Support
 - Support items that expand to show sub-items
 - Tree-like navigation with proper indentation
 - Keyboard shortcuts for expand/collapse all
 - Test: Deep nesting scenarios
 
-### Step 7.3: Add Item Validation Framework
+### Step 8.3: Add Item Validation Framework
 - Real-time validation as user types
 - Visual indicators for errors/warnings
 - Validation messages below items
@@ -257,7 +292,15 @@ After each phase, verify:
 - [ ] Test Escape key cancels edits properly
 - [ ] Verify scroll behavior when expanding items
 
-### Phase 7 QA (After Advanced Features):
+### Phase 7 QA (After System Status with LogItems):
+- [ ] Verify System Status looks identical when collapsed
+- [ ] Test expanding various status types
+- [ ] Confirm meaningful details in expanded views
+- [ ] Test scrolling with mixed expanded/collapsed items
+- [ ] Verify real-time updates don't break expansion state
+- [ ] Confirm no performance degradation
+
+### Phase 8 QA (After Advanced Features):
 - [ ] Test all new item types interactively
 - [ ] Verify nested expansion keyboard navigation
 - [ ] Test validation feedback visibility
