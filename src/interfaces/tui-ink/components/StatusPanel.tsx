@@ -52,9 +52,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const { columns } = useTerminalSize();
     
     // Calculate visible count based on height
-    const boxOverhead = 4;
+    const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
     const maxItems = Math.max(1, (height || 20) - boxOverhead);
-    const visibleCount = statusItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
+    const visibleCount = Math.min(statusItems.length, maxItems);
     
     // Calculate scroll offset
     let scrollOffset = 0;
