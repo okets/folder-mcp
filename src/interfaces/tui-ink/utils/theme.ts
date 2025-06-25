@@ -10,6 +10,7 @@ export const theme: Theme = {
         border: '#475569',
         borderFocus: '#3B82F6',
         textInputBorder: '#4d4d4d',
+        bracketValueBright: '#6597cd', // RGB(101,151,205)
         textPrimary: '#F8FAFC',
         textSecondary: '#94A3B8',
         textMuted: '#64748B',

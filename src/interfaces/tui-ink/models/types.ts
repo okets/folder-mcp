@@ -36,6 +36,7 @@ export interface ThemeColors {
     border: string;
     borderFocus: string;
     textInputBorder: string;
+    bracketValueBright: string;
     textPrimary: string;
     textSecondary: string;
     textMuted: string;

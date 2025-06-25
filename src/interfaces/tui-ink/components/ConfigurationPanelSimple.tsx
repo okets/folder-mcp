@@ -291,7 +291,7 @@ export const ConfigurationPanelSimple: React.FC<{
                                 key={collapsedKey}
                                 color={isSelected ? theme.colors.accent : undefined}
                             >
-                                {`${isSelected ? '▶' : '·'} ${item.label}: [\x1b[2m${item.value}\x1b[22m]`}
+                                {`${isSelected ? '▶' : '·'} ${item.label}: [\x1b[38;5;117m${item.value}\x1b[39m]`}
                             </Text>
                         );
                     }
