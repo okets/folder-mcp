@@ -243,35 +243,41 @@ export const ConfigurationPanelSimple: React.FC<{
                                 ▼ {item.label}:
                             </Text>
                         );
+                        
+                        // Calculate border width to match content exactly
+                        const borderWidth = Math.max(editValue.length + 2, 18); // Content will be: text + cursor/padding + space = editValue.length + 2
+                        
                         elements.push(
                             <Text key={valueKey}>
-                                {'  '}╭{'─'.repeat(Math.max(editValue.length + 2, 20))}╮
+                                {'  '}╭{'─'.repeat(borderWidth)}╮
                             </Text>
                         );
+                        
                         // Render text with cursor using ANSI escape codes
-                        let textWithCursor = editValue;
-                        if (cursorVisible) {
-                            if (cursorPosition < editValue.length) {
-                                // Insert ANSI codes around the character at cursor position
-                                const before = editValue.slice(0, cursorPosition);
-                                const cursorChar = editValue[cursorPosition];
-                                const after = editValue.slice(cursorPosition + 1);
-                                textWithCursor = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m' + after;
-                            } else {
-                                // Cursor at end - add highlighted space
-                                textWithCursor = editValue + '\x1b[47m\x1b[30m \x1b[0m';
-                            }
+                        let content;
+                        
+                        if (cursorVisible && cursorPosition < editValue.length) {
+                            // Cursor is on existing character - highlight it
+                            const before = editValue.slice(0, cursorPosition);
+                            const cursorChar = editValue[cursorPosition];
+                            const after = editValue.slice(cursorPosition + 1);
+                            content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m' + after + ' ';
+                        } else if (cursorVisible && cursorPosition >= editValue.length) {
+                            // Cursor is at end - highlight the padding space
+                            content = editValue + '\x1b[47m\x1b[30m \x1b[0m';
+                        } else {
+                            // No cursor visible - just text with padding
+                            content = editValue + ' ';
                         }
                         
                         elements.push(
                             <Text key={`${valueKey}-content`} color={theme.colors.textPrimary}>
-                                {'  '}│ {textWithCursor}
-                                {' '.repeat(Math.max(0, Math.max(editValue.length + 3, 20) - editValue.length - 2))}│
+                                {'  '}│ {content}│
                             </Text>
                         );
                         elements.push(
                             <Text key={`${valueKey}-bottom`}>
-                                {'  '}╰{'─'.repeat(Math.max(editValue.length + 2, 20))}╯
+                                {'  '}╰{'─'.repeat(borderWidth)}╯
                             </Text>
                         );
                     } else {
