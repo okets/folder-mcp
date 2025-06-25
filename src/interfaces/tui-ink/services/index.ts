@@ -6,3 +6,5 @@ export { NavigationService } from './NavigationService.js';
 export { ContentService } from './ContentService.js';
 export { itemRenderer, ItemRenderer } from './ItemRenderer.js';
 export type { ListItemData, ItemRenderConfig } from './ItemRenderer.js';
+export { layoutService, LayoutService } from './LayoutService.js';
+export type { LayoutDimensions, PanelLayout, TextLayout } from './LayoutService.js';

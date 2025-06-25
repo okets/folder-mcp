@@ -24,3 +24,6 @@ export type { PanelProps } from './Panel.js';
 
 export { DataPanel } from './DataPanel.js';
 export type { DataPanelProps } from './DataPanel.js';
+
+export { ThemedPanel, ThemedConfigurationPanel, ThemedStatusPanel } from './ThemedPanel.js';
+export { ThemedBorderedBox } from './ThemedBorderedBox.js';

@@ -180,6 +180,90 @@ After each phase, verify:
 - [ ] Test on different terminal emulators
 - [ ] Confirm accessibility features work
 
+## Phase 6: Expandable List Items
+
+### Step 6.1: Create Generic ExpandableListItem Component
+- Create `src/interfaces/tui-ink/components/core/ExpandableListItem.tsx`
+- Extract common expand/collapse functionality from existing implementations
+- Support both collapsed and expanded states with customizable content
+- Props: label, value, isExpanded, isActive, expandedContent, icons
+- Test: Create examples with different content types
+
+### Step 6.2: Create TextInputItem Component
+- Create `src/interfaces/tui-ink/components/core/items/TextInputItem.tsx`
+- Refactor existing text input functionality from ConfigurationPanelSimple
+- Uses ExpandableListItem for consistent behavior
+- Maintains all existing keyboard handling and validation
+- Test: Verify identical behavior to current implementation
+
+### Step 6.3: Create LogItem Component
+- Create `src/interfaces/tui-ink/components/core/items/LogItem.tsx`
+- Collapsed state: `· [timestamp] Log summary text`
+- Expanded state: Full log details with stack trace, metadata
+- Features:
+  - Timestamp formatting
+  - Log level indicators (error/warn/info)
+  - Syntax highlighting for stack traces
+  - Scrollable content if log is large
+- Test: Create sample log data with various types
+
+### Step 6.4: Update DataPanel for Expandable Items
+- Add expansion state management to DataPanel
+- Support keyboard shortcuts (Enter to expand/collapse)
+- Update ItemRenderer to handle expandable items
+- Maintain scroll position when expanding/collapsing
+- Test: Verify smooth expansion without layout jumps
+
+### Step 6.5: Migrate Configuration Panel
+- Replace ConfigurationPanelSimple with new components
+- Use TextInputItem for all configuration fields
+- Ensure edit mode works identically
+- Test: Full regression test of configuration editing
+
+### Step 6.6: Create LogPanel Component
+- Create new panel using DataPanel + LogItem
+- Support filtering by log level
+- Add search functionality
+- Test: Performance with large number of logs
+
+## Phase 7: Advanced Features
+
+### Step 7.1: Create Additional Item Types
+- SelectItem - Dropdown selection with options
+- ToggleItem - Boolean on/off switch
+- SliderItem - Numeric value with min/max
+- FilePickerItem - File/folder selection
+- Test each with real use cases
+
+### Step 7.2: Add Nested Expansion Support
+- Support items that expand to show sub-items
+- Tree-like navigation with proper indentation
+- Keyboard shortcuts for expand/collapse all
+- Test: Deep nesting scenarios
+
+### Step 7.3: Add Item Validation Framework
+- Real-time validation as user types
+- Visual indicators for errors/warnings
+- Validation messages below items
+- Test: Various validation rules
+
+## Human QA Checkpoints
+
+### Phase 6 QA (After Expandable Items):
+- [ ] **Critical**: Test text input in expanded items
+- [ ] Verify Enter key expands/collapses correctly
+- [ ] Test Tab navigation through expandable items
+- [ ] Confirm cursor positioning in text fields
+- [ ] Test Escape key cancels edits properly
+- [ ] Verify scroll behavior when expanding items
+
+### Phase 7 QA (After Advanced Features):
+- [ ] Test all new item types interactively
+- [ ] Verify nested expansion keyboard navigation
+- [ ] Test validation feedback visibility
+- [ ] Confirm no performance issues with many items
+- [ ] Test on various terminal sizes
+
 ## Rollback Plan
 
 Each step is designed to be reversible:
