@@ -9,3 +9,7 @@
 > We must have a flawless TUI framework.  
 > Interface is key to success.
 
+**# Debugging Prompts for TUI Framework**
+add human functionality QA task after every major change. 
+  especially one that is related to a user input that you can't 
+  simulate yourself.
