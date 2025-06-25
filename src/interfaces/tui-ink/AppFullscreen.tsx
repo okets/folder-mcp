@@ -3,7 +3,7 @@ import { Box, useApp, Key } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LayoutContainer } from './components/LayoutContainer.js';
-import { ConfigurationPanelSimple } from './components/ConfigurationPanelSimple.js';
+import { ConfigurationPanelSimple, configurationItems } from './components/ConfigurationPanelSimple.js';
 import { StatusPanel } from './components/StatusPanel.js';
 import { useTerminalSize } from './hooks/useTerminalSize.js';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
@@ -52,7 +52,7 @@ export const AppFullscreen: React.FC = () => {
     }
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode}>
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={configurationItems.length}>
             <Box flexDirection="column" height={rows} width={columns}>
                 <Header />
                 

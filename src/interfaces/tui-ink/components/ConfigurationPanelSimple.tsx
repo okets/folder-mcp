@@ -11,7 +11,7 @@ import { useFocusChain } from '../hooks/useFocusChain.js';
 import { useRenderSlots } from '../hooks/useRenderSlots.js';
 
 // Simple configuration items for testing
-const configurationItems = [
+export const configurationItems = [
     { id: 'folder-path', label: 'Folder Path', value: '/Users/example/documents' },
     { id: 'embedding-model', label: 'Embedding Model', value: 'nomic-embed-text' },
     { id: 'cache-directory', label: 'Cache Directory', value: '~/.folder-mcp/cache' },

@@ -14,10 +14,12 @@ interface NavigationState {
 
 interface UseNavigationOptions {
     isBlocked?: boolean;  // Whether navigation should be blocked (e.g., when editing)
+    configItemCount?: number;  // Number of configuration items
+    statusItemCount?: number;  // Number of status items
 }
 
 export const useNavigation = (options: UseNavigationOptions = {}) => {
-    const { isBlocked = false } = options;
+    const { isBlocked = false, configItemCount = 20, statusItemCount = 20 } = options;
     const [state, setState] = useState<NavigationState>({
         activeContainer: 'config',
         configSelectedIndex: 0,
@@ -44,10 +46,11 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         });
     }, [isBlocked]);
 
-    const navigateDown = useCallback((maxItems: number) => {
+    const navigateDown = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
             const key = prev.activeContainer === 'config' ? 'configSelectedIndex' : 'statusSelectedIndex';
+            const maxItems = prev.activeContainer === 'config' ? configItemCount : statusItemCount;
             const currentIndex = prev[key];
             const newIndex = Math.min(maxItems - 1, currentIndex + 1);
             return {
@@ -55,7 +58,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
                 [key]: newIndex
             };
         });
-    }, [isBlocked]);
+    }, [isBlocked, configItemCount, statusItemCount]);
 
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {
@@ -68,7 +71,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             navigateUp();
             return true;
         } else if (key.downArrow || input === 'j') {
-            navigateDown(20); // TODO: This should be dynamic based on actual item count
+            navigateDown();
             return true;
         }
         return false;
