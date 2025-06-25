@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
-import { BorderedBox } from './BorderedBox.js';
+import { BorderedBox } from './core/BorderedBox.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -9,6 +9,7 @@ import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 import { useFocusChain } from '../hooks/useFocusChain.js';
 import { useRenderSlots } from '../hooks/useRenderSlots.js';
+import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 
 // Simple configuration items for testing
 export const configurationItems = [
@@ -21,45 +22,6 @@ export const configurationItems = [
     { id: 'network-timeout', label: 'Network Timeout', value: '30' }
 ];
 
-// Helper function to calculate scrollbar visual representation
-const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
-    // Only show scrollbar if scrolling is needed
-    if (totalItems <= visibleItems) {
-        return [];
-    }
-
-    // Create scrollbar array with exactly visibleItems elements
-    const scrollbar: string[] = [];
-    
-    // First row always shows top triangle
-    scrollbar.push('▲');
-    
-    // Last row always shows bottom triangle (will be added at the end)
-    // Available space for indicator = visibleItems - 2 (excluding top and bottom triangles)
-    const availableSpace = Math.max(1, visibleItems - 2);
-    
-    if (availableSpace > 0) {
-        const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
-        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
-        const bottomSpace = availableSpace - lineLength - topSpace;
-        
-        // Add middle rows (top space + line + bottom space)
-        for (let i = 0; i < topSpace; i++) {
-            scrollbar.push(' ');
-        }
-        for (let i = 0; i < lineLength; i++) {
-            scrollbar.push('┃');
-        }
-        for (let i = 0; i < bottomSpace; i++) {
-            scrollbar.push(' ');
-        }
-    }
-    
-    // Last row always shows bottom triangle
-    scrollbar.push('▼');
-    
-    return scrollbar;
-};
 
 export const ConfigurationPanelSimple: React.FC<{ 
     width?: number; 
@@ -140,7 +102,11 @@ export const ConfigurationPanelSimple: React.FC<{
         }
     });
     
-    const scrollbar = calculateScrollbar(configurationItems.length, totalVisibleLines, scrollOffset);
+    const scrollbar = calculateScrollbar({
+        totalItems: configurationItems.length,
+        visibleItems: totalVisibleLines,
+        scrollOffset: scrollOffset
+    });
     
     // Handle configuration panel input
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {

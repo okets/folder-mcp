@@ -1,52 +1,13 @@
 import React from 'react';
 import { Text } from 'ink';
-import { BorderedBox } from './BorderedBox.js';
+import { BorderedBox } from './core/BorderedBox.js';
 import { theme } from '../utils/theme.js';
 import { useNavigation } from '../hooks/useNavigation.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { configItems } from '../models/sampleData.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { ConstrainedContent } from './ConstrainedContent.js';
-
-// Helper function to calculate scrollbar visual representation
-const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
-    // Only show scrollbar if scrolling is needed
-    if (totalItems <= visibleItems) {
-        return [];
-    }
-
-    // Create scrollbar array with exactly visibleItems elements
-    const scrollbar: string[] = [];
-    
-    // First row always shows top triangle
-    scrollbar.push('▲');
-    
-    // Last row always shows bottom triangle (will be added at the end)
-    // Available space for indicator = visibleItems - 2 (excluding top and bottom triangles)
-    const availableSpace = Math.max(1, visibleItems - 2);
-    
-    if (availableSpace > 0) {
-        const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
-        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
-        const bottomSpace = availableSpace - lineLength - topSpace;
-        
-        // Add middle rows (top space + line + bottom space)
-        for (let i = 0; i < topSpace; i++) {
-            scrollbar.push(' ');
-        }
-        for (let i = 0; i < lineLength; i++) {
-            scrollbar.push('┃');
-        }
-        for (let i = 0; i < bottomSpace; i++) {
-            scrollbar.push(' ');
-        }
-    }
-    
-    // Last row always shows bottom triangle
-    scrollbar.push('▼');
-    
-    return scrollbar;
-};
+import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 
 export const ConfigurationPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
     const navigation = useNavigation();
@@ -69,7 +30,11 @@ export const ConfigurationPanel: React.FC<{ width?: number; height?: number }> =
         scrollOffset = navigation.configSelectedIndex - visibleCount + 1;
     }
     
-    const scrollbar = calculateScrollbar(configItems.length, visibleCount, scrollOffset);
+    const scrollbar = calculateScrollbar({
+        totalItems: configItems.length,
+        visibleItems: visibleCount,
+        scrollOffset: scrollOffset
+    });
     const visibleItems = configItems.slice(scrollOffset, scrollOffset + visibleCount);
     
     return (

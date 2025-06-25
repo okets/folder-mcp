@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { BorderedBox } from './BorderedBox.js';
+import { BorderedBox } from './core/BorderedBox.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';

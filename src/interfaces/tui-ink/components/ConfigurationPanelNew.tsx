@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { BorderedBox } from './BorderedBox.js';
+import { BorderedBox } from './core/BorderedBox.js';
 import { theme } from '../utils/theme.js';
 import { useNavigation } from '../hooks/useNavigation.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -10,46 +10,7 @@ import { ServiceTokens } from '../di/tokens.js';
 import { TextInputNode } from './configuration/nodes/TextInputNode.js';
 import { sampleConfigurationNodes } from '../models/sampleConfigurationNodes.js';
 import type { ConfigurationNode } from '../models/configuration.js';
-
-// Helper function to calculate scrollbar visual representation
-const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
-    // Only show scrollbar if scrolling is needed
-    if (totalItems <= visibleItems) {
-        return [];
-    }
-
-    // Create scrollbar array with exactly visibleItems elements
-    const scrollbar: string[] = [];
-    
-    // First row always shows top triangle
-    scrollbar.push('▲');
-    
-    // Last row always shows bottom triangle (will be added at the end)
-    // Available space for indicator = visibleItems - 2 (excluding top and bottom triangles)
-    const availableSpace = Math.max(1, visibleItems - 2);
-    
-    if (availableSpace > 0) {
-        const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
-        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
-        const bottomSpace = availableSpace - lineLength - topSpace;
-        
-        // Add middle rows (top space + line + bottom space)
-        for (let i = 0; i < topSpace; i++) {
-            scrollbar.push(' ');
-        }
-        for (let i = 0; i < lineLength; i++) {
-            scrollbar.push('┃');
-        }
-        for (let i = 0; i < bottomSpace; i++) {
-            scrollbar.push(' ');
-        }
-    }
-    
-    // Last row always shows bottom triangle
-    scrollbar.push('▼');
-    
-    return scrollbar;
-};
+import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 
 // Component to render a configuration node
 const ConfigurationNodeRenderer: React.FC<{
@@ -130,7 +91,11 @@ export const ConfigurationPanelNew: React.FC<{ width?: number; height?: number }
         scrollOffset = currentNodeIndex - visibleCount + 1;
     }
     
-    const scrollbar = calculateScrollbar(nodes.length, visibleCount, scrollOffset);
+    const scrollbar = calculateScrollbar({
+        totalItems: nodes.length,
+        visibleItems: visibleCount,
+        scrollOffset: scrollOffset
+    });
     const visibleNodes = nodes.slice(scrollOffset, scrollOffset + visibleCount);
     
     // Handle keyboard input
