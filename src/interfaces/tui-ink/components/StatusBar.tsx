@@ -29,9 +29,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
         // Initial update
         updateBindings();
         
-        // Update periodically
-        const interval = setInterval(updateBindings, 250);
-        return () => clearInterval(interval);
+        // No periodic updates to allow terminal text selection
+        // Key bindings will update when components register/unregister
     }, [di]);
     
     // Use message if provided, otherwise show key bindings

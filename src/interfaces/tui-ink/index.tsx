@@ -4,8 +4,7 @@ import { render } from 'ink';
 import { AppFullscreen as App } from './AppFullscreen.js';
 import { DIProvider, setupDIContainer } from './di/index.js';
 
-// Clear screen and position at top
-process.stdout.write('\x1b[2J\x1b[H');
+// Let Ink handle screen management for better terminal compatibility
 
 // Setup DI container
 const container = setupDIContainer();
@@ -16,7 +15,7 @@ const app = render(
         <App />
     </DIProvider>,
     {
-        exitOnCtrlC: false  // We handle this in useInput
+        exitOnCtrlC: true  // Allow standard Ctrl+C behavior for better terminal compatibility
     }
 );
 
@@ -31,6 +30,5 @@ process.on('SIGTERM', cleanup);
 
 // Also cleanup when app exits normally
 app.waitUntilExit().then(() => {
-    // Clear screen on exit
-    process.stdout.write('\x1b[2J\x1b[H');
+    // Let terminal handle cleanup naturally
 });

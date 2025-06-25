@@ -92,16 +92,9 @@ export const ConfigurationPanelSimple: React.FC<{
         onEditModeChange?.(editingNodeIndex !== null);
     }, [editingNodeIndex, onEditModeChange]);
     
-    // Blinking cursor effect
+    // Static cursor (no blinking to allow terminal text selection)
     useEffect(() => {
-        if (editingNodeIndex !== null) {
-            const timer = setInterval(() => {
-                setCursorVisible(prev => !prev);
-            }, 500);
-            return () => clearInterval(timer);
-        } else {
-            setCursorVisible(true);
-        }
+        setCursorVisible(true);
     }, [editingNodeIndex]);
     
     // Calculate visible count based on height

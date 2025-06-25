@@ -25,18 +25,9 @@ export const TextInput: React.FC<TextInputProps> = ({
 }) => {
     const [showCursor, setShowCursor] = useState(true);
 
-    // Cursor blink effect
+    // Static cursor (no blinking to allow terminal text selection)
     useEffect(() => {
-        if (!isActive) {
-            setShowCursor(false);
-            return;
-        }
-
-        const interval = setInterval(() => {
-            setShowCursor(prev => !prev);
-        }, 500);
-
-        return () => clearInterval(interval);
+        setShowCursor(isActive);
     }, [isActive]);
 
     // Handle keyboard input
