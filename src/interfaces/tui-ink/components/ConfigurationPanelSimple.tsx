@@ -201,7 +201,7 @@ export const ConfigurationPanelSimple: React.FC<{
     const { isInFocusChain } = useFocusChain({
         elementId: 'config-panel',  // Keep stable element ID
         parentId: 'navigation',  // Child of navigation, not app
-        isActive: editingNodeIndex !== null,  // Only active when in edit mode
+        isActive: navigation.isConfigFocused,  // Active when config panel is focused
         onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
         keyBindings: editingNodeIndex !== null ? [
             { key: '←→', description: 'Move cursor' },
