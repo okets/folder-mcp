@@ -27,3 +27,16 @@ export type { DataPanelProps } from './DataPanel.js';
 
 export { ThemedPanel, ThemedConfigurationPanel, ThemedStatusPanel } from './ThemedPanel.js';
 export { ThemedBorderedBox } from './ThemedBorderedBox.js';
+
+export { ExpandableListItem, useExpandableItem } from './ExpandableListItem.js';
+export type { ExpandableListItemProps } from './ExpandableListItem.js';
+
+export { ExpandableDataPanel } from './ExpandableDataPanel.js';
+export type { ExpandableDataPanelProps, ExpandableItem } from './ExpandableDataPanel.js';
+
+// Export items
+export { TextInputItem } from './items/TextInputItem.js';
+export type { TextInputItemProps } from './items/TextInputItem.js';
+
+export { LogItem, sampleLogs } from './items/LogItem.js';
+export type { LogItemProps, LogEntry } from './items/LogItem.js';
