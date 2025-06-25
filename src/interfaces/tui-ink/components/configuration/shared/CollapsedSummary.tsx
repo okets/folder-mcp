@@ -23,7 +23,7 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
     
     // Calculate available space
-    const prefixWidth = 2; // "│ " or "▶ "
+    const prefixWidth = 2; // "· " or "▶ "
     const suffixWidth = 1; // "→"
     const bracketsWidth = 2; // "[]"
     const separatorWidth = 2; // ": "
@@ -42,7 +42,7 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     return (
         <Text>
             <Text color={isSelected ? theme.colors.accent : undefined}>
-                {isSelected ? '▶' : '│'} {truncatedLabel}: 
+                {isSelected ? '▶' : '·'} {truncatedLabel}: 
             </Text>
             <Text color={theme.colors.textSecondary}>
                 [{displayValue}]

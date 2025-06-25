@@ -64,7 +64,7 @@ const ConfigurationNodeRenderer: React.FC<{
     // Fallback for unimplemented node types
     return (
         <Text color={isSelected ? theme.colors.accent : undefined}>
-            {isSelected ? '▶' : '│'} {node.label}: [{String(node.value)}] →
+            {isSelected ? '▶' : '·'} {node.label}: [{String(node.value)}] →
         </Text>
     );
 };

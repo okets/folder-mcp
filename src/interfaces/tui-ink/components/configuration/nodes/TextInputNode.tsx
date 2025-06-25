@@ -88,7 +88,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     return (
         <Box flexDirection="column">
             <Box>
-                <Text color={theme.colors.accent}>▶ {node.label}:</Text>
+                <Text color={theme.colors.accent}>▼ {node.label}:</Text>
             </Box>
             <Box paddingLeft={2} paddingTop={1}>
                 <TextInput

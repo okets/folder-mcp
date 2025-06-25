@@ -89,7 +89,7 @@ export const ConfigurationPanel: React.FC<{ width?: number; height?: number }> =
                         key={`panel-config-item-${actualIndex}`}
                         color={navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? theme.colors.accent : undefined}
                     >
-                        {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '○'} {item}
+                        {navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex ? '▶' : '·'} {item}
                     </Text>
                 );
             })}

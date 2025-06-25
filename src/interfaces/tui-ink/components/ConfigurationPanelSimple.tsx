@@ -231,7 +231,7 @@ export const ConfigurationPanelSimple: React.FC<{
                         
                         elements.push(
                             <Text key={labelKey} color={theme.colors.accent}>
-                                ▶ {item.label}:
+                                ▼ {item.label}:
                             </Text>
                         );
                         elements.push(
@@ -258,7 +258,7 @@ export const ConfigurationPanelSimple: React.FC<{
                                 key={collapsedKey}
                                 color={isSelected ? theme.colors.accent : undefined}
                             >
-                                {isSelected ? '▶' : '│'} {item.label}: [{item.value}] →
+                                {isSelected ? '▶' : '·'} {item.label}: [{item.value}] →
                             </Text>
                         );
                     }
