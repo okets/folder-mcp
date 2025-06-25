@@ -175,6 +175,12 @@ export interface IInputContextService {
     // Get key bindings from all focused elements
     getActiveKeyBindings(): IKeyBinding[];
     
+    // NEW: Get bindings respecting focus chain
+    getFocusAwareKeyBindings(): IKeyBinding[];
+    
+    // NEW: Check if in modal state
+    isModalState(): boolean;
+    
     // Add listener for key binding changes (returns cleanup function)
     addChangeListener(listener: () => void): () => void;
 }

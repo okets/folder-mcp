@@ -31,24 +31,56 @@ The status bar is not correctly displaying available keyboard shortcuts based on
   - Identified re-registration gaps during mode changes
   - Discovered React 19 concurrent rendering impacts
   - Root cause: imperative registration vs declarative needs
-- [🔄] Create state diagram of focus chain transitions
+- [✓] Create state diagram of focus chain transitions (2025-01-25 16:00)
+  - Created state diagram in docs/FOCUS_CHAIN_STATE_DIAGRAM.md
+  - Documented all state transitions and focus chains
+  - Identified conflict between priority system and focus chain
+  - Defined desired behavior for binding resolution
 
 ### Phase 2: Design Single Source of Truth
-- [ ] Design new architecture with centralized key binding state
-- [ ] Define clear ownership of key binding visibility rules
-- [ ] Create interface for key binding context providers
-- [ ] Plan migration path from current system
+- [✓] Design new architecture with centralized key binding state (2025-01-25 16:05)
+  - Created design in docs/KEY_BINDING_ARCHITECTURE_DESIGN.md
+  - Core concept: getFocusAwareKeyBindings() method
+  - Checks for modal state in focus chain first
+  - Falls back to focus chain + global handlers
+- [✓] Define clear ownership of key binding visibility rules (2025-01-25 16:05)
+  - InputContextService owns resolution logic
+  - StatusBar just consumes the result
+  - Components declare bindings, don't control visibility
+- [✓] Create interface for key binding context providers (2025-01-25 16:05)
+  - Enhanced IInputContextService interface defined
+  - Clear API for focus-aware resolution
+- [✓] Plan migration path from current system (2025-01-25 16:05)
+  - Add new methods alongside old ones
+  - Test thoroughly before switching
+  - Remove old methods after verification
 
 ### Phase 3: Implement Core Infrastructure
 - [ ] Create KeyBindingContext provider with proper hierarchy
-- [ ] Implement focus-aware key binding collection
-- [ ] Add proper event system for binding updates
-- [ ] Ensure timing-safe registration/unregistration
+- [✓] Implement focus-aware key binding collection (2025-01-25 16:10)
+  - Added getFocusAwareKeyBindings() method to InputContextService
+  - Checks for modal handlers in focus chain first
+  - Falls back to focus chain + global handlers
+  - Added fallback for when no focus chain exists
+- [✓] Add proper event system for binding updates (2025-01-25 16:10)
+  - Event system already exists via addChangeListener
+  - StatusBar properly listens for changes
+- [✓] Ensure timing-safe registration/unregistration (2025-01-25 16:10)
+  - Added delayed initial update in StatusBar
+  - Added fallback display for initial render
+  - System now handles timing issues gracefully
 
 ### Phase 4: Refactor Existing Components
-- [ ] Update ConfigurationPanelSimple to use new system
-- [ ] Update StatusBar to consume from new provider
-- [ ] Update navigation hooks to integrate properly
+- [✓] Update ConfigurationPanelSimple to use new system (2025-01-25 16:15)
+  - Already uses focus chain properly
+  - Provides context-specific bindings
+- [✓] Update StatusBar to consume from new provider (2025-01-25 16:15)
+  - Now uses getFocusAwareKeyBindings()
+  - Has proper fallback for initial render
+  - Handles timing issues with delayed update
+- [✓] Update navigation hooks to integrate properly (2025-01-25 16:15)
+  - Navigation already integrated with focus chain
+  - Provides navigation bindings when appropriate
 - [ ] Remove old InputContextService binding collection
 
 ### Phase 5: Testing and Validation

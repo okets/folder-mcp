@@ -149,4 +149,94 @@ export class InputContextService implements IInputContextService {
             return true;
         });
     }
+    
+    /**
+     * NEW: Get key bindings respecting focus chain
+     * This is the proper implementation that fixes the architectural issue
+     */
+    getFocusAwareKeyBindings(): IKeyBinding[] {
+        const focusChain = this.focusChainService.getFocusChain();
+        
+        // Check for modal state in focus chain
+        const modalHandler = this.findModalHandlerInChain(focusChain);
+        if (modalHandler) {
+            return modalHandler.keyBindings || [];
+        }
+        
+        // Collect from focus chain + global handlers
+        const bindings = this.collectBindingsFromChain(focusChain);
+        
+        // If we have no bindings and no active element, show all non-modal handlers
+        if (bindings.length === 0 && focusChain.length === 0) {
+            const allBindings: IKeyBinding[] = [];
+            const seen = new Set<string>();
+            
+            for (const handler of this.handlers.values()) {
+                if (handler.priority < 1000 && handler.keyBindings) {
+                    for (const binding of handler.keyBindings) {
+                        if (!seen.has(binding.key)) {
+                            seen.add(binding.key);
+                            allBindings.push(binding);
+                        }
+                    }
+                }
+            }
+            return allBindings;
+        }
+        
+        return bindings;
+    }
+    
+    /**
+     * Find modal handler (priority >= 1000) in focus chain
+     */
+    private findModalHandlerInChain(focusChain: string[]): RegisteredHandler | null {
+        for (const elementId of focusChain) {
+            const handler = this.handlers.get(elementId);
+            if (handler && handler.priority >= 1000) {
+                return handler;
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Collect bindings from focus chain and global handlers
+     */
+    private collectBindingsFromChain(focusChain: string[]): IKeyBinding[] {
+        const bindingsMap = new Map<string, IKeyBinding>();
+        
+        // Add bindings from focus chain (in order)
+        for (const elementId of focusChain) {
+            const handler = this.handlers.get(elementId);
+            if (handler?.keyBindings) {
+                for (const binding of handler.keyBindings) {
+                    if (!bindingsMap.has(binding.key)) {
+                        bindingsMap.set(binding.key, binding);
+                    }
+                }
+            }
+        }
+        
+        // Add global handlers (priority < 0)
+        for (const handler of this.handlers.values()) {
+            if (handler.priority < 0 && handler.keyBindings) {
+                for (const binding of handler.keyBindings) {
+                    if (!bindingsMap.has(binding.key)) {
+                        bindingsMap.set(binding.key, binding);
+                    }
+                }
+            }
+        }
+        
+        return Array.from(bindingsMap.values());
+    }
+    
+    /**
+     * Check if currently in modal state
+     */
+    isModalState(): boolean {
+        const focusChain = this.focusChainService.getFocusChain();
+        return this.findModalHandlerInChain(focusChain) !== null;
+    }
 }

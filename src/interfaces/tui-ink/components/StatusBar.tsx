@@ -19,43 +19,41 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
         const updateBindings = () => {
             try {
                 const inputContextService = di.resolve(ServiceTokens.InputContextService);
-                const bindings = inputContextService.getActiveKeyBindings();
+                // Use the new focus-aware method
+                const bindings = inputContextService.getFocusAwareKeyBindings();
                 setKeyBindings(bindings);
             } catch {
                 // Service not available
             }
         };
         
-        // Initial update
-        updateBindings();
+        // Delay initial update to let components register
+        const timer = setTimeout(updateBindings, 100);
         
         // Listen for key binding changes
         try {
             const inputContextService = di.resolve(ServiceTokens.InputContextService);
             const cleanup = inputContextService.addChangeListener(updateBindings);
-            return cleanup;
+            return () => {
+                clearTimeout(timer);
+                cleanup?.();
+            };
         } catch {
             // Service not available
+            return () => clearTimeout(timer);
         }
     }, [di]);
     
     // Use message if provided, otherwise show key bindings
     let content = message;
     if (!message) {
-        // Always show a reasonable set of bindings
-        // The actual keyboard handling works correctly, this is just display
-        const displayBindings = [...keyBindings];
-        
-        // Ensure we always have core navigation bindings
-        const hasTab = displayBindings.some(b => b.key.includes('Tab'));
-        const hasNav = displayBindings.some(b => b.key.includes('↑↓'));
-        const hasQuit = displayBindings.some(b => b.key === 'q');
-        
-        if (!hasTab) displayBindings.push({ key: 'Tab', description: 'Switch Panel' });
-        if (!hasNav) displayBindings.push({ key: '↑↓', description: 'Navigate' });
-        if (!hasQuit) displayBindings.push({ key: 'q', description: 'Quit' });
-        
-        content = displayBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+        // Show the focus-aware key bindings
+        if (keyBindings.length > 0) {
+            content = keyBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
+        } else {
+            // Default bindings as fallback during initial render
+            content = '[→/Enter] Edit • [Tab] Switch Panel • [↑↓] Navigate • [q] Quit';
+        }
     }
     
     return (
