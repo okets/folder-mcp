@@ -9,6 +9,7 @@ export const theme: Theme = {
         accent: '#2f70d8',
         border: '#475569',
         borderFocus: '#3B82F6',
+        textInputBorder: '#4d4d4d',
         textPrimary: '#F8FAFC',
         textSecondary: '#94A3B8',
         textMuted: '#64748B',

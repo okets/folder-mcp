@@ -35,6 +35,7 @@ export interface ThemeColors {
     accent: string;
     border: string;
     borderFocus: string;
+    textInputBorder: string;
     textPrimary: string;
     textSecondary: string;
     textMuted: string;

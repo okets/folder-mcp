@@ -248,7 +248,7 @@ export const ConfigurationPanelSimple: React.FC<{
                         const borderWidth = Math.max(editValue.length + 2, 18); // Content will be: text + cursor/padding + space = editValue.length + 2
                         
                         elements.push(
-                            <Text key={valueKey}>
+                            <Text key={valueKey} color={theme.colors.textInputBorder}>
                                 {'  '}╭{'─'.repeat(borderWidth)}╮
                             </Text>
                         );
@@ -271,12 +271,14 @@ export const ConfigurationPanelSimple: React.FC<{
                         }
                         
                         elements.push(
-                            <Text key={`${valueKey}-content`} color={theme.colors.textPrimary}>
-                                {'  '}│ {content}│
-                            </Text>
+                            <Box key={`${valueKey}-content`}>
+                                <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
+                                <Text color={theme.colors.textPrimary}> {content}</Text>
+                                <Text color={theme.colors.textInputBorder}>│</Text>
+                            </Box>
                         );
                         elements.push(
-                            <Text key={`${valueKey}-bottom`}>
+                            <Text key={`${valueKey}-bottom`} color={theme.colors.textInputBorder}>
                                 {'  '}╰{'─'.repeat(borderWidth)}╯
                             </Text>
                         );
