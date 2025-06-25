@@ -8,7 +8,7 @@ import { statusItems } from '../models/sampleData.js';
 import { StatusItemLayout } from './StatusItemLayout.js';
 
 // Helper function to calculate scrollbar visual representation
-const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number): string[] => {
+const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number, selectedIndex: number): string[] => {
     // Only show scrollbar if scrolling is needed
     if (totalItems <= visibleItems) {
         return [];
@@ -38,12 +38,22 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
         
         const bottomSpace = availableSpace - lineLength - topSpace;
         
+        // Calculate which cell in the scrollbar should be highlighted
+        // based on selected item's position within visible items
+        const visiblePosition = selectedIndex - scrollOffset; // 0 to visibleItems-1
+        const highlightCell = lineLength > 1 ? Math.floor(visiblePosition * lineLength / visibleItems) : 0;
+        
         // Add middle rows (top space + line + bottom space)
         for (let i = 0; i < topSpace; i++) {
             scrollbar.push(' ');
         }
         for (let i = 0; i < lineLength; i++) {
-            scrollbar.push('┃');
+            // Use a slightly different character for the highlighted position
+            if (i === highlightCell) {
+                scrollbar.push('┇'); // Triple dash style for exact position
+            } else {
+                scrollbar.push('┃');
+            }
         }
         for (let i = 0; i < bottomSpace; i++) {
             scrollbar.push(' ');
@@ -71,7 +81,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
         scrollOffset = navigation.statusSelectedIndex - visibleCount + 1;
     }
     
-    const scrollbar = calculateScrollbar(statusItems.length, visibleCount, scrollOffset);
+    const scrollbar = calculateScrollbar(statusItems.length, visibleCount, scrollOffset, navigation.statusSelectedIndex);
     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + visibleCount);
     const effectiveHeight = height || 20;
     
