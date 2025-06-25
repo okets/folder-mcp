@@ -26,7 +26,8 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
     
     if (availableSpace > 0) {
         const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
-        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
+        const maxScrollOffset = totalItems - visibleItems;
+        const topSpace = maxScrollOffset > 0 ? Math.floor(availableSpace * scrollOffset / maxScrollOffset) : 0;
         const bottomSpace = availableSpace - lineLength - topSpace;
         
         // Add middle rows (top space + line + bottom space)
