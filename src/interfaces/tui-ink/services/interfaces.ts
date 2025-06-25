@@ -174,6 +174,9 @@ export interface IInputContextService {
     
     // Get key bindings from all focused elements
     getActiveKeyBindings(): IKeyBinding[];
+    
+    // Add listener for key binding changes (returns cleanup function)
+    addChangeListener(listener: () => void): () => void;
 }
 
 // Render Slot Management

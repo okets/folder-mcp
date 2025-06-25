@@ -17,11 +17,38 @@ interface RegisteredHandler {
  */
 export class InputContextService implements IInputContextService {
     private handlers = new Map<string, RegisteredHandler>();
-    
+    private changeListeners: Array<() => void> = [];
     
     constructor(
         private focusChainService: IFocusChainService
     ) {}
+    
+    /**
+     * Add a listener for key binding changes
+     * Returns a cleanup function to remove the listener
+     */
+    addChangeListener(listener: () => void): () => void {
+        this.changeListeners.push(listener);
+        return () => {
+            const index = this.changeListeners.indexOf(listener);
+            if (index >= 0) {
+                this.changeListeners.splice(index, 1);
+            }
+        };
+    }
+    
+    /**
+     * Notify all listeners that key bindings have changed
+     */
+    private notifyChange(): void {
+        this.changeListeners.forEach(listener => {
+            try {
+                listener();
+            } catch (error) {
+                // Silently ignore listener errors
+            }
+        });
+    }
     
     /**
      * Register an input handler for an element
@@ -39,6 +66,7 @@ export class InputContextService implements IInputContextService {
             priority,
             keyBindings: keyBindings || []
         });
+        this.notifyChange();
     }
     
     /**
@@ -46,6 +74,7 @@ export class InputContextService implements IInputContextService {
      */
     unregisterHandler(elementId: string): void {
         this.handlers.delete(elementId);
+        this.notifyChange();
     }
     
     /**

@@ -83,7 +83,7 @@ export const ConfigurationPanelSimple: React.FC<{
     const { totalSlots } = useRenderSlots({
         elementId: 'config-panel-editmode',
         containerId: 'config-panel',
-        slots: editingNodeIndex !== null ? 3 : 0, // Node in edit mode needs 3 extra lines
+        slots: editingNodeIndex !== null ? 2 : 0, // Node in edit mode needs 2 extra lines
         enabled: editingNodeIndex !== null
     });
     
@@ -133,7 +133,7 @@ export const ConfigurationPanelSimple: React.FC<{
     visibleItems.forEach((item, index) => {
         const actualIndex = scrollOffset + index;
         if (editingNodeIndex === actualIndex) {
-            totalVisibleLines += 3; // Node in edit mode takes 3 lines
+            totalVisibleLines += 2; // Node in edit mode takes 2 lines
         } else {
             totalVisibleLines += 1; // Collapsed node takes 1 line
         }
@@ -188,8 +188,7 @@ export const ConfigurationPanelSimple: React.FC<{
         onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
         keyBindings: editingNodeIndex !== null ? [
             { key: 'Esc', description: 'Cancel' },
-            { key: 'Enter', description: 'Save' },
-            { key: 'Backspace', description: 'Delete' }
+            { key: 'Enter', description: 'Save' }
         ] : navigation.isConfigFocused ? [
             { key: '→/Enter', description: 'Edit' }
         ] : [],
@@ -220,7 +219,6 @@ export const ConfigurationPanelSimple: React.FC<{
                         // Use visualIndex in the key to ensure absolute uniqueness
                         const labelKey = `item-${visualIndex}-label`;
                         const valueKey = `item-${visualIndex}-value`;
-                        const helpKey = `item-${visualIndex}-help`;
                         
                         elements.push(
                             <Text key={labelKey} color={theme.colors.accent}>
@@ -235,11 +233,6 @@ export const ConfigurationPanelSimple: React.FC<{
                                 ) : (
                                     <Text key="cursor-space"> </Text>
                                 )}
-                            </Text>
-                        );
-                        elements.push(
-                            <Text key={helpKey} color={theme.colors.textMuted} dimColor>
-                                {'  '}[Esc] Cancel  [Enter] Save
                             </Text>
                         );
                     } else {

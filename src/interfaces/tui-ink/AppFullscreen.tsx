@@ -36,7 +36,7 @@ export const AppFullscreen: React.FC = () => {
     useFocusChain({
         elementId: 'app',
         onInput: handleAppInput,
-        keyBindings: [
+        keyBindings: isNodeInEditMode ? [] : [
             { key: 'q', description: 'Quit' }
         ],
         priority: -100 // Low priority so active elements can override

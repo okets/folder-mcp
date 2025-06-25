@@ -29,8 +29,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
         // Initial update
         updateBindings();
         
-        // No periodic updates to allow terminal text selection
-        // Key bindings will update when components register/unregister
+        // Listen for key binding changes
+        try {
+            const inputContextService = di.resolve(ServiceTokens.InputContextService);
+            const cleanup = inputContextService.addChangeListener(updateBindings);
+            return cleanup;
+        } catch {
+            // Service not available
+        }
     }, [di]);
     
     // Use message if provided, otherwise show key bindings
