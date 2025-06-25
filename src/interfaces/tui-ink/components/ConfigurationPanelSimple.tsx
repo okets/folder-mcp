@@ -248,7 +248,7 @@ export const ConfigurationPanelSimple: React.FC<{
                         const borderWidth = Math.max(editValue.length + 2, 18); // Content will be: text + cursor/padding + space = editValue.length + 2
                         
                         elements.push(
-                            <Text key={valueKey} color={theme.colors.textInputBorder}>
+                            <Text key={valueKey}>
                                 {'  '}╭{'─'.repeat(borderWidth)}╮
                             </Text>
                         );
@@ -271,14 +271,12 @@ export const ConfigurationPanelSimple: React.FC<{
                         }
                         
                         elements.push(
-                            <Box key={`${valueKey}-content`}>
-                                <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
-                                <Text color={theme.colors.textPrimary}> {content}</Text>
-                                <Text color={theme.colors.textInputBorder}>│</Text>
-                            </Box>
+                            <Text key={`${valueKey}-content`} color={theme.colors.textPrimary}>
+                                {'  '}│ {content}│
+                            </Text>
                         );
                         elements.push(
-                            <Text key={`${valueKey}-bottom`} color={theme.colors.textInputBorder}>
+                            <Text key={`${valueKey}-bottom`}>
                                 {'  '}╰{'─'.repeat(borderWidth)}╯
                             </Text>
                         );
@@ -291,7 +289,7 @@ export const ConfigurationPanelSimple: React.FC<{
                                 key={collapsedKey}
                                 color={isSelected ? theme.colors.accent : undefined}
                             >
-                                {isSelected ? '▶' : '·'} {item.label}: [{item.value}] →
+                                {`${isSelected ? '▶' : '·'} ${item.label}: [\x1b[38;2;${isSelected ? '101;151;205' : '131;141;159'}m${item.value}\x1b[39m]`}
                             </Text>
                         );
                     }
