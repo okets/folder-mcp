@@ -69,6 +69,7 @@ export const ConfigurationPanelSimple: React.FC<{
     // Local state for configuration node in edit mode
     const [editingNodeIndex, setEditingNodeIndex] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [cursorPosition, setCursorPosition] = useState(0);
     const [cursorVisible, setCursorVisible] = useState(true);
     
     // Use shared navigation context
@@ -150,7 +151,9 @@ export const ConfigurationPanelSimple: React.FC<{
             if (key.rightArrow || key.return) {
                 // Enter edit mode
                 setEditingNodeIndex(actualIndex);
-                setEditValue(configurationItems[actualIndex].value);
+                const value = configurationItems[actualIndex].value;
+                setEditValue(value);
+                setCursorPosition(value.length); // Place cursor at end
                 return true;
             }
             return false;
@@ -160,25 +163,39 @@ export const ConfigurationPanelSimple: React.FC<{
                 // Exit edit mode without saving
                 setEditingNodeIndex(null);
                 setEditValue('');
+                setCursorPosition(0);
                 return true;
             } else if (key.return) {
                 // Save changes and exit edit mode
                 configurationItems[editingNodeIndex].value = editValue;
                 setEditingNodeIndex(null);
                 setEditValue('');
+                setCursorPosition(0);
+                return true;
+            } else if (key.leftArrow) {
+                // Move cursor left
+                setCursorPosition(prev => Math.max(0, prev - 1));
+                return true;
+            } else if (key.rightArrow) {
+                // Move cursor right
+                setCursorPosition(prev => Math.min(editValue.length, prev + 1));
                 return true;
             } else if (key.backspace || key.delete) {
-                // Delete character
-                setEditValue(prev => prev.slice(0, -1));
+                // Delete character before cursor
+                if (cursorPosition > 0) {
+                    setEditValue(prev => prev.slice(0, cursorPosition - 1) + prev.slice(cursorPosition));
+                    setCursorPosition(prev => prev - 1);
+                }
                 return true;
             } else if (input && !key.ctrl && !key.meta) {
-                // Add character
-                setEditValue(prev => prev + input);
+                // Insert character at cursor position
+                setEditValue(prev => prev.slice(0, cursorPosition) + input + prev.slice(cursorPosition));
+                setCursorPosition(prev => prev + 1);
                 return true;
             }
             return true; // Consume all input when in edit mode
         }
-    }, [editingNodeIndex, editValue, navigation.configSelectedIndex]);
+    }, [editingNodeIndex, editValue, cursorPosition, navigation.configSelectedIndex]);
     
     // Use focus chain - register for both collapsed and edit mode
     const { isInFocusChain } = useFocusChain({
@@ -187,6 +204,7 @@ export const ConfigurationPanelSimple: React.FC<{
         isActive: editingNodeIndex !== null,  // Only active when in edit mode
         onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
         keyBindings: editingNodeIndex !== null ? [
+            { key: '←→', description: 'Move cursor' },
             { key: 'Esc', description: 'Cancel' },
             { key: 'Enter', description: 'Save' }
         ] : navigation.isConfigFocused ? [
@@ -230,15 +248,25 @@ export const ConfigurationPanelSimple: React.FC<{
                                 {'  '}╭{'─'.repeat(Math.max(editValue.length + 2, 20))}╮
                             </Text>
                         );
+                        // Render text with cursor using ANSI escape codes
+                        let textWithCursor = editValue;
+                        if (cursorVisible) {
+                            if (cursorPosition < editValue.length) {
+                                // Insert ANSI codes around the character at cursor position
+                                const before = editValue.slice(0, cursorPosition);
+                                const cursorChar = editValue[cursorPosition];
+                                const after = editValue.slice(cursorPosition + 1);
+                                textWithCursor = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m' + after;
+                            } else {
+                                // Cursor at end - add highlighted space
+                                textWithCursor = editValue + '\x1b[47m\x1b[30m \x1b[0m';
+                            }
+                        }
+                        
                         elements.push(
                             <Text key={`${valueKey}-content`} color={theme.colors.textPrimary}>
-                                {'  '}│ {editValue}
-                                {cursorVisible ? (
-                                    <Text key="cursor" backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
-                                ) : (
-                                    <Text key="cursor-space"> </Text>
-                                )}
-                                {' '.repeat(Math.max(0, Math.max(editValue.length + 2, 20) - editValue.length - 1))}│
+                                {'  '}│ {textWithCursor}
+                                {' '.repeat(Math.max(0, Math.max(editValue.length + 3, 20) - editValue.length - 2))}│
                             </Text>
                         );
                         elements.push(
