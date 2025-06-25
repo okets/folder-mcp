@@ -21,3 +21,6 @@ export type { ScrollableListProps } from './ScrollableList.js';
 
 export { Panel, SimpleListPanel } from './Panel.js';
 export type { PanelProps } from './Panel.js';
+
+export { DataPanel } from './DataPanel.js';
+export type { DataPanelProps } from './DataPanel.js';

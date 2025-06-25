@@ -45,12 +45,16 @@ export const ListItem: React.FC<ListItemProps> = ({
     
     // Build the item content
     const renderContent = () => {
-        // If we have a value, format as "label: [value]"
+        // If we have a value, check if it's already formatted with brackets
         if (value !== undefined) {
+            const displayValue = value.startsWith('[') && value.endsWith(']') 
+                ? value 
+                : `[${value}]`;
+            
             return (
                 <Box flexDirection="row">
                     <Text color={color}>{displayIcon} {text}: </Text>
-                    <Text color={valueColor || color}>[{value}]</Text>
+                    <Text color={valueColor || color}>{displayValue}</Text>
                 </Box>
             );
         }
