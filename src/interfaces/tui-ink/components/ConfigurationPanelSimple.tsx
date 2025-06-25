@@ -261,10 +261,10 @@ export const ConfigurationPanelSimple: React.FC<{
                             const before = editValue.slice(0, cursorPosition);
                             const cursorChar = editValue[cursorPosition];
                             const after = editValue.slice(cursorPosition + 1);
-                            content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m' + after + ' ';
+                            content = before + '\x1b[47m\x1b[38;5;102m' + cursorChar + '\x1b[0m\x1b[38;5;102m' + after + ' ';
                         } else if (cursorVisible && cursorPosition >= editValue.length) {
                             // Cursor is at end - highlight the padding space
-                            content = editValue + '\x1b[47m\x1b[30m \x1b[0m';
+                            content = editValue + '\x1b[47m\x1b[38;5;102m \x1b[0m';
                         } else {
                             // No cursor visible - just text with padding
                             content = editValue + ' ';
@@ -273,7 +273,7 @@ export const ConfigurationPanelSimple: React.FC<{
                         elements.push(
                             <Box key={`${valueKey}-content`}>
                                 <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
-                                <Text color={theme.colors.textPrimary}> {content}</Text>
+                                <Text color={theme.colors.textMuted}> {content}</Text>
                                 <Text color={theme.colors.textInputBorder}>│</Text>
                             </Box>
                         );
