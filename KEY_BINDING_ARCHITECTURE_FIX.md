@@ -25,8 +25,13 @@ The status bar is not correctly displaying available keyboard shortcuts based on
   - Found 3 main components: AppFullscreen, Navigation, ConfigurationPanelSimple
   - Documented priority ladder and registration patterns
   - Identified missing StatusPanel implementation
-- [🔄] Identify timing issues in component lifecycle
-- [ ] Create state diagram of focus chain transitions
+- [✓] Identify timing issues in component lifecycle (2025-01-25 15:55)
+  - Created timing analysis in docs/TIMING_ISSUES_ANALYSIS.md
+  - Found StatusBar initial render race condition
+  - Identified re-registration gaps during mode changes
+  - Discovered React 19 concurrent rendering impacts
+  - Root cause: imperative registration vs declarative needs
+- [🔄] Create state diagram of focus chain transitions
 
 ### Phase 2: Design Single Source of Truth
 - [ ] Design new architecture with centralized key binding state
