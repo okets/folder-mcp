@@ -104,7 +104,8 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
                 {/* Subtitle line if present */}
                 {subtitle && createSideBorder(
                     <Text color={theme.colors.textMuted}>{subtitle}</Text>,
-                    ' '
+                    ' ',
+                    'subtitle-row'
                 )}
                 
                 {/* Content with optional scrollbar */}

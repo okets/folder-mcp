@@ -17,7 +17,7 @@ export const AppFullscreen: React.FC = () => {
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
-    const [isEditingConfig, setIsEditingConfig] = useState(false);
+    const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     
     // Set up root input handler
     useRootInput();
@@ -52,7 +52,7 @@ export const AppFullscreen: React.FC = () => {
     }
     
     return (
-        <NavigationProvider isBlocked={isEditingConfig}>
+        <NavigationProvider isBlocked={isNodeInEditMode}>
             <Box flexDirection="column" height={rows} width={columns}>
                 <Header />
                 
@@ -61,7 +61,7 @@ export const AppFullscreen: React.FC = () => {
                     availableWidth={columns}
                     narrowBreakpoint={100}
                 >
-                    <ConfigurationPanelSimple onEditingChange={setIsEditingConfig} />
+                    <ConfigurationPanelSimple onEditModeChange={setIsNodeInEditMode} />
                     <StatusPanel />
                 </LayoutContainer>
                 

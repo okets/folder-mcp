@@ -64,10 +64,10 @@ const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffs
 export const ConfigurationPanelSimple: React.FC<{ 
     width?: number; 
     height?: number;
-    onEditingChange?: (isEditing: boolean) => void;
-}> = ({ width, height, onEditingChange }) => {
-    // Local state for expanded item
-    const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+    onEditModeChange?: (isInEditMode: boolean) => void;
+}> = ({ width, height, onEditModeChange }) => {
+    // Local state for configuration node in edit mode
+    const [editingNodeIndex, setEditingNodeIndex] = useState<number | null>(null);
     const [editValue, setEditValue] = useState('');
     const [cursorVisible, setCursorVisible] = useState(true);
     
@@ -79,22 +79,22 @@ export const ConfigurationPanelSimple: React.FC<{
     const statusBarService = di.resolve(ServiceTokens.StatusBarService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
     
-    // Use render slots when an item is expanded
+    // Use render slots when a node is in edit mode
     const { totalSlots } = useRenderSlots({
-        elementId: 'config-panel-expanded',
+        elementId: 'config-panel-editmode',
         containerId: 'config-panel',
-        slots: expandedIndex !== null ? 3 : 0, // Expanded item needs 3 extra lines
-        enabled: expandedIndex !== null
+        slots: editingNodeIndex !== null ? 3 : 0, // Node in edit mode needs 3 extra lines
+        enabled: editingNodeIndex !== null
     });
     
-    // Notify parent about editing state changes
+    // Notify parent about edit mode state changes
     useEffect(() => {
-        onEditingChange?.(expandedIndex !== null);
-    }, [expandedIndex, onEditingChange]);
+        onEditModeChange?.(editingNodeIndex !== null);
+    }, [editingNodeIndex, onEditModeChange]);
     
     // Blinking cursor effect
     useEffect(() => {
-        if (expandedIndex !== null) {
+        if (editingNodeIndex !== null) {
             const timer = setInterval(() => {
                 setCursorVisible(prev => !prev);
             }, 500);
@@ -102,13 +102,13 @@ export const ConfigurationPanelSimple: React.FC<{
         } else {
             setCursorVisible(true);
         }
-    }, [expandedIndex]);
+    }, [editingNodeIndex]);
     
     // Calculate visible count based on height
     const boxOverhead = 4;
     const maxItems = Math.max(1, (height || 20) - boxOverhead);
     
-    // When an item is expanded, reduce visible items to make room
+    // When a node is in edit mode, reduce visible items to make room
     let visibleCount = configurationItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
     
     // Adjust visible count based on total render slots claimed
@@ -124,25 +124,25 @@ export const ConfigurationPanelSimple: React.FC<{
         scrollOffset = navigation.configSelectedIndex - visibleCount + 1;
     }
     
-    // Ensure the expanded item is visible
-    if (expandedIndex !== null) {
-        if (expandedIndex < scrollOffset) {
-            scrollOffset = expandedIndex;
-        } else if (expandedIndex >= scrollOffset + visibleCount) {
-            scrollOffset = expandedIndex - visibleCount + 1;
+    // Ensure the node in edit mode is visible
+    if (editingNodeIndex !== null) {
+        if (editingNodeIndex < scrollOffset) {
+            scrollOffset = editingNodeIndex;
+        } else if (editingNodeIndex >= scrollOffset + visibleCount) {
+            scrollOffset = editingNodeIndex - visibleCount + 1;
         }
     }
     
     const visibleItems = configurationItems.slice(scrollOffset, scrollOffset + visibleCount);
     
-    // Calculate total visible lines (accounting for expanded items)
+    // Calculate total visible lines (accounting for nodes in edit mode)
     let totalVisibleLines = 0;
     visibleItems.forEach((item, index) => {
         const actualIndex = scrollOffset + index;
-        if (expandedIndex === actualIndex) {
-            totalVisibleLines += 3; // Expanded item takes 3 lines
+        if (editingNodeIndex === actualIndex) {
+            totalVisibleLines += 3; // Node in edit mode takes 3 lines
         } else {
-            totalVisibleLines += 1; // Collapsed item takes 1 line
+            totalVisibleLines += 1; // Collapsed node takes 1 line
         }
     });
     
@@ -152,26 +152,26 @@ export const ConfigurationPanelSimple: React.FC<{
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {
         const actualIndex = navigation.configSelectedIndex;
         
-        if (expandedIndex === null) {
-            // Not editing - only handle expand action
+        if (editingNodeIndex === null) {
+            // Collapsed state - only handle enter edit mode action
             if (key.rightArrow || key.return) {
-                // Expand for editing
-                setExpandedIndex(actualIndex);
+                // Enter edit mode
+                setEditingNodeIndex(actualIndex);
                 setEditValue(configurationItems[actualIndex].value);
                 return true;
             }
             return false;
         } else {
-            // Editing mode - handle all input
+            // Edit mode - handle all input
             if (key.escape) {
-                // Cancel editing
-                setExpandedIndex(null);
+                // Exit edit mode without saving
+                setEditingNodeIndex(null);
                 setEditValue('');
                 return true;
             } else if (key.return) {
-                // Save changes
-                configurationItems[expandedIndex].value = editValue;
-                setExpandedIndex(null);
+                // Save changes and exit edit mode
+                configurationItems[editingNodeIndex].value = editValue;
+                setEditingNodeIndex(null);
                 setEditValue('');
                 return true;
             } else if (key.backspace || key.delete) {
@@ -183,24 +183,24 @@ export const ConfigurationPanelSimple: React.FC<{
                 setEditValue(prev => prev + input);
                 return true;
             }
-            return true; // Consume all input when editing
+            return true; // Consume all input when in edit mode
         }
-    }, [expandedIndex, editValue, navigation.configSelectedIndex]);
+    }, [editingNodeIndex, editValue, navigation.configSelectedIndex]);
     
-    // Use focus chain - register for both viewing and editing
+    // Use focus chain - register for both collapsed and edit mode
     const { isInFocusChain } = useFocusChain({
-        elementId: `config-panel-${expandedIndex !== null ? 'edit' : 'view'}`,
+        elementId: 'config-panel',  // Keep stable element ID
         parentId: 'navigation',  // Child of navigation, not app
-        isActive: expandedIndex !== null,  // Only active when editing
+        isActive: editingNodeIndex !== null,  // Only active when in edit mode
         onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
-        keyBindings: expandedIndex !== null ? [
+        keyBindings: editingNodeIndex !== null ? [
             { key: 'Esc', description: 'Cancel' },
             { key: 'Enter', description: 'Save' },
             { key: 'Backspace', description: 'Delete' }
         ] : navigation.isConfigFocused ? [
             { key: '→/Enter', description: 'Edit' }
         ] : [],
-        priority: expandedIndex !== null ? 1000 : 50 // Very high priority when editing
+        priority: editingNodeIndex !== null ? 1000 : 50 // Very high priority when in edit mode
     });
     
     return (
@@ -216,10 +216,10 @@ export const ConfigurationPanelSimple: React.FC<{
             {visibleItems.flatMap((item, visualIndex) => {
                 const actualIndex = scrollOffset + visualIndex;
                 const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
-                const isExpanded = expandedIndex === actualIndex;
+                const isInEditMode = editingNodeIndex === actualIndex;
                 
-                if (isExpanded) {
-                    // Expanded view for editing - return array of elements
+                if (isInEditMode) {
+                    // Edit mode view - return array of elements
                     return [
                         <Text key={`${item.id}-label`} color={theme.colors.accent}>
                             ▶ {item.label}:
@@ -238,7 +238,7 @@ export const ConfigurationPanelSimple: React.FC<{
                     ];
                 }
                 
-                // Collapsed view - return array with single element
+                // Collapsed state - return array with single element
                 return [
                     <Text 
                         key={item.id}
