@@ -15,3 +15,9 @@ export {
     configItemToListItemProps, 
     statusItemToListItemProps 
 } from './ListItem.js';
+
+export { ScrollableList, useScrollableList } from './ScrollableList.js';
+export type { ScrollableListProps } from './ScrollableList.js';
+
+export { Panel, SimpleListPanel } from './Panel.js';
+export type { PanelProps } from './Panel.js';
