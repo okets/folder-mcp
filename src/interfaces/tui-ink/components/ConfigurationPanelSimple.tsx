@@ -83,7 +83,7 @@ export const ConfigurationPanelSimple: React.FC<{
     const { totalSlots } = useRenderSlots({
         elementId: 'config-panel-editmode',
         containerId: 'config-panel',
-        slots: editingNodeIndex !== null ? 2 : 0, // Node in edit mode needs 2 extra lines
+        slots: editingNodeIndex !== null ? 3 : 0, // Node in edit mode needs 3 extra lines (top border + content + bottom border)
         enabled: editingNodeIndex !== null
     });
     
@@ -133,7 +133,7 @@ export const ConfigurationPanelSimple: React.FC<{
     visibleItems.forEach((item, index) => {
         const actualIndex = scrollOffset + index;
         if (editingNodeIndex === actualIndex) {
-            totalVisibleLines += 2; // Node in edit mode takes 2 lines
+            totalVisibleLines += 4; // Node in edit mode takes 4 lines (label + top border + content + bottom border)
         } else {
             totalVisibleLines += 1; // Collapsed node takes 1 line
         }
@@ -226,13 +226,24 @@ export const ConfigurationPanelSimple: React.FC<{
                             </Text>
                         );
                         elements.push(
-                            <Text key={valueKey} color={theme.colors.textPrimary}>
-                                {'  '}{editValue}
+                            <Text key={valueKey}>
+                                {'  '}╭{'─'.repeat(Math.max(editValue.length + 2, 20))}╮
+                            </Text>
+                        );
+                        elements.push(
+                            <Text key={`${valueKey}-content`} color={theme.colors.textPrimary}>
+                                {'  '}│ {editValue}
                                 {cursorVisible ? (
                                     <Text key="cursor" backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
                                 ) : (
                                     <Text key="cursor-space"> </Text>
                                 )}
+                                {' '.repeat(Math.max(0, Math.max(editValue.length + 2, 20) - editValue.length - 1))}│
+                            </Text>
+                        );
+                        elements.push(
+                            <Text key={`${valueKey}-bottom`}>
+                                {'  '}╰{'─'.repeat(Math.max(editValue.length + 2, 20))}╯
                             </Text>
                         );
                     } else {
