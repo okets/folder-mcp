@@ -207,9 +207,9 @@ export const ConfigurationPanelSimple: React.FC<{
             { key: '←→', description: 'Move cursor' },
             { key: 'Esc', description: 'Cancel' },
             { key: 'Enter', description: 'Save' }
-        ] : navigation.isConfigFocused ? [
+        ] : [
             { key: '→/Enter', description: 'Edit' }
-        ] : [],
+        ],
         priority: editingNodeIndex !== null ? 1000 : 50 // Very high priority when in edit mode
     });
     

@@ -162,3 +162,11 @@ When the user requests features or approaches that may have better alternatives,
 - **Test visual changes** by running the code and verifying the output before claiming completion
 - **Preserve existing functionality** - Don't remove features to solve problems unless explicitly requested
 - When fixing visual bugs, maintain the original design intent and only fix the specific issue requested
+
+## Commit Policy
+
+**CRITICAL:** NEVER commit code without explicit user confirmation:
+- **ASK FOR CONFIRMATION** - Always ask the user to confirm that the task is completed and the fix works before attempting to commit
+- **VERIFY FIXES** - Actually test and verify that the problem is solved, don't just assume it's fixed
+- **NO AUTO-COMMITS** - Don't commit "partial fixes" or "work in progress" without user approval
+- **WAIT FOR APPROVAL** - The user must explicitly say the task is complete before any git commit is made

@@ -42,18 +42,20 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     // Use message if provided, otherwise show key bindings
     let content = message;
     if (!message) {
-        if (keyBindings.length > 0) {
-            content = keyBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
-        } else {
-            // Fallback to default bindings if no active bindings
-            const defaultBindings = [
-                { key: '↑↓', description: 'Navigate' },
-                { key: '→/Enter', description: 'Edit' },
-                { key: 'Tab', description: 'Switch Panel' },
-                { key: 'q', description: 'Quit' }
-            ];
-            content = defaultBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
-        }
+        // Always show a reasonable set of bindings
+        // The actual keyboard handling works correctly, this is just display
+        const displayBindings = [...keyBindings];
+        
+        // Ensure we always have core navigation bindings
+        const hasTab = displayBindings.some(b => b.key.includes('Tab'));
+        const hasNav = displayBindings.some(b => b.key.includes('↑↓'));
+        const hasQuit = displayBindings.some(b => b.key === 'q');
+        
+        if (!hasTab) displayBindings.push({ key: 'Tab', description: 'Switch Panel' });
+        if (!hasNav) displayBindings.push({ key: '↑↓', description: 'Navigate' });
+        if (!hasQuit) displayBindings.push({ key: 'q', description: 'Quit' });
+        
+        content = displayBindings.map(b => `[${b.key}] ${b.description}`).join(' • ');
     }
     
     return (

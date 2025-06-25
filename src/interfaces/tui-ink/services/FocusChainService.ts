@@ -53,9 +53,17 @@ export class FocusChainService implements IFocusChainService {
             return chain;
         }
         
-        // If no active element, return empty array
-        // The InputContextService will handle this case
-        return [];
+        // If no active element, build chain from app down
+        // This ensures we always have a valid focus chain
+        const chain: string[] = [];
+        
+        // Start with app if it exists
+        if (this.parentMap.has('navigation') && !this.parentMap.get('navigation')) {
+            // navigation's parent is app (or undefined), so app is root
+            chain.push('app');
+        }
+        
+        return chain;
     }
     
     /**

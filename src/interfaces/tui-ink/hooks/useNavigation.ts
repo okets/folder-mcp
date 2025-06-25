@@ -75,11 +75,11 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
     }, [isBlocked, switchContainer, navigateUp, navigateDown]);
 
     // Use focus chain for navigation
-    // Navigation is active by default when not blocked
+    // Navigation should handle input but let children take priority when focused
     useFocusChain({
         elementId: 'navigation',
         parentId: 'app',
-        isActive: !isBlocked,  // Active when not blocked (default state)
+        isActive: false,  // Never mark as active to avoid conflicts with children
         onInput: handleNavigationInput,
         keyBindings: !isBlocked ? [
             { key: 'Tab', description: 'Switch Panel' },

@@ -104,39 +104,37 @@ export class InputContextService implements IInputContextService {
     }
     
     /**
-     * Get active key bindings from all focused elements
-     * Used to update the status bar
-     * 
-     * CONTEXT ISOLATION: Only returns bindings from the highest priority active handler
-     * to prevent context leakage (e.g., edit mode showing navigation keys)
+     * Get active key bindings for the status bar
+     * This should reflect what keys are actually available to the user
      */
     getActiveKeyBindings(): IKeyBinding[] {
-        const focusChain = this.focusChainService.getFocusChain();
+        const bindings: IKeyBinding[] = [];
+        const activeElement = this.focusChainService.getActive();
         
-        // Find the highest priority handler in the focus chain
-        let highestPriorityHandler: RegisteredHandler | null = null;
-        let highestPriority = -Infinity;
-        
-        for (const elementId of focusChain) {
-            const handler = this.handlers.get(elementId);
-            if (handler && handler.priority > highestPriority) {
-                highestPriority = handler.priority;
-                highestPriorityHandler = handler;
+        // Check for high-priority context (e.g., edit mode)
+        if (activeElement) {
+            const activeHandler = this.handlers.get(activeElement);
+            if (activeHandler && activeHandler.priority >= 1000) {
+                // High priority context - return only its bindings
+                return [...activeHandler.keyBindings];
             }
         }
         
-        // Return bindings only from the highest priority context
-        // This ensures context isolation (edit mode doesn't show navigation keys)
-        if (highestPriorityHandler && highestPriorityHandler.keyBindings.length > 0) {
-            return [...highestPriorityHandler.keyBindings];
-        }
+        // For normal mode, collect bindings from all handlers that would actually
+        // respond to input. Since keyboard handling works, we know:
+        // 1. Config panel responds to right/enter when focused
+        // 2. Navigation responds to tab/arrows
+        // 3. App responds to q
         
-        // Fallback: collect from all if no single handler has bindings
-        // This preserves backward compatibility for cases where handlers don't have bindings
-        const bindings: IKeyBinding[] = [];
-        for (const elementId of focusChain) {
-            const handler = this.handlers.get(elementId);
-            if (handler) {
+        // The issue is that we need to know which panel is focused
+        // Let's check all handlers and include those that have registered input handlers
+        for (const [elementId, handler] of this.handlers.entries()) {
+            if (handler.keyBindings.length > 0) {
+                // Skip high priority handlers in normal mode
+                if (handler.priority >= 1000) continue;
+                
+                // Include all handlers with bindings
+                // The keyboard system already handles which one gets the input
                 bindings.push(...handler.keyBindings);
             }
         }
