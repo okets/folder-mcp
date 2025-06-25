@@ -79,9 +79,11 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
             {visibleCount > 0 ? (
                 visibleItems.map((item, visualIndex) => {
                     const actualIndex = scrollOffset + visualIndex;
+                    const key = `panel-status-item-${actualIndex}`;
+                    
                     return (
                         <StatusItemLayout
-                            key={`panel-status-item-${actualIndex}`}
+                            key={key}
                             text={item.text}
                             status={item.status}
                             selectionIndicator={navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex ? '▶' : '○'}

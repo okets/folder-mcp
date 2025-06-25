@@ -213,41 +213,59 @@ export const ConfigurationPanelSimple: React.FC<{
             showScrollbar={true}
             scrollbarElements={scrollbar}
         >
-            {visibleItems.flatMap((item, visualIndex) => {
-                const actualIndex = scrollOffset + visualIndex;
-                const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
-                const isInEditMode = editingNodeIndex === actualIndex;
+            {(() => {
+                // Build a flat array to avoid Fragment key issues
+                const elements: React.ReactElement[] = [];
                 
-                if (isInEditMode) {
-                    // Edit mode view - return array of elements
-                    return [
-                        <Text key={`${item.id}-label`} color={theme.colors.accent}>
-                            ▶ {item.label}:
-                        </Text>,
-                        <Text key={`${item.id}-value`} color={theme.colors.textPrimary}>
-                            {'  '}{editValue}
-                            {cursorVisible ? (
-                                <Text backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
-                            ) : (
-                                <Text> </Text>
-                            )}
-                        </Text>,
-                        <Text key={`${item.id}-help`} color={theme.colors.textMuted} dimColor>
-                            {'  '}[Esc] Cancel  [Enter] Save
-                        </Text>
-                    ];
-                }
+                visibleItems.forEach((item, visualIndex) => {
+                    const actualIndex = scrollOffset + visualIndex;
+                    const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
+                    const isInEditMode = editingNodeIndex === actualIndex;
+                    
+                    if (isInEditMode) {
+                        // Edit mode view - add multiple elements with unique keys
+                        // Use visualIndex in the key to ensure absolute uniqueness
+                        const labelKey = `item-${visualIndex}-label`;
+                        const valueKey = `item-${visualIndex}-value`;
+                        const helpKey = `item-${visualIndex}-help`;
+                        
+                        elements.push(
+                            <Text key={labelKey} color={theme.colors.accent}>
+                                ▶ {item.label}:
+                            </Text>
+                        );
+                        elements.push(
+                            <Text key={valueKey} color={theme.colors.textPrimary}>
+                                {'  '}{editValue}
+                                {cursorVisible ? (
+                                    <Text key="cursor" backgroundColor={theme.colors.accent} color={theme.colors.background}>█</Text>
+                                ) : (
+                                    <Text key="cursor-space"> </Text>
+                                )}
+                            </Text>
+                        );
+                        elements.push(
+                            <Text key={helpKey} color={theme.colors.textMuted} dimColor>
+                                {'  '}[Esc] Cancel  [Enter] Save
+                            </Text>
+                        );
+                    } else {
+                        // Collapsed state - single element
+                        // Use visualIndex for stable keys
+                        const collapsedKey = `item-${visualIndex}`;
+                        elements.push(
+                            <Text 
+                                key={collapsedKey}
+                                color={isSelected ? theme.colors.accent : undefined}
+                            >
+                                {isSelected ? '▶' : '│'} {item.label}: [{item.value}] →
+                            </Text>
+                        );
+                    }
+                });
                 
-                // Collapsed state - return array with single element
-                return [
-                    <Text 
-                        key={item.id}
-                        color={isSelected ? theme.colors.accent : undefined}
-                    >
-                        {isSelected ? '▶' : '│'} {item.label}: [{item.value}] →
-                    </Text>
-                ];
-            })}
+                return elements;
+            })()}
         </BorderedBox>
     );
 };

@@ -52,8 +52,9 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                         overflow: 'truncate'
                     };
                     
+                    const layoutKey = `layout-narrow-${index}`;
                     return (
-                        <LayoutConstraintProvider key={`layout-narrow-${index}`} constraints={constraints}>
+                        <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
                             <Box height={heights[index]} width={availableWidth}>
                                 {React.cloneElement(child, {
                                     height: heights[index],
@@ -95,8 +96,9 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                         overflow: 'truncate'
                     };
                     
+                    const layoutKey = `layout-wide-${index}`;
                     return (
-                        <LayoutConstraintProvider key={`layout-wide-${index}`} constraints={constraints}>
+                        <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
                             <Box width={widths[index]} height={availableHeight} flexShrink={0}>
                                 {React.cloneElement(child, {
                                     height: availableHeight,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Text, Box } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
@@ -13,6 +13,7 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
     const di = useDI();
     const contentService = di.resolve(ServiceTokens.ContentService);
     const constraints = useLayoutConstraints();
+    const instanceId = useId();
     
     // Use provided width or constraints
     const maxWidth = width || constraints?.maxWidth || 80;
@@ -64,5 +65,19 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
         return node;
     };
     
-    return <>{React.Children.map(children, processNode)}</>;
+    // Process children and ensure they all have keys
+    const childrenArray = React.Children.toArray(children);
+    const processedChildren = childrenArray.map((child, index) => {
+        const processed = processNode(child);
+        // Ensure each element has a unique key using React's useId
+        if (React.isValidElement(processed)) {
+            const finalKey = `${instanceId}-${index}`;
+            return React.cloneElement(processed, { 
+                key: finalKey
+            });
+        }
+        return processed;
+    });
+    
+    return <>{processedChildren}</>;
 };

@@ -113,7 +113,8 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
                     const scrollbarChar = showScrollbar && scrollbarElements.length > 0 && index < scrollbarElements.length
                         ? scrollbarElements[index]
                         : ' ';
-                    return createSideBorder(child, scrollbarChar, `content-${index}`);
+                    const contentKey = `content-${index}`;
+                    return createSideBorder(child, scrollbarChar, contentKey);
                 })}
                 
                 {/* Fill remaining space with empty rows */}
@@ -122,7 +123,8 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
                     const scrollbarChar = showScrollbar && scrollbarElements.length > 0 && emptyRowIndex < scrollbarElements.length
                         ? scrollbarElements[emptyRowIndex]
                         : ' ';
-                    return createSideBorder(<Text> </Text>, scrollbarChar, `empty-${index}`);
+                    const emptyKey = `empty-${index}`;
+                    return createSideBorder(<Text> </Text>, scrollbarChar, emptyKey);
                 })}
                 
                 {/* Bottom border */}
