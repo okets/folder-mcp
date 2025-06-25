@@ -20,8 +20,12 @@ The status bar is not correctly displaying available keyboard shortcuts based on
   - Created detailed analysis in docs/KEY_BINDING_FLOW_ANALYSIS.md
   - Identified core issue: getActiveKeyBindings() doesn't respect focus chain
   - Found binary priority system problem (high-priority or everything)
-- [🔄] Map all components that register key handlers
-- [ ] Identify timing issues in component lifecycle
+- [✓] Map all components that register key handlers (2025-01-25 15:50)
+  - Created component map in docs/KEY_HANDLER_COMPONENT_MAP.md
+  - Found 3 main components: AppFullscreen, Navigation, ConfigurationPanelSimple
+  - Documented priority ladder and registration patterns
+  - Identified missing StatusPanel implementation
+- [🔄] Identify timing issues in component lifecycle
 - [ ] Create state diagram of focus chain transitions
 
 ### Phase 2: Design Single Source of Truth
