@@ -78,45 +78,55 @@ export const ConfigurationPanel: React.FC<{
         totalContentLines += (editingNodeIndex === i) ? 4 : 1;
     }
     
-    let scrollOffset = 0;
+    // Calculate line positions for all items
+    const itemLinePositions: Array<{start: number, end: number}> = [];
+    let currentLine = 0;
+    for (let i = 0; i < configurationItems.length; i++) {
+        const itemLines = (editingNodeIndex === i) ? 4 : 1;
+        itemLinePositions.push({
+            start: currentLine,
+            end: currentLine + itemLines
+        });
+        currentLine += itemLines;
+    }
     
-    // Only calculate scroll offset if content exceeds viewport
+    // Calculate scroll offset in lines
+    let lineScrollOffset = 0;
+    
+    // Only calculate scroll if content exceeds viewport
     if (totalContentLines > maxLines) {
-        let currentLines = 0;
-        let firstVisibleIndex = 0;
+        const activeItem = itemLinePositions[navigation.configSelectedIndex];
         
-        // Find the right scroll offset to show the active item
-        for (let i = 0; i <= navigation.configSelectedIndex && i < configurationItems.length; i++) {
-            const itemLines = (editingNodeIndex === i) ? 4 : 1;
-            if (currentLines + itemLines > maxLines && i > 0) {
-                // Need to scroll - find new starting point
-                firstVisibleIndex = i;
-                currentLines = itemLines;
-                // Continue to ensure active item is fully visible
-                for (let j = i - 1; j >= 0; j--) {
-                    const prevItemLines = (editingNodeIndex === j) ? 4 : 1;
-                    if (currentLines + prevItemLines <= maxLines) {
-                        firstVisibleIndex = j;
-                        currentLines += prevItemLines;
-                    } else {
-                        break;
-                    }
-                }
-                scrollOffset = firstVisibleIndex;
-                break;
-            }
-            currentLines += itemLines;
+        // Bring active item into view
+        if (activeItem.end > lineScrollOffset + maxLines) {
+            // Item is cut off at bottom - scroll down to align bottom
+            lineScrollOffset = activeItem.end - maxLines;
+        } else if (activeItem.start < lineScrollOffset) {
+            // Item is cut off at top - scroll up to show it
+            lineScrollOffset = activeItem.start;
+        }
+    }
+    
+    // Find first visible item based on line scroll offset
+    let scrollOffset = 0;
+    for (let i = 0; i < configurationItems.length; i++) {
+        if (itemLinePositions[i].end > lineScrollOffset) {
+            scrollOffset = i;
+            break;
         }
     }
     
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
     let linesUsed = 0;
+    let startLine = itemLinePositions[scrollOffset].start;
+    
     for (let i = scrollOffset; i < configurationItems.length; i++) {
         const itemLines = (editingNodeIndex === i) ? 4 : 1;
-        if (linesUsed + itemLines <= maxLines) {
+        // Check if this item fits completely
+        if (itemLinePositions[i].end - startLine <= maxLines) {
             visibleCount++;
-            linesUsed += itemLines;
+            linesUsed = itemLinePositions[i].end - startLine;
         } else {
             break;
         }
@@ -149,22 +159,16 @@ export const ConfigurationPanel: React.FC<{
     // Show scrollbar only if total lines exceed available space
     const showScrollbar = totalLines > maxLines;
     
-    // Calculate line-based scroll offset for scrollbar
-    let lineScrollOffset = 0;
-    for (let i = 0; i < scrollOffset; i++) {
-        lineScrollOffset += (editingNodeIndex === i) ? 4 : 1;
-    }
+    // Use the line scroll offset we already calculated
+    const scrollbarLineOffset = lineScrollOffset;
     
-    // Calculate line position of selected item
-    let selectedLinePosition = 0;
-    for (let i = 0; i < navigation.configSelectedIndex; i++) {
-        selectedLinePosition += (editingNodeIndex === i) ? 4 : 1;
-    }
+    // Use the line position we already calculated
+    const selectedLinePosition = itemLinePositions[navigation.configSelectedIndex].start;
     
     const scrollbar = showScrollbar ? calculateScrollbar({
         totalItems: totalLines,
         visibleItems: Math.min(visibleLines, maxLines),
-        scrollOffset: lineScrollOffset,
+        scrollOffset: scrollbarLineOffset,
         selectedIndex: selectedLinePosition
     }) : [];
     
