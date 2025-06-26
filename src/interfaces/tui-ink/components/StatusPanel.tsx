@@ -144,12 +144,12 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     // Use the line position we already calculated
     const selectedLinePosition = itemLinePositions[navigation.statusSelectedIndex].start;
     
-    const scrollbar = showScrollbar ? calculateScrollbar(
-        totalLines,
-        Math.min(visibleLines, maxLines),
-        scrollbarLineOffset,
-        selectedLinePosition
-    ) : [];
+    const scrollbar = showScrollbar ? calculateScrollbar({
+        totalItems: totalLines,
+        visibleItems: Math.min(visibleLines, maxLines),
+        scrollOffset: scrollbarLineOffset,
+        selectedIndex: selectedLinePosition
+    }) : [];
     
     // Handle status panel input
     const handleStatusInput = useCallback((input: string, key: Key): boolean => {

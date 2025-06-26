@@ -254,38 +254,55 @@ interface IListItem {
 - Ink's Box component doesn't provide true overflow clipping
 - Status items are wrapping to multiple lines
 - Need hard truncation at the block level to prevent layout breaks
+- Scrollbar calculation is duplicated and tightly coupled to panel implementations
 
-### Step 6.1: Enhance ScrollableBlock for Hard Clipping
+### Step 6.1: Encapsulate Scrollbar in ScrollableBlock
+- Move scrollbar calculation into ScrollableBlock component
+- ScrollableBlock should manage its own viewport and scrollbar state
+- Remove need for panels to calculate line positions and scrollbar arrays
+- Provide a clean API that takes items and handles all scrolling internally
+- This fixes the architectural issue where panels know too much about scrolling
+
+### Step 6.2: Refactor Panels to Use New ScrollableBlock
+- Update ConfigurationPanel to pass items instead of calculating scrollbar
+- Update StatusPanel to pass items instead of calculating scrollbar
+- Remove line position calculations from panels
+- Let ScrollableBlock handle all viewport management
+- Test that scrollbars work correctly in both panels
+
+### Step 6.3: Enhance ScrollableBlock for Hard Clipping
 - Pre-process all children before rendering
 - Walk React element tree and extract text content
 - Apply hard width truncation at string level
 - Rebuild elements with truncated content
 - Ensure no child can exceed block width
 
-### Step 6.2: Implement Element Processing
+### Step 6.4: Implement Element Processing
 - Create `truncateElement` function to process React elements
 - Handle Text nodes, Box components, and nested structures
 - Preserve ANSI codes and styling while truncating
 - Account for Unicode character widths
 
-### Step 6.3: Fix StatusListItem Truncation
+### Step 6.5: Fix StatusListItem Truncation
 - Improve width calculation using visual width not string length
 - Properly measure Unicode character widths
 - Account for exact status indicator width
 - Ensure truncation prevents any wrapping
 
-### Step 6.4: Test Block Clipping
+### Step 6.6: Test Block Clipping
 - Test with very long text in both panels
 - Verify no content exceeds block boundaries
 - Test with Unicode characters and emojis
 - Ensure responsive behavior still works
 
-### Verification:
-- [ ] No text wraps to multiple lines in narrow terminals
-- [ ] ScrollableBlock enforces hard width limits
-- [ ] Status indicators remain visible and aligned
-- [ ] All content is properly truncated at block edges
-- [ ] User QA mandatory to verify visual appearance
+### Verification (Each step requires user approval before proceeding):
+- [ ] Step 6.1: ScrollableBlock has clean encapsulated API
+- [ ] Step 6.2: Both panels use new ScrollableBlock without duplication
+- [ ] Step 6.3: No text wraps to multiple lines in narrow terminals
+- [ ] Step 6.4: Element processing preserves styling
+- [ ] Step 6.5: Status indicators remain visible and aligned
+- [ ] Step 6.6: All content is properly truncated at block edges
+- [ ] User QA mandatory to verify visual appearance at each step
 ## Phase 7: Final Cleanup
 
 ### Step 7.1: Remove Duplicated Code
