@@ -63,52 +63,110 @@ export const ConfigurationPanel: React.FC<{
     }, [editingNodeIndex]);
     
     // Calculate visible count based on height
-    const boxOverhead = 4;
-    const maxItems = Math.max(1, (height || 20) - boxOverhead);
-    
-    // When a node is in edit mode, reduce visible items to make room
-    let visibleCount = configurationItems.length > maxItems ? Math.max(1, maxItems - 1) : maxItems;
-    
-    // Adjust visible count based on total render slots claimed
-    visibleCount = Math.max(1, visibleCount - totalSlots);
+    // BorderedBox uses: height - 2 (borders) - 1 (subtitle) = height - 3
+    const boxOverhead = 3; // top border + bottom border + subtitle
+    const actualHeight = height || 20;
+    const maxLines = Math.max(1, actualHeight - boxOverhead);
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
     const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
     
-    // Calculate scroll offset
-    let scrollOffset = 0;
-    if (navigation.configSelectedIndex >= visibleCount) {
-        scrollOffset = navigation.configSelectedIndex - visibleCount + 1;
+    // First, check if all items fit without scrolling
+    let totalContentLines = 0;
+    for (let i = 0; i < configurationItems.length; i++) {
+        totalContentLines += (editingNodeIndex === i) ? 4 : 1;
     }
     
-    // Ensure the node in edit mode is visible
-    if (editingNodeIndex !== null) {
-        if (editingNodeIndex < scrollOffset) {
-            scrollOffset = editingNodeIndex;
-        } else if (editingNodeIndex >= scrollOffset + visibleCount) {
-            scrollOffset = editingNodeIndex - visibleCount + 1;
+    let scrollOffset = 0;
+    
+    // Only calculate scroll offset if content exceeds viewport
+    if (totalContentLines > maxLines) {
+        let currentLines = 0;
+        let firstVisibleIndex = 0;
+        
+        // Find the right scroll offset to show the active item
+        for (let i = 0; i <= navigation.configSelectedIndex && i < configurationItems.length; i++) {
+            const itemLines = (editingNodeIndex === i) ? 4 : 1;
+            if (currentLines + itemLines > maxLines && i > 0) {
+                // Need to scroll - find new starting point
+                firstVisibleIndex = i;
+                currentLines = itemLines;
+                // Continue to ensure active item is fully visible
+                for (let j = i - 1; j >= 0; j--) {
+                    const prevItemLines = (editingNodeIndex === j) ? 4 : 1;
+                    if (currentLines + prevItemLines <= maxLines) {
+                        firstVisibleIndex = j;
+                        currentLines += prevItemLines;
+                    } else {
+                        break;
+                    }
+                }
+                scrollOffset = firstVisibleIndex;
+                break;
+            }
+            currentLines += itemLines;
         }
     }
+    
+    // Calculate how many items actually fit in the viewport
+    let visibleCount = 0;
+    let linesUsed = 0;
+    for (let i = scrollOffset; i < configurationItems.length; i++) {
+        const itemLines = (editingNodeIndex === i) ? 4 : 1;
+        if (linesUsed + itemLines <= maxLines) {
+            visibleCount++;
+            linesUsed += itemLines;
+        } else {
+            break;
+        }
+    }
+    
     
     const visibleItems = configurationItems.slice(scrollOffset, scrollOffset + visibleCount);
     
-    // Calculate total visible lines (accounting for nodes in edit mode)
-    let totalVisibleLines = 0;
-    visibleItems.forEach((item, index) => {
-        const actualIndex = scrollOffset + index;
-        if (editingNodeIndex === actualIndex) {
-            totalVisibleLines += 4; // Node in edit mode takes 4 lines (label + top border + content + bottom border)
+    // Calculate TOTAL lines for ALL items (not just visible)
+    let totalLines = 0;
+    configurationItems.forEach((item, index) => {
+        if (editingNodeIndex === index) {
+            totalLines += 4; // Expanded item takes 4 lines
         } else {
-            totalVisibleLines += 1; // Collapsed node takes 1 line
+            totalLines += 1; // Collapsed item takes 1 line
         }
     });
     
-    const scrollbar = calculateScrollbar({
-        totalItems: configurationItems.length,
-        visibleItems: totalVisibleLines,
-        scrollOffset: scrollOffset
+    // Calculate visible lines for the current viewport
+    let visibleLines = 0;
+    visibleItems.forEach((item, index) => {
+        const actualIndex = scrollOffset + index;
+        if (editingNodeIndex === actualIndex) {
+            visibleLines += 4;
+        } else {
+            visibleLines += 1;
+        }
     });
+    
+    // Show scrollbar only if total lines exceed available space
+    const showScrollbar = totalLines > maxLines;
+    
+    // Calculate line-based scroll offset for scrollbar
+    let lineScrollOffset = 0;
+    for (let i = 0; i < scrollOffset; i++) {
+        lineScrollOffset += (editingNodeIndex === i) ? 4 : 1;
+    }
+    
+    // Calculate line position of selected item
+    let selectedLinePosition = 0;
+    for (let i = 0; i < navigation.configSelectedIndex; i++) {
+        selectedLinePosition += (editingNodeIndex === i) ? 4 : 1;
+    }
+    
+    const scrollbar = showScrollbar ? calculateScrollbar({
+        totalItems: totalLines,
+        visibleItems: Math.min(visibleLines, maxLines),
+        scrollOffset: lineScrollOffset,
+        selectedIndex: selectedLinePosition
+    }) : [];
     
     // Handle configuration panel input
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {
@@ -186,9 +244,9 @@ export const ConfigurationPanel: React.FC<{
             title="Configuration"
             subtitle="Setup your folder-mcp server"
             focused={navigation.isConfigFocused}
-            width={width || columns - 2}
-            height={height || 20}
-            showScrollbar={true}
+            width={panelWidth}
+            height={actualHeight}
+            showScrollbar={showScrollbar}
             scrollbarElements={scrollbar}
         >
             {(() => {

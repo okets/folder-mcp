@@ -7,6 +7,7 @@ export interface ScrollbarConfig {
     totalItems: number;
     visibleItems: number;
     scrollOffset: number;
+    selectedIndex?: number;
 }
 
 /**
@@ -15,7 +16,7 @@ export interface ScrollbarConfig {
  * @returns Array of strings representing each character of the scrollbar
  */
 export function calculateScrollbar(config: ScrollbarConfig): string[] {
-    const { totalItems, visibleItems, scrollOffset } = config;
+    const { totalItems, visibleItems, scrollOffset, selectedIndex } = config;
     
     // Only show scrollbar if scrolling is needed
     if (totalItems <= visibleItems) {
@@ -33,16 +34,40 @@ export function calculateScrollbar(config: ScrollbarConfig): string[] {
     const availableSpace = Math.max(1, visibleItems - 2);
     
     if (availableSpace > 0) {
-        const lineLength = Math.ceil(availableSpace * visibleItems / totalItems);
-        const topSpace = Math.floor(availableSpace * scrollOffset / totalItems);
+        const lineLength = Math.max(1, Math.ceil(availableSpace * visibleItems / totalItems));
+        const maxScrollOffset = totalItems - visibleItems;
+        
+        let topSpace = 0;
+        if (maxScrollOffset > 0) {
+            // Calculate position: at scrollOffset=0, topSpace=0 (touch top)
+            // at scrollOffset=max, topSpace=maxTopSpace (touch bottom)
+            const maxTopSpace = availableSpace - lineLength;
+            topSpace = Math.round(maxTopSpace * scrollOffset / maxScrollOffset);
+        }
+        
         const bottomSpace = availableSpace - lineLength - topSpace;
+        
+        // Calculate which cell in the scrollbar should be highlighted
+        // based on selected item's position within visible items
+        let highlightCell = -1;
+        if (selectedIndex !== undefined) {
+            const visiblePosition = selectedIndex - scrollOffset; // 0 to visibleItems-1
+            if (visiblePosition >= 0 && visiblePosition < visibleItems) {
+                highlightCell = lineLength > 1 ? Math.floor(visiblePosition * lineLength / visibleItems) : 0;
+            }
+        }
         
         // Add middle rows (top space + line + bottom space)
         for (let i = 0; i < topSpace; i++) {
             scrollbar.push(' ');
         }
         for (let i = 0; i < lineLength; i++) {
-            scrollbar.push('┃');
+            // Use a slightly different character for the highlighted position
+            if (i === highlightCell) {
+                scrollbar.push('┇'); // Triple dash style for exact position
+            } else {
+                scrollbar.push('┃');
+            }
         }
         for (let i = 0; i < bottomSpace; i++) {
             scrollbar.push(' ');
