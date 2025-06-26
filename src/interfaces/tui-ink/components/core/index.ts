@@ -10,3 +10,6 @@ export type { ScrollbarConfig } from './ScrollbarCalculator.js';
 
 export { ListItem, truncate } from './ListItem.js';
 export type { ListItemProps } from './ListItem.js';
+
+export { TextInputBody } from './TextInputBody.js';
+export type { TextInputBodyProps } from './TextInputBody.js';

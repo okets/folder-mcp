@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ListItem } from './core/ListItem.js';
+import { TextInputBody } from './core/TextInputBody.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -200,54 +201,28 @@ export const ConfigurationPanel: React.FC<{
                     const isInEditMode = editingNodeIndex === actualIndex;
                     
                     if (isInEditMode) {
-                        // Edit mode view - add multiple elements with unique keys
-                        // Use visualIndex in the key to ensure absolute uniqueness
-                        const labelKey = `item-${visualIndex}-label`;
-                        const valueKey = `item-${visualIndex}-value`;
-                        
-                        elements.push(
-                            <Text key={labelKey} color={theme.colors.accent}>
-                                ▼ {item.label}:
-                            </Text>
+                        // Edit mode view using ListItem with TextInputBody
+                        const header = `${item.label}:`;
+                        const body = (
+                            <TextInputBody
+                                value={editValue}
+                                cursorPosition={cursorPosition}
+                                cursorVisible={cursorVisible}
+                                width={itemMaxWidth}
+                            />
                         );
                         
-                        // Calculate border width to match content exactly
-                        const borderWidth = Math.max(editValue.length + 2, 18); // Content will be: text + cursor/padding + space = editValue.length + 2
-                        
                         elements.push(
-                            <Text key={valueKey} color={theme.colors.textInputBorder}>
-                                {'  '}╭{'─'.repeat(borderWidth)}╮
-                            </Text>
-                        );
-                        
-                        // Render text with cursor using ANSI escape codes
-                        let content;
-                        
-                        if (cursorVisible && cursorPosition < editValue.length) {
-                            // Cursor is on existing character - highlight it
-                            const before = editValue.slice(0, cursorPosition);
-                            const cursorChar = editValue[cursorPosition];
-                            const after = editValue.slice(cursorPosition + 1);
-                            content = before + '\x1b[47m\x1b[38;5;102m' + cursorChar + '\x1b[0m\x1b[38;5;102m' + after + ' ';
-                        } else if (cursorVisible && cursorPosition >= editValue.length) {
-                            // Cursor is at end - highlight the padding space
-                            content = editValue + '\x1b[47m\x1b[38;5;102m \x1b[0m';
-                        } else {
-                            // No cursor visible - just text with padding
-                            content = editValue + ' ';
-                        }
-                        
-                        elements.push(
-                            <Box key={`${valueKey}-content`}>
-                                <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
-                                <Text color={theme.colors.textMuted}> {content}</Text>
-                                <Text color={theme.colors.textInputBorder}>│</Text>
-                            </Box>
-                        );
-                        elements.push(
-                            <Text key={`${valueKey}-bottom`} color={theme.colors.textInputBorder}>
-                                {'  '}╰{'─'.repeat(borderWidth)}╯
-                            </Text>
+                            <ListItem
+                                key={`item-${visualIndex}`}
+                                icon="▼"
+                                header={header}
+                                body={body}
+                                isActive={true}
+                                isExpanded={true}
+                                width={itemMaxWidth + 2}
+                                color={theme.colors.accent}
+                            />
                         );
                     } else {
                         // Collapsed state - single element

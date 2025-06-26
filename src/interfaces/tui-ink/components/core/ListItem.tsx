@@ -1,22 +1,26 @@
 import React from 'react';
-import { Text } from 'ink';
+import { Box, Text } from 'ink';
 
 export interface ListItemProps {
     icon: string;
     header: string;
+    body?: React.ReactNode;
     isActive?: boolean;
+    isExpanded?: boolean;
     width: number;
     color?: string;
 }
 
 /**
- * Generic list item component with icon and header
+ * Generic list item component with icon, header, and optional expandable body
  * This is the base component for all list items in the TUI
  */
 export const ListItem: React.FC<ListItemProps> = ({ 
     icon, 
     header, 
+    body,
     isActive = false,
+    isExpanded = false,
     width,
     color
 }) => {
@@ -26,9 +30,16 @@ export const ListItem: React.FC<ListItemProps> = ({
     const truncatedHeader = truncate(header, maxHeaderWidth);
     
     return (
-        <Text color={isActive ? color : undefined}>
-            {icon} {truncatedHeader}
-        </Text>
+        <>
+            <Text color={isActive ? color : undefined}>
+                {icon} {truncatedHeader}
+            </Text>
+            {isExpanded && body && (
+                <Box flexDirection="column">
+                    {body}
+                </Box>
+            )}
+        </>
     );
 };
 
