@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ListItem } from './core/ListItem.js';
+import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -33,64 +34,6 @@ const statusDetails: Record<string, string[]> = {
     ]
 };
 
-// Helper function to calculate scrollbar visual representation
-const calculateScrollbar = (totalItems: number, visibleItems: number, scrollOffset: number, selectedIndex: number): string[] => {
-    // Only show scrollbar if scrolling is needed
-    if (totalItems <= visibleItems) {
-        return [];
-    }
-
-    // Create scrollbar array with exactly visibleItems elements
-    const scrollbar: string[] = [];
-    
-    // First row always shows top triangle
-    scrollbar.push('▲');
-    
-    // Last row always shows bottom triangle (will be added at the end)
-    // Available space for indicator = visibleItems - 2 (excluding top and bottom triangles)
-    const availableSpace = Math.max(1, visibleItems - 2);
-    
-    if (availableSpace > 0) {
-        const lineLength = Math.max(1, Math.ceil(availableSpace * visibleItems / totalItems));
-        const maxScrollOffset = totalItems - visibleItems;
-        
-        let topSpace = 0;
-        if (maxScrollOffset > 0) {
-            // Calculate position: at scrollOffset=0, topSpace=0 (touch top)
-            // at scrollOffset=max, topSpace=maxTopSpace (touch bottom)
-            const maxTopSpace = availableSpace - lineLength;
-            topSpace = Math.round(maxTopSpace * scrollOffset / maxScrollOffset);
-        }
-        
-        const bottomSpace = availableSpace - lineLength - topSpace;
-        
-        // Calculate which cell in the scrollbar should be highlighted
-        // based on selected item's position within visible items
-        const visiblePosition = selectedIndex - scrollOffset; // 0 to visibleItems-1
-        const highlightCell = lineLength > 1 ? Math.floor(visiblePosition * lineLength / visibleItems) : 0;
-        
-        // Add middle rows (top space + line + bottom space)
-        for (let i = 0; i < topSpace; i++) {
-            scrollbar.push(' ');
-        }
-        for (let i = 0; i < lineLength; i++) {
-            // Use a slightly different character for the highlighted position
-            if (i === highlightCell) {
-                scrollbar.push('┇'); // Triple dash style for exact position
-            } else {
-                scrollbar.push('┃');
-            }
-        }
-        for (let i = 0; i < bottomSpace; i++) {
-            scrollbar.push(' ');
-        }
-    }
-    
-    // Last row always shows bottom triangle
-    scrollbar.push('▼');
-    
-    return scrollbar;
-};
 
 export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
     const navigation = useNavigationContext();

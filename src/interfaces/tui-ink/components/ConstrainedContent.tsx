@@ -26,7 +26,7 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
         }
         
         if (React.isValidElement(node)) {
-            // Skip processing if component handles its own layout (like StatusItemLayout output)
+            // Skip processing if component handles its own layout
             // Check if it's a Box with flexDirection="row" - likely a layout component
             if (node.type === Box && node.props.flexDirection === 'row') {
                 if (process.env.DEBUG_TRUNCATE) {
