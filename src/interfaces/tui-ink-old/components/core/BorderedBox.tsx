@@ -1,13 +1,13 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { useTheme } from '../../contexts/ThemeContext.js';
+import { theme } from '../../utils/theme.js';
 import { ILayoutConstraints } from '../../models/types.js';
 import { LayoutConstraintProvider } from '../../contexts/LayoutContext.js';
 import { ConstrainedContent } from '../ConstrainedContent.js';
 import { useDI } from '../../di/DIContext.js';
 import { ServiceTokens } from '../../di/tokens.js';
 
-interface ThemedBorderedBoxProps {
+interface BorderedBoxProps {
     title: string;
     subtitle?: string;
     focused?: boolean;
@@ -19,10 +19,7 @@ interface ThemedBorderedBoxProps {
     constraints?: ILayoutConstraints;
 }
 
-/**
- * Theme-aware bordered box component
- */
-export const ThemedBorderedBox: React.FC<ThemedBorderedBoxProps> = ({
+export const BorderedBox: React.FC<BorderedBoxProps> = ({
     title,
     subtitle,
     focused = false,
@@ -33,36 +30,24 @@ export const ThemedBorderedBox: React.FC<ThemedBorderedBoxProps> = ({
     scrollbarElements = [],
     constraints
 }) => {
-    const { theme } = useTheme();
     const di = useDI();
     const debugService = di.resolve(ServiceTokens.DebugService);
-    
-    // Use simple borders for minimal theme
-    const border = theme.name === 'minimal' ? {
-        horizontal: '-',
-        vertical: '|',
-        topLeft: '+',
-        topRight: '+',
-        bottomLeft: '+',
-        bottomRight: '+'
-    } : {
-        horizontal: '─',
-        vertical: '│',
-        topLeft: '╭',
-        topRight: '╮',
-        bottomLeft: '╰',
-        bottomRight: '╯'
-    };
-    
+    const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
     
     // Log border dimensions in debug mode
     if (debugService.isEnabled()) {
-        debugService.logLayout(`ThemedBorderedBox[${title}]`, { width, height });
+        debugService.logLayout(`BorderedBox[${title}]`, { width, height });
     }
     
     // Calculate exact content width
+    // Border chars (|) and spaces on each side = 4 chars total
+    // If scrollbar is shown, we need 1 more char
     const contentWidth = width - 4 - (showScrollbar ? 1 : 0);
+    
+    // Calculate content height
+    // Top border (1) + bottom border (1) = 2
+    // Subtitle line if present (1)
     const contentHeight = height - 2 - (subtitle ? 1 : 0);
     
     // Create constraints for children
@@ -75,10 +60,12 @@ export const ThemedBorderedBox: React.FC<ThemedBorderedBoxProps> = ({
     // Create top border with embedded title
     const createTopBorder = () => {
         if (focused) {
+            // Total content: title + 2 spaces around title + 2 corner chars = title.length + 4
             const padding = Math.max(0, width - title.length - 5);
             return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
+            // Total content: title + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
             const totalContentLength = title.length + tabText.length + 6;
             const padding = Math.max(0, width - totalContentLength - 1);
             return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
@@ -87,6 +74,7 @@ export const ThemedBorderedBox: React.FC<ThemedBorderedBoxProps> = ({
     
     // Create bottom border
     const createBottomBorder = () => {
+        // Total content: just horizontal lines + 2 corner chars
         return `${border.bottomLeft}${border.horizontal.repeat(width - 2)}${border.bottomRight}`;
     };
     

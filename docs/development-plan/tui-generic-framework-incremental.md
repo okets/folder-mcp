@@ -3,6 +3,13 @@
 ## Overview
 Build a proper generic TUI framework by extracting and generalizing the well-tested Configuration box implementation. Transform the main TUI while keeping a reference copy (`tui:old`) for comparison.
 
+## Current State Assessment
+The previous generic framework implementation was partially completed but needs cleanup and proper restructuring. We have:
+- Core components already created but potentially over-engineered
+- Multiple ConfigurationPanel variants that need consolidation  
+- StatusPanel not yet using the generic framework
+- No reference copy (tui-ink-old) for comparison
+
 ## Core Principle: Extract from Configuration Box First
 - Configuration box is well-tested and working perfectly
 - Extract its patterns into generic components
@@ -18,6 +25,30 @@ Build a proper generic TUI framework by extracting and generalizing the well-tes
 - **GenericPanel**: Composition of BorderedBox + ScrollableBlock + list management
 - **truncate(width)**: Required method to prevent header text overflow
 
+## Pre-Phase: Cleanup and Reset
+**Goal**: Clean up the existing implementation and prepare for proper incremental approach
+
+### Steps:
+1. **Identify and keep the working ConfigurationPanel**
+   - Test each variant (ConfigurationPanel.tsx, ConfigurationPanelSimple.tsx, etc.)
+   - Identify which one has the working edit mode
+   - Delete all unused variants
+   
+2. **Clean up core components**
+   - Review existing core components
+   - Remove unused/over-engineered components
+   - Keep only: BorderedBox, ScrollbarCalculator
+   
+3. **Reset StatusPanel**
+   - Ensure StatusPanel is in its original working state
+   - Should still have inline calculateScrollbar function
+
+### Verification Checkpoint:
+- [ ] Run `npm run tui`
+- [ ] Configuration panel works with edit mode
+- [ ] Status panel shows all items with working scrollbar
+- [ ] Both panels display correctly
+
 ## Phase 0: Create Reference Copy
 **Goal**: Preserve current TUI as reference point
 
@@ -27,138 +58,130 @@ Build a proper generic TUI framework by extracting and generalizing the well-tes
 3. Add `tui:old` script to package.json: `tsx src/interfaces/tui-ink-old/index.tsx`
 4. Test that `npm run tui:old` works exactly like current `npm run tui`
 
-### Human QA Checkpoint:
+### Verification Checkpoint:
 - [ ] `tui:old` runs successfully
 - [ ] Both TUIs look and behave identically
 - [ ] All features work in the reference copy
 
-## Phase 1: Extract Core Primitives from Configuration Box
+## Phase 1: Extract Core Primitives (Small Steps)
 
-### Step 1.1: Extract ScrollbarCalculator
-- Create `src/interfaces/tui-ink/components/core/ScrollbarCalculator.ts`
-- Extract `calculateScrollbar` function from ConfigurationPanel
-- Update ConfigurationPanel to use the extracted version
-- Test: Configuration panel still works identically
+### Step 1.1: Extract ScrollbarCalculator (if not already done)
+- Verify `src/interfaces/tui-ink/components/core/ScrollbarCalculator.ts` exists
+- Ensure both panels use the extracted version
+- Test: Both panels still work identically
 
-### Step 1.2: Extract TextInput as Body Component
-- Create `src/interfaces/tui-ink/components/core/items/bodies/TextInputBody.tsx`
-- Extract from ConfigurationPanelSimple's edit mode logic
-- This is just the expandable body content for a ListItem
-- Support: value, onChange, cursor position, width handling
+### Step 1.2: Create Simple ListItem Component
+- Create `src/interfaces/tui-ink/components/core/ListItem.tsx`
+- Start with just icon + header rendering
+- No body/expansion yet
+- Props: icon, header, isActive, width
+- Include truncate method for header
 
-### Step 1.3: Create Generic ListItem Component
-- Create `src/interfaces/tui-ink/components/core/items/ListItem.tsx`
-- Based on Configuration panel's item rendering
-- **ListItem structure**: icon + header + (optional) body
-- Props: icon, header, body, isActive, isExpanded
-- **Required method**: `truncate(width: number)` for header text
-- Body only shows when expanded
-- Configuration items: icon='▶/·', header='Label: [value]', body=TextInput
-- Status items: icon='○', header='Status text', body=log details
+### Step 1.3: Test ListItem in ConfigurationPanel
+- Update ConfigurationPanel to use ListItem for rendering
+- Keep all existing logic, just use ListItem for display
+- Verify: Configuration panel looks exactly the same
 
-### Human QA Checkpoint:
+### Verification Checkpoint:
 - [ ] Configuration panel still works perfectly
-- [ ] Components extracted but TUI unchanged
+- [ ] Edit mode still functions
+- [ ] Visual appearance unchanged
 - [ ] Side-by-side comparison with `tui:old` shows no differences
 
-## Phase 2: Create Generic Container Components
+## Phase 2: Add Expandable Support
 
-### Step 2.1: Create ScrollableBlock Component
-- Create `src/interfaces/tui-ink/components/core/containers/ScrollableBlock.tsx`
-- Extract scrolling logic from ConfigurationPanel
-- Props: children, maxHeight, maxWidth, scrollOffset, showScrollbar
-- Generic container that manages scroll viewport
-- **Critical**: Handles horizontal overflow - hides anything beyond maxWidth
-- Prevents border breaking by enforcing width constraints
-- All child content must respect the width boundary
+### Step 2.1: Add Body Support to ListItem
+- Update ListItem to support optional body content
+- Add isExpanded prop
+- Body only renders when isExpanded is true
 
-### Step 2.2: Create GenericPanel Component
-- Create `src/interfaces/tui-ink/components/core/containers/GenericPanel.tsx`
+### Step 2.2: Create TextInputBody Component
+- Extract text input logic from ConfigurationPanel
+- Create as a separate body component
+- Support: value, onChange, cursor position
+
+### Step 2.3: Wire Up Expansion in ConfigurationPanel
+- Add expansion state management
+- Enter key toggles expansion
+- When expanded, show TextInputBody
+- Verify edit mode works through expansion
+
+### Verification Checkpoint:
+- [ ] Configuration items expand/collapse with Enter
+- [ ] Edit mode works when expanded
+- [ ] Collapse on Esc or Enter after edit
+- [ ] No visual changes from `tui:old` when collapsed
+
+## Phase 3: Create Container Components
+
+### Step 3.1: Create ScrollableBlock
+- Extract viewport/scrolling logic
+- Handle maxHeight, scrollOffset
+- Clip content that exceeds bounds
+
+### Step 3.2: Create GenericPanel
 - Compose BorderedBox + ScrollableBlock
-- Add focus management
-- Support header, subtitle, scrollbar
-- Panel manages the list logic, ScrollableBlock just handles viewport
+- Add list management (activeIndex, items)
+- Handle keyboard navigation
 
-### Step 2.3: Refactor ConfigurationPanel to Use Generic Components
-- Update ConfigurationPanel to use GenericPanel
-- Map existing logic to generic components
+### Step 3.3: Migrate ConfigurationPanel
+- Update to use GenericPanel
+- Map existing logic to generic structure
 - Verify identical behavior
 
-### Human QA Checkpoint:
+### Verification Checkpoint:
 - [ ] Configuration panel works identically
-- [ ] Edit mode still functions
-- [ ] Responsive design maintained
-- [ ] No visual differences from `tui:old`
+- [ ] No visual changes
+- [ ] All interactions preserved
+- [ ] Side-by-side comparison with `tui:old` shows no differences
 
-## Phase 3: Implement ListItem Variants
+## Phase 4: Update StatusPanel
 
-### Step 3.1: Update Configuration Items to Use ListItem
-- Configuration ListItem structure:
-  - icon: '▶' (active) or '·' (inactive)
-  - header: 'Label: [current value]'
-  - body: TextInput for editing
-- Enter expands to show body, Enter/Esc collapses
+### Step 4.1: Convert StatusPanel to ListItems
+- Update StatusPanel to use ListItem components
+- Status items: icon='○', header with status indicator
+- No body content yet
 
-### Step 3.2: Transform Status Panel to Use Generic Components
-- Update StatusPanel to use GenericPanel (like Configuration)
-- Status ListItem structure:
-  - icon: '○' (or '▶' when active)
-  - header: 'Status message ✓/⚠/⋯' (status at end)
-  - body: Detailed log information
-- Same ListItem component as Configuration, different content
+### Step 4.2: Add Expandable Status Items
+- Add body content for status details
+- Enable expansion with Enter key
+- Show detailed log information when expanded
 
-### Step 3.3: Unify Behavior Patterns
-- All ListItems use same expand/collapse logic
-- Consistent keyboard handling
-- Same visual indicators (▶ when active, etc.)
-- Test both panels working with unified component
+### Step 4.3: Migrate to GenericPanel
+- Update StatusPanel to use GenericPanel
+- Ensure consistent behavior with ConfigurationPanel
 
-### Human QA Checkpoint:
-- [ ] Both panels use the same ListItem component
-- [ ] Configuration items expand/collapse for editing
-- [ ] Status items expand/collapse to show details
-- [ ] Consistent behavior across both panels
-
-## Phase 4: Final Integration and Testing
-
-### Step 4.1: Verify Both Panels Use Generic Framework
-- ConfigurationPanel already using GenericPanel (from Phase 2.3)
-- StatusPanel already using ListItems (from Phase 3.2)
-- Both panels now fully generic
-- Only difference: Status items are expandable
-
-### Step 4.2: Integration Testing
-- Test with `npm run tui`
-- Compare side-by-side with `tui:old`
-- Verify only difference is expandable items
-- Test all interactions
-
-### Human QA Checkpoint:
+### Verification Checkpoint:
 - [ ] Status panel looks identical when collapsed
-- [ ] Items are expandable with Enter
-- [ ] All navigation works
-- [ ] Responsive design works
+- [ ] Items expand to show details
+- [ ] Navigation works consistently
 - [ ] Everything else identical to `tui:old`
 
-## Phase 5: Final Testing and Cleanup
+## Phase 5: Final Cleanup
 
-### Step 5.1: Comprehensive Testing
+### Step 5.1: Remove Duplicated Code
+- Remove inline calculateScrollbar from StatusPanel
+- Consolidate any repeated patterns
+- Ensure both panels use same components
+
+### Step 5.2: Test Everything
+- Compare with `tui:old`
 - Test all keyboard shortcuts
-- Test responsive design at various sizes
-- Test edit mode in configuration
-- Test expand/collapse in status
-- Performance testing
+- Verify responsive behavior
+- Test edge cases
 
-### Step 5.2: Code Cleanup
-- Remove any duplicate code
-- Ensure consistent patterns
-- Document the framework components
-
-### Final Human QA:
-- [ ] `tui` and `tui:old` identical except expandable status
+### Final Verification:
+- [ ] Only visible change: expandable status items
+- [ ] Everything else identical to `tui:old`
+- [ ] Clean, reusable component architecture
 - [ ] All functionality preserved
-- [ ] Clean component architecture
-- [ ] Ready for future enhancements
+
+## Key Principles
+1. **Small, verifiable steps** - Each step can be tested independently
+2. **No breaking changes** - TUI must work at every step
+3. **Incremental refactoring** - Extract and test one piece at a time
+4. **Reference comparison** - Always compare against `tui:old`
+5. **Configuration first** - It's our working reference implementation
 
 ## Key Success Metrics
 1. Configuration box must work EXACTLY as before
@@ -173,4 +196,7 @@ npm run tui:old
 
 # Main TUI being transformed
 npm run tui
+
+# Quick test to verify both work
+npm run tui:old & npm run tui
 ```

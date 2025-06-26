@@ -23,7 +23,7 @@ export const configurationItems = [
 ];
 
 
-export const ConfigurationPanelSimple: React.FC<{ 
+export const ConfigurationPanel: React.FC<{ 
     width?: number; 
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
