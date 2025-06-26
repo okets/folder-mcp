@@ -40,13 +40,27 @@ export const ListItem: React.FC<ListItemProps> = ({
 };
 
 /**
+ * Remove ANSI escape codes from text
+ * @param text - Text with possible ANSI codes
+ * @returns Plain text without ANSI codes
+ */
+function stripAnsi(text: string): string {
+    // Match all ANSI escape sequences
+    return text.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+/**
  * Truncate text to fit within the given width
- * @param text - Text to truncate
+ * Handles ANSI escape codes properly
+ * @param text - Text to truncate (may contain ANSI codes)
  * @param maxWidth - Maximum width available
- * @returns Truncated text with ellipsis if needed
+ * @returns Truncated text with ellipsis if needed, preserving ANSI codes
  */
 export function truncate(text: string, maxWidth: number): string {
-    if (text.length <= maxWidth) {
+    // Get visible length without ANSI codes
+    const visibleLength = stripAnsi(text).length;
+    
+    if (visibleLength <= maxWidth) {
         return text;
     }
     
@@ -54,5 +68,29 @@ export function truncate(text: string, maxWidth: number): string {
         return '...'.slice(0, maxWidth);
     }
     
-    return text.slice(0, maxWidth - 3) + '...';
+    // Find ANSI codes and their positions
+    const ansiCodes: Array<{code: string, pos: number}> = [];
+    let match;
+    const ansiRegex = /\x1b\[[0-9;]*m/g;
+    while ((match = ansiRegex.exec(text)) !== null) {
+        ansiCodes.push({ code: match[0], pos: match.index });
+    }
+    
+    // Calculate where to cut the visible text
+    const targetLength = maxWidth - 3;
+    let visiblePos = 0;
+    let actualPos = 0;
+    
+    while (visiblePos < targetLength && actualPos < text.length) {
+        // Check if we're at an ANSI code
+        const ansiCode = ansiCodes.find(a => a.pos === actualPos);
+        if (ansiCode) {
+            actualPos += ansiCode.code.length;
+        } else {
+            visiblePos++;
+            actualPos++;
+        }
+    }
+    
+    return text.slice(0, actualPos) + '...';
 }

@@ -157,14 +157,105 @@ The previous generic framework implementation was partially completed but needs 
 - [ ] Navigation works consistently
 - [ ] Everything else identical to `tui:old`
 
-## Phase 5: Final Cleanup
+## Phase 4.5: Fix StatusPanel Bugs
 
-### Step 5.1: Remove Duplicated Code
+### Analysis of Current Issues (from screenshot):
+- Configuration panel: Shows 8 items correctly with scrollbar
+- Status panel: Only shows 3 items with empty space at bottom
+- Terminal appears to be ~80 chars wide (should trigger narrow mode at <100)
+- Layout is stacked (narrow mode) giving Status panel only ~35% height
+
+### Bug 1: Height Allocation in Narrow Mode
+- In narrow mode, Status panel gets 35% of available height (6 rows)
+- This results in only 3 content lines (6 - 3 overhead)
+- Should reconsider the 65%/35% split - maybe 50%/50% or dynamic based on content
+
+### Bug 2: Text Truncation Issue
+- Text shows "Validating embedding model..." with truncation
+- The full text "Validating embedding model types" should fit
+- Issue: ANSI codes in the header are being counted in length calculation
+- Already fixed: Added proper ANSI-aware truncation
+
+### Bug 3: Status Indicator Display
+- Status indicators (✓, ⚠) are showing with correct colors
+- Already fixed: Separated status indicator from text
+- Alignment looks correct in the screenshot
+
+### Bug 4: Dynamic Height Calculation
+- Consider making narrow mode split dynamic based on content
+- Or provide equal split (50%/50%) for better balance
+- Current 65%/35% split leaves Status panel too cramped
+
+### Bug 5: Width Calculation for Truncation
+- Verify itemMaxWidth calculation is correct
+- Account for borders, scrollbar, and padding properly
+- Status indicators should not count against text width
+
+### Implementation Steps:
+1. First: Add debug logging to understand actual dimensions
+2. Adjust narrow mode height split (65%/35% → 50%/50%)
+3. Verify text truncation with proper width calculation
+4. Test with different terminal sizes
+5. Ensure scrollbar appears when needed
+
+### Verification:
+- [ ] Status panel shows appropriate number of items for its height
+- [ ] No unnecessary text truncation
+- [ ] Both panels get fair height allocation in narrow mode
+- [ ] Scrollbar appears when content exceeds viewport
+- [ ] Works correctly in both narrow (<100 cols) and wide modes
+
+## Phase 5: List Item Interface Architecture
+
+### Design Decision:
+- Move from generic ListItem component to interface-based system
+- Each list item type handles its own layout and truncation
+- ScrollableBlock enforces hard boundaries (clips overflow)
+- Compute truncation on each render for animation/responsive support
+
+### Interface Design:
+```typescript
+interface IListItem {
+  render(maxWidth: number): React.ReactElement;
+  getRequiredLines(maxWidth: number): number;
+}
+```
+
+### Concrete Implementations:
+
+#### ConfigurationListItem:
+- Header: Icon + Label + Value (truncate with "...")
+- Expanded: TextInput box sized to maxWidth with internal overflow
+- Example: `"▶ Folder Path: [/Users/example/do...]"`
+
+#### StatusListItem:
+- Header: Icon + Text + Status (preserve icon & status, truncate text)
+- Expanded: Word-wrapped detail lines
+- Example: `"○ Validating embedding model t… ⚠"`
+
+### Implementation Steps:
+1. Create IListItem interface
+2. Implement ConfigurationListItem and StatusListItem
+3. Update ScrollableBlock to clip horizontal overflow
+4. Refactor panels to use new concrete list items
+5. Remove old generic ListItem component
+6. Test responsive behavior and animations
+
+### Verification:
+- [ ] Each list item type handles its own truncation correctly
+- [ ] ScrollableBlock clips any horizontal overflow
+- [ ] Status symbols remain visible when text truncates
+- [ ] TextInput in expanded mode fits available width
+- [ ] Animations and responsive resize work smoothly
+
+## Phase 6: Final Cleanup
+
+### Step 6.1: Remove Duplicated Code
 - Remove inline calculateScrollbar from StatusPanel
 - Consolidate any repeated patterns
 - Ensure both panels use same components
 
-### Step 5.2: Test Everything
+### Step 6.2: Test Everything
 - Compare with `tui:old`
 - Test all keyboard shortcuts
 - Verify responsive behavior

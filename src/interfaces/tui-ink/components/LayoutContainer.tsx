@@ -23,9 +23,8 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
     const isNarrow = availableWidth < narrowBreakpoint;
     
     // Log layout decisions in debug mode
-    if (debugService.isEnabled()) {
-        debugService.logLayout('LayoutContainer', { width: availableWidth, height: availableHeight });
-        debugService.log('LayoutContainer', `Mode: ${isNarrow ? 'narrow' : 'wide'}`);
+    if (debugService.isEnabled() || process.env.TUI_DEBUG) {
+        console.error(`[LayoutContainer] width=${availableWidth}, height=${availableHeight}, breakpoint=${narrowBreakpoint}, isNarrow=${isNarrow}`);
     }
     
     if (isNarrow) {

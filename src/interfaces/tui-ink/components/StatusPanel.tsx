@@ -8,6 +8,8 @@ import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { useFocusChain } from '../hooks/useFocusChain.js';
+import { useDI } from '../di/DIContext.js';
+import { ServiceTokens } from '../di/tokens.js';
 import { statusItems } from '../models/sampleData.js';
 
 // Sample detail data for expanded views
@@ -39,6 +41,8 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const constraints = useLayoutConstraints();
+    const di = useDI();
+    const contentService = di.resolve(ServiceTokens.ContentService);
     
     // Local state for expanded items
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -47,6 +51,10 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
     const actualHeight = height || 20;
     const maxLines = Math.max(1, actualHeight - boxOverhead);
+    
+    if (process.env.TUI_DEBUG) {
+        console.error(`[StatusPanel] height=${height}, actualHeight=${actualHeight}, maxLines=${maxLines}`);
+    }
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
@@ -99,7 +107,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
     let linesUsed = 0;
-    let startLine = itemLinePositions[scrollOffset].start;
+    let startLine = scrollOffset < itemLinePositions.length ? itemLinePositions[scrollOffset].start : 0;
     
     for (let i = scrollOffset; i < statusItems.length; i++) {
         const itemLines = (expandedIndex === i) ? 4 : 1;
@@ -113,6 +121,10 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     }
     
     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + visibleCount);
+    
+    if (process.env.TUI_DEBUG) {
+        console.error(`[StatusPanel] scrollOffset=${scrollOffset}, visibleCount=${visibleCount}, visibleItems=${visibleItems.length}`);
+    }
     
     // Calculate TOTAL lines for ALL items (not just visible)
     let totalLines = 0;
@@ -190,25 +202,27 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     
                     if (isExpanded) {
                         // Expanded view
-                        const statusColorName = 
-                            item.status === '✓' ? 'green' :
-                            item.status === '⚠' ? 'yellow' :
-                            item.status === '⋯' ? 'cyan' : undefined;
+                        const statusColor = 
+                            item.status === '✓' ? theme.colors.successGreen :
+                            item.status === '⚠' ? theme.colors.warningOrange :
+                            item.status === '⋯' ? theme.colors.accent : undefined;
                         
-                        const header = statusColorName 
-                            ? `${item.text} [\x1b[${statusColorName === 'green' ? '32' : statusColorName === 'yellow' ? '33' : '36'}m${item.status}\x1b[39m]`
-                            : `${item.text} ${item.status}`;
+                        // Calculate available width for text
+                        const indicatorWidth = 2; // '▼' + space
+                        const statusWidth = item.status ? contentService.measureText(' ' + item.status) : 0;
+                        const textMaxWidth = itemMaxWidth - indicatorWidth - statusWidth;
+                        const truncatedText = contentService.truncateText(item.text, textMaxWidth);
                         
-                        // Add expanded header
+                        // Custom rendering for status item header
                         elements.push(
-                            <ListItem
-                                key={`item-${visualIndex}-header`}
-                                icon='▼'
-                                header={header}
-                                isActive={isSelected}
-                                width={itemMaxWidth + 2}
-                                color={theme.colors.accent}
-                            />
+                            <Box key={`item-${visualIndex}-header`}>
+                                <Text color={isSelected ? theme.colors.accent : undefined}>
+                                    {'▼'} {truncatedText}
+                                </Text>
+                                {item.status && (
+                                    <Text color={statusColor}> {item.status}</Text>
+                                )}
+                            </Box>
                         );
                         
                         // Add detail lines
@@ -222,24 +236,27 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                         });
                     } else {
                         // Collapsed view
-                        const statusColorName = 
-                            item.status === '✓' ? 'green' :
-                            item.status === '⚠' ? 'yellow' :
-                            item.status === '⋯' ? 'cyan' : undefined;
+                        const statusColor = 
+                            item.status === '✓' ? theme.colors.successGreen :
+                            item.status === '⚠' ? theme.colors.warningOrange :
+                            item.status === '⋯' ? theme.colors.accent : undefined;
                         
-                        const header = statusColorName 
-                            ? `${item.text} [\x1b[${statusColorName === 'green' ? '32' : statusColorName === 'yellow' ? '33' : '36'}m${item.status}\x1b[39m]`
-                            : `${item.text} ${item.status}`;
+                        // Calculate available width for text
+                        const indicatorWidth = 2; // indicator + space
+                        const statusWidth = item.status ? contentService.measureText(' ' + item.status) : 0;
+                        const textMaxWidth = itemMaxWidth - indicatorWidth - statusWidth;
+                        const truncatedText = contentService.truncateText(item.text, textMaxWidth);
                         
+                        // Custom rendering for status item
                         elements.push(
-                            <ListItem
-                                key={`item-${visualIndex}`}
-                                icon={isSelected ? '▶' : '○'}
-                                header={header}
-                                isActive={isSelected}
-                                width={itemMaxWidth + 2}
-                                color={theme.colors.accent}
-                            />
+                            <Box key={`item-${visualIndex}`}>
+                                <Text color={isSelected ? theme.colors.accent : undefined}>
+                                    {isSelected ? '▶' : '○'} {truncatedText}
+                                </Text>
+                                {item.status && (
+                                    <Text color={statusColor}> {item.status}</Text>
+                                )}
+                            </Box>
                         );
                     }
                 });
