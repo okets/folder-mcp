@@ -7,3 +7,6 @@ export type { BorderedBoxProps } from './BorderedBox.js';
 
 export { calculateScrollbar } from './ScrollbarCalculator.js';
 export type { ScrollbarConfig } from './ScrollbarCalculator.js';
+
+export { ListItem, truncate } from './ListItem.js';
+export type { ListItemProps } from './ListItem.js';

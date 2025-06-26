@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
+import { ListItem } from './core/ListItem.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -252,13 +253,16 @@ export const ConfigurationPanel: React.FC<{
                         // Collapsed state - single element
                         // Use visualIndex for stable keys
                         const collapsedKey = `item-${visualIndex}`;
+                        const header = `${item.label}: [\x1b[38;5;117m${item.value}\x1b[39m]`;
                         elements.push(
-                            <Text 
+                            <ListItem
                                 key={collapsedKey}
-                                color={isSelected ? theme.colors.accent : undefined}
-                            >
-                                {`${isSelected ? '▶' : '·'} ${item.label}: [\x1b[38;5;117m${item.value}\x1b[39m]`}
-                            </Text>
+                                icon={isSelected ? '▶' : '·'}
+                                header={header}
+                                isActive={isSelected}
+                                width={itemMaxWidth + 2} // Add back the 2 chars for icon + space
+                                color={theme.colors.accent}
+                            />
                         );
                     }
                 });
