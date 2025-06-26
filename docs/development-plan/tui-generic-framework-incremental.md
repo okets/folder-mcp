@@ -1,316 +1,176 @@
 # TUI Generic Framework - Incremental Implementation Plan
 
 ## Overview
-Build a proper generic TUI framework by extracting and generalizing the well-tested Configuration box implementation. Each step maintains full functionality of the existing TUI.
+Build a proper generic TUI framework by extracting and generalizing the well-tested Configuration box implementation. Transform the main TUI while keeping a reference copy (`tui:old`) for comparison.
 
-## Guiding Principles
-1. **Small, testable increments** - Each step can be merged independently
-2. **No breaking changes** - TUI remains fully functional after each step
-3. **Configuration box as reference** - Use its proven patterns
-4. **Progressive enhancement** - Start with basics, add features incrementally
+## Core Principle: Extract from Configuration Box First
+- Configuration box is well-tested and working perfectly
+- Extract its patterns into generic components
+- Build framework from proven components
+- LogItem comes AFTER we have the generic foundation
 
-## Phase 1: Extract Core Primitives (No Breaking Changes)
+## Common Terminology
+- **ListItem**: The base component with three parts:
+  - **icon**: Single character indicator (e.g., '○', '▶', '·')
+  - **header**: Main text line, always visible
+  - **body**: Optional content shown when expanded
+- **ScrollableBlock**: Container that handles overflow (both vertical and horizontal)
+- **GenericPanel**: Composition of BorderedBox + ScrollableBlock + list management
+- **truncate(width)**: Required method to prevent header text overflow
+
+## Phase 0: Create Reference Copy
+**Goal**: Preserve current TUI as reference point
+
+### Steps:
+1. Copy current TUI to `src/interfaces/tui-ink-old/`
+2. Update all imports in the copied files to work from new location
+3. Add `tui:old` script to package.json: `tsx src/interfaces/tui-ink-old/index.tsx`
+4. Test that `npm run tui:old` works exactly like current `npm run tui`
+
+### Human QA Checkpoint:
+- [ ] `tui:old` runs successfully
+- [ ] Both TUIs look and behave identically
+- [ ] All features work in the reference copy
+
+## Phase 1: Extract Core Primitives from Configuration Box
 
 ### Step 1.1: Extract ScrollbarCalculator
 - Create `src/interfaces/tui-ink/components/core/ScrollbarCalculator.ts`
 - Extract `calculateScrollbar` function from ConfigurationPanel
-- Keep original function in place, make it call the new one
-- Test: Verify Configuration panel still works identically
+- Update ConfigurationPanel to use the extracted version
+- Test: Configuration panel still works identically
 
-### Step 1.2: Extract BorderedBox to Core
-- Create `src/interfaces/tui-ink/components/core/BorderedBox.tsx`
-- Copy current BorderedBox implementation
-- Update imports in Configuration panels to use core version
-- Test: All panels render identically
+### Step 1.2: Extract TextInput as Body Component
+- Create `src/interfaces/tui-ink/components/core/items/bodies/TextInputBody.tsx`
+- Extract from ConfigurationPanelSimple's edit mode logic
+- This is just the expandable body content for a ListItem
+- Support: value, onChange, cursor position, width handling
 
 ### Step 1.3: Create Generic ListItem Component
-- Create `src/interfaces/tui-ink/components/core/ListItem.tsx`
-- Base it on Configuration panel's item rendering
-- Support: icon, text, value, status, isActive props
-- Don't use it yet - just create and test in isolation
+- Create `src/interfaces/tui-ink/components/core/items/ListItem.tsx`
+- Based on Configuration panel's item rendering
+- **ListItem structure**: icon + header + (optional) body
+- Props: icon, header, body, isActive, isExpanded
+- **Required method**: `truncate(width: number)` for header text
+- Body only shows when expanded
+- Configuration items: icon='▶/·', header='Label: [value]', body=TextInput
+- Status items: icon='○', header='Status text', body=log details
 
-## Phase 2: Create Generic List Container
+### Human QA Checkpoint:
+- [ ] Configuration panel still works perfectly
+- [ ] Components extracted but TUI unchanged
+- [ ] Side-by-side comparison with `tui:old` shows no differences
 
-### Step 2.1: Create ScrollableList Component
-- Create `src/interfaces/tui-ink/components/core/ScrollableList.tsx`
+## Phase 2: Create Generic Container Components
+
+### Step 2.1: Create ScrollableBlock Component
+- Create `src/interfaces/tui-ink/components/core/containers/ScrollableBlock.tsx`
 - Extract scrolling logic from ConfigurationPanel
-- Props: items, activeIndex, maxHeight, renderItem
-- Test with mock data independently
+- Props: children, maxHeight, maxWidth, scrollOffset, showScrollbar
+- Generic container that manages scroll viewport
+- **Critical**: Handles horizontal overflow - hides anything beyond maxWidth
+- Prevents border breaking by enforcing width constraints
+- All child content must respect the width boundary
 
-### Step 2.2: Create Panel Base Component
-- Create `src/interfaces/tui-ink/components/core/Panel.tsx`
-- Compose BorderedBox + ScrollableList
-- Add header/footer support
-- Test independently with sample data
+### Step 2.2: Create GenericPanel Component
+- Create `src/interfaces/tui-ink/components/core/containers/GenericPanel.tsx`
+- Compose BorderedBox + ScrollableBlock
+- Add focus management
+- Support header, subtitle, scrollbar
+- Panel manages the list logic, ScrollableBlock just handles viewport
 
-### Step 2.3: Migrate ConfigurationPanelSimple
-- Update ConfigurationPanelSimple to use Panel component
-- Map existing logic to new component props
+### Step 2.3: Refactor ConfigurationPanel to Use Generic Components
+- Update ConfigurationPanel to use GenericPanel
+- Map existing logic to generic components
 - Verify identical behavior
-- This proves the generic components work
 
-## Phase 3: Standardize Item Rendering
+### Human QA Checkpoint:
+- [ ] Configuration panel works identically
+- [ ] Edit mode still functions
+- [ ] Responsive design maintained
+- [ ] No visual differences from `tui:old`
 
-### Step 3.1: Create ItemRenderer Service
-- Create `src/interfaces/tui-ink/services/ItemRenderer.ts`
-- Handles different item types (simple, with-value, with-status)
-- Consistent truncation and spacing logic
-- Test with various item configurations
+## Phase 3: Implement ListItem Variants
 
-### Step 3.2: Update ConfigurationPanel to Use ItemRenderer
-- Replace inline item rendering with ItemRenderer
-- Maintain exact same visual output
-- Test thoroughly
+### Step 3.1: Update Configuration Items to Use ListItem
+- Configuration ListItem structure:
+  - icon: '▶' (active) or '·' (inactive)
+  - header: 'Label: [current value]'
+  - body: TextInput for editing
+- Enter expands to show body, Enter/Esc collapses
 
-### Step 3.3: Create Unified ListItemData Interface
-```typescript
-interface ListItemData {
-  id: string;
-  icon?: string;
-  text: string;
-  value?: string;
-  status?: string;
-  color?: string;
-  selectable?: boolean;
-}
+### Step 3.2: Transform Status Panel to Use Generic Components
+- Update StatusPanel to use GenericPanel (like Configuration)
+- Status ListItem structure:
+  - icon: '○' (or '▶' when active)
+  - header: 'Status message ✓/⚠/⋯' (status at end)
+  - body: Detailed log information
+- Same ListItem component as Configuration, different content
+
+### Step 3.3: Unify Behavior Patterns
+- All ListItems use same expand/collapse logic
+- Consistent keyboard handling
+- Same visual indicators (▶ when active, etc.)
+- Test both panels working with unified component
+
+### Human QA Checkpoint:
+- [ ] Both panels use the same ListItem component
+- [ ] Configuration items expand/collapse for editing
+- [ ] Status items expand/collapse to show details
+- [ ] Consistent behavior across both panels
+
+## Phase 4: Final Integration and Testing
+
+### Step 4.1: Verify Both Panels Use Generic Framework
+- ConfigurationPanel already using GenericPanel (from Phase 2.3)
+- StatusPanel already using ListItems (from Phase 3.2)
+- Both panels now fully generic
+- Only difference: Status items are expandable
+
+### Step 4.2: Integration Testing
+- Test with `npm run tui`
+- Compare side-by-side with `tui:old`
+- Verify only difference is expandable items
+- Test all interactions
+
+### Human QA Checkpoint:
+- [ ] Status panel looks identical when collapsed
+- [ ] Items are expandable with Enter
+- [ ] All navigation works
+- [ ] Responsive design works
+- [ ] Everything else identical to `tui:old`
+
+## Phase 5: Final Testing and Cleanup
+
+### Step 5.1: Comprehensive Testing
+- Test all keyboard shortcuts
+- Test responsive design at various sizes
+- Test edit mode in configuration
+- Test expand/collapse in status
+- Performance testing
+
+### Step 5.2: Code Cleanup
+- Remove any duplicate code
+- Ensure consistent patterns
+- Document the framework components
+
+### Final Human QA:
+- [ ] `tui` and `tui:old` identical except expandable status
+- [ ] All functionality preserved
+- [ ] Clean component architecture
+- [ ] Ready for future enhancements
+
+## Key Success Metrics
+1. Configuration box must work EXACTLY as before
+2. No regressions in any functionality
+3. Clean extraction of generic components
+4. Only visible change: expandable status items
+
+## Testing Commands
+```bash
+# Reference copy
+npm run tui:old
+
+# Main TUI being transformed
+npm run tui
 ```
-
-## Phase 4: Migrate Other Panels
-
-### Step 4.1: Create StatusPanel Adapter
-- Map status items to ListItemData format
-- Use generic Panel component
-- Remove StatusItemLayout gradually
-
-### Step 4.2: Unify Panel Behaviors
-- Ensure all panels use same scrolling logic
-- Consistent keyboard navigation
-- Same visual indicators
-
-### Step 4.3: Remove Duplicate Code
-- Delete old panel-specific implementations
-- Keep only generic components
-- Update all imports
-
-## Phase 5: Enhanced Features
-
-### Step 5.1: Add Layout Service
-- Extract width calculation logic
-- Handle responsive design centrally
-- Support different layout strategies
-
-### Step 5.2: Add Theme Support
-- Extract colors and styles
-- Create theme provider
-- Allow consistent styling
-
-### Step 5.3: Add Animation Support
-- Smooth scrolling transitions
-- Selection animations
-- Optional based on terminal capabilities
-
-## Testing Strategy
-
-### After Each Step:
-1. Run existing TUI to verify no visual changes
-2. Compare screenshots before/after
-3. Test all keyboard interactions
-4. Verify performance hasn't degraded
-5. **Human QA Required**: Request user verification for:
-   - Text input fields behavior
-   - Focus management and tab navigation
-   - Complex interactions (expand/collapse, edit mode)
-   - Terminal-specific behaviors that can't be simulated
-
-### Test Scenarios:
-- Various terminal widths (40, 80, 120 columns)
-- Different heights (10, 20, 50 rows)
-- Edge cases (empty lists, single item, many items)
-- Rapid scrolling and selection changes
-- **Human Testing Required**:
-  - Actual keyboard input in text fields
-  - Copy/paste operations
-  - Terminal-specific key combinations
-  - Mouse interactions (if supported)
-
-## Success Metrics
-
-1. **Code Reduction**: >50% less duplicate code
-2. **Bug Consistency**: Fix once, fixed everywhere
-3. **Test Coverage**: >90% on core components
-4. **Performance**: No regression in render time
-5. **Maintainability**: New panels can be added in <30 min
-
-## Migration Checkpoints
-
-After each phase, verify:
-- [ ] All existing panels work identically
-- [ ] No visual regressions
-- [ ] Tests pass
-- [ ] Performance acceptable
-- [ ] **Human QA Sign-off**: User has tested interactive features
-- [ ] Code can be merged to main
-
-## Human QA Checkpoints
-
-### Phase 1 QA (After Core Primitives):
-- No user interaction needed (internal refactoring only)
-
-### Phase 2 QA (After Generic List Container):
-- [ ] Verify scrolling feels natural with keyboard
-- [ ] Test selection persistence during scroll
-- [ ] Confirm visual indicators match expectations
-
-### Phase 3 QA (After Item Rendering):
-- [ ] Test text truncation with various content
-- [ ] Verify special characters display correctly
-- [ ] Check spacing and alignment visually
-
-### Phase 4 QA (After Panel Migration):
-- [ ] **Critical**: Test ConfigurationPanelNew text input
-- [ ] Verify tab navigation between fields
-- [ ] Test expand/collapse with Enter key
-- [ ] Confirm edit mode enter/exit behavior
-- [ ] Test value persistence after editing
-- [ ] Verify cursor positioning in text fields
-
-### Phase 5 QA (After Enhanced Features):
-- [ ] Test theme changes (if implemented)
-- [ ] Verify animations don't cause flicker
-- [ ] Test on different terminal emulators
-- [ ] Confirm accessibility features work
-
-## Phase 6: Expandable List Items
-
-### Step 6.1: Create Generic ExpandableListItem Component
-- Create `src/interfaces/tui-ink/components/core/ExpandableListItem.tsx`
-- Extract common expand/collapse functionality from existing implementations
-- Support both collapsed and expanded states with customizable content
-- Props: label, value, isExpanded, isActive, expandedContent, icons
-- Test: Create examples with different content types
-
-### Step 6.2: Create TextInputItem Component
-- Create `src/interfaces/tui-ink/components/core/items/TextInputItem.tsx`
-- Refactor existing text input functionality from ConfigurationPanelSimple
-- Uses ExpandableListItem for consistent behavior
-- Maintains all existing keyboard handling and validation
-- Test: Verify identical behavior to current implementation
-
-### Step 6.3: Create LogItem Component
-- Create `src/interfaces/tui-ink/components/core/items/LogItem.tsx`
-- Collapsed state: `· [timestamp] Log summary text`
-- Expanded state: Full log details with stack trace, metadata
-- Features:
-  - Timestamp formatting
-  - Log level indicators (error/warn/info)
-  - Syntax highlighting for stack traces
-  - Scrollable content if log is large
-- Test: Create sample log data with various types
-
-### Step 6.4: Update DataPanel for Expandable Items
-- Add expansion state management to DataPanel
-- Support keyboard shortcuts (Enter to expand/collapse)
-- Update ItemRenderer to handle expandable items
-- Maintain scroll position when expanding/collapsing
-- Test: Verify smooth expansion without layout jumps
-
-### Step 6.5: Migrate Configuration Panel
-- Replace ConfigurationPanelSimple with new components
-- Use TextInputItem for all configuration fields
-- Ensure edit mode works identically
-- Test: Full regression test of configuration editing
-
-### Step 6.6: Create LogPanel Component
-- Create new panel using DataPanel + LogItem
-- Support filtering by log level
-- Add search functionality
-- Test: Performance with large number of logs
-
-## Phase 7: System Status Panel with LogItems
-
-### Step 7.1: Create Status-to-Log Transformer
-- Create `src/interfaces/tui-ink/utils/statusToLog.ts`
-- Transform StatusItem format to LogEntry format
-- Map status indicators to log levels (✓→info, ⚠→warn, etc.)
-- Parse metrics from text for metadata extraction
-- Generate meaningful detail content for expansion
-
-### Step 7.2: Create SystemStatusLogPanel Component
-- Create `src/interfaces/tui-ink/components/SystemStatusLogPanel.tsx`
-- Use ExpandableDataPanel with LogItem components
-- Maintain exact visual appearance when collapsed
-- Add smart expanded content based on status type
-- Test: Verify identical appearance to current StatusPanel
-
-### Step 7.3: Implement Dynamic Status Details
-- Memory usage items → Show detailed breakdown
-- Network status → Connection info and latency
-- Processing queue → Queue statistics and items
-- Error counts → Recent error list if any
-- Test: Each status type has meaningful expansion
-
-### Step 7.4: Replace Original StatusPanel
-- Update main app to use SystemStatusLogPanel
-- Ensure navigation works identically
-- Verify scrolling behavior matches
-- Test: Full regression test with no visual changes
-
-### Step 7.5: Add Real-time Updates
-- Periodic refresh of status data
-- Maintain expansion state during updates
-- Visual indicators for changed values
-- Test: Updates don't disrupt user interaction
-
-## Phase 8: Advanced Features
-
-### Step 8.1: Create Additional Item Types
-- SelectItem - Dropdown selection with options
-- ToggleItem - Boolean on/off switch
-- SliderItem - Numeric value with min/max
-- FilePickerItem - File/folder selection
-- Test each with real use cases
-
-### Step 8.2: Add Nested Expansion Support
-- Support items that expand to show sub-items
-- Tree-like navigation with proper indentation
-- Keyboard shortcuts for expand/collapse all
-- Test: Deep nesting scenarios
-
-### Step 8.3: Add Item Validation Framework
-- Real-time validation as user types
-- Visual indicators for errors/warnings
-- Validation messages below items
-- Test: Various validation rules
-
-## Human QA Checkpoints
-
-### Phase 6 QA (After Expandable Items):
-- [ ] **Critical**: Test text input in expanded items
-- [ ] Verify Enter key expands/collapses correctly
-- [ ] Test Tab navigation through expandable items
-- [ ] Confirm cursor positioning in text fields
-- [ ] Test Escape key cancels edits properly
-- [ ] Verify scroll behavior when expanding items
-
-### Phase 7 QA (After System Status with LogItems):
-- [ ] Verify System Status looks identical when collapsed
-- [ ] Test expanding various status types
-- [ ] Confirm meaningful details in expanded views
-- [ ] Test scrolling with mixed expanded/collapsed items
-- [ ] Verify real-time updates don't break expansion state
-- [ ] Confirm no performance degradation
-
-### Phase 8 QA (After Advanced Features):
-- [ ] Test all new item types interactively
-- [ ] Verify nested expansion keyboard navigation
-- [ ] Test validation feedback visibility
-- [ ] Confirm no performance issues with many items
-- [ ] Test on various terminal sizes
-
-## Rollback Plan
-
-Each step is designed to be reversible:
-- Git commits for each step
-- Feature flags for new components
-- Parallel implementations during migration
-- Quick revert possible at any checkpoint
