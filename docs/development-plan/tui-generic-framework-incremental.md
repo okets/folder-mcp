@@ -248,61 +248,130 @@ interface IListItem {
 - [ ] TextInput in expanded mode fits available width
 - [ ] Animations and responsive resize work smoothly
 
-## Phase 6: Block-Level Clipping Implementation
+## Phase 6: ListItem Truncation Implementation
 
 ### Problem Statement:
-- Ink's Box component doesn't provide true overflow clipping
-- Status items are wrapping to multiple lines
-- Need hard truncation at the block level to prevent layout breaks
-- Scrollbar calculation is duplicated and tightly coupled to panel implementations
+- List items are not properly truncating their content based on maxWidth
+- Text is wrapping or being displayed incorrectly in narrow terminals
+- Need consistent truncation behavior across different list item types
+- Each list item type should handle truncation according to its specific needs
 
-### Step 6.1: Encapsulate Scrollbar in ScrollableBlock
-- Move scrollbar calculation into ScrollableBlock component
-- ScrollableBlock should manage its own viewport and scrollbar state
-- Remove need for panels to calculate line positions and scrollbar arrays
-- Provide a clean API that takes items and handles all scrolling internally
-- This fixes the architectural issue where panels know too much about scrolling
+### Design Philosophy:
+- Each ListItem implements its own truncation strategy based on its layout
+- maxWidth comes from the container (ScrollableBlock/Panel)
+- ScrollableBlock clips any overflow as a safety net
+- No architectural changes - focus on fixing truncation logic
 
-### Step 6.2: Refactor Panels to Use New ScrollableBlock
-- Update ConfigurationPanel to pass items instead of calculating scrollbar
-- Update StatusPanel to pass items instead of calculating scrollbar
-- Remove line position calculations from panels
-- Let ScrollableBlock handle all viewport management
-- Test that scrollbars work correctly in both panels
+### Step 6.1: Fix ConfigurationListItem Truncation
+**Goal**: Ensure configuration items truncate properly with "..."
 
-### Step 6.3: Enhance ScrollableBlock for Hard Clipping
-- Pre-process all children before rendering
-- Walk React element tree and extract text content
-- Apply hard width truncation at string level
-- Rebuild elements with truncated content
-- Ensure no child can exceed block width
+#### Header Truncation:
+- Format: `"icon label: [value]"`
+- When truncating: preserve icon, truncate label and/or value with "..."
+- Priority: Show as much of label as possible, then value
+- Example: `"▶ Folder Path: [/Users/exam...]"`
 
-### Step 6.4: Implement Element Processing
-- Create `truncateElement` function to process React elements
-- Handle Text nodes, Box components, and nested structures
-- Preserve ANSI codes and styling while truncating
-- Account for Unicode character widths
+#### Body (TextInput) Behavior:
+- Text input box width = maxWidth - 2 (for indent/padding)
+- Input field has visible width but can contain longer text
+- Content scrolls horizontally with cursor (like HTML input)
+- Visual indicators `[` and `]` show input boundaries
+- Example:
+  ```
+  ▼ Folder Path:
+    [/very/long/path/that/exceeds/the/box/wi...]
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ (visible window)
+  ```
 
-### Step 6.5: Fix StatusListItem Truncation
-- Improve width calculation using visual width not string length
-- Properly measure Unicode character widths
-- Account for exact status indicator width
-- Ensure truncation prevents any wrapping
+### Step 6.2: Fix StatusListItem Truncation  
+**Goal**: Ensure status items preserve icon and status indicator
 
-### Step 6.6: Test Block Clipping
-- Test with very long text in both panels
-- Verify no content exceeds block boundaries
-- Test with Unicode characters and emojis
-- Ensure responsive behavior still works
+#### Header Truncation:
+- Format: `"icon text status"`
+- When truncating: preserve icon and status, truncate text in the middle
+- Calculate: `availableTextWidth = maxWidth - iconWidth(2) - statusWidth(2)`
+- Example: `"○ System components loa... ✓"`
 
-### Verification (Each step requires user approval before proceeding):
-- [ ] Step 6.1: ScrollableBlock has clean encapsulated API
-- [ ] Step 6.2: Both panels use new ScrollableBlock without duplication
-- [ ] Step 6.3: No text wraps to multiple lines in narrow terminals
-- [ ] Step 6.4: Element processing preserves styling
-- [ ] Step 6.5: Status indicators remain visible and aligned
-- [ ] Step 6.6: All content is properly truncated at block edges
-- [ ] User QA mandatory to verify visual appearance at each step
+#### Body (Expanded Details) Behavior:
+- Each detail line word-wraps to fit maxWidth - 2 (for indent)
+- Line breaking at word boundaries when possible
+- Single words exceeding maxWidth get truncated with "..."
+- Multiple wrapped lines are acceptable (unlike header)
+- Example:
+  ```
+  ▼ System components loaded ✓
+    All core components initialized 
+    successfully
+    Memory allocator: Ready
+    Thread pool: 8 workers active
+  ```
+
+### Step 6.3: Implement Proper Width Calculation
+**Goal**: Accurate width measurement for truncation
+
+- Account for ANSI escape codes (don't count them in width)
+- Handle Unicode characters properly (some are 2 columns wide)
+- Create utility functions for visual width calculation
+- Test with various character sets and terminal emulators
+
+### Step 6.4: Add Truncation Utilities
+**Goal**: Shared truncation logic for consistency
+
+Create shared utilities:
+- `getVisualWidth(text: string): number` - counts visible columns
+- `truncateText(text: string, maxWidth: number, ellipsis?: string): string`
+- `stripAnsi(text: string): string` - for width calculation
+- `measureUnicodeWidth(char: string): number` - for wide characters
+
+### Step 6.5: Test Edge Cases
+**Goal**: Ensure robust truncation in all scenarios
+
+Test cases:
+- Very narrow terminals (< 50 columns)
+- Very long text with no spaces
+- Unicode characters and emojis
+- ANSI colored text
+- Empty or very short text
+- Exact width boundaries (off-by-one errors)
+
+### Step 6.6: Verify Visual Output
+**Goal**: Ensure proper display in actual terminal
+
+- Run side-by-side comparison with tui:old
+- Test in different terminal widths
+- Verify no text wrapping occurs
+- Ensure status indicators remain visible
+- Check that scrollbars still work correctly
+
+### Implementation Notes:
+
+1. **Width Calculation Formulas**:
+   ```typescript
+   // For ConfigurationListItem header
+   maxLabelWidth = maxWidth - 2 (icon) - 3 (": [") - 1 ("]") - minValueWidth
+   
+   // For StatusListItem header
+   maxTextWidth = maxWidth - 2 (icon) - 2 (status + space)
+   ```
+
+2. **Truncation Strategy**:
+   - Always leave room for ellipsis ("..." = 3 chars)
+   - Truncate at word boundaries when possible
+   - For paths, try to show beginning and end
+
+3. **Key Differences in Body Handling**:
+   - **TextInput body**: Single line with horizontal scrolling in fixed-width box
+   - **StatusListItem body**: Multiple lines with word wrapping, no horizontal scroll
+
+### Verification Checklist (QA intensive):
+- [ ] Configuration items show label and value appropriately truncated
+- [ ] Status items always show icon and status indicator
+- [ ] No text wraps to multiple lines in headers
+- [ ] Text input in edit mode scrolls within box boundaries
+- [ ] Status details word-wrap correctly when expanded
+- [ ] Works in both narrow and wide terminal modes
+- [ ] No visual artifacts or layout breaks
+- [ ] User QA approval required at each step
 ## Phase 7: Final Cleanup
 
 ### Step 7.1: Remove Duplicated Code
