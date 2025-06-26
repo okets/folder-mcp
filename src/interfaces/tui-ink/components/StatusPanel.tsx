@@ -1,15 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
-import { ListItem } from './core/ListItem.js';
+import { StatusListItem } from './core/StatusListItem.js';
 import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { useFocusChain } from '../hooks/useFocusChain.js';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
 import { statusItems } from '../models/sampleData.js';
 
 // Sample detail data for expanded views
@@ -41,8 +39,6 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const constraints = useLayoutConstraints();
-    const di = useDI();
-    const contentService = di.resolve(ServiceTokens.ContentService);
     
     // Local state for expanded items
     const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -52,25 +48,32 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const actualHeight = height || 20;
     const maxLines = Math.max(1, actualHeight - boxOverhead);
     
-    if (process.env.TUI_DEBUG) {
-        console.error(`[StatusPanel] height=${height}, actualHeight=${actualHeight}, maxLines=${maxLines}`);
-    }
-    
     // Calculate content width for items
     const panelWidth = width || columns - 2;
     const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
     
-    // Calculate total content lines
+    // Calculate total content lines and line positions using list items
     let totalContentLines = 0;
-    for (let i = 0; i < statusItems.length; i++) {
-        totalContentLines += (expandedIndex === i) ? 4 : 1;
-    }
-    
-    // Calculate line positions for all items
     const itemLinePositions: Array<{start: number, end: number}> = [];
     let currentLine = 0;
+    
     for (let i = 0; i < statusItems.length; i++) {
-        const itemLines = (expandedIndex === i) ? 4 : 1;
+        const item = statusItems[i];
+        const isExpanded = expandedIndex === i;
+        
+        // Create temporary list item to get required lines
+        const tempListItem = new StatusListItem(
+            '○',
+            item.text,
+            item.status,
+            false,
+            isExpanded,
+            statusDetails[item.text]
+        );
+        
+        const itemLines = tempListItem.getRequiredLines(itemMaxWidth + 2);
+        totalContentLines += itemLines;
+        
         itemLinePositions.push({
             start: currentLine,
             end: currentLine + itemLines
@@ -110,7 +113,6 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     let startLine = scrollOffset < itemLinePositions.length ? itemLinePositions[scrollOffset].start : 0;
     
     for (let i = scrollOffset; i < statusItems.length; i++) {
-        const itemLines = (expandedIndex === i) ? 4 : 1;
         // Check if this item fits completely
         if (itemLinePositions[i].end - startLine <= maxLines) {
             visibleCount++;
@@ -122,21 +124,15 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     
     const visibleItems = statusItems.slice(scrollOffset, scrollOffset + visibleCount);
     
-    if (process.env.TUI_DEBUG) {
-        console.error(`[StatusPanel] scrollOffset=${scrollOffset}, visibleCount=${visibleCount}, visibleItems=${visibleItems.length}`);
-    }
-    
-    // Calculate TOTAL lines for ALL items (not just visible)
-    let totalLines = 0;
-    statusItems.forEach((item, index) => {
-        totalLines += (expandedIndex === index) ? 4 : 1;
-    });
+    // Total lines already calculated above
+    const totalLines = totalContentLines;
     
     // Calculate visible lines for the current viewport
     let visibleLines = 0;
     visibleItems.forEach((item, index) => {
         const actualIndex = scrollOffset + index;
-        visibleLines += (expandedIndex === actualIndex) ? 4 : 1;
+        const itemPosition = itemLinePositions[actualIndex];
+        visibleLines += itemPosition.end - itemPosition.start;
     });
     
     // Show scrollbar only if total lines exceed available space
@@ -200,63 +196,29 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     const isSelected = navigation.isStatusFocused && navigation.statusSelectedIndex === actualIndex;
                     const isExpanded = expandedIndex === actualIndex;
                     
-                    if (isExpanded) {
-                        // Expanded view
-                        const statusColor = 
-                            item.status === '✓' ? theme.colors.successGreen :
-                            item.status === '⚠' ? theme.colors.warningOrange :
-                            item.status === '⋯' ? theme.colors.accent : undefined;
-                        
-                        // Calculate available width for text
-                        const indicatorWidth = 2; // '▼' + space
-                        const statusWidth = item.status ? contentService.measureText(' ' + item.status) : 0;
-                        const textMaxWidth = itemMaxWidth - indicatorWidth - statusWidth;
-                        const truncatedText = contentService.truncateText(item.text, textMaxWidth);
-                        
-                        // Custom rendering for status item header
-                        elements.push(
-                            <Box key={`item-${visualIndex}-header`}>
-                                <Text color={isSelected ? theme.colors.accent : undefined}>
-                                    {'▼'} {truncatedText}
-                                </Text>
-                                {item.status && (
-                                    <Text color={statusColor}> {item.status}</Text>
-                                )}
-                            </Box>
-                        );
-                        
-                        // Add detail lines
-                        const details = statusDetails[item.text] || ['No additional details available'];
-                        details.forEach((detail, detailIndex) => {
+                    // Create StatusListItem instance
+                    const listItem = new StatusListItem(
+                        isSelected ? '▶' : '○',
+                        item.text,
+                        item.status,
+                        isSelected,
+                        isExpanded,
+                        statusDetails[item.text]
+                    );
+                    
+                    // Get rendered elements from list item
+                    const itemElements = listItem.render(itemMaxWidth + 2); // +2 for icon + space
+                    
+                    // Handle both single element and array of elements
+                    if (Array.isArray(itemElements)) {
+                        itemElements.forEach((element, index) => {
                             elements.push(
-                                <Text key={`item-${visualIndex}-detail-${detailIndex}`} color={theme.colors.textMuted}>
-                                    {'  '}{detail}
-                                </Text>
+                                React.cloneElement(element, { key: `item-${visualIndex}-${index}` })
                             );
                         });
                     } else {
-                        // Collapsed view
-                        const statusColor = 
-                            item.status === '✓' ? theme.colors.successGreen :
-                            item.status === '⚠' ? theme.colors.warningOrange :
-                            item.status === '⋯' ? theme.colors.accent : undefined;
-                        
-                        // Calculate available width for text
-                        const indicatorWidth = 2; // indicator + space
-                        const statusWidth = item.status ? contentService.measureText(' ' + item.status) : 0;
-                        const textMaxWidth = itemMaxWidth - indicatorWidth - statusWidth;
-                        const truncatedText = contentService.truncateText(item.text, textMaxWidth);
-                        
-                        // Custom rendering for status item
                         elements.push(
-                            <Box key={`item-${visualIndex}`}>
-                                <Text color={isSelected ? theme.colors.accent : undefined}>
-                                    {isSelected ? '▶' : '○'} {truncatedText}
-                                </Text>
-                                {item.status && (
-                                    <Text color={statusColor}> {item.status}</Text>
-                                )}
-                            </Box>
+                            React.cloneElement(itemElements, { key: `item-${visualIndex}` })
                         );
                     }
                 });

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
-import { ListItem } from './core/ListItem.js';
-import { TextInputBody } from './core/TextInputBody.js';
+import { ConfigurationListItem } from './core/ConfigurationListItem.js';
 import { theme } from '../utils/theme.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -262,42 +261,31 @@ export const ConfigurationPanel: React.FC<{
                     const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
                     const isInEditMode = editingNodeIndex === actualIndex;
                     
-                    if (isInEditMode) {
-                        // Edit mode view - keep original structure for proper line counting
-                        elements.push(
-                            <Text key={`item-${visualIndex}-header`} color={theme.colors.accent}>
-                                ▼ {item.label}:
-                            </Text>
-                        );
-                        
-                        // Use TextInputBody for the edit portion
-                        const bodyElements = TextInputBody({
-                            value: editValue,
-                            cursorPosition: cursorPosition,
-                            cursorVisible: cursorVisible,
-                            width: itemMaxWidth
-                        });
-                        
-                        // Add body elements directly to maintain proper line counting
-                        bodyElements.forEach((element, index) => {
+                    // Create ConfigurationListItem instance
+                    const listItem = new ConfigurationListItem(
+                        isSelected ? '▶' : '·',
+                        item.label,
+                        item.value,
+                        isSelected,
+                        isInEditMode,
+                        isInEditMode ? editValue : undefined,
+                        isInEditMode ? cursorPosition : undefined,
+                        isInEditMode ? cursorVisible : undefined
+                    );
+                    
+                    // Get rendered elements from list item
+                    const itemElements = listItem.render(itemMaxWidth + 2); // +2 for icon + space
+                    
+                    // Handle both single element and array of elements
+                    if (Array.isArray(itemElements)) {
+                        itemElements.forEach((element, index) => {
                             elements.push(
-                                React.cloneElement(element, { key: `item-${visualIndex}-body-${index}` })
+                                React.cloneElement(element, { key: `item-${visualIndex}-${index}` })
                             );
                         });
                     } else {
-                        // Collapsed state - single element
-                        // Use visualIndex for stable keys
-                        const collapsedKey = `item-${visualIndex}`;
-                        const header = `${item.label}: [\x1b[38;5;117m${item.value}\x1b[39m]`;
                         elements.push(
-                            <ListItem
-                                key={collapsedKey}
-                                icon={isSelected ? '▶' : '·'}
-                                header={header}
-                                isActive={isSelected}
-                                width={itemMaxWidth + 2} // Add back the 2 chars for icon + space
-                                color={theme.colors.accent}
-                            />
+                            React.cloneElement(itemElements, { key: `item-${visualIndex}` })
                         );
                     }
                 });

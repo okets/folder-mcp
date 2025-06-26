@@ -248,14 +248,52 @@ interface IListItem {
 - [ ] TextInput in expanded mode fits available width
 - [ ] Animations and responsive resize work smoothly
 
-## Phase 6: Final Cleanup
+## Phase 6: Block-Level Clipping Implementation
 
-### Step 6.1: Remove Duplicated Code
+### Problem Statement:
+- Ink's Box component doesn't provide true overflow clipping
+- Status items are wrapping to multiple lines
+- Need hard truncation at the block level to prevent layout breaks
+
+### Step 6.1: Enhance ScrollableBlock for Hard Clipping
+- Pre-process all children before rendering
+- Walk React element tree and extract text content
+- Apply hard width truncation at string level
+- Rebuild elements with truncated content
+- Ensure no child can exceed block width
+
+### Step 6.2: Implement Element Processing
+- Create `truncateElement` function to process React elements
+- Handle Text nodes, Box components, and nested structures
+- Preserve ANSI codes and styling while truncating
+- Account for Unicode character widths
+
+### Step 6.3: Fix StatusListItem Truncation
+- Improve width calculation using visual width not string length
+- Properly measure Unicode character widths
+- Account for exact status indicator width
+- Ensure truncation prevents any wrapping
+
+### Step 6.4: Test Block Clipping
+- Test with very long text in both panels
+- Verify no content exceeds block boundaries
+- Test with Unicode characters and emojis
+- Ensure responsive behavior still works
+
+### Verification:
+- [ ] No text wraps to multiple lines in narrow terminals
+- [ ] ScrollableBlock enforces hard width limits
+- [ ] Status indicators remain visible and aligned
+- [ ] All content is properly truncated at block edges
+- [ ] User QA mandatory to verify visual appearance
+## Phase 7: Final Cleanup
+
+### Step 7.1: Remove Duplicated Code
 - Remove inline calculateScrollbar from StatusPanel
 - Consolidate any repeated patterns
 - Ensure both panels use same components
 
-### Step 6.2: Test Everything
+### Step 7.2: Test Everything
 - Compare with `tui:old`
 - Test all keyboard shortcuts
 - Verify responsive behavior

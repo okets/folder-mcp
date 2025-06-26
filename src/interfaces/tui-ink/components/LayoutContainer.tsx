@@ -23,8 +23,9 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
     const isNarrow = availableWidth < narrowBreakpoint;
     
     // Log layout decisions in debug mode
-    if (debugService.isEnabled() || process.env.TUI_DEBUG) {
-        console.error(`[LayoutContainer] width=${availableWidth}, height=${availableHeight}, breakpoint=${narrowBreakpoint}, isNarrow=${isNarrow}`);
+    if (debugService.isEnabled()) {
+        debugService.logLayout('LayoutContainer', { width: availableWidth, height: availableHeight });
+        debugService.log('LayoutContainer', `Mode: ${isNarrow ? 'narrow' : 'wide'}`);
     }
     
     if (isNarrow) {
@@ -33,10 +34,10 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         const panelCount = children.length;
         
         // For narrow mode, allocate space proportionally
-        // Currently mimics the 65%/35% split for 2 panels
+        // Use 50%/50% split for better balance
         const heights = panelCount === 2 
             ? (() => {
-                const firstHeight = Math.floor(availableHeight * 0.65);
+                const firstHeight = Math.floor(availableHeight * 0.5);
                 const secondHeight = availableHeight - firstHeight; // Use remaining space
                 return [firstHeight, secondHeight];
               })()

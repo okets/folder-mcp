@@ -4,16 +4,19 @@ import { Box } from 'ink';
 export interface ScrollableBlockProps {
     children: React.ReactNode;
     height: number;
+    width: number;
     scrollOffset: number;
 }
 
 /**
- * Simple container that shows a viewport of content based on scroll offset
- * Just clips the visible portion - no scrollbar rendering here
+ * Container that provides a viewport with both vertical and horizontal clipping
+ * - Vertical: Shows only 'height' number of children starting from scrollOffset
+ * - Horizontal: Clips any content that exceeds the width (no horizontal scrolling)
  */
 export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
     children,
     height,
+    width,
     scrollOffset
 }) => {
     // Convert children to array to handle slicing
@@ -23,7 +26,11 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
     const visibleChildren = childArray.slice(scrollOffset, scrollOffset + height);
     
     return (
-        <Box flexDirection="column">
+        <Box 
+            flexDirection="column"
+            width={width}
+            overflow="hidden" // This would clip horizontal overflow in a real terminal
+        >
             {visibleChildren}
         </Box>
     );
