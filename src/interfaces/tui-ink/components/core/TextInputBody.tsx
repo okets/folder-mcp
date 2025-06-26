@@ -11,47 +11,49 @@ export interface TextInputBodyProps {
 
 /**
  * Text input body component for expandable list items
- * Renders a bordered text input with cursor support
+ * Returns an array of elements for a bordered text input with cursor support
  */
-export const TextInputBody: React.FC<TextInputBodyProps> = ({
+export const TextInputBody = ({
     value,
     cursorPosition,
     cursorVisible,
     width
-}) => {
+}: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to match content exactly
     const borderWidth = Math.max(value.length + 2, 18); // Content will be: text + cursor/padding + space
     
-    // Render text with cursor using ANSI escape codes
-    let content;
+    // Render text with cursor - we'll handle the coloring differently
+    let beforeCursor = value.slice(0, cursorPosition);
+    let atCursor = value[cursorPosition] || ' ';
+    let afterCursor = value.slice(cursorPosition + 1);
     
+    // Build content with proper cursor handling
+    let content;
     if (cursorVisible && cursorPosition < value.length) {
-        // Cursor is on existing character - highlight it
+        // Cursor on existing character
         const before = value.slice(0, cursorPosition);
         const cursorChar = value[cursorPosition];
         const after = value.slice(cursorPosition + 1);
         content = before + '\x1b[47m\x1b[38;5;102m' + cursorChar + '\x1b[0m\x1b[38;5;102m' + after + ' ';
     } else if (cursorVisible && cursorPosition >= value.length) {
-        // Cursor is at end - highlight the padding space
+        // Cursor at end
         content = value + '\x1b[47m\x1b[38;5;102m \x1b[0m';
     } else {
-        // No cursor visible - just text with padding
+        // No cursor
         content = value + ' ';
     }
-    
-    return (
-        <>
-            <Text color={theme.colors.textInputBorder}>
-                {'  '}╭{'─'.repeat(borderWidth)}╮
-            </Text>
-            <Box>
-                <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
-                <Text color={theme.colors.textMuted}> {content}</Text>
-                <Text color={theme.colors.textInputBorder}>│</Text>
-            </Box>
-            <Text color={theme.colors.textInputBorder}>
-                {'  '}╰{'─'.repeat(borderWidth)}╯
-            </Text>
-        </>
-    );
+
+    return [
+        <Text key="top" color={theme.colors.textInputBorder}>
+            {'  '}╭{'─'.repeat(borderWidth)}╮
+        </Text>,
+        <Box key="middle">
+            <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
+            <Text color={theme.colors.textMuted}> {content}</Text>
+            <Text color={theme.colors.textInputBorder}>│</Text>
+        </Box>,
+        <Text key="bottom" color={theme.colors.textInputBorder}>
+            {'  '}╰{'─'.repeat(borderWidth)}╯
+        </Text>
+    ];
 };

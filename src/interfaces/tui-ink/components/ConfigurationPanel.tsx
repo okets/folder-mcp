@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ListItem } from './core/ListItem.js';
@@ -201,29 +201,27 @@ export const ConfigurationPanel: React.FC<{
                     const isInEditMode = editingNodeIndex === actualIndex;
                     
                     if (isInEditMode) {
-                        // Edit mode view using ListItem with TextInputBody
-                        const header = `${item.label}:`;
-                        const body = (
-                            <TextInputBody
-                                value={editValue}
-                                cursorPosition={cursorPosition}
-                                cursorVisible={cursorVisible}
-                                width={itemMaxWidth}
-                            />
+                        // Edit mode view - keep original structure for proper line counting
+                        elements.push(
+                            <Text key={`item-${visualIndex}-header`} color={theme.colors.accent}>
+                                ▼ {item.label}:
+                            </Text>
                         );
                         
-                        elements.push(
-                            <ListItem
-                                key={`item-${visualIndex}`}
-                                icon="▼"
-                                header={header}
-                                body={body}
-                                isActive={true}
-                                isExpanded={true}
-                                width={itemMaxWidth + 2}
-                                color={theme.colors.accent}
-                            />
-                        );
+                        // Use TextInputBody for the edit portion
+                        const bodyElements = TextInputBody({
+                            value: editValue,
+                            cursorPosition: cursorPosition,
+                            cursorVisible: cursorVisible,
+                            width: itemMaxWidth
+                        });
+                        
+                        // Add body elements directly to maintain proper line counting
+                        bodyElements.forEach((element, index) => {
+                            elements.push(
+                                React.cloneElement(element, { key: `item-${visualIndex}-body-${index}` })
+                            );
+                        });
                     } else {
                         // Collapsed state - single element
                         // Use visualIndex for stable keys

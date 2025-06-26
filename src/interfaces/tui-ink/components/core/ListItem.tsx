@@ -30,16 +30,12 @@ export const ListItem: React.FC<ListItemProps> = ({
     const truncatedHeader = truncate(header, maxHeaderWidth);
     
     return (
-        <>
+        <Box flexDirection="column">
             <Text color={isActive ? color : undefined}>
                 {icon} {truncatedHeader}
             </Text>
-            {isExpanded && body && (
-                <Box flexDirection="column">
-                    {body}
-                </Box>
-            )}
-        </>
+            {isExpanded && body && body}
+        </Box>
     );
 };
 
