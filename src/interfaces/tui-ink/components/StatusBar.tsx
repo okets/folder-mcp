@@ -16,6 +16,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
     const { columns } = useTerminalSize();
     
+    // Match the same safety margin used in LayoutContainer
+    const statusBarWidth = columns - 1;
+    
     // Update key bindings whenever they change
     useEffect(() => {
         const updateBindings = () => {
@@ -104,7 +107,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
             borderStyle="single" 
             borderColor={colors.border}
             paddingX={1}
-            width="100%"
+            width={statusBarWidth}
         >
             <Text color={colors.textSecondary}>{content}</Text>
         </Box>
