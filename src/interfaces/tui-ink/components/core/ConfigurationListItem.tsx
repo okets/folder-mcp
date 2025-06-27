@@ -129,17 +129,37 @@ export class ConfigurationListItem implements IListItem {
             if (fullText.length >= maxWidth) {
                 // Force truncation to prevent wrapping
                 const safeLength = maxWidth - 4; // Leave room for "…]"
-                const truncatedText = fullText.slice(0, safeLength) + '…]';
+                const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
+                const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
+                const truncatedValue = value.slice(0, Math.max(0, remainingSpace));
+                
                 return (
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {truncatedText}
+                    <Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            {this.icon} {label}: [
+                        </Text>
+                        <Text color={theme.colors.bracketValueBright}>
+                            {truncatedValue}…
+                        </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            ]
+                        </Text>
                     </Text>
                 );
             }
                 
+            // Render with colored value (brackets stay in default color)
             return (
-                <Text color={this.isActive ? theme.colors.accent : undefined}>
-                    {fullText}
+                <Text>
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        {this.icon} {label}: [
+                    </Text>
+                    <Text color={theme.colors.bracketValueBright}>
+                        {value}{truncated ? '…' : ''}
+                    </Text>
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        ]
+                    </Text>
                 </Text>
             );
         }
