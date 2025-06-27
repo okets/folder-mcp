@@ -3,6 +3,8 @@ import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ConfigurationListItem } from './core/ConfigurationListItem.js';
 import { theme } from '../utils/theme.js';
+import { LogItem } from './core/LogItem.js';
+import { createConfigurationPanelItems } from '../models/mixedSampleData.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
@@ -12,16 +14,8 @@ import { useFocusChain } from '../hooks/useFocusChain.js';
 import { useRenderSlots } from '../hooks/useRenderSlots.js';
 import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 
-// Simple configuration items for testing
-export const configurationItems = [
-    { id: 'folder-path', label: 'Folder Path', value: '/Users/example/documents' },
-    { id: 'embedding-model', label: 'Embedding Model', value: 'nomic-embed-text' },
-    { id: 'cache-directory', label: 'Cache Directory', value: '~/.folder-mcp/cache' },
-    { id: 'memory-limit', label: 'Memory Limit', value: '2048' },
-    { id: 'hot-reload', label: 'Enable Hot Reload', value: 'Yes' },
-    { id: 'debug-logging', label: 'Enable Debug Logging', value: 'No' },
-    { id: 'network-timeout', label: 'Network Timeout', value: '30' }
-];
+// Get mixed items for configuration panel
+const configItems = createConfigurationPanelItems();
 
 
 export const ConfigurationPanel: React.FC<{ 
@@ -32,24 +26,8 @@ export const ConfigurationPanel: React.FC<{
     // Force update trigger
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
-    // Track configuration list items to maintain state
-    const [configListItems] = useState(() => {
-        return configurationItems.map((item, index) => {
-            return new ConfigurationListItem(
-                '·',
-                item.label,
-                item.value,
-                false,
-                false,
-                undefined,
-                undefined,
-                undefined,
-                (newValue) => {
-                    configurationItems[index].value = newValue;
-                }
-            );
-        });
-    });
+    // Use the mixed items directly
+    const configListItems = configItems;
     
     // Use shared navigation context
     const navigation = useNavigationContext();

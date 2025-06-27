@@ -8,33 +8,12 @@ import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
 import { useFocusChain } from '../hooks/useFocusChain.js';
-import { statusItems } from '../models/sampleData.js';
+import { createStatusPanelItems } from '../models/mixedSampleData.js';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 
-// Sample detail data for expanded views
-const statusDetails: Record<string, string[]> = {
-    'System components loaded': [
-        'All core components initialized successfully',
-        'Memory allocator: Ready',
-        'Thread pool: 8 workers active'
-    ],
-    'Validating embedding models': [
-        'Checking model availability...',
-        'Model: nomic-embed-text (1.5GB)',
-        'Status: Download in progress (45%)'
-    ],
-    'Memory usage: 1.2GB / 8GB': [
-        'Process memory: 1.2GB',
-        'Cache memory: 456MB',
-        'Available: 6.8GB'
-    ],
-    'Updates: Available': [
-        'Version 1.2.0 available',
-        'Fixes: Security patches',
-        'Run "npm update" to install'
-    ]
-};
+// Get mixed items for this panel
+const mixedItems = createStatusPanelItems();
 
 
 export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
@@ -44,8 +23,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const di = useDI();
     const statusBarService = di.resolve(ServiceTokens.StatusBarService);
     
-    // Local state for expanded items
+    // Local state for expanded items and force updates
     const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
+    const [updateTrigger, setUpdateTrigger] = useState(0);
     
     // Calculate visible count based on height
     const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
@@ -58,17 +38,13 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     const borderOverhead = 5;
     const itemMaxWidth = panelWidth - borderOverhead;
     
-    // Create LogItem instances
-    const statusListItems = statusItems.map((item, index) => {
-        const isExpanded = expandedIndices.has(index);
-        return new LogItem(
-            navigation.isStatusFocused && navigation.statusSelectedIndex === index ? '▶' : '○',
-            item.text,
-            item.status,
-            navigation.isStatusFocused && navigation.statusSelectedIndex === index,
-            isExpanded,
-            statusDetails[item.text]
-        );
+    // Update item states based on selection
+    mixedItems.forEach((item, index) => {
+        const isSelected = navigation.isStatusFocused && navigation.statusSelectedIndex === index;
+        if ('icon' in item && 'isActive' in item) {
+            (item as any).icon = isSelected ? '▶' : (item instanceof LogItem ? '○' : '·');
+            (item as any).isActive = isSelected;
+        }
     });
     
     // Calculate total content lines and line positions using list items
@@ -77,9 +53,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     let currentLine = 0;
     
     // Only calculate if we have items
-    if (statusListItems.length > 0) {
-        for (let i = 0; i < statusListItems.length; i++) {
-            const itemLines = statusListItems[i].getRequiredLines(itemMaxWidth);
+    if (mixedItems.length > 0) {
+        for (let i = 0; i < mixedItems.length; i++) {
+            const itemLines = mixedItems[i].getRequiredLines(itemMaxWidth);
             totalContentLines += itemLines;
             
             itemLinePositions.push({
@@ -109,7 +85,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     
     // Find first visible item based on line scroll offset
     let scrollOffset = 0;
-    for (let i = 0; i < statusListItems.length && i < itemLinePositions.length; i++) {
+    for (let i = 0; i < mixedItems.length && i < itemLinePositions.length; i++) {
         if (itemLinePositions[i].end > lineScrollOffset) {
             scrollOffset = i;
             break;
@@ -121,7 +97,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     let linesUsed = 0;
     let startLine = scrollOffset < itemLinePositions.length && itemLinePositions[scrollOffset] ? itemLinePositions[scrollOffset].start : 0;
     
-    for (let i = scrollOffset; i < statusListItems.length && i < itemLinePositions.length; i++) {
+    for (let i = scrollOffset; i < mixedItems.length && i < itemLinePositions.length; i++) {
         // Check if this item fits completely
         if (itemLinePositions[i] && itemLinePositions[i].end - startLine <= maxLines) {
             visibleCount++;
@@ -131,7 +107,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
         }
     }
     
-    const visibleItems = statusListItems.slice(scrollOffset, scrollOffset + visibleCount);
+    const visibleItems = mixedItems.slice(scrollOffset, scrollOffset + visibleCount);
     
     // Total lines already calculated above
     const totalLines = totalContentLines;
@@ -162,30 +138,25 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     
     // Handle status panel input
     const handleStatusInput = useCallback((input: string, key: Key): boolean => {
-        const selectedItem = statusListItems[navigation.statusSelectedIndex];
+        const selectedItem = mixedItems[navigation.statusSelectedIndex];
         
         // If an item is controlling input, delegate to it
         if (selectedItem?.isControllingInput && selectedItem.handleInput) {
-            return selectedItem.handleInput(input, key);
+            const handled = selectedItem.handleInput(input, key);
+            // Force re-render for ConfigurationListItem updates
+            setUpdateTrigger(prev => prev + 1);
+            return handled;
         }
         
         // Otherwise handle navigation
         if ((key.return || key.rightArrow) && selectedItem?.onEnter) {
             selectedItem.onEnter();
-            // Toggle expanded state in our tracking
-            setExpandedIndices(prev => {
-                const newSet = new Set(prev);
-                if (newSet.has(navigation.statusSelectedIndex)) {
-                    newSet.delete(navigation.statusSelectedIndex);
-                } else {
-                    newSet.add(navigation.statusSelectedIndex);
-                }
-                return newSet;
-            });
+            // Force re-render for any state changes
+            setUpdateTrigger(prev => prev + 1);
             return true;
         }
         return false;
-    }, [statusListItems, navigation.statusSelectedIndex]);
+    }, [mixedItems, navigation.statusSelectedIndex]);
     
     // Use focus chain
     useFocusChain({
@@ -231,7 +202,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     }
                 });
                 
-                return elements.length > 0 ? elements : <Text color={theme.colors.textMuted}>{statusListItems.length} items</Text>;
+                return elements.length > 0 ? elements : <Text color={theme.colors.textMuted}>{mixedItems.length} items</Text>;
             })()}
         </BorderedBox>
     );
