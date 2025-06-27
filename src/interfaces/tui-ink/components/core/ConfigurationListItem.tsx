@@ -133,31 +133,54 @@ export class ConfigurationListItem implements IListItem {
     private formatHeader(maxWidth: number): string {
         const iconWidth = 2; // icon + space
         const availableWidth = maxWidth - iconWidth;
+        const minBracketContent = "[…]"; // 3 chars
+        const colorStart = '\x1b[38;5;117m';
+        const colorEnd = '\x1b[39m';
         
-        // Format: "Label: [value]"
-        const fullText = `${this.label}: [\x1b[38;5;117m${this.value}\x1b[39m]`;
-        
-        // Calculate visible length without ANSI codes
-        const visibleLength = this.stripAnsi(`${this.label}: [${this.value}]`).length;
-        
-        if (visibleLength <= availableWidth) {
-            return fullText;
+        // Check if everything fits
+        const fullText = `${this.label}: [${this.value}]`;
+        if (fullText.length <= availableWidth) {
+            return `${this.label}: [${colorStart}${this.value}${colorEnd}]`;
         }
         
-        // Need to truncate - preserve label and brackets
-        const labelAndBrackets = this.label.length + 4; // ": []"
-        const availableForValue = availableWidth - labelAndBrackets - 3; // -3 for "..."
-        
-        if (availableForValue <= 0) {
-            // Even label doesn't fit, truncate it
-            const labelWidth = availableWidth - 7; // ": [...]"
-            const truncatedLabel = this.truncate(this.label, labelWidth);
-            return `${truncatedLabel}: [...]`;
+        // Minimum viable display is "[…]" = 3 chars
+        if (availableWidth < minBracketContent.length) {
+            return minBracketContent;
         }
         
-        // Truncate the value
-        const truncatedValue = this.truncate(this.value, availableForValue);
-        return `${this.label}: [\x1b[38;5;117m${truncatedValue}\x1b[39m]`;
+        // Calculate components
+        const separatorAndBrackets = ": []"; // 4 chars
+        const labelAndSeparatorLength = this.label.length + 2; // "Label: "
+        const bracketsLength = 2; // "[]"
+        const ellipsisLength = 1; // "…"
+        
+        // First priority: try to fit label + brackets with truncated value
+        const spaceForValue = availableWidth - labelAndSeparatorLength - bracketsLength;
+        
+        if (spaceForValue > 0) {
+            // We can fit the label and brackets with at least one char inside
+            let truncatedValue: string;
+            if (spaceForValue === 1) {
+                truncatedValue = '…';
+            } else if (this.value.length > spaceForValue) {
+                truncatedValue = this.value.slice(0, spaceForValue - ellipsisLength) + '…';
+            } else {
+                truncatedValue = this.value;
+            }
+            return `${this.label}: [${colorStart}${truncatedValue}${colorEnd}]`;
+        }
+        
+        // Second priority: truncate label to make room for "[…]"
+        const minLabelSpace = availableWidth - minBracketContent.length - 2; // -2 for ": "
+        if (minLabelSpace > 0) {
+            const truncatedLabel = this.label.length > minLabelSpace 
+                ? this.label.slice(0, minLabelSpace - ellipsisLength) + '…'
+                : this.label;
+            return `${truncatedLabel}: ${minBracketContent}`;
+        }
+        
+        // Last resort: just show brackets with ellipsis
+        return minBracketContent;
     }
     
     private stripAnsi(text: string): string {
@@ -168,9 +191,9 @@ export class ConfigurationListItem implements IListItem {
         if (text.length <= maxWidth) {
             return text;
         }
-        if (maxWidth <= 3) {
-            return '...'.slice(0, maxWidth);
+        if (maxWidth <= 1) {
+            return '…'.slice(0, maxWidth);
         }
-        return text.slice(0, maxWidth - 3) + '...';
+        return text.slice(0, maxWidth - 1) + '…';
     }
 }
