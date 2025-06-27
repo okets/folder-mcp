@@ -216,9 +216,17 @@ export const ConfigurationPanel: React.FC<{
                 // Build a flat array to avoid Fragment key issues
                 const elements: React.ReactElement[] = [];
                 
+                let remainingLines = maxLines;
+                
                 visibleItems.forEach((listItem, visualIndex) => {
+                    // Calculate max lines available for this item
+                    const itemMaxLines = Math.min(
+                        remainingLines,
+                        listItem.getRequiredLines(itemMaxWidth)
+                    );
+                    
                     // Get rendered elements from list item
-                    const itemElements = listItem.render(itemMaxWidth);
+                    const itemElements = listItem.render(itemMaxWidth, itemMaxLines);
                     
                     // Wrap in SelfConstrainedWrapper to prevent double truncation
                     if (Array.isArray(itemElements)) {
@@ -230,12 +238,14 @@ export const ConfigurationPanel: React.FC<{
                                 </SelfConstrainedWrapper>
                             );
                         });
+                        remainingLines -= itemElements.length;
                     } else {
                         elements.push(
                             <SelfConstrainedWrapper key={`item-${visualIndex}`}>
                                 {itemElements}
                             </SelfConstrainedWrapper>
                         );
+                        remainingLines -= 1;
                     }
                 });
                 

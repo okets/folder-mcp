@@ -14,9 +14,10 @@ export interface IListItem extends ISelfConstrainedItem {
     /**
      * Render the list item with the given maximum width
      * @param maxWidth - Maximum width available for the item
+     * @param maxLines - Maximum lines available for expanded content (optional)
      * @returns React element(s) to render
      */
-    render(maxWidth: number): ReactElement | ReactElement[];
+    render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[];
     
     /**
      * Calculate how many terminal lines this item requires

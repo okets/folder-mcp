@@ -57,7 +57,7 @@ export class LogItem implements IListItem {
         // Could remove visual feedback when deselected
     }
     
-    render(maxWidth: number): ReactElement | ReactElement[] {
+    render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
         if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
@@ -72,17 +72,26 @@ export class LogItem implements IListItem {
                 this.renderSegments(headerSegments)
             );
             
-            // Detail lines - word wrapped to fit width
-            this.details.forEach((detail, index) => {
-                const wrappedLines = this.wordWrap(detail, maxWidth - 2); // -2 for indent
-                wrappedLines.forEach((line, lineIndex) => {
+            // Calculate available lines for details (if maxLines is specified)
+            let remainingLines = maxLines ? maxLines - 1 : undefined; // -1 for header
+            
+            // Detail lines - word wrapped to fit width and height
+            for (let i = 0; i < this.details.length && (!remainingLines || remainingLines > 0); i++) {
+                const detail = this.details[i];
+                const wrappedLines = this.wordWrap(detail, maxWidth - 2, remainingLines); // -2 for indent
+                
+                for (let j = 0; j < wrappedLines.length && (!remainingLines || remainingLines > 0); j++) {
                     elements.push(
-                        <Text key={`detail-${index}-${lineIndex}`} color={theme.colors.textMuted}>
-                            {'  '}{line}
+                        <Text key={`detail-${i}-${j}`} color={theme.colors.textMuted}>
+                            {'  '}{wrappedLines[j]}
                         </Text>
                     );
-                });
-            });
+                    
+                    if (remainingLines) {
+                        remainingLines--;
+                    }
+                }
+            }
             
             return elements;
         } else {
@@ -123,7 +132,7 @@ export class LogItem implements IListItem {
         return this.text.slice(0, availableWidth - 1) + '…';
     }
     
-    private wordWrap(text: string, maxWidth: number): string[] {
+    private wordWrap(text: string, maxWidth: number, maxLines?: number): string[] {
         if (text.length <= maxWidth) {
             return [text];
         }
@@ -133,18 +142,63 @@ export class LogItem implements IListItem {
         let currentLine = '';
         
         for (const word of words) {
-            if (currentLine.length === 0) {
+            // Handle words longer than maxWidth by breaking them
+            if (word.length > maxWidth) {
+                // Finish current line if it has content
+                if (currentLine.length > 0) {
+                    lines.push(currentLine);
+                    currentLine = '';
+                    
+                    // Check if we've reached maxLines
+                    if (maxLines && lines.length >= maxLines - 1) {
+                        // Add truncated last line
+                        const remaining = words.slice(words.indexOf(word)).join(' ');
+                        const truncated = remaining.slice(0, maxWidth - 3) + '...';
+                        lines.push(truncated);
+                        return lines;
+                    }
+                }
+                
+                // Break the long word into chunks
+                let remaining = word;
+                while (remaining.length > 0 && (!maxLines || lines.length < maxLines - 1)) {
+                    const chunk = remaining.slice(0, maxWidth - 1) + '-';
+                    lines.push(chunk);
+                    remaining = remaining.slice(maxWidth - 1);
+                }
+                
+                // Set remaining part as current line
+                if (remaining.length > 0) {
+                    currentLine = remaining;
+                }
+            } else if (currentLine.length === 0) {
                 currentLine = word;
             } else if (currentLine.length + 1 + word.length <= maxWidth) {
                 currentLine += ' ' + word;
             } else {
                 lines.push(currentLine);
+                
+                // Check if we've reached maxLines
+                if (maxLines && lines.length >= maxLines - 1) {
+                    // Add truncated last line
+                    const remaining = words.slice(words.indexOf(word)).join(' ');
+                    const truncated = remaining.slice(0, maxWidth - 3) + '...';
+                    lines.push(truncated);
+                    return lines;
+                }
+                
                 currentLine = word;
             }
         }
         
         if (currentLine.length > 0) {
-            lines.push(currentLine);
+            if (maxLines && lines.length >= maxLines - 1) {
+                // Truncate the last line if needed
+                const truncated = currentLine.slice(0, maxWidth - 3) + '...';
+                lines.push(truncated);
+            } else {
+                lines.push(currentLine);
+            }
         }
         
         return lines;

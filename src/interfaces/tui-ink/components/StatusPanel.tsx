@@ -184,9 +184,17 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                 // Build a flat array to avoid Fragment key issues
                 const elements: React.ReactElement[] = [];
                 
+                let remainingLines = maxLines;
+                
                 visibleItems.forEach((listItem, visualIndex) => {
+                    // Calculate max lines available for this item
+                    const itemMaxLines = Math.min(
+                        remainingLines,
+                        listItem.getRequiredLines(itemMaxWidth)
+                    );
+                    
                     // Get rendered elements from list item
-                    const itemElements = listItem.render(itemMaxWidth);
+                    const itemElements = listItem.render(itemMaxWidth, itemMaxLines);
                     
                     // Handle both single element and array of elements
                     if (Array.isArray(itemElements)) {
@@ -195,10 +203,12 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                                 React.cloneElement(element, { key: `item-${visualIndex}-${index}` })
                             );
                         });
+                        remainingLines -= itemElements.length;
                     } else {
                         elements.push(
                             React.cloneElement(itemElements, { key: `item-${visualIndex}` })
                         );
+                        remainingLines -= 1;
                     }
                 });
                 

@@ -92,7 +92,7 @@ export class ConfigurationListItem implements IListItem {
         // Could remove visual feedback when deselected
     }
     
-    render(maxWidth: number): ReactElement | ReactElement[] {
+    render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
         if (this._isControllingInput) {
             // Expanded edit mode
             const elements: ReactElement[] = [];
