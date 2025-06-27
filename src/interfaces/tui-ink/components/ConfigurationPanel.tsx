@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, Fragment } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ConfigurationListItem } from './core/ConfigurationListItem.js';
-import { theme } from '../utils/theme.js';
 import { LogItem } from './core/LogItem.js';
+import { theme } from '../utils/theme.js';
 import { createConfigurationPanelItems } from '../models/mixedSampleData.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -41,7 +41,16 @@ export const ConfigurationPanel: React.FC<{
     // Update item states based on selection
     configListItems.forEach((item, index) => {
         const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === index;
-        item.icon = isSelected ? '▶' : '·';
+        if (isSelected) {
+            // Check if it's a LogItem without details
+            if (item instanceof LogItem && !(item as any).details) {
+                item.icon = '■'; // Rectangle for non-expandable
+            } else {
+                item.icon = '▶'; // Arrow for expandable
+            }
+        } else {
+            item.icon = '·';
+        }
         item.isActive = isSelected;
     });
     
@@ -208,6 +217,7 @@ export const ConfigurationPanel: React.FC<{
     // Determine key bindings based on selected item and edit mode
     const selectedItem = configListItems[navigation.configSelectedIndex];
     const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+    const hasDetails = isLogItem && (selectedItem as any).details;
     const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
     
     let keyBindings = [];
@@ -217,7 +227,8 @@ export const ConfigurationPanel: React.FC<{
             { key: 'Esc', description: 'Cancel' },
             { key: 'Enter', description: 'Save' }
         ];
-    } else if (isLogItem) {
+    } else if (isLogItem && hasDetails) {
+        // LogItem with details - can expand/collapse
         if (isExpanded) {
             keyBindings = [
                 { key: '←/Esc', description: 'Collapse' },
@@ -228,6 +239,9 @@ export const ConfigurationPanel: React.FC<{
                 { key: '→/Enter', description: 'Expand' }
             ];
         }
+    } else if (isLogItem) {
+        // LogItem without details - no actions
+        keyBindings = [];
     } else {
         // For ConfigurationListItem not in edit mode
         keyBindings = [

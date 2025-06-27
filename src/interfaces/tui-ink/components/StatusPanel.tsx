@@ -43,7 +43,16 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     mixedItems.forEach((item, index) => {
         const isSelected = navigation.isStatusFocused && navigation.statusSelectedIndex === index;
         if ('icon' in item && 'isActive' in item) {
-            (item as any).icon = isSelected ? '▶' : (item instanceof LogItem ? '○' : '·');
+            if (isSelected) {
+                // Check if it's a LogItem without details
+                if (item instanceof LogItem && !(item as any).details) {
+                    (item as any).icon = '■'; // Rectangle for non-expandable
+                } else {
+                    (item as any).icon = '▶'; // Arrow for expandable
+                }
+            } else {
+                (item as any).icon = item instanceof LogItem ? '○' : '·';
+            }
             (item as any).isActive = isSelected;
         }
     });
@@ -181,10 +190,12 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     // Determine key bindings based on selected item
     const selectedItem = mixedItems[navigation.statusSelectedIndex];
     const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+    const hasDetails = isLogItem && (selectedItem as any).details;
     const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
     
     let keyBindings = [];
-    if (isLogItem) {
+    if (isLogItem && hasDetails) {
+        // LogItem with details - can expand/collapse
         if (isExpanded) {
             keyBindings = [
                 { key: '←/Esc', description: 'Collapse' },
@@ -195,6 +206,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                 { key: '→/Enter', description: 'Expand' }
             ];
         }
+    } else if (isLogItem) {
+        // LogItem without details - no actions
+        keyBindings = [];
     } else {
         // For ConfigurationListItem in status panel
         keyBindings = [
