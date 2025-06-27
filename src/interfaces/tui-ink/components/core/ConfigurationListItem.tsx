@@ -119,7 +119,7 @@ export class ConfigurationListItem implements IListItem {
             const headerText = this.formatHeader(maxWidth);
             
             return (
-                <Text color={this.isActive ? theme.colors.accent : undefined}>
+                <Text color={this.isActive ? theme.colors.accent : undefined} wrap="truncate">
                     {this.icon} {headerText}
                 </Text>
             );
