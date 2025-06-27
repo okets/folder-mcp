@@ -248,80 +248,166 @@ interface IListItem {
 - [ ] TextInput in expanded mode fits available width
 - [ ] Animations and responsive resize work smoothly
 
-## Phase 6: ListItem Truncation Implementation
+## Phase 6: ListItem Truncation Implementation with Segments Approach
 
 ### Problem Statement:
 - List items are not properly truncating their content based on maxWidth
-- Text is wrapping or being displayed incorrectly in narrow terminals
-- Need consistent truncation behavior across different list item types
-- Each list item type should handle truncation according to its specific needs
+- Ink's Text component wraps when content exactly matches container width
+- Nested Text components for colors make wrapping behavior worse
+- Need to preserve colored status indicators while preventing text wrapping
+
+### Root Cause:
+When text content exactly fills the available width, Ink automatically wraps it to the next line. This happens even with properly calculated widths because Ink's layout engine treats exact-width content as needing wrapping.
 
 ### Design Philosophy:
-- Each ListItem implements its own truncation strategy based on its layout
-- maxWidth comes from the container (ScrollableBlock/Panel)
-- ScrollableBlock clips any overflow as a safety net
-- No architectural changes - focus on fixing truncation logic
+- Use a segments-based approach to build lines with precise control
+- Pre-calculate safe widths with buffer to prevent exact-width scenarios
+- Maintain color support through controlled Text component composition
+- Each ListItem type implements its own segment builder
 
-### Step 6.1: Fix ConfigurationListItem Truncation
-**Goal**: Ensure configuration items truncate properly with "..."
+### Step 6.1: Implement Segments Parser for StatusListItem
+**Goal**: Fix text wrapping while preserving colored status indicators
 
-#### Header Truncation:
-- Format: `"icon label: [value]"`
-- When truncating: preserve icon, truncate label and/or value with "..."
-- Priority: Show as much of label as possible, then value
-- Example: `"▶ Folder Path: [/Users/exam...]"`
+#### Segments Approach:
+```typescript
+interface Segment {
+    text: string;
+    color?: string;
+}
 
-#### Body (TextInput) Behavior:
-- Text input box width = maxWidth - 2 (for indent/padding)
-- Input field has visible width but can contain longer text
-- Content scrolls horizontally with cursor (like HTML input)
-- Visual indicators `[` and `]` show input boundaries
-- Example:
-  ```
-  ▼ Folder Path:
-    [/very/long/path/that/exceeds/the/box/wi...]
-     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ (visible window)
-  ```
+class StatusListItem {
+    buildSegments(maxWidth: number): Segment[] {
+        const BUFFER = 2; // Prevent exact width match
+        const safeWidth = maxWidth - BUFFER;
+        
+        // Calculate space allocation
+        const iconWidth = this.icon.length + 1;
+        const statusWidth = this.status ? this.status.length + 1 : 0;
+        const textWidth = safeWidth - iconWidth - statusWidth;
+        
+        // Truncate text if needed
+        const displayText = this.truncateText(this.text, textWidth);
+        
+        // Calculate padding
+        const usedWidth = iconWidth + displayText.length + statusWidth;
+        const padding = Math.max(0, safeWidth - usedWidth);
+        
+        // Build segments
+        return [
+            { text: `${this.icon} ${displayText}`, color: this.isActive ? 'accent' : undefined },
+            { text: ' '.repeat(padding) },
+            { text: this.status ? ` ${this.status}` : '', color: this.getStatusColor() }
+        ];
+    }
+    
+    render(maxWidth: number): ReactElement {
+        const segments = this.buildSegments(maxWidth);
+        return (
+            <Text>
+                {segments.map((seg, i) => 
+                    seg.color ? (
+                        <Text key={i} color={seg.color}>{seg.text}</Text>
+                    ) : (
+                        <React.Fragment key={i}>{seg.text}</React.Fragment>
+                    )
+                )}
+            </Text>
+        );
+    }
+}
+```
 
-### Step 6.2: Fix StatusListItem Truncation  
-**Goal**: Ensure status items preserve icon and status indicator
+### Step 6.2: Apply Segments Approach to ConfigurationListItem
+**Goal**: Fix configuration item truncation using same segments pattern
 
-#### Header Truncation:
-- Format: `"icon text status"`
-- When truncating: preserve icon and status, truncate text in the middle
-- Calculate: `availableTextWidth = maxWidth - iconWidth(2) - statusWidth(2)`
-- Example: `"○ System components loa... ✓"`
+#### Implementation:
+```typescript
+class ConfigurationListItem {
+    buildSegments(maxWidth: number): Segment[] {
+        const BUFFER = 2;
+        const safeWidth = maxWidth - BUFFER;
+        
+        if (this.isExpanded) {
+            // Header only - body handled separately
+            return [
+                { text: '▼ ', color: this.isActive ? 'accent' : undefined },
+                { text: `${this.label}:`, color: this.isActive ? 'accent' : undefined }
+            ];
+        } else {
+            // Calculate space for "[value]"
+            const iconWidth = 2; // '▶ '
+            const labelWidth = this.label.length + 2; // label + ': '
+            const valueWidth = this.value ? this.value.length + 2 : 0; // '[' + ']'
+            
+            // Truncate if needed
+            if (iconWidth + labelWidth + valueWidth > safeWidth) {
+                // Truncate value first, then label
+                const availableForValue = safeWidth - iconWidth - labelWidth - 2;
+                const truncatedValue = this.truncateText(this.value, Math.max(3, availableForValue));
+                return [
+                    { text: `${this.icon} ${this.label}: `, color: this.isActive ? 'accent' : undefined },
+                    { text: '[', color: 'dim' },
+                    { text: truncatedValue },
+                    { text: ']', color: 'dim' }
+                ];
+            }
+            
+            return [
+                { text: `${this.icon} ${this.label}: `, color: this.isActive ? 'accent' : undefined },
+                { text: '[', color: 'dim' },
+                { text: this.value || '' },
+                { text: ']', color: 'dim' }
+            ];
+        }
+    }
+}
+```
 
-#### Body (Expanded Details) Behavior:
-- Each detail line word-wraps to fit maxWidth - 2 (for indent)
-- Line breaking at word boundaries when possible
-- Single words exceeding maxWidth get truncated with "..."
-- Multiple wrapped lines are acceptable (unlike header)
-- Example:
-  ```
-  ▼ System components loaded ✓
-    All core components initialized 
-    successfully
-    Memory allocator: Ready
-    Thread pool: 8 workers active
-  ```
+### Step 6.3: Create Shared Truncation Utilities
+**Goal**: Centralize width calculation and truncation logic
 
-### Step 6.3: Implement Proper Width Calculation
-**Goal**: Accurate width measurement for truncation
+```typescript
+// In ContentService or new TruncationService
+class TruncationService {
+    // Already exists in ContentService
+    truncateText(text: string, maxWidth: number): string {
+        if (text.length <= maxWidth) return text;
+        if (maxWidth <= 3) return '…';
+        return text.slice(0, maxWidth - 1) + '…';
+    }
+    
+    // Add segment builder helper
+    buildSegments(parts: Array<{text: string, color?: string}>): Segment[] {
+        return parts.filter(part => part.text.length > 0);
+    }
+}
+```
 
-- Account for ANSI escape codes (don't count them in width)
-- Handle Unicode characters properly (some are 2 columns wide)
-- Create utility functions for visual width calculation
-- Test with various character sets and terminal emulators
+### Step 6.4: Alternative Approaches (if segments fail)
+**Goal**: Document fallback strategies
 
-### Step 6.4: Add Truncation Utilities
-**Goal**: Shared truncation logic for consistency
+#### Option 1: Chalk Pre-coloring
+```typescript
+import chalk from 'chalk';
+const line = `${icon} ${text}${padding} ${chalk[statusColor](status)}`;
+return <Text>{line}</Text>;
+```
 
-Create shared utilities:
-- `getVisualWidth(text: string): number` - counts visible columns
-- `truncateText(text: string, maxWidth: number, ellipsis?: string): string`
-- `stripAnsi(text: string): string` - for width calculation
-- `measureUnicodeWidth(char: string): number` - for wide characters
+#### Option 2: Fixed Safety Buffer
+```typescript
+// Always reserve 2-3 chars to prevent exact width
+const safeMaxWidth = maxWidth - 3;
+// Build line normally but with reduced width
+```
+
+#### Option 3: Custom Width with ContentService
+```typescript
+// Use ContentService to measure exact visual width
+const visualWidth = contentService.getVisualWidth(line);
+if (visualWidth >= maxWidth - 1) {
+    // Truncate further
+}
+```
 
 ### Step 6.5: Test Edge Cases
 **Goal**: Ensure robust truncation in all scenarios
@@ -330,11 +416,26 @@ Test cases:
 - Very narrow terminals (< 50 columns)
 - Very long text with no spaces
 - Unicode characters and emojis
-- ANSI colored text
-- Empty or very short text
-- Exact width boundaries (off-by-one errors)
+- Status indicators at different positions
+- Text that exactly matches width - 1, width, width + 1
+- Empty status vs. with status
+- Active vs. inactive items
+- Expanded vs. collapsed items
 
-### Step 6.6: Verify Visual Output
+### Implementation Order:
+1. Start with StatusListItem segments approach
+2. Test with various widths and content
+3. If successful, apply to ConfigurationListItem
+4. If segments approach fails, try chalk pre-coloring
+5. As last resort, use fixed safety buffer
+
+### Success Criteria:
+- [ ] No text wrapping in StatusPanel
+- [ ] Status indicators show correct colors
+- [ ] Text truncates with ellipsis when too long
+- [ ] All items in list are visible (not empty)
+- [ ] Works across different terminal widths
+## End of Phase 6
 **Goal**: Ensure proper display in actual terminal
 
 - Run side-by-side comparison with tui:old

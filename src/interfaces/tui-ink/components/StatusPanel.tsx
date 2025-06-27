@@ -50,7 +50,10 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
-    const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
+    // BorderedBox subtracts 4 for borders/padding, plus 1 for scrollbar space
+    const borderOverhead = 5;
+    const itemMaxWidth = panelWidth - borderOverhead;
+    
     
     // Calculate total content lines and line positions using list items
     let totalContentLines = 0;
@@ -71,7 +74,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
             statusDetails[item.text]
         );
         
-        const itemLines = tempListItem.getRequiredLines(itemMaxWidth + 2);
+        const itemLines = tempListItem.getRequiredLines(itemMaxWidth);
         totalContentLines += itemLines;
         
         itemLinePositions.push({
@@ -207,7 +210,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     );
                     
                     // Get rendered elements from list item
-                    const itemElements = listItem.render(itemMaxWidth + 2); // +2 for icon + space
+                    const itemElements = listItem.render(itemMaxWidth);
                     
                     // Handle both single element and array of elements
                     if (Array.isArray(itemElements)) {
