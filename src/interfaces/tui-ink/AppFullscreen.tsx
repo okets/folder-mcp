@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Box, useApp, Key } from 'ink';
+import { Box, Text, useApp, Key } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LayoutContainer } from './components/LayoutContainer.js';

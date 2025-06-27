@@ -629,6 +629,139 @@ interface IListItem extends ISelfConstrainedItem {
 
 ## End of Phase 8
 
+## Phase 9: Responsive Layout Fixes - Terminal Size Edge Cases
+
+### Problem Statement:
+- Logo gets cut off at the top in narrow terminals (<66 columns)
+- System Status panel bottom border missing due to vertical overflow
+- Status bar text wraps to multiple lines in narrow terminals, consuming extra height
+- No safeguards for minimum terminal dimensions causing layout breaks
+
+### Root Causes:
+1. **Height Calculation Issue**: App assumes full terminal height without accounting for terminal chrome/prompt
+2. **Status Bar Text Overflow**: At 65 columns, status bar text wraps causing extra height consumption
+3. **No Terminal Size Validation**: Missing checks for minimum viable terminal dimensions
+
+### Implementation Steps:
+
+#### Step 9.1: Add Height Buffer in AppFullscreen
+**Goal**: Prevent vertical overflow by accounting for terminal chrome
+
+```typescript
+// In AppFullscreen.tsx
+// Before:
+const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
+
+// After:
+const TERMINAL_BUFFER = 1; // Safety buffer for terminal chrome
+const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT - TERMINAL_BUFFER;
+```
+
+- Add 1-row safety buffer to height calculations
+- This prevents bottom content from being cut off
+- Panels will be slightly shorter but fully visible
+
+#### Step 9.2: Implement Responsive Status Bar
+**Goal**: Prevent text wrapping in narrow terminals
+
+```typescript
+// Create width-aware status bar content
+const getStatusBarContent = (width: number): string => {
+    if (width >= 80) {
+        // Full text for wide terminals
+        return '[→/Enter] Edit • [Tab] Switch Panel • [↑↓] Navigate • [q] Quit';
+    } else if (width >= 66) {
+        // Abbreviated for medium terminals
+        return '[Enter] Edit • [Tab] Switch • [↑↓] Nav • [q] Quit';
+    } else {
+        // Minimal for narrow terminals
+        return 'Enter:Edit Tab:Switch ↑↓:Nav q:Quit';
+    }
+};
+```
+
+- Dynamically adjust text based on terminal width
+- Use shorter descriptions for narrow terminals
+- Prevent text wrapping that consumes extra height
+
+#### Step 9.3: Add Terminal Size Validation
+**Goal**: Provide clear feedback for unsupported terminal sizes
+
+```typescript
+// Add minimum size checks
+const MIN_WIDTH = 66;
+const MIN_HEIGHT = 20;
+
+if (columns < MIN_WIDTH || rows < MIN_HEIGHT) {
+    return (
+        <Box flexDirection="column" paddingY={1}>
+            <Text color="yellow">
+                Terminal too small: {columns}x{rows}
+            </Text>
+            <Text>
+                Minimum required: {MIN_WIDTH}x{MIN_HEIGHT}
+            </Text>
+            <Text color="gray">
+                Please resize your terminal window.
+            </Text>
+        </Box>
+    );
+}
+```
+
+- Show graceful degradation message when terminal too small
+- Provide clear minimum dimension requirements
+- Prevent broken layouts in tiny terminals
+
+#### Step 9.4: Adjust Narrow Mode Breakpoint
+**Goal**: Better handle edge cases around 65-66 column width
+
+```typescript
+// In LayoutContainer.tsx
+// Adjust breakpoint to account for minimum viable width
+const narrowBreakpoint = 66; // Was 100, now matches minimum width
+```
+
+- Ensure narrow mode only activates when truly needed
+- Prevent premature stacking of panels
+- Better utilize available horizontal space
+
+### Testing Strategy:
+1. **Test Terminal Sizes**:
+   - 65x24 (below minimum - should show warning)
+   - 66x24 (minimum width - should work)
+   - 80x24 (standard terminal)
+   - 100x30 (wide terminal)
+
+2. **Verify Visual Elements**:
+   - Logo fully visible in all cases
+   - Both panel borders complete
+   - Status bar text appropriate for width
+   - No unexpected text wrapping
+
+3. **Edge Case Testing**:
+   - Resize terminal while app is running
+   - Start app in too-small terminal
+   - Test with terminal prompts present
+
+### Verification Checklist:
+- [ ] Logo header fully visible at 66+ columns width
+- [ ] Status panel bottom border always visible
+- [ ] Status bar adapts text based on width
+- [ ] Minimum size warning displays correctly
+- [ ] No visual artifacts at boundary conditions
+- [ ] Layout remains stable during terminal resize
+- [ ] Height buffer prevents content cutoff
+
+### Success Criteria:
+- App displays correctly at 66x20 minimum size
+- No content is cut off at any supported size
+- Clear feedback when terminal is too small
+- Smooth transitions between layout modes
+- Professional appearance at all sizes
+
+## End of Phase 9
+
 ## End of Phase 7
 **Goal**: Ensure proper display in actual terminal
 
