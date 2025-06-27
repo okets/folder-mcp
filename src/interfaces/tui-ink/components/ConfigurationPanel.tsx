@@ -4,6 +4,7 @@ import { BorderedBox } from './core/BorderedBox.js';
 import { ConfigurationListItem } from './core/ConfigurationListItem.js';
 import { theme } from '../utils/theme.js';
 import { LogItem } from './core/LogItem.js';
+import { IListItem } from './core/IListItem.js';
 import { createConfigurationPanelItems } from '../models/mixedSampleData.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -15,20 +16,34 @@ import { useRenderSlots } from '../hooks/useRenderSlots.js';
 import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 
-// Get mixed items for configuration panel
-const configItems = createConfigurationPanelItems();
-
-
-export const ConfigurationPanel: React.FC<{ 
-    width?: number; 
+interface ConfigurationPanelProps {
+    title?: string;
+    subtitle?: string;
+    items?: IListItem[];
+    selectedIndexKey?: 'configSelectedIndex' | 'statusSelectedIndex';
+    focusKey?: 'isConfigFocused' | 'isStatusFocused';
+    elementId?: string;
+    width?: number;
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
-}> = ({ width, height, onEditModeChange }) => {
+}
+
+export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({ 
+    title = "Configuration",
+    subtitle = "Setup your folder-mcp server",
+    items,
+    selectedIndexKey = 'configSelectedIndex',
+    focusKey = 'isConfigFocused',
+    elementId = 'config-panel',
+    width, 
+    height, 
+    onEditModeChange 
+}) => {
     // Force update trigger
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
-    // Use the mixed items directly
-    const configListItems = configItems;
+    // Use provided items or default configuration items
+    const configListItems = items || createConfigurationPanelItems();
     
     // Use shared navigation context
     const navigation = useNavigationContext();
@@ -40,9 +55,14 @@ export const ConfigurationPanel: React.FC<{
     
     // Update item states based on selection
     configListItems.forEach((item, index) => {
-        const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === index;
-        item.icon = isSelected ? '▶' : '·';
-        item.isActive = isSelected;
+        const isSelected = navigation[focusKey] && navigation[selectedIndexKey] === index;
+        // Update icon and isActive for items that support it
+        if ('icon' in item && typeof item.icon !== 'undefined') {
+            (item as any).icon = isSelected ? '▶' : '·';
+        }
+        if ('isActive' in item && typeof item.isActive !== 'undefined') {
+            (item as any).isActive = isSelected;
+        }
     });
     
     // Check if any item is in edit mode
@@ -94,8 +114,8 @@ export const ConfigurationPanel: React.FC<{
     let lineScrollOffset = 0;
     
     // Only calculate scroll if content exceeds viewport
-    if (totalContentLines > maxLines && navigation.configSelectedIndex < itemLinePositions.length) {
-        const activeItem = itemLinePositions[navigation.configSelectedIndex];
+    if (totalContentLines > maxLines && navigation[selectedIndexKey] < itemLinePositions.length) {
+        const activeItem = itemLinePositions[navigation[selectedIndexKey]];
         
         // Bring active item into view
         if (activeItem && activeItem.end > lineScrollOffset + maxLines) {
@@ -150,8 +170,8 @@ export const ConfigurationPanel: React.FC<{
     const scrollbarLineOffset = lineScrollOffset;
     
     // Use the line position we already calculated
-    const selectedLinePosition = navigation.configSelectedIndex < itemLinePositions.length && itemLinePositions[navigation.configSelectedIndex]
-        ? itemLinePositions[navigation.configSelectedIndex].start
+    const selectedLinePosition = navigation[selectedIndexKey] < itemLinePositions.length && itemLinePositions[navigation[selectedIndexKey]]
+        ? itemLinePositions[navigation[selectedIndexKey]].start
         : 0;
     
     const scrollbar = showScrollbar ? calculateScrollbar({
@@ -163,13 +183,13 @@ export const ConfigurationPanel: React.FC<{
     
     // Handle configuration panel input
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {
-        const selectedIndex = navigation.configSelectedIndex;
+        const selectedIndex = navigation[selectedIndexKey];
         const selectedItem = configListItems[selectedIndex];
         
         if (!selectedItem) return false;
         
         // If item is controlling input, delegate to it
-        if (selectedItem.isControllingInput) {
+        if (selectedItem.isControllingInput && selectedItem.handleInput) {
             const handled = selectedItem.handleInput(input, key);
             // Force re-render on any input
             setUpdateTrigger(prev => prev + 1);
@@ -177,21 +197,21 @@ export const ConfigurationPanel: React.FC<{
         }
         
         // Otherwise handle entering edit mode
-        if (key.rightArrow || key.return) {
+        if ((key.rightArrow || key.return) && selectedItem.onEnter) {
             selectedItem.onEnter();
             // Force re-render to show edit mode
             setUpdateTrigger(prev => prev + 1);
             return true;
         }
         return false;
-    }, [configListItems, navigation.configSelectedIndex]);
+    }, [configListItems, navigation[selectedIndexKey], selectedIndexKey]);
     
     // Use focus chain
     const { isInFocusChain } = useFocusChain({
-        elementId: 'config-panel',
+        elementId: elementId,
         parentId: 'navigation',
-        isActive: navigation.isConfigFocused,
-        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
+        isActive: navigation[focusKey],
+        onInput: navigation[focusKey] ? handleConfigInput : undefined as any,
         keyBindings: isAnyItemInEditMode ? [
             { key: '←→', description: 'Move cursor' },
             { key: 'Esc', description: 'Cancel' },
@@ -204,9 +224,9 @@ export const ConfigurationPanel: React.FC<{
     
     return (
         <BorderedBox
-            title="Configuration"
-            subtitle="Setup your folder-mcp server"
-            focused={navigation.isConfigFocused}
+            title={title}
+            subtitle={subtitle}
+            focused={navigation[focusKey]}
             width={panelWidth}
             height={actualHeight}
             showScrollbar={showScrollbar}

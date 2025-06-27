@@ -629,6 +629,141 @@ interface IListItem extends ISelfConstrainedItem {
 
 ## End of Phase 8
 
+## Phase 9: StatusPanel to ConfigurationPanel Migration
+
+### Problem Statement:
+- StatusPanel has ~200 lines of code that mostly duplicates ConfigurationPanel
+- StatusPanel doesn't use SelfConstrainedWrapper, causing double truncation
+- Both panels support mixed IListItem types (LogItem, ConfigurationListItem)
+- ConfigurationPanel is already responsive and handles all truncation correctly
+- No reason to maintain two separate panel implementations
+
+### Analysis:
+#### StatusPanel Issues:
+1. Missing SelfConstrainedWrapper around items (lines 195-196 just clone elements)
+2. Double truncation: LogItem truncates, then ConstrainedContent truncates again
+3. Result: Text like "Validating embedding models" shows as "Validating emb..."
+
+#### ConfigurationPanel Advantages:
+1. Uses SelfConstrainedWrapper to prevent double truncation (lines 224-239)
+2. Already handles mixed item types (LogItem, ConfigurationListItem)
+3. Responsive width/height support
+4. Proper scrollbar calculations
+5. Focus chain integration
+
+### Migration Strategy:
+Replace StatusPanel entirely with a configured instance of ConfigurationPanel.
+
+### Implementation Steps:
+
+#### Step 9.1: Make ConfigurationPanel Generic
+**Goal**: Extract hardcoded values into props
+
+1. Add props to ConfigurationPanel:
+   ```typescript
+   interface ConfigurationPanelProps {
+     title: string
+     subtitle?: string
+     items: IListItem[]
+     itemKey: 'configSelectedIndex' | 'statusSelectedIndex'
+     focusKey: 'isConfigFocused' | 'isStatusFocused'
+     width?: number
+     height?: number
+   }
+   ```
+
+2. Replace hardcoded navigation keys with dynamic props
+3. Update createConfigurationPanelItems to take items as prop
+
+#### Step 9.2: Create GenericPanel Wrapper
+**Goal**: Single component that can be configured for either use case
+
+```typescript
+export const GenericPanel: React.FC<{
+  variant: 'config' | 'status'
+  width?: number
+  height?: number
+}> = ({ variant, width, height }) => {
+  const items = variant === 'config' 
+    ? createConfigurationPanelItems() 
+    : createStatusPanelItems()
+    
+  const title = variant === 'config' 
+    ? 'Configuration' 
+    : 'System Status'
+    
+  const subtitle = variant === 'config'
+    ? 'Setup your folder-mcp server'
+    : actualHeight > 5 ? 'Current state' : undefined
+    
+  return (
+    <ConfigurationPanel
+      title={title}
+      subtitle={subtitle}
+      items={items}
+      itemKey={variant === 'config' ? 'configSelectedIndex' : 'statusSelectedIndex'}
+      focusKey={variant === 'config' ? 'isConfigFocused' : 'isStatusFocused'}
+      width={width}
+      height={height}
+    />
+  )
+}
+```
+
+#### Step 9.3: Update TUIApp Component
+**Goal**: Replace StatusPanel with GenericPanel
+
+1. Import GenericPanel instead of StatusPanel
+2. Replace `<StatusPanel>` with `<GenericPanel variant="status">`
+3. Replace `<ConfigurationPanel>` with `<GenericPanel variant="config">`
+4. Remove StatusPanel import
+
+#### Step 9.4: Test and Verify
+**Goal**: Ensure no visual or functional regressions
+
+Verification checklist:
+- [ ] Both panels render correctly
+- [ ] Status panel no longer has double truncation
+- [ ] Navigation works for both panels
+- [ ] Focus switching between panels works
+- [ ] Scrollbars appear correctly
+- [ ] Items expand/collapse properly
+- [ ] Input control works in both panels
+
+#### Step 9.5: Clean Up
+**Goal**: Remove obsolete code
+
+1. Delete src/interfaces/tui-ink/components/StatusPanel.tsx
+2. Remove any StatusPanel-specific types or utilities
+3. Update tests to use GenericPanel
+
+### Alternative Approach (if needed):
+If making ConfigurationPanel fully generic proves complex:
+
+1. **Option A**: Extract shared logic to hooks
+   - useScrollablePanel hook with all shared logic
+   - Keep separate StatusPanel and ConfigurationPanel as thin wrappers
+
+2. **Option B**: Create base class
+   - AbstractPanel with shared implementation
+   - StatusPanel and ConfigurationPanel extend it
+
+### Success Criteria:
+- [ ] Only one panel implementation to maintain
+- [ ] StatusPanel truncation issues fixed
+- [ ] No code duplication
+- [ ] Both panels work identically to before (except truncation fix)
+- [ ] Easier to add new panel types in future
+
+### Benefits:
+1. **DRY**: Eliminate ~200 lines of duplicate code
+2. **Consistency**: Both panels behave identically
+3. **Bug Fixes**: StatusPanel gets all ConfigurationPanel fixes for free
+4. **Maintenance**: Single implementation to update
+5. **Future-proof**: Easy to add more panel variants
+
+## End of Phase 9
+
 ## End of Phase 7
 **Goal**: Ensure proper display in actual terminal
 

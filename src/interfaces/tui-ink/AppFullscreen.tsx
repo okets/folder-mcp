@@ -3,8 +3,7 @@ import { Box, useApp, Key } from 'ink';
 import { Header } from './components/Header.js';
 import { StatusBar } from './components/StatusBar.js';
 import { LayoutContainer } from './components/LayoutContainer.js';
-import { ConfigurationPanel } from './components/ConfigurationPanel.js';
-import { StatusPanel } from './components/StatusPanel.js';
+import { GenericPanel } from './components/GenericPanel.js';
 import { useTerminalSize } from './hooks/useTerminalSize.js';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
 import { useDI } from './di/DIContext.js';
@@ -61,8 +60,8 @@ export const AppFullscreen: React.FC = () => {
                     availableWidth={columns}
                     narrowBreakpoint={100}
                 >
-                    <ConfigurationPanel onEditModeChange={setIsNodeInEditMode} />
-                    <StatusPanel />
+                    <GenericPanel variant="config" onEditModeChange={setIsNodeInEditMode} />
+                    <GenericPanel variant="status" />
                 </LayoutContainer>
                 
                 <StatusBar />
