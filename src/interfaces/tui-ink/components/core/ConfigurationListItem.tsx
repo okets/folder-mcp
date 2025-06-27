@@ -116,11 +116,28 @@ export class ConfigurationListItem implements IListItem {
             return [...elements, ...bodyElements];
         } else {
             // Collapsed view
-            const headerText = this.formatHeader(maxWidth);
+            const { label, value, truncated } = this.formatHeaderParts(maxWidth);
             
+            // Build the full text without nested components to avoid wrapping
+            const fullText = truncated 
+                ? `${this.icon} ${label}: [${value}…]`
+                : `${this.icon} ${label}: [${value}]`;
+            
+            // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
+            if (fullText.length >= maxWidth) {
+                // Force truncation to prevent wrapping
+                const safeLength = maxWidth - 4; // Leave room for "…]"
+                const truncatedText = fullText.slice(0, safeLength) + '…]';
+                return (
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        {truncatedText}
+                    </Text>
+                );
+            }
+                
             return (
-                <Text color={this.isActive ? theme.colors.accent : undefined} wrap="truncate">
-                    {this.icon} {headerText}
+                <Text color={this.isActive ? theme.colors.accent : undefined}>
+                    {fullText}
                 </Text>
             );
         }
@@ -130,24 +147,22 @@ export class ConfigurationListItem implements IListItem {
         return this._isControllingInput ? 4 : 1;
     }
     
-    private formatHeader(maxWidth: number): string {
+    private formatHeaderParts(maxWidth: number): { label: string; value: string; truncated: boolean } {
         // The render() method will prepend "{icon} " (2 chars)
         // So we need to account for that in our width calculation
         const iconWidth = 2; // icon + space
         const availableWidth = maxWidth - iconWidth;
-        const minBracketContent = "[…]"; // 3 chars
-        const colorStart = '\x1b[38;5;117m';
-        const colorEnd = '\x1b[39m';
         
-        // Check if everything fits
-        const fullText = `${this.label}: [${this.value}]`;
-        if (fullText.length <= availableWidth) {
-            return `${this.label}: [${colorStart}${this.value}${colorEnd}]`;
+        // Check if everything fits without truncation
+        // Need to leave 1 char buffer to prevent wrapping when text exactly matches width
+        const fullTextLength = this.label.length + 2 + this.value.length + 2; // "Label: [value]"
+        if (fullTextLength < availableWidth) {
+            return { label: this.label, value: this.value, truncated: false };
         }
         
         // Minimum viable display is "[…]" = 3 chars
-        if (availableWidth < minBracketContent.length) {
-            return minBracketContent;
+        if (availableWidth < 3) {
+            return { label: '', value: '…', truncated: false };
         }
         
         // Calculate components
@@ -157,32 +172,37 @@ export class ConfigurationListItem implements IListItem {
         const ellipsisLength = 1; // "…"
         
         // First priority: try to fit label + brackets with truncated value
-        const spaceForValue = availableWidth - labelAndSeparatorLength - bracketsLength;
+        // We need space for: "Label: [" + value + "…]"
+        const spaceNeededForStructure = labelAndSeparatorLength + bracketsLength + ellipsisLength;
+        const spaceForValue = availableWidth - spaceNeededForStructure;
         
         if (spaceForValue > 0) {
-            // We can fit the label and brackets with at least one char inside
-            let truncatedValue: string;
-            if (spaceForValue === 1) {
-                truncatedValue = '…';
-            } else if (this.value.length > spaceForValue) {
-                truncatedValue = this.value.slice(0, spaceForValue - ellipsisLength) + '…';
+            // We can fit the label and brackets with some value
+            if (this.value.length > spaceForValue) {
+                // Truncate the value to fit
+                return { 
+                    label: this.label, 
+                    value: this.value.slice(0, spaceForValue),
+                    truncated: true 
+                };
             } else {
-                truncatedValue = this.value;
+                // Value fits without truncation
+                return { label: this.label, value: this.value, truncated: false };
             }
-            return `${this.label}: [${colorStart}${truncatedValue}${colorEnd}]`;
         }
         
         // Second priority: truncate label to make room for "[…]"
-        const minLabelSpace = availableWidth - minBracketContent.length - 2; // -2 for ": "
+        const minBracketContent = 3; // "[…]"
+        const minLabelSpace = availableWidth - minBracketContent - 2; // -2 for ": "
         if (minLabelSpace > 0) {
             const truncatedLabel = this.label.length > minLabelSpace 
                 ? this.label.slice(0, minLabelSpace - ellipsisLength) + '…'
                 : this.label;
-            return `${truncatedLabel}: ${minBracketContent}`;
+            return { label: truncatedLabel, value: '…', truncated: false };
         }
         
-        // Last resort: just show brackets with ellipsis
-        return minBracketContent;
+        // Last resort: just show ellipsis
+        return { label: '', value: '…', truncated: false };
     }
     
     private stripAnsi(text: string): string {
