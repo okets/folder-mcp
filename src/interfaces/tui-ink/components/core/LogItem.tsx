@@ -82,26 +82,43 @@ export class LogItem implements IListItem {
                 this.renderSegments(headerSegments)
             );
             
+            // Get the original status color for the vertical line (not the selection color)
+            const headerColor = this.status ? this.getStatusColor() : undefined;
+            
             // Calculate available lines for details (if maxLines is specified)
             let remainingLines = maxLines ? maxLines - 1 : undefined; // -1 for header
             
             // Detail lines - word wrapped to fit width and height
-            for (let i = 0; i < this.details.length && (!remainingLines || remainingLines > 0); i++) {
+            const allDetailLines: Array<{text: string, isLast: boolean}> = [];
+            
+            // First collect all detail lines
+            for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
                 const detail = this.details[i];
-                const wrappedLines = this.wordWrap(detail, maxWidth - 2, remainingLines); // -2 for indent
+                const wrappedLines = this.wordWrap(detail, maxWidth - 2, remainingLines ? remainingLines - allDetailLines.length : undefined);
                 
-                for (let j = 0; j < wrappedLines.length && (!remainingLines || remainingLines > 0); j++) {
-                    elements.push(
-                        <Text key={`detail-${i}-${j}`} color={theme.colors.textMuted}>
-                            {'  '}{wrappedLines[j]}
-                        </Text>
-                    );
-                    
-                    if (remainingLines) {
-                        remainingLines--;
-                    }
+                for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
+                    allDetailLines.push({
+                        text: wrappedLines[j],
+                        isLast: false
+                    });
                 }
             }
+            
+            // Mark the last line
+            if (allDetailLines.length > 0) {
+                allDetailLines[allDetailLines.length - 1].isLast = true;
+            }
+            
+            // Now render with appropriate symbols
+            allDetailLines.forEach((line, index) => {
+                const symbol = line.isLast ? '└' : '│';
+                elements.push(
+                    <Text key={`detail-${index}`}>
+                        <Text color={headerColor}>{symbol} </Text>
+                        <Text color={theme.colors.textMuted}>{line.text}</Text>
+                    </Text>
+                );
+            });
             
             return elements;
         } else {
@@ -267,14 +284,22 @@ export class LogItem implements IListItem {
         const iconSegment = segments[0];
         const textSegment = segments[1];
         
-        // Always render as a single Text element with explicit space
-        // This ensures consistent spacing regardless of colors or selection state
+        // If both have the same color, render as single Text to avoid issues
+        if (iconSegment.color === textSegment.color) {
+            return (
+                <Text color={iconSegment.color}>
+                    {iconSegment.text} {textSegment.text}
+                </Text>
+            );
+        }
+        
+        // Otherwise use Box with separate Text components
         return (
-            <Text>
+            <Box>
                 <Text color={iconSegment.color}>{iconSegment.text}</Text>
-                {' '}
+                <Text> </Text>
                 <Text color={textSegment.color}>{textSegment.text}</Text>
-            </Text>
+            </Box>
         );
     }
 }

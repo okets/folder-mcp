@@ -8,6 +8,7 @@ export interface TextInputBodyProps {
     cursorVisible: boolean;
     width: number;
     maxInputWidth?: number; // Maximum width for the input box (default: 40)
+    headerColor?: string; // Color for the vertical line (matches header)
 }
 
 /**
@@ -19,7 +20,8 @@ export const TextInputBody = ({
     cursorPosition,
     cursorVisible,
     width,
-    maxInputWidth = 40
+    maxInputWidth = 40,
+    headerColor
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
@@ -92,16 +94,19 @@ export const TextInputBody = ({
     const padding = ' '.repeat(paddingNeeded);
     
     return [
-        <Text key="top" color={theme.colors.textInputBorder}>
-            {'  '}╭{'─'.repeat(borderWidth)}╮
+        <Text key="top">
+            <Text color={headerColor}>│ </Text>
+            <Text color={theme.colors.textInputBorder}>╭{'─'.repeat(borderWidth)}╮</Text>
         </Text>,
         <Box key="middle">
-            <Text color={theme.colors.textInputBorder}>{'  '}│</Text>
+            <Text color={headerColor}>│ </Text>
+            <Text color={theme.colors.textInputBorder}>│</Text>
             <Text color={theme.colors.textMuted}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
         </Box>,
-        <Text key="bottom" color={theme.colors.textInputBorder}>
-            {'  '}╰{'─'.repeat(borderWidth)}╯
+        <Text key="bottom">
+            <Text color={headerColor}>└ </Text>
+            <Text color={theme.colors.textInputBorder}>╰{'─'.repeat(borderWidth)}╯</Text>
         </Text>
     ];
 };

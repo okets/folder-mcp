@@ -281,7 +281,8 @@ export const ConfigurationPanel: React.FC<{
                                 </SelfConstrainedWrapper>
                             );
                         });
-                        remainingLines -= itemElements.length;
+                        // Use the actual required lines, not the number of React elements
+                        remainingLines -= listItem.getRequiredLines(itemMaxWidth);
                     } else {
                         elements.push(
                             <SelfConstrainedWrapper key={`item-${visualIndex}`}>

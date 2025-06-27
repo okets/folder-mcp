@@ -110,7 +110,8 @@ export class ConfigurationListItem implements IListItem {
                 cursorPosition: this._cursorPosition,
                 cursorVisible: this._cursorVisible,
                 width: maxWidth,
-                maxInputWidth: 40 // Reasonable max width for input fields
+                maxInputWidth: 40, // Reasonable max width for input fields
+                headerColor: undefined // ConfigurationListItems don't have status colors
             });
             
             return [...elements, ...bodyElements];

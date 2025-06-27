@@ -11,6 +11,7 @@ import { useFocusChain } from '../hooks/useFocusChain.js';
 import { createStatusPanelItems } from '../models/mixedSampleData.js';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
+import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 
 // Get mixed items for this panel
 const mixedItems = createStatusPanelItems();
@@ -239,15 +240,21 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                     
                     // Handle both single element and array of elements
                     if (Array.isArray(itemElements)) {
+                        // For multi-line items, wrap each element separately
                         itemElements.forEach((element, index) => {
                             elements.push(
-                                React.cloneElement(element, { key: `item-${visualIndex}-${index}` })
+                                <SelfConstrainedWrapper key={`item-${visualIndex}-${index}`}>
+                                    {element}
+                                </SelfConstrainedWrapper>
                             );
                         });
-                        remainingLines -= itemElements.length;
+                        // Use the actual required lines, not the number of React elements
+                        remainingLines -= listItem.getRequiredLines(itemMaxWidth);
                     } else {
                         elements.push(
-                            React.cloneElement(itemElements, { key: `item-${visualIndex}` })
+                            <SelfConstrainedWrapper key={`item-${visualIndex}`}>
+                                {itemElements}
+                            </SelfConstrainedWrapper>
                         );
                         remainingLines -= 1;
                     }
