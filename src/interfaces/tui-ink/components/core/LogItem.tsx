@@ -9,15 +9,19 @@ interface Segment {
     color?: string;
 }
 
-export class StatusListItem implements IListItem {
+export class LogItem implements IListItem {
+    private _isExpanded: boolean = false;
+    private _isControllingInput: boolean = false;
+    
     constructor(
         private icon: string,
         private text: string,
         private status: string,
         private isActive: boolean,
-        private isExpanded: boolean,
+        isExpanded: boolean,
         private details?: string[]
     ) {
+        this._isExpanded = isExpanded;
         // Use status symbol as the bullet icon if available
         // But preserve selection indicator (▶) when active
         if (this.status && this.icon !== '▶') {
@@ -25,8 +29,35 @@ export class StatusListItem implements IListItem {
         }
     }
     
+    get isControllingInput(): boolean {
+        return this._isControllingInput;
+    }
+    
+    onEnter(): void {
+        // Toggle expansion state
+        this._isExpanded = !this._isExpanded;
+        // Status items don't control input, they just expand/collapse
+    }
+    
+    onExit(): void {
+        // Not used for status items
+    }
+    
+    handleInput(input: string, key: any): boolean {
+        // Status items don't handle input directly
+        return false;
+    }
+    
+    onSelect(): void {
+        // Could add visual feedback when selected
+    }
+    
+    onDeselect(): void {
+        // Could remove visual feedback when deselected
+    }
+    
     render(maxWidth: number): ReactElement | ReactElement[] {
-        if (this.isExpanded && this.details) {
+        if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
             // Header using segments approach with expand icon
@@ -61,7 +92,7 @@ export class StatusListItem implements IListItem {
     }
     
     getRequiredLines(maxWidth: number): number {
-        if (!this.isExpanded || !this.details) {
+        if (!this._isExpanded || !this.details) {
             return 1;
         }
         

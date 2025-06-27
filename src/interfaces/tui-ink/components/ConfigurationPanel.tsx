@@ -29,11 +29,27 @@ export const ConfigurationPanel: React.FC<{
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
 }> = ({ width, height, onEditModeChange }) => {
-    // Local state for configuration node in edit mode
-    const [editingNodeIndex, setEditingNodeIndex] = useState<number | null>(null);
-    const [editValue, setEditValue] = useState('');
-    const [cursorPosition, setCursorPosition] = useState(0);
-    const [cursorVisible, setCursorVisible] = useState(true);
+    // Force update trigger
+    const [updateTrigger, setUpdateTrigger] = useState(0);
+    
+    // Track configuration list items to maintain state
+    const [configListItems] = useState(() => {
+        return configurationItems.map((item, index) => {
+            return new ConfigurationListItem(
+                '·',
+                item.label,
+                item.value,
+                false,
+                false,
+                undefined,
+                undefined,
+                undefined,
+                (newValue) => {
+                    configurationItems[index].value = newValue;
+                }
+            );
+        });
+    });
     
     // Use shared navigation context
     const navigation = useNavigationContext();
@@ -43,23 +59,28 @@ export const ConfigurationPanel: React.FC<{
     const statusBarService = di.resolve(ServiceTokens.StatusBarService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
     
+    // Update item states based on selection
+    configListItems.forEach((item, index) => {
+        const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === index;
+        item.icon = isSelected ? '▶' : '·';
+        item.isActive = isSelected;
+    });
+    
+    // Check if any item is in edit mode
+    const isAnyItemInEditMode = configListItems.some(item => item.isControllingInput);
+    
     // Use render slots when a node is in edit mode
     const { totalSlots } = useRenderSlots({
         elementId: 'config-panel-editmode',
         containerId: 'config-panel',
-        slots: editingNodeIndex !== null ? 3 : 0, // Node in edit mode needs 3 extra lines (top border + content + bottom border)
-        enabled: editingNodeIndex !== null
+        slots: isAnyItemInEditMode ? 3 : 0,
+        enabled: isAnyItemInEditMode
     });
     
     // Notify parent about edit mode state changes
     useEffect(() => {
-        onEditModeChange?.(editingNodeIndex !== null);
-    }, [editingNodeIndex, onEditModeChange]);
-    
-    // Static cursor (no blinking to allow terminal text selection)
-    useEffect(() => {
-        setCursorVisible(true);
-    }, [editingNodeIndex]);
+        onEditModeChange?.(isAnyItemInEditMode);
+    }, [isAnyItemInEditMode, onEditModeChange]);
     
     // Calculate visible count based on height
     // BorderedBox uses: height - 2 (borders) - 1 (subtitle) = height - 3
@@ -71,36 +92,35 @@ export const ConfigurationPanel: React.FC<{
     const panelWidth = width || columns - 2;
     const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
     
-    // First, check if all items fit without scrolling
-    let totalContentLines = 0;
-    for (let i = 0; i < configurationItems.length; i++) {
-        totalContentLines += (editingNodeIndex === i) ? 4 : 1;
-    }
-    
     // Calculate line positions for all items
     const itemLinePositions: Array<{start: number, end: number}> = [];
+    let totalContentLines = 0;
     let currentLine = 0;
-    for (let i = 0; i < configurationItems.length; i++) {
-        const itemLines = (editingNodeIndex === i) ? 4 : 1;
-        itemLinePositions.push({
-            start: currentLine,
-            end: currentLine + itemLines
-        });
-        currentLine += itemLines;
+    
+    if (configListItems.length > 0) {
+        for (let i = 0; i < configListItems.length; i++) {
+            const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
+            totalContentLines += itemLines;
+            itemLinePositions.push({
+                start: currentLine,
+                end: currentLine + itemLines
+            });
+            currentLine += itemLines;
+        }
     }
     
     // Calculate scroll offset in lines
     let lineScrollOffset = 0;
     
     // Only calculate scroll if content exceeds viewport
-    if (totalContentLines > maxLines) {
+    if (totalContentLines > maxLines && navigation.configSelectedIndex < itemLinePositions.length) {
         const activeItem = itemLinePositions[navigation.configSelectedIndex];
         
         // Bring active item into view
-        if (activeItem.end > lineScrollOffset + maxLines) {
+        if (activeItem && activeItem.end > lineScrollOffset + maxLines) {
             // Item is cut off at bottom - scroll down to align bottom
             lineScrollOffset = activeItem.end - maxLines;
-        } else if (activeItem.start < lineScrollOffset) {
+        } else if (activeItem && activeItem.start < lineScrollOffset) {
             // Item is cut off at top - scroll up to show it
             lineScrollOffset = activeItem.start;
         }
@@ -108,7 +128,7 @@ export const ConfigurationPanel: React.FC<{
     
     // Find first visible item based on line scroll offset
     let scrollOffset = 0;
-    for (let i = 0; i < configurationItems.length; i++) {
+    for (let i = 0; i < configListItems.length && i < itemLinePositions.length; i++) {
         if (itemLinePositions[i].end > lineScrollOffset) {
             scrollOffset = i;
             break;
@@ -118,12 +138,12 @@ export const ConfigurationPanel: React.FC<{
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
     let linesUsed = 0;
-    let startLine = itemLinePositions[scrollOffset].start;
+    let startLine = scrollOffset < itemLinePositions.length && itemLinePositions[scrollOffset] ? itemLinePositions[scrollOffset].start : 0;
     
-    for (let i = scrollOffset; i < configurationItems.length; i++) {
-        const itemLines = (editingNodeIndex === i) ? 4 : 1;
+    for (let i = scrollOffset; i < configListItems.length && i < itemLinePositions.length; i++) {
+        const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
         // Check if this item fits completely
-        if (itemLinePositions[i].end - startLine <= maxLines) {
+        if (itemLinePositions[i] && itemLinePositions[i].end - startLine <= maxLines) {
             visibleCount++;
             linesUsed = itemLinePositions[i].end - startLine;
         } else {
@@ -131,28 +151,15 @@ export const ConfigurationPanel: React.FC<{
         }
     }
     
+    const visibleItems = configListItems.slice(scrollOffset, scrollOffset + visibleCount);
     
-    const visibleItems = configurationItems.slice(scrollOffset, scrollOffset + visibleCount);
-    
-    // Calculate TOTAL lines for ALL items (not just visible)
-    let totalLines = 0;
-    configurationItems.forEach((item, index) => {
-        if (editingNodeIndex === index) {
-            totalLines += 4; // Expanded item takes 4 lines
-        } else {
-            totalLines += 1; // Collapsed item takes 1 line
-        }
-    });
+    // Total lines already calculated above
+    const totalLines = totalContentLines;
     
     // Calculate visible lines for the current viewport
     let visibleLines = 0;
-    visibleItems.forEach((item, index) => {
-        const actualIndex = scrollOffset + index;
-        if (editingNodeIndex === actualIndex) {
-            visibleLines += 4;
-        } else {
-            visibleLines += 1;
-        }
+    visibleItems.forEach((item) => {
+        visibleLines += item.getRequiredLines(itemMaxWidth);
     });
     
     // Show scrollbar only if total lines exceed available space
@@ -162,7 +169,9 @@ export const ConfigurationPanel: React.FC<{
     const scrollbarLineOffset = lineScrollOffset;
     
     // Use the line position we already calculated
-    const selectedLinePosition = itemLinePositions[navigation.configSelectedIndex].start;
+    const selectedLinePosition = navigation.configSelectedIndex < itemLinePositions.length && itemLinePositions[navigation.configSelectedIndex]
+        ? itemLinePositions[navigation.configSelectedIndex].start
+        : 0;
     
     const scrollbar = showScrollbar ? calculateScrollbar({
         totalItems: totalLines,
@@ -173,73 +182,43 @@ export const ConfigurationPanel: React.FC<{
     
     // Handle configuration panel input
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {
-        const actualIndex = navigation.configSelectedIndex;
+        const selectedIndex = navigation.configSelectedIndex;
+        const selectedItem = configListItems[selectedIndex];
         
-        if (editingNodeIndex === null) {
-            // Collapsed state - only handle enter edit mode action
-            if (key.rightArrow || key.return) {
-                // Enter edit mode
-                setEditingNodeIndex(actualIndex);
-                const value = configurationItems[actualIndex].value;
-                setEditValue(value);
-                setCursorPosition(value.length); // Place cursor at end
-                return true;
-            }
-            return false;
-        } else {
-            // Edit mode - handle all input
-            if (key.escape) {
-                // Exit edit mode without saving
-                setEditingNodeIndex(null);
-                setEditValue('');
-                setCursorPosition(0);
-                return true;
-            } else if (key.return) {
-                // Save changes and exit edit mode
-                configurationItems[editingNodeIndex].value = editValue;
-                setEditingNodeIndex(null);
-                setEditValue('');
-                setCursorPosition(0);
-                return true;
-            } else if (key.leftArrow) {
-                // Move cursor left
-                setCursorPosition(prev => Math.max(0, prev - 1));
-                return true;
-            } else if (key.rightArrow) {
-                // Move cursor right
-                setCursorPosition(prev => Math.min(editValue.length, prev + 1));
-                return true;
-            } else if (key.backspace || key.delete) {
-                // Delete character before cursor
-                if (cursorPosition > 0) {
-                    setEditValue(prev => prev.slice(0, cursorPosition - 1) + prev.slice(cursorPosition));
-                    setCursorPosition(prev => prev - 1);
-                }
-                return true;
-            } else if (input && !key.ctrl && !key.meta) {
-                // Insert character at cursor position
-                setEditValue(prev => prev.slice(0, cursorPosition) + input + prev.slice(cursorPosition));
-                setCursorPosition(prev => prev + 1);
-                return true;
-            }
-            return true; // Consume all input when in edit mode
+        if (!selectedItem) return false;
+        
+        // If item is controlling input, delegate to it
+        if (selectedItem.isControllingInput) {
+            const handled = selectedItem.handleInput(input, key);
+            // Force re-render on any input
+            setUpdateTrigger(prev => prev + 1);
+            return handled;
         }
-    }, [editingNodeIndex, editValue, cursorPosition, navigation.configSelectedIndex]);
+        
+        // Otherwise handle entering edit mode
+        if (key.rightArrow || key.return) {
+            selectedItem.onEnter();
+            // Force re-render to show edit mode
+            setUpdateTrigger(prev => prev + 1);
+            return true;
+        }
+        return false;
+    }, [configListItems, navigation.configSelectedIndex]);
     
-    // Use focus chain - register for both collapsed and edit mode
+    // Use focus chain
     const { isInFocusChain } = useFocusChain({
-        elementId: 'config-panel',  // Keep stable element ID
-        parentId: 'navigation',  // Child of navigation, not app
-        isActive: navigation.isConfigFocused,  // Active when config panel is focused
-        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,  // Always handle input when focused
-        keyBindings: editingNodeIndex !== null ? [
+        elementId: 'config-panel',
+        parentId: 'navigation',
+        isActive: navigation.isConfigFocused,
+        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
+        keyBindings: isAnyItemInEditMode ? [
             { key: '←→', description: 'Move cursor' },
             { key: 'Esc', description: 'Cancel' },
             { key: 'Enter', description: 'Save' }
         ] : [
             { key: '→/Enter', description: 'Edit' }
         ],
-        priority: editingNodeIndex !== null ? 1000 : 50 // Very high priority when in edit mode
+        priority: isAnyItemInEditMode ? 1000 : 50 // Very high priority when in edit mode
     });
     
     return (
@@ -256,23 +235,7 @@ export const ConfigurationPanel: React.FC<{
                 // Build a flat array to avoid Fragment key issues
                 const elements: React.ReactElement[] = [];
                 
-                visibleItems.forEach((item, visualIndex) => {
-                    const actualIndex = scrollOffset + visualIndex;
-                    const isSelected = navigation.isConfigFocused && navigation.configSelectedIndex === actualIndex;
-                    const isInEditMode = editingNodeIndex === actualIndex;
-                    
-                    // Create ConfigurationListItem instance
-                    const listItem = new ConfigurationListItem(
-                        isSelected ? '▶' : '·',
-                        item.label,
-                        item.value,
-                        isSelected,
-                        isInEditMode,
-                        isInEditMode ? editValue : undefined,
-                        isInEditMode ? cursorPosition : undefined,
-                        isInEditMode ? cursorVisible : undefined
-                    );
-                    
+                visibleItems.forEach((listItem, visualIndex) => {
                     // Get rendered elements from list item
                     const itemElements = listItem.render(itemMaxWidth + 2); // +2 for icon + space
                     

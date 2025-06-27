@@ -436,6 +436,131 @@ Test cases:
 - [ ] All items in list are visible (not empty)
 - [ ] Works across different terminal widths
 ## End of Phase 6
+
+## Phase 7: Generic ListItem Architecture with Input Control ✓ COMPLETED
+
+### Problem Statement:
+- Currently have separate StatusListItem and ConfigurationListItem classes
+- Only ConfigurationListItem can capture keyboard input (for TextInput)
+- Tight coupling between components and their input handling
+- No consistent pattern for items to take control of keyboard input
+- Parent components need complex callbacks to manage input state
+
+### Design Goals:
+- Create a generic IListItem interface that any scrollable container can use
+- Allow ANY ListItem to be "entered" and control keyboard input
+- Remove special-casing for different item types
+- Decouple input handling from parent components
+- Enable rich interactions within list items (text input, selection, etc.)
+
+### Step 7.1: Define IListItem Interface
+**Goal**: Create a consistent interface for all list items
+
+```typescript
+interface IListItem {
+    // Rendering
+    render(width: number, isSelected: boolean): ReactElement | ReactElement[]
+    getRequiredLines(width: number): number
+    
+    // Input control
+    onEnter?(): void                          // Called when user presses Enter
+    onExit?(): void                           // Called when item exits control
+    isControllingInput: boolean               // True when item has keyboard control
+    handleInput?(input: string, key: Key): boolean  // Handle keyboard input
+    
+    // Optional behaviors
+    onSelect?(): void                         // Called when item becomes selected
+    canExpand?: boolean                       // Whether item can be expanded
+}
+```
+
+### Step 7.2: Update ScrollableBlock Input Handling
+**Goal**: Make ScrollableBlock delegate input to controlling items
+
+```typescript
+class ScrollableBlock {
+    handleInput(input: string, key: Key): boolean {
+        const selectedItem = this.items[this.selectedIndex];
+        
+        // If an item is controlling input, delegate to it
+        if (selectedItem?.isControllingInput && selectedItem.handleInput) {
+            return selectedItem.handleInput(input, key);
+        }
+        
+        // Otherwise handle navigation
+        if (key.return && selectedItem?.onEnter) {
+            selectedItem.onEnter();
+            return true;
+        }
+        
+        // Normal navigation (up/down/etc)
+        return this.handleNavigation(input, key);
+    }
+}
+```
+
+### Step 7.3: Refactor Existing ListItems
+**Goal**: Make existing items implement the new interface
+
+1. **ConfigurationListItem**:
+   - Remove `isEditMode` state
+   - Implement `isControllingInput`
+   - Move TextInputNode logic inside
+   - Handle own exit logic (no parent callbacks)
+
+2. **StatusListItem**:
+   - Implement IListItem interface
+   - Add expand/collapse on Enter
+   - Could add detail view navigation later
+
+### Step 7.4: Remove Parent Coupling
+**Goal**: Eliminate complex callback chains
+
+- Remove `onEditModeChange` from ConfigurationPanel
+- Remove `isNodeInEditMode` from parent components
+- Remove navigation blocking logic from NavigationProvider
+- Let items handle their own input lifecycle
+
+### Step 7.5: Create Generic ListItem Components
+**Goal**: Build reusable list item implementations
+
+```typescript
+// Simple text item
+class TextListItem implements IListItem {
+    constructor(private text: string, private icon?: string) {}
+    render() { /* ... */ }
+}
+
+// Input field item
+class InputListItem implements IListItem {
+    private isControllingInput = false;
+    onEnter() { this.isControllingInput = true; }
+    handleInput(input, key) { /* handle text input */ }
+}
+
+// Menu item with sub-options
+class MenuListItem implements IListItem {
+    onEnter() { /* show sub-menu */ }
+}
+```
+
+### Success Criteria:
+- [ ] IListItem interface is implemented
+- [ ] ScrollableBlock properly delegates input control
+- [ ] ConfigurationListItem works without parent callbacks
+- [ ] StatusListItem can be entered/exited
+- [ ] No special cases for different item types
+- [ ] Easy to create new interactive list items
+- [ ] Keyboard focus is clear and consistent
+
+### Benefits:
+- **Flexibility**: Any item can have rich interactions
+- **Consistency**: Same pattern for all interactive elements
+- **Decoupling**: Items manage their own behavior
+- **Extensibility**: Easy to add new item types
+- **Simplicity**: No complex callback chains
+
+## End of Phase 7
 **Goal**: Ensure proper display in actual terminal
 
 - Run side-by-side comparison with tui:old
