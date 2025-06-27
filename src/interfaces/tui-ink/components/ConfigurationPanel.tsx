@@ -68,7 +68,8 @@ export const ConfigurationPanel: React.FC<{
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
-    const itemMaxWidth = constraints?.maxWidth || panelWidth - 7; // 4 for borders, 3 for indicator and space
+    // Use the actual panel width, not constraints.maxWidth which might be the full terminal width
+    const itemMaxWidth = panelWidth - 7; // 4 for borders, 3 for indicator and space
     
     // Calculate line positions for all items
     const itemLinePositions: Array<{start: number, end: number}> = [];
