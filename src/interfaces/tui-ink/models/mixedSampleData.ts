@@ -94,6 +94,14 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
+        new LogItem(
+            '○',
+            'Path validation',
+            '✓',
+            false,
+            false,
+            ['Path exists and is readable', 'Contains 1,234 files']
+        ),
         new ConfigurationListItem(
             '·',
             'Folder Path',
@@ -104,14 +112,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Folder path changed to:', newValue)
-        ),
-        new LogItem(
-            '○',
-            'Path validation',
-            '✓',
-            false,
-            false,
-            ['Path exists and is readable', 'Contains 1,234 files']
         ),
         new ConfigurationListItem(
             '·',

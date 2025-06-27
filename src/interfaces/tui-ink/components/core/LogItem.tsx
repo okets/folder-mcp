@@ -255,7 +255,7 @@ export class LogItem implements IListItem {
                 color: this.isActive ? theme.colors.accent : iconColor
             },
             {
-                text: ` ${displayText}`,
+                text: displayText,
                 color: this.isActive ? theme.colors.accent : undefined
             }
         ];
@@ -264,17 +264,17 @@ export class LogItem implements IListItem {
     }
     
     private renderSegments(segments: Segment[]): ReactElement {
-        // Use Box with separate Text elements like the old TUI
-        // This avoids the ConstrainedContent issue with nested Text
+        const iconSegment = segments[0];
+        const textSegment = segments[1];
         
-        const iconSegment = segments[0]; // Icon (status symbol)
-        const textSegment = segments[1]; // Main text
-        
+        // Always render as a single Text element with explicit space
+        // This ensures consistent spacing regardless of colors or selection state
         return (
-            <Box>
+            <Text>
                 <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                {' '}
                 <Text color={textSegment.color}>{textSegment.text}</Text>
-            </Box>
+            </Text>
         );
     }
 }
