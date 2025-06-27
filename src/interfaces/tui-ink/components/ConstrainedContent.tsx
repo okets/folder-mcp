@@ -32,7 +32,9 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
                 if (process.env.DEBUG_TRUNCATE) {
                     console.error('[ConstrainedContent] Skipping self-constrained wrapper');
                 }
-                return node; // Don't process, it handles its own constraints
+                // Return the wrapper with its children untouched
+                // This prevents any truncation of self-constrained content
+                return node;
             }
             
             // Skip processing if component handles its own layout
@@ -64,6 +66,8 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
             
             // Recursively process other components
             if (node.props.children) {
+                // Don't process children if this is already inside a SelfConstrainedWrapper
+                // This prevents double-processing of self-constrained content
                 return React.cloneElement(node, {
                     ...node.props,
                     children: React.Children.map(node.props.children, processNode)

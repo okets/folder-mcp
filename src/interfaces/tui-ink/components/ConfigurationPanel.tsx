@@ -13,6 +13,7 @@ import { ServiceTokens } from '../di/tokens.js';
 import { useFocusChain } from '../hooks/useFocusChain.js';
 import { useRenderSlots } from '../hooks/useRenderSlots.js';
 import { calculateScrollbar } from './core/ScrollbarCalculator.js';
+import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 
 // Get mixed items for configuration panel
 const configItems = createConfigurationPanelItems();
@@ -68,8 +69,9 @@ export const ConfigurationPanel: React.FC<{
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
-    // Use the actual panel width, not constraints.maxWidth which might be the full terminal width
-    const itemMaxWidth = panelWidth - 7; // 4 for borders, 3 for indicator and space
+    // BorderedBox overhead: 2 chars for left border + space, 2 chars for space + right border = 4
+    // No need to subtract extra for indicator since ConfigurationListItem handles that
+    const itemMaxWidth = panelWidth - 4;
     
     // Calculate line positions for all items
     const itemLinePositions: Array<{start: number, end: number}> = [];
@@ -216,18 +218,22 @@ export const ConfigurationPanel: React.FC<{
                 
                 visibleItems.forEach((listItem, visualIndex) => {
                     // Get rendered elements from list item
-                    const itemElements = listItem.render(itemMaxWidth + 2); // +2 for icon + space
+                    const itemElements = listItem.render(itemMaxWidth);
                     
-                    // Handle both single element and array of elements
+                    // Wrap in SelfConstrainedWrapper to prevent double truncation
                     if (Array.isArray(itemElements)) {
-                        itemElements.forEach((element, index) => {
-                            elements.push(
-                                React.cloneElement(element, { key: `item-${visualIndex}-${index}` })
-                            );
-                        });
+                        elements.push(
+                            <SelfConstrainedWrapper key={`item-${visualIndex}`}>
+                                {itemElements.map((element, index) => 
+                                    React.cloneElement(element, { key: `element-${index}` })
+                                )}
+                            </SelfConstrainedWrapper>
+                        );
                     } else {
                         elements.push(
-                            React.cloneElement(itemElements, { key: `item-${visualIndex}` })
+                            <SelfConstrainedWrapper key={`item-${visualIndex}`}>
+                                {itemElements}
+                            </SelfConstrainedWrapper>
                         );
                     }
                 });

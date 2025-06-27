@@ -132,7 +132,8 @@ export class ConfigurationListItem implements IListItem {
     
     private formatHeader(maxWidth: number): string {
         const iconWidth = 2; // icon + space
-        const availableWidth = maxWidth - iconWidth;
+        // Reserve 1 char to prevent Box truncation of closing bracket
+        const availableWidth = maxWidth - iconWidth - 1;
         const minBracketContent = "[…]"; // 3 chars
         const colorStart = '\x1b[38;5;117m';
         const colorEnd = '\x1b[39m';
