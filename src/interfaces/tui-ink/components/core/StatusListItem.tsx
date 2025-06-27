@@ -17,7 +17,13 @@ export class StatusListItem implements IListItem {
         private isActive: boolean,
         private isExpanded: boolean,
         private details?: string[]
-    ) {}
+    ) {
+        // Use status symbol as the bullet icon if available
+        // But preserve selection indicator (▶) when active
+        if (this.status && this.icon !== '▶') {
+            this.icon = this.status;
+        }
+    }
     
     render(maxWidth: number): ReactElement | ReactElement[] {
         if (this.isExpanded && this.details) {
@@ -131,8 +137,7 @@ export class StatusListItem implements IListItem {
         
         // Calculate space allocation
         const iconWidth = this.icon.length + 1; // icon + space
-        const statusWidth = this.status ? this.status.length + 1 : 0; // status + space
-        const availableTextWidth = safeWidth - iconWidth - statusWidth;
+        const availableTextWidth = safeWidth - iconWidth;
         
         // Truncate text if needed
         let displayText = this.text;
@@ -144,28 +149,20 @@ export class StatusListItem implements IListItem {
             }
         }
         
-        // Calculate padding to align status to the right
-        const usedWidth = iconWidth + displayText.length + statusWidth;
-        const padding = Math.max(0, safeWidth - usedWidth);
-        
         // Build segments
+        // Apply color to the icon (which is now the status symbol)
+        const iconColor = this.status ? this.getStatusColor() : undefined;
+        
         const segments: Segment[] = [
             { 
-                text: `${this.icon} ${displayText}`, 
-                color: this.isActive ? theme.colors.accent : undefined 
+                text: this.icon,
+                color: this.isActive ? theme.colors.accent : iconColor
+            },
+            {
+                text: ` ${displayText}`,
+                color: this.isActive ? theme.colors.accent : undefined
             }
         ];
-        
-        if (padding > 0) {
-            segments.push({ text: ' '.repeat(padding) });
-        }
-        
-        if (this.status) {
-            segments.push({ 
-                text: ` ${this.status}`, 
-                color: this.getStatusColor() 
-            });
-        }
         
         return segments;
     }
@@ -174,20 +171,13 @@ export class StatusListItem implements IListItem {
         // Use Box with separate Text elements like the old TUI
         // This avoids the ConstrainedContent issue with nested Text
         
-        // Find the main text segment and status segment
-        const mainSegment = segments[0]; // Icon + text
-        const paddingSegment = segments[1]; // Padding spaces
-        const statusSegment = segments[2]; // Status symbol
+        const iconSegment = segments[0]; // Icon (status symbol)
+        const textSegment = segments[1]; // Main text
         
         return (
             <Box>
-                <Text color={mainSegment.color}>
-                    {mainSegment.text}
-                    {paddingSegment ? paddingSegment.text : ''}
-                </Text>
-                {statusSegment && statusSegment.text.trim() && (
-                    <Text color={statusSegment.color}>{statusSegment.text}</Text>
-                )}
+                <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                <Text color={textSegment.color}>{textSegment.text}</Text>
             </Box>
         );
     }
