@@ -176,15 +176,64 @@ export const ConfigurationPanel: React.FC<{
             return handled;
         }
         
-        // Otherwise handle entering edit mode
-        if (key.rightArrow || key.return) {
+        // Otherwise handle entering edit mode or expanding/collapsing
+        if (key.return) {
             selectedItem.onEnter();
             // Force re-render to show edit mode
             setUpdateTrigger(prev => prev + 1);
             return true;
+        } else if (key.rightArrow) {
+            // Right arrow expands LogItems or enters edit mode for ConfigurationListItems
+            if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
+                selectedItem.onExpand();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            } else if (selectedItem.onEnter) {
+                // For ConfigurationListItems, right arrow enters edit mode
+                selectedItem.onEnter();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            }
+        } else if (key.leftArrow || key.escape) {
+            // Left arrow or ESC collapses LogItems
+            if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
+                selectedItem.onCollapse();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            }
         }
         return false;
     }, [configListItems, navigation.configSelectedIndex]);
+    
+    // Determine key bindings based on selected item and edit mode
+    const selectedItem = configListItems[navigation.configSelectedIndex];
+    const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+    const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
+    
+    let keyBindings = [];
+    if (isAnyItemInEditMode) {
+        keyBindings = [
+            { key: '←→', description: 'Move cursor' },
+            { key: 'Esc', description: 'Cancel' },
+            { key: 'Enter', description: 'Save' }
+        ];
+    } else if (isLogItem) {
+        if (isExpanded) {
+            keyBindings = [
+                { key: '←/Esc', description: 'Collapse' },
+                { key: 'Enter', description: 'Toggle' }
+            ];
+        } else {
+            keyBindings = [
+                { key: '→/Enter', description: 'Expand' }
+            ];
+        }
+    } else {
+        // For ConfigurationListItem not in edit mode
+        keyBindings = [
+            { key: '→/Enter', description: 'Edit' }
+        ];
+    }
     
     // Use focus chain
     const { isInFocusChain } = useFocusChain({
@@ -192,13 +241,7 @@ export const ConfigurationPanel: React.FC<{
         parentId: 'navigation',
         isActive: navigation.isConfigFocused,
         onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
-        keyBindings: isAnyItemInEditMode ? [
-            { key: '←→', description: 'Move cursor' },
-            { key: 'Esc', description: 'Cancel' },
-            { key: 'Enter', description: 'Save' }
-        ] : [
-            { key: '→/Enter', description: 'Edit' }
-        ],
+        keyBindings: keyBindings,
         priority: isAnyItemInEditMode ? 1000 : 50 // Very high priority when in edit mode
     });
     

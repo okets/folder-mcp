@@ -40,6 +40,16 @@ export class LogItem implements IListItem {
         // Status items don't control input, they just expand/collapse
     }
     
+    onExpand(): void {
+        // Expand the item (right arrow)
+        this._isExpanded = true;
+    }
+    
+    onCollapse(): void {
+        // Collapse the item (left arrow)
+        this._isExpanded = false;
+    }
+    
     onExit(): void {
         // Not used for status items
     }

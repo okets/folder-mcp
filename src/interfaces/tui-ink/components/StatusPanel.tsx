@@ -149,14 +149,57 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
         }
         
         // Otherwise handle navigation
-        if ((key.return || key.rightArrow) && selectedItem?.onEnter) {
+        if (key.return && selectedItem?.onEnter) {
             selectedItem.onEnter();
             // Force re-render for any state changes
             setUpdateTrigger(prev => prev + 1);
             return true;
+        } else if (key.rightArrow && selectedItem) {
+            // Right arrow expands (if item supports it)
+            if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
+                selectedItem.onExpand();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            } else if (selectedItem.onEnter) {
+                // Fallback to onEnter for items that don't have onExpand
+                selectedItem.onEnter();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            }
+        } else if ((key.leftArrow || key.escape) && selectedItem) {
+            // Left arrow or ESC collapses (if item supports it)
+            if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
+                selectedItem.onCollapse();
+                setUpdateTrigger(prev => prev + 1);
+                return true;
+            }
         }
         return false;
     }, [mixedItems, navigation.statusSelectedIndex]);
+    
+    // Determine key bindings based on selected item
+    const selectedItem = mixedItems[navigation.statusSelectedIndex];
+    const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+    const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
+    
+    let keyBindings = [];
+    if (isLogItem) {
+        if (isExpanded) {
+            keyBindings = [
+                { key: '←/Esc', description: 'Collapse' },
+                { key: 'Enter', description: 'Toggle' }
+            ];
+        } else {
+            keyBindings = [
+                { key: '→/Enter', description: 'Expand' }
+            ];
+        }
+    } else {
+        // For ConfigurationListItem in status panel
+        keyBindings = [
+            { key: 'Enter', description: 'Edit' }
+        ];
+    }
     
     // Use focus chain
     useFocusChain({
@@ -164,9 +207,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
         parentId: 'navigation',
         isActive: navigation.isStatusFocused,
         onInput: navigation.isStatusFocused ? handleStatusInput : undefined,
-        keyBindings: [
-            { key: '→/Enter', description: 'Expand/Collapse' }
-        ],
+        keyBindings: keyBindings,
         priority: 50
     });
     
