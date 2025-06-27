@@ -222,13 +222,14 @@ export const ConfigurationPanel: React.FC<{
                     
                     // Wrap in SelfConstrainedWrapper to prevent double truncation
                     if (Array.isArray(itemElements)) {
-                        elements.push(
-                            <SelfConstrainedWrapper key={`item-${visualIndex}`}>
-                                {itemElements.map((element, index) => 
-                                    React.cloneElement(element, { key: `element-${index}` })
-                                )}
-                            </SelfConstrainedWrapper>
-                        );
+                        // For multi-line items, wrap each element separately
+                        itemElements.forEach((element, index) => {
+                            elements.push(
+                                <SelfConstrainedWrapper key={`item-${visualIndex}-${index}`}>
+                                    {element}
+                                </SelfConstrainedWrapper>
+                            );
+                        });
                     } else {
                         elements.push(
                             <SelfConstrainedWrapper key={`item-${visualIndex}`}>
