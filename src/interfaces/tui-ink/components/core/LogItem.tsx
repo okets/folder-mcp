@@ -71,10 +71,9 @@ export class LogItem implements IListItem {
         if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
-            // Header using segments approach with expand icon
-            const expandIcon = '▼';
-            const tempIcon = this.icon; // Save original icon
-            this.icon = expandIcon; // Temporarily set expand icon
+            // Header using segments approach - use ■ when expanded
+            const tempIcon = this.icon; // Save current icon
+            this.icon = '■'; // Use square when expanded
             const headerSegments = this.buildSegments(maxWidth);
             this.icon = tempIcon; // Restore original icon
             
@@ -266,10 +265,13 @@ export class LogItem implements IListItem {
         // Apply color to the icon (which is now the status symbol)
         const iconColor = this.status ? this.getStatusColor() : undefined;
         
+        // When expanded, always use status color for icon to match vertical lines
+        const useStatusColor = this._isExpanded && this.icon === '■';
+        
         const segments: Segment[] = [
             { 
                 text: this.icon,
-                color: this.isActive ? theme.colors.accent : iconColor
+                color: useStatusColor ? iconColor : (this.isActive ? theme.colors.accent : iconColor)
             },
             {
                 text: displayText,

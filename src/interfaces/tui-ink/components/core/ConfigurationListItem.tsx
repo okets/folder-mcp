@@ -97,10 +97,11 @@ export class ConfigurationListItem implements IListItem {
             // Expanded edit mode
             const elements: ReactElement[] = [];
             
-            // Header
+            // Header - use ■ when expanded
             elements.push(
-                <Text key="header" color={this.isActive ? theme.colors.accent : undefined}>
-                    {'▼'} {this.label}:
+                <Text key="header">
+                    <Text color={undefined}>■ </Text>
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>{this.label}:</Text>
                 </Text>
             );
             
