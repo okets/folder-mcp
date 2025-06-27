@@ -70,8 +70,8 @@ export const ConfigurationPanel: React.FC<{
     // Calculate content width for items
     const panelWidth = width || columns - 2;
     // BorderedBox overhead: 2 chars for left border + space, 2 chars for space + right border = 4
-    // No need to subtract extra for indicator since ConfigurationListItem handles that
-    const itemMaxWidth = panelWidth - 4;
+    // We'll assume scrollbar is needed and subtract 1 more to be safe
+    const itemMaxWidth = panelWidth - 4 - 1;
     
     // Calculate line positions for all items
     const itemLinePositions: Array<{start: number, end: number}> = [];
