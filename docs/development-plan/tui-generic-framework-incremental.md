@@ -560,6 +560,75 @@ class MenuListItem implements IListItem {
 - **Extensibility**: Easy to add new item types
 - **Simplicity**: No complex callback chains
 
+## Phase 8: ISelfConstrainedItem Architecture - Fix Double Truncation
+
+### Problem Statement:
+- ConstrainedContent component in BorderedBox applies truncation to ALL content
+- IListItem implementations already handle their own truncation internally
+- This causes double truncation where text is truncated twice:
+  1. First by the IListItem's render method
+  2. Again by ConstrainedContent wrapper
+- Results in premature ellipsis and incorrect text display
+
+### Root Cause:
+- BorderedBox wraps all children in ConstrainedContent (line 87-89)
+- ConstrainedContent applies automatic truncation with "..."
+- IListItem items (ConfigurationListItem, StatusListItem) already truncate their content
+- TextInputBody adds "…" ellipsis when it should use pure sliding window
+
+### Solution: ISelfConstrainedItem Interface
+
+#### Design:
+```typescript
+interface ISelfConstrainedItem {
+  readonly selfConstrained: true;
+  // Marker interface - presence indicates item handles its own width constraints
+}
+
+// All IListItem implementations should extend ISelfConstrainedItem
+interface IListItem extends ISelfConstrainedItem {
+  render(maxWidth: number): React.ReactElement;
+  getRequiredLines(maxWidth: number): number;
+  // ... rest of interface
+}
+```
+
+### Implementation Steps:
+
+#### Step 8.1: Create ISelfConstrainedItem Interface
+- Add interface to mark self-constraining components
+- Update IListItem to extend ISelfConstrainedItem
+
+#### Step 8.2: Update ConstrainedContent
+- Check if child implements ISelfConstrainedItem
+- If yes: Render child directly without truncation
+- If no: Apply existing truncation logic (backwards compatibility)
+
+#### Step 8.3: Fix TextInputBody Truncation
+- Remove ellipsis indicators (lines 86-91)
+- Keep pure sliding window behavior
+- Text scrolls horizontally without "..." indicators
+
+#### Step 8.4: Update All IListItem Implementations
+- Ensure all implementations properly extend the updated interface
+- Verify each handles its own width constraints correctly
+
+### Verification:
+- [ ] No double truncation in any list items
+- [ ] TextInput shows sliding window without ellipsis
+- [ ] ConfigurationListItem shows proper "..." truncation when collapsed
+- [ ] StatusListItem truncates text while preserving status indicators
+- [ ] ConstrainedContent skips ISelfConstrainedItem components
+- [ ] Backwards compatibility maintained for non-self-constrained items
+
+### Benefits:
+- **Clear Contract**: Components explicitly declare width self-management
+- **No Interference**: Parent containers respect self-constrained items
+- **Type Safety**: TypeScript enforces the contract at compile time
+- **Flexibility**: Each item type implements its own constraint strategy
+
+## End of Phase 8
+
 ## End of Phase 7
 **Goal**: Ensure proper display in actual terminal
 

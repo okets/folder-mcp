@@ -3,6 +3,7 @@ import { Text, Box } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 import { useLayoutConstraints } from '../contexts/LayoutContext.js';
+import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 
 interface ConstrainedContentProps {
     children: React.ReactNode;
@@ -26,6 +27,14 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
         }
         
         if (React.isValidElement(node)) {
+            // Check if this is a SelfConstrainedWrapper
+            if (node.type === SelfConstrainedWrapper) {
+                if (process.env.DEBUG_TRUNCATE) {
+                    console.error('[ConstrainedContent] Skipping self-constrained wrapper');
+                }
+                return node; // Don't process, it handles its own constraints
+            }
+            
             // Skip processing if component handles its own layout
             // Check if it's a Box with flexDirection="row" - likely a layout component
             if (node.type === Box && node.props.flexDirection === 'row') {

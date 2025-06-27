@@ -5,6 +5,7 @@ import { TextInputBody } from './TextInputBody.js';
 import { theme } from '../../utils/theme.js';
 
 export class ConfigurationListItem implements IListItem {
+    readonly selfConstrained = true as const;
     private _isControllingInput: boolean = false;
     private _editValue: string = '';
     private _cursorPosition: number = 0;

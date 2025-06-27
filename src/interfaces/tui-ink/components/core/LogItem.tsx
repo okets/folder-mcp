@@ -10,6 +10,7 @@ interface Segment {
 }
 
 export class LogItem implements IListItem {
+    readonly selfConstrained = true as const;
     private _isExpanded: boolean = false;
     private _isControllingInput: boolean = false;
     

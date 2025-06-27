@@ -1,12 +1,16 @@
 import { ReactElement } from 'react';
 import { Key } from 'ink';
+import { ISelfConstrainedItem } from './ISelfConstrainedItem.js';
 
 /**
  * Interface for all list item types in the TUI
  * Each implementation handles its own layout and truncation logic
  * Items can optionally take control of keyboard input when "entered"
+ * 
+ * All IListItem implementations are self-constrained, meaning they handle
+ * their own width constraints and should not be truncated by parent containers.
  */
-export interface IListItem {
+export interface IListItem extends ISelfConstrainedItem {
     /**
      * Render the list item with the given maximum width
      * @param maxWidth - Maximum width available for the item

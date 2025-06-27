@@ -82,13 +82,8 @@ export const TextInputBody = ({
         displayLength = visibleValue.length;
     }
     
-    // Add overflow indicators
-    if (windowStart > 0) {
-        content = '…' + content.slice(1); // Replace first char with ellipsis
-    }
-    if (windowStart + contentAreaWidth < value.length) {
-        content = content.slice(0, -1) + '…'; // Replace last char with ellipsis
-    }
+    // No overflow indicators - pure sliding window behavior
+    // The text will scroll horizontally within the bounded box
 
     // Calculate padding to fill the border width
     // borderWidth is the width of the top/bottom borders (─ characters)

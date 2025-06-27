@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
-import { BorderedBox } from './BorderedBox.js';
+import { BorderedBox } from '../BorderedBox.js';
 import { IListItem } from './IListItem.js';
 import { calculateScrollbar } from './ScrollbarCalculator.js';
 import { theme } from '../../utils/theme.js';
+import { SelfConstrainedWrapper } from './SelfConstrainedWrapper.js';
 
 export interface GenericListPanelProps {
     title: string;
@@ -146,16 +147,20 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
                     const actualIndex = visibleStartIndex + visualIndex;
                     const itemElements = item.render(itemMaxWidth);
                     
-                    // Handle both single element and array of elements
-                    if (Array.isArray(itemElements)) {
-                        return (
-                            <Box key={`item-${actualIndex}`} flexDirection="column">
-                                {itemElements}
-                            </Box>
-                        );
-                    } else {
-                        return React.cloneElement(itemElements, { key: `item-${actualIndex}` });
-                    }
+                    // Wrap in SelfConstrainedWrapper to prevent double truncation
+                    const wrappedContent = (
+                        <SelfConstrainedWrapper>
+                            {Array.isArray(itemElements) ? (
+                                <Box flexDirection="column">
+                                    {itemElements}
+                                </Box>
+                            ) : (
+                                itemElements
+                            )}
+                        </SelfConstrainedWrapper>
+                    );
+                    
+                    return React.cloneElement(wrappedContent, { key: `item-${actualIndex}` });
                 })
             ) : (
                 <Text color={theme.colors.textMuted}>No items</Text>
