@@ -135,20 +135,33 @@ export class SelectionListItem implements IListItem {
                 }
             }
             return true;
-        } else if (key.leftArrow && this._effectiveLayout === 'horizontal') {
-            // Move focus left
-            this._focusedIndex = this._focusedIndex > 0 
-                ? this._focusedIndex - 1 
-                : this.options.length - 1; // Wrap to end
-            
-            // Auto-select in radio mode
-            if (this.mode === 'radio') {
-                const option = this.options[this._focusedIndex];
-                if (option) {
-                    this._workingSelectedValues = [option.value];
-                }
-            }
+        } else if (key.leftArrow && this._effectiveLayout === 'vertical') {
+            // In vertical layout, left arrow acts as back/cancel
+            this._workingSelectedValues = [...this._selectedValues];
+            this._focusedIndex = 0;
+            this.onExit();
             return true;
+        } else if (key.leftArrow && this._effectiveLayout === 'horizontal') {
+            // In horizontal layout, left arrow acts as back only when at first option
+            if (this._focusedIndex === 0) {
+                // At first option, act as back/cancel
+                this._workingSelectedValues = [...this._selectedValues];
+                this._focusedIndex = 0;
+                this.onExit();
+                return true;
+            } else {
+                // Otherwise, move focus left
+                this._focusedIndex = this._focusedIndex - 1;
+                
+                // Auto-select in radio mode
+                if (this.mode === 'radio') {
+                    const option = this.options[this._focusedIndex];
+                    if (option) {
+                        this._workingSelectedValues = [option.value];
+                    }
+                }
+                return true;
+            }
         } else if (key.rightArrow && this._effectiveLayout === 'horizontal') {
             // Move focus right
             this._focusedIndex = this._focusedIndex < this.options.length - 1 

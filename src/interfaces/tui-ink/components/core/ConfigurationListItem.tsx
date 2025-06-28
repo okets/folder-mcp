@@ -103,9 +103,19 @@ export class ConfigurationListItem implements IListItem {
             this.onExit();
             return true;
         } else if (key.leftArrow) {
-            // Move cursor left
-            this._cursorPosition = Math.max(0, this._cursorPosition - 1);
-            return true;
+            // If cursor is at position 0, act as back/cancel
+            if (this._cursorPosition === 0) {
+                // Cancel editing
+                this._editValue = this.value;
+                this._cursorPosition = 0;
+                this._validationError = null;
+                this.onExit();
+                return true;
+            } else {
+                // Otherwise, move cursor left
+                this._cursorPosition = this._cursorPosition - 1;
+                return true;
+            }
         } else if (key.rightArrow) {
             // Move cursor right
             this._cursorPosition = Math.min(this._editValue.length, this._cursorPosition + 1);
