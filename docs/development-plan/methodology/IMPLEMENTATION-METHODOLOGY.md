@@ -36,8 +36,14 @@ This methodology adds **essential safety elements** to any design document witho
 - User requests: *"Apply the implementation framework to my design document"*
 - Agent adds safety elements WITHOUT changing the user's tasks or breaking them down
 - Agent converts user's tasks to checkbox format and adds progress tracking
+- Agent adds implementation directive to each task (see below)
 
-### **Phase 3: Safe Execution**  
+### **Phase 3: Task Breakdown (When Implementation Begins)**
+- When starting a task, agent breaks it down into HOW-focused assignments
+- Original WHAT description remains unchanged
+- Implementation assignments are added as sub-checkboxes
+
+### **Phase 4: Safe Execution**  
 - Agent follows the enhanced plan with safety protocols
 - User and agent check off progress together
 - Rollback capability available at any point
@@ -79,7 +85,21 @@ git status           # Verify clean working state
 ```
 ```
 
-### **2. Convert Tasks to Progress Tracking Format**
+### **2. Add Implementation Directive to Each Task**
+
+Add this directive at the beginning of each task:
+
+```markdown
+### **Task N: [Task Name]**
+
+**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+
+- [ ] [Original task description as written by user]
+```
+
+This directive ensures the plan evolves naturally as implementation progresses.
+
+### **3. Convert Tasks to Progress Tracking Format**
 
 **BEFORE (User's Original Task)**:
 ```markdown
@@ -88,16 +108,15 @@ git status           # Verify clean working state
 - Create admin dashboard
 ```
 
-**AFTER (Agent Adds Checkboxes and Safety)**:
+**AFTER (Agent Adds Checkboxes and Implementation Directive)**:
 ```markdown
 ## 🎯 **Implementation Tasks**
 
 ### **Task 1: Implement Authentication System**
-- [ ] Create authentication interfaces
-- [ ] Implement login/logout functionality
-- [ ] Add password hashing
-- [ ] Create session management
-- [ ] Add authentication middleware
+
+**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+
+- [ ] Implement authentication system
 
 **Validation After Completion**:
 ```powershell
@@ -130,7 +149,41 @@ git add -A && git commit -m "Task 3: Admin dashboard completed"
 ```
 ```
 
-### **3. Progress Tracking Section**
+**DURING IMPLEMENTATION (Task Evolves with HOW-focused Assignments)**:
+```markdown
+### **Task 1: Implement Authentication System**
+
+**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+
+- [ ] Implement authentication system
+
+#### **Implementation Assignments:**
+
+**Assignment 1.1: Set up authentication infrastructure**
+- [ ] Create `src/auth/types.ts` with User and Session interfaces
+- [ ] Set up JWT token generation using `jsonwebtoken` library
+- [ ] Configure token expiration and refresh logic
+
+**Assignment 1.2: Implement login endpoint**
+- [ ] Create POST `/api/auth/login` route handler
+- [ ] Validate credentials against user database
+- [ ] Generate and return JWT token on success
+- [ ] Set secure HTTP-only cookie for token storage
+
+**Assignment 1.3: Add authentication middleware**
+- [ ] Create `verifyToken()` middleware function
+- [ ] Extract and validate JWT from request headers/cookies
+- [ ] Attach user object to request for authenticated routes
+- [ ] Handle token expiration and refresh scenarios
+
+**Validation After Completion**:
+```powershell
+npm run build && npm test
+git add -A && git commit -m "Task 1: Authentication system completed"
+```
+```
+
+### **4. Progress Tracking Section**
 ```markdown
 ## 📊 **Progress Tracking**
 
@@ -159,11 +212,12 @@ npm run build && npm test && git status
 
 ## ⚠️ **Critical Rules for Agents**
 
-### **DO NOT Change User's Tasks**
-- ❌ Don't modify the user's task descriptions
-- ❌ Don't break down tasks into smaller steps
+### **DO NOT Change User's Tasks (Initially)**
+- ❌ Don't modify the user's task descriptions when first applying the framework
+- ❌ Don't break down tasks into smaller steps during initial enhancement
 - ❌ Don't change the scope or add new requirements
-- ✅ Only add checkboxes, safety framework, and progress tracking
+- ✅ Only add checkboxes, safety framework, progress tracking, and implementation directive
+- ✅ Break down tasks ONLY when implementation begins, keeping original description intact
 
 ### **Keep It Simple**
 - ✅ Convert user's tasks to checkbox format exactly as written
@@ -239,6 +293,9 @@ git status           # Verify clean working state
 ## 🎯 **Implementation Tasks**
 
 ### **Task 1: Set up MCP server**
+
+**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+
 - [ ] Set up MCP server
 
 **Validation After Completion**:
@@ -307,23 +364,30 @@ When enhancing any design document with safety methodology:
 
 - [ ] Added Safety Framework section with backup/rollback commands
 - [ ] Converted all user tasks to checkbox format (- [ ])
+- [ ] Added implementation directive to each task
 - [ ] Added validation commands after each task
 - [ ] Added Progress Tracking section with status table
 - [ ] Added Quick Health Check commands
-- [ ] **DID NOT** change user's original task descriptions
-- [ ] **DID NOT** break down tasks into smaller steps
+- [ ] **DID NOT** change user's original task descriptions (initially)
+- [ ] **DID NOT** break down tasks into smaller steps (until implementation begins)
 - [ ] **DID NOT** add duration estimates or complexity
 - [ ] Kept user's original design intent completely intact
 
 ---
 
-## 🎯 **Why This Simplified Methodology Works**
+## 🎯 **Why This Evolving Plan Methodology Works**
 
 ### **Focus on Essentials**
 1. **Backup Safety**: Always create a rollback point before starting
 2. **Progress Visibility**: Checkboxes provide clear completion tracking
 3. **Validation Gates**: Test after each task to catch issues immediately
-4. **Simplicity**: No complex breakdowns or overwhelming detail
+4. **Evolving Detail**: Plans start simple and gain detail naturally as work progresses
+
+### **The Power of Evolving Plans**
+- **Start Simple**: Initial plans focus on WHAT needs to be done
+- **Add Detail When Needed**: HOW-to details emerge when implementation begins
+- **Maintain Context**: Original goals remain visible throughout
+- **Natural Progression**: Complexity is added only when it provides value
 
 ### **Key Benefits**
 - **Reduces Risk**: Backup branches eliminate fear of breaking things
@@ -346,8 +410,10 @@ When a user says *"Apply the implementation framework to my design document"*:
 1. **Read their design document completely**
 2. **Add the Safety Framework** (backup, rollback, validation commands)
 3. **Convert their tasks to checkbox format** (exactly as they wrote them)
-4. **Add Progress Tracking section** with status table
-5. **Show the enhanced plan** to the user
-6. **Begin safe execution** with backup-commit-validate cycle
+4. **Add implementation directive** to each task for future breakdown
+5. **Add Progress Tracking section** with status table
+6. **Show the enhanced plan** to the user
+7. **When starting each task**, break it down into HOW-focused assignments
+8. **Begin safe execution** with backup-commit-validate cycle
 
-Remember: **You're adding safety and progress tracking, not changing their tasks.**
+Remember: **You're creating an evolving plan that starts simple and gains detail naturally.**
