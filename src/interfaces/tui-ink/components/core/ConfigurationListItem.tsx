@@ -14,6 +14,7 @@ export class ConfigurationListItem implements IListItem {
     private onValueChange?: (newValue: string) => void;
     private _validationError: string | null = null;
     private validators: Array<(value: string) => { isValid: boolean; error?: string }> = [];
+    private _showPassword: boolean = false;
     
     constructor(
         public icon: string,
@@ -25,7 +26,8 @@ export class ConfigurationListItem implements IListItem {
         cursorPosition?: number,
         cursorVisible?: boolean,
         onValueChange?: (newValue: string) => void,
-        validators?: Array<(value: string) => { isValid: boolean; error?: string }>
+        validators?: Array<(value: string) => { isValid: boolean; error?: string }>,
+        private isPassword: boolean = false
     ) {
         this._editValue = editValue ?? this.value;
         this._cursorPosition = cursorPosition ?? this._editValue.length;
@@ -41,13 +43,22 @@ export class ConfigurationListItem implements IListItem {
     onEnter(): void {
         // Enter edit mode
         this._isControllingInput = true;
-        this._editValue = this.value;
-        this._cursorPosition = this._editValue.length;
+        
+        // For password fields, start with blank value for security
+        // This prevents accidental display of existing passwords
+        if (this.isPassword) {
+            this._editValue = '';
+            this._cursorPosition = 0;
+        } else {
+            this._editValue = this.value;
+            this._cursorPosition = this._editValue.length;
+        }
     }
     
     onExit(): void {
         // Exit edit mode
         this._isControllingInput = false;
+        this._showPassword = false; // Reset password visibility
     }
     
     private validate(value: string): void {
@@ -63,6 +74,14 @@ export class ConfigurationListItem implements IListItem {
 
     handleInput(input: string, key: Key): boolean {
         if (!this._isControllingInput) return false;
+        
+        
+        // Check for password visibility toggle
+        if (this.isPassword && key.tab) {
+            // Tab key to toggle password visibility
+            this._showPassword = !this._showPassword;
+            return true;
+        }
         
         if (key.escape) {
             // Cancel editing
@@ -96,16 +115,28 @@ export class ConfigurationListItem implements IListItem {
             if (this._cursorPosition > 0) {
                 this._editValue = this._editValue.slice(0, this._cursorPosition - 1) + this._editValue.slice(this._cursorPosition);
                 this._cursorPosition--;
-                // Validate on change
-                this.validate(this._editValue);
+                
+                // For password fields, clear error on keystroke but don't validate
+                // For other fields, validate on change
+                if (this.isPassword && this._validationError) {
+                    this._validationError = null;
+                } else if (!this.isPassword) {
+                    this.validate(this._editValue);
+                }
             }
             return true;
         } else if (input && !key.ctrl && !key.meta) {
             // Insert character at cursor position
             this._editValue = this._editValue.slice(0, this._cursorPosition) + input + this._editValue.slice(this._cursorPosition);
             this._cursorPosition++;
-            // Validate on change
-            this.validate(this._editValue);
+            
+            // For password fields, clear error on keystroke but don't validate
+            // For other fields, validate on change
+            if (this.isPassword && this._validationError) {
+                this._validationError = null;
+            } else if (!this.isPassword) {
+                this.validate(this._editValue);
+            }
             return true;
         }
         return true; // Consume all input when in edit mode
@@ -167,28 +198,31 @@ export class ConfigurationListItem implements IListItem {
                 }
             } else {
                 // Show keyboard hints
-                const hintsText = ' [enter] ✓ [esc] ✗';
-                const totalLength = 2 + labelPart.length + hintsText.length;
-                
-                if (totalLength <= maxWidth) {
-                    elements.push(
-                        <Text key="header">
-                            <Text color={undefined}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            <Text color={theme.colors.textMuted}>[enter] </Text>
-                            <Text color={theme.colors.successGreen}>✓</Text>
-                            <Text color={theme.colors.textMuted}> [esc] </Text>
-                            <Text color={theme.colors.warningOrange}>✗</Text>
-                        </Text>
-                    );
-                } else {
-                    // Not enough space for hints
-                    elements.push(
-                        <Text key="header">
-                            <Text color={undefined}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                        </Text>
-                    );
+                {
+                    // Show standard hints for all fields (password hint is now on input line)
+                    const hintsText = ' [enter] ✓ [esc] ✗';
+                    const totalLength = 2 + labelPart.length + hintsText.length;
+                    
+                    if (totalLength <= maxWidth) {
+                        elements.push(
+                            <Text key="header">
+                                <Text color={undefined}>■ </Text>
+                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                                <Text color={theme.colors.textMuted}> [enter] </Text>
+                                <Text color={theme.colors.successGreen}>✓</Text>
+                                <Text color={theme.colors.textMuted}> [esc] </Text>
+                                <Text color={theme.colors.warningOrange}>✗</Text>
+                            </Text>
+                        );
+                    } else {
+                        // Not enough space for hints
+                        elements.push(
+                            <Text key="header">
+                                <Text color={undefined}>■ </Text>
+                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            </Text>
+                        );
+                    }
                 }
             }
             
@@ -199,13 +233,16 @@ export class ConfigurationListItem implements IListItem {
                 cursorVisible: this._cursorVisible,
                 width: maxWidth,
                 maxInputWidth: 40, // Reasonable max width for input fields
-                headerColor: this.isActive ? theme.colors.accent : undefined
+                headerColor: this.isActive ? theme.colors.accent : undefined,
+                isPassword: this.isPassword,
+                showPassword: this._showPassword
             });
             
             return [...elements, ...bodyElements];
         } else {
             // Collapsed view
-            const { label, value, truncated } = this.formatHeaderParts(maxWidth);
+            const displayValue = this.isPassword ? '•'.repeat(this.value.length) : this.value;
+            const { label, value, truncated } = this.formatHeaderParts(maxWidth, displayValue);
             
             // Build the full text without nested components to avoid wrapping
             const fullText = truncated 
@@ -218,7 +255,7 @@ export class ConfigurationListItem implements IListItem {
                 const safeLength = maxWidth - 4; // Leave room for "…]"
                 const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
                 const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
-                const truncatedValue = value.slice(0, Math.max(0, remainingSpace));
+                const truncatedValue = displayValue.slice(0, Math.max(0, remainingSpace));
                 
                 return (
                     <Text>
@@ -256,17 +293,19 @@ export class ConfigurationListItem implements IListItem {
         return this._isControllingInput ? 4 : 1;
     }
     
-    private formatHeaderParts(maxWidth: number): { label: string; value: string; truncated: boolean } {
+    private formatHeaderParts(maxWidth: number, displayValue?: string): { label: string; value: string; truncated: boolean } {
         // The render() method will prepend "{icon} " (2 chars)
         // So we need to account for that in our width calculation
         const iconWidth = 2; // icon + space
         const availableWidth = maxWidth - iconWidth;
         
+        const valueToDisplay = displayValue ?? this.value;
+        
         // Check if everything fits without truncation
         // Need to leave 1 char buffer to prevent wrapping when text exactly matches width
-        const fullTextLength = this.label.length + 2 + this.value.length + 2; // "Label: [value]"
+        const fullTextLength = this.label.length + 2 + valueToDisplay.length + 2; // "Label: [value]"
         if (fullTextLength < availableWidth) {
-            return { label: this.label, value: this.value, truncated: false };
+            return { label: this.label, value: valueToDisplay, truncated: false };
         }
         
         // Minimum viable display is "[…]" = 3 chars
@@ -287,16 +326,16 @@ export class ConfigurationListItem implements IListItem {
         
         if (spaceForValue > 0) {
             // We can fit the label and brackets with some value
-            if (this.value.length > spaceForValue) {
+            if (valueToDisplay.length > spaceForValue) {
                 // Truncate the value to fit
                 return { 
                     label: this.label, 
-                    value: this.value.slice(0, spaceForValue),
+                    value: valueToDisplay.slice(0, spaceForValue),
                     truncated: true 
                 };
             } else {
                 // Value fits without truncation
-                return { label: this.label, value: this.value, truncated: false };
+                return { label: this.label, value: valueToDisplay, truncated: false };
             }
         }
         

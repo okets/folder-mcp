@@ -12,6 +12,7 @@ MCP server is running,  Claude Desktop is connected
     - **Hugging Face Hub integration for model metadata display**
     - **Ollama CLI integration and detection**
     - **BitNet support for very weak machines**
+- !!!!! design detachement between TUI from CLI so that it can run headless
 - User input box with border and placeholder text
 - Keyboard navigation
     - \ slash commands for every CLI command
@@ -31,7 +32,6 @@ MCP server is running,  Claude Desktop is connected
 - **Backend Integration Essentials (moved from Phase 2):**
     - **Embedding model setup with caching and progress**
     - **FAISS vector index integration for progress display**
-- support Blessed mouse events!!!
 
 ## Phase 2: Backend & Integration Essentials
 - Support Legacy Doc, Xls, Ppt Formats (think of as many formats as possible)

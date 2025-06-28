@@ -47,14 +47,15 @@ export function createStatusPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'TextInput (password)',
-            '••••••••',
+            'MyPass123!',
             false,
             false,
-            'Min 8 chars',
+            undefined,
             undefined,
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
-            [validators.minLength(8)]
+            [validators.password],
+            true  // isPassword
         ),
         // SelectionListItem components
         new SelectionListItem(
@@ -178,14 +179,15 @@ export function createConfigurationPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'TextInput (password)',
-            '••••••••',
+            'SecretPass123!',
             false,
             false,
-            'Password field (Assignment 1.7)',
+            undefined,
             undefined,
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
-            [validators.minLength(8)]
+            [validators.password],
+            true  // isPassword
         ),
         // SelectionListItem components (Task 2 - Completed)
         new SelectionListItem(

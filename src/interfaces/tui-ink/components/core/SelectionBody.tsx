@@ -60,14 +60,21 @@ export const SelectionBody = ({
             const isLastItem = index === options.length - 1;
             const linePrefix = isLastItem ? '└─' : '│ ';
             
+            // Calculate if there's room for [space] hint
+            const optionText = `${symbol} ${option.label}`;
+            const spaceHint = ' [space]';
+            const linePrefixLength = linePrefix.length + 1; // +1 for space after prefix
+            const totalLength = linePrefixLength + optionText.length + (isFocused && mode === 'checkbox' ? spaceHint.length : 0);
+            const showSpaceHint = isFocused && mode === 'checkbox' && totalLength < width;
+            
             elements.push(
                 <Box key={`option-${index}`}>
                     <Text color={headerColor}>{linePrefix} </Text>
                     <Text color={isFocused ? theme.colors.accent : undefined}>
                         {symbol} {option.label}
                     </Text>
-                    {isFocused && mode === 'checkbox' && (
-                        <Text color={theme.colors.textMuted}> [space]</Text>
+                    {showSpaceHint && (
+                        <Text color={theme.colors.textMuted}>{spaceHint}</Text>
                     )}
                 </Box>
             );

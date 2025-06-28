@@ -9,6 +9,8 @@ export interface TextInputBodyProps {
     width: number;
     maxInputWidth?: number; // Maximum width for the input box (default: 40)
     headerColor?: string; // Color for the vertical line (matches header)
+    isPassword?: boolean; // Whether to mask the input as a password
+    showPassword?: boolean; // Whether to temporarily show the password
 }
 
 /**
@@ -21,7 +23,9 @@ export const TextInputBody = ({
     cursorVisible,
     width,
     maxInputWidth = 40,
-    headerColor
+    headerColor,
+    isPassword = false,
+    showPassword = false
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
@@ -63,25 +67,28 @@ export const TextInputBody = ({
         visibleCursorPos = cursorPosition - windowStart;
     }
     
+    // Mask the value if it's a password (unless showPassword is true)
+    const displayValue = (isPassword && !showPassword) ? '•'.repeat(visibleValue.length) : visibleValue;
+    
     // Build content with proper cursor handling
     let content;
     let displayLength;
     
     if (cursorVisible && visibleCursorPos >= 0 && visibleCursorPos < visibleValue.length) {
         // Cursor on existing character
-        const before = visibleValue.slice(0, visibleCursorPos);
-        const cursorChar = visibleValue[visibleCursorPos];
-        const after = visibleValue.slice(visibleCursorPos + 1);
+        const before = displayValue.slice(0, visibleCursorPos);
+        const cursorChar = displayValue[visibleCursorPos];
+        const after = displayValue.slice(visibleCursorPos + 1);
         content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m\x1b[38;5;107m' + after;
-        displayLength = visibleValue.length;
+        displayLength = displayValue.length;
     } else if (cursorVisible && cursorPosition >= value.length && visibleCursorPos >= 0) {
         // Cursor at end
-        content = visibleValue + '\x1b[47m\x1b[30m \x1b[0m';
-        displayLength = visibleValue.length + 1;
+        content = displayValue + '\x1b[47m\x1b[30m \x1b[0m';
+        displayLength = displayValue.length + 1;
     } else {
         // No cursor or cursor not visible in window
-        content = visibleValue;
-        displayLength = visibleValue.length;
+        content = displayValue;
+        displayLength = displayValue.length;
     }
     
     // No overflow indicators - pure sliding window behavior
@@ -93,6 +100,11 @@ export const TextInputBody = ({
     const paddingNeeded = Math.max(0, borderWidth - displayLength - 1); // -1 for the space before content
     const padding = ' '.repeat(paddingNeeded);
     
+    // Calculate if there's room for the password hint
+    const hintText = ` [tab] ${showPassword ? 'hide' : 'show'}`;
+    const totalLineLength = 3 + 1 + borderWidth + 1 + hintText.length; // "└──┤ content │ [tab] show"
+    const showHint = isPassword && totalLineLength <= width;
+    
     return [
         <Text key="top">
             <Text color={headerColor}>│  </Text>
@@ -103,6 +115,9 @@ export const TextInputBody = ({
             <Text color={theme.colors.textInputBorder}>┤</Text>
             <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
+            {showHint && (
+                <Text color={theme.colors.textMuted}>{hintText}</Text>
+            )}
         </Text>,
         <Text key="bottom">
             <Text>   </Text>

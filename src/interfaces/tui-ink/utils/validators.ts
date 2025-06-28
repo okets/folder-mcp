@@ -48,5 +48,34 @@ export const validators = {
         return isValid
             ? { isValid: true }
             : { isValid: false, error: `Must be at least ${min} characters` };
+    },
+    
+    password: (value: string) => {
+        // Check minimum length
+        if (value.length < 8) {
+            return { isValid: false, error: 'Password must be at least 8 characters' };
+        }
+        
+        // Check for at least one uppercase letter
+        if (!/[A-Z]/.test(value)) {
+            return { isValid: false, error: 'Password must contain an uppercase letter' };
+        }
+        
+        // Check for at least one lowercase letter
+        if (!/[a-z]/.test(value)) {
+            return { isValid: false, error: 'Password must contain a lowercase letter' };
+        }
+        
+        // Check for at least one number
+        if (!/[0-9]/.test(value)) {
+            return { isValid: false, error: 'Password must contain a number' };
+        }
+        
+        // Check for at least one special character
+        if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
+            return { isValid: false, error: 'Password must contain a special character' };
+        }
+        
+        return { isValid: true };
     }
 };
