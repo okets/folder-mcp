@@ -66,7 +66,7 @@ export const SelectionBody = ({
                     <Text color={isFocused ? theme.colors.accent : undefined}>
                         {symbol} {option.label}
                     </Text>
-                    {isFocused && (
+                    {isFocused && mode === 'checkbox' && (
                         <Text color={theme.colors.textMuted}> [space]</Text>
                     )}
                 </Box>
@@ -106,7 +106,9 @@ export const SelectionBody = ({
                 <Text color={headerColor}>└─ </Text>
                 <Box>{optionElements}</Box>
                 {focusedIndex >= 0 && (
-                    <Text color={theme.colors.textMuted}> [←→] [space]</Text>
+                    <Text color={theme.colors.textMuted}>
+                        {mode === 'checkbox' ? ' [←→] [space]' : ' [←→]'}
+                    </Text>
                 )}
             </Box>
         );

@@ -107,27 +107,59 @@ export class SelectionListItem implements IListItem {
             this._focusedIndex = this._focusedIndex > 0 
                 ? this._focusedIndex - 1 
                 : this.options.length - 1; // Wrap to bottom
+            
+            // Auto-select in radio mode
+            if (this.mode === 'radio') {
+                const option = this.options[this._focusedIndex];
+                if (option) {
+                    this._workingSelectedValues = [option.value];
+                }
+            }
             return true;
         } else if (key.downArrow && this.layout === 'vertical') {
             // Move focus down
             this._focusedIndex = this._focusedIndex < this.options.length - 1 
                 ? this._focusedIndex + 1 
                 : 0; // Wrap to top
+            
+            // Auto-select in radio mode
+            if (this.mode === 'radio') {
+                const option = this.options[this._focusedIndex];
+                if (option) {
+                    this._workingSelectedValues = [option.value];
+                }
+            }
             return true;
         } else if (key.leftArrow && this.layout === 'horizontal') {
             // Move focus left
             this._focusedIndex = this._focusedIndex > 0 
                 ? this._focusedIndex - 1 
                 : this.options.length - 1; // Wrap to end
+            
+            // Auto-select in radio mode
+            if (this.mode === 'radio') {
+                const option = this.options[this._focusedIndex];
+                if (option) {
+                    this._workingSelectedValues = [option.value];
+                }
+            }
             return true;
         } else if (key.rightArrow && this.layout === 'horizontal') {
             // Move focus right
             this._focusedIndex = this._focusedIndex < this.options.length - 1 
                 ? this._focusedIndex + 1 
                 : 0; // Wrap to start
+            
+            // Auto-select in radio mode
+            if (this.mode === 'radio') {
+                const option = this.options[this._focusedIndex];
+                if (option) {
+                    this._workingSelectedValues = [option.value];
+                }
+            }
             return true;
-        } else if (input === ' ') {
-            // Toggle selection at focused index
+        } else if (input === ' ' && this.mode === 'checkbox') {
+            // Toggle selection at focused index (checkbox mode only)
             const option = this.options[this._focusedIndex];
             if (option) {
                 this.toggleSelection(option.value);
