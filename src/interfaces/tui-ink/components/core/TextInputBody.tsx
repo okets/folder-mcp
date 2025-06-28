@@ -93,6 +93,13 @@ export const TextInputBody = ({
     const paddingNeeded = Math.max(0, borderWidth - displayLength - 1); // -1 for the space before content
     const padding = ' '.repeat(paddingNeeded);
     
+    // Calculate if we have space for the hint
+    const hintText = ' [enter] ✓ [esc] ✗';
+    const hintLength = hintText.length;
+    // We need: 3 (└──) + 1 (┤) + borderWidth + 1 (│) + hintLength
+    const totalRequiredWidth = 3 + 1 + borderWidth + 1 + hintLength;
+    const showHint = width >= totalRequiredWidth;
+    
     return [
         <Text key="top">
             <Text color={headerColor}>│  </Text>
@@ -103,6 +110,14 @@ export const TextInputBody = ({
             <Text color={theme.colors.textInputBorder}>┤</Text>
             <Text color={headerColor || theme.colors.accent}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
+            {showHint && (
+                <>
+                    <Text color={theme.colors.textMuted}> [enter] </Text>
+                    <Text color={theme.colors.successGreen}>✓</Text>
+                    <Text color={theme.colors.textMuted}> [esc] </Text>
+                    <Text color={theme.colors.warningOrange}>✗</Text>
+                </>
+            )}
         </Box>,
         <Text key="bottom">
             <Text>   </Text>
