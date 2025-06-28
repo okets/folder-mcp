@@ -99,6 +99,56 @@ git add -A && git commit -m "Task 1: TextInput validation features completed"
 - [ ] Create SelectionListItem (radio/checkbox selections) with vertical or horizontal layout
 - [ ] Implement keyboard navigation that adapts to the displayed direction
 
+#### **Implementation Assignments:**
+
+**Assignment 2.1: Create Core SelectionListItem Class**
+- [ ] Extend ConfigurationListItem pattern with selection-specific properties
+- [ ] Add `options: Array<{value: string, label: string}>` for available choices
+- [ ] Add `selectedValues: string[]` to track current selection(s)
+- [ ] Add `mode: 'radio' | 'checkbox'` to control single vs multi-select
+- [ ] Add `layout: 'vertical' | 'horizontal'` for display orientation
+- [ ] Implement IListItem interface methods (render, getRequiredLines, handleInput)
+
+**Assignment 2.2: Implement Collapsed View Rendering**
+- [ ] Format as: `label: [selected1, selected2]` for checkbox mode
+- [ ] Format as: `label: [selected]` for radio mode
+- [ ] Show `[none]` when no selection
+- [ ] Reuse truncation logic from ConfigurationListItem for long values
+- [ ] Use same color scheme (configValuesColor for selected values)
+
+**Assignment 2.3: Build Expanded View Layout**
+- [ ] Create vertical layout: each option on new line with `○/●` (radio) or `□/■` (checkbox)
+- [ ] Create horizontal layout: options in single line with separators
+- [ ] Calculate required lines: vertical = options.length + 2, horizontal = 3
+- [ ] Add selection indicators: filled = selected, empty = unselected
+- [ ] Highlight current focused option with accent color
+
+**Assignment 2.4: Implement Navigation Logic**
+- [ ] Track `focusedIndex` for currently highlighted option
+- [ ] Vertical mode: ↑/↓ arrows move focus, wrap at boundaries
+- [ ] Horizontal mode: ←/→ arrows move focus, wrap at boundaries
+- [ ] Space key: toggle selection at focused index
+- [ ] Enter key: save and collapse (radio) or toggle and stay (checkbox)
+- [ ] Escape key: cancel changes and collapse
+
+**Assignment 2.5: Handle Selection Constraints**
+- [ ] Radio mode: clear other selections when new option selected
+- [ ] Checkbox mode: allow multiple selections, toggle independently
+- [ ] Validate at least one selection for radio (optional)
+- [ ] Add `minSelections` and `maxSelections` for checkbox constraints
+
+**Assignment 2.6: Create Visual Components**
+- [ ] Create `SelectionBody` component similar to TextInputBody
+- [ ] Show options with proper spacing and alignment
+- [ ] Add keyboard hints: `[space] select [enter] confirm [esc] cancel`
+- [ ] Use box drawing characters for visual separation in horizontal mode
+
+**Assignment 2.7: Add Test Items to Sample Data**
+- [ ] Add radio selection for theme (light/dark/auto)
+- [ ] Add checkbox selection for enabled features
+- [ ] Add horizontal radio for log level (debug/info/warn/error)
+- [ ] Place in both Configuration and Status panels
+
 **Validation After Completion**:
 ```bash
 npm run build && npm test
@@ -129,6 +179,7 @@ git add -A && git commit -m "Task 4: ProgressItem component completed"
 ### **Current Status**
 - [ ] Safety framework set up (backup branch created)
 - [x] Task 1: Complete TextInput Type Features - **Completed**
+- [x] UI Enhancement: Validation errors replace keyboard hints - **Completed**
 - [ ] Task 2: Implement SelectionListItem Component - Not Started  
 - [ ] Task 3: Implement FilePickerListItem Component - Not Started
 - [ ] Task 4: Implement ProgressItem Component - Not Started
@@ -137,7 +188,9 @@ git add -A && git commit -m "Task 4: ProgressItem component completed"
 | Task | Status | Completion Date | Commit Hash |
 |------|--------|----------------|-------------|
 | Safety Setup | ⏳ Pending | - | - |
-| TextInput Validation | ✅ Completed | 2025-06-28 | - |
+| TextInput Validation | ✅ Completed | 2025-06-28 | 416e0b9 |
+| Navigation Bug Fixes | ✅ Completed | 2025-06-28 | 1189aa3 |
+| Validation UI Enhancement | ✅ Completed | 2025-06-28 | 7659b3c |
 | SelectionListItem | ⏳ Pending | - | - |
 | FilePickerListItem | ⏳ Pending | - | - |
 | ProgressItem | ⏳ Pending | - | - |
