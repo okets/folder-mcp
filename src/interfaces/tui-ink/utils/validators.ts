@@ -1,0 +1,52 @@
+// Simple validators for ConfigurationListItem
+export const validators = {
+    email: (value: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const isValid = emailRegex.test(value);
+        return isValid 
+            ? { isValid: true }
+            : { isValid: false, error: 'Invalid email format' };
+    },
+    
+    number: (min?: number, max?: number) => (value: string) => {
+        const num = Number(value);
+        if (isNaN(num)) {
+            return { isValid: false, error: 'Must be a number' };
+        }
+        if (min !== undefined && num < min) {
+            return { isValid: false, error: `Must be at least ${min}` };
+        }
+        if (max !== undefined && num > max) {
+            return { isValid: false, error: `Must be at most ${max}` };
+        }
+        return { isValid: true };
+    },
+    
+    ipv4: (value: string) => {
+        const parts = value.split('.');
+        if (parts.length !== 4) {
+            return { isValid: false, error: 'Invalid IPv4 format' };
+        }
+        for (const part of parts) {
+            const num = Number(part);
+            if (isNaN(num) || num < 0 || num > 255) {
+                return { isValid: false, error: 'Invalid IPv4 address' };
+            }
+        }
+        return { isValid: true };
+    },
+    
+    regex: (pattern: RegExp, errorMessage: string) => (value: string) => {
+        const isValid = pattern.test(value);
+        return isValid
+            ? { isValid: true }
+            : { isValid: false, error: errorMessage };
+    },
+    
+    minLength: (min: number) => (value: string) => {
+        const isValid = value.length >= min;
+        return isValid
+            ? { isValid: true }
+            : { isValid: false, error: `Must be at least ${min} characters` };
+    }
+};

@@ -9,6 +9,7 @@ export interface TextInputBodyProps {
     width: number;
     maxInputWidth?: number; // Maximum width for the input box (default: 40)
     headerColor?: string; // Color for the vertical line (matches header)
+    validationError?: string | null; // Validation error message
 }
 
 /**
@@ -21,7 +22,8 @@ export const TextInputBody = ({
     cursorVisible,
     width,
     maxInputWidth = 40,
-    headerColor
+    headerColor,
+    validationError
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
@@ -93,12 +95,15 @@ export const TextInputBody = ({
     const paddingNeeded = Math.max(0, borderWidth - displayLength - 1); // -1 for the space before content
     const padding = ' '.repeat(paddingNeeded);
     
-    // Calculate if we have space for the hint
+    // Calculate if we have space for the notification area (hints or error)
+    const errorText = validationError ? ` ✗ ${validationError}` : null;
     const hintText = ' [enter] ✓ [esc] ✗';
-    const hintLength = hintText.length;
-    // We need: 3 (└──) + 1 (┤) + borderWidth + 1 (│) + hintLength
-    const totalRequiredWidth = 3 + 1 + borderWidth + 1 + hintLength;
-    const showHint = width >= totalRequiredWidth;
+    const notificationText = errorText || hintText;
+    const notificationLength = notificationText.length;
+    
+    // We need: 3 (└──) + 1 (┤) + borderWidth + 1 (│) + notificationLength
+    const totalRequiredWidth = 3 + 1 + borderWidth + 1 + notificationLength;
+    const showNotification = width >= totalRequiredWidth;
     
     return [
         <Text key="top">
@@ -110,13 +115,20 @@ export const TextInputBody = ({
             <Text color={theme.colors.textInputBorder}>┤</Text>
             <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
-            {showHint && (
-                <>
-                    <Text color={theme.colors.textMuted}> [enter] </Text>
-                    <Text color={theme.colors.successGreen}>✓</Text>
-                    <Text color={theme.colors.textMuted}> [esc] </Text>
-                    <Text color={theme.colors.warningOrange}>✗</Text>
-                </>
+            {showNotification && (
+                validationError ? (
+                    <>
+                        <Text color="red"> ✗ </Text>
+                        <Text color="red">{validationError}</Text>
+                    </>
+                ) : (
+                    <>
+                        <Text color={theme.colors.textMuted}> [enter] </Text>
+                        <Text color={theme.colors.successGreen}>✓</Text>
+                        <Text color={theme.colors.textMuted}> [esc] </Text>
+                        <Text color={theme.colors.warningOrange}>✗</Text>
+                    </>
+                )
             )}
         </Box>,
         <Text key="bottom">

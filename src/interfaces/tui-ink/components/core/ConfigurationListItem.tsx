@@ -11,6 +11,8 @@ export class ConfigurationListItem implements IListItem {
     private _cursorPosition: number = 0;
     private _cursorVisible: boolean = true;
     private onValueChange?: (newValue: string) => void;
+    private _validationError: string | null = null;
+    private validators: Array<(value: string) => { isValid: boolean; error?: string }> = [];
     
     constructor(
         public icon: string,
@@ -21,12 +23,14 @@ export class ConfigurationListItem implements IListItem {
         editValue?: string,
         cursorPosition?: number,
         cursorVisible?: boolean,
-        onValueChange?: (newValue: string) => void
+        onValueChange?: (newValue: string) => void,
+        validators?: Array<(value: string) => { isValid: boolean; error?: string }>
     ) {
         this._editValue = editValue ?? this.value;
         this._cursorPosition = cursorPosition ?? this._editValue.length;
         this._cursorVisible = cursorVisible ?? true;
         this.onValueChange = onValueChange;
+        this.validators = validators ?? [];
     }
     
     get isControllingInput(): boolean {
@@ -45,6 +49,17 @@ export class ConfigurationListItem implements IListItem {
         this._isControllingInput = false;
     }
     
+    private validate(value: string): void {
+        this._validationError = null;
+        for (const validator of this.validators) {
+            const result = validator(value);
+            if (!result.isValid) {
+                this._validationError = result.error || 'Invalid value';
+                break;
+            }
+        }
+    }
+
     handleInput(input: string, key: Key): boolean {
         if (!this._isControllingInput) return false;
         
@@ -52,9 +67,16 @@ export class ConfigurationListItem implements IListItem {
             // Cancel editing
             this._editValue = this.value;
             this._cursorPosition = 0;
+            this._validationError = null;
             this.onExit();
             return true;
         } else if (key.return) {
+            // Validate before saving
+            this.validate(this._editValue);
+            if (this._validationError) {
+                // Don't save if validation fails
+                return true;
+            }
             // Save changes
             this.value = this._editValue;
             this.onValueChange?.(this._editValue);
@@ -73,12 +95,16 @@ export class ConfigurationListItem implements IListItem {
             if (this._cursorPosition > 0) {
                 this._editValue = this._editValue.slice(0, this._cursorPosition - 1) + this._editValue.slice(this._cursorPosition);
                 this._cursorPosition--;
+                // Validate on change
+                this.validate(this._editValue);
             }
             return true;
         } else if (input && !key.ctrl && !key.meta) {
             // Insert character at cursor position
             this._editValue = this._editValue.slice(0, this._cursorPosition) + input + this._editValue.slice(this._cursorPosition);
             this._cursorPosition++;
+            // Validate on change
+            this.validate(this._editValue);
             return true;
         }
         return true; // Consume all input when in edit mode
@@ -112,7 +138,8 @@ export class ConfigurationListItem implements IListItem {
                 cursorVisible: this._cursorVisible,
                 width: maxWidth,
                 maxInputWidth: 40, // Reasonable max width for input fields
-                headerColor: this.isActive ? theme.colors.accent : undefined
+                headerColor: this.isActive ? theme.colors.accent : undefined,
+                validationError: this._validationError
             });
             
             return [...elements, ...bodyElements];
