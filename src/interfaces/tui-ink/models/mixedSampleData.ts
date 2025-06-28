@@ -74,6 +74,19 @@ export function createStatusPanelItems(): IListItem[] {
             1,
             1
         ),
+        new SelectionListItem(
+            '■',
+            'SelectionList (decision)',
+            [
+                { value: 'approve', label: 'Approve' },
+                { value: 'decline', label: 'Decline' }
+            ],
+            ['approve'],
+            false,
+            'radio',
+            'horizontal',
+            (newValues) => console.log('Decision changed to:', newValues)
+        ),
         new LogItem(
             '○',
             'FilePicker (TODO)',
