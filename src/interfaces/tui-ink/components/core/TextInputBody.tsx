@@ -72,7 +72,7 @@ export const TextInputBody = ({
         const before = visibleValue.slice(0, visibleCursorPos);
         const cursorChar = visibleValue[visibleCursorPos];
         const after = visibleValue.slice(visibleCursorPos + 1);
-        content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m\x1b[38;5;140m' + after;
+        content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m\x1b[38;5;107m' + after;
         displayLength = visibleValue.length;
     } else if (cursorVisible && cursorPosition >= value.length && visibleCursorPos >= 0) {
         // Cursor at end

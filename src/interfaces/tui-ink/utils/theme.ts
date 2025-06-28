@@ -11,7 +11,7 @@ export const theme: Theme = {
         borderFocus: '#3B82F6',
         textInputBorder: '#4d4d4d',
         bracketValueBright: '#6597cd', // RGB(101,151,205)
-        configValuesColor: '#8f6eaf', // RGB(143,110,175) - purple/lavender for configuration values
+        configValuesColor: '#648151', // RGB(100,129,81) - olive green for configuration values
         textPrimary: '#F8FAFC',
         textSecondary: '#94A3B8',
         textMuted: '#64748B',
