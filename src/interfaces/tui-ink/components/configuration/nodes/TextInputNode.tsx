@@ -28,6 +28,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     const isExpanded = formNavService.isNodeExpanded(node.id);
     const [localValue, setLocalValue] = useState(node.value);
     const [cursorPosition, setCursorPosition] = useState(0);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     // Initialize input service when expanded
     useEffect(() => {
@@ -50,13 +51,26 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
         if (!isExpanded || !isSelected) return;
 
         if (key.return) {
+            // Validate before saving
+            const validationResult = configService.validateNode(node.id, localValue);
+            if (!validationResult.isValid) {
+                setValidationError(validationResult.errors[0] || 'Validation failed');
+                return;
+            }
+            
             // Save changes
-            configService.updateNodeValue(node.id, localValue);
-            formNavService.collapseNode();
-            statusBarService.setContext('form');
+            try {
+                configService.updateNodeValue(node.id, localValue);
+                formNavService.collapseNode();
+                statusBarService.setContext('form');
+                setValidationError(null);
+            } catch (error) {
+                setValidationError(error instanceof Error ? error.message : 'Failed to save');
+            }
         } else if (key.escape) {
             // Cancel changes
             setLocalValue(node.value);
+            setValidationError(null);
             formNavService.collapseNode();
             statusBarService.setContext('form');
         }
@@ -66,6 +80,12 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     const handleChange = (newValue: string) => {
         setLocalValue(newValue);
         inputService.setCurrentText(newValue);
+        
+        // Optional: Real-time validation (can be disabled for performance)
+        if (node.validation && node.validation.length > 0) {
+            const validationResult = configService.validateNode(node.id, newValue);
+            setValidationError(validationResult.isValid ? null : (validationResult.errors[0] || null));
+        }
     };
 
     const handleCursorMove = (position: number) => {
@@ -74,13 +94,23 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     };
 
     if (!isExpanded) {
+        // Check if current saved value is invalid
+        const savedValueValidation = node.validation && node.validation.length > 0 
+            ? configService.validateNode(node.id) 
+            : { isValid: true, errors: [] };
+        
         return (
-            <CollapsedSummary
-                label={node.label}
-                value={node.value}
-                maxWidth={width}
-                isSelected={isSelected}
-            />
+            <Box>
+                {!savedValueValidation.isValid && (
+                    <Text color="red">[!] </Text>
+                )}
+                <CollapsedSummary
+                    label={node.label}
+                    value={node.password ? '•'.repeat(node.value.length) : node.value}
+                    maxWidth={width - (!savedValueValidation.isValid ? 4 : 0)}
+                    isSelected={isSelected}
+                />
+            </Box>
         );
     }
 
@@ -96,12 +126,20 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                     onChange={handleChange}
                     cursorPosition={cursorPosition}
                     onCursorMove={handleCursorMove}
-                    placeholder={node.placeholder}
-                    maxLength={node.maxLength}
+                    placeholder={node.placeholder || ''}
+                    {...(node.maxLength !== undefined && { maxLength: node.maxLength })}
                     isActive={true}
                     width={width - 4}
+                    isPassword={node.password || false}
                 />
             </Box>
+            {validationError && (
+                <Box paddingLeft={2} paddingTop={1}>
+                    <Text color="red">
+                        ✗ {validationError}
+                    </Text>
+                </Box>
+            )}
             {node.description && (
                 <Box paddingLeft={2} paddingTop={1}>
                     <Text color={theme.colors.textMuted} wrap="wrap">

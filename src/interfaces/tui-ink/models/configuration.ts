@@ -16,6 +16,7 @@ export interface ITextInputNode extends IConfigurationNode<string> {
     placeholder?: string;
     multiline?: boolean;
     maxLength?: number;
+    password?: boolean;
 }
 
 export interface INumberInputNode extends IConfigurationNode<number> {

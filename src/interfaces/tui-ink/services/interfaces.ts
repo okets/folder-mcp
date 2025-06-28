@@ -58,7 +58,7 @@ export interface IConfigurationService {
     updateNodeValue(id: string, value: any): void;
     
     // Validation
-    validateNode(id: string): IValidationResult;
+    validateNode(id: string, value?: any): IValidationResult;
     validateAll(): IValidationResult[];
     
     // Serialization

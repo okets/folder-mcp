@@ -1,4 +1,5 @@
-import { IValidationService, IValidationResult } from './interfaces.js';
+import type { IValidationService } from './interfaces.js';
+import type { IValidationResult } from '../models/validation.js';
 import type { IValidationRule } from '../models/configuration.js';
 
 export class ValidationService implements IValidationService {

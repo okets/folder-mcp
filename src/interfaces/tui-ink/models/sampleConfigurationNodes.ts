@@ -1,4 +1,5 @@
 import type { ConfigurationNode } from './configuration.js';
+import { ValidationRules } from './validation.js';
 
 export const sampleConfigurationNodes: ConfigurationNode[] = [
     {
@@ -10,10 +11,8 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         defaultValue: '',
         placeholder: 'Enter path to folder...',
         validation: [
-            {
-                validate: (value) => value.length > 0,
-                message: 'Folder path is required'
-            }
+            ValidationRules.required<string>('Folder path is required'),
+            ValidationRules.path()
         ]
     },
     {
@@ -43,10 +42,7 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         defaultValue: '2048',
         placeholder: 'e.g., 2048',
         validation: [
-            {
-                validate: (value) => !isNaN(Number(value)) && Number(value) > 0,
-                message: 'Memory limit must be a positive number'
-            }
+            ValidationRules.number({ min: 128, max: 32768, integer: true }, 'Memory limit must be between 128 and 32768 MB')
         ]
     },
     {
@@ -72,6 +68,83 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         description: 'Timeout for network requests in seconds',
         value: '30',
         defaultValue: '30',
-        placeholder: 'e.g., 30'
+        placeholder: 'e.g., 30',
+        validation: [
+            ValidationRules.number({ min: 1, max: 300, integer: true })
+        ]
+    },
+    {
+        id: 'server-port',
+        type: 'text',
+        label: 'Server Port',
+        description: 'Port number for the MCP server',
+        value: '3000',
+        defaultValue: '3000',
+        placeholder: 'e.g., 3000',
+        validation: [
+            ValidationRules.number({ min: 1024, max: 65535, integer: true })
+        ]
+    },
+    {
+        id: 'admin-email',
+        type: 'text',
+        label: 'Administrator Email',
+        description: 'Email address for system notifications',
+        value: '',
+        defaultValue: '',
+        placeholder: 'admin@example.com',
+        validation: [
+            ValidationRules.email()
+        ]
+    },
+    {
+        id: 'server-ip',
+        type: 'text',
+        label: 'Server IP Address',
+        description: 'IP address to bind the server to',
+        value: '127.0.0.1',
+        defaultValue: '127.0.0.1',
+        placeholder: '0.0.0.0',
+        validation: [
+            ValidationRules.ipAddress('v4')
+        ]
+    },
+    {
+        id: 'api-key',
+        type: 'text',
+        label: 'API Key',
+        description: 'API key for external services (must be 32 alphanumeric characters)',
+        value: '',
+        defaultValue: '',
+        placeholder: 'Enter 32-character API key...',
+        validation: [
+            ValidationRules.customRegex(/^[a-zA-Z0-9]{32}$/, undefined, 'API key must be exactly 32 alphanumeric characters')
+        ]
+    },
+    {
+        id: 'max-file-count',
+        type: 'text',
+        label: 'Max File Count',
+        description: 'Maximum number of files to index',
+        value: '1000',
+        defaultValue: '1000',
+        placeholder: 'e.g., 5000',
+        validation: [
+            ValidationRules.number({ min: 1, max: 100000, integer: true }, 'Must be between 1 and 100,000')
+        ]
+    },
+    {
+        id: 'admin-password',
+        type: 'text',
+        label: 'Admin Password',
+        description: 'Password for admin access (min 8 chars, must include number)',
+        value: '',
+        defaultValue: '',
+        placeholder: 'Enter password...',
+        password: true, // This will mask the input when implemented
+        validation: [
+            ValidationRules.minLength(8, 'Password must be at least 8 characters'),
+            ValidationRules.customRegex(/.*\d.*/, undefined, 'Password must contain at least one number')
+        ]
     }
 ];

@@ -5,88 +5,73 @@ import { ConfigurationListItem } from '../components/core/ConfigurationListItem.
 // Mixed items for StatusPanel (now showing both logs and configs)
 export function createStatusPanelItems(): IListItem[] {
     return [
+        // Components we're actually building
         new LogItem(
             '○',
-            'System components loaded',
+            'LogItem (existing)',
             '✓',
             false,
             false,
             [
-                'All core components initialized successfully',
-                'Memory allocator: Ready',
-                'Thread pool: 8 workers active'
+                'This is an existing LogItem component',
+                'It supports expandable details',
+                'Read-only display'
             ]
         ),
         new ConfigurationListItem(
             '·',
-            'Debug Mode',
-            'Enabled',
+            'TextInput (number)',
+            '8080',
             false,
             false,
+            '1024-65535',
             undefined,
             undefined,
-            undefined,
-            (newValue) => console.log('Debug mode changed to:', newValue)
-        ),
-        new LogItem(
-            '○',
-            'Validating embedding models',
-            '⚠',
-            false,
-            false,
-            [
-                'Checking model availability...',
-                'Model: nomic-embed-text (1.5GB)',
-                'Status: Download in progress (45%)'
-            ]
+            (newValue) => console.log('Port changed to:', newValue)
         ),
         new ConfigurationListItem(
             '·',
-            'Log Level',
-            'INFO',
+            'TextInput (email)',
+            'user@test.com',
             false,
             false,
+            'Valid email',
             undefined,
             undefined,
-            undefined,
-            (newValue) => console.log('Log level changed to:', newValue)
+            (newValue) => console.log('Email changed to:', newValue)
         ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (password)',
+            '••••••••',
+            false,
+            false,
+            'Min 8 chars',
+            undefined,
+            undefined,
+            (newValue) => console.log('Password changed to:', newValue)
+        ),
+        // Placeholder for future components
         new LogItem(
             '○',
-            'Loading default settings',
+            'SelectionList (TODO)',
             '○',
             false,
             false
         ),
         new LogItem(
             '○',
-            'Checking cached configuration',
-            '⋯',
+            'FilePicker (TODO)',
+            '○',
             false,
             false
         ),
-        new ConfigurationListItem(
-            '·',
-            'Auto-reload',
-            'Off',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Auto-reload changed to:', newValue)
-        ),
         new LogItem(
             '○',
-            'Memory usage: 1.2GB / 8GB',
-            '✓',
+            'ProgressItem (TODO)',
+            '○',
             false,
-            false,
-            [
-                'Process memory: 1.2GB',
-                'Cache memory: 456MB',
-                'Available: 6.8GB'
-            ]
+            false
         )
     ];
 }
@@ -94,84 +79,105 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
+        // Current TextInput features being tested
         new LogItem(
             '○',
-            'Path validation',
-            '✓',
-            false,
-            false,
-            ['Path exists and is readable', 'Contains 1,234 files']
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Folder Path',
-            '/Users/example/documents',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Folder path changed to:', newValue)
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Embedding Model',
-            'nomic-embed-text',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Embedding model changed to:', newValue)
-        ),
-        new LogItem(
-            '○',
-            'Model status',
-            '⚠',
-            false,
-            false,
-            ['Model not fully downloaded', 'Size: 1.5GB', 'Progress: 45%']
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Cache Directory',
-            '~/.folder-mcp/cache',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Cache directory changed to:', newValue)
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Memory Limit',
-            '2048',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Memory limit changed to:', newValue)
-        ),
-        new LogItem(
-            '○',
-            'Performance tip',
+            'LogItem (existing component)',
             'ℹ',
             false,
             false,
-            ['Increase memory limit for better performance', 'Recommended: 4096MB for large folders']
+            ['LogItem is our existing read-only component', 'Used as reference for new components']
         ),
         new ConfigurationListItem(
             '·',
-            'Network Timeout',
-            '30',
+            'TextInput (no validation)',
+            'Sample text value',
             false,
             false,
             undefined,
             undefined,
             undefined,
-            (newValue) => console.log('Network timeout changed to:', newValue)
+            (newValue) => console.log('Text changed to:', newValue)
+        ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (number: 1-100)',
+            '50',
+            false,
+            false,
+            'Number validation with range',
+            undefined,
+            undefined,
+            (newValue) => console.log('Number changed to:', newValue)
+        ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (email)',
+            'admin@example.com',
+            false,
+            false,
+            'Email validation',
+            undefined,
+            undefined,
+            (newValue) => console.log('Email changed to:', newValue)
+        ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (IPv4)',
+            '192.168.1.1',
+            false,
+            false,
+            'IP address validation',
+            undefined,
+            undefined,
+            (newValue) => console.log('IP changed to:', newValue)
+        ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (regex: [A-Z]{3})',
+            'ABC',
+            false,
+            false,
+            'Custom pattern: 3 uppercase letters',
+            undefined,
+            undefined,
+            (newValue) => console.log('Pattern changed to:', newValue)
+        ),
+        new ConfigurationListItem(
+            '·',
+            'TextInput (password)',
+            '••••••••',
+            false,
+            false,
+            'Password field (Assignment 1.7)',
+            undefined,
+            undefined,
+            (newValue) => console.log('Password changed to:', newValue)
+        ),
+        // Future components as placeholders
+        new LogItem(
+            '○',
+            'SelectionList (Task 2 - TODO)',
+            '○',
+            false,
+            false,
+            ['Will support radio/checkbox selections', 'Vertical/horizontal layouts']
+        ),
+        new LogItem(
+            '○',
+            'FilePicker (Task 3 - TODO)',
+            '○',
+            false,
+            false,
+            ['File/folder selection', 'Compact CLI interface']
+        ),
+        new LogItem(
+            '○',
+            'ProgressItem (Task 4 - TODO)',
+            '○',
+            false,
+            false,
+            ['Extends LogItem', 'Progress bar visualization']
         )
     ];
 }

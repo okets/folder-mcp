@@ -11,6 +11,7 @@ interface TextInputProps {
     maxLength?: number;
     isActive?: boolean;
     width?: number;
+    isPassword?: boolean;
 }
 
 export const TextInput: React.FC<TextInputProps> = ({
@@ -21,7 +22,8 @@ export const TextInput: React.FC<TextInputProps> = ({
     placeholder = '',
     maxLength,
     isActive = false,
-    width
+    width,
+    isPassword = false
 }) => {
     const [showCursor, setShowCursor] = useState(true);
 
@@ -61,18 +63,21 @@ export const TextInput: React.FC<TextInputProps> = ({
     const renderContent = () => {
         const displayValue = value || placeholder;
         const isPlaceholder = !value && placeholder;
+        
+        // Mask password values with bullets
+        const maskedValue = isPassword && value ? '•'.repeat(value.length) : displayValue;
 
         if (!isActive || !showCursor) {
             return (
                 <Text color={isPlaceholder ? theme.colors.textMuted : undefined}>
-                    {displayValue}
+                    {maskedValue}
                 </Text>
             );
         }
 
         // Insert cursor at position
-        const before = displayValue.slice(0, cursorPosition);
-        const after = displayValue.slice(cursorPosition);
+        const before = maskedValue.slice(0, cursorPosition);
+        const after = maskedValue.slice(cursorPosition);
         const cursorChar = after[0] || ' ';
         const afterCursor = after.slice(1);
 
