@@ -92,7 +92,7 @@ Add this directive at the beginning of each task:
 ```markdown
 ### **Task N: [Task Name]**
 
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]**
 
 - [ ] [Original task description as written by user]
 ```

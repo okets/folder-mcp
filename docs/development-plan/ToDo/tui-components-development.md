@@ -96,6 +96,8 @@ git add -A && git commit -m "Task 1: TextInput validation features completed"
 ```
 
 ### **Task 2: Implement SelectionListItem Component**
+**BEFORE STARTING**: Break down this task into smaller assignments focusing on HOW we will implement it, not just WHAT needs to be done.
+
 - [ ] Create SelectionListItem (radio/checkbox selections) with vertical or horizontal layout
 - [ ] Implement keyboard navigation that adapts to the displayed direction
 
@@ -156,6 +158,8 @@ git add -A && git commit -m "Task 2: SelectionListItem component completed"
 ```
 
 ### **Task 3: Implement FilePickerListItem Component**
+[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
+
 - [ ] Create FilePickerListItem for File/Folder selection
 - [ ] Research compact and responsive CLI interface options for file and folder selection
 
@@ -166,6 +170,8 @@ git add -A && git commit -m "Task 3: FilePickerListItem component completed"
 ```
 
 ### **Task 4: Implement ProgressItem Component**
+[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
+
 - [ ] Create ProgressItem that borrows most functionality from LogItem (read-only List Item)
 
 **Validation After Completion**:
