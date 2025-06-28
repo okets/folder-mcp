@@ -63,6 +63,8 @@ this feature will be awesome! mcp that knows your frontend code when working on 
 
 ## Phase 4: Release & Documentation
 - CI/CD
+- Version control & backward compatibility strategy
+- MCP endpoint for help about our tool by exposing an extensive .MD file with all commands, features, and usage examples to the mcp server.
 - Production performance optimization
 - Comprehensive test suite overview
 - Documentation & API reference

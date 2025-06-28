@@ -125,18 +125,72 @@ export class ConfigurationListItem implements IListItem {
             const elements: ReactElement[] = [];
             
             // Header with inline notification area
-            elements.push(
-                <Box key="header">
-                    <Text>
-                        <Text color={undefined}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{this.label}:</Text>
-                    </Text>
-                    <NotificationArea 
-                        validationError={this._validationError}
-                        showKeyboardHints={true}
-                    />
-                </Box>
-            );
+            const bulletColor = this._validationError ? 'red' : undefined;
+            
+            // Build header text
+            const labelPart = `${this.label}: `;
+            
+            if (this._validationError) {
+                const errorText = ` ✗ ${this._validationError}`;
+                const totalLength = 2 + labelPart.length + errorText.length; // 2 for "■ "
+                
+                if (totalLength <= maxWidth) {
+                    // Everything fits
+                    elements.push(
+                        <Text key="header">
+                            <Text color={bulletColor}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            <Text color="red">{errorText}</Text>
+                        </Text>
+                    );
+                } else {
+                    // Need to truncate
+                    const availableForError = maxWidth - 2 - labelPart.length - 1; // -1 for ellipsis
+                    if (availableForError > 3) { // " ✗ " is 3 chars
+                        const truncatedError = this._validationError.slice(0, availableForError - 3 - 1) + '…';
+                        elements.push(
+                            <Text key="header">
+                                <Text color={bulletColor}>■ </Text>
+                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                                <Text color="red"> ✗ {truncatedError}</Text>
+                            </Text>
+                        );
+                    } else {
+                        // Not enough space for error, just show label
+                        elements.push(
+                            <Text key="header">
+                                <Text color={bulletColor}>■ </Text>
+                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            </Text>
+                        );
+                    }
+                }
+            } else {
+                // Show keyboard hints
+                const hintsText = ' [enter] ✓ [esc] ✗';
+                const totalLength = 2 + labelPart.length + hintsText.length;
+                
+                if (totalLength <= maxWidth) {
+                    elements.push(
+                        <Text key="header">
+                            <Text color={undefined}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            <Text color={theme.colors.textMuted}>[enter] </Text>
+                            <Text color={theme.colors.successGreen}>✓</Text>
+                            <Text color={theme.colors.textMuted}> [esc] </Text>
+                            <Text color={theme.colors.warningOrange}>✗</Text>
+                        </Text>
+                    );
+                } else {
+                    // Not enough space for hints
+                    elements.push(
+                        <Text key="header">
+                            <Text color={undefined}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                        </Text>
+                    );
+                }
+            }
             
             // Edit body - TextInputBody returns an array of elements
             const bodyElements = TextInputBody({
