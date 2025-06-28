@@ -12,6 +12,16 @@ import { ISelfConstrainedItem } from './ISelfConstrainedItem.js';
  */
 export interface IListItem extends ISelfConstrainedItem {
     /**
+     * Icon to display for this item
+     */
+    icon: string;
+    
+    /**
+     * Whether this item is currently active/selected
+     */
+    isActive: boolean;
+    
+    /**
      * Render the list item with the given maximum width
      * @param maxWidth - Maximum width available for the item
      * @param maxLines - Maximum lines available for expanded content (optional)

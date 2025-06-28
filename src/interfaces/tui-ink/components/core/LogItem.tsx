@@ -15,10 +15,10 @@ export class LogItem implements IListItem {
     private _isControllingInput: boolean = false;
     
     constructor(
-        private icon: string,
+        public icon: string,
         private text: string,
         private status: string,
-        private isActive: boolean,
+        public isActive: boolean,
         isExpanded: boolean,
         private details?: string[]
     ) {

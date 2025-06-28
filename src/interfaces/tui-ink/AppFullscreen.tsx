@@ -52,7 +52,7 @@ export const AppFullscreen: React.FC = () => {
     }
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={10} statusItemCount={7}>
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={11} statusItemCount={7}>
             <Box flexDirection="column" height={rows} width={columns}>
                 <Header />
                 

@@ -2,6 +2,7 @@ import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem.js';
 import { TextInputBody } from './TextInputBody.js';
+import { NotificationArea } from './NotificationArea.js';
 import { theme } from '../../utils/theme.js';
 
 export class ConfigurationListItem implements IListItem {
@@ -123,12 +124,18 @@ export class ConfigurationListItem implements IListItem {
             // Expanded edit mode
             const elements: ReactElement[] = [];
             
-            // Header - use ■ when expanded
+            // Header with inline notification area
             elements.push(
-                <Text key="header">
-                    <Text color={undefined}>■ </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>{this.label}:</Text>
-                </Text>
+                <Box key="header">
+                    <Text>
+                        <Text color={undefined}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{this.label}:</Text>
+                    </Text>
+                    <NotificationArea 
+                        validationError={this._validationError}
+                        showKeyboardHints={true}
+                    />
+                </Box>
             );
             
             // Edit body - TextInputBody returns an array of elements
@@ -138,8 +145,7 @@ export class ConfigurationListItem implements IListItem {
                 cursorVisible: this._cursorVisible,
                 width: maxWidth,
                 maxInputWidth: 40, // Reasonable max width for input fields
-                headerColor: this.isActive ? theme.colors.accent : undefined,
-                validationError: this._validationError
+                headerColor: this.isActive ? theme.colors.accent : undefined
             });
             
             return [...elements, ...bodyElements];

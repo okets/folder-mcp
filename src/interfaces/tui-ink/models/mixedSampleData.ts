@@ -1,6 +1,7 @@
 import { IListItem } from '../components/core/IListItem.js';
 import { LogItem } from '../components/core/LogItem.js';
 import { ConfigurationListItem } from '../components/core/ConfigurationListItem.js';
+import { SelectionListItem } from '../components/core/SelectionListItem.js';
 import { validators } from '../utils/validators.js';
 
 // Mixed items for StatusPanel (now showing both logs and configs)
@@ -55,13 +56,23 @@ export function createStatusPanelItems(): IListItem[] {
             (newValue) => console.log('Password changed to:', newValue),
             [validators.minLength(8)]
         ),
-        // Placeholder for future components
-        new LogItem(
-            '○',
-            'SelectionList (TODO)',
-            '○',
+        // SelectionListItem components
+        new SelectionListItem(
+            '■',
+            'SelectionList (log level)',
+            [
+                { value: 'debug', label: 'Debug' },
+                { value: 'info', label: 'Info' },
+                { value: 'warn', label: 'Warning' },
+                { value: 'error', label: 'Error' }
+            ],
+            ['info'],
             false,
-            false
+            'radio',
+            'horizontal',
+            (newValues) => console.log('Log level changed to:', newValues),
+            1,
+            1
         ),
         new LogItem(
             '○',
@@ -163,14 +174,37 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Password changed to:', newValue),
             [validators.minLength(8)]
         ),
-        // Future components as placeholders
-        new LogItem(
-            '○',
-            'SelectionList (Task 2 - TODO)',
-            '○',
+        // SelectionListItem components (Task 2 - Completed)
+        new SelectionListItem(
+            '■',
+            'SelectionList (theme)',
+            [
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+                { value: 'auto', label: 'Auto' }
+            ],
+            ['auto'],
             false,
+            'radio',
+            'vertical',
+            (newValues) => console.log('Theme changed to:', newValues)
+        ),
+        new SelectionListItem(
+            '■',
+            'SelectionList (features)',
+            [
+                { value: 'autosave', label: 'Auto-save' },
+                { value: 'notifications', label: 'Notifications' },
+                { value: 'telemetry', label: 'Telemetry' },
+                { value: 'updates', label: 'Auto-updates' }
+            ],
+            ['autosave', 'notifications'],
             false,
-            ['Will support radio/checkbox selections', 'Vertical/horizontal layouts']
+            'checkbox',
+            'vertical',
+            (newValues) => console.log('Features changed to:', newValues),
+            1,  // Minimum 1 selection
+            3   // Maximum 3 selections
         ),
         new LogItem(
             '○',
