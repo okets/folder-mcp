@@ -119,8 +119,14 @@ git add -A && git commit -m "Task 1: TextInput validation features completed"
 - [ ] Use same color scheme (configValuesColor for selected values)
 
 **Assignment 2.3: Build Expanded View Layout**
-- [ ] Create vertical layout: each option on new line with `○/●` (radio) or `□/■` (checkbox)
+- [ ] Create vertical layout: each option on new line with selection indicators
 - [ ] Create horizontal layout: options in single line with separators
+- [ ] Use primary Unicode symbols:
+  - Radio: `○` / `◉` (unselected/selected)
+  - Checkbox: `▢` / `▣` (unchecked/checked)
+- [ ] Implement ASCII fallback detection (single char):
+  - Radio fallback: `o` / `*` (unselected/selected)
+  - Checkbox fallback: `-` / `x` (unchecked/checked)
 - [ ] Calculate required lines: vertical = options.length + 2, horizontal = 3
 - [ ] Add selection indicators: filled = selected, empty = unselected
 - [ ] Highlight current focused option with accent color
@@ -130,7 +136,7 @@ git add -A && git commit -m "Task 1: TextInput validation features completed"
 - [ ] Vertical mode: ↑/↓ arrows move focus, wrap at boundaries
 - [ ] Horizontal mode: ←/→ arrows move focus, wrap at boundaries
 - [ ] Space key: toggle selection at focused index
-- [ ] Enter key: save and collapse (radio) or toggle and stay (checkbox)
+- [ ] Enter key: confirm current state and collapse (always exits)
 - [ ] Escape key: cancel changes and collapse
 
 **Assignment 2.5: Handle Selection Constraints**
@@ -142,7 +148,7 @@ git add -A && git commit -m "Task 1: TextInput validation features completed"
 **Assignment 2.6: Create Visual Components**
 - [ ] Create `SelectionBody` component similar to TextInputBody
 - [ ] Show options with proper spacing and alignment
-- [ ] Add keyboard hints: `[space] select [enter] confirm [esc] cancel`
+- [ ] Add keyboard hints in the notification area of the item and the status bar of the tui: `[space] select [enter] confirm [esc] cancel`
 - [ ] Use box drawing characters for visual separation in horizontal mode
 
 **Assignment 2.7: Add Test Items to Sample Data**
