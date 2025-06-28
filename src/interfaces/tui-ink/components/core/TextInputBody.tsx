@@ -25,8 +25,8 @@ export const TextInputBody = ({
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
-    // Account for: 2-char indent, 2 borders, 2 spaces inside borders
-    const availableForBorder = Math.max(width - 6, 10);
+    // Account for: 3-char indent (│ + 2 spaces), 2 borders, 2 spaces inside borders
+    const availableForBorder = Math.max(width - 7, 10);
     
     // Use a reasonable default width that expands with content but respects limits
     const desiredWidth = Math.max(value.length + 4, 20); // +4 for some padding
@@ -95,17 +95,17 @@ export const TextInputBody = ({
     
     return [
         <Text key="top">
-            <Text color={headerColor}>│ </Text>
+            <Text color={headerColor}>│  </Text>
             <Text color={theme.colors.textInputBorder}>╭{'─'.repeat(borderWidth)}╮</Text>
         </Text>,
         <Box key="middle">
-            <Text color={headerColor}>│ </Text>
-            <Text color={theme.colors.textInputBorder}>│</Text>
-            <Text color={theme.colors.textMuted}> {content}{padding}</Text>
+            <Text color={headerColor}>└──</Text>
+            <Text color={theme.colors.textInputBorder}>┤</Text>
+            <Text color={headerColor || theme.colors.accent}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
         </Box>,
         <Text key="bottom">
-            <Text color={headerColor}>└ </Text>
+            <Text>   </Text>
             <Text color={theme.colors.textInputBorder}>╰{'─'.repeat(borderWidth)}╯</Text>
         </Text>
     ];

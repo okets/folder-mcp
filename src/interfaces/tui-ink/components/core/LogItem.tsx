@@ -93,7 +93,7 @@ export class LogItem implements IListItem {
             // First collect all detail lines
             for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
                 const detail = this.details[i];
-                const wrappedLines = this.wordWrap(detail, maxWidth - 2, remainingLines ? remainingLines - allDetailLines.length : undefined);
+                const wrappedLines = this.wordWrap(detail, maxWidth - 3, remainingLines ? remainingLines - allDetailLines.length : undefined);
                 
                 for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
                     allDetailLines.push({
@@ -113,7 +113,7 @@ export class LogItem implements IListItem {
                 const symbol = line.isLast ? '└' : '│';
                 elements.push(
                     <Text key={`detail-${index}`}>
-                        <Text color={headerColor}>{symbol} </Text>
+                        <Text color={headerColor}>{symbol}  </Text>
                         <Text color={theme.colors.textMuted}>{line.text}</Text>
                     </Text>
                 );
@@ -135,7 +135,7 @@ export class LogItem implements IListItem {
         // Count header + wrapped detail lines
         let lines = 1; // header
         this.details.forEach(detail => {
-            const wrappedLines = this.wordWrap(detail, maxWidth - 2);
+            const wrappedLines = this.wordWrap(detail, maxWidth - 3);
             lines += wrappedLines.length;
         });
         
