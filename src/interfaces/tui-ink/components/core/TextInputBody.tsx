@@ -72,11 +72,11 @@ export const TextInputBody = ({
         const before = visibleValue.slice(0, visibleCursorPos);
         const cursorChar = visibleValue[visibleCursorPos];
         const after = visibleValue.slice(visibleCursorPos + 1);
-        content = before + '\x1b[47m\x1b[38;5;102m' + cursorChar + '\x1b[0m\x1b[38;5;102m' + after;
+        content = before + '\x1b[47m\x1b[30m' + cursorChar + '\x1b[0m\x1b[38;5;140m' + after;
         displayLength = visibleValue.length;
     } else if (cursorVisible && cursorPosition >= value.length && visibleCursorPos >= 0) {
         // Cursor at end
-        content = visibleValue + '\x1b[47m\x1b[38;5;102m \x1b[0m';
+        content = visibleValue + '\x1b[47m\x1b[30m \x1b[0m';
         displayLength = visibleValue.length + 1;
     } else {
         // No cursor or cursor not visible in window
@@ -108,7 +108,7 @@ export const TextInputBody = ({
         <Box key="middle">
             <Text color={headerColor}>└──</Text>
             <Text color={theme.colors.textInputBorder}>┤</Text>
-            <Text color={headerColor || theme.colors.accent}> {content}{padding}</Text>
+            <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
             {showHint && (
                 <>

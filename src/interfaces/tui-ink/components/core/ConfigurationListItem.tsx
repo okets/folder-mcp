@@ -138,7 +138,7 @@ export class ConfigurationListItem implements IListItem {
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {this.icon} {label}: [
                         </Text>
-                        <Text color={theme.colors.bracketValueBright}>
+                        <Text color={theme.colors.configValuesColor}>
                             {truncatedValue}…
                         </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
@@ -154,7 +154,7 @@ export class ConfigurationListItem implements IListItem {
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
                         {this.icon} {label}: [
                     </Text>
-                    <Text color={theme.colors.bracketValueBright}>
+                    <Text color={theme.colors.configValuesColor}>
                         {value}{truncated ? '…' : ''}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
