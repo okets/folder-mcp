@@ -32,9 +32,10 @@ export interface IListItem extends ISelfConstrainedItem {
     /**
      * Calculate how many terminal lines this item requires
      * @param maxWidth - Maximum width available for the item
+     * @param maxHeight - Maximum height available for the item (optional)
      * @returns Number of lines needed (e.g., 1 for collapsed, 4 for expanded)
      */
-    getRequiredLines(maxWidth: number): number;
+    getRequiredLines(maxWidth: number, maxHeight?: number): number;
     
     /**
      * Whether this item is currently controlling keyboard input

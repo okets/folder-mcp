@@ -24,6 +24,9 @@ export class SelectionListItem implements IListItem {
     // Track working state while editing
     private _workingSelectedValues: string[] = [];
     
+    // Track the effective layout after responsive adjustments
+    private _effectiveLayout: SelectionLayout;
+    
     constructor(
         public icon: string,
         private label: string,
@@ -34,11 +37,13 @@ export class SelectionListItem implements IListItem {
         private layout: SelectionLayout = 'vertical',
         onValueChange?: (newValues: string[]) => void,
         private minSelections?: number,
-        private maxSelections?: number
+        private maxSelections?: number,
+        private autoSwitchLayout: boolean = false
     ) {
         this._selectedValues = [...selectedValues];
         this._workingSelectedValues = [...selectedValues];
         this.onValueChange = onValueChange;
+        this._effectiveLayout = layout; // Initialize with the original layout
     }
     
     get isControllingInput(): boolean {
@@ -102,7 +107,7 @@ export class SelectionListItem implements IListItem {
             this.onValueChange?.(this._selectedValues);
             this.onExit();
             return true;
-        } else if (key.upArrow && this.layout === 'vertical') {
+        } else if (key.upArrow && this._effectiveLayout === 'vertical') {
             // Move focus up
             this._focusedIndex = this._focusedIndex > 0 
                 ? this._focusedIndex - 1 
@@ -116,7 +121,7 @@ export class SelectionListItem implements IListItem {
                 }
             }
             return true;
-        } else if (key.downArrow && this.layout === 'vertical') {
+        } else if (key.downArrow && this._effectiveLayout === 'vertical') {
             // Move focus down
             this._focusedIndex = this._focusedIndex < this.options.length - 1 
                 ? this._focusedIndex + 1 
@@ -130,7 +135,7 @@ export class SelectionListItem implements IListItem {
                 }
             }
             return true;
-        } else if (key.leftArrow && this.layout === 'horizontal') {
+        } else if (key.leftArrow && this._effectiveLayout === 'horizontal') {
             // Move focus left
             this._focusedIndex = this._focusedIndex > 0 
                 ? this._focusedIndex - 1 
@@ -144,7 +149,7 @@ export class SelectionListItem implements IListItem {
                 }
             }
             return true;
-        } else if (key.rightArrow && this.layout === 'horizontal') {
+        } else if (key.rightArrow && this._effectiveLayout === 'horizontal') {
             // Move focus right
             this._focusedIndex = this._focusedIndex < this.options.length - 1 
                 ? this._focusedIndex + 1 
@@ -227,6 +232,39 @@ export class SelectionListItem implements IListItem {
             // Expanded mode with keyboard hints in header
             const elements: ReactElement[] = [];
             
+            // Determine effective layout based on available space
+            let effectiveLayout = this.layout;
+            
+            // Only auto-switch if enabled
+            if (this.autoSwitchLayout) {
+                if (this.layout === 'horizontal') {
+                    // Check if horizontal layout fits in available width
+                    // Calculate total width needed for horizontal display
+                    let totalWidth = 3; // "│  " prefix
+                    totalWidth += 'Select one:'.length + 1; // prompt text
+                    this.options.forEach((opt, idx) => {
+                        if (idx > 0) totalWidth += 3; // " │ " separator
+                        totalWidth += 2 + opt.label.length; // "○ " + label
+                    });
+                    
+                    // Switch to vertical if doesn't fit
+                    if (totalWidth > maxWidth) {
+                        effectiveLayout = 'vertical';
+                    }
+                } else if (this.layout === 'vertical' && maxLines) {
+                    // Check if vertical layout fits in available height
+                    const requiredLines = 2 + this.options.length; // header + prompt + options
+                    
+                    // Switch to horizontal if doesn't fit and horizontal would use less lines
+                    if (requiredLines > maxLines && maxLines >= 3) {
+                        effectiveLayout = 'horizontal';
+                    }
+                }
+            }
+            
+            // Store the effective layout for key handling
+            this._effectiveLayout = effectiveLayout;
+            
             // Header with inline notification area
             const bulletColor = this._validationError ? 'red' : undefined;
             
@@ -296,17 +334,21 @@ export class SelectionListItem implements IListItem {
                 }
             }
             
+            // Calculate available lines for body (excluding header)
+            const bodyMaxLines = maxLines ? maxLines - 1 : undefined; // -1 for header
+            
             // Selection body
             const bodyElements = SelectionBody({
                 options: this.options,
                 selectedValues: this._workingSelectedValues,
                 focusedIndex: this._focusedIndex,
                 mode: this.mode,
-                layout: this.layout,
+                layout: effectiveLayout,
                 width: maxWidth,
                 headerColor: this.isActive ? theme.colors.accent : undefined,
                 validationError: this._validationError,
-                useASCII: false // Could detect terminal capabilities
+                useASCII: false, // Could detect terminal capabilities
+                maxLines: bodyMaxLines
             });
             
             return [...elements, ...bodyElements];
@@ -438,17 +480,22 @@ export class SelectionListItem implements IListItem {
         return { label: '', value: '…', truncated: false };
     }
     
-    getRequiredLines(maxWidth: number): number {
+    getRequiredLines(maxWidth: number, maxHeight?: number): number {
         if (!this._isControllingInput) {
             return 1; // Collapsed view is always 1 line
         }
         
-        if (this.layout === 'vertical') {
-            // Header + "Select one:" line + each option
-            return 2 + this.options.length;
+        if (this.autoSwitchLayout) {
+            // When auto-switching is enabled, return the minimum lines (horizontal layout)
+            // This ensures the panel will include the item even when space is tight
+            return 3; // Header + "Select one:" line + horizontal options line
         } else {
-            // Header + "Select one:" line + horizontal options line
-            return 3;
+            // When auto-switching is disabled, return lines based on current layout
+            if (this.layout === 'vertical') {
+                return 2 + this.options.length; // Header + "Select one:" line + each option
+            } else {
+                return 3; // Header + "Select one:" line + horizontal options line
+            }
         }
     }
 }

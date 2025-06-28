@@ -13,6 +13,7 @@ export interface SelectionBodyProps {
     headerColor?: string;
     validationError?: string | null;
     useASCII?: boolean; // For fallback symbols
+    maxLines?: number; // Maximum lines available for vertical layout
 }
 
 // Symbol constants
@@ -36,7 +37,8 @@ export const SelectionBody = ({
     width,
     headerColor,
     validationError,
-    useASCII = false
+    useASCII = false,
+    maxLines
 }: SelectionBodyProps): React.ReactElement[] => {
     const symbols = useASCII 
         ? (mode === 'radio' ? SYMBOLS.radio.ascii : SYMBOLS.checkbox.ascii)
@@ -53,12 +55,52 @@ export const SelectionBody = ({
             </Text>
         );
         
-        options.forEach((option, index) => {
+        // Calculate visible range with scrolling
+        let visibleOptions = options;
+        let startIndex = 0;
+        let endIndex = options.length;
+        let showScrollUp = false;
+        let showScrollDown = false;
+        
+        if (maxLines && maxLines > 1) { // Reserve 1 line for prompt
+            const availableLines = maxLines - 1; // -1 for the prompt line
+            
+            if (options.length > availableLines) {
+                // Need scrolling
+                const halfVisible = Math.floor(availableLines / 2);
+                
+                // Center the focused item in the visible area
+                startIndex = Math.max(0, focusedIndex - halfVisible);
+                endIndex = Math.min(options.length, startIndex + availableLines);
+                
+                // Adjust if we're near the end
+                if (endIndex === options.length) {
+                    startIndex = Math.max(0, endIndex - availableLines);
+                }
+                
+                visibleOptions = options.slice(startIndex, endIndex);
+                showScrollUp = startIndex > 0;
+                showScrollDown = endIndex < options.length;
+            }
+        }
+        
+        visibleOptions.forEach((option, visibleIndex) => {
+            const actualIndex = startIndex + visibleIndex;
             const isSelected = selectedValues.includes(option.value);
-            const isFocused = index === focusedIndex;
+            const isFocused = actualIndex === focusedIndex;
             const symbol = isSelected ? symbols.selected : symbols.unselected;
-            const isLastItem = index === options.length - 1;
-            const linePrefix = isLastItem ? '└─' : '│ ';
+            const isFirstVisible = visibleIndex === 0;
+            const isLastVisible = visibleIndex === visibleOptions.length - 1;
+            
+            // Show scroll indicators
+            let linePrefix = '│ ';
+            if (showScrollUp && isFirstVisible) {
+                linePrefix = '│▲';
+            } else if (showScrollDown && isLastVisible) {
+                linePrefix = '│▼';
+            } else if (!showScrollDown && isLastVisible) {
+                linePrefix = '└─';
+            }
             
             // Calculate if there's room for [space] hint
             const optionText = `${symbol} ${option.label}`;
@@ -68,7 +110,7 @@ export const SelectionBody = ({
             const showSpaceHint = isFocused && mode === 'checkbox' && totalLength < width;
             
             elements.push(
-                <Box key={`option-${index}`}>
+                <Box key={`option-${actualIndex}`}>
                     <Text color={headerColor}>{linePrefix} </Text>
                     <Text color={isFocused ? theme.colors.accent : undefined}>
                         {symbol} {option.label}

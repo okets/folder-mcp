@@ -108,10 +108,13 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
     let startLine = scrollOffset < itemLinePositions.length && itemLinePositions[scrollOffset] ? itemLinePositions[scrollOffset].start : 0;
     
     for (let i = scrollOffset; i < mixedItems.length && i < itemLinePositions.length; i++) {
-        // Check if this item fits completely
-        if (itemLinePositions[i] && itemLinePositions[i].end - startLine <= maxLines) {
+        const itemLines = mixedItems[i].getRequiredLines(itemMaxWidth);
+        const remainingSpace = maxLines - (itemLinePositions[i].start - startLine);
+        
+        // Include item if it at least partially fits (minimum 1 line for header)
+        if (remainingSpace >= 1) {
             visibleCount++;
-            linesUsed = itemLinePositions[i].end - startLine;
+            linesUsed = itemLinePositions[i].start - startLine + Math.min(itemLines, remainingSpace);
         } else {
             break;
         }
@@ -243,11 +246,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
                 let remainingLines = maxLines;
                 
                 visibleItems.forEach((listItem, visualIndex) => {
-                    // Calculate max lines available for this item
-                    const itemMaxLines = Math.min(
-                        remainingLines,
-                        listItem.getRequiredLines(itemMaxWidth)
-                    );
+                    // Pass the actual remaining lines so item can make responsive decisions
+                    // The item will decide if it needs to switch layouts based on available space
+                    const itemMaxLines = remainingLines;
                     
                     // Get rendered elements from list item
                     const itemElements = listItem.render(itemMaxWidth, itemMaxLines);

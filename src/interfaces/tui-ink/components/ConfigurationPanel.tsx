@@ -132,10 +132,12 @@ export const ConfigurationPanel: React.FC<{
     
     for (let i = scrollOffset; i < configListItems.length && i < itemLinePositions.length; i++) {
         const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
-        // Check if this item fits completely
-        if (itemLinePositions[i] && itemLinePositions[i].end - startLine <= maxLines) {
+        const remainingSpace = maxLines - (itemLinePositions[i].start - startLine);
+        
+        // Include item if it at least partially fits (minimum 1 line for header)
+        if (remainingSpace >= 1) {
             visibleCount++;
-            linesUsed = itemLinePositions[i].end - startLine;
+            linesUsed = itemLinePositions[i].start - startLine + Math.min(itemLines, remainingSpace);
         } else {
             break;
         }
@@ -276,11 +278,9 @@ export const ConfigurationPanel: React.FC<{
                 let remainingLines = maxLines;
                 
                 visibleItems.forEach((listItem, visualIndex) => {
-                    // Calculate max lines available for this item
-                    const itemMaxLines = Math.min(
-                        remainingLines,
-                        listItem.getRequiredLines(itemMaxWidth)
-                    );
+                    // Pass the actual remaining lines so item can make responsive decisions
+                    // The item will decide if it needs to switch layouts based on available space
+                    const itemMaxLines = remainingLines;
                     
                     // Get rendered elements from list item
                     const itemElements = listItem.render(itemMaxWidth, itemMaxLines);
