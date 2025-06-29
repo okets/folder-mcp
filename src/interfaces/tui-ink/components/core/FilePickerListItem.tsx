@@ -103,9 +103,9 @@ export class FilePickerListItem implements IListItem {
                 // Apply mode filter
                 if (this.mode === 'folder' && !entry.isDirectory()) {
                     continue;
-                } else if (this.mode === 'file' && entry.isDirectory()) {
-                    continue;
                 }
+                // In file mode, we need to show directories for navigation
+                // but we'll only allow selecting files
                 
                 // Apply pattern filters if any
                 if (this.filterPatterns && !entry.isDirectory()) {
@@ -195,9 +195,9 @@ export class FilePickerListItem implements IListItem {
                 // Apply mode filter
                 if (this.mode === 'folder' && !entry.isDirectory()) {
                     continue;
-                } else if (this.mode === 'file' && entry.isDirectory()) {
-                    continue;
                 }
+                // In file mode, we need to show directories for navigation
+                // but we'll only allow selecting files
                 
                 // Apply pattern filters if any
                 if (this.filterPatterns && !entry.isDirectory()) {
