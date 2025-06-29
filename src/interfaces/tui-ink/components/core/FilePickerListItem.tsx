@@ -27,6 +27,7 @@ export class FilePickerListItem implements IListItem {
     private _loadingComplete: boolean = false;
     private _columnCount: number = 1;
     private _itemsPerColumn: number = 0;
+    private _selectedPathValid: boolean = true;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
     
@@ -43,6 +44,7 @@ export class FilePickerListItem implements IListItem {
         // Resolve initial path
         this._currentPath = path.resolve(initialPath || os.homedir());
         this._selectedPath = this._currentPath;
+        this._selectedPathValid = true;
         if (onPathChange) {
             this.onPathChange = onPathChange;
         }
@@ -68,7 +70,7 @@ export class FilePickerListItem implements IListItem {
     onExit(): void {
         // Exit expanded mode
         this._isControllingInput = false;
-        this._error = null;
+        // Keep error state to show invalid path in collapsed view
     }
     
     private loadDirectoryContentsSync(): void {
@@ -129,12 +131,15 @@ export class FilePickerListItem implements IListItem {
             });
             
             this._error = null;
+            this._selectedPathValid = true;
             this._loadingComplete = true;
+            this._selectedPathValid = true;
         } catch (error) {
             // Store the original error for proper parsing in FilePickerBody
             this._error = error instanceof Error ? error.message : 'Unknown error';
             this._items = [];
             this._loadingComplete = true;
+            this._selectedPathValid = false;
             
             // Add a "Go back" option if we're not at root
             if (this._currentPath !== path.parse(this._currentPath).root) {
@@ -208,10 +213,12 @@ export class FilePickerListItem implements IListItem {
             });
             
             this._error = null;
+            this._selectedPathValid = true;
         } catch (error) {
             // Store the original error for proper parsing in FilePickerBody
             this._error = error instanceof Error ? error.message : 'Unknown error';
             this._items = [];
+            this._selectedPathValid = false;
             
             // Add a "Go back" option if we're not at root
             if (this._currentPath !== path.parse(this._currentPath).root) {
@@ -240,9 +247,15 @@ export class FilePickerListItem implements IListItem {
                     this._focusedIndex = 0;
                     // Use sync loading for immediate feedback
                     this.loadDirectoryContentsSync();
+                    // Update selected path if navigation was successful
+                    if (!this._error) {
+                        this._selectedPath = this._currentPath;
+                        this._selectedPathValid = true;
+                    }
                 } else {
                     // Select file
                     this._selectedPath = selectedItem.path;
+                    this._selectedPathValid = true;
                     this.onPathChange?.(this._selectedPath);
                     this.onExit();
                 }
@@ -390,7 +403,7 @@ export class FilePickerListItem implements IListItem {
             
             elements.push(
                 <Text key="header">
-                    <Text>■ </Text>
+                    <Text color={notification ? 'red' : undefined}>■ </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
                         {this.label} ({modeText}): 
                     </Text>
@@ -472,8 +485,11 @@ export class FilePickerListItem implements IListItem {
             return (
                 <Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {this.icon} {this.label}: [{displayPath}]
+                        {this.icon} {this.label}: [</Text>
+                    <Text color={!this._selectedPathValid ? 'red' : (this.isActive ? theme.colors.accent : undefined)}>
+                        {displayPath}
                     </Text>
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
                 </Text>
             );
         }

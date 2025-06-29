@@ -106,12 +106,18 @@ export const FilePickerBody = ({
     const elements: React.ReactElement[] = [];
     
     // Display current path with left truncation
-    const pathLine = formatPath(currentPath, width - 6); // Account for "│  Path: "
+    // Calculate exact space: "│  " (3) + "Path: " (6) = 9 chars
+    const availableForPath = Math.max(0, width - 9);
+    const pathLine = formatPath(currentPath, availableForPath);
+    
     elements.push(
-        <Text key="path">
+        <Box key="path" width={width}>
             <Text color={headerColor || undefined}>│  </Text>
-            <Text color={theme.colors.textMuted}>Path: {pathLine}</Text>
-        </Text>
+            <Text color={theme.colors.textMuted}>Path: </Text>
+            <Text color={error ? 'red' : theme.colors.textMuted} wrap="truncate">
+                {pathLine}
+            </Text>
+        </Box>
     );
     
     if (error) {
@@ -337,12 +343,22 @@ export const FilePickerBody = ({
 };
 
 function formatPath(fullPath: string, maxWidth: number): string {
+    if (maxWidth <= 0) {
+        return '';
+    }
+    
     if (fullPath.length <= maxWidth) {
         return fullPath;
     }
     
     // Truncate from the left with ellipsis
     const ellipsis = '...';
+    
+    // If we don't have room for ellipsis, just show the end of the path
+    if (maxWidth <= ellipsis.length) {
+        return fullPath.slice(-maxWidth);
+    }
+    
     const keepLength = maxWidth - ellipsis.length;
     return ellipsis + fullPath.slice(-keepLength);
 }
