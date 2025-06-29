@@ -4,7 +4,7 @@ import { ValidatedListItem } from './ValidatedListItem.js';
 import { FilePickerBody } from './FilePickerBody.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
-import { formatCollapsedValidation, getValidationColor } from '../../utils/validationDisplay.js';
+import { formatCollapsedValidation, getValidationColor, formatValidationDisplay } from '../../utils/validationDisplay.js';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
@@ -34,6 +34,7 @@ export class FilePickerListItem extends ValidatedListItem {
     private _itemsPerColumn: number = 0;
     private _selectedPathValid: boolean = true;
     private _showHiddenFiles: boolean = false;
+    private _hasNavigated: boolean = false;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
     
@@ -84,17 +85,38 @@ export class FilePickerListItem extends ValidatedListItem {
         }
         
         try {
-            // Only check if the path exists - don't validate type
             const exists = fsSync.existsSync(this._selectedPath);
             
             if (!exists) {
                 return createValidationMessage(
                     ValidationState.Error,
-                    'File Missing'
+                    'File Not Found'
                 );
             }
             
-            // Path exists, no error
+            // For file mode, check if it's actually a file
+            if (this.mode === 'file') {
+                const stats = fsSync.statSync(this._selectedPath);
+                if (stats.isDirectory()) {
+                    return createValidationMessage(
+                        ValidationState.Error,
+                        'Not a File'
+                    );
+                }
+            }
+            
+            // For folder mode, check if it's actually a folder
+            if (this.mode === 'folder') {
+                const stats = fsSync.statSync(this._selectedPath);
+                if (!stats.isDirectory()) {
+                    return createValidationMessage(
+                        ValidationState.Error,
+                        'Not a Folder'
+                    );
+                }
+            }
+            
+            // Path exists and is the correct type
             return null;
         } catch (error) {
             // Permission or other errors
@@ -109,6 +131,7 @@ export class FilePickerListItem extends ValidatedListItem {
         // Enter expanded mode
         this._isControllingInput = true;
         this._focusedIndex = 0;
+        this._hasNavigated = false;
         
         // Load directory contents synchronously on first render
         // Note: This is intentionally synchronous to avoid the empty state
@@ -118,6 +141,7 @@ export class FilePickerListItem extends ValidatedListItem {
     onExit(): void {
         // Exit expanded mode
         this._isControllingInput = false;
+        this._hasNavigated = false;
         // Keep error state to show invalid path in collapsed view
     }
     
@@ -208,6 +232,24 @@ export class FilePickerListItem extends ValidatedListItem {
             this._items = [];
             this._loadingComplete = true;
             this._selectedPathValid = false;
+            
+            // Try to load parent directory instead
+            const parentPath = path.dirname(this._currentPath);
+            if (parentPath !== this._currentPath) {
+                try {
+                    // Check if parent exists and is accessible
+                    const parentExists = fsSync.existsSync(parentPath);
+                    if (parentExists && fsSync.statSync(parentPath).isDirectory()) {
+                        // Load parent directory
+                        this._currentPath = parentPath;
+                        this._error = null;
+                        this.loadDirectoryContentsSync();
+                        return;
+                    }
+                } catch (parentError) {
+                    // Parent also not accessible, keep original error
+                }
+            }
             
             // Add a "Go back" option if we're not at root
             if (this._currentPath !== path.parse(this._currentPath).root) {
@@ -365,6 +407,7 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             return true;
         } else if (key.upArrow) {
+            this._hasNavigated = true;
             const hasConfirmItem = this._items.some(item => item.isConfirmAction);
             const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
             
@@ -410,6 +453,7 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             return true;
         } else if (key.downArrow) {
+            this._hasNavigated = true;
             const hasConfirmItem = this._items.some(item => item.isConfirmAction);
             const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
             
@@ -457,6 +501,7 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             return true;
         } else if (key.leftArrow) {
+            this._hasNavigated = true;
             const hasConfirmItem = this._items.some(item => item.isConfirmAction);
             const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
             
@@ -505,6 +550,7 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             return true;
         } else if (key.rightArrow) {
+            this._hasNavigated = true;
             const hasConfirmItem = this._items.some(item => item.isConfirmAction);
             const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
             
@@ -548,10 +594,12 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             return true;
         } else if (input === 'h' || input === 'H') {
-            // Toggle hidden files
-            this._showHiddenFiles = !this._showHiddenFiles;
-            this._focusedIndex = 0; // Reset focus to avoid index out of bounds
-            this.loadDirectoryContentsSync();
+            // Toggle hidden files - only if we have a valid directory
+            if (!this._error) {
+                this._showHiddenFiles = !this._showHiddenFiles;
+                this._focusedIndex = 0; // Reset focus to avoid index out of bounds
+                this.loadDirectoryContentsSync();
+            }
             return true;
         }
         
@@ -602,21 +650,27 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             
             // Build header with dynamic keyboard hints
-            const hiddenFilesHint = this._showHiddenFiles ? '[h] hide' : '[h] show';
+            const hiddenFilesHint = this._showHiddenFiles ? '[h] Hide Hidden' : '[h] Show Hidden';
             const keyboardHints = `[enter] ${enterAction} [esc] ✗ ${hiddenFilesHint}`;
             const fullKeyboardHints = keyboardHints.length; // Visual length
             const availableForHints = maxWidth - baseText.length - 1;
+            
+            // Check if we should show validation message instead of hints
+            const showValidation = !this._hasNavigated && this._validationMessage;
             
             // Determine what to show based on available space
             let showHints = false;
             let showPartialHints = false;
             
-            if (availableForHints >= fullKeyboardHints + 1) {
-                // Full hints fit with space
-                showHints = true;
-            } else if (availableForHints >= 10) {
-                // Show partial hints (at least "[enter] X")
-                showPartialHints = true;
+            // Don't show hints if there's an error/notification or validation message
+            if (!notification && !showValidation) {
+                if (availableForHints >= fullKeyboardHints + 1) {
+                    // Full hints fit with space
+                    showHints = true;
+                } else if (availableForHints >= 10) {
+                    // Show partial hints (at least "[enter] X")
+                    showPartialHints = true;
+                }
             }
             
             elements.push(
@@ -643,13 +697,21 @@ export class FilePickerListItem extends ValidatedListItem {
                                 <Text color={theme.colors.successGreen}>{enterAction}</Text>
                             </>
                         )}
-                        {notification && !showHints && availableForHints > 10 && (
+                        {notification && availableForHints > 10 && (
                             <>
                                 <Text> </Text>
                                 <Text color="red">
                                     {notification.length > availableForHints - 1
                                         ? notification.slice(0, availableForHints - 4) + '…'
                                         : notification}
+                                </Text>
+                            </>
+                        )}
+                        {showValidation && this._validationMessage && (
+                            <>
+                                <Text> </Text>
+                                <Text color={getValidationColor(this._validationMessage.state)}>
+                                    {formatValidationDisplay(this._validationMessage, availableForHints)}
                                 </Text>
                             </>
                         )}

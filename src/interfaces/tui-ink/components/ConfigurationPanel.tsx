@@ -225,11 +225,22 @@ export const ConfigurationPanel: React.FC<{
     
     let keyBindings = [];
     if (isAnyItemInEditMode) {
-        keyBindings = [
-            { key: '←→', description: 'Move cursor' },
-            { key: 'Esc', description: 'Cancel' },
-            { key: 'Enter', description: 'Save' }
-        ];
+        // Check if it's a FilePickerListItem in control
+        if (selectedItem instanceof FilePickerListItem && selectedItem.isControllingInput) {
+            keyBindings = [
+                { key: '↑↓←→', description: 'Navigate' },
+                { key: 'Enter', description: 'Open/Select' },
+                { key: 'Esc', description: 'Cancel' },
+                { key: 'H', description: 'Toggle Hidden' }
+            ];
+        } else {
+            // Generic edit mode for text inputs
+            keyBindings = [
+                { key: '←→', description: 'Move cursor' },
+                { key: 'Esc', description: 'Cancel' },
+                { key: 'Enter', description: 'Save' }
+            ];
+        }
     } else if (isLogItem && hasDetails) {
         // LogItem with details - can expand/collapse
         if (isExpanded) {

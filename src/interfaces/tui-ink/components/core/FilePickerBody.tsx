@@ -119,7 +119,7 @@ export const FilePickerBody = ({
     pathElements.push(<Text key="label">Path: </Text>);
     pathElements.push(<Text key="bracket-open">[</Text>);
     pathElements.push(
-        <Text key="path" color={error ? 'red' : theme.colors.configValuesColor}>
+        <Text key="path" color={theme.colors.configValuesColor}>
             {pathLine}
         </Text>
     );

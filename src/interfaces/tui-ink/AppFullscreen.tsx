@@ -25,7 +25,7 @@ export const AppFullscreen: React.FC = () => {
     // Register app-level input handler
     const handleAppInput = useCallback((input: string, key: Key): boolean => {
         // Handle 'q' to quit - always available unless something with higher priority handles it
-        if (input === 'q') {
+        if (input === 'q' || input === 'Q') {
             exit();
             return true;
         }
@@ -37,7 +37,7 @@ export const AppFullscreen: React.FC = () => {
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: 'q', description: 'Quit' }
+            { key: 'Q', description: 'Quit' }
         ],
         priority: -100 // Low priority so active elements can override
     });
