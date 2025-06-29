@@ -105,19 +105,28 @@ export const FilePickerBody = ({
 }: FilePickerBodyProps): React.ReactElement[] => {
     const elements: React.ReactElement[] = [];
     
-    // Display current path with left truncation
-    // Calculate exact space: "│  " (3) + "Path: " (6) = 9 chars
-    const availableForPath = Math.max(0, width - 9);
+    // Display current path with left truncation inside brackets
+    // Calculate space: "│  [" (4) + "]" (1) = 5 chars for decoration
+    const availableForPath = Math.max(0, width - 5);
     const pathLine = formatPath(currentPath, availableForPath);
     
+    // Build the complete line to ensure it fits
+    const pathElements: React.ReactElement[] = [];
+    pathElements.push(<Text key="prefix" color={headerColor || undefined}>│  </Text>);
+    pathElements.push(<Text key="bracket-open" color={theme.colors.textMuted}>[</Text>);
+    pathElements.push(
+        <Text key="path" color={error ? 'red' : theme.colors.configValuesColor}>
+            {pathLine}
+        </Text>
+    );
+    pathElements.push(<Text key="bracket-close" color={theme.colors.textMuted}>]</Text>);
+    
     elements.push(
-        <Box key="path" width={width}>
-            <Text color={headerColor || undefined}>│  </Text>
-            <Text color={theme.colors.textMuted}>Path: </Text>
-            <Text color={error ? 'red' : theme.colors.textMuted} wrap="truncate">
-                {pathLine}
-            </Text>
-        </Box>
+        <Text key="path">
+            <Transform transform={output => output}>
+                {pathElements}
+            </Transform>
+        </Text>
     );
     
     if (error) {

@@ -486,7 +486,7 @@ export class FilePickerListItem implements IListItem {
                 <Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
                         {this.icon} {this.label}: [</Text>
-                    <Text color={!this._selectedPathValid ? 'red' : (this.isActive ? theme.colors.accent : undefined)}>
+                    <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                         {displayPath}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
