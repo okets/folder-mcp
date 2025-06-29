@@ -266,7 +266,7 @@ export const FilePickerBody = ({
                     // Add separator to cell content if not last column
                     const fullCellContent = col < columns.length - 1 ? cellContent + '  ' : cellContent;
                     
-                    // Render the cell
+                    // Render the cell with appropriate color
                     if (isFocused) {
                         rowElements.push(
                             <Text key={`col-${col}`} color={theme.colors.accent}>
@@ -274,8 +274,10 @@ export const FilePickerBody = ({
                             </Text>
                         );
                     } else {
+                        // Use different color for directories
+                        const itemColor = item.isDirectory ? theme.colors.textSecondary : undefined;
                         rowElements.push(
-                            <Text key={`col-${col}`}>
+                            <Text key={`col-${col}`} color={itemColor}>
                                 {fullCellContent}
                             </Text>
                         );
@@ -362,7 +364,7 @@ export const FilePickerBody = ({
                 ? itemName.slice(0, availableWidth - 1) + '…'
                 : itemName;
             
-            // Build the line
+            // Build the line with appropriate color
             elements.push(
                 <Box key={`item-${actualIndex}`}>
                     <Text color={headerColor}>{linePrefix}</Text>
@@ -372,7 +374,9 @@ export const FilePickerBody = ({
                             {displayName}
                         </Text>
                     ) : (
-                        <Text>{displayName}</Text>
+                        <Text color={item.isDirectory ? theme.colors.textSecondary : undefined}>
+                            {displayName}
+                        </Text>
                     )}
                 </Box>
             );
