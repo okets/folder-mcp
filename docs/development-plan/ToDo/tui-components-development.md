@@ -290,8 +290,8 @@ Minor platform-specific considerations:
   - Add `getValidationMessage?(): ValidationMessage | null`
   - Add `validateValue?(): void` method
 
-**Step 3.8.2: Create Shared Validation Display Utility**
-- [ ] Create `src/interfaces/tui-ink/utils/validationDisplay.ts`:
+**Step 3.8.2: Create Shared Validation Display Utility** ✅
+- [x] Create `src/interfaces/tui-ink/utils/validationDisplay.ts`:
   - `getValidationColor(state: ValidationState): string` - returns theme color
   - `getValidationIcon(state: ValidationState): string` - returns ✓, !, or ✗
   - `truncateValidationMessage(message: string, availableWidth: number): string`
