@@ -25,6 +25,7 @@ export class FilePickerListItem implements IListItem {
     private _originalPath: string;
     private _items: FileSystemItem[] = [];
     private _focusedIndex: number = 0;
+    private _previousFocusedIndex: number = 0;
     private _error: string | null = null;
     private _loadingComplete: boolean = false;
     private _columnCount: number = 1;
@@ -276,6 +277,7 @@ export class FilePickerListItem implements IListItem {
                     // Navigate into directory
                     this._currentPath = selectedItem.path;
                     this._focusedIndex = 0;
+                    this._previousFocusedIndex = 0;
                     // Use sync loading for immediate feedback
                     this.loadDirectoryContentsSync();
                     // Don't update selected path, just navigate
@@ -295,8 +297,8 @@ export class FilePickerListItem implements IListItem {
             if (this._columnCount > 1 && this._itemsPerColumn > 0) {
                 // Multi-column navigation
                 if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
-                    // On confirm item, go to last item of last occupied column
-                    this._focusedIndex = regularItemsCount - 1;
+                    // On confirm item, go back to previous position
+                    this._focusedIndex = this._previousFocusedIndex;
                 } else if (this._focusedIndex < regularItemsCount) {
                     // On a regular item
                     const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
@@ -321,9 +323,14 @@ export class FilePickerListItem implements IListItem {
                 }
             } else {
                 // Single column navigation
-                this._focusedIndex = this._focusedIndex > 0 
-                    ? this._focusedIndex - 1 
-                    : this._items.length - 1;
+                if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
+                    // On confirm item, go back to previous position
+                    this._focusedIndex = this._previousFocusedIndex;
+                } else {
+                    this._focusedIndex = this._focusedIndex > 0 
+                        ? this._focusedIndex - 1 
+                        : this._items.length - 1;
+                }
             }
             return true;
         } else if (key.downArrow) {
@@ -348,6 +355,7 @@ export class FilePickerListItem implements IListItem {
                     } else {
                         // At bottom of any column - go to confirm
                         if (hasConfirmItem) {
+                            this._previousFocusedIndex = this._focusedIndex;
                             this._focusedIndex = this._items.length - 1;
                         } else {
                             // No confirm item, wrap to top of next column
@@ -358,9 +366,16 @@ export class FilePickerListItem implements IListItem {
                 }
             } else {
                 // Single column navigation
-                this._focusedIndex = this._focusedIndex < this._items.length - 1 
-                    ? this._focusedIndex + 1 
-                    : 0;
+                if (this._focusedIndex < this._items.length - 1) {
+                    // Check if we're moving to confirm item
+                    if (this._focusedIndex === this._items.length - 2 && 
+                        this._items[this._items.length - 1].isConfirmAction) {
+                        this._previousFocusedIndex = this._focusedIndex;
+                    }
+                    this._focusedIndex++;
+                } else {
+                    this._focusedIndex = 0;
+                }
             }
             return true;
         } else if (key.leftArrow) {
@@ -395,6 +410,7 @@ export class FilePickerListItem implements IListItem {
                 } else {
                     // In leftmost column - go to confirm if available
                     if (hasConfirmItem) {
+                        this._previousFocusedIndex = this._focusedIndex;
                         this._focusedIndex = this._items.length - 1;
                     } else {
                         this.onExit();
@@ -403,6 +419,7 @@ export class FilePickerListItem implements IListItem {
             } else {
                 // Single column - go to confirm or exit
                 if (hasConfirmItem && this._focusedIndex < this._items.length - 1) {
+                    this._previousFocusedIndex = this._focusedIndex;
                     this._focusedIndex = this._items.length - 1;
                 } else {
                     this.onExit();

@@ -189,6 +189,17 @@ export const FilePickerBody = ({
         const focusedCol = regularFocusedIndex >= 0 ? Math.floor(regularFocusedIndex / itemsPerColumn) : -1;
         const focusedRow = regularFocusedIndex >= 0 ? regularFocusedIndex % itemsPerColumn : -1;
         
+        // If confirm item is focused, use the last regular item's position for scrolling
+        let scrollFocusRow = focusedRow;
+        if (focusedIndex === items.length - 1 && confirmItem) {
+            // Use the last regular item's row position
+            const lastRegularIndex = regularItems.length - 1;
+            const lastCol = Math.floor(lastRegularIndex / itemsPerColumn);
+            const lastRow = lastRegularIndex % itemsPerColumn;
+            // If we're in the last column, use that row
+            scrollFocusRow = lastRow;
+        }
+        
         // Calculate visible range with scrolling
         let startRow = 0;
         let endRow = itemsPerColumn;
@@ -198,7 +209,8 @@ export const FilePickerBody = ({
         if (itemsPerColumn > maxLines) {
             // Need vertical scrolling
             const halfVisible = Math.floor(maxLines / 2);
-            startRow = Math.max(0, focusedRow - halfVisible);
+            // Use scrollFocusRow for scroll position calculation
+            startRow = Math.max(0, scrollFocusRow >= 0 ? scrollFocusRow - halfVisible : 0);
             endRow = Math.min(itemsPerColumn, startRow + maxLines);
             
             if (endRow === itemsPerColumn) {
