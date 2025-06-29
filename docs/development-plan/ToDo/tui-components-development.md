@@ -164,10 +164,108 @@ git add -A && git commit -m "Task 2: SelectionListItem component completed"
 ```
 
 ### **Task 3: Implement FilePickerListItem Component**
-[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
 
-- [ ] Create FilePickerListItem for File/Folder selection
-- [ ] Research compact and responsive CLI interface options for file and folder selection
+**Design Requirements:**
+- Maximum 5 rows when expanded (header + path + 3 items max)
+- Show current path with left-truncation for long paths (...path/to/folder)
+- Display folders/files with proper indentation
+- Mini scrollbar (visual only) when more than 3 items
+- Support both file and folder selection modes
+- Navigate with arrow keys, select with space, confirm with enter
+- Collapsed view shows: `■ FilePicker: [/selected/path]`
+- Expanded header shows: `■ FilePicker (folder mode): [enter] ✓ [esc] ✗`
+
+**Implementation Note:**
+The FilePicker will work with the real file system using Node.js fs module. For testing and demo purposes, we'll:
+1. Start with safe default paths (user's home directory or current working directory)
+2. Implement proper permission checking and error handling
+3. Consider adding a "sandbox mode" that restricts to a specific directory tree
+4. For unit tests, we can mock the fs module to avoid file system dependencies
+
+**Cross-Platform Compatibility:**
+Node.js handles most platform differences automatically. We'll use:
+- `path.sep` for the correct path separator (/ or \)
+- `path.join()` to build paths correctly on any OS
+- `os.homedir()` for cross-platform home directory
+- `fs` module handles file permissions uniformly
+- No separate implementations needed!
+
+Minor platform-specific considerations:
+- Hidden files: Check for '.' prefix on Unix, file attributes on Windows
+- Drive letters: Only relevant on Windows (C:\, D:\, etc.)
+- Case sensitivity: Windows is case-insensitive, Unix is case-sensitive
+- All handled with simple conditionals, not separate implementations
+
+**Assignment 3.1: Create FilePickerListItem Class Structure**
+- [ ] Create FilePickerListItem.tsx implementing IListItem interface
+- [ ] Add properties: path, mode (file/folder), filter patterns
+- [ ] Track state: currentPath, items, selectedItem, focusedIndex
+- [ ] Implement expand/collapse behavior
+
+**Assignment 3.2: Implement File System Navigation**
+- [ ] Add file system reading using Node.js fs/promises
+- [ ] Filter items based on mode (folders only vs files+folders)
+- [ ] Sort items (folders first, then alphabetically)
+- [ ] Handle navigation: enter folders, go up with '..'
+- [ ] Implement path resolution and validation
+- [ ] Security considerations:
+  - [ ] Use fs.access() to check read permissions before listing
+  - [ ] Catch EACCES errors and show "Permission denied"
+  - [ ] Prevent directory traversal attacks (validate paths)
+  - [ ] Resolve symlinks safely with fs.realpath()
+  - [ ] Restrict navigation to user-accessible directories
+
+**Assignment 3.3: Create FilePickerBody Component**
+- [ ] Display current path with left-truncation (...path/to/file)
+- [ ] Show items with folder indicators (/)
+- [ ] Implement focus highlighting
+- [ ] Add selection indicator (▶) for selected item
+- [ ] Handle maximum 3 visible items with internal scrolling
+- [ ] Use proper line prefixes: "│ " for items, "└─" for last visible item
+
+**Assignment 3.4: Add Visual Scrollbar**
+- [ ] Calculate when scrollbar is needed (>3 items)
+- [ ] Display mini scrollbar using Unicode characters (▲/┇/▼)
+- [ ] Position scrollbar at the right edge of the item list
+- [ ] Show scrollbar only when in expanded mode with overflow
+- [ ] Keep scrollbar purely visual (no interaction)
+- [ ] Example layout:
+  ```
+  │ │  ▶ folder1/ [space]                    ▲│
+  │ │    folder2/                            ┇│
+  │ └─   folder3/                            ▼│
+  ```
+
+**Assignment 3.5: Implement Keyboard Navigation**
+- [ ] Up/Down arrows: navigate through items
+- [ ] Enter: open folder or select file
+- [ ] Space: toggle selection in multi-select mode
+- [ ] Left arrow at position 0: go back/cancel
+- [ ] Implement smart scrolling to keep focused item visible
+
+**Assignment 3.6: Handle Edge Cases**
+- [ ] Empty directories - show "(empty)" message
+- [ ] Permission errors - show "(access denied)" in item list
+- [ ] Very long file/folder names - truncate with ellipsis
+- [ ] Path validation and sanitization:
+  - [ ] Use path.normalize() to clean up paths
+  - [ ] Use path.resolve() for absolute paths
+  - [ ] Use path.join() instead of string concatenation
+  - [ ] Use path.relative() to check if within boundaries
+  - [ ] Let Node.js handle separators automatically
+  - [ ] Prevent access to system files (e.g., /etc, C:\Windows)
+- [ ] Circular navigation (wrap around)
+- [ ] Hidden files - add option to show/hide (respect .gitignore?)
+- [ ] Special handling for:
+  - [ ] Home directory expansion (~)
+  - [ ] Network paths (UNC on Windows)
+  - [ ] Case sensitivity based on OS
+
+**Assignment 3.7: Add to Sample Data**
+- [ ] Create folder picker example in ConfigurationPanel
+- [ ] Create file picker example in StatusPanel
+- [ ] Set appropriate initial paths
+- [ ] Add onChange handlers
 
 **Validation After Completion**:
 ```bash
