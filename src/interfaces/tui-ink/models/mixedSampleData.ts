@@ -112,7 +112,7 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
-        // File picker as first item for debugging
+        // File picker as first item
         new FilePickerListItem(
             '📁',
             'Project Folder',
@@ -121,11 +121,11 @@ export function createConfigurationPanelItems(): IListItem[] {
             'folder',
             (path) => console.log('Folder selected:', path)
         ),
-        // File picker to test file mode
+        // File picker to test file mode (second position)
         new FilePickerListItem(
             '📄',
             'Select Config File',
-            process.cwd(),
+            '/Users/hanan',
             false,
             'file',
             (path) => console.log('Config file selected:', path),

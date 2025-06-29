@@ -301,8 +301,10 @@ export class FilePickerListItem implements IListItem {
                     this._focusedIndex = this._previousFocusedIndex;
                 } else if (this._focusedIndex < regularItemsCount) {
                     // On a regular item
-                    const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    // For vertical-first layout (matching FilePickerBody)
+                    const itemsPerCol = Math.ceil(regularItemsCount / this._columnCount);
+                    const currentCol = Math.floor(this._focusedIndex / itemsPerCol);
+                    const currentRow = this._focusedIndex % itemsPerCol;
                     
                     if (currentRow > 0) {
                         // Not at top of column
@@ -312,9 +314,9 @@ export class FilePickerListItem implements IListItem {
                         if (currentCol > 0) {
                             // Go to bottom of previous column
                             const prevCol = currentCol - 1;
-                            const lastRowInPrevCol = Math.min(this._itemsPerColumn - 1,
-                                regularItemsCount - 1 - (prevCol * this._itemsPerColumn));
-                            this._focusedIndex = prevCol * this._itemsPerColumn + lastRowInPrevCol;
+                            const itemsInPrevCol = Math.min(itemsPerCol, regularItemsCount - (prevCol * itemsPerCol));
+                            const lastRowInPrevCol = itemsInPrevCol - 1;
+                            this._focusedIndex = prevCol * itemsPerCol + lastRowInPrevCol;
                         } else {
                             // At top of first column, wrap to confirm or last item
                             this._focusedIndex = hasConfirmItem ? this._items.length - 1 : regularItemsCount - 1;
@@ -344,10 +346,12 @@ export class FilePickerListItem implements IListItem {
                     this._focusedIndex = 0;
                 } else if (this._focusedIndex < regularItemsCount) {
                     // On a regular item
-                    const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                    const currentRow = this._focusedIndex % this._itemsPerColumn;
-                    const lastRowInCol = Math.min(this._itemsPerColumn - 1,
-                        regularItemsCount - 1 - (currentCol * this._itemsPerColumn));
+                    // For vertical-first layout (matching FilePickerBody)
+                    const itemsPerCol = Math.ceil(regularItemsCount / this._columnCount);
+                    const currentCol = Math.floor(this._focusedIndex / itemsPerCol);
+                    const currentRow = this._focusedIndex % itemsPerCol;
+                    const itemsInCurrentCol = Math.min(itemsPerCol, regularItemsCount - (currentCol * itemsPerCol));
+                    const lastRowInCol = itemsInCurrentCol - 1;
                     
                     if (currentRow < lastRowInCol) {
                         // Not at bottom of column yet
@@ -360,7 +364,7 @@ export class FilePickerListItem implements IListItem {
                         } else {
                             // No confirm item, wrap to top of next column
                             const nextCol = (currentCol + 1) % this._columnCount;
-                            this._focusedIndex = nextCol * this._itemsPerColumn;
+                            this._focusedIndex = nextCol * itemsPerCol;
                         }
                     }
                 }
@@ -387,19 +391,19 @@ export class FilePickerListItem implements IListItem {
                 this.onExit();
             } else if (this._columnCount > 1 && this._itemsPerColumn > 0 && this._focusedIndex < regularItemsCount) {
                 // Multi-column navigation for regular items
-                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                // For vertical-first layout (matching FilePickerBody)
+                const itemsPerCol = Math.ceil(regularItemsCount / this._columnCount);
+                const currentCol = Math.floor(this._focusedIndex / itemsPerCol);
                 
                 if (currentCol > 0) {
                     // Move to previous column, same row
-                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    const currentRow = this._focusedIndex % itemsPerCol;
                     const prevCol = currentCol - 1;
-                    const newIndex = prevCol * this._itemsPerColumn + currentRow;
+                    const newIndex = prevCol * itemsPerCol + currentRow;
                     
-                    // Make sure we don't go past the last item
-                    const lastItemInPrevCol = Math.min(
-                        (prevCol + 1) * this._itemsPerColumn - 1,
-                        regularItemsCount - 1
-                    );
+                    // Make sure we don't go past the last item in that column
+                    const itemsInPrevCol = Math.min(itemsPerCol, regularItemsCount - (prevCol * itemsPerCol));
+                    const lastItemInPrevCol = prevCol * itemsPerCol + itemsInPrevCol - 1;
                     
                     if (newIndex <= lastItemInPrevCol) {
                         this._focusedIndex = newIndex;
@@ -435,14 +439,16 @@ export class FilePickerListItem implements IListItem {
                 this._focusedIndex = 0;
             } else if (this._columnCount > 1 && this._itemsPerColumn > 0 && this._focusedIndex < regularItemsCount) {
                 // Multi-column navigation for regular items
-                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                const lastCol = Math.floor((regularItemsCount - 1) / this._itemsPerColumn);
+                // For vertical-first layout (matching FilePickerBody)
+                const itemsPerCol = Math.ceil(regularItemsCount / this._columnCount);
+                const currentCol = Math.floor(this._focusedIndex / itemsPerCol);
+                const lastCol = Math.floor((regularItemsCount - 1) / itemsPerCol);
                 
                 if (currentCol < lastCol) {
                     // Move to next column, same row
-                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    const currentRow = this._focusedIndex % itemsPerCol;
                     const nextCol = currentCol + 1;
-                    const newIndex = nextCol * this._itemsPerColumn + currentRow;
+                    const newIndex = nextCol * itemsPerCol + currentRow;
                     
                     // Make sure we don't go past the last item
                     if (newIndex < regularItemsCount) {
@@ -659,8 +665,30 @@ export class FilePickerListItem implements IListItem {
             return 1; // Collapsed view
         }
         
-        // Expanded view: header + path + up to 4 items
-        return 6; // Maximum (1 header + 1 path + 4 items)
+        // Expanded view needs:
+        // 1 line for header
+        // 1 line for path
+        // N lines for items (where N depends on actual item count and mode)
+        
+        // Check if we have items to display
+        const hasError = !!this._error;
+        const hasItems = this._items.length > 0;
+        
+        if (hasError || !hasItems) {
+            // Header + path + error/empty message
+            return 3;
+        }
+        
+        // Calculate actual visible items
+        // We show max 4 items in the body
+        const bodyLines = Math.min(this._items.length, 4);
+        
+        // Check if we need an extra line for the └─ closing
+        const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+        const needsClosingLine = this.mode === 'file' && !hasConfirmItem;
+        
+        // Total: header + path + body items + possible closing line
+        return 2 + bodyLines + (needsClosingLine ? 1 : 0);
     }
     
     private formatPathForDisplay(fullPath: string, maxWidth: number): string {

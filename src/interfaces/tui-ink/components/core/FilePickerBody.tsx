@@ -166,22 +166,26 @@ export const FilePickerBody = ({
         ? calculateColumnLayout(regularItems, availableWidth)
         : null;
     
+    // Variables for scrolling state
+    let showScrollDown = false;
+    let endRow = 0; // Initialize to 0, will be set appropriately later
+    let itemsPerColumn = regularItems.length; // Default to all items for single column
+    
     if (columnLayout && columnLayout.columnCount > 1) {
         // Multi-column layout
-        const { columns, columnWidths, itemsPerColumn } = columnLayout;
+        const { columns, columnWidths } = columnLayout;
+        itemsPerColumn = columnLayout.itemsPerColumn;
         
         // Map focused index to regular items only
         let regularFocusedIndex = -1;
-        if (focusedIndex < regularItems.length) {
-            // Find the index in regularItems that corresponds to focusedIndex in items
-            for (let i = 0, j = 0; i < items.length && j < regularItems.length; i++) {
-                if (!items[i].isConfirmAction) {
-                    if (i === focusedIndex) {
-                        regularFocusedIndex = j;
-                        break;
-                    }
-                    j++;
+        // Find the index in regularItems that corresponds to focusedIndex in items
+        for (let i = 0, j = 0; i < items.length && j < regularItems.length; i++) {
+            if (!items[i].isConfirmAction) {
+                if (i === focusedIndex) {
+                    regularFocusedIndex = j;
+                    break;
                 }
+                j++;
             }
         }
         
@@ -198,23 +202,44 @@ export const FilePickerBody = ({
             const lastRow = lastRegularIndex % itemsPerColumn;
             // If we're in the last column, use that row
             scrollFocusRow = lastRow;
+        } else if (focusedRow === -1 && regularItems.length > 0) {
+            // If we can't find the focused item, try to keep current scroll position
+            // or show the middle of the list
+            scrollFocusRow = Math.floor(itemsPerColumn / 2);
         }
         
         // Calculate visible range with scrolling
         let startRow = 0;
-        let endRow = itemsPerColumn;
+        endRow = itemsPerColumn;
         let showScrollUp = false;
-        let showScrollDown = false;
         
         if (itemsPerColumn > maxLines) {
             // Need vertical scrolling
             const halfVisible = Math.floor(maxLines / 2);
-            // Use scrollFocusRow for scroll position calculation
-            startRow = Math.max(0, scrollFocusRow >= 0 ? scrollFocusRow - halfVisible : 0);
-            endRow = Math.min(itemsPerColumn, startRow + maxLines);
             
-            if (endRow === itemsPerColumn) {
-                startRow = Math.max(0, endRow - maxLines);
+            // Ensure focused row is visible
+            if (scrollFocusRow >= 0) {
+                // Center the focused item if possible
+                startRow = Math.max(0, scrollFocusRow - halfVisible);
+                endRow = Math.min(itemsPerColumn, startRow + maxLines);
+                
+                // Adjust if we hit the bottom
+                if (endRow === itemsPerColumn) {
+                    startRow = Math.max(0, endRow - maxLines);
+                }
+                
+                // Make sure the focused row is still visible after adjustments
+                if (scrollFocusRow < startRow) {
+                    startRow = scrollFocusRow;
+                    endRow = Math.min(itemsPerColumn, startRow + maxLines);
+                } else if (scrollFocusRow >= endRow) {
+                    endRow = scrollFocusRow + 1;
+                    startRow = Math.max(0, endRow - maxLines);
+                }
+            } else {
+                // No focused item, show from top
+                startRow = 0;
+                endRow = Math.min(itemsPerColumn, maxLines);
             }
             
             showScrollUp = startRow > 0;
@@ -232,9 +257,12 @@ export const FilePickerBody = ({
                 linePrefix = '│▲';
             } else if (showScrollDown && isLastRow) {
                 linePrefix = '│▼';
-            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1 && !confirmItem && mode !== 'file') {
-                // Only show └─ if there's no confirm item and not in file mode
-                linePrefix = '└─';
+            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1 && mode !== 'file') {
+                // Check if we're truly at the last row of items
+                const lastItemRow = Math.ceil(regularItems.length / columns.length) - 1;
+                if (row === lastItemRow && !confirmItem) {
+                    linePrefix = '└─';
+                }
             }
             
             rowElements.push(
@@ -398,7 +426,12 @@ export const FilePickerBody = ({
     // Add confirm selection or empty line
     if (confirmItem) {
         const isConfirmFocused = focusedIndex === items.length - 1;
-        elements.push(
+        
+        // Only show confirm selection if we're showing the bottom of the list
+        const isShowingBottom = !showScrollDown || (endRow === itemsPerColumn);
+        
+        if (isShowingBottom || isConfirmFocused) {
+            elements.push(
             <Text key="confirm-action">
                 {isConfirmFocused ? (
                     <>
@@ -415,7 +448,8 @@ export const FilePickerBody = ({
                     </>
                 )}
             </Text>
-        );
+            );
+        }
     } else if (mode === 'file' && items.length > 0) {
         elements.push(
             <Text key="empty-line">

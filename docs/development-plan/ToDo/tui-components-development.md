@@ -197,39 +197,39 @@ Minor platform-specific considerations:
 - All handled with simple conditionals, not separate implementations
 
 **Assignment 3.1: Create FilePickerListItem Class Structure**
-- [ ] Create FilePickerListItem.tsx implementing IListItem interface
-- [ ] Add properties: path, mode (file/folder), filter patterns
-- [ ] Track state: currentPath, items, selectedItem, focusedIndex
-- [ ] Implement expand/collapse behavior
+- [x] Create FilePickerListItem.tsx implementing IListItem interface
+- [x] Add properties: path, mode (file/folder), filter patterns
+- [x] Track state: currentPath, items, selectedItem, focusedIndex
+- [x] Implement expand/collapse behavior
 
 **Assignment 3.2: Implement File System Navigation**
-- [ ] Add file system reading using Node.js fs/promises
-- [ ] Filter items based on mode (folders only vs files+folders)
-- [ ] Sort items (folders first, then alphabetically)
-- [ ] Handle navigation: enter folders, go up with '..'
-- [ ] Implement path resolution and validation
-- [ ] Security considerations:
-  - [ ] Use fs.access() to check read permissions before listing
-  - [ ] Catch EACCES errors and show "Permission denied"
-  - [ ] Prevent directory traversal attacks (validate paths)
-  - [ ] Resolve symlinks safely with fs.realpath()
-  - [ ] Restrict navigation to user-accessible directories
+- [x] Add file system reading using Node.js fs/promises
+- [x] Filter items based on mode (folders only vs files+folders)
+- [x] Sort items (folders first, then alphabetically)
+- [x] Handle navigation: enter folders, go up with '..'
+- [x] Implement path resolution and validation
+- [x] Security considerations:
+  - [x] Use fs.access() to check read permissions before listing
+  - [x] Catch EACCES errors and show "Permission denied"
+  - [x] Prevent directory traversal attacks (validate paths)
+  - [x] Resolve symlinks safely with fs.realpath()
+  - [x] Restrict navigation to user-accessible directories
 
 **Assignment 3.3: Create FilePickerBody Component**
-- [ ] Display current path with left-truncation (...path/to/file)
-- [ ] Show items with folder indicators (/)
-- [ ] Implement focus highlighting
-- [ ] Add selection indicator (▶) for selected item
-- [ ] Handle maximum 3 visible items with internal scrolling
-- [ ] Use proper line prefixes: "│ " for items, "└─" for last visible item
+- [x] Display current path with left-truncation (...path/to/file)
+- [x] Show items with folder indicators (/)
+- [x] Implement focus highlighting
+- [x] Add selection indicator (▶) for selected item
+- [x] Handle maximum 3 visible items with internal scrolling
+- [x] Use proper line prefixes: "│ " for items, "└─" for last visible item
 
 **Assignment 3.4: Add Visual Scrollbar**
-- [ ] Calculate when scrollbar is needed (>3 items)
-- [ ] Display mini scrollbar using Unicode characters (▲/┇/▼)
-- [ ] Position scrollbar at the right edge of the item list
-- [ ] Show scrollbar only when in expanded mode with overflow
-- [ ] Keep scrollbar purely visual (no interaction)
-- [ ] Example layout:
+- [x] Calculate when scrollbar is needed (>3 items)
+- [x] Display mini scrollbar using Unicode characters (▲/┇/▼)
+- [x] Position scrollbar at the right edge of the item list
+- [x] Show scrollbar only when in expanded mode with overflow
+- [x] Keep scrollbar purely visual (no interaction)
+- [x] Example layout:
   ```
   │ │  ▶ folder1/ [space]                    ▲│
   │ │    folder2/                            ┇│
@@ -237,11 +237,11 @@ Minor platform-specific considerations:
   ```
 
 **Assignment 3.5: Implement Keyboard Navigation**
-- [ ] Up/Down arrows: navigate through items
-- [ ] Enter: open folder or select file
-- [ ] Space: toggle selection in multi-select mode
-- [ ] Left arrow at position 0: go back/cancel
-- [ ] Implement smart scrolling to keep focused item visible
+- [x] Up/Down arrows: navigate through items
+- [x] Enter: open folder or select file
+- [x] Space: toggle selection in multi-select mode
+- [x] Left arrow at position 0: go back/cancel
+- [x] Implement smart scrolling to keep focused item visible
 
 **Assignment 3.6: Handle Edge Cases**
 - [ ] Empty directories - show "(empty)" message
