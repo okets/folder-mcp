@@ -1,6 +1,7 @@
 import { ReactElement } from 'react';
 import { Key } from 'ink';
 import { ISelfConstrainedItem } from './ISelfConstrainedItem.js';
+import { ValidationMessage } from '../../validation/ValidationState.js';
 
 /**
  * Interface for all list item types in the TUI
@@ -74,4 +75,16 @@ export interface IListItem extends ISelfConstrainedItem {
      * Can be used to clean up state or UI changes
      */
     onDeselect?(): void;
+    
+    /**
+     * Get the current validation message for this item
+     * @returns ValidationMessage if there's a validation state to display, null otherwise
+     */
+    getValidationMessage?(): ValidationMessage | null;
+    
+    /**
+     * Trigger validation on the current value
+     * Should update internal validation state
+     */
+    validateValue?(): void;
 }

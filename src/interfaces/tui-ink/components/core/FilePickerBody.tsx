@@ -134,11 +134,20 @@ export const FilePickerBody = ({
     );
     
     if (error) {
-        // Show (empty) message since we can't access the folder
+        // Parse error to show appropriate message
+        let errorMessage = '(access denied)';
+        if (error.includes('ENOENT') || error.includes('no such file or directory')) {
+            errorMessage = '(not found)';
+        } else if (error.includes('ENOTDIR')) {
+            errorMessage = '(not a directory)';
+        } else if (error.includes('EMFILE')) {
+            errorMessage = '(too many open files)';
+        }
+        
         elements.push(
             <Text key="error">
-                <Text color={headerColor || undefined}>└─ </Text>
-                <Text color={theme.colors.textMuted}>(inaccessible)</Text>
+                <Text color={headerColor}>└─ </Text>
+                <Text color={theme.colors.textMuted}>{errorMessage}</Text>
             </Text>
         );
         return elements;
@@ -266,7 +275,7 @@ export const FilePickerBody = ({
             }
             
             rowElements.push(
-                <Text key="prefix" color={headerColor}>{linePrefix}</Text>
+                <Text key="prefix" color={headerColor || undefined}>{linePrefix}</Text>
             );
             
             // Render each column in this row
@@ -407,7 +416,7 @@ export const FilePickerBody = ({
             // Build the line with appropriate color
             elements.push(
                 <Box key={`item-${actualIndex}`}>
-                    <Text color={headerColor}>{linePrefix}</Text>
+                    <Text color={headerColor || theme.colors.textMuted}>{linePrefix}</Text>
                     <Text> {indicator}</Text>
                     {isFocused ? (
                         <Text color={theme.colors.accent}>
@@ -435,7 +444,7 @@ export const FilePickerBody = ({
             <Text key="confirm-action">
                 {isConfirmFocused ? (
                     <>
-                        <Text color={headerColor}>└─</Text>
+                        <Text color={headerColor || theme.colors.textMuted}>└─</Text>
                         <Text color={theme.colors.accent}>▶ </Text>
                         <Text color={theme.colors.successGreen}>✓ </Text>
                         <Text color={theme.colors.accent}>Confirm Selection</Text>
@@ -453,7 +462,7 @@ export const FilePickerBody = ({
     } else if (mode === 'file' && items.length > 0) {
         elements.push(
             <Text key="empty-line">
-                <Text color={headerColor}>└─</Text>
+                <Text color={headerColor || theme.colors.textMuted}>└─</Text>
             </Text>
         );
     }

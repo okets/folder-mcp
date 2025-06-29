@@ -243,29 +243,117 @@ Minor platform-specific considerations:
 - [x] Left arrow at position 0: go back/cancel
 - [x] Implement smart scrolling to keep focused item visible
 
-**Assignment 3.6: Handle Edge Cases**
-- [ ] Empty directories - show "(empty)" message
-- [ ] Permission errors - show "(access denied)" in item list
-- [ ] Very long file/folder names - truncate with ellipsis
-- [ ] Path validation and sanitization:
-  - [ ] Use path.normalize() to clean up paths
-  - [ ] Use path.resolve() for absolute paths
-  - [ ] Use path.join() instead of string concatenation
-  - [ ] Use path.relative() to check if within boundaries
-  - [ ] Let Node.js handle separators automatically
-  - [ ] Prevent access to system files (e.g., /etc, C:\Windows)
-- [ ] Circular navigation (wrap around)
-- [ ] Hidden files - add option to show/hide (respect .gitignore?)
-- [ ] Special handling for:
-  - [ ] Home directory expansion (~)
-  - [ ] Network paths (UNC on Windows)
-  - [ ] Case sensitivity based on OS
+**Assignment 3.6: Handle Edge Cases** ✅
+- [x] Empty directories - show "(empty)" message
+- [x] Permission errors - show "(access denied)" in item list
+- [x] Very long file/folder names - truncate with ellipsis
+- [x] Path validation and sanitization:
+  - [x] Use path.normalize() to clean up paths
+  - [x] Use path.resolve() for absolute paths
+  - [x] Use path.join() instead of string concatenation
+  - [x] Use path.relative() to check if within boundaries
+  - [x] Let Node.js handle separators automatically
+  - [x] Prevent access to system files (e.g., /etc, C:\Windows)
+- [x] Circular navigation (wrap around)
+- [x] Hidden files - add option to show/hide (respect .gitignore?)
+- [x] Special handling for:
+  - [x] Home directory expansion (~)
+  - [x] Network paths (UNC on Windows)
+  - [x] Case sensitivity based on OS
 
-**Assignment 3.7: Add to Sample Data**
-- [ ] Create folder picker example in ConfigurationPanel
-- [ ] Create file picker example in StatusPanel
-- [ ] Set appropriate initial paths
-- [ ] Add onChange handlers
+**Assignment 3.7: Add to Sample Data** ✅
+- [x] Create folder picker example in ConfigurationPanel
+- [x] Create file picker example in StatusPanel
+- [x] Set appropriate initial paths
+- [x] Add onChange handlers
+
+**Assignment 3.8: Enhanced Validation Features**
+
+#### **Implementation Steps:**
+
+**Step 3.8.1: Create Validation State Infrastructure** ✅
+- [x] Create `src/interfaces/tui-ink/validation/ValidationState.ts`:
+  ```typescript
+  export enum ValidationState {
+    Valid = 'valid',
+    Warning = 'warning', 
+    Error = 'error'
+  }
+  
+  export interface ValidationMessage {
+    state: ValidationState;
+    message: string;
+    icon?: string; // ✓, !, ✗
+  }
+  ```
+- [x] Update `IListItem` interface to include optional validation:
+  - Add `getValidationMessage?(): ValidationMessage | null`
+  - Add `validateValue?(): void` method
+
+**Step 3.8.2: Create Shared Validation Display Utility**
+- [ ] Create `src/interfaces/tui-ink/utils/validationDisplay.ts`:
+  - `getValidationColor(state: ValidationState): string` - returns theme color
+  - `getValidationIcon(state: ValidationState): string` - returns ✓, !, or ✗
+  - `truncateValidationMessage(message: string, availableWidth: number): string`
+  - `formatValidationDisplay(validation: ValidationMessage, availableWidth: number): string`
+
+**Step 3.8.3: Implement Base Validation Logic**
+- [ ] Create abstract class `ValidatedListItem` that extends base functionality:
+  - Protected `_validationState: ValidationMessage | null`
+  - Abstract `performValidation(): ValidationMessage | null`
+  - Method to trigger validation and update state
+  - Method to get bullet color based on validation state
+- [ ] Make ConfigurationListItem extend ValidatedListItem
+- [ ] Make FilePickerListItem extend ValidatedListItem
+
+**Step 3.8.4: Update ConfigurationListItem Validation**
+- [ ] Refactor existing validation to use new ValidationState system:
+  - Convert current error-only validation to three-state system
+  - Map existing validators to return ValidationMessage
+  - Update `renderCollapsed()` to color bullet based on validation state
+  - Update `renderExpanded()` to show validation with proper icon/color
+- [ ] Implement responsive truncation for validation messages:
+  - Calculate available space after label and value
+  - Use shared truncation utility
+  - Ensure minimum readable message (at least icon + 3 chars)
+
+**Step 3.8.5: Add FilePickerListItem Validation**
+- [ ] Implement `performValidation()` for FilePickerListItem:
+  - Check if file/folder exists using fs.access()
+  - Return appropriate ValidationMessage:
+    - Error: "✗ File Missing" or "✗ Folder Missing"
+    - Warning: "! File Changed" (if mtime different from expected)
+    - Valid: null (no message needed)
+- [ ] Add validation check on:
+  - Initial load
+  - Path change
+  - Focus/blur events
+- [ ] Update collapsed view to show validation state in bullet color
+- [ ] Add validation message to collapsed view (space permitting)
+
+**Step 3.8.6: Update SelectionListItem for Consistency**
+- [ ] Add validation support to SelectionListItem:
+  - Validate min/max selections
+  - Show warning if close to limit
+  - Error if outside bounds
+- [ ] Update bullet coloring based on validation state
+
+**Step 3.8.7: Create Test Scenarios**
+- [ ] Update sample data with validation test cases:
+  - FilePickerListItem with non-existent file path
+  - TextInput with invalid initial values (email, number out of range)
+  - SelectionListItem with invalid selection count
+  - Add examples showing all three validation states
+- [ ] Add validation state indicators to demonstrate:
+  - Green checkmark for valid
+  - Yellow warning for warnings
+  - Red X for errors
+
+**Step 3.8.8: Documentation and Testing**
+- [ ] Document the new validation API
+- [ ] Create unit tests for validation utilities
+- [ ] Test responsive behavior at different terminal widths
+- [ ] Verify keyboard navigation still works with validation messages
 
 **Validation After Completion**:
 ```bash
@@ -291,7 +379,7 @@ git add -A && git commit -m "Task 4: ProgressItem component completed"
 - [x] Task 1: Complete TextInput Type Features - **Completed**
 - [x] UI Enhancement: Validation errors replace keyboard hints - **Completed**
 - [x] Task 2: Implement SelectionListItem Component - **Completed**
-- [ ] Task 3: Implement FilePickerListItem Component - Not Started
+- [x] Task 3: Implement FilePickerListItem Component - **Completed**
 - [ ] Task 4: Implement ProgressItem Component - Not Started
 
 ### **Completion Log**
@@ -302,7 +390,7 @@ git add -A && git commit -m "Task 4: ProgressItem component completed"
 | Navigation Bug Fixes | ✅ Completed | 2025-06-28 | 1189aa3 |
 | Validation UI Enhancement | ✅ Completed | 2025-06-28 | 7659b3c |
 | SelectionListItem | ✅ Completed | 2025-06-28 | - |
-| FilePickerListItem | ⏳ Pending | - | - |
+| FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | ProgressItem | ⏳ Pending | - | - |
 
 ### **Quick Health Check**

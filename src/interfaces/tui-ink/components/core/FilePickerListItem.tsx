@@ -31,6 +31,7 @@ export class FilePickerListItem implements IListItem {
     private _columnCount: number = 1;
     private _itemsPerColumn: number = 0;
     private _selectedPathValid: boolean = true;
+    private _showHiddenFiles: boolean = false;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
     
@@ -42,13 +43,19 @@ export class FilePickerListItem implements IListItem {
         private mode: FilePickerMode = 'both',
         onPathChange?: (newPath: string) => void,
         private filterPatterns?: string[],
-        onChange?: () => void
+        onChange?: () => void,
+        private showHiddenFiles: boolean = false
     ) {
-        // Resolve initial path
-        this._currentPath = path.resolve(initialPath || os.homedir());
+        // Resolve initial path with home directory expansion
+        let expandedPath = initialPath;
+        if (initialPath && initialPath.startsWith('~')) {
+            expandedPath = initialPath.replace(/^~/, os.homedir());
+        }
+        this._currentPath = path.resolve(expandedPath || os.homedir());
         this._selectedPath = this._currentPath;
         this._originalPath = this._currentPath;
         this._selectedPathValid = true;
+        this._showHiddenFiles = showHiddenFiles;
         if (onPathChange) {
             this.onPathChange = onPathChange;
         }
@@ -79,6 +86,16 @@ export class FilePickerListItem implements IListItem {
     
     private loadDirectoryContentsSync(): void {
         try {
+            // Validate and normalize the path
+            const normalizedPath = path.normalize(this._currentPath);
+            
+            // Security check: ensure we're not accessing system directories
+            const lowerPath = normalizedPath.toLowerCase();
+            const restrictedPaths = ['/etc', '/sys', '/proc', 'c:\\windows', 'c:\\program files'];
+            if (restrictedPaths.some(restricted => lowerPath.startsWith(restricted))) {
+                throw new Error('Access to system directories is restricted');
+            }
+            
             // Use sync fs methods for initial load
             const entries = fsSync.readdirSync(this._currentPath, { withFileTypes: true });
             
@@ -96,8 +113,8 @@ export class FilePickerListItem implements IListItem {
             
             // Process entries
             for (const entry of entries) {
-                // Skip hidden files (starting with .)
-                if (entry.name.startsWith('.') && entry.name !== '..') {
+                // Skip hidden files (starting with .) unless showHiddenFiles is true
+                if (!this._showHiddenFiles && entry.name.startsWith('.') && entry.name !== '..') {
                     continue;
                 }
                 
@@ -168,6 +185,16 @@ export class FilePickerListItem implements IListItem {
     
     private async loadDirectoryContents(): Promise<void> {
         try {
+            // Validate and normalize the path
+            const normalizedPath = path.normalize(this._currentPath);
+            
+            // Security check: ensure we're not accessing system directories
+            const lowerPath = normalizedPath.toLowerCase();
+            const restrictedPaths = ['/etc', '/sys', '/proc', 'c:\\windows', 'c:\\program files'];
+            if (restrictedPaths.some(restricted => lowerPath.startsWith(restricted))) {
+                throw new Error('Access to system directories is restricted');
+            }
+            
             // Check permissions
             await fs.access(this._currentPath, fs.constants.R_OK);
             
@@ -178,18 +205,18 @@ export class FilePickerListItem implements IListItem {
             this._items = [];
             
             // Add parent directory option if not at root
-            if (this._currentPath !== path.parse(this._currentPath).root) {
+            if (normalizedPath !== path.parse(normalizedPath).root) {
                 this._items.push({
                     name: '..',
                     isDirectory: true,
-                    path: path.dirname(this._currentPath)
+                    path: path.dirname(normalizedPath)
                 });
             }
             
             // Process entries
             for (const entry of entries) {
-                // Skip hidden files (starting with .)
-                if (entry.name.startsWith('.') && entry.name !== '..') {
+                // Skip hidden files (starting with .) unless showHiddenFiles is true
+                if (!this._showHiddenFiles && entry.name.startsWith('.') && entry.name !== '..') {
                     continue;
                 }
                 
@@ -275,11 +302,19 @@ export class FilePickerListItem implements IListItem {
                     this.onExit();
                 } else if (selectedItem.isDirectory) {
                     // Navigate into directory
-                    this._currentPath = selectedItem.path;
-                    this._focusedIndex = 0;
-                    this._previousFocusedIndex = 0;
-                    // Use sync loading for immediate feedback
-                    this.loadDirectoryContentsSync();
+                    // Normalize and validate the path before navigation
+                    const targetPath = path.normalize(selectedItem.path);
+                    
+                    // Security check
+                    const lowerPath = targetPath.toLowerCase();
+                    const restrictedPaths = ['/etc', '/sys', '/proc', 'c:\\windows', 'c:\\program files'];
+                    if (!restrictedPaths.some(restricted => lowerPath.startsWith(restricted))) {
+                        this._currentPath = targetPath;
+                        this._focusedIndex = 0;
+                        this._previousFocusedIndex = 0;
+                        // Use sync loading for immediate feedback
+                        this.loadDirectoryContentsSync();
+                    }
                     // Don't update selected path, just navigate
                 } else {
                     // Select file
@@ -473,6 +508,12 @@ export class FilePickerListItem implements IListItem {
                 this.onExit();
             }
             return true;
+        } else if (input === 'h' || input === 'H') {
+            // Toggle hidden files
+            this._showHiddenFiles = !this._showHiddenFiles;
+            this._focusedIndex = 0; // Reset focus to avoid index out of bounds
+            this.loadDirectoryContentsSync();
+            return true;
         }
         
         return true; // Consume all input when in control
@@ -522,7 +563,8 @@ export class FilePickerListItem implements IListItem {
             }
             
             // Build header with dynamic keyboard hints
-            const keyboardHints = `[enter] ${enterAction} [esc] ✗`;
+            const hiddenFilesHint = this._showHiddenFiles ? '[h] hide' : '[h] show';
+            const keyboardHints = `[enter] ${enterAction} [esc] ✗ ${hiddenFilesHint}`;
             const fullKeyboardHints = keyboardHints.length; // Visual length
             const availableForHints = maxWidth - baseText.length - 1;
             
@@ -541,8 +583,8 @@ export class FilePickerListItem implements IListItem {
             elements.push(
                 <Text key="header">
                     <Transform transform={output => output}>
-                        <Text color={notification ? 'red' : undefined}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text color={notification ? 'red' : theme.colors.textMuted}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                             {this.label} ({modeText}):
                         </Text>
                         {showHints && (
@@ -552,6 +594,7 @@ export class FilePickerListItem implements IListItem {
                                 <Text color={theme.colors.successGreen}>{enterAction}</Text>
                                 <Text color={theme.colors.textMuted}> [esc] </Text>
                                 <Text color={theme.colors.warningOrange}>✗</Text>
+                                <Text color={theme.colors.textMuted}> {hiddenFilesHint}</Text>
                             </>
                         )}
                         {showPartialHints && !showHints && (
@@ -634,8 +677,8 @@ export class FilePickerListItem implements IListItem {
                 focusedIndex: this._focusedIndex,
                 width: maxWidth,
                 maxLines: bodyMaxLines,
-                headerColor: this.isActive ? theme.colors.accent : undefined,
-                error: this._error || undefined,
+                headerColor: this.isActive ? theme.colors.accent : theme.colors.textMuted,
+                error: this._error || null,
                 enableColumns: true,
                 mode: this.mode
             });
@@ -648,12 +691,12 @@ export class FilePickerListItem implements IListItem {
             return (
                 <Text>
                     <Transform transform={output => output}>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                             {this.icon} {this.label}: [</Text>
                         <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                             {displayPath}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>]</Text>
                     </Transform>
                 </Text>
             );
