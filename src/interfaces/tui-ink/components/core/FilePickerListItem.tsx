@@ -1,8 +1,9 @@
 import React, { ReactElement } from 'react';
 import { Text, Key, Transform } from 'ink';
-import { IListItem } from './IListItem.js';
+import { ValidatedListItem } from './ValidatedListItem.js';
 import { FilePickerBody } from './FilePickerBody.js';
 import { theme } from '../../utils/theme.js';
+import { ValidationMessage, ValidationState, createValidationMessage } from '../../validation/ValidationState.js';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
@@ -17,7 +18,7 @@ interface FileSystemItem {
     isConfirmAction?: boolean;
 }
 
-export class FilePickerListItem implements IListItem {
+export class FilePickerListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
     private _isControllingInput: boolean = false;
     private _currentPath: string;
@@ -46,6 +47,7 @@ export class FilePickerListItem implements IListItem {
         onChange?: () => void,
         private showHiddenFiles: boolean = false
     ) {
+        super(); // Call parent constructor
         // Resolve initial path with home directory expansion
         let expandedPath = initialPath;
         if (initialPath && initialPath.startsWith('~')) {
@@ -66,6 +68,53 @@ export class FilePickerListItem implements IListItem {
     
     get isControllingInput(): boolean {
         return this._isControllingInput;
+    }
+    
+    /**
+     * Implement abstract performValidation from ValidatedListItem
+     * Validates that the selected file/folder exists
+     */
+    protected performValidation(): ValidationMessage | null {
+        if (!this._selectedPath || !this._selectedPathValid) {
+            return null; // No validation for invalid paths
+        }
+        
+        try {
+            // Check if the path exists
+            const exists = fsSync.existsSync(this._selectedPath);
+            
+            if (!exists) {
+                const itemType = this.mode === 'folder' ? 'Folder' : 'File';
+                return createValidationMessage(
+                    ValidationState.Error,
+                    `${itemType} Missing`
+                );
+            }
+            
+            // Check if it's the correct type
+            const stats = fsSync.statSync(this._selectedPath);
+            
+            if (this.mode === 'file' && stats.isDirectory()) {
+                return createValidationMessage(
+                    ValidationState.Error,
+                    'Not a File'
+                );
+            } else if (this.mode === 'folder' && !stats.isDirectory()) {
+                return createValidationMessage(
+                    ValidationState.Error,
+                    'Not a Folder'
+                );
+            }
+            
+            // All good
+            return null;
+        } catch (error) {
+            // Permission or other errors
+            return createValidationMessage(
+                ValidationState.Error,
+                'Access Denied'
+            );
+        }
     }
     
     onEnter(): void {
@@ -298,6 +347,7 @@ export class FilePickerListItem implements IListItem {
                     // Confirm current folder selection
                     this._selectedPath = this._currentPath;
                     this._selectedPathValid = true;
+                    this.validateValue(); // Validate the new selection
                     this.onPathChange?.(this._selectedPath);
                     this.onExit();
                 } else if (selectedItem.isDirectory) {
@@ -320,6 +370,7 @@ export class FilePickerListItem implements IListItem {
                     // Select file
                     this._selectedPath = selectedItem.path;
                     this._selectedPathValid = true;
+                    this.validateValue(); // Validate the new selection
                     this.onPathChange?.(this._selectedPath);
                     this.onExit();
                 }
@@ -688,11 +739,19 @@ export class FilePickerListItem implements IListItem {
             // Collapsed view
             const displayPath = this.formatPathForDisplay(this._selectedPath, maxWidth);
             
+            // Validate the current path when in collapsed view
+            if (!this._validationMessage) {
+                this.validateValue();
+            }
+            
             return (
                 <Text>
                     <Transform transform={output => output}>
+                        <Text color={this.getBulletColor()}>
+                            {this.icon}
+                        </Text>
                         <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
-                            {this.icon} {this.label}: [</Text>
+                            {' '}{this.label}: [</Text>
                         <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                             {displayPath}
                         </Text>

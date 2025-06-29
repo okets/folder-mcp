@@ -297,14 +297,14 @@ Minor platform-specific considerations:
   - `truncateValidationMessage(message: string, availableWidth: number): string`
   - `formatValidationDisplay(validation: ValidationMessage, availableWidth: number): string`
 
-**Step 3.8.3: Implement Base Validation Logic**
-- [ ] Create abstract class `ValidatedListItem` that extends base functionality:
+**Step 3.8.3: Implement Base Validation Logic** ✅
+- [x] Create abstract class `ValidatedListItem` that extends base functionality:
   - Protected `_validationState: ValidationMessage | null`
   - Abstract `performValidation(): ValidationMessage | null`
   - Method to trigger validation and update state
   - Method to get bullet color based on validation state
-- [ ] Make ConfigurationListItem extend ValidatedListItem
-- [ ] Make FilePickerListItem extend ValidatedListItem
+- [x] Make ConfigurationListItem extend ValidatedListItem
+- [x] Make FilePickerListItem extend ValidatedListItem
 
 **Step 3.8.4: Update ConfigurationListItem Validation**
 - [ ] Refactor existing validation to use new ValidationState system:

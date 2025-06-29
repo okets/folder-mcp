@@ -1,11 +1,12 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
-import { IListItem } from './IListItem.js';
+import { ValidatedListItem } from './ValidatedListItem.js';
 import { TextInputBody } from './TextInputBody.js';
 import { NotificationArea } from './NotificationArea.js';
 import { theme } from '../../utils/theme.js';
+import { ValidationMessage, ValidationState, createValidationMessage } from '../../validation/ValidationState.js';
 
-export class ConfigurationListItem implements IListItem {
+export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
     private _isControllingInput: boolean = false;
     private _editValue: string = '';
@@ -29,6 +30,7 @@ export class ConfigurationListItem implements IListItem {
         validators?: Array<(value: string) => { isValid: boolean; error?: string }>,
         private isPassword: boolean = false
     ) {
+        super(); // Call parent constructor
         this._editValue = editValue ?? this.value;
         this._cursorPosition = cursorPosition ?? this._editValue.length;
         this._cursorVisible = cursorVisible ?? true;
@@ -61,15 +63,34 @@ export class ConfigurationListItem implements IListItem {
         this._showPassword = false; // Reset password visibility
     }
     
-    private validate(value: string): void {
-        this._validationError = null;
+    /**
+     * Implement abstract performValidation from ValidatedListItem
+     */
+    protected performValidation(): ValidationMessage | null {
+        // For edit mode, validate the edit value
+        const valueToValidate = this._isControllingInput ? this._editValue : this.value;
+        
         for (const validator of this.validators) {
-            const result = validator(value);
+            const result = validator(valueToValidate);
             if (!result.isValid) {
-                this._validationError = result.error || 'Invalid value';
-                break;
+                return createValidationMessage(
+                    ValidationState.Error,
+                    result.error || 'Invalid value'
+                );
             }
         }
+        
+        // No validation errors
+        return null;
+    }
+    
+    private validate(value: string): void {
+        // Update to use the new validation system
+        this.validateValue();
+        // Keep backward compatibility with _validationError
+        this._validationError = this._validationMessage?.state === ValidationState.Error 
+            ? this._validationMessage.message 
+            : null;
     }
 
     handleInput(input: string, key: Key): boolean {
@@ -166,7 +187,7 @@ export class ConfigurationListItem implements IListItem {
             const elements: ReactElement[] = [];
             
             // Header with inline notification area
-            const bulletColor = this._validationError ? 'red' : undefined;
+            const bulletColor = this.getBulletColor();
             
             // Build header text
             const labelPart = `${this.label}: `;
@@ -279,8 +300,11 @@ export class ConfigurationListItem implements IListItem {
                 
                 return (
                     <Text>
+                        <Text color={this.getBulletColor()}>
+                            {this.icon}
+                        </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
-                            {this.icon} {label}: [
+                            {' '}{label}: [
                         </Text>
                         <Text color={theme.colors.configValuesColor}>
                             {truncatedValue}…
@@ -295,8 +319,11 @@ export class ConfigurationListItem implements IListItem {
             // Render with colored value (brackets stay in default color)
             return (
                 <Text>
+                    <Text color={this.getBulletColor()}>
+                        {this.icon}
+                    </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {this.icon} {label}: [
+                        {' '}{label}: [
                     </Text>
                     <Text color={theme.colors.configValuesColor}>
                         {value}{truncated ? '…' : ''}
