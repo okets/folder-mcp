@@ -2,7 +2,9 @@ import { IListItem } from '../components/core/IListItem.js';
 import { LogItem } from '../components/core/LogItem.js';
 import { ConfigurationListItem } from '../components/core/ConfigurationListItem.js';
 import { SelectionListItem } from '../components/core/SelectionListItem.js';
+import { FilePickerListItem } from '../components/core/FilePickerListItem.js';
 import { validators } from '../utils/validators.js';
+import * as os from 'os';
 
 // Mixed items for StatusPanel (now showing both logs and configs)
 export function createStatusPanelItems(): IListItem[] {
@@ -88,12 +90,14 @@ export function createStatusPanelItems(): IListItem[] {
             'horizontal',
             (newValues) => console.log('Decision changed to:', newValues)
         ),
-        new LogItem(
-            '○',
-            'FilePicker (TODO)',
-            '○',
+        new FilePickerListItem(
+            '📂',
+            'Select File',
+            process.cwd(),
             false,
-            false
+            'file',
+            (path) => console.log('File selected:', path),
+            ['*.ts', '*.tsx', '*.js', '*.jsx'] // Filter for code files
         ),
         new LogItem(
             '○',
@@ -221,13 +225,13 @@ export function createConfigurationPanelItems(): IListItem[] {
             1,  // Minimum 1 selection
             3   // Maximum 3 selections
         ),
-        new LogItem(
-            '○',
-            'FilePicker (Task 3 - TODO)',
-            '○',
+        new FilePickerListItem(
+            '📁',
+            'Project Folder',
+            os.homedir(),
             false,
-            false,
-            ['File/folder selection', 'Compact CLI interface']
+            'folder',
+            (path) => console.log('Folder selected:', path)
         ),
         new LogItem(
             '○',

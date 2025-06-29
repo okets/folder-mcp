@@ -92,7 +92,7 @@ export const SelectionBody = ({
             const isFirstVisible = visibleIndex === 0;
             const isLastVisible = visibleIndex === visibleOptions.length - 1;
             
-            // Show scroll indicators
+            // Determine line prefix with scroll indicators
             let linePrefix = '│ ';
             if (showScrollUp && isFirstVisible) {
                 linePrefix = '│▲';
