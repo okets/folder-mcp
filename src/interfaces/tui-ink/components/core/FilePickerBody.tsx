@@ -115,11 +115,11 @@ export const FilePickerBody = ({
     );
     
     if (error) {
-        // Show error message
+        // Show (empty) message since we can't access the folder
         elements.push(
             <Text key="error">
                 <Text color={headerColor || undefined}>└─ </Text>
-                <Text color="red">{error}</Text>
+                <Text color={theme.colors.textMuted}>(inaccessible)</Text>
             </Text>
         );
         return elements;

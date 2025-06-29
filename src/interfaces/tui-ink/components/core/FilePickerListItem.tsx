@@ -131,9 +131,19 @@ export class FilePickerListItem implements IListItem {
             this._error = null;
             this._loadingComplete = true;
         } catch (error) {
+            // Store the original error for proper parsing in FilePickerBody
             this._error = error instanceof Error ? error.message : 'Unknown error';
             this._items = [];
             this._loadingComplete = true;
+            
+            // Add a "Go back" option if we're not at root
+            if (this._currentPath !== path.parse(this._currentPath).root) {
+                this._items.push({
+                    name: '..',
+                    isDirectory: true,
+                    path: path.dirname(this._currentPath)
+                });
+            }
         }
     }
     
@@ -199,8 +209,18 @@ export class FilePickerListItem implements IListItem {
             
             this._error = null;
         } catch (error) {
+            // Store the original error for proper parsing in FilePickerBody
             this._error = error instanceof Error ? error.message : 'Unknown error';
             this._items = [];
+            
+            // Add a "Go back" option if we're not at root
+            if (this._currentPath !== path.parse(this._currentPath).root) {
+                this._items.push({
+                    name: '..',
+                    isDirectory: true,
+                    path: path.dirname(this._currentPath)
+                });
+            }
         }
     }
     
@@ -343,16 +363,30 @@ export class FilePickerListItem implements IListItem {
             // Expanded view
             const elements: ReactElement[] = [];
             
-            // Header with mode and hints
+            // Header with mode and error notification
             const modeText = this.mode === 'folder' ? 'folder mode' : 
                             this.mode === 'file' ? 'file mode' : 
                             'file/folder mode';
             
-            // Calculate if there's room for hints
+            // Parse error for notification
+            let notification = '';
+            if (this._error) {
+                if (this._error.includes('EPERM') || this._error.includes('operation not permitted')) {
+                    notification = 'Access denied - no permission to view this folder';
+                } else if (this._error.includes('ENOENT') || this._error.includes('no such file or directory')) {
+                    notification = 'Folder not found';
+                } else if (this._error.includes('EACCES') || this._error.includes('permission denied')) {
+                    notification = 'Access denied - no permission to view this folder';
+                } else if (this._error.includes('ENOTDIR')) {
+                    notification = 'Not a folder';
+                } else {
+                    notification = 'Unable to access folder';
+                }
+            }
+            
+            // Calculate available space for notification
             const baseText = `■ ${this.label} (${modeText}): `;
-            const hints = '[enter] ✓ [esc] ✗';
-            const totalLength = baseText.length + hints.length;
-            const showHints = totalLength <= maxWidth;
+            const availableForNotification = maxWidth - baseText.length - 1;
             
             elements.push(
                 <Text key="header">
@@ -360,13 +394,12 @@ export class FilePickerListItem implements IListItem {
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
                         {this.label} ({modeText}): 
                     </Text>
-                    {showHints && (
-                        <>
-                            <Text color={theme.colors.textMuted}>[enter] </Text>
-                            <Text color={theme.colors.successGreen}>✓</Text>
-                            <Text color={theme.colors.textMuted}> [esc] </Text>
-                            <Text color={theme.colors.warningOrange}>✗</Text>
-                        </>
+                    {notification && availableForNotification > 10 && (
+                        <Text color="red">
+                            {notification.length > availableForNotification 
+                                ? notification.slice(0, availableForNotification - 3) + '...'
+                                : notification}
+                        </Text>
                     )}
                 </Text>
             );
