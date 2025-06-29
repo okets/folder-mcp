@@ -106,13 +106,14 @@ export const FilePickerBody = ({
     const elements: React.ReactElement[] = [];
     
     // Display current path with left truncation inside brackets
-    // Calculate space: "│  [" (4) + "]" (1) = 5 chars for decoration
-    const availableForPath = Math.max(0, width - 5);
+    // Calculate space: "│  Path: [" (10) + "]" (1) = 11 chars for decoration
+    const availableForPath = Math.max(0, width - 11);
     const pathLine = formatPath(currentPath, availableForPath);
     
     // Build the complete line to ensure it fits
     const pathElements: React.ReactElement[] = [];
     pathElements.push(<Text key="prefix" color={headerColor || undefined}>│  </Text>);
+    pathElements.push(<Text key="label" color={theme.colors.textMuted}>Path: </Text>);
     pathElements.push(<Text key="bracket-open" color={theme.colors.textMuted}>[</Text>);
     pathElements.push(
         <Text key="path" color={error ? 'red' : theme.colors.configValuesColor}>
