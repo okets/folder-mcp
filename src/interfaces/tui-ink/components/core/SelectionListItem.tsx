@@ -321,30 +321,41 @@ export class SelectionListItem implements IListItem {
                     }
                 }
             } else {
-                // Show keyboard hints
-                const hintsText = ' [enter] ✓ [esc] ✗';
-                const totalLength = 2 + labelPart.length + hintsText.length;
+                // Show keyboard hints with progressive truncation
+                const baseLength = 2 + labelPart.length; // "■ " + label
+                const availableForHints = maxWidth - baseLength;
+                const fullHintsLength = 17; // "[enter] ✓ [esc] ✗"
+                const partialHintsLength = 10; // "[enter] ✓"
                 
-                if (totalLength <= maxWidth) {
-                    elements.push(
-                        <Text key="header">
-                            <Text color={undefined}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            <Text color={theme.colors.textMuted}>[enter] </Text>
-                            <Text color={theme.colors.successGreen}>✓</Text>
-                            <Text color={theme.colors.textMuted}> [esc] </Text>
-                            <Text color={theme.colors.warningOrange}>✗</Text>
-                        </Text>
-                    );
-                } else {
-                    // Not enough space for hints
-                    elements.push(
-                        <Text key="header">
-                            <Text color={undefined}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                        </Text>
-                    );
+                let showFullHints = false;
+                let showPartialHints = false;
+                
+                if (availableForHints >= fullHintsLength) {
+                    showFullHints = true;
+                } else if (availableForHints >= partialHintsLength) {
+                    showPartialHints = true;
                 }
+                
+                elements.push(
+                    <Text key="header">
+                        <Text color={undefined}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                        {showFullHints && (
+                            <>
+                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.successGreen}>✓</Text>
+                                <Text color={theme.colors.textMuted}> [esc] </Text>
+                                <Text color={theme.colors.warningOrange}>✗</Text>
+                            </>
+                        )}
+                        {showPartialHints && !showFullHints && (
+                            <>
+                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.successGreen}>✓</Text>
+                            </>
+                        )}
+                    </Text>
+                );
             }
             
             // Calculate available lines for body (excluding header)

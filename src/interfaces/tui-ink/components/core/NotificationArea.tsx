@@ -42,20 +42,39 @@ export const NotificationArea: React.FC<NotificationAreaProps> = ({
     
     // Show keyboard hints if enabled and no error
     if (showKeyboardHints) {
-        // Keyboard hints are fixed length: " [enter] ✓ [esc] ✗"
-        const hintsLength = 19;
+        // Progressive truncation for keyboard hints
+        const fullHintsLength = 19; // " [enter] ✓ [esc] ✗"
+        const partialHintsLength = 11; // " [enter] ✓"
         
-        // Only show hints if there's enough space
-        if (maxWidth && maxWidth < hintsLength) {
+        let showFullHints = false;
+        let showPartialHints = false;
+        
+        if (!maxWidth || maxWidth >= fullHintsLength) {
+            showFullHints = true;
+        } else if (maxWidth >= partialHintsLength) {
+            showPartialHints = true;
+        }
+        
+        if (!showFullHints && !showPartialHints) {
             return null;
         }
         
         return (
             <Box>
-                <Text color={theme.colors.textMuted}> [enter] </Text>
-                <Text color={theme.colors.successGreen}>✓</Text>
-                <Text color={theme.colors.textMuted}> [esc] </Text>
-                <Text color={theme.colors.warningOrange}>✗</Text>
+                {showFullHints && (
+                    <>
+                        <Text color={theme.colors.textMuted}> [enter] </Text>
+                        <Text color={theme.colors.successGreen}>✓</Text>
+                        <Text color={theme.colors.textMuted}> [esc] </Text>
+                        <Text color={theme.colors.warningOrange}>✗</Text>
+                    </>
+                )}
+                {showPartialHints && !showFullHints && (
+                    <>
+                        <Text color={theme.colors.textMuted}> [enter] </Text>
+                        <Text color={theme.colors.successGreen}>✓</Text>
+                    </>
+                )}
             </Box>
         );
     }
