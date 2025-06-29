@@ -14,6 +14,7 @@ interface FileSystemItem {
     name: string;
     isDirectory: boolean;
     path: string;
+    isConfirmAction?: boolean;
 }
 
 export class FilePickerListItem implements IListItem {
@@ -21,6 +22,7 @@ export class FilePickerListItem implements IListItem {
     private _isControllingInput: boolean = false;
     private _currentPath: string;
     private _selectedPath: string;
+    private _originalPath: string;
     private _items: FileSystemItem[] = [];
     private _focusedIndex: number = 0;
     private _error: string | null = null;
@@ -44,6 +46,7 @@ export class FilePickerListItem implements IListItem {
         // Resolve initial path
         this._currentPath = path.resolve(initialPath || os.homedir());
         this._selectedPath = this._currentPath;
+        this._originalPath = this._currentPath;
         this._selectedPathValid = true;
         if (onPathChange) {
             this.onPathChange = onPathChange;
@@ -130,6 +133,16 @@ export class FilePickerListItem implements IListItem {
                 return a.name.localeCompare(b.name);
             });
             
+            // Add confirm selection item for folder/both modes
+            if (this.mode === 'folder' || this.mode === 'both') {
+                this._items.push({
+                    name: 'Confirm Selection',
+                    isDirectory: false,
+                    path: this._currentPath,
+                    isConfirmAction: true
+                });
+            }
+            
             this._error = null;
             this._selectedPathValid = true;
             this._loadingComplete = true;
@@ -212,6 +225,16 @@ export class FilePickerListItem implements IListItem {
                 return a.name.localeCompare(b.name);
             });
             
+            // Add confirm selection item for folder/both modes
+            if (this.mode === 'folder' || this.mode === 'both') {
+                this._items.push({
+                    name: 'Confirm Selection',
+                    isDirectory: false,
+                    path: this._currentPath,
+                    isConfirmAction: true
+                });
+            }
+            
             this._error = null;
             this._selectedPathValid = true;
         } catch (error) {
@@ -235,23 +258,27 @@ export class FilePickerListItem implements IListItem {
         if (!this._isControllingInput) return false;
         
         if (key.escape) {
-            // Cancel without saving
+            // Cancel and revert to original value
+            this._selectedPath = this._originalPath;
+            this._currentPath = this._originalPath;
             this.onExit();
             return true;
         } else if (key.return) {
             const selectedItem = this._items[this._focusedIndex];
             if (selectedItem) {
-                if (selectedItem.isDirectory) {
+                if (selectedItem.isConfirmAction) {
+                    // Confirm current folder selection
+                    this._selectedPath = this._currentPath;
+                    this._selectedPathValid = true;
+                    this.onPathChange?.(this._selectedPath);
+                    this.onExit();
+                } else if (selectedItem.isDirectory) {
                     // Navigate into directory
                     this._currentPath = selectedItem.path;
                     this._focusedIndex = 0;
                     // Use sync loading for immediate feedback
                     this.loadDirectoryContentsSync();
-                    // Update selected path if navigation was successful
-                    if (!this._error) {
-                        this._selectedPath = this._currentPath;
-                        this._selectedPathValid = true;
-                    }
+                    // Don't update selected path, just navigate
                 } else {
                     // Select file
                     this._selectedPath = selectedItem.path;
@@ -262,56 +289,16 @@ export class FilePickerListItem implements IListItem {
             }
             return true;
         } else if (key.upArrow) {
-            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
-                // Multi-column navigation
-                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                const currentRow = this._focusedIndex % this._itemsPerColumn;
-                
-                if (currentRow > 0) {
-                    // Move up within column
-                    this._focusedIndex--;
-                } else {
-                    // Wrap to bottom of previous column
-                    if (currentCol > 0) {
-                        const prevCol = currentCol - 1;
-                        const prevColLastRow = Math.min(this._itemsPerColumn - 1, 
-                            this._items.length - 1 - (prevCol * this._itemsPerColumn));
-                        this._focusedIndex = prevCol * this._itemsPerColumn + prevColLastRow;
-                    } else {
-                        // Wrap to last item
-                        this._focusedIndex = this._items.length - 1;
-                    }
-                }
-            } else {
-                // Single column navigation
-                this._focusedIndex = this._focusedIndex > 0 
-                    ? this._focusedIndex - 1 
-                    : this._items.length - 1;
-            }
+            // For now, use simple navigation
+            this._focusedIndex = this._focusedIndex > 0 
+                ? this._focusedIndex - 1 
+                : this._items.length - 1;
             return true;
         } else if (key.downArrow) {
-            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
-                // Multi-column navigation
-                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                const currentRow = this._focusedIndex % this._itemsPerColumn;
-                const maxRowInCol = Math.min(this._itemsPerColumn - 1,
-                    this._items.length - 1 - (currentCol * this._itemsPerColumn));
-                
-                if (currentRow < maxRowInCol) {
-                    // Move down within column
-                    this._focusedIndex++;
-                } else {
-                    // Wrap to top of next column or beginning
-                    const nextCol = (currentCol + 1) % this._columnCount;
-                    const nextIndex = nextCol * this._itemsPerColumn;
-                    this._focusedIndex = nextIndex < this._items.length ? nextIndex : 0;
-                }
-            } else {
-                // Single column navigation
-                this._focusedIndex = this._focusedIndex < this._items.length - 1 
-                    ? this._focusedIndex + 1 
-                    : 0;
-            }
+            // For now, use simple navigation
+            this._focusedIndex = this._focusedIndex < this._items.length - 1 
+                ? this._focusedIndex + 1 
+                : 0;
             return true;
         } else if (key.leftArrow) {
             if (this._columnCount > 1 && this._itemsPerColumn > 0) {
@@ -365,6 +352,17 @@ export class FilePickerListItem implements IListItem {
                 // If already in rightmost column, do nothing
             }
             // In single column mode, right arrow does nothing
+            return true;
+        } else if (input === ' ') {
+            // Space key - same as Enter for confirm action
+            const selectedItem = this._items[this._focusedIndex];
+            if (selectedItem?.isConfirmAction) {
+                // Confirm current folder selection
+                this._selectedPath = this._currentPath;
+                this._selectedPathValid = true;
+                this.onPathChange?.(this._selectedPath);
+                this.onExit();
+            }
             return true;
         }
         
@@ -424,23 +422,27 @@ export class FilePickerListItem implements IListItem {
             
             // Calculate column layout info for navigation
             const availableWidth = maxWidth - 4; // Account for borders
-            if (maxWidth > 40 && this._items.length > 0) {
+            
+            // Exclude confirm action from column calculation
+            const regularItems = this._items.filter(item => !item.isConfirmAction);
+            
+            if (maxWidth > 40 && regularItems.length > 0) {
                 // Calculate how many columns we can fit
                 const minColumnWidth = 15;
                 const columnPadding = 2;
                 let maxColumns = Math.floor(availableWidth / (minColumnWidth + columnPadding));
-                maxColumns = Math.min(maxColumns, this._items.length);
+                maxColumns = Math.min(maxColumns, regularItems.length);
                 
                 // Find the best column count
                 for (let colCount = maxColumns; colCount >= 1; colCount--) {
-                    const itemsPerCol = Math.ceil(this._items.length / colCount);
+                    const itemsPerCol = Math.ceil(regularItems.length / colCount);
                     const columnWidths: number[] = [];
                     
                     // Calculate widths for each column
                     for (let col = 0; col < colCount; col++) {
                         const startIdx = col * itemsPerCol;
-                        const endIdx = Math.min(startIdx + itemsPerCol, this._items.length);
-                        const columnItems = this._items.slice(startIdx, endIdx);
+                        const endIdx = Math.min(startIdx + itemsPerCol, regularItems.length);
+                        const columnItems = regularItems.slice(startIdx, endIdx);
                         
                         if (columnItems.length > 0) {
                             // All columns need space for indicator (2 chars)
@@ -462,7 +464,7 @@ export class FilePickerListItem implements IListItem {
                 }
             } else {
                 this._columnCount = 1;
-                this._itemsPerColumn = this._items.length;
+                this._itemsPerColumn = regularItems.length;
             }
             
             // File picker body
@@ -474,7 +476,8 @@ export class FilePickerListItem implements IListItem {
                 maxLines: bodyMaxLines,
                 headerColor: this.isActive ? theme.colors.accent : undefined,
                 error: this._error || undefined,
-                enableColumns: true
+                enableColumns: true,
+                mode: this.mode
             });
             
             return [...elements, ...bodyElements];

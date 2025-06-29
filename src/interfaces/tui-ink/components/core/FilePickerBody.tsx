@@ -84,6 +84,7 @@ export interface FilePickerBodyProps {
         name: string;
         isDirectory: boolean;
         path: string;
+        isConfirmAction?: boolean;
     }>;
     focusedIndex: number;
     width: number;
@@ -91,6 +92,7 @@ export interface FilePickerBodyProps {
     headerColor?: string;
     error?: string | null;
     enableColumns?: boolean;
+    mode?: 'file' | 'folder' | 'both';
 }
 
 export const FilePickerBody = ({
@@ -101,7 +103,8 @@ export const FilePickerBody = ({
     maxLines = 3,
     headerColor,
     error,
-    enableColumns = true
+    enableColumns = true,
+    mode
 }: FilePickerBodyProps): React.ReactElement[] => {
     const elements: React.ReactElement[] = [];
     
@@ -154,17 +157,37 @@ export const FilePickerBody = ({
     
     // Calculate layout
     const availableWidth = width - 4; // Account for borders
-    const columnLayout = enableColumns && width > 40 
-        ? calculateColumnLayout(items, availableWidth)
+    
+    // Separate regular items from confirm action
+    const regularItems = items.filter(item => !item.isConfirmAction);
+    const confirmItem = items.find(item => item.isConfirmAction);
+    
+    const columnLayout = enableColumns && width > 40 && regularItems.length > 0
+        ? calculateColumnLayout(regularItems, availableWidth)
         : null;
     
     if (columnLayout && columnLayout.columnCount > 1) {
         // Multi-column layout
         const { columns, columnWidths, itemsPerColumn } = columnLayout;
         
+        // Map focused index to regular items only
+        let regularFocusedIndex = -1;
+        if (focusedIndex < regularItems.length) {
+            // Find the index in regularItems that corresponds to focusedIndex in items
+            for (let i = 0, j = 0; i < items.length && j < regularItems.length; i++) {
+                if (!items[i].isConfirmAction) {
+                    if (i === focusedIndex) {
+                        regularFocusedIndex = j;
+                        break;
+                    }
+                    j++;
+                }
+            }
+        }
+        
         // Calculate which column and row the focused item is in
-        const focusedCol = Math.floor(focusedIndex / itemsPerColumn);
-        const focusedRow = focusedIndex % itemsPerColumn;
+        const focusedCol = regularFocusedIndex >= 0 ? Math.floor(regularFocusedIndex / itemsPerColumn) : -1;
+        const focusedRow = regularFocusedIndex >= 0 ? regularFocusedIndex % itemsPerColumn : -1;
         
         // Calculate visible range with scrolling
         let startRow = 0;
@@ -197,7 +220,8 @@ export const FilePickerBody = ({
                 linePrefix = '│▲';
             } else if (showScrollDown && isLastRow) {
                 linePrefix = '│▼';
-            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1) {
+            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1 && !confirmItem) {
+                // Only show └─ if there's no confirm item
                 linePrefix = '└─';
             }
             
@@ -211,7 +235,7 @@ export const FilePickerBody = ({
                 const item = row < columnItems.length ? columnItems[row] : null;
                 
                 if (item) {
-                    const isFocused = item.originalIndex === focusedIndex;
+                    const isFocused = item.originalIndex === regularFocusedIndex;
                     const itemName = item.name + (item.isDirectory ? '/' : '');
                     
                     // For column 0, we don't add leading spaces
@@ -314,17 +338,23 @@ export const FilePickerBody = ({
                 linePrefix = '│▲';
             } else if (showScrollDown && isLast) {
                 linePrefix = '│▼';
-            } else if (isLast && !showScrollDown) {
+            } else if (isLast && !showScrollDown && !items.some(i => i.isConfirmAction)) {
+                // Only show └─ if there's no confirm item
                 linePrefix = '└─';
             }
+            // Special handling for confirm action
+            if (item.isConfirmAction) {
+                // Don't render confirm action in the regular list
+                // It will be rendered separately at the bottom
+                return;
+            }
             
-            
-            // Format item name
+            // Format regular item name
             const indicator = isFocused ? '▶' : ' ';
             const itemName = item.name + (item.isDirectory ? '/' : '');
             
             // Calculate available width for item name
-            const prefixWidth = linePrefix.length + 2 + indicator.length; // "│  ▶" (no extra space after indicator)
+            const prefixWidth = linePrefix.length + 2 + indicator.length;
             const availableWidth = width - prefixWidth;
             
             // Truncate item name if needed
@@ -347,6 +377,33 @@ export const FilePickerBody = ({
                 </Box>
             );
         });
+    }
+    
+    // Add confirm selection or empty line
+    if (confirmItem) {
+        const isConfirmFocused = focusedIndex === items.length - 1;
+        elements.push(
+            <Text key="confirm-action">
+                <Text color={headerColor}>└─ </Text>
+                {isConfirmFocused ? (
+                    <>
+                        <Text color={theme.colors.successGreen}>✓ </Text>
+                        <Text color={theme.colors.accent}>Confirm Selection</Text>
+                    </>
+                ) : (
+                    <>
+                        <Text color={theme.colors.successGreen}>✓ </Text>
+                        <Text>Confirm Selection</Text>
+                    </>
+                )}
+            </Text>
+        );
+    } else if (mode === 'file' && items.length > 0) {
+        elements.push(
+            <Text key="empty-line">
+                <Text color={headerColor}>└─</Text>
+            </Text>
+        );
     }
     
     return elements;
