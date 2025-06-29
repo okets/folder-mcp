@@ -112,6 +112,15 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
+        // File picker as first item for debugging
+        new FilePickerListItem(
+            '📁',
+            'Project Folder',
+            os.homedir(),
+            false,
+            'folder',
+            (path) => console.log('Folder selected:', path)
+        ),
         // Current TextInput features being tested
         new LogItem(
             '○',
@@ -224,14 +233,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValues) => console.log('Features changed to:', newValues),
             1,  // Minimum 1 selection
             3   // Maximum 3 selections
-        ),
-        new FilePickerListItem(
-            '📁',
-            'Project Folder',
-            os.homedir(),
-            false,
-            'folder',
-            (path) => console.log('Folder selected:', path)
         ),
         new LogItem(
             '○',

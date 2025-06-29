@@ -3,6 +3,7 @@ import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox.js';
 import { ConfigurationListItem } from './core/ConfigurationListItem.js';
 import { LogItem } from './core/LogItem.js';
+import { FilePickerListItem } from './core/FilePickerListItem.js';
 import { theme } from '../utils/theme.js';
 import { createConfigurationPanelItems } from '../models/mixedSampleData.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';

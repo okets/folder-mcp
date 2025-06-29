@@ -25,6 +25,8 @@ export class FilePickerListItem implements IListItem {
     private _focusedIndex: number = 0;
     private _error: string | null = null;
     private _loadingComplete: boolean = false;
+    private _columnCount: number = 1;
+    private _itemsPerColumn: number = 0;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
     
@@ -227,20 +229,109 @@ export class FilePickerListItem implements IListItem {
             }
             return true;
         } else if (key.upArrow) {
-            // Move selection up
-            this._focusedIndex = this._focusedIndex > 0 
-                ? this._focusedIndex - 1 
-                : this._items.length - 1;
+            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
+                // Multi-column navigation
+                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                const currentRow = this._focusedIndex % this._itemsPerColumn;
+                
+                if (currentRow > 0) {
+                    // Move up within column
+                    this._focusedIndex--;
+                } else {
+                    // Wrap to bottom of previous column
+                    if (currentCol > 0) {
+                        const prevCol = currentCol - 1;
+                        const prevColLastRow = Math.min(this._itemsPerColumn - 1, 
+                            this._items.length - 1 - (prevCol * this._itemsPerColumn));
+                        this._focusedIndex = prevCol * this._itemsPerColumn + prevColLastRow;
+                    } else {
+                        // Wrap to last item
+                        this._focusedIndex = this._items.length - 1;
+                    }
+                }
+            } else {
+                // Single column navigation
+                this._focusedIndex = this._focusedIndex > 0 
+                    ? this._focusedIndex - 1 
+                    : this._items.length - 1;
+            }
             return true;
         } else if (key.downArrow) {
-            // Move selection down
-            this._focusedIndex = this._focusedIndex < this._items.length - 1 
-                ? this._focusedIndex + 1 
-                : 0;
+            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
+                // Multi-column navigation
+                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                const currentRow = this._focusedIndex % this._itemsPerColumn;
+                const maxRowInCol = Math.min(this._itemsPerColumn - 1,
+                    this._items.length - 1 - (currentCol * this._itemsPerColumn));
+                
+                if (currentRow < maxRowInCol) {
+                    // Move down within column
+                    this._focusedIndex++;
+                } else {
+                    // Wrap to top of next column or beginning
+                    const nextCol = (currentCol + 1) % this._columnCount;
+                    const nextIndex = nextCol * this._itemsPerColumn;
+                    this._focusedIndex = nextIndex < this._items.length ? nextIndex : 0;
+                }
+            } else {
+                // Single column navigation
+                this._focusedIndex = this._focusedIndex < this._items.length - 1 
+                    ? this._focusedIndex + 1 
+                    : 0;
+            }
             return true;
         } else if (key.leftArrow) {
-            // Go back/cancel
-            this.onExit();
+            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
+                // Multi-column navigation
+                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                
+                if (currentCol > 0) {
+                    // Move to previous column, same row
+                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    const prevCol = currentCol - 1;
+                    const newIndex = prevCol * this._itemsPerColumn + currentRow;
+                    
+                    // Make sure we don't go past the last item
+                    if (newIndex < this._items.length) {
+                        this._focusedIndex = newIndex;
+                    } else {
+                        // Go to last item in previous column
+                        const prevColLastRow = Math.min(this._itemsPerColumn - 1,
+                            this._items.length - 1 - (prevCol * this._itemsPerColumn));
+                        this._focusedIndex = prevCol * this._itemsPerColumn + prevColLastRow;
+                    }
+                } else {
+                    // In leftmost column - exit
+                    this.onExit();
+                }
+            } else {
+                // Single column - exit
+                this.onExit();
+            }
+            return true;
+        } else if (key.rightArrow) {
+            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
+                // Multi-column navigation
+                const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                const lastCol = Math.floor((this._items.length - 1) / this._itemsPerColumn);
+                
+                if (currentCol < lastCol) {
+                    // Move to next column, same row
+                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    const nextCol = currentCol + 1;
+                    const newIndex = nextCol * this._itemsPerColumn + currentRow;
+                    
+                    // Make sure we don't go past the last item
+                    if (newIndex < this._items.length) {
+                        this._focusedIndex = newIndex;
+                    } else {
+                        // Go to last item
+                        this._focusedIndex = this._items.length - 1;
+                    }
+                }
+                // If already in rightmost column, do nothing
+            }
+            // In single column mode, right arrow does nothing
             return true;
         }
         
@@ -285,6 +376,49 @@ export class FilePickerListItem implements IListItem {
             const availableForBody = maxLines ? maxLines - 2 : 4; // -1 for header, -1 for path
             const bodyMaxLines = Math.min(4, availableForBody); // Max 4 items
             
+            // Calculate column layout info for navigation
+            const availableWidth = maxWidth - 4; // Account for borders
+            if (maxWidth > 40 && this._items.length > 0) {
+                // Calculate how many columns we can fit
+                const minColumnWidth = 15;
+                const columnPadding = 2;
+                let maxColumns = Math.floor(availableWidth / (minColumnWidth + columnPadding));
+                maxColumns = Math.min(maxColumns, this._items.length);
+                
+                // Find the best column count
+                for (let colCount = maxColumns; colCount >= 1; colCount--) {
+                    const itemsPerCol = Math.ceil(this._items.length / colCount);
+                    const columnWidths: number[] = [];
+                    
+                    // Calculate widths for each column
+                    for (let col = 0; col < colCount; col++) {
+                        const startIdx = col * itemsPerCol;
+                        const endIdx = Math.min(startIdx + itemsPerCol, this._items.length);
+                        const columnItems = this._items.slice(startIdx, endIdx);
+                        
+                        if (columnItems.length > 0) {
+                            // All columns need space for indicator (2 chars)
+                            const maxLength = Math.max(...columnItems.map(item => 
+                                item.name.length + (item.isDirectory ? 1 : 0) + 2
+                            ));
+                            columnWidths.push(maxLength);
+                        }
+                    }
+                    
+                    const totalWidth = columnWidths.reduce((sum, w) => sum + w, 0) + 
+                                      (columnWidths.length - 1) * columnPadding;
+                    
+                    if (totalWidth <= availableWidth) {
+                        this._columnCount = columnWidths.length;
+                        this._itemsPerColumn = itemsPerCol;
+                        break;
+                    }
+                }
+            } else {
+                this._columnCount = 1;
+                this._itemsPerColumn = this._items.length;
+            }
+            
             // File picker body
             const bodyElements = FilePickerBody({
                 currentPath: this._currentPath,
@@ -293,7 +427,8 @@ export class FilePickerListItem implements IListItem {
                 width: maxWidth,
                 maxLines: bodyMaxLines,
                 headerColor: this.isActive ? theme.colors.accent : undefined,
-                error: this._error || undefined
+                error: this._error || undefined,
+                enableColumns: true
             });
             
             return [...elements, ...bodyElements];
