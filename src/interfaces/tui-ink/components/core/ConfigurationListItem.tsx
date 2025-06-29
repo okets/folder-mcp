@@ -284,7 +284,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     elements.push(
                         <Text key="header">
-                            <Text color={undefined}>■ </Text>
+                            <Text color={this.getBulletColor(theme.colors.textMuted)}>■ </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
                             {showFullHints && (
                                 <>
@@ -350,7 +350,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     return (
                         <Text>
-                            <Text color={this.getBulletColor()}>
+                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
@@ -369,7 +369,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 // Render with colored value (brackets stay in default color)
                 return (
                     <Text>
-                        <Text color={this.getBulletColor()}>
+                        <Text color={this.getBulletColor(theme.colors.textMuted)}>
                             {this.icon}
                         </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>

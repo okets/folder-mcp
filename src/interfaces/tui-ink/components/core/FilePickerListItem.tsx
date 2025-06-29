@@ -3,7 +3,8 @@ import { Text, Key, Transform } from 'ink';
 import { ValidatedListItem } from './ValidatedListItem.js';
 import { FilePickerBody } from './FilePickerBody.js';
 import { theme } from '../../utils/theme.js';
-import { ValidationMessage, ValidationState, createValidationMessage } from '../../validation/ValidationState.js';
+import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
+import { formatCollapsedValidation, getValidationColor } from '../../utils/validationDisplay.js';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
@@ -83,33 +84,17 @@ export class FilePickerListItem extends ValidatedListItem {
         }
         
         try {
-            // Check if the path exists
+            // Only check if the path exists - don't validate type
             const exists = fsSync.existsSync(this._selectedPath);
             
             if (!exists) {
-                const itemType = this.mode === 'folder' ? 'Folder' : 'File';
                 return createValidationMessage(
                     ValidationState.Error,
-                    `${itemType} Missing`
+                    'File Missing'
                 );
             }
             
-            // Check if it's the correct type
-            const stats = fsSync.statSync(this._selectedPath);
-            
-            if (this.mode === 'file' && stats.isDirectory()) {
-                return createValidationMessage(
-                    ValidationState.Error,
-                    'Not a File'
-                );
-            } else if (this.mode === 'folder' && !stats.isDirectory()) {
-                return createValidationMessage(
-                    ValidationState.Error,
-                    'Not a Folder'
-                );
-            }
-            
-            // All good
+            // Path exists, no error
             return null;
         } catch (error) {
             // Permission or other errors
@@ -637,7 +622,7 @@ export class FilePickerListItem extends ValidatedListItem {
             elements.push(
                 <Text key="header">
                     <Transform transform={output => output}>
-                        <Text color={notification ? 'red' : this.getBulletColor()}>■ </Text>
+                        <Text color={notification ? 'red' : undefined}>■ </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {this.label} ({modeText}):
                         </Text>
@@ -740,28 +725,60 @@ export class FilePickerListItem extends ValidatedListItem {
             return [...elements, ...bodyElements];
         } else {
             // Collapsed view
-            const displayPath = this.formatPathForDisplay(this._selectedPath, maxWidth);
+            // Ensure validation is up to date
+            this.validateValue();
             
-            // Validate the current path when in collapsed view
-            if (!this._validationMessage) {
-                this.validateValue();
-            }
-            
-            return (
-                <Text>
-                    <Transform transform={output => output}>
-                        <Text color={this.getBulletColor()}>
-                            {this.icon}
-                        </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
-                            {' '}{this.label}: [</Text>
-                        <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
-                            {displayPath}
-                        </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
-                    </Transform>
-                </Text>
+            // Use the utility to format with validation
+            const formatted = formatCollapsedValidation(
+                this.label,
+                this._selectedPath,
+                this._validationMessage,
+                maxWidth,
+                this.icon
             );
+            
+            if (formatted.showValidation && this._validationMessage) {
+                // Render with validation message
+                const validationColor = getValidationColor(this._validationMessage.state);
+                
+                return (
+                    <Text>
+                        <Transform transform={output => output}>
+                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                                {this.icon}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                {' '}{this.label}: [</Text>
+                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                                {formatted.displayValue}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                            <Text color={validationColor}>
+                                {formatted.validationDisplay}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+            } else {
+                // Render without validation (original logic)
+                const displayPath = this.formatPathForDisplay(this._selectedPath, maxWidth);
+                
+                return (
+                    <Text>
+                        <Transform transform={output => output}>
+                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                                {this.icon}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                {' '}{this.label}: [</Text>
+                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                                {displayPath}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                        </Transform>
+                    </Text>
+                );
+            }
         }
     }
     

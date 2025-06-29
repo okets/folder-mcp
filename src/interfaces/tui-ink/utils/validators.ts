@@ -77,5 +77,43 @@ export const validators = {
         }
         
         return { isValid: true };
+    },
+    
+    passwordWithStrength: (value: string) => {
+        // Basic validation - minimum length
+        if (value.length < 4) {
+            return { isValid: false, error: 'Password too short' };
+        }
+        
+        // Count complexity criteria met
+        let criteriaMet = 0;
+        const hasUppercase = /[A-Z]/.test(value);
+        const hasLowercase = /[a-z]/.test(value);
+        const hasNumber = /[0-9]/.test(value);
+        const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(value);
+        
+        if (hasUppercase) criteriaMet++;
+        if (hasLowercase) criteriaMet++;
+        if (hasNumber) criteriaMet++;
+        if (hasSpecial) criteriaMet++;
+        
+        // Weak password - valid but shows warning
+        if (value.length < 8 || criteriaMet < 3) {
+            return { 
+                isValid: true, 
+                warning: 'Weak password'
+            };
+        }
+        
+        // Strong password
+        if (value.length >= 12 && criteriaMet === 4) {
+            return { 
+                isValid: true,
+                info: 'Strong password'
+            };
+        }
+        
+        // Medium strength - no message
+        return { isValid: true };
     }
 };

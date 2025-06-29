@@ -24,23 +24,23 @@ export function createStatusPanelItems(): IListItem[] {
         ),
         new ConfigurationListItem(
             '·',
-            'TextInput (number)',
+            'Port',
             '8080',
             false,
             false,
-            '1024-65535',
+            'Port 1-65535',
             undefined,
             undefined,
             (newValue) => console.log('Port changed to:', newValue),
-            [validators.number(1024, 65535)]
+            [validators.number(1, 65535)]
         ),
         new ConfigurationListItem(
             '·',
-            'TextInput (email)',
-            'user@test.com',
+            'Email',
+            'user@example.com',
             false,
             false,
-            'Valid email',
+            'Email validation',
             undefined,
             undefined,
             (newValue) => console.log('Email changed to:', newValue),
@@ -202,15 +202,15 @@ export function createConfigurationPanelItems(): IListItem[] {
         ),
         new ConfigurationListItem(
             '·',
-            'TextInput (number: 1-100)',
-            '50',
+            'CPU Threads',
+            '8',
             false,
             false,
-            'Number validation with range',
+            'Number of threads (1-32)',
             undefined,
             undefined,
-            (newValue) => console.log('Number changed to:', newValue),
-            [validators.number(1, 100)]
+            (newValue) => console.log('Threads changed to:', newValue),
+            [validators.number(1, 32)]
         ),
         new ConfigurationListItem(
             '·',
@@ -250,11 +250,11 @@ export function createConfigurationPanelItems(): IListItem[] {
         ),
         new ConfigurationListItem(
             '·',
-            'TextInput (password)',
-            'SecretPass123!',
+            'Password',
+            'MyPass123!',
             false,
             false,
-            undefined,
+            'Strong password required',
             undefined,
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
@@ -305,7 +305,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Weak password changed to:', newValue),
-            [validators.password],
+            [validators.passwordWithStrength],
             true  // isPassword
         ),
         new ConfigurationListItem(

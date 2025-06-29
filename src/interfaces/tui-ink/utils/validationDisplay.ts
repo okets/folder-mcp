@@ -138,22 +138,10 @@ export function formatCollapsedValidation(
     const validationIcon = validation.icon || getValidationIcon(validation.state);
     const fullValidation = ` ${validationIcon} ${validation.message}`;
     const validationWidth = getVisualWidth(fullValidation);
+    const valueWidth = getVisualWidth(value);
     
-    // If validation is too long, try just the icon
-    if (validationWidth > availableWidth / 2) {
-        // Just show icon if there's space
-        const iconOnly = ` ${validationIcon}`;
-        const iconWidth = getVisualWidth(iconOnly);
-        
-        if (getVisualWidth(value) + iconWidth <= availableWidth) {
-            return {
-                displayValue: value,
-                validationDisplay: iconOnly,
-                showValidation: true
-            };
-        }
-    } else if (getVisualWidth(value) + validationWidth <= availableWidth) {
-        // Everything fits
+    // First, check if everything fits
+    if (valueWidth + validationWidth <= availableWidth) {
         return {
             displayValue: value,
             validationDisplay: fullValidation,
@@ -161,20 +149,43 @@ export function formatCollapsedValidation(
         };
     }
     
-    // Need to truncate value to make room for validation
-    const minValidationWidth = getVisualWidth(` ${validationIcon}`);
-    const maxValueWidth = availableWidth - minValidationWidth;
+    // Not everything fits - we need to truncate something
+    // Always try to show at least the icon
+    const iconOnly = ` ${validationIcon}`;
+    const iconWidth = getVisualWidth(iconOnly);
     
-    if (maxValueWidth >= 3) {
-        const truncatedValue = value.slice(0, maxValueWidth - 1) + '…';
+    // If we have room for value + icon + some message
+    const remainingForMessage = availableWidth - valueWidth - iconWidth - 1; // -1 for space
+    if (remainingForMessage >= 3) { // At least 3 chars for message
+        const truncatedMessage = truncateValidationMessage(validation.message, remainingForMessage);
         return {
-            displayValue: truncatedValue,
-            validationDisplay: ` ${validationIcon}`,
+            displayValue: value,
+            validationDisplay: ` ${validationIcon} ${truncatedMessage}`,
             showValidation: true
         };
     }
     
-    // Not enough space for validation
+    // If we only have room for value + icon
+    if (valueWidth + iconWidth <= availableWidth) {
+        return {
+            displayValue: value,
+            validationDisplay: iconOnly,
+            showValidation: true
+        };
+    }
+    
+    // Need to truncate value to make room for at least the icon
+    const maxValueWidth = availableWidth - iconWidth;
+    if (maxValueWidth >= 3) {
+        const truncatedValue = truncateValidationMessage(value, maxValueWidth);
+        return {
+            displayValue: truncatedValue,
+            validationDisplay: iconOnly,
+            showValidation: true
+        };
+    }
+    
+    // Not enough space for anything meaningful
     return {
         displayValue: value,
         validationDisplay: '',
