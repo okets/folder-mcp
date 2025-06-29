@@ -220,8 +220,8 @@ export const FilePickerBody = ({
                 linePrefix = '│▲';
             } else if (showScrollDown && isLastRow) {
                 linePrefix = '│▼';
-            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1 && !confirmItem) {
-                // Only show └─ if there's no confirm item
+            } else if (isLastRow && !showScrollDown && row === itemsPerColumn - 1 && !confirmItem && mode !== 'file') {
+                // Only show └─ if there's no confirm item and not in file mode
                 linePrefix = '└─';
             }
             
@@ -338,8 +338,8 @@ export const FilePickerBody = ({
                 linePrefix = '│▲';
             } else if (showScrollDown && isLast) {
                 linePrefix = '│▼';
-            } else if (isLast && !showScrollDown && !items.some(i => i.isConfirmAction)) {
-                // Only show └─ if there's no confirm item
+            } else if (isLast && !showScrollDown && !items.some(i => i.isConfirmAction) && mode !== 'file') {
+                // Only show └─ if there's no confirm item and not in file mode
                 linePrefix = '└─';
             }
             // Special handling for confirm action
@@ -419,7 +419,7 @@ function formatPath(fullPath: string, maxWidth: number): string {
     }
     
     // Truncate from the left with ellipsis
-    const ellipsis = '...';
+    const ellipsis = '…';
     
     // If we don't have room for ellipsis, just show the end of the path
     if (maxWidth <= ellipsis.length) {

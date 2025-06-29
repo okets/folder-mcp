@@ -121,6 +121,16 @@ export function createConfigurationPanelItems(): IListItem[] {
             'folder',
             (path) => console.log('Folder selected:', path)
         ),
+        // File picker to test file mode
+        new FilePickerListItem(
+            '📄',
+            'Select Config File',
+            process.cwd(),
+            false,
+            'file',
+            (path) => console.log('Config file selected:', path),
+            ['*.json', '*.yaml', '*.yml', '*.toml']
+        ),
         // Current TextInput features being tested
         new LogItem(
             '○',

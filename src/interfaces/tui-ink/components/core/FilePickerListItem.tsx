@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { Text, Key } from 'ink';
+import { Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem.js';
 import { FilePickerBody } from './FilePickerBody.js';
 import { theme } from '../../utils/theme.js';
@@ -494,7 +494,7 @@ export class FilePickerListItem implements IListItem {
                     {notification && availableForNotification > 10 && (
                         <Text color="red">
                             {notification.length > availableForNotification 
-                                ? notification.slice(0, availableForNotification - 3) + '...'
+                                ? notification.slice(0, availableForNotification - 3) + '…'
                                 : notification}
                         </Text>
                     )}
@@ -573,12 +573,14 @@ export class FilePickerListItem implements IListItem {
             
             return (
                 <Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {this.icon} {this.label}: [</Text>
-                    <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
-                        {displayPath}
-                    </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                    <Transform transform={output => output}>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            {this.icon} {this.label}: [</Text>
+                        <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                            {displayPath}
+                        </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                    </Transform>
                 </Text>
             );
         }
@@ -596,14 +598,27 @@ export class FilePickerListItem implements IListItem {
     private formatPathForDisplay(fullPath: string, maxWidth: number): string {
         const prefix = `${this.icon} ${this.label}: [`;
         const suffix = ']';
-        const availableWidth = maxWidth - prefix.length - suffix.length;
+        
+        // Calculate visual width accounting for emojis
+        let prefixVisualWidth = 0;
+        for (const char of prefix) {
+            const codePoint = char.codePointAt(0);
+            prefixVisualWidth += (codePoint && codePoint >= 0x1F000) ? 2 : 1;
+        }
+        
+        // Account for potential focus marker "▶ " (2 chars)
+        // We need to be conservative to prevent line wrapping when selected
+        const focusMarkerWidth = 2;
+        const safeMaxWidth = maxWidth - focusMarkerWidth;
+        
+        const availableWidth = safeMaxWidth - prefixVisualWidth - suffix.length;
         
         if (fullPath.length <= availableWidth) {
             return fullPath;
         }
         
         // Truncate from the left with ellipsis
-        const ellipsis = '...';
+        const ellipsis = '…';
         const keepLength = availableWidth - ellipsis.length;
         return ellipsis + fullPath.slice(-keepLength);
     }
