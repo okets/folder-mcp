@@ -485,19 +485,70 @@ export class FilePickerListItem implements IListItem {
             const baseText = `■ ${this.label} (${modeText}): `;
             const availableForNotification = maxWidth - baseText.length - 1;
             
+            // Determine what enter key will do based on focused item
+            const focusedItem = this._items[this._focusedIndex];
+            let enterAction = '';
+            if (focusedItem) {
+                if (focusedItem.isConfirmAction) {
+                    enterAction = '✓'; // Confirm selection
+                } else if (focusedItem.isDirectory) {
+                    enterAction = '└▶'; // Navigate into folder
+                } else {
+                    enterAction = '✓'; // Select file
+                }
+            }
+            
+            // Build header with dynamic keyboard hints
+            const keyboardHints = `[enter] ${enterAction} [esc] ✗`;
+            const fullKeyboardHints = keyboardHints.length; // Visual length
+            const availableForHints = maxWidth - baseText.length - 1;
+            
+            // Determine what to show based on available space
+            let showHints = false;
+            let showPartialHints = false;
+            
+            if (availableForHints >= fullKeyboardHints + 1) {
+                // Full hints fit with space
+                showHints = true;
+            } else if (availableForHints >= 10) {
+                // Show partial hints (at least "[enter] X")
+                showPartialHints = true;
+            }
+            
             elements.push(
                 <Text key="header">
-                    <Text color={notification ? 'red' : undefined}>■ </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {this.label} ({modeText}): 
-                    </Text>
-                    {notification && availableForNotification > 10 && (
-                        <Text color="red">
-                            {notification.length > availableForNotification 
-                                ? notification.slice(0, availableForNotification - 3) + '…'
-                                : notification}
+                    <Transform transform={output => output}>
+                        <Text color={notification ? 'red' : undefined}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            {this.label} ({modeText}):
                         </Text>
-                    )}
+                        {showHints && (
+                            <>
+                                <Text> </Text>
+                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.successGreen}>{enterAction}</Text>
+                                <Text color={theme.colors.textMuted}> [esc] </Text>
+                                <Text color={theme.colors.warningOrange}>✗</Text>
+                            </>
+                        )}
+                        {showPartialHints && !showHints && (
+                            <>
+                                <Text> </Text>
+                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.successGreen}>{enterAction}</Text>
+                            </>
+                        )}
+                        {notification && !showHints && availableForHints > 10 && (
+                            <>
+                                <Text> </Text>
+                                <Text color="red">
+                                    {notification.length > availableForHints - 1
+                                        ? notification.slice(0, availableForHints - 4) + '…'
+                                        : notification}
+                                </Text>
+                            </>
+                        )}
+                    </Transform>
                 </Text>
             );
             

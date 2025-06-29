@@ -388,14 +388,16 @@ export const FilePickerBody = ({
         const isConfirmFocused = focusedIndex === items.length - 1;
         elements.push(
             <Text key="confirm-action">
-                <Text color={headerColor}>└─ </Text>
                 {isConfirmFocused ? (
                     <>
+                        <Text color={headerColor}>└─</Text>
+                        <Text color={theme.colors.accent}>▶ </Text>
                         <Text color={theme.colors.successGreen}>✓ </Text>
                         <Text color={theme.colors.accent}>Confirm Selection</Text>
                     </>
                 ) : (
                     <>
+                        <Text color={headerColor}>└─ </Text>
                         <Text color={theme.colors.successGreen}>✓ </Text>
                         <Text>Confirm Selection</Text>
                     </>
