@@ -116,14 +116,14 @@ export const FilePickerBody = ({
     // Build the complete line to ensure it fits
     const pathElements: React.ReactElement[] = [];
     pathElements.push(<Text key="prefix" color={headerColor || undefined}>│  </Text>);
-    pathElements.push(<Text key="label" color={theme.colors.textMuted}>Path: </Text>);
-    pathElements.push(<Text key="bracket-open" color={theme.colors.textMuted}>[</Text>);
+    pathElements.push(<Text key="label">Path: </Text>);
+    pathElements.push(<Text key="bracket-open">[</Text>);
     pathElements.push(
         <Text key="path" color={error ? 'red' : theme.colors.configValuesColor}>
             {pathLine}
         </Text>
     );
-    pathElements.push(<Text key="bracket-close" color={theme.colors.textMuted}>]</Text>);
+    pathElements.push(<Text key="bracket-close">]</Text>);
     
     elements.push(
         <Text key="path">
@@ -416,7 +416,7 @@ export const FilePickerBody = ({
             // Build the line with appropriate color
             elements.push(
                 <Box key={`item-${actualIndex}`}>
-                    <Text color={headerColor || theme.colors.textMuted}>{linePrefix}</Text>
+                    <Text color={headerColor}>{linePrefix}</Text>
                     <Text> {indicator}</Text>
                     {isFocused ? (
                         <Text color={theme.colors.accent}>

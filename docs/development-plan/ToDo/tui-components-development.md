@@ -306,13 +306,13 @@ Minor platform-specific considerations:
 - [x] Make ConfigurationListItem extend ValidatedListItem
 - [x] Make FilePickerListItem extend ValidatedListItem
 
-**Step 3.8.4: Update ConfigurationListItem Validation**
-- [ ] Refactor existing validation to use new ValidationState system:
+**Step 3.8.4: Update ConfigurationListItem Validation** ✅
+- [x] Refactor existing validation to use new ValidationState system:
   - Convert current error-only validation to three-state system
   - Map existing validators to return ValidationMessage
   - Update `renderCollapsed()` to color bullet based on validation state
   - Update `renderExpanded()` to show validation with proper icon/color
-- [ ] Implement responsive truncation for validation messages:
+- [x] Implement responsive truncation for validation messages:
   - Calculate available space after label and value
   - Use shared truncation utility
   - Ensure minimum readable message (at least icon + 3 chars)

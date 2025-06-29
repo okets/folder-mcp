@@ -4,7 +4,8 @@ import { ValidatedListItem } from './ValidatedListItem.js';
 import { TextInputBody } from './TextInputBody.js';
 import { NotificationArea } from './NotificationArea.js';
 import { theme } from '../../utils/theme.js';
-import { ValidationMessage, ValidationState, createValidationMessage } from '../../validation/ValidationState.js';
+import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
+import { formatValidationDisplay, formatCollapsedValidation, getValidationColor } from '../../utils/validationDisplay.js';
 
 export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
@@ -36,6 +37,11 @@ export class ConfigurationListItem extends ValidatedListItem {
         this._cursorVisible = cursorVisible ?? true;
         this.onValueChange = onValueChange;
         this.validators = validators ?? [];
+        
+        // Validate initial value
+        if (this.validators.length > 0) {
+            this.validateValue();
+        }
     }
     
     get isControllingInput(): boolean {
@@ -70,17 +76,45 @@ export class ConfigurationListItem extends ValidatedListItem {
         // For edit mode, validate the edit value
         const valueToValidate = this._isControllingInput ? this._editValue : this.value;
         
+        // Collect all validation results
+        const results: Array<{isValid: boolean; error?: string; warning?: string; info?: string}> = [];
         for (const validator of this.validators) {
             const result = validator(valueToValidate);
-            if (!result.isValid) {
+            results.push(result);
+        }
+        
+        // Priority: Error > Warning > Info > Valid
+        // Return the first error
+        for (const result of results) {
+            if (!result.isValid && result.error) {
                 return createValidationMessage(
                     ValidationState.Error,
-                    result.error || 'Invalid value'
+                    result.error
                 );
             }
         }
         
-        // No validation errors
+        // Return the first warning
+        for (const result of results) {
+            if (result.warning) {
+                return createValidationMessage(
+                    ValidationState.Warning,
+                    result.warning
+                );
+            }
+        }
+        
+        // Return the first info (success message)
+        for (const result of results) {
+            if (result.info) {
+                return createValidationMessage(
+                    ValidationState.Valid,
+                    result.info
+                );
+            }
+        }
+        
+        // No validation messages
         return null;
     }
     
@@ -192,9 +226,12 @@ export class ConfigurationListItem extends ValidatedListItem {
             // Build header text
             const labelPart = `${this.label}: `;
             
-            if (this._validationError) {
-                const errorText = ` ✗ ${this._validationError}`;
-                const totalLength = 2 + labelPart.length + errorText.length; // 2 for "■ "
+            if (this._validationMessage) {
+                // Use the validation display utility for consistent formatting
+                const icon = this._validationMessage.icon || getDefaultIcon(this._validationMessage.state);
+                const validationText = ` ${icon} ${this._validationMessage.message}`;
+                const totalLength = 2 + labelPart.length + validationText.length; // 2 for "■ "
+                const validationColor = getValidationColor(this._validationMessage.state);
                 
                 if (totalLength <= maxWidth) {
                     // Everything fits
@@ -202,23 +239,24 @@ export class ConfigurationListItem extends ValidatedListItem {
                         <Text key="header">
                             <Text color={bulletColor}>■ </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            <Text color="red">{errorText}</Text>
+                            <Text color={validationColor}>{validationText}</Text>
                         </Text>
                     );
                 } else {
-                    // Need to truncate
-                    const availableForError = maxWidth - 2 - labelPart.length - 1; // -1 for ellipsis
-                    if (availableForError > 3) { // " ✗ " is 3 chars
-                        const truncatedError = this._validationError.slice(0, availableForError - 3 - 1) + '…';
+                    // Need to truncate - use the utility
+                    const availableForValidation = maxWidth - 2 - labelPart.length;
+                    const truncatedDisplay = formatValidationDisplay(this._validationMessage, availableForValidation);
+                    
+                    if (truncatedDisplay) {
                         elements.push(
                             <Text key="header">
                                 <Text color={bulletColor}>■ </Text>
                                 <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                                <Text color="red"> ✗ {truncatedError}</Text>
+                                <Text color={validationColor}> {truncatedDisplay}</Text>
                             </Text>
                         );
                     } else {
-                        // Not enough space for error, just show label
+                        // Not enough space for validation, just show label
                         elements.push(
                             <Text key="header">
                                 <Text color={bulletColor}>■ </Text>
@@ -283,21 +321,52 @@ export class ConfigurationListItem extends ValidatedListItem {
         } else {
             // Collapsed view
             const displayValue = this.isPassword ? '•'.repeat(this.value.length) : this.value;
-            const { label, value, truncated } = this.formatHeaderParts(maxWidth, displayValue);
             
-            // Build the full text without nested components to avoid wrapping
-            const fullText = truncated 
-                ? `${this.icon} ${label}: [${value}…]`
-                : `${this.icon} ${label}: [${value}]`;
+            // Use the utility to format with validation
+            const formatted = formatCollapsedValidation(
+                this.label,
+                displayValue,
+                this._validationMessage,
+                maxWidth,
+                this.icon
+            );
             
-            // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
-            if (fullText.length >= maxWidth) {
-                // Force truncation to prevent wrapping
-                const safeLength = maxWidth - 4; // Leave room for "…]"
-                const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
-                const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
-                const truncatedValue = displayValue.slice(0, Math.max(0, remainingSpace));
+            // If validation doesn't fit or doesn't exist, fall back to original logic
+            if (!formatted.showValidation) {
+                const { label, value, truncated } = this.formatHeaderParts(maxWidth, displayValue);
                 
+                // Build the full text without nested components to avoid wrapping
+                const fullText = truncated 
+                    ? `${this.icon} ${label}: [${value}…]`
+                    : `${this.icon} ${label}: [${value}]`;
+                
+                // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
+                if (fullText.length >= maxWidth) {
+                    // Force truncation to prevent wrapping
+                    const safeLength = maxWidth - 4; // Leave room for "…]"
+                    const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
+                    const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
+                    const truncatedValue = displayValue.slice(0, Math.max(0, remainingSpace));
+                    
+                    return (
+                        <Text>
+                            <Text color={this.getBulletColor()}>
+                                {this.icon}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                {' '}{label}: [
+                            </Text>
+                            <Text color={theme.colors.configValuesColor}>
+                                {truncatedValue}…
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                ]
+                            </Text>
+                        </Text>
+                    );
+                }
+                
+                // Render with colored value (brackets stay in default color)
                 return (
                     <Text>
                         <Text color={this.getBulletColor()}>
@@ -307,7 +376,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                             {' '}{label}: [
                         </Text>
                         <Text color={theme.colors.configValuesColor}>
-                            {truncatedValue}…
+                            {value}{truncated ? '…' : ''}
                         </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
                             ]
@@ -315,21 +384,26 @@ export class ConfigurationListItem extends ValidatedListItem {
                     </Text>
                 );
             }
-                
-            // Render with colored value (brackets stay in default color)
+            
+            // Render with validation
+            const validationColor = this._validationMessage ? getValidationColor(this._validationMessage.state) : undefined;
+            
             return (
                 <Text>
                     <Text color={this.getBulletColor()}>
                         {this.icon}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {' '}{label}: [
+                        {' '}{this.label}: [
                     </Text>
                     <Text color={theme.colors.configValuesColor}>
-                        {value}{truncated ? '…' : ''}
+                        {formatted.displayValue}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
                         ]
+                    </Text>
+                    <Text color={validationColor}>
+                        {formatted.validationDisplay}
                     </Text>
                 </Text>
             );

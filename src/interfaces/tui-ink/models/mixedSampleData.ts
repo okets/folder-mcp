@@ -99,6 +99,45 @@ export function createStatusPanelItems(): IListItem[] {
             (path) => console.log('File selected:', path),
             ['*.ts', '*.tsx', '*.js', '*.jsx'] // Filter for code files
         ),
+        
+        // Test cases with invalid default values
+        new ConfigurationListItem(
+            '·',
+            'Invalid Email',
+            'not-an-email',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid email changed to:', newValue),
+            [validators.email]
+        ),
+        new ConfigurationListItem(
+            '·',
+            'Port (out of range)',
+            '99999',
+            false,
+            false,
+            'Port 1024-65535',
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid port changed to:', newValue),
+            [validators.number(1024, 65535)]
+        ),
+        new ConfigurationListItem(
+            '·',
+            'Invalid IP',
+            '192.168.1.999',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid IP changed to:', newValue),
+            [validators.ipv4]
+        ),
+        
         new LogItem(
             '○',
             'ProgressItem (TODO)',
@@ -130,6 +169,16 @@ export function createConfigurationPanelItems(): IListItem[] {
             'file',
             (path) => console.log('Config file selected:', path),
             ['*.json', '*.yaml', '*.yml', '*.toml']
+        ),
+        
+        // Test case: File picker with non-existent file
+        new FilePickerListItem(
+            '📄',
+            'Missing File',
+            '/Users/hanan/non-existent-file.txt',
+            false,
+            'file',
+            (path) => console.log('Missing file selected:', path)
         ),
         // Current TextInput features being tested
         new LogItem(
@@ -244,6 +293,46 @@ export function createConfigurationPanelItems(): IListItem[] {
             1,  // Minimum 1 selection
             3   // Maximum 3 selections
         ),
+        
+        // More test cases with invalid values
+        new ConfigurationListItem(
+            '·',
+            'Weak Password',
+            'weak',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Weak password changed to:', newValue),
+            [validators.password],
+            true  // isPassword
+        ),
+        new ConfigurationListItem(
+            '·',
+            'Invalid Pattern',
+            'abc123',
+            false,
+            false,
+            'Pattern: 3 uppercase letters',
+            undefined,
+            undefined,
+            (newValue) => console.log('Pattern changed to:', newValue),
+            [validators.regex(/^[A-Z]{3}$/, 'Must be exactly 3 uppercase letters')]
+        ),
+        new ConfigurationListItem(
+            '·',
+            'Too Short',
+            'Hi',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Short text changed to:', newValue),
+            [validators.minLength(5)]
+        ),
+        
         new LogItem(
             '○',
             'ProgressItem (Task 4 - TODO)',

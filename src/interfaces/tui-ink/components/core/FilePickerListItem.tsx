@@ -64,6 +64,9 @@ export class FilePickerListItem extends ValidatedListItem {
         if (onChange) {
             this.onChange = onChange;
         }
+        
+        // Validate initial path
+        this.validateValue();
     }
     
     get isControllingInput(): boolean {
@@ -634,8 +637,8 @@ export class FilePickerListItem extends ValidatedListItem {
             elements.push(
                 <Text key="header">
                     <Transform transform={output => output}>
-                        <Text color={notification ? 'red' : theme.colors.textMuted}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
+                        <Text color={notification ? 'red' : this.getBulletColor()}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {this.label} ({modeText}):
                         </Text>
                         {showHints && (
@@ -750,12 +753,12 @@ export class FilePickerListItem extends ValidatedListItem {
                         <Text color={this.getBulletColor()}>
                             {this.icon}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {' '}{this.label}: [</Text>
                         <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                             {displayPath}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>]</Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
                     </Transform>
                 </Text>
             );
