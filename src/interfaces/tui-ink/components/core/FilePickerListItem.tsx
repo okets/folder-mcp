@@ -289,20 +289,89 @@ export class FilePickerListItem implements IListItem {
             }
             return true;
         } else if (key.upArrow) {
-            // For now, use simple navigation
-            this._focusedIndex = this._focusedIndex > 0 
-                ? this._focusedIndex - 1 
-                : this._items.length - 1;
-            return true;
-        } else if (key.downArrow) {
-            // For now, use simple navigation
-            this._focusedIndex = this._focusedIndex < this._items.length - 1 
-                ? this._focusedIndex + 1 
-                : 0;
-            return true;
-        } else if (key.leftArrow) {
+            const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+            const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
+            
             if (this._columnCount > 1 && this._itemsPerColumn > 0) {
                 // Multi-column navigation
+                if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
+                    // On confirm item, go to last item of last occupied column
+                    this._focusedIndex = regularItemsCount - 1;
+                } else if (this._focusedIndex < regularItemsCount) {
+                    // On a regular item
+                    const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    
+                    if (currentRow > 0) {
+                        // Not at top of column
+                        this._focusedIndex--;
+                    } else {
+                        // At top of column
+                        if (currentCol > 0) {
+                            // Go to bottom of previous column
+                            const prevCol = currentCol - 1;
+                            const lastRowInPrevCol = Math.min(this._itemsPerColumn - 1,
+                                regularItemsCount - 1 - (prevCol * this._itemsPerColumn));
+                            this._focusedIndex = prevCol * this._itemsPerColumn + lastRowInPrevCol;
+                        } else {
+                            // At top of first column, wrap to confirm or last item
+                            this._focusedIndex = hasConfirmItem ? this._items.length - 1 : regularItemsCount - 1;
+                        }
+                    }
+                }
+            } else {
+                // Single column navigation
+                this._focusedIndex = this._focusedIndex > 0 
+                    ? this._focusedIndex - 1 
+                    : this._items.length - 1;
+            }
+            return true;
+        } else if (key.downArrow) {
+            const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+            const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
+            
+            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
+                // Multi-column navigation
+                if (this._focusedIndex === this._items.length - 1) {
+                    // On confirm item, wrap to top
+                    this._focusedIndex = 0;
+                } else if (this._focusedIndex < regularItemsCount) {
+                    // On a regular item
+                    const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
+                    const currentRow = this._focusedIndex % this._itemsPerColumn;
+                    const lastRowInCol = Math.min(this._itemsPerColumn - 1,
+                        regularItemsCount - 1 - (currentCol * this._itemsPerColumn));
+                    
+                    if (currentRow < lastRowInCol) {
+                        // Not at bottom of column yet
+                        this._focusedIndex++;
+                    } else {
+                        // At bottom of any column - go to confirm
+                        if (hasConfirmItem) {
+                            this._focusedIndex = this._items.length - 1;
+                        } else {
+                            // No confirm item, wrap to top of next column
+                            const nextCol = (currentCol + 1) % this._columnCount;
+                            this._focusedIndex = nextCol * this._itemsPerColumn;
+                        }
+                    }
+                }
+            } else {
+                // Single column navigation
+                this._focusedIndex = this._focusedIndex < this._items.length - 1 
+                    ? this._focusedIndex + 1 
+                    : 0;
+            }
+            return true;
+        } else if (key.leftArrow) {
+            const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+            const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
+            
+            if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
+                // On confirm item, another left exits
+                this.onExit();
+            } else if (this._columnCount > 1 && this._itemsPerColumn > 0 && this._focusedIndex < regularItemsCount) {
+                // Multi-column navigation for regular items
                 const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
                 
                 if (currentCol > 0) {
@@ -312,28 +381,45 @@ export class FilePickerListItem implements IListItem {
                     const newIndex = prevCol * this._itemsPerColumn + currentRow;
                     
                     // Make sure we don't go past the last item
-                    if (newIndex < this._items.length) {
+                    const lastItemInPrevCol = Math.min(
+                        (prevCol + 1) * this._itemsPerColumn - 1,
+                        regularItemsCount - 1
+                    );
+                    
+                    if (newIndex <= lastItemInPrevCol) {
                         this._focusedIndex = newIndex;
                     } else {
                         // Go to last item in previous column
-                        const prevColLastRow = Math.min(this._itemsPerColumn - 1,
-                            this._items.length - 1 - (prevCol * this._itemsPerColumn));
-                        this._focusedIndex = prevCol * this._itemsPerColumn + prevColLastRow;
+                        this._focusedIndex = lastItemInPrevCol;
                     }
                 } else {
-                    // In leftmost column - exit
-                    this.onExit();
+                    // In leftmost column - go to confirm if available
+                    if (hasConfirmItem) {
+                        this._focusedIndex = this._items.length - 1;
+                    } else {
+                        this.onExit();
+                    }
                 }
             } else {
-                // Single column - exit
-                this.onExit();
+                // Single column - go to confirm or exit
+                if (hasConfirmItem && this._focusedIndex < this._items.length - 1) {
+                    this._focusedIndex = this._items.length - 1;
+                } else {
+                    this.onExit();
+                }
             }
             return true;
         } else if (key.rightArrow) {
-            if (this._columnCount > 1 && this._itemsPerColumn > 0) {
-                // Multi-column navigation
+            const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+            const regularItemsCount = this._items.filter(item => !item.isConfirmAction).length;
+            
+            if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
+                // On confirm item, go to first column
+                this._focusedIndex = 0;
+            } else if (this._columnCount > 1 && this._itemsPerColumn > 0 && this._focusedIndex < regularItemsCount) {
+                // Multi-column navigation for regular items
                 const currentCol = Math.floor(this._focusedIndex / this._itemsPerColumn);
-                const lastCol = Math.floor((this._items.length - 1) / this._itemsPerColumn);
+                const lastCol = Math.floor((regularItemsCount - 1) / this._itemsPerColumn);
                 
                 if (currentCol < lastCol) {
                     // Move to next column, same row
@@ -342,11 +428,11 @@ export class FilePickerListItem implements IListItem {
                     const newIndex = nextCol * this._itemsPerColumn + currentRow;
                     
                     // Make sure we don't go past the last item
-                    if (newIndex < this._items.length) {
+                    if (newIndex < regularItemsCount) {
                         this._focusedIndex = newIndex;
                     } else {
-                        // Go to last item
-                        this._focusedIndex = this._items.length - 1;
+                        // Go to last item in the last column
+                        this._focusedIndex = regularItemsCount - 1;
                     }
                 }
                 // If already in rightmost column, do nothing
