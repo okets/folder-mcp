@@ -108,15 +108,28 @@ export const FilePickerBody = ({
 }: FilePickerBodyProps): React.ReactElement[] => {
     const elements: React.ReactElement[] = [];
     
-    // Display current path with left truncation inside brackets
-    // Calculate space: "│  Path: [" (10) + "]" (1) = 11 chars for decoration
-    const availableForPath = Math.max(0, width - 11);
+    // Display current path with progressive truncation
+    // Check if we have space for "Path: " label
+    const fullDecoration = 11; // "│  Path: [" + "]"
+    const minimalDecoration = 5; // "│  [" + "]"
+    
+    let showPathLabel = width >= 30; // Only show "Path: " if we have enough space
+    let availableForPath;
+    
+    if (showPathLabel) {
+        availableForPath = Math.max(0, width - fullDecoration);
+    } else {
+        availableForPath = Math.max(0, width - minimalDecoration);
+    }
+    
     const pathLine = formatPath(currentPath, availableForPath);
     
     // Build the complete line to ensure it fits
     const pathElements: React.ReactElement[] = [];
     pathElements.push(<Text key="prefix" color={headerColor || undefined}>│  </Text>);
-    pathElements.push(<Text key="label">Path: </Text>);
+    if (showPathLabel) {
+        pathElements.push(<Text key="label">Path: </Text>);
+    }
     pathElements.push(<Text key="bracket-open">[</Text>);
     pathElements.push(
         <Text key="path" color={theme.colors.configValuesColor}>
@@ -377,11 +390,14 @@ export const FilePickerBody = ({
             showScrollDown = endIndex < items.length;
         }
         
+        // Filter out confirm items - they're rendered separately
+        const regularVisibleItems = visibleItems.filter(item => !item.isConfirmAction);
+        
         // Render visible items
-        visibleItems.forEach((item, visibleIndex) => {
-            const actualIndex = startIndex + visibleIndex;
+        regularVisibleItems.forEach((item, visibleIndex) => {
+            const actualIndex = items.indexOf(item);
             const isFocused = actualIndex === focusedIndex;
-            const isLast = visibleIndex === visibleItems.length - 1;
+            const isLast = visibleIndex === regularVisibleItems.length - 1;
             
             // Determine line prefix with scroll indicators
             let linePrefix = '│ ';
@@ -393,19 +409,13 @@ export const FilePickerBody = ({
                 // Only show └─ if there's no confirm item and not in file mode
                 linePrefix = '└─';
             }
-            // Special handling for confirm action
-            if (item.isConfirmAction) {
-                // Don't render confirm action in the regular list
-                // It will be rendered separately at the bottom
-                return;
-            }
             
             // Format regular item name
-            const indicator = isFocused ? '▶' : ' ';
             const itemName = item.name + (item.isDirectory ? '/' : '');
             
             // Calculate available width for item name
-            const prefixWidth = linePrefix.length + 2 + indicator.length;
+            // Reserve space for: linePrefix + indicator + space + conservative margin
+            const prefixWidth = linePrefix.length + 2 + 1; // linePrefix + "▶ " or "  " + margin
             const availableWidth = width - prefixWidth;
             
             // Truncate item name if needed
@@ -415,19 +425,16 @@ export const FilePickerBody = ({
             
             // Build the line with appropriate color
             elements.push(
-                <Box key={`item-${actualIndex}`}>
+                <Text key={`item-${actualIndex}`}>
                     <Text color={headerColor}>{linePrefix}</Text>
-                    <Text> {indicator}</Text>
                     {isFocused ? (
-                        <Text color={theme.colors.accent}>
-                            {displayName}
-                        </Text>
+                        <Text color={theme.colors.accent}>▶ {displayName}</Text>
                     ) : (
                         <Text color={item.isDirectory ? theme.colors.textSecondary : undefined}>
-                            {displayName}
+                            {'  '}{displayName}
                         </Text>
                     )}
-                </Box>
+                </Text>
             );
         });
     }
@@ -440,6 +447,23 @@ export const FilePickerBody = ({
         const isShowingBottom = !showScrollDown || (endRow === itemsPerColumn);
         
         if (isShowingBottom || isConfirmFocused) {
+            // Calculate available width for confirm text
+            // "└─▶ ✓ " = 7 chars when focused, "└─  ✓ " = 7 chars when not focused
+            const prefixWidth = 7;
+            const availableForText = width - prefixWidth;
+            
+            // Progressive truncation for confirm text
+            let confirmText = 'Confirm Selection';
+            if (confirmText.length > availableForText) {
+                if (availableForText >= 7) { // "Confirm" needs 7 chars
+                    confirmText = 'Confirm';
+                } else if (availableForText >= 2) { // "OK" needs 2 chars
+                    confirmText = 'OK';
+                } else {
+                    confirmText = ''; // No space for any text
+                }
+            }
+            
             elements.push(
             <Text key="confirm-action">
                 <Text color={headerColor || theme.colors.textMuted}>└─</Text>
@@ -449,10 +473,12 @@ export const FilePickerBody = ({
                     <Text>  </Text>
                 )}
                 <Text color={theme.colors.successGreen}>✓ </Text>
-                {isConfirmFocused ? (
-                    <Text color={theme.colors.accent}>Confirm Selection</Text>
-                ) : (
-                    <Text>Confirm Selection</Text>
+                {confirmText && (
+                    isConfirmFocused ? (
+                        <Text color={theme.colors.accent}>{confirmText}</Text>
+                    ) : (
+                        <Text>{confirmText}</Text>
+                    )
                 )}
             </Text>
             );

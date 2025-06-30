@@ -753,9 +753,11 @@ export class FilePickerListItem extends ValidatedListItem {
             );
             
             // Calculate available lines for body
-            // Allow up to 4 items if there's enough vertical space
-            const availableForBody = maxLines ? maxLines - 2 : 4; // -1 for header, -1 for path
-            const bodyMaxLines = Math.min(4, availableForBody); // Max 4 items
+            // Account for: header (1) + path (1) + potential confirm line (1)
+            const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+            const reservedLines = 2 + (hasConfirmItem ? 1 : 0); // header + path + confirm (if any)
+            const availableForBody = maxLines ? maxLines - reservedLines : 4;
+            const bodyMaxLines = Math.min(4, availableForBody); // Max 4 regular items
             
             // Calculate column layout info for navigation
             const availableWidth = maxWidth - 4; // Account for borders
@@ -963,15 +965,21 @@ export class FilePickerListItem extends ValidatedListItem {
         }
         
         // Calculate actual visible items
-        // We show max 4 items in the body
-        const bodyLines = Math.min(this._items.length, 4);
-        
-        // Check if we need an extra line for the └─ closing
+        // Separate regular items from confirm item
+        const regularItems = this._items.filter(item => !item.isConfirmAction);
         const hasConfirmItem = this._items.some(item => item.isConfirmAction);
+        
+        // We show max 4 regular items in the body
+        const regularItemLines = Math.min(regularItems.length, 4);
+        
+        // Confirm item is rendered as a separate line if present
+        const confirmLines = hasConfirmItem ? 1 : 0;
+        
+        // Check if we need an extra line for the └─ closing (only in file mode without confirm)
         const needsClosingLine = this.mode === 'file' && !hasConfirmItem;
         
-        // Total: header + path + body items + possible closing line
-        return 2 + bodyLines + (needsClosingLine ? 1 : 0);
+        // Total: header + path + regular items + confirm line (if any) + possible closing line
+        return 2 + regularItemLines + confirmLines + (needsClosingLine ? 1 : 0);
     }
     
     
