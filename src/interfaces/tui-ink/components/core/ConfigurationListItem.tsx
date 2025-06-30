@@ -222,7 +222,7 @@ export class ConfigurationListItem extends ValidatedListItem {
             const elements: ReactElement[] = [];
             
             // Header with inline notification area
-            const bulletColor = this.getBulletColor();
+            const bulletColor = this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted);
             
             // Build header text
             const labelPart = `${this.label}: `;
@@ -285,7 +285,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     elements.push(
                         <Text key="header">
-                            <Text color={this.getBulletColor(theme.colors.textMuted)}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>■ </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
                             {showFullHints && (
                                 <>
@@ -352,7 +352,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     return (
                         <Text>
-                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
@@ -371,7 +371,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 // Render with colored value (brackets stay in default color)
                 return (
                     <Text>
-                        <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                        <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
                             {this.icon}
                         </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
@@ -392,7 +392,7 @@ export class ConfigurationListItem extends ValidatedListItem {
             
             return (
                 <Text>
-                    <Text color={this.getBulletColor()}>
+                    <Text color={this.isActive ? theme.colors.accent : this.getBulletColor()}>
                         {this.icon}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>

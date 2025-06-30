@@ -279,7 +279,7 @@ export class SelectionListItem implements IListItem {
             this._effectiveLayout = effectiveLayout;
             
             // Header with inline notification area
-            const bulletColor = this._validationError ? 'red' : undefined;
+            const bulletColor = this.isActive ? theme.colors.accent : (this._validationError ? 'red' : undefined);
             
             // Build header text
             let headerText = '';
@@ -338,7 +338,7 @@ export class SelectionListItem implements IListItem {
                 
                 elements.push(
                     <Text key="header">
-                        <Text color={undefined}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>■ </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
                         {showFullHints && (
                             <>

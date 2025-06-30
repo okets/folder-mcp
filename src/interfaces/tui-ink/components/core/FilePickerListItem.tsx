@@ -688,7 +688,7 @@ export class FilePickerListItem extends ValidatedListItem {
             elements.push(
                 <Text key="header">
                     <Transform transform={output => output}>
-                        <Text color={notification ? 'red' : undefined}>■ </Text>
+                        <Text color={notification ? 'red' : (this.isActive ? theme.colors.accent : undefined)}>■ </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {this.label} ({modeText}):
                         </Text>
@@ -817,7 +817,7 @@ export class FilePickerListItem extends ValidatedListItem {
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
@@ -839,7 +839,7 @@ export class FilePickerListItem extends ValidatedListItem {
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text color={this.getBulletColor(theme.colors.textMuted)}>
+                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
