@@ -387,40 +387,31 @@ export class SelectionListItem implements IListItem {
                 : `${this.icon} ${label}: [${value}]`;
             
             // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
-            if (fullText.length >= maxWidth) {
+            // Use conservative width calculation to prevent wrapping
+            const conservativeWidth = maxWidth - 2;
+            if (fullText.length >= conservativeWidth) {
                 // Force truncation to prevent wrapping
                 const safeLength = maxWidth - 4; // Leave room for "…]"
                 const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
                 const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
                 const truncatedValue = displayValues.slice(0, Math.max(0, remainingSpace));
                 
+                // Build single text string to prevent wrapping at component boundaries
+                const forcedTruncatedText = `${this.icon} ${label}: [${truncatedValue}…]`;
+                
                 return (
-                    <Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
-                            {this.icon} {label}: [
-                        </Text>
-                        <Text color={theme.colors.configValuesColor}>
-                            {truncatedValue}…
-                        </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
-                            ]
-                        </Text>
+                    <Text color={this.isActive ? theme.colors.accent : theme.colors.text}>
+                        {forcedTruncatedText}
                     </Text>
                 );
             }
                 
-            // Render with colored value (brackets stay in default color)
+            // Build single text string to prevent wrapping at component boundaries
+            const normalText = `${this.icon} ${label}: [${value}${truncated ? '…' : ''}]`;
+            
             return (
-                <Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {this.icon} {label}: [
-                    </Text>
-                    <Text color={theme.colors.configValuesColor}>
-                        {value}{truncated ? '…' : ''}
-                    </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        ]
-                    </Text>
+                <Text color={this.isActive ? theme.colors.accent : theme.colors.text}>
+                    {normalText}
                 </Text>
             );
         }

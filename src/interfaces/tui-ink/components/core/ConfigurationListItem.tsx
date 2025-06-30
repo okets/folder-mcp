@@ -337,18 +337,26 @@ export class ConfigurationListItem extends ValidatedListItem {
             const displayValue = this.isPassword ? '•'.repeat(this.value.length) : this.value;
             
             // Use the utility to format with validation
+            // Use conservative width to prevent wrapping like FilePickerListItem  
+            const conservativeWidth = maxWidth - 2;
+            
+            
             const formatted = formatCollapsedValidation(
                 this.label,
                 displayValue,
                 this._validationMessage,
-                maxWidth,
+                conservativeWidth,
                 this.icon,
                 this.isActive
             );
             
-            // If validation doesn't fit or doesn't exist, fall back to original logic
+            
+            // If validation doesn't fit or doesn't exist, use the truncated values from formatCollapsedValidation
             if (!formatted.showValidation) {
-                const { label, value, truncated } = this.formatHeaderParts(maxWidth, displayValue);
+                // Use the truncated values from formatCollapsedValidation instead of formatHeaderParts
+                const label = formatted.truncatedLabel || this.label;
+                const value = formatted.displayValue;
+                const truncated = formatted.displayValue !== displayValue;
                 
                 // Build the full text without nested components to avoid wrapping
                 const fullText = truncated 
@@ -386,6 +394,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                         </Text>
                     );
                 }
+                
+                
                 
                 // Render with colored value (brackets stay in default color)
                 return (
@@ -429,6 +439,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                     formatted.validationDisplay = '';
                 }
             }
+            
+            
             
             return (
                 <Text>

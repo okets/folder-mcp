@@ -22,13 +22,14 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
     
-    // Calculate available space
+    // Calculate available space - use conservative width to prevent wrapping
+    const conservativeWidth = maxWidth - 2; // Reserve extra space to prevent text wrapping
     const prefixWidth = 2; // "· " or "▶ "
     const suffixWidth = 1; // "→"
     const bracketsWidth = 2; // "[]"
     const separatorWidth = 2; // ": "
     
-    const availableWidth = maxWidth - prefixWidth - suffixWidth - bracketsWidth - separatorWidth;
+    const availableWidth = conservativeWidth - prefixWidth - suffixWidth - bracketsWidth - separatorWidth;
     
     // Always show value, truncate label if needed
     const valueWidth = contentService.measureText(displayValue);
@@ -39,15 +40,13 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
         truncatedLabel = contentService.truncateText(label, Math.max(3, labelAvailableWidth));
     }
     
+    // Build single text string to prevent wrapping at component boundaries
+    const prefix = isSelected ? '▶' : '·';
+    const fullDisplayText = `${prefix} ${truncatedLabel}: [${displayValue}] →`;
+    
     return (
-        <Text>
-            <Text color={isSelected ? theme.colors.accent : undefined}>
-                {isSelected ? '▶' : '·'} {truncatedLabel}: 
-            </Text>
-            <Text color={theme.colors.textSecondary}>
-                [{displayValue}]
-            </Text>
-            <Text color={isSelected ? theme.colors.accent : undefined}> →</Text>
+        <Text color={isSelected ? theme.colors.accent : undefined}>
+            {fullDisplayText}
         </Text>
     );
 };
