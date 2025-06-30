@@ -236,87 +236,75 @@ export class ConfigurationListItem extends ValidatedListItem {
             // Header with inline notification area
             const bulletColor = this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted);
             
-            // Build header text
-            const labelPart = `${this.label}: `;
+            // Build header text with truncation support
+            const prefix = '■ ';
+            const suffix = ': ';
+            const baseLength = getVisualWidth(prefix) + getVisualWidth(suffix);
             
-            if (this._validationMessage) {
-                // Use the validation display utility for consistent formatting
-                const icon = this._validationMessage.icon || getDefaultIcon(this._validationMessage.state);
-                const validationText = ` ${icon} ${this._validationMessage.message}`;
-                const totalLength = 2 + labelPart.length + validationText.length; // 2 for "■ "
-                const validationColor = getValidationColor(this._validationMessage.state);
-                
-                if (totalLength <= maxWidth) {
-                    // Everything fits
-                    elements.push(
-                        <Text key="header">
-                            <Text color={bulletColor}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            <Text color={validationColor}>{validationText}</Text>
-                        </Text>
-                    );
+            // If we have validation, reserve space for at least the icon
+            const validationReserve = this._validationMessage ? 2 : 0; // space + icon
+            
+            // Calculate available space for label
+            let labelToUse = this.label;
+            const fullHeaderLength = baseLength + getVisualWidth(this.label);
+            
+            if (fullHeaderLength + validationReserve > maxWidth && maxWidth > baseLength + validationReserve + 1) {
+                // Need to truncate label to fit validation icon
+                const availableForLabel = maxWidth - baseLength - validationReserve - 1; // -1 for ellipsis
+                if (availableForLabel > 0) {
+                    labelToUse = this.label.substring(0, availableForLabel) + '…';
                 } else {
-                    // Need to truncate - use the utility
-                    const availableForValidation = maxWidth - 2 - labelPart.length;
-                    const truncatedDisplay = formatValidationDisplay(this._validationMessage, availableForValidation);
-                    
-                    if (truncatedDisplay) {
-                        elements.push(
-                            <Text key="header">
-                                <Text color={bulletColor}>■ </Text>
-                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                                <Text color={validationColor}> {truncatedDisplay}</Text>
-                            </Text>
-                        );
-                    } else {
-                        // Not enough space for validation, just show label
-                        elements.push(
-                            <Text key="header">
-                                <Text color={bulletColor}>■ </Text>
-                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            </Text>
-                        );
-                    }
-                }
-            } else {
-                // Show keyboard hints with progressive truncation
-                {
-                    const baseLength = 2 + labelPart.length; // "■ " + label
-                    const availableForHints = maxWidth - baseLength;
-                    const fullHintsLength = 20; // " [enter] ✓ • [esc] ✗"
-                    const partialHintsLength = 11; // " [enter] ✓"
-                    
-                    let showFullHints = false;
-                    let showPartialHints = false;
-                    
-                    if (availableForHints >= fullHintsLength) {
-                        showFullHints = true;
-                    } else if (availableForHints >= partialHintsLength) {
-                        showPartialHints = true;
-                    }
-                    
-                    elements.push(
-                        <Text key="header">
-                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            {showFullHints && (
-                                <>
-                                    <Text color={theme.colors.textMuted}> [enter] </Text>
-                                    <Text color={theme.colors.successGreen}>✓</Text>
-                                    <Text color={theme.colors.textMuted}> · [esc] </Text>
-                                    <Text color={theme.colors.warningOrange}>✗</Text>
-                                </>
-                            )}
-                            {showPartialHints && !showFullHints && (
-                                <>
-                                    <Text color={theme.colors.textMuted}> [enter] </Text>
-                                    <Text color={theme.colors.successGreen}>✓</Text>
-                                </>
-                            )}
-                        </Text>
-                    );
+                    labelToUse = '…'; // Extreme case
                 }
             }
+            
+            const labelPart = `${labelToUse}: `;
+            
+            // Header with validation after the colon
+            if (this._validationMessage) {
+                const headerBase = `■ ${labelPart}`;
+                const headerBaseLength = getVisualWidth(headerBase);
+                const icon = this._validationMessage.icon || getValidationIcon(this._validationMessage.state);
+                const validationColor = getValidationColor(this._validationMessage.state);
+                
+                // Calculate available space for validation
+                const minValidation = ` ${icon}`; // minimum: space + icon
+                const fullValidation = ` ${icon} ${this._validationMessage.message}`;
+                
+                // Always show validation icon when validation is present (we already reserved space for it)
+                const availableForValidation = maxWidth - headerBaseLength;
+                let validationText = '';
+                
+                if (getVisualWidth(fullValidation) <= availableForValidation) {
+                    // Full validation fits
+                    validationText = fullValidation;
+                } else if (availableForValidation > getVisualWidth(minValidation) + 2) {
+                    // Truncate message (need space for icon + space + at least 1 char)
+                    const availableForMessage = availableForValidation - getVisualWidth(minValidation) - 1; // -1 for space after icon
+                    const truncatedMessage = this._validationMessage.message.substring(0, availableForMessage - 1) + '…';
+                    validationText = ` ${icon} ${truncatedMessage}`;
+                } else {
+                    // Just icon (always show it since we reserved space)
+                    validationText = minValidation;
+                }
+                
+                elements.push(
+                    <Text key="header">
+                        <Text color={bulletColor}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                        <Text color={validationColor}>{validationText}</Text>
+                    </Text>
+                );
+            } else {
+                // No validation, simple header
+                elements.push(
+                    <Text key="header">
+                        <Text color={bulletColor}>■ </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                    </Text>
+                );
+            }
+            
             
             // Edit body - TextInputBody returns an array of elements
             const bodyElements = TextInputBody({

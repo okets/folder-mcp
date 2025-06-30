@@ -32,7 +32,14 @@ export const TextInputBody = ({
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
     // Account for: 3-char indent (│ + 2 spaces), 2 borders, 2 spaces inside borders
-    const availableForBorder = Math.max(width - 7, 10);
+    const indentWidth = 3; // "│  " or "└──"
+    const borderChars = 2; // "┤" and "│"
+    const internalPadding = 2; // spaces inside borders
+    const minimumBorderWidth = 10; // minimum viable box width
+    
+    // Calculate available space more conservatively
+    const totalOverhead = indentWidth + borderChars + internalPadding;
+    const availableForBorder = Math.max(width - totalOverhead, minimumBorderWidth);
     
     // Use a reasonable default width that expands with content but respects limits
     const desiredWidth = Math.max(value.length + 4, 20); // +4 for some padding
