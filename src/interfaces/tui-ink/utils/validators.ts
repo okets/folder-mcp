@@ -1,6 +1,9 @@
 // Simple validators for ConfigurationListItem
 export const validators = {
     email: (value: string) => {
+        if (!value || value.trim() === '') {
+            return { isValid: false, error: 'Email is required' };
+        }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const isValid = emailRegex.test(value);
         return isValid 
@@ -23,6 +26,9 @@ export const validators = {
     },
     
     ipv4: (value: string) => {
+        if (!value || value.trim() === '') {
+            return { isValid: false, error: 'IP address is required' };
+        }
         const parts = value.split('.');
         if (parts.length !== 4) {
             return { isValid: false, error: 'Invalid IPv4 format' };
@@ -51,6 +57,10 @@ export const validators = {
     },
     
     password: (value: string) => {
+        // Check if empty
+        if (!value || value.length === 0) {
+            return { isValid: false, error: 'Password is required' };
+        }
         // Check minimum length
         if (value.length < 8) {
             return { isValid: false, error: 'Password must be at least 8 characters' };
@@ -80,6 +90,10 @@ export const validators = {
     },
     
     passwordWithStrength: (value: string) => {
+        // Check if empty
+        if (!value || value.length === 0) {
+            return { isValid: false, error: 'Password is required' };
+        }
         // Basic validation - minimum length
         if (value.length < 4) {
             return { isValid: false, error: 'Password too short' };
