@@ -176,6 +176,13 @@ export class ConfigurationListItem extends ValidatedListItem {
             // Move cursor right
             this._cursorPosition = Math.min(this._editValue.length, this._cursorPosition + 1);
             return true;
+        } else if (key.upArrow || key.downArrow) {
+            // Exit without saving on up/down arrows
+            this._editValue = this.value;
+            this._cursorPosition = 0;
+            this._validationError = null;
+            this.onExit();
+            return true;
         } else if (key.backspace || key.delete) {
             // Delete character before cursor
             if (this._cursorPosition > 0) {
