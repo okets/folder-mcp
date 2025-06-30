@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text, Transform } from 'ink';
 import { theme } from '../../utils/theme.js';
+import { getValidationColor, getValidationIcon, getVisualWidth } from '../../utils/validationDisplay.js';
 
 interface ColumnLayout {
     columnCount: number;
@@ -93,6 +94,11 @@ export interface FilePickerBodyProps {
     error?: string | null;
     enableColumns?: boolean;
     mode?: 'file' | 'folder' | 'both';
+    validationMessage?: {
+        state: 'error' | 'warning' | 'info';
+        message: string;
+        icon?: string;
+    } | null;
 }
 
 export const FilePickerBody = ({
@@ -104,7 +110,8 @@ export const FilePickerBody = ({
     headerColor,
     error,
     enableColumns = true,
-    mode
+    mode,
+    validationMessage
 }: FilePickerBodyProps): React.ReactElement[] => {
     const elements: React.ReactElement[] = [];
     
@@ -113,13 +120,16 @@ export const FilePickerBody = ({
     const fullDecoration = 11; // "│  Path: [" + "]"
     const minimalDecoration = 5; // "│  [" + "]"
     
+    // Reserve space for validation icon if we have a validation message
+    const validationReserve = validationMessage ? 2 : 0; // space + icon
+    
     let showPathLabel = width >= 30; // Only show "Path: " if we have enough space
     let availableForPath;
     
     if (showPathLabel) {
-        availableForPath = Math.max(0, width - fullDecoration);
+        availableForPath = Math.max(0, width - fullDecoration - validationReserve);
     } else {
-        availableForPath = Math.max(0, width - minimalDecoration);
+        availableForPath = Math.max(0, width - minimalDecoration - validationReserve);
     }
     
     const pathLine = formatPath(currentPath, availableForPath);
@@ -137,6 +147,46 @@ export const FilePickerBody = ({
         </Text>
     );
     pathElements.push(<Text key="bracket-close">]</Text>);
+    
+    // Add validation message after the path
+    if (validationMessage) {
+        const validationIcon = validationMessage.icon || getValidationIcon(validationMessage.state);
+        const validationColor = getValidationColor(validationMessage.state);
+        
+        // Calculate available space for validation message
+        const pathLineLength = getVisualWidth(`│  ${showPathLabel ? 'Path: ' : ''}[${pathLine}]`);
+        const availableForValidation = width - pathLineLength - 2; // -2 for space and icon
+        
+        if (availableForValidation > 0) {
+            pathElements.push(<Text key="validation-space"> </Text>);
+            pathElements.push(
+                <Text key="validation-icon" color={validationColor}>
+                    {validationIcon}
+                </Text>
+            );
+            
+            // Truncate validation message if needed
+            if (validationMessage.message && availableForValidation > 2) {
+                const truncatedMessage = validationMessage.message.length > availableForValidation - 1
+                    ? validationMessage.message.substring(0, availableForValidation - 2) + '…'
+                    : validationMessage.message;
+                pathElements.push(<Text key="validation-space2"> </Text>);
+                pathElements.push(
+                    <Text key="validation-message" color={validationColor}>
+                        {truncatedMessage}
+                    </Text>
+                );
+            }
+        } else {
+            // Always show at least the validation icon
+            pathElements.push(<Text key="validation-space"> </Text>);
+            pathElements.push(
+                <Text key="validation-icon" color={validationColor}>
+                    {validationIcon}
+                </Text>
+            );
+        }
+    }
     
     elements.push(
         <Text key="path">

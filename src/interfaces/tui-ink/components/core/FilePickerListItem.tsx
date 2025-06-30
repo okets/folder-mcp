@@ -677,8 +677,8 @@ export class FilePickerListItem extends ValidatedListItem {
             const fullKeyboardHints = keyboardHints.length; // Visual length
             const availableForHints = maxWidth - baseText.length - 1;
             
-            // Check if we should show validation message instead of hints
-            const showValidation = !this._hasNavigated && this._validationMessage;
+            // Always show validation message if present
+            const showValidation = this._validationMessage;
             
             // Calculate sizes for progressive hint display
             const enterHint = `[enter] ${enterAction}`;
@@ -737,14 +737,6 @@ export class FilePickerListItem extends ValidatedListItem {
                                     {notification.length > availableForHints - 1
                                         ? notification.slice(0, availableForHints - 4) + '…'
                                         : notification}
-                                </Text>
-                            </>
-                        )}
-                        {showValidation && this._validationMessage && (
-                            <>
-                                <Text> </Text>
-                                <Text color={getValidationColor(this._validationMessage.state)}>
-                                    {formatValidationDisplay(this._validationMessage, availableForHints)}
                                 </Text>
                             </>
                         )}
@@ -816,7 +808,8 @@ export class FilePickerListItem extends ValidatedListItem {
                 headerColor: this.isActive ? theme.colors.accent : theme.colors.textMuted,
                 error: this._error || null,
                 enableColumns: true,
-                mode: this.mode
+                mode: this.mode,
+                validationMessage: this._validationMessage
             });
             
             return [...elements, ...bodyElements];
