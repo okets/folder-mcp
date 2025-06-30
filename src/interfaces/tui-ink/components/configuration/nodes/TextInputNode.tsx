@@ -26,14 +26,20 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     const statusBarService = di.resolve(ServiceTokens.StatusBarService);
     
     const isExpanded = formNavService.isNodeExpanded(node.id);
-    const [localValue, setLocalValue] = useState(node.value);
+    // Get the current value from ConfigurationService
+    const currentNode = configService.getNode(node.id);
+    const currentValue = currentNode?.value ?? node.value;
+    
+    const [localValue, setLocalValue] = useState(currentValue);
     const [cursorPosition, setCursorPosition] = useState(0);
     const [validationError, setValidationError] = useState<string | null>(null);
 
     // Initialize input service when expanded
     useEffect(() => {
         if (isExpanded) {
-            inputService.setCurrentText(localValue);
+            // Always start with the current stored value when expanding
+            setLocalValue(currentValue);
+            inputService.setCurrentText(currentValue);
             inputService.setCursorPosition(cursorPosition);
             
             // Update status bar
@@ -43,8 +49,11 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                 { key: 'Esc', description: 'Cancel' },
                 { key: 'Enter', description: 'Save' }
             ]);
+        } else {
+            // Clear validation error when collapsed
+            setValidationError(null);
         }
-    }, [isExpanded]);
+    }, [isExpanded, currentValue]);
 
     // Handle keyboard input
     useInput((input, key) => {
@@ -68,8 +77,8 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                 setValidationError(error instanceof Error ? error.message : 'Failed to save');
             }
         } else if (key.escape) {
-            // Cancel changes
-            setLocalValue(node.value);
+            // Cancel changes - reset to the current stored value
+            setLocalValue(currentValue);
             setValidationError(null);
             formNavService.collapseNode();
             statusBarService.setContext('form');
@@ -106,7 +115,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                 )}
                 <CollapsedSummary
                     label={node.label}
-                    value={node.password ? '•'.repeat(node.value.length) : node.value}
+                    value={node.password ? '•'.repeat(currentValue.length) : currentValue}
                     maxWidth={width - (!savedValueValidation.isValid ? 4 : 0)}
                     isSelected={isSelected}
                 />

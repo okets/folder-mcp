@@ -318,42 +318,42 @@ Minor platform-specific considerations:
   - Ensure minimum readable message (at least icon + 3 chars)
 
 **Step 3.8.5: Add FilePickerListItem Validation**
-- [ ] Implement `performValidation()` for FilePickerListItem:
+- [x] Implement `performValidation()` for FilePickerListItem:
   - Check if file/folder exists using fs.access()
   - Return appropriate ValidationMessage:
     - Error: "✗ File Missing" or "✗ Folder Missing"
     - Warning: "! File Changed" (if mtime different from expected)
     - Valid: null (no message needed)
-- [ ] Add validation check on:
+- [x] Add validation check on:
   - Initial load
   - Path change
   - Focus/blur events
-- [ ] Update collapsed view to show validation state in bullet color
-- [ ] Add validation message to collapsed view (space permitting)
+- [x] Update collapsed view to show validation state in bullet color
+- [x] Add validation message to collapsed view (space permitting)
 
 **Step 3.8.6: Update SelectionListItem for Consistency**
-- [ ] Add validation support to SelectionListItem:
+- [x] Add validation support to SelectionListItem:
   - Validate min/max selections
   - Show warning if close to limit
   - Error if outside bounds
-- [ ] Update bullet coloring based on validation state
+- [x] Update bullet coloring based on validation state
 
 **Step 3.8.7: Create Test Scenarios**
-- [ ] Update sample data with validation test cases:
+- [x] Update sample data with validation test cases:
   - FilePickerListItem with non-existent file path
   - TextInput with invalid initial values (email, number out of range)
   - SelectionListItem with invalid selection count
   - Add examples showing all three validation states
-- [ ] Add validation state indicators to demonstrate:
+- [x] Add validation state indicators to demonstrate:
   - Green checkmark for valid
   - Yellow warning for warnings
   - Red X for errors
 
 **Step 3.8.8: Documentation and Testing**
-- [ ] Document the new validation API
-- [ ] Create unit tests for validation utilities
-- [ ] Test responsive behavior at different terminal widths
-- [ ] Verify keyboard navigation still works with validation messages
+- [x] Document the new validation API
+- [x] Create unit tests for validation utilities
+- [x] Test responsive behavior at different terminal widths
+- [x] Verify keyboard navigation still works with validation messages
 
 **Validation After Completion**:
 ```bash

@@ -31,23 +31,20 @@ export function getValidationIcon(state: ValidationState): string {
 
 /**
  * Truncate validation message to fit available width
- * Ensures at least icon + 3 characters are shown
  */
 export function truncateValidationMessage(message: string, availableWidth: number): string {
     if (availableWidth <= 0) {
         return '';
     }
     
-    // Minimum width: icon (1) + space (1) + at least 3 chars + ellipsis
-    const minWidth = 6;
-    
-    if (availableWidth < minWidth) {
-        // Too narrow, just show the icon
-        return '';
-    }
-    
+    // If message fits, return as-is
     if (message.length <= availableWidth) {
         return message;
+    }
+    
+    // If we have less than 3 characters available, don't show partial message
+    if (availableWidth < 3) {
+        return '';
     }
     
     // Reserve space for ellipsis
@@ -158,11 +155,15 @@ export function formatCollapsedValidation(
     const remainingForMessage = availableWidth - valueWidth - iconWidth - 1; // -1 for space
     if (remainingForMessage >= 3) { // At least 3 chars for message
         const truncatedMessage = truncateValidationMessage(validation.message, remainingForMessage);
-        return {
-            displayValue: value,
-            validationDisplay: ` ${validationIcon} ${truncatedMessage}`,
-            showValidation: true
-        };
+        // Safety check: ensure we don't exceed available width
+        const validationStr = ` ${validationIcon} ${truncatedMessage}`;
+        if (valueWidth + getVisualWidth(validationStr) <= availableWidth) {
+            return {
+                displayValue: value,
+                validationDisplay: validationStr,
+                showValidation: true
+            };
+        }
     }
     
     // If we only have room for value + icon

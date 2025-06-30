@@ -5,7 +5,7 @@ import { TextInputBody } from './TextInputBody.js';
 import { NotificationArea } from './NotificationArea.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
-import { formatValidationDisplay, formatCollapsedValidation, getValidationColor } from '../../utils/validationDisplay.js';
+import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
 
 export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
@@ -68,6 +68,8 @@ export class ConfigurationListItem extends ValidatedListItem {
         // Exit edit mode
         this._isControllingInput = false;
         this._showPassword = false; // Reset password visibility
+        // Re-validate the stored value to ensure correct validation state
+        this.validateValue();
     }
     
     /**
@@ -144,6 +146,7 @@ export class ConfigurationListItem extends ValidatedListItem {
             this._editValue = this.value;
             this._cursorPosition = 0;
             this._validationError = null;
+            this._validationMessage = null; // Clear parent's validation message
             this.onExit();
             return true;
         } else if (key.return) {
@@ -165,6 +168,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 this._editValue = this.value;
                 this._cursorPosition = 0;
                 this._validationError = null;
+                this._validationMessage = null; // Clear parent's validation message
                 this.onExit();
                 return true;
             } else {
@@ -181,6 +185,7 @@ export class ConfigurationListItem extends ValidatedListItem {
             this._editValue = this.value;
             this._cursorPosition = 0;
             this._validationError = null;
+            this._validationMessage = null; // Clear parent's validation message
             this.onExit();
             return true;
         } else if (key.backspace || key.delete) {
@@ -396,6 +401,25 @@ export class ConfigurationListItem extends ValidatedListItem {
             
             // Render with validation
             const validationColor = this._validationMessage ? getValidationColor(this._validationMessage.state) : undefined;
+            
+            // Safety check: ensure total line doesn't exceed maxWidth
+            const totalLength = getVisualWidth(
+                `${this.icon} ${this.label}: [${formatted.displayValue}]${formatted.validationDisplay}`
+            );
+            
+            if (totalLength > maxWidth) {
+                // If still too long, truncate validation display further
+                const baseLength = getVisualWidth(`${this.icon} ${this.label}: [${formatted.displayValue}]`);
+                const availableForValidation = maxWidth - baseLength;
+                
+                if (availableForValidation >= 2) {
+                    // Just show the validation icon
+                    formatted.validationDisplay = ` ${this._validationMessage?.icon || getValidationIcon(this._validationMessage?.state || ValidationState.Error)}`;
+                } else {
+                    // No room for validation at all
+                    formatted.validationDisplay = '';
+                }
+            }
             
             return (
                 <Text>
