@@ -122,6 +122,10 @@ export function formatCollapsedValidation(
     // Note: isActive parameter kept for API compatibility but focus marker
     // is handled separately as icon, not prepended to text
     
+    // Reserve space for validation icon if validation exists (highest priority)
+    const validationIconSpace = validation ? 2 : 0; // " ✗" = 2 chars
+    const effectiveMaxWidth = maxWidth - validationIconSpace;
+    
     // Start with the original label and progressively truncate if needed
     let workingLabel = label;
     let baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
@@ -129,7 +133,7 @@ export function formatCollapsedValidation(
     const minBracketContent = 1; // Minimum space for "[…]"
     
     // Calculate available width for value (ensuring at least room for "[…]")
-    let availableWidth = maxWidth - baseWidth - suffixWidth;
+    let availableWidth = effectiveMaxWidth - baseWidth - suffixWidth;
     
     // If we don't have room for even "[…]", truncate the label
     while (availableWidth < minBracketContent && workingLabel.length > 1) {
@@ -138,11 +142,20 @@ export function formatCollapsedValidation(
             ? workingLabel.substring(0, workingLabel.length - 4) + '…'
             : workingLabel.substring(0, 1) + '…';
         baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
-        availableWidth = maxWidth - baseWidth - suffixWidth;
+        availableWidth = effectiveMaxWidth - baseWidth - suffixWidth;
     }
     
     // If still no room, ensure we show at least "[…]"
     if (availableWidth <= 0) {
+        // If we have validation, still try to show the icon even in extreme cases
+        if (validation && validationIconSpace <= maxWidth - getVisualWidth(`${icon} …: […]`)) {
+            return {
+                displayValue: '…',
+                validationDisplay: ` ${validation.icon || getValidationIcon(validation.state)}`,
+                showValidation: true,
+                truncatedLabel: '…'
+            };
+        }
         return {
             displayValue: '…',
             validationDisplay: '',
