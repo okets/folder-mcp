@@ -71,7 +71,16 @@ export const TextInputBody = ({
     
     // Check if we should show placeholder
     const showPlaceholder = value.length === 0 && placeholder;
-    const placeholderText = isPassword ? '••••' : (placeholder || '');
+    let placeholderText = isPassword ? '••••' : (placeholder || '');
+    
+    // Truncate placeholder text to fit within contentAreaWidth if needed
+    if (showPlaceholder && placeholderText.length > contentAreaWidth && contentAreaWidth > 0) {
+        if (contentAreaWidth > 1) {
+            placeholderText = placeholderText.slice(0, contentAreaWidth - 1) + '…';
+        } else {
+            placeholderText = '…';
+        }
+    }
     
     // Mask the value if it's a password (unless showPassword is true)
     const displayValue = showPlaceholder 
