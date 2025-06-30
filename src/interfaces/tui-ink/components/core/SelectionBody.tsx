@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../../utils/theme.js';
 import { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem.js';
+import { getVisualWidth } from '../../utils/validationDisplay.js';
 
 export interface SelectionBodyProps {
     options: SelectionOption[];
@@ -48,12 +49,37 @@ export const SelectionBody = ({
     
     if (layout === 'vertical') {
         // Vertical layout: each option on its own line
-        elements.push(
-            <Text key="select-prompt-v">
-                <Text color={headerColor}>│  </Text>
-                <Text color={theme.colors.textMuted}>Select {mode === 'radio' ? 'one' : 'options'}:</Text>
-            </Text>
-        );
+        // Check if prompt fits
+        const promptPrefix = '│  ';
+        const promptText = `Select ${mode === 'radio' ? 'one' : 'options'}:`;
+        const promptLength = getVisualWidth(promptPrefix) + getVisualWidth(promptText);
+        
+        if (promptLength < width) {
+            // Full prompt fits
+            elements.push(
+                <Text key="select-prompt-v">
+                    <Text color={headerColor}>{promptPrefix}</Text>
+                    <Text color={theme.colors.textMuted}>{promptText}</Text>
+                </Text>
+            );
+        } else {
+            // Truncate or simplify prompt
+            const availableForText = width - getVisualWidth(promptPrefix) - 1; // -1 for safety
+            let displayPrompt = '';
+            
+            if (availableForText >= 6) { // "Select" is 6 chars
+                displayPrompt = 'Select';
+            } else if (availableForText >= 3) {
+                displayPrompt = '...';
+            }
+            
+            elements.push(
+                <Text key="select-prompt-v">
+                    <Text color={headerColor}>{promptPrefix}</Text>
+                    <Text color={theme.colors.textMuted}>{displayPrompt}</Text>
+                </Text>
+            );
+        }
         
         // Calculate visible range with scrolling
         let visibleOptions = options;
@@ -102,18 +128,31 @@ export const SelectionBody = ({
                 linePrefix = '└─';
             }
             
-            // Calculate if there's room for [space] hint
-            const optionText = `${symbol} ${option.label}`;
+            // Calculate available space for option label
+            const linePrefixLength = getVisualWidth(linePrefix) + 1; // +1 for space after prefix
+            const symbolLength = getVisualWidth(symbol) + 1; // +1 for space after symbol
             const spaceHint = ' [space]';
-            const linePrefixLength = linePrefix.length + 1; // +1 for space after prefix
-            const totalLength = linePrefixLength + optionText.length + (isFocused && mode === 'checkbox' ? spaceHint.length : 0);
-            const showSpaceHint = isFocused && mode === 'checkbox' && totalLength < width;
+            const spaceHintLength = getVisualWidth(spaceHint);
+            
+            // Calculate available space for label
+            let availableForLabel = width - linePrefixLength - symbolLength - 1; // -1 for safety
+            const showSpaceHint = isFocused && mode === 'checkbox' && availableForLabel > spaceHintLength + 3; // +3 for minimum label
+            
+            if (showSpaceHint) {
+                availableForLabel -= spaceHintLength;
+            }
+            
+            // Truncate label if needed
+            let displayLabel = option.label;
+            if (getVisualWidth(option.label) > availableForLabel && availableForLabel > 0) {
+                displayLabel = option.label.substring(0, availableForLabel - 1) + '…';
+            }
             
             elements.push(
                 <Box key={`option-${actualIndex}`}>
                     <Text color={headerColor}>{linePrefix} </Text>
                     <Text color={isFocused ? theme.colors.accent : undefined}>
-                        {symbol} {option.label}
+                        {symbol} {displayLabel}
                     </Text>
                     {showSpaceHint && (
                         <Text color={theme.colors.textMuted}>{spaceHint}</Text>
@@ -123,12 +162,37 @@ export const SelectionBody = ({
         });
     } else {
         // Horizontal layout: options in a single line
-        elements.push(
-            <Text key="select-prompt-h">
-                <Text color={headerColor}>│  </Text>
-                <Text color={theme.colors.textMuted}>Select {mode === 'radio' ? 'one' : 'options'}:</Text>
-            </Text>
-        );
+        // Check if prompt fits (same as vertical)
+        const promptPrefix = '│  ';
+        const promptText = `Select ${mode === 'radio' ? 'one' : 'options'}:`;
+        const promptLength = getVisualWidth(promptPrefix) + getVisualWidth(promptText);
+        
+        if (promptLength < width) {
+            // Full prompt fits
+            elements.push(
+                <Text key="select-prompt-h">
+                    <Text color={headerColor}>{promptPrefix}</Text>
+                    <Text color={theme.colors.textMuted}>{promptText}</Text>
+                </Text>
+            );
+        } else {
+            // Truncate or simplify prompt
+            const availableForText = width - getVisualWidth(promptPrefix) - 1; // -1 for safety
+            let displayPrompt = '';
+            
+            if (availableForText >= 6) { // "Select" is 6 chars
+                displayPrompt = 'Select';
+            } else if (availableForText >= 3) {
+                displayPrompt = '...';
+            }
+            
+            elements.push(
+                <Text key="select-prompt-h">
+                    <Text color={headerColor}>{promptPrefix}</Text>
+                    <Text color={theme.colors.textMuted}>{displayPrompt}</Text>
+                </Text>
+            );
+        }
         
         // Build horizontal options line
         const optionElements: React.ReactElement[] = [];
