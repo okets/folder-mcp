@@ -116,33 +116,78 @@ export function formatCollapsedValidation(
     displayValue: string;
     validationDisplay: string;
     showValidation: boolean;
+    truncatedLabel?: string;
 } {
-    // Calculate base width without validation
-    const baseWidth = getVisualWidth(`${icon} ${label}: [`);
-    const suffixWidth = 1; // for ']'
-    
     // Account for potential focus marker "▶ " (2 chars) when active
     const focusMarkerWidth = isActive ? 2 : 0;
     
-    // Available width for value and validation
-    const availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
+    // Start with the original label and progressively truncate if needed
+    let workingLabel = label;
+    let baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
+    const suffixWidth = 1; // for ']'
+    const minBracketContent = 1; // Minimum space for "[…]"
     
-    if (!validation || availableWidth <= 0) {
-        // Even without validation, we need to truncate the value if it's too long
+    // Calculate available width for value (ensuring at least room for "[…]")
+    let availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
+    
+    // If we don't have room for even "[…]", truncate the label
+    while (availableWidth < minBracketContent && workingLabel.length > 1) {
+        // Truncate label progressively
+        workingLabel = workingLabel.length > 3 
+            ? workingLabel.substring(0, workingLabel.length - 4) + '…'
+            : workingLabel.substring(0, 1) + '…';
+        baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
+        availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
+    }
+    
+    // If still no room, ensure we show at least "[…]"
+    if (availableWidth <= 0) {
+        return {
+            displayValue: '…',
+            validationDisplay: '',
+            showValidation: false,
+            truncatedLabel: workingLabel
+        };
+    }
+    
+    if (!validation) {
+        // Handle value truncation
+        if (!value || value.length === 0) {
+            // Empty value - always show ellipsis to indicate there should be content
+            return {
+                displayValue: '…',
+                validationDisplay: '',
+                showValidation: false,
+                truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            };
+        }
+        
         if (getVisualWidth(value) > availableWidth) {
-            const truncatedValue = availableWidth > 3 
+            // If no room for any meaningful content, show ellipsis
+            if (availableWidth < 1) {
+                return {
+                    displayValue: '…',
+                    validationDisplay: '',
+                    showValidation: false,
+                    truncatedLabel: workingLabel
+                };
+            }
+            
+            const truncatedValue = availableWidth > 1 
                 ? value.substring(0, availableWidth - 1) + '…'
-                : value.substring(0, availableWidth);
+                : '…';
             return {
                 displayValue: truncatedValue,
                 validationDisplay: '',
-                showValidation: false
+                showValidation: false,
+                truncatedLabel: workingLabel !== label ? workingLabel : undefined
             };
         }
         return {
             displayValue: value,
             validationDisplay: '',
-            showValidation: false
+            showValidation: false,
+            truncatedLabel: workingLabel !== label ? workingLabel : undefined
         };
     }
     

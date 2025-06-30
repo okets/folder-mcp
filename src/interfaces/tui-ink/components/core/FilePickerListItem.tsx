@@ -822,7 +822,7 @@ export class FilePickerListItem extends ValidatedListItem {
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
-                                {' '}{this.label}: [</Text>
+                                {' '}{formatted.truncatedLabel || this.label}: [</Text>
                             <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                                 {formatted.displayValue}
                             </Text>
@@ -852,7 +852,7 @@ export class FilePickerListItem extends ValidatedListItem {
                                 {this.icon}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
-                                {' '}{this.label}: [</Text>
+                                {' '}{formatted.truncatedLabel || this.label}: [</Text>
                             <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
                                 {formatted.displayValue}
                             </Text>
