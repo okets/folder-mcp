@@ -694,8 +694,8 @@ export class FilePickerListItem extends ValidatedListItem {
             let showEscHint = false;
             let showHiddenHint = false;
             
-            // Don't show hints if there's an error/notification or validation message
-            if (!notification && !showValidation) {
+            // Don't show hints if there's an error/notification
+            if (!notification) {
                 if (availableForHints >= enterHintLength + 1) {
                     showEnterHint = true;
                     if (availableForHints >= enterHintLength + escHintLength) {
