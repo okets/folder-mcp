@@ -4,7 +4,7 @@ import { ValidatedListItem } from './ValidatedListItem.js';
 import { FilePickerBody } from './FilePickerBody.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
-import { formatCollapsedValidation, getValidationColor, formatValidationDisplay } from '../../utils/validationDisplay.js';
+import { formatCollapsedValidation, getValidationColor, formatValidationDisplay, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
@@ -830,6 +830,62 @@ export class FilePickerListItem extends ValidatedListItem {
                             <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
                             <Text color={validationColor}>
                                 {formatted.validationDisplay}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+            } else if (!formatted.showValidation && this._validationMessage) {
+                // We have validation but formatCollapsedValidation couldn't fit it
+                // Force showing at least the validation icon
+                const label = formatted.truncatedLabel || this.label;
+                const value = formatted.displayValue;
+                const validationIcon = this._validationMessage.icon || getValidationIcon(this._validationMessage.state);
+                const validationColor = getValidationColor(this._validationMessage.state);
+                
+                // Calculate the actual space needed for the complete line with validation
+                const currentText = `${this.icon} ${label}: [${value}] ${validationIcon}`;
+                
+                let finalLabel = label;
+                let finalValue = value;
+                
+                if (getVisualWidth(currentText) > maxWidth) {
+                    // We need to truncate more to fit the validation icon
+                    const iconPrefixWidth = getVisualWidth(`${this.icon} `);
+                    const validationSuffixWidth = getVisualWidth(` ${validationIcon}`);
+                    const bracketsWidth = getVisualWidth(`: []`);
+                    const availableForLabelAndValue = maxWidth - iconPrefixWidth - bracketsWidth - validationSuffixWidth;
+                    
+                    if (availableForLabelAndValue >= 4) {
+                        // Distribute space between label and value
+                        const labelSpace = Math.min(3, Math.floor(availableForLabelAndValue / 2));
+                        const valueSpace = availableForLabelAndValue - labelSpace;
+                        
+                        finalLabel = label.length > labelSpace ? label.substring(0, labelSpace - 1) + '…' : label;
+                        finalValue = value.length > valueSpace ? value.substring(0, Math.max(1, valueSpace - 1)) + '…' : value;
+                    } else {
+                        // Very tight space
+                        finalLabel = '…';
+                        finalValue = '…';
+                    }
+                }
+                
+                return (
+                    <Text>
+                        <Transform transform={output => output}>
+                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                                {this.icon}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                {' '}{finalLabel}: [
+                            </Text>
+                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                                {finalValue}
+                            </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                                ]
+                            </Text>
+                            <Text color={validationColor}>
+                                {' '}{validationIcon}
                             </Text>
                         </Transform>
                     </Text>

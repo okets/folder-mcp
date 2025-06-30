@@ -22,8 +22,8 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     
     const displayValue = Array.isArray(value) ? value.join(', ') : value;
     
-    // Calculate available space - use conservative width to prevent wrapping
-    const conservativeWidth = maxWidth - 2; // Reserve extra space to prevent text wrapping
+    // Calculate available space - use conservative width to prevent wrapping but preserve validation
+    const conservativeWidth = maxWidth - 1; // Reserve space to prevent text wrapping while preserving validation
     const prefixWidth = 2; // "· " or "▶ "
     const suffixWidth = 1; // "→"
     const bracketsWidth = 2; // "[]"

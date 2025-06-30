@@ -337,8 +337,8 @@ export class ConfigurationListItem extends ValidatedListItem {
             const displayValue = this.isPassword ? '•'.repeat(this.value.length) : this.value;
             
             // Use the utility to format with validation
-            // Use conservative width to prevent wrapping like FilePickerListItem  
-            const conservativeWidth = maxWidth - 2;
+            // Use conservative width to prevent wrapping but preserve validation icons
+            const conservativeWidth = maxWidth - 1; // Reduce by 1 to prevent wrapping but keep validation icons
             
             
             const formatted = formatCollapsedValidation(
@@ -352,8 +352,72 @@ export class ConfigurationListItem extends ValidatedListItem {
             
             
             // If validation doesn't fit or doesn't exist, use the truncated values from formatCollapsedValidation
+            if (!formatted.showValidation && this._validationMessage) {
+                // We have validation but formatCollapsedValidation couldn't fit it
+                // Force showing at least the validation icon
+                const label = formatted.truncatedLabel || this.label;
+                const value = formatted.displayValue;
+                const validationIcon = this._validationMessage.icon || getValidationIcon(this._validationMessage.state);
+                const validationColor = getValidationColor(this._validationMessage.state);
+                
+                // Reserve space for validation icon
+                const iconSpace = 2; // " ✗"
+                const availableForContent = maxWidth - iconSpace;
+                
+                // Re-truncate if needed to ensure validation icon fits
+                let finalLabel = label;
+                let finalValue = value;
+                
+                // Calculate the actual space needed for the complete line with validation
+                const currentText = `${this.icon} ${label}: [${value}] ${validationIcon}`;
+                
+                if (getVisualWidth(currentText) > maxWidth) {
+                    // We need to truncate to fit the validation icon
+                    // Priority: Keep icon prefix, truncate label and value as needed
+                    const iconPrefixWidth = getVisualWidth(`${this.icon} `);
+                    const validationSuffixWidth = getVisualWidth(` ${validationIcon}`);
+                    const bracketsWidth = getVisualWidth(`: []`);
+                    const availableForLabelAndValue = maxWidth - iconPrefixWidth - bracketsWidth - validationSuffixWidth;
+                    
+                    if (availableForLabelAndValue >= 4) {
+                        // We have some space, distribute between label and value
+                        // Give label at least 3 chars, rest to value
+                        const labelSpace = Math.min(3, Math.floor(availableForLabelAndValue / 2));
+                        const valueSpace = availableForLabelAndValue - labelSpace;
+                        
+                        finalLabel = label.length > labelSpace ? label.substring(0, labelSpace - 1) + '…' : label;
+                        finalValue = value.length > valueSpace ? value.substring(0, Math.max(1, valueSpace - 1)) + '…' : value;
+                    } else {
+                        // Very tight space, show minimal content
+                        finalLabel = '…';
+                        finalValue = '…';
+                    }
+                }
+                
+                return (
+                    <Text>
+                        <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                            {this.icon}
+                        </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            {' '}{finalLabel}: [
+                        </Text>
+                        <Text color={theme.colors.configValuesColor}>
+                            {finalValue}
+                        </Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            ]
+                        </Text>
+                        <Text color={validationColor}>
+                            {' '}{validationIcon}
+                        </Text>
+                    </Text>
+                );
+            }
+            
+            // If validation doesn't fit or doesn't exist, use the truncated values from formatCollapsedValidation
             if (!formatted.showValidation) {
-                // Use the truncated values from formatCollapsedValidation instead of formatHeaderParts
+                // No validation message at all
                 const label = formatted.truncatedLabel || this.label;
                 const value = formatted.displayValue;
                 const truncated = formatted.displayValue !== displayValue;

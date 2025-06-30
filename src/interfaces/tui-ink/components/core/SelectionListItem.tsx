@@ -387,8 +387,8 @@ export class SelectionListItem implements IListItem {
                 : `${this.icon} ${label}: [${value}]`;
             
             // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
-            // Use conservative width calculation to prevent wrapping
-            const conservativeWidth = maxWidth - 2;
+            // Use conservative width calculation to prevent wrapping but preserve space for UI elements
+            const conservativeWidth = maxWidth - 1;
             if (fullText.length >= conservativeWidth) {
                 // Force truncation to prevent wrapping
                 const safeLength = maxWidth - 4; // Leave room for "…]"
