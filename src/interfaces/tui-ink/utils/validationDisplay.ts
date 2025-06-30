@@ -118,8 +118,9 @@ export function formatCollapsedValidation(
     showValidation: boolean;
     truncatedLabel?: string;
 } {
-    // Account for potential focus marker "▶ " (2 chars) when active
-    const focusMarkerWidth = isActive ? 2 : 0;
+    
+    // Note: isActive parameter kept for API compatibility but focus marker
+    // is handled separately as icon, not prepended to text
     
     // Start with the original label and progressively truncate if needed
     let workingLabel = label;
@@ -128,7 +129,7 @@ export function formatCollapsedValidation(
     const minBracketContent = 1; // Minimum space for "[…]"
     
     // Calculate available width for value (ensuring at least room for "[…]")
-    let availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
+    let availableWidth = maxWidth - baseWidth - suffixWidth;
     
     // If we don't have room for even "[…]", truncate the label
     while (availableWidth < minBracketContent && workingLabel.length > 1) {
@@ -137,7 +138,7 @@ export function formatCollapsedValidation(
             ? workingLabel.substring(0, workingLabel.length - 4) + '…'
             : workingLabel.substring(0, 1) + '…';
         baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
-        availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
+        availableWidth = maxWidth - baseWidth - suffixWidth;
     }
     
     // If still no room, ensure we show at least "[…]"

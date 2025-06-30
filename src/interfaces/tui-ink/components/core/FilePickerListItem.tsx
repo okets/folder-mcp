@@ -801,12 +801,13 @@ export class FilePickerListItem extends ValidatedListItem {
             // Ensure validation is up to date
             this.validateValue();
             
-            // Use the utility to format with validation
+            // Use the utility to format with validation - be more conservative with width
+            const conservativeWidth = maxWidth - 2; // Reduce by 2 to prevent wrapping
             const formatted = formatCollapsedValidation(
                 this.label,
                 this._selectedPath,
                 this._validationMessage,
-                maxWidth,
+                conservativeWidth,
                 this.icon,
                 this.isActive
             );
@@ -840,7 +841,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     this.label,
                     this._selectedPath,
                     null, // No validation message
-                    maxWidth,
+                    conservativeWidth,
                     this.icon,
                     this.isActive
                 );

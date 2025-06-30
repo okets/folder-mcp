@@ -29,9 +29,6 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
         if (React.isValidElement(node)) {
             // Check if this is a SelfConstrainedWrapper
             if (node.type === SelfConstrainedWrapper) {
-                if (process.env.DEBUG_TRUNCATE) {
-                    console.error('[ConstrainedContent] Skipping self-constrained wrapper');
-                }
                 // Return the wrapper with its children untouched
                 // This prevents any truncation of self-constrained content
                 return node;
@@ -40,9 +37,6 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
             // Skip processing if component handles its own layout
             // Check if it's a Box with flexDirection="row" - likely a layout component
             if (node.type === Box && node.props.flexDirection === 'row') {
-                if (process.env.DEBUG_TRUNCATE) {
-                    console.error('[ConstrainedContent] Skipping Box with row layout');
-                }
                 return node; // Don't process, it handles its own layout
             }
             
@@ -53,10 +47,6 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
                     .join('');
                 
                 const truncatedText = contentService.truncateText(textContent, maxWidth);
-                
-                if (process.env.DEBUG_TRUNCATE) {
-                    console.error(`[ConstrainedContent] Processing Text: "${textContent}" -> "${truncatedText}"`);
-                }
                 
                 return React.cloneElement(node, {
                     ...node.props,

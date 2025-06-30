@@ -342,7 +342,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                 displayValue,
                 this._validationMessage,
                 maxWidth,
-                this.icon
+                this.icon,
+                this.isActive
             );
             
             // If validation doesn't fit or doesn't exist, fall back to original logic
@@ -354,11 +355,17 @@ export class ConfigurationListItem extends ValidatedListItem {
                     ? `${this.icon} ${label}: [${value}…]`
                     : `${this.icon} ${label}: [${value}]`;
                 
+                // Debug logging for text length analysis
+                if (process.env.TUI_DEBUG === 'true') {
+                    console.error(`[ConfigurationListItem] fullText: "${fullText}"`);
+                    console.error(`[ConfigurationListItem] fullText length: ${getVisualWidth(fullText)}, maxWidth: ${maxWidth}, truncated: ${truncated}`);
+                }
+                
                 // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
-                if (fullText.length >= maxWidth) {
+                if (getVisualWidth(fullText) >= maxWidth) {
                     // Force truncation to prevent wrapping
                     const safeLength = maxWidth - 4; // Leave room for "…]"
-                    const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
+                    const labelAndIconLength = getVisualWidth(this.icon) + 1 + getVisualWidth(label) + 2; // "icon label: "
                     const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
                     const truncatedValue = displayValue.slice(0, Math.max(0, remainingSpace));
                     
@@ -403,13 +410,15 @@ export class ConfigurationListItem extends ValidatedListItem {
             const validationColor = this._validationMessage ? getValidationColor(this._validationMessage.state) : undefined;
             
             // Safety check: ensure total line doesn't exceed maxWidth
+            const actualLabel = formatted.truncatedLabel || this.label;
             const totalLength = getVisualWidth(
-                `${this.icon} ${this.label}: [${formatted.displayValue}]${formatted.validationDisplay}`
+                `${this.icon} ${actualLabel}: [${formatted.displayValue}]${formatted.validationDisplay}`
             );
+            
             
             if (totalLength > maxWidth) {
                 // If still too long, truncate validation display further
-                const baseLength = getVisualWidth(`${this.icon} ${this.label}: [${formatted.displayValue}]`);
+                const baseLength = getVisualWidth(`${this.icon} ${actualLabel}: [${formatted.displayValue}]`);
                 const availableForValidation = maxWidth - baseLength;
                 
                 if (availableForValidation >= 2) {
@@ -427,7 +436,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                         {this.icon}
                     </Text>
                     <Text color={this.isActive ? theme.colors.accent : undefined}>
-                        {' '}{this.label}: [
+                        {' '}{formatted.truncatedLabel || this.label}: [
                     </Text>
                     <Text color={theme.colors.configValuesColor}>
                         {formatted.displayValue}
@@ -457,7 +466,7 @@ export class ConfigurationListItem extends ValidatedListItem {
         
         // Check if everything fits without truncation
         // Need to leave 1 char buffer to prevent wrapping when text exactly matches width
-        const fullTextLength = this.label.length + 2 + valueToDisplay.length + 2; // "Label: [value]"
+        const fullTextLength = getVisualWidth(this.label) + 2 + getVisualWidth(valueToDisplay) + 2; // "Label: [value]"
         if (fullTextLength < availableWidth) {
             return { label: this.label, value: valueToDisplay, truncated: false };
         }
@@ -469,7 +478,7 @@ export class ConfigurationListItem extends ValidatedListItem {
         
         // Calculate components
         const separatorAndBrackets = ": []"; // 4 chars
-        const labelAndSeparatorLength = this.label.length + 2; // "Label: "
+        const labelAndSeparatorLength = getVisualWidth(this.label) + 2; // "Label: "
         const bracketsLength = 2; // "[]"
         const ellipsisLength = 1; // "…"
         
@@ -480,7 +489,7 @@ export class ConfigurationListItem extends ValidatedListItem {
         
         if (spaceForValue > 0) {
             // We can fit the label and brackets with some value
-            if (valueToDisplay.length > spaceForValue) {
+            if (getVisualWidth(valueToDisplay) > spaceForValue) {
                 // Truncate the value to fit
                 return { 
                     label: this.label, 
@@ -497,7 +506,7 @@ export class ConfigurationListItem extends ValidatedListItem {
         const minBracketContent = 3; // "[…]"
         const minLabelSpace = availableWidth - minBracketContent - 2; // -2 for ": "
         if (minLabelSpace > 0) {
-            const truncatedLabel = this.label.length > minLabelSpace 
+            const truncatedLabel = getVisualWidth(this.label) > minLabelSpace 
                 ? this.label.slice(0, minLabelSpace - ellipsisLength) + '…'
                 : this.label;
             return { label: truncatedLabel, value: '…', truncated: false };
