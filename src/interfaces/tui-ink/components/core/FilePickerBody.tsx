@@ -357,8 +357,8 @@ export const FilePickerBody = ({
                     
                     if (col === 0) {
                         // First column: needs consistent spacing
-                        const truncName = itemName.length > cellWidth
-                            ? itemName.slice(0, cellWidth - 1) + '…'
+                        const truncName = itemName.length > cellWidth - 1 // -1 for safety buffer
+                            ? itemName.slice(0, cellWidth - 2) + '…' // -2 for ellipsis and safety
                             : itemName.padEnd(cellWidth);
                         
                         if (isFocused) {
@@ -368,7 +368,7 @@ export const FilePickerBody = ({
                         }
                     } else {
                         // Other columns: always have indicator space
-                        const maxName = cellWidth - 2; // -2 for indicator
+                        const maxName = cellWidth - 2 - 1; // -2 for indicator, -1 for safety buffer
                         const truncName = itemName.length > maxName
                             ? itemName.slice(0, maxName - 1) + '…'
                             : itemName.padEnd(maxName);
@@ -477,7 +477,7 @@ export const FilePickerBody = ({
             // Calculate available width for item name
             // Reserve space for: linePrefix + indicator + space + conservative margin
             const prefixWidth = linePrefix.length + 2 + 1; // linePrefix + "▶ " or "  " + margin
-            const availableWidth = width - prefixWidth;
+            const availableWidth = width - prefixWidth - 1; // -1 for safety buffer
             
             // Truncate item name if needed
             const displayName = itemName.length > availableWidth 
