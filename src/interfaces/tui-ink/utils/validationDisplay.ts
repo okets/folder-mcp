@@ -110,7 +110,8 @@ export function formatCollapsedValidation(
     value: string,
     validation: ValidationMessage | null,
     maxWidth: number,
-    icon: string
+    icon: string,
+    isActive: boolean = false
 ): {
     displayValue: string;
     validationDisplay: string;
@@ -120,10 +121,24 @@ export function formatCollapsedValidation(
     const baseWidth = getVisualWidth(`${icon} ${label}: [`);
     const suffixWidth = 1; // for ']'
     
+    // Account for potential focus marker "▶ " (2 chars) when active
+    const focusMarkerWidth = isActive ? 2 : 0;
+    
     // Available width for value and validation
-    const availableWidth = maxWidth - baseWidth - suffixWidth;
+    const availableWidth = maxWidth - baseWidth - suffixWidth - focusMarkerWidth;
     
     if (!validation || availableWidth <= 0) {
+        // Even without validation, we need to truncate the value if it's too long
+        if (getVisualWidth(value) > availableWidth) {
+            const truncatedValue = availableWidth > 3 
+                ? value.substring(0, availableWidth - 1) + '…'
+                : value.substring(0, availableWidth);
+            return {
+                displayValue: truncatedValue,
+                validationDisplay: '',
+                showValidation: false
+            };
+        }
         return {
             displayValue: value,
             validationDisplay: '',

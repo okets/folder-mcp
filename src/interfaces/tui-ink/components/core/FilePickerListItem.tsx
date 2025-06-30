@@ -807,7 +807,8 @@ export class FilePickerListItem extends ValidatedListItem {
                 this._selectedPath,
                 this._validationMessage,
                 maxWidth,
-                this.icon
+                this.icon,
+                this.isActive
             );
             
             if (formatted.showValidation && this._validationMessage) {
@@ -833,8 +834,16 @@ export class FilePickerListItem extends ValidatedListItem {
                     </Text>
                 );
             } else {
-                // Render without validation (original logic)
-                const displayPath = this.formatPathForDisplay(this._selectedPath, maxWidth);
+                // Render without validation - use the same logic as formatCollapsedValidation
+                // to ensure consistent inline truncation
+                const formatted = formatCollapsedValidation(
+                    this.label,
+                    this._selectedPath,
+                    null, // No validation message
+                    maxWidth,
+                    this.icon,
+                    this.isActive
+                );
                 
                 return (
                     <Text>
@@ -845,7 +854,7 @@ export class FilePickerListItem extends ValidatedListItem {
                             <Text color={this.isActive ? theme.colors.accent : undefined}>
                                 {' '}{this.label}: [</Text>
                             <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
-                                {displayPath}
+                                {formatted.displayValue}
                             </Text>
                             <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
                         </Transform>
@@ -886,33 +895,6 @@ export class FilePickerListItem extends ValidatedListItem {
         return 2 + bodyLines + (needsClosingLine ? 1 : 0);
     }
     
-    private formatPathForDisplay(fullPath: string, maxWidth: number): string {
-        const prefix = `${this.icon} ${this.label}: [`;
-        const suffix = ']';
-        
-        // Calculate visual width accounting for emojis
-        let prefixVisualWidth = 0;
-        for (const char of prefix) {
-            const codePoint = char.codePointAt(0);
-            prefixVisualWidth += (codePoint && codePoint >= 0x1F000) ? 2 : 1;
-        }
-        
-        // Account for potential focus marker "▶ " (2 chars)
-        // We need to be conservative to prevent line wrapping when selected
-        const focusMarkerWidth = 2;
-        const safeMaxWidth = maxWidth - focusMarkerWidth;
-        
-        const availableWidth = safeMaxWidth - prefixVisualWidth - suffix.length;
-        
-        if (fullPath.length <= availableWidth) {
-            return fullPath;
-        }
-        
-        // Truncate from the left with ellipsis
-        const ellipsis = '…';
-        const keepLength = availableWidth - ellipsis.length;
-        return ellipsis + fullPath.slice(-keepLength);
-    }
     
     onSelect(): void {
         // Visual feedback when selected
