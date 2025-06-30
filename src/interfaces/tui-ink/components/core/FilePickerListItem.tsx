@@ -651,25 +651,37 @@ export class FilePickerListItem extends ValidatedListItem {
             
             // Build header with dynamic keyboard hints
             const hiddenFilesHint = this._showHiddenFiles ? '[h] Hide Hidden' : '[h] Show Hidden';
-            const keyboardHints = `[enter] ${enterAction} [esc] ✗ ${hiddenFilesHint}`;
+            const keyboardHints = `[enter] ${enterAction} · [esc] ✗ · ${hiddenFilesHint}`;
             const fullKeyboardHints = keyboardHints.length; // Visual length
             const availableForHints = maxWidth - baseText.length - 1;
             
             // Check if we should show validation message instead of hints
             const showValidation = !this._hasNavigated && this._validationMessage;
             
+            // Calculate sizes for progressive hint display
+            const enterHint = `[enter] ${enterAction}`;
+            const escHint = ` · [esc] ✗`;
+            const hiddenHint = ` · ${hiddenFilesHint}`;
+            
+            const enterHintLength = enterHint.length;
+            const escHintLength = escHint.length;
+            const hiddenHintLength = hiddenHint.length;
+            
             // Determine what to show based on available space
-            let showHints = false;
-            let showPartialHints = false;
+            let showEnterHint = false;
+            let showEscHint = false;
+            let showHiddenHint = false;
             
             // Don't show hints if there's an error/notification or validation message
             if (!notification && !showValidation) {
-                if (availableForHints >= fullKeyboardHints + 1) {
-                    // Full hints fit with space
-                    showHints = true;
-                } else if (availableForHints >= 10) {
-                    // Show partial hints (at least "[enter] X")
-                    showPartialHints = true;
+                if (availableForHints >= enterHintLength + 1) {
+                    showEnterHint = true;
+                    if (availableForHints >= enterHintLength + escHintLength) {
+                        showEscHint = true;
+                        if (availableForHints >= fullKeyboardHints) {
+                            showHiddenHint = true;
+                        }
+                    }
                 }
             }
             
@@ -680,22 +692,21 @@ export class FilePickerListItem extends ValidatedListItem {
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
                             {this.label} ({modeText}):
                         </Text>
-                        {showHints && (
+                        {showEnterHint && (
                             <>
                                 <Text> </Text>
                                 <Text color={theme.colors.textMuted}>[enter] </Text>
                                 <Text color={theme.colors.successGreen}>{enterAction}</Text>
-                                <Text color={theme.colors.textMuted}> [esc] </Text>
-                                <Text color={theme.colors.warningOrange}>✗</Text>
-                                <Text color={theme.colors.textMuted}> {hiddenFilesHint}</Text>
                             </>
                         )}
-                        {showPartialHints && !showHints && (
+                        {showEscHint && (
                             <>
-                                <Text> </Text>
-                                <Text color={theme.colors.textMuted}>[enter] </Text>
-                                <Text color={theme.colors.successGreen}>{enterAction}</Text>
+                                <Text color={theme.colors.textMuted}> · [esc] </Text>
+                                <Text color={theme.colors.warningOrange}>✗</Text>
                             </>
+                        )}
+                        {showHiddenHint && (
+                            <Text color={theme.colors.textMuted}> · {hiddenFilesHint}</Text>
                         )}
                         {notification && availableForHints > 10 && (
                             <>

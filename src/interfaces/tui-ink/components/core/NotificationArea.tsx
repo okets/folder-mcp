@@ -43,7 +43,7 @@ export const NotificationArea: React.FC<NotificationAreaProps> = ({
     // Show keyboard hints if enabled and no error
     if (showKeyboardHints) {
         // Progressive truncation for keyboard hints
-        const fullHintsLength = 19; // " [enter] ✓ [esc] ✗"
+        const fullHintsLength = 21; // " [enter] ✓ • [esc] ✗"
         const partialHintsLength = 11; // " [enter] ✓"
         
         let showFullHints = false;
@@ -65,7 +65,7 @@ export const NotificationArea: React.FC<NotificationAreaProps> = ({
                     <>
                         <Text color={theme.colors.textMuted}> [enter] </Text>
                         <Text color={theme.colors.successGreen}>✓</Text>
-                        <Text color={theme.colors.textMuted}> [esc] </Text>
+                        <Text color={theme.colors.textMuted}> · [esc] </Text>
                         <Text color={theme.colors.warningOrange}>✗</Text>
                     </>
                 )}

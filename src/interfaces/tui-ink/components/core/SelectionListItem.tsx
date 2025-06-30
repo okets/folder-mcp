@@ -324,7 +324,7 @@ export class SelectionListItem implements IListItem {
                 // Show keyboard hints with progressive truncation
                 const baseLength = 2 + labelPart.length; // "■ " + label
                 const availableForHints = maxWidth - baseLength;
-                const fullHintsLength = 17; // "[enter] ✓ [esc] ✗"
+                const fullHintsLength = 19; // "[enter] ✓ • [esc] ✗"
                 const partialHintsLength = 10; // "[enter] ✓"
                 
                 let showFullHints = false;
@@ -344,7 +344,7 @@ export class SelectionListItem implements IListItem {
                             <>
                                 <Text color={theme.colors.textMuted}>[enter] </Text>
                                 <Text color={theme.colors.successGreen}>✓</Text>
-                                <Text color={theme.colors.textMuted}> [esc] </Text>
+                                <Text color={theme.colors.textMuted}> · [esc] </Text>
                                 <Text color={theme.colors.warningOrange}>✗</Text>
                             </>
                         )}

@@ -270,7 +270,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 {
                     const baseLength = 2 + labelPart.length; // "■ " + label
                     const availableForHints = maxWidth - baseLength;
-                    const fullHintsLength = 18; // " [enter] ✓ [esc] ✗"
+                    const fullHintsLength = 20; // " [enter] ✓ • [esc] ✗"
                     const partialHintsLength = 11; // " [enter] ✓"
                     
                     let showFullHints = false;
@@ -290,7 +290,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                                 <>
                                     <Text color={theme.colors.textMuted}> [enter] </Text>
                                     <Text color={theme.colors.successGreen}>✓</Text>
-                                    <Text color={theme.colors.textMuted}> [esc] </Text>
+                                    <Text color={theme.colors.textMuted}> · [esc] </Text>
                                     <Text color={theme.colors.warningOrange}>✗</Text>
                                 </>
                             )}
