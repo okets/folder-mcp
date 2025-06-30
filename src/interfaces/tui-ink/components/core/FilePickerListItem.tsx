@@ -612,7 +612,7 @@ export class FilePickerListItem extends ValidatedListItem {
             const elements: ReactElement[] = [];
             
             // Header with mode and error notification
-            const modeText = this.mode === 'folder' ? 'folder mode' : 
+            const fullModeText = this.mode === 'folder' ? 'folder mode' : 
                             this.mode === 'file' ? 'file mode' : 
                             'file/folder mode';
             
@@ -632,9 +632,31 @@ export class FilePickerListItem extends ValidatedListItem {
                 }
             }
             
+            // Truncate the entire header line as one unit
+            const prefix = '■ ';
+            const suffix = ': ';
+            const fullContent = `${this.label} (${fullModeText})`;
+            let displayContent = fullContent;
+            
+            // Check if we need to truncate
+            const fullLine = `${prefix}${fullContent}${suffix}`;
+            
+            if (getVisualWidth(fullLine) > maxWidth) {
+                // Calculate available space for content
+                const fixedPartsLength = getVisualWidth(prefix) + getVisualWidth(suffix);
+                const availableForContent = maxWidth - fixedPartsLength - 1; // -1 for ellipsis
+                
+                if (availableForContent > 0) {
+                    // Truncate the entire content string
+                    displayContent = fullContent.substring(0, availableForContent) + '…';
+                } else {
+                    displayContent = '…';
+                }
+            }
+            
             // Calculate available space for notification
-            const baseText = `■ ${this.label} (${modeText}): `;
-            const availableForNotification = maxWidth - baseText.length - 1;
+            const baseText = `${prefix}${displayContent}${suffix}`;
+            const availableForNotification = maxWidth - getVisualWidth(baseText) - 1;
             
             // Determine what enter key will do based on focused item
             const focusedItem = this._items[this._focusedIndex];
@@ -690,7 +712,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     <Transform transform={output => output}>
                         <Text color={notification ? 'red' : (this.isActive ? theme.colors.accent : undefined)}>■ </Text>
                         <Text color={this.isActive ? theme.colors.accent : undefined}>
-                            {this.label} ({modeText}):
+                            {displayContent}: 
                         </Text>
                         {showEnterHint && (
                             <>

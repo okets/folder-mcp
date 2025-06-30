@@ -442,19 +442,17 @@ export const FilePickerBody = ({
         if (isShowingBottom || isConfirmFocused) {
             elements.push(
             <Text key="confirm-action">
+                <Text color={headerColor || theme.colors.textMuted}>└─</Text>
                 {isConfirmFocused ? (
-                    <>
-                        <Text color={headerColor || theme.colors.textMuted}>└─</Text>
-                        <Text color={theme.colors.accent}>▶ </Text>
-                        <Text color={theme.colors.successGreen}>✓ </Text>
-                        <Text color={theme.colors.accent}>Confirm Selection</Text>
-                    </>
+                    <Text color={theme.colors.accent}>▶ </Text>
                 ) : (
-                    <>
-                        <Text color={headerColor}>└─ </Text>
-                        <Text color={theme.colors.successGreen}>✓ </Text>
-                        <Text>Confirm Selection</Text>
-                    </>
+                    <Text>  </Text>
+                )}
+                <Text color={theme.colors.successGreen}>✓ </Text>
+                {isConfirmFocused ? (
+                    <Text color={theme.colors.accent}>Confirm Selection</Text>
+                ) : (
+                    <Text>Confirm Selection</Text>
                 )}
             </Text>
             );
