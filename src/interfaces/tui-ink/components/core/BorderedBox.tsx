@@ -65,10 +65,18 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
             return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
-            // Total content: title + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
+            // Check if we have enough space for title + tab indicator
             const totalContentLength = title.length + tabText.length + 6;
-            const padding = Math.max(0, width - totalContentLength - 1);
-            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+            
+            if (width >= totalContentLength + 1) {
+                // Enough space for both title and tab indicator
+                const padding = Math.max(0, width - totalContentLength - 1);
+                return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+            } else {
+                // Not enough space for tab indicator, just show title
+                const padding = Math.max(0, width - title.length - 5);
+                return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
+            }
         }
     };
     
