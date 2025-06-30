@@ -4,6 +4,7 @@ import { IListItem } from './IListItem.js';
 import { theme } from '../../utils/theme.js';
 import { SelectionBody } from './SelectionBody.js';
 import { NotificationArea } from './NotificationArea.js';
+import { getVisualWidth } from '../../utils/validationDisplay.js';
 
 export interface SelectionOption {
     value: string;
@@ -281,9 +282,26 @@ export class SelectionListItem implements IListItem {
             // Header with inline notification area
             const bulletColor = this.isActive ? theme.colors.accent : (this._validationError ? 'red' : undefined);
             
-            // Build header text
-            let headerText = '';
-            const labelPart = `${this.label}: `;
+            // Build header text with truncation support
+            const prefix = '■ ';
+            const suffix = ': ';
+            const baseLength = prefix.length + suffix.length;
+            
+            // Calculate available space for label
+            let labelToUse = this.label;
+            const fullHeaderLength = baseLength + this.label.length;
+            
+            if (fullHeaderLength > maxWidth - 1) { // -1 for safety buffer
+                // Need to truncate label
+                const availableForLabel = maxWidth - baseLength - 1 - 1; // -1 for ellipsis, -1 for safety
+                if (availableForLabel > 0) {
+                    labelToUse = this.label.substring(0, availableForLabel) + '…';
+                } else {
+                    labelToUse = '…'; // Extreme case
+                }
+            }
+            
+            const labelPart = `${labelToUse}:`;
             
             if (this._validationError) {
                 const errorText = ` ✗ ${this._validationError}`;
@@ -315,7 +333,7 @@ export class SelectionListItem implements IListItem {
                         elements.push(
                             <Text key="header">
                                 <Text color={bulletColor}>■ </Text>
-                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
                             </Text>
                         );
                     }
@@ -339,7 +357,7 @@ export class SelectionListItem implements IListItem {
                 elements.push(
                     <Text key="header">
                         <Text color={this.isActive ? theme.colors.accent : undefined}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
                         {showFullHints && (
                             <>
                                 <Text color={theme.colors.textMuted}>[enter] </Text>
@@ -389,10 +407,10 @@ export class SelectionListItem implements IListItem {
             // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
             // Use conservative width calculation to prevent wrapping but preserve space for UI elements
             const conservativeWidth = maxWidth - 1;
-            if (fullText.length >= conservativeWidth) {
+            if (getVisualWidth(fullText) >= conservativeWidth) {
                 // Force truncation to prevent wrapping
-                const safeLength = maxWidth - 4; // Leave room for "…]"
-                const labelAndIconLength = this.icon.length + 1 + label.length + 2; // "icon label: "
+                const safeLength = maxWidth - 5; // Leave room for "…]" and safety buffer
+                const labelAndIconLength = getVisualWidth(this.icon) + 1 + getVisualWidth(label) + 2; // "icon label: "
                 const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
                 const truncatedValue = displayValues.slice(0, Math.max(0, remainingSpace));
                 
@@ -447,8 +465,8 @@ export class SelectionListItem implements IListItem {
         
         // Check if everything fits without truncation
         // Need to leave 1 char buffer to prevent wrapping when text exactly matches width
-        const fullTextLength = this.label.length + 2 + displayValues.length + 2; // "Label: [value]"
-        if (fullTextLength < availableWidth) {
+        const fullTextLength = getVisualWidth(this.label) + 2 + getVisualWidth(displayValues) + 2; // "Label: [value]"
+        if (fullTextLength < availableWidth - 1) { // -1 for safety buffer
             return { label: this.label, value: displayValues, truncated: false };
         }
         
@@ -458,21 +476,21 @@ export class SelectionListItem implements IListItem {
         }
         
         // Calculate components
-        const labelAndSeparatorLength = this.label.length + 2; // "Label: "
+        const labelAndSeparatorLength = getVisualWidth(this.label) + 2; // "Label: "
         const bracketsLength = 2; // "[]"
         const ellipsisLength = 1; // "…"
         
         // First priority: try to fit label + brackets with truncated value
         const spaceNeededForStructure = labelAndSeparatorLength + bracketsLength + ellipsisLength;
-        const spaceForValue = availableWidth - spaceNeededForStructure;
+        const spaceForValue = availableWidth - spaceNeededForStructure - 1; // -1 for safety
         
         if (spaceForValue > 0) {
             // We can fit the label and brackets with some value
-            if (displayValues.length > spaceForValue) {
+            if (getVisualWidth(displayValues) > spaceForValue) {
                 // Truncate the value to fit
                 return { 
                     label: this.label, 
-                    value: displayValues.slice(0, spaceForValue),
+                    value: displayValues.slice(0, spaceForValue - 1), // -1 for safety
                     truncated: true 
                 };
             } else {
@@ -483,9 +501,9 @@ export class SelectionListItem implements IListItem {
         
         // Second priority: truncate label to make room for "[…]"
         const minBracketContent = 3; // "[…]"
-        const minLabelSpace = availableWidth - minBracketContent - 2; // -2 for ": "
+        const minLabelSpace = availableWidth - minBracketContent - 2 - 1; // -2 for ": ", -1 for safety
         if (minLabelSpace > 0) {
-            const truncatedLabel = this.label.length > minLabelSpace 
+            const truncatedLabel = getVisualWidth(this.label) > minLabelSpace 
                 ? this.label.slice(0, minLabelSpace - ellipsisLength) + '…'
                 : this.label;
             return { label: truncatedLabel, value: '…', truncated: false };
