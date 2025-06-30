@@ -258,7 +258,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 }
             }
             
-            const labelPart = `${labelToUse}: `;
+            const labelPart = `${labelToUse}:`;
             
             // Header with validation after the colon
             if (this._validationMessage) {
@@ -296,11 +296,11 @@ export class ConfigurationListItem extends ValidatedListItem {
                     </Text>
                 );
             } else {
-                // No validation, simple header
+                // No validation, simple header - add space after colon
                 elements.push(
                     <Text key="header">
                         <Text color={bulletColor}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
                     </Text>
                 );
             }
