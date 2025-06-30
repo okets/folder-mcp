@@ -11,6 +11,7 @@ export interface TextInputBodyProps {
     headerColor?: string; // Color for the vertical line (matches header)
     isPassword?: boolean; // Whether to mask the input as a password
     showPassword?: boolean; // Whether to temporarily show the password
+    placeholder?: string; // Placeholder text to show when value is empty
 }
 
 /**
@@ -25,7 +26,8 @@ export const TextInputBody = ({
     maxInputWidth = 40,
     headerColor,
     isPassword = false,
-    showPassword = false
+    showPassword = false,
+    placeholder
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
@@ -67,14 +69,33 @@ export const TextInputBody = ({
         visibleCursorPos = cursorPosition - windowStart;
     }
     
+    // Check if we should show placeholder
+    const showPlaceholder = value.length === 0 && placeholder;
+    const placeholderText = isPassword ? '••••' : (placeholder || '');
+    
     // Mask the value if it's a password (unless showPassword is true)
-    const displayValue = (isPassword && !showPassword) ? '•'.repeat(visibleValue.length) : visibleValue;
+    const displayValue = showPlaceholder 
+        ? placeholderText 
+        : (isPassword && !showPassword) ? '•'.repeat(visibleValue.length) : visibleValue;
     
     // Build content with proper cursor handling
     let content;
     let displayLength;
     
-    if (cursorVisible && visibleCursorPos >= 0 && visibleCursorPos < visibleValue.length) {
+    if (showPlaceholder) {
+        // Show placeholder with cursor on first character
+        if (cursorVisible && cursorPosition === 0 && displayValue.length > 0) {
+            const firstChar = displayValue[0];
+            const rest = displayValue.slice(1);
+            // Apply light gray color to placeholder text after cursor
+            content = '\x1b[47m\x1b[30m' + firstChar + '\x1b[0m\x1b[38;5;245m' + rest + '\x1b[0m';
+            displayLength = displayValue.length;
+        } else {
+            // Apply light gray color to entire placeholder when no cursor
+            content = '\x1b[38;5;245m' + displayValue + '\x1b[0m';
+            displayLength = displayValue.length;
+        }
+    } else if (cursorVisible && visibleCursorPos >= 0 && visibleCursorPos < visibleValue.length) {
         // Cursor on existing character
         const before = displayValue.slice(0, visibleCursorPos);
         const cursorChar = displayValue[visibleCursorPos];

@@ -29,7 +29,8 @@ export class ConfigurationListItem extends ValidatedListItem {
         cursorVisible?: boolean,
         onValueChange?: (newValue: string) => void,
         validators?: Array<(value: string) => { isValid: boolean; error?: string }>,
-        private isPassword: boolean = false
+        private isPassword: boolean = false,
+        private placeholder?: string
     ) {
         super(); // Call parent constructor
         this._editValue = editValue ?? this.value;
@@ -314,7 +315,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                 maxInputWidth: 40, // Reasonable max width for input fields
                 headerColor: this.isActive ? theme.colors.accent : undefined,
                 isPassword: this.isPassword,
-                showPassword: this._showPassword
+                showPassword: this._showPassword,
+                placeholder: this.placeholder
             });
             
             return [...elements, ...bodyElements];

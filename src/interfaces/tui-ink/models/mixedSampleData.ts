@@ -198,7 +198,10 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             undefined,
             undefined,
-            (newValue) => console.log('Text changed to:', newValue)
+            (newValue) => console.log('Text changed to:', newValue),
+            [],
+            false,
+            'Enter some text...'
         ),
         new ConfigurationListItem(
             '·',
@@ -215,14 +218,16 @@ export function createConfigurationPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'TextInput (email)',
-            'admin@example.com',
+            '',
             false,
             false,
             'Email validation',
             undefined,
             undefined,
             (newValue) => console.log('Email changed to:', newValue),
-            [validators.email]
+            [validators.email],
+            false,
+            'user@example.com'
         ),
         new ConfigurationListItem(
             '·',
@@ -251,7 +256,7 @@ export function createConfigurationPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'Password',
-            'MyPass123!',
+            '',
             false,
             false,
             'Strong password required',
@@ -259,7 +264,8 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
             [validators.password],
-            true  // isPassword
+            true,  // isPassword
+            'Enter password'
         ),
         // SelectionListItem components (Task 2 - Completed)
         new SelectionListItem(
