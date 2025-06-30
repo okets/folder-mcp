@@ -367,31 +367,42 @@ export const FilePickerBody = ({
         }
     } else {
         // Single column layout (original code)
-        let visibleItems = items;
+        // First, separate regular items from confirm item
+        const regularItems = items.filter(item => !item.isConfirmAction);
+        const confirmItem = items.find(item => item.isConfirmAction);
+        
+        let visibleItems = regularItems;
         let startIndex = 0;
         let showScrollUp = false;
         let showScrollDown = false;
         
-        if (items.length > maxLines) {
-            // Need scrolling
+        if (regularItems.length > maxLines) {
+            // Need scrolling - only consider regular items
             const halfVisible = Math.floor(maxLines / 2);
             
-            // Center the focused item in the visible area
-            startIndex = Math.max(0, focusedIndex - halfVisible);
-            const endIndex = Math.min(items.length, startIndex + maxLines);
+            // Find focused index in regular items
+            const focusedRegularIndex = focusedIndex < regularItems.length ? focusedIndex : -1;
             
-            // Adjust if we're near the end
-            if (endIndex === items.length) {
-                startIndex = Math.max(0, endIndex - maxLines);
+            if (focusedRegularIndex >= 0) {
+                // Center the focused item in the visible area
+                startIndex = Math.max(0, focusedRegularIndex - halfVisible);
+                
+                // Make sure we always show maxLines items if possible
+                const endIndex = startIndex + maxLines;
+                
+                // Adjust if we're past the end
+                if (endIndex > regularItems.length) {
+                    startIndex = Math.max(0, regularItems.length - maxLines);
+                }
             }
             
-            visibleItems = items.slice(startIndex, endIndex);
+            visibleItems = regularItems.slice(startIndex, startIndex + maxLines);
             showScrollUp = startIndex > 0;
-            showScrollDown = endIndex < items.length;
+            showScrollDown = startIndex + maxLines < regularItems.length;
         }
         
-        // Filter out confirm items - they're rendered separately
-        const regularVisibleItems = visibleItems.filter(item => !item.isConfirmAction);
+        // Use visibleItems directly (already filtered)
+        const regularVisibleItems = visibleItems;
         
         // Render visible items
         regularVisibleItems.forEach((item, visibleIndex) => {
