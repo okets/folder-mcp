@@ -13,6 +13,48 @@ export const Header: React.FC = () => {
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
     
+    // Check for low vertical resolution
+    const isLowResolution = rows < 25;
+    
+    // Low resolution mode: single line with separator
+    if (isLowResolution) {
+        const separator = ' ○ ';
+        
+        // Handle narrow terminals in low resolution mode
+        const availableWidth = columns - 1; // -1 for safety margin
+        
+        // Build display text based on available width
+        if (availableWidth >= (appName.length + separator.length + resolution.length)) {
+            // Full display with resolution
+            return (
+                <Box marginTop={1}>
+                    <Text color={colors.accent}>
+                        📁 <Text bold>folder-mcp</Text>
+                        <Text color={colors.accent}>{separator}</Text>
+                        <Text color="gray">{resolution}</Text>
+                    </Text>
+                </Box>
+            );
+        } else if (availableWidth >= appName.length) {
+            // Just app name, no resolution
+            return (
+                <Box marginTop={1}>
+                    <Text color={colors.accent}>
+                        📁 <Text bold>folder-mcp</Text>
+                    </Text>
+                </Box>
+            );
+        } else {
+            // Very narrow - truncate app name
+            const truncatedName = appName.substring(0, availableWidth - 1) + '…';
+            return (
+                <Box marginTop={1}>
+                    <Text color={colors.accent}>{truncatedName}</Text>
+                </Box>
+            );
+        }
+    }
+    
     // Calculate what layout to use based on available width
     const minBorderedWidth = 18; // "╭────────────────╮" length
     
@@ -33,14 +75,21 @@ export const Header: React.FC = () => {
         const maxDashArea = innerWidth - resolutionSpace.length;
         
         const topBorder = `╭${'─'.repeat(maxDashArea)}${resolutionSpace}╮`;
-        const middlePadding = innerWidth - appContent.length;
-        const middleBorder = `│${appContent}${' '.repeat(middlePadding)}│`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
+        
+        // Calculate padding for the split text format
+        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
+        const textLength = 5 + 10; // Don't count the closing │
+        const remainingSpace = Math.max(0, innerWidth - textLength);
         
         return (
             <Box flexDirection="column" marginTop={1}>
                 <Text color={colors.accent}>{topBorder}</Text>
-                <Text color={colors.accent}>{middleBorder}</Text>
+                <Box>
+                    <Text color={colors.accent}>│ 📁 </Text>
+                    <Text color={colors.accent} bold>folder-mcp</Text>
+                    <Text color={colors.accent}>{' '.repeat(remainingSpace + 1)}│</Text>
+                </Box>
                 <Text color={colors.accent}>{bottomBorder}</Text>
             </Box>
         );
@@ -51,33 +100,51 @@ export const Header: React.FC = () => {
         const middlePadding = innerWidth - appContent.length;
         
         const topBorder = `╭${'─'.repeat(innerWidth)}╮`;
-        const middleBorder = `│${appContent}${' '.repeat(middlePadding)}│`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
+        
+        // Calculate padding for the split text format
+        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
+        const textLength = 5 + 10; // Don't count the closing │
+        const remainingSpace = Math.max(0, innerWidth - textLength);
         
         return (
             <Box flexDirection="column" marginTop={1}>
                 <Text color={colors.accent}>{topBorder}</Text>
-                <Text color={colors.accent}>{middleBorder}</Text>
+                <Box>
+                    <Text color={colors.accent}>│ 📁 </Text>
+                    <Text color={colors.accent} bold>folder-mcp</Text>
+                    <Text color={colors.accent}>{' '.repeat(remainingSpace + 1)}│</Text>
+                </Box>
                 <Text color={colors.accent}>{bottomBorder}</Text>
             </Box>
         );
     } else {
         // No border, just truncated text
         const availableForText = columns - 1; // -1 for safety margin
-        let displayText = appName;
         
-        if (displayText.length > availableForText) {
+        if (appName.length <= availableForText) {
+            // Can fit full app name
+            return (
+                <Box marginTop={1}>
+                    <Text color={colors.accent}>
+                        📁 <Text bold>folder-mcp</Text>
+                    </Text>
+                </Box>
+            );
+        } else {
+            // Need to truncate
+            let displayText = appName;
             if (availableForText > 3) {
                 displayText = displayText.substring(0, availableForText - 1) + '…';
             } else {
                 displayText = '📁…';
             }
+            
+            return (
+                <Box marginTop={1}>
+                    <Text color={colors.accent}>{displayText}</Text>
+                </Box>
+            );
         }
-        
-        return (
-            <Box marginTop={1}>
-                <Text color={colors.accent}>{displayText}</Text>
-            </Box>
-        );
     }
 };
