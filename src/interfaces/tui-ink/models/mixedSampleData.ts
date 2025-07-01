@@ -151,7 +151,76 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
-        // File picker as first item
+        // Test cases for destructive confirmations at the top
+        
+        // 1. Text input with destructive flag and existing value
+        new ConfigurationListItem(
+            '·',
+            'Embedding Model',
+            'nomic-embed-text',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Embedding model changed to:', newValue),
+            [],
+            false,
+            'e.g., text-embedding-3-large'
+            // TODO: Add destructive config once implemented
+        ),
+        
+        // 2. Empty text input with destructive flag (should not trigger confirmation)
+        new ConfigurationListItem(
+            '·',
+            'API Key',
+            '',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('API key changed to:', newValue),
+            [],
+            false,
+            'Enter your API key...'
+            // TODO: Add destructive config once implemented
+        ),
+        
+        // 3. Text input with validation error and destructive flag (should not trigger confirmation)
+        new ConfigurationListItem(
+            '·',
+            'Email (with error)',
+            'not-an-email',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Email changed to:', newValue),
+            [validators.email],
+            false,
+            'user@example.com'
+            // TODO: Add destructive config once implemented
+        ),
+        
+        // 4. Password field with validation warning and destructive flag
+        new ConfigurationListItem(
+            '·',
+            'Admin Password',
+            'weak',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Password changed to:', newValue),
+            [validators.password],
+            true  // isPassword
+            // TODO: Add destructive config once implemented
+        ),
+        
+        // 5. File picker with destructive flag
         new FilePickerListItem(
             '📁',
             'Project Folder',
@@ -159,6 +228,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             'folder',
             (path) => console.log('Folder selected:', path)
+            // TODO: Add destructive config once implemented
         ),
         // File picker to test file mode (second position)
         new FilePickerListItem(

@@ -1,5 +1,17 @@
 // Configuration node types and interfaces
 
+// Destructive action configuration
+export interface IDestructiveConfig {
+    level: 'warning' | 'critical';
+    title: string;
+    message: string;
+    consequences?: string[];
+    estimatedTime?: string;
+    confirmText?: string;              // Default: "Confirm"
+    cancelText?: string;               // Default: "Cancel"
+    confirmSettingInitialValue?: boolean; // Default: false
+}
+
 // Base configuration node interface
 export interface IConfigurationNode<T = any> {
     id: string;
@@ -8,6 +20,7 @@ export interface IConfigurationNode<T = any> {
     value: T;
     defaultValue: T;
     validation?: IValidationRule<T>[];
+    destructive?: IDestructiveConfig;
 }
 
 // Specific node types
@@ -86,3 +99,10 @@ export const isSelectDropdownNode = (node: ConfigurationNode): node is ISelectDr
 
 export const isYesNoNode = (node: ConfigurationNode): node is IYesNoNode => 
     node.type === 'yesno';
+
+// Destructive configuration type guards
+export const hasDestructiveConfig = (node: ConfigurationNode): node is ConfigurationNode & { destructive: IDestructiveConfig } => 
+    node.destructive !== undefined;
+
+export const isDestructiveAction = (node: ConfigurationNode): boolean => 
+    hasDestructiveConfig(node);

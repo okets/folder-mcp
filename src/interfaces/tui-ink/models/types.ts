@@ -43,6 +43,7 @@ export interface ThemeColors {
     textMuted: string;
     successGreen: string;
     warningOrange: string;
+    dangerRed: string;
 }
 
 // Theme symbols

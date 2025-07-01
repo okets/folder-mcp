@@ -22,7 +22,20 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         description: 'Model to use for semantic embeddings',
         value: 'nomic-embed-text',
         defaultValue: 'nomic-embed-text',
-        placeholder: 'e.g., nomic-embed-text'
+        placeholder: 'e.g., nomic-embed-text',
+        destructive: {
+            level: 'critical',
+            title: 'Model Change Impact',
+            message: 'Changing the embedding model will trigger a full reindex of all documents.',
+            consequences: [
+                'All existing embeddings will be deleted',
+                'Documents will be reprocessed',
+                'Operation may consume API credits'
+            ],
+            estimatedTime: '15-20 minutes',
+            confirmText: 'Change Model',
+            cancelText: 'Keep Current'
+        }
     },
     {
         id: 'cache-directory',
@@ -31,7 +44,14 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         description: 'Directory for storing cached embeddings',
         value: '~/.folder-mcp/cache',
         defaultValue: '~/.folder-mcp/cache',
-        placeholder: 'Enter cache directory path...'
+        placeholder: 'Enter cache directory path...',
+        destructive: {
+            level: 'warning',
+            title: 'Clear Cache Warning',
+            message: 'Changing the cache directory will clear the existing cache.',
+            confirmText: 'Yes',
+            cancelText: 'No'
+        }
     },
     {
         id: 'memory-limit',

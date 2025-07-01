@@ -17,6 +17,7 @@ export const theme: Theme = {
         textMuted: '#64748B',
         successGreen: '#10B981',
         warningOrange: '#F59E0B',
+        dangerRed: '#EF4444',
     },
     
     symbols: {

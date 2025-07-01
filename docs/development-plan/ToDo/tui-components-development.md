@@ -413,7 +413,7 @@ Follow the pattern from SelectionListItem's responsive layout switching for dyna
   - `pendingValue: any` (stores new value during confirmation)
   - `confirmationFocusIndex: number` (0 for cancel, 1 for confirm - default to 0)
   - `originalValue: any` (store initial value when component mounts)
-  - `hadInitialValidationError: boolean` (track if original value was invalid)
+  - `hadInitialValidationError: boolean` (track if original value was invalid - meaning had a validation error when the component was first rendered, validation warnings are not considered here)
 - [ ] Modify `handleEnter()` to check if confirmation is needed:
   - Check if item has destructive flag
   - If `confirmSettingInitialValue` is false (default):
