@@ -5,6 +5,7 @@ import { ServiceTokens } from '../di/tokens.js';
 import type { IKeyBinding } from '../services/interfaces.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import type { ThemeColors } from '../models/types.js';
+import { truncateButtons } from '../utils/buttonTruncation.js';
 
 interface StatusBarContentProps {
     bindings: IKeyBinding[];
@@ -22,88 +23,192 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
         );
     }
 
-    // Prepare bindings with different formats
-    const formats = bindings.map(binding => {
-        // Convert special keys to lowercase, keep single letters uppercase
-        let key = binding.key.replace('→/enter', '↵');
+    // Prepare bindings with formatted keys - do this BEFORE any width calculations
+    const formattedBindings = bindings.map(binding => {
+        // Convert special keys first (case-insensitive)
+        // Using '↵' for enter key
+        let key = binding.key.replace(/→\/enter/i, '↵').replace(/enter/i, '↵');
         
-        // Lowercase multi-character keys but keep single letters uppercase
+        // Keep single letters uppercase (like Q), lowercase multi-character keys
         if (key.length > 1 && !['↑↓', '←→', '↵'].includes(key)) {
             key = key.toLowerCase();
+        } else if (key.length === 1) {
+            // Ensure single letters are uppercase
+            key = key.toUpperCase();
         }
         
-        const desc = binding.description;
-        
         return {
-            key: key,
-            fullDesc: desc,
-            shortDesc: desc.replace('Switch Panel', 'Switch').replace('Navigate', 'Nav').replace('Quit', 'Exit'),
-            minDesc: desc.substring(0, 3)
+            key,
+            description: binding.description
         };
     });
 
-    // Calculate required widths for different formats
-    const fullFormat = formats.map(f => f.key + ' ' + f.fullDesc).join(' ');
-    const shortFormat = formats.map(f => f.key + ' ' + f.shortDesc).join(' ');
-    const colonFormat = formats.map(f => f.key + ':' + f.shortDesc).join(' ');
+    // Step 1: Try full format with descriptions
+    const fullFormatParts = formattedBindings.map(b => b.key + ':' + b.description);
+    const fullFormatWidth = fullFormatParts.join(' ').length;
     
-    // Progressive display based on available width
-    if (fullFormat.length <= availableWidth) {
-        // Full format with spaces
+    if (fullFormatWidth <= availableWidth - 1) { // -1 for safety buffer
+        // Everything fits - render as single Text with embedded styling
+        const parts: Array<{ text: string; color?: string; bold?: boolean }> = [];
+        
+        formattedBindings.forEach((binding, index) => {
+            if (index > 0) {
+                parts.push({ text: ' ' });
+            }
+            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ text: ':' + binding.description, color: colors.textSecondary });
+        });
+        
         return (
-            <>
-                {formats.map((format, index) => (
-                    <React.Fragment key={index}>
-                        {index > 0 && <Text color={colors.textSecondary}> </Text>}
-                        <Text color={colors.textPrimary} bold>{format.key}</Text>
-                        <Text color={colors.textSecondary}> {format.fullDesc}</Text>
-                    </React.Fragment>
-                ))}
-            </>
-        );
-    } else if (shortFormat.length <= availableWidth) {
-        // Short descriptions with spaces
-        return (
-            <>
-                {formats.map((format, index) => (
-                    <React.Fragment key={index}>
-                        {index > 0 && <Text color={colors.textSecondary}> </Text>}
-                        <Text color={colors.textPrimary} bold>{format.key}</Text>
-                        <Text color={colors.textSecondary}> {format.shortDesc}</Text>
-                    </React.Fragment>
-                ))}
-            </>
-        );
-    } else if (colonFormat.length <= availableWidth) {
-        // Colon format
-        return (
-            <>
-                {formats.map((format, index) => (
-                    <React.Fragment key={index}>
-                        {index > 0 && <Text color={colors.textSecondary}> </Text>}
-                        <Text color={colors.textPrimary} bold>{format.key}</Text>
-                        <Text color={colors.textSecondary}>:{format.shortDesc}</Text>
-                    </React.Fragment>
-                ))}
-            </>
-        );
-    } else {
-        // Last resort: just keys with minimal descriptions
-        const essential = formats.slice(0, Math.min(3, formats.length));
-        return (
-            <>
-                {essential.map((format, index) => (
-                    <React.Fragment key={index}>
-                        {index > 0 && <Text color={colors.textSecondary}> </Text>}
-                        <Text color={colors.textPrimary} bold>{format.key}</Text>
-                        <Text color={colors.textSecondary}>:{format.minDesc}</Text>
-                    </React.Fragment>
-                ))}
-                <Text color={colors.textSecondary}> </Text>
-                <Text color={colors.textPrimary} bold>q</Text>
-            </>
+            <Text>
+                {parts.map((part, i) => 
+                    part.color ? (
+                        <Text key={i} color={part.color} bold={part.bold}>
+                            {part.text}
+                        </Text>
+                    ) : part.text
+                )}
+            </Text>
         );
     }
+    
+    // Step 2: Need to truncate descriptions
+    // Calculate fixed width (keys + colons + spaces)
+    const fixedWidth = formattedBindings.reduce((sum, b) => sum + b.key.length + 1, 0) + // keys + colons
+                      (formattedBindings.length - 1); // spaces between
+    const availableForDescriptions = availableWidth - fixedWidth - 1; // -1 for safety buffer
+    
+    if (availableForDescriptions > 0) {
+        // Use smart truncation on descriptions
+        const descriptions = formattedBindings.map(b => b.description);
+        const truncatedDescriptions = truncateButtons({
+            buttons: descriptions,
+            availableWidth: availableForDescriptions,
+            separator: ' '
+        });
+        
+        // Check if all descriptions are empty or just ellipsis
+        const allEmpty = truncatedDescriptions.every(d => d.label === '' || d.label === '…');
+        
+        if (allEmpty) {
+            // Step 3: All descriptions are gone, show keys only (no colons)
+            const keysOnly = formattedBindings.map(b => b.key).join(' ');
+            if (keysOnly.length <= availableWidth - 1) { // -1 for safety buffer
+                return (
+                    <Text>
+                        {formattedBindings.map((binding, index) => (
+                            <React.Fragment key={index}>
+                                {index > 0 && ' '}
+                                <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                            </React.Fragment>
+                        ))}
+                    </Text>
+                );
+            }
+            
+            // Step 4: Need to remove keys from right to left
+            let keysToShow = [...formattedBindings];
+            while (keysToShow.length > 1) {
+                const currentKeys = keysToShow.map(b => b.key).join(' ');
+                if (currentKeys.length <= availableWidth - 1) { // -1 for safety buffer
+                    return (
+                        <Text>
+                            {keysToShow.map((binding, index) => (
+                                <React.Fragment key={index}>
+                                    {index > 0 && ' '}
+                                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                                </React.Fragment>
+                            ))}
+                        </Text>
+                    );
+                }
+                // Remove the rightmost key (Q goes first, then others)
+                keysToShow.pop();
+            }
+            
+            // Last resort: show what we can
+            return (
+                <Text>
+                    {keysToShow.map((binding, index) => (
+                        <React.Fragment key={index}>
+                            {index > 0 && ' '}
+                            <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                        </React.Fragment>
+                    ))}
+                </Text>
+            );
+        }
+        
+        // Build with truncated descriptions - render as single Text
+        const parts: Array<{ text: string; color?: string; bold?: boolean }> = [];
+        
+        formattedBindings.forEach((binding, index) => {
+            if (index > 0) {
+                parts.push({ text: ' ' });
+            }
+            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ text: ':' + (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
+        });
+        
+        return (
+            <Text>
+                {parts.map((part, i) => 
+                    part.color ? (
+                        <Text key={i} color={part.color} bold={part.bold}>
+                            {part.text}
+                        </Text>
+                    ) : part.text
+                )}
+            </Text>
+        );
+    }
+    
+    // No room for any descriptions - go to keys only (no colons)
+    const keysOnly = formattedBindings.map(b => b.key).join(' ');
+    if (keysOnly.length <= availableWidth - 1) { // -1 for safety buffer
+        return (
+            <Text>
+                {formattedBindings.map((binding, index) => (
+                    <React.Fragment key={index}>
+                        {index > 0 && ' '}
+                        <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                    </React.Fragment>
+                ))}
+            </Text>
+        );
+    }
+    
+    // Need to remove keys from right to left
+    let keysToShow = [...formattedBindings];
+    while (keysToShow.length > 1) {
+        const currentKeys = keysToShow.map(b => b.key).join(' ');
+        if (currentKeys.length < availableWidth) { // < for safety buffer
+            return (
+                <Text>
+                    {keysToShow.map((binding, index) => (
+                        <React.Fragment key={index}>
+                            {index > 0 && ' '}
+                            <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                        </React.Fragment>
+                    ))}
+                </Text>
+            );
+        }
+        // Remove the rightmost key
+        keysToShow.pop();
+    }
+    
+    // Show whatever fits
+    return (
+        <Text>
+            {keysToShow.map((binding, index) => (
+                <React.Fragment key={index}>
+                    {index > 0 && ' '}
+                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                </React.Fragment>
+            ))}
+        </Text>
+    );
 };
 
 interface StatusBarProps {
@@ -150,9 +255,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
             return () => clearTimeout(timer);
         }
     }, [di]);
-     // Calculate available space for text (accounting for padding)
-    const availableWidth = Math.max(0, statusBarWidth - 2); // -2 for paddingX
-
+     // Calculate available space for text (accounting for borders and padding)
+    const availableWidth = Math.max(0, statusBarWidth - 4); // -2 for borders, -2 for paddingX
+    
     return (
         <Box 
             borderStyle="single" 
