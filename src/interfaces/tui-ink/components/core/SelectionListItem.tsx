@@ -51,6 +51,10 @@ export class SelectionListItem implements IListItem {
         return this._isControllingInput;
     }
     
+    get effectiveLayout(): SelectionLayout {
+        return this._effectiveLayout;
+    }
+    
     onEnter(): void {
         // Enter expanded mode
         this._isControllingInput = true;
@@ -249,28 +253,47 @@ export class SelectionListItem implements IListItem {
             // Determine effective layout based on available space
             let effectiveLayout = this.layout;
             
-            // Only auto-switch if enabled
-            if (this.autoSwitchLayout) {
-                if (this.layout === 'horizontal') {
-                    // Check if horizontal layout fits in available width
-                    // Calculate total width needed for horizontal display
-                    let totalWidth = 3; // "│  " prefix
-                    totalWidth += 'Select one:'.length + 1; // prompt text
-                    this.options.forEach((opt, idx) => {
-                        if (idx > 0) totalWidth += 3; // " │ " separator
-                        totalWidth += 2 + opt.label.length; // "○ " + label
-                    });
+            // Check if horizontal layout would require significant truncation
+            if (this.layout === 'horizontal') {
+                // Calculate space needed for structure
+                const promptLine = 3 + getVisualWidth(`Select ${this.mode === 'radio' ? 'one' : 'options'}:`); // "│  Select X:"
+                const prefixAndSuffix = 3 + 5; // "└─ " prefix + " [←→]" suffix minimum
+                const symbolSpace = 2; // "○ " per option
+                const separatorSpace = 3; // " │ " between options
+                
+                // Find longest option
+                const longestOptionLength = Math.max(...this.options.map(opt => getVisualWidth(opt.label)));
+                
+                // Calculate available width per option in horizontal layout
+                const structureWidth = prefixAndSuffix + 
+                    (this.options.length * symbolSpace) + 
+                    ((this.options.length - 1) * separatorSpace);
+                const availableForLabels = maxWidth - structureWidth - 1; // -1 for safety
+                const availablePerOption = Math.floor(availableForLabels / this.options.length);
+                
+                // Check if longest option would be truncated more than 10%
+                const truncationNeeded = longestOptionLength - availablePerOption;
+                const truncationPercentage = truncationNeeded > 0 ? (truncationNeeded / longestOptionLength) * 100 : 0;
+                
+                // Force vertical if truncation > 10% OR doesn't fit at all
+                if (truncationPercentage > 10 || availablePerOption < 3) {
+                    effectiveLayout = 'vertical';
+                }
+            } else if (this.autoSwitchLayout && this.layout === 'vertical' && maxLines) {
+                // Check if vertical layout fits in available height
+                const requiredLines = 2 + this.options.length; // header + prompt + options
+                
+                // Only switch to horizontal if it would use less lines AND not truncate badly
+                if (requiredLines > maxLines && maxLines >= 3) {
+                    // Re-check if horizontal would work without bad truncation
+                    const longestOptionLength = Math.max(...this.options.map(opt => getVisualWidth(opt.label)));
+                    const structureWidth = 8 + (this.options.length * 2) + ((this.options.length - 1) * 3);
+                    const availableForLabels = maxWidth - structureWidth - 1;
+                    const availablePerOption = Math.floor(availableForLabels / this.options.length);
+                    const truncationPercentage = longestOptionLength > availablePerOption ? 
+                        ((longestOptionLength - availablePerOption) / longestOptionLength) * 100 : 0;
                     
-                    // Switch to vertical if doesn't fit
-                    if (totalWidth > maxWidth) {
-                        effectiveLayout = 'vertical';
-                    }
-                } else if (this.layout === 'vertical' && maxLines) {
-                    // Check if vertical layout fits in available height
-                    const requiredLines = 2 + this.options.length; // header + prompt + options
-                    
-                    // Switch to horizontal if doesn't fit and horizontal would use less lines
-                    if (requiredLines > maxLines && maxLines >= 3) {
+                    if (truncationPercentage <= 10 && availablePerOption >= 3) {
                         effectiveLayout = 'horizontal';
                     }
                 }
@@ -340,9 +363,9 @@ export class SelectionListItem implements IListItem {
                 }
             } else {
                 // Show keyboard hints with progressive truncation
-                const baseLength = 2 + labelPart.length; // "■ " + label
-                const availableForHints = maxWidth - baseLength;
-                const fullHintsLength = 19; // "[enter] ✓ • [esc] ✗"
+                const baseLength = getVisualWidth(prefix) + getVisualWidth(labelPart) + 1; // "■ " + label + space
+                const availableForHints = maxWidth - baseLength - 1; // -1 for safety buffer
+                const fullHintsLength = 19; // "[enter] ✓ · [esc] ✗"
                 const partialHintsLength = 10; // "[enter] ✓"
                 
                 let showFullHints = false;

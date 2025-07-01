@@ -4,6 +4,7 @@ import { BorderedBox } from './core/BorderedBox.js';
 import { ConfigurationListItem } from './core/ConfigurationListItem.js';
 import { LogItem } from './core/LogItem.js';
 import { FilePickerListItem } from './core/FilePickerListItem.js';
+import { SelectionListItem } from './core/SelectionListItem.js';
 import { theme } from '../utils/theme.js';
 import { createConfigurationPanelItems } from '../models/mixedSampleData.js';
 import { useNavigationContext } from '../contexts/NavigationContext.js';
@@ -232,6 +233,16 @@ export const ConfigurationPanel: React.FC<{
                 { key: 'Enter', description: 'Open/Select' },
                 { key: 'Esc', description: 'Cancel' },
                 { key: 'H', description: 'Toggle Hidden' }
+            ];
+        } else if (selectedItem instanceof SelectionListItem && selectedItem.isControllingInput) {
+            // SelectionListItem - show space as the primary action
+            // Use the effective layout to determine navigation keys
+            const navKey = selectedItem.effectiveLayout === 'vertical' ? '↑↓' : '←→';
+            keyBindings = [
+                { key: 'Space', description: 'Toggle' },
+                { key: navKey, description: 'Navigate' },
+                { key: 'Esc', description: 'Cancel' },
+                { key: 'Enter', description: 'Save' }
             ];
         } else {
             // Generic edit mode for text inputs

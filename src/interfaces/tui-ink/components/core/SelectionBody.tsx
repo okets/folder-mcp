@@ -131,21 +131,32 @@ export const SelectionBody = ({
             // Calculate available space for option label
             const linePrefixLength = getVisualWidth(linePrefix) + 1; // +1 for space after prefix
             const symbolLength = getVisualWidth(symbol) + 1; // +1 for space after symbol
-            const spaceHint = ' [space]';
-            const spaceHintLength = getVisualWidth(spaceHint);
+            const fullSpaceHint = ' [space]';
+            const shortSpaceHint = ' [␣]';
+            const fullSpaceHintLength = getVisualWidth(fullSpaceHint);
+            const shortSpaceHintLength = getVisualWidth(shortSpaceHint);
             
             // Calculate available space for label
             let availableForLabel = width - linePrefixLength - symbolLength - 1; // -1 for safety
-            const showSpaceHint = isFocused && mode === 'checkbox' && availableForLabel > spaceHintLength + 3; // +3 for minimum label
             
-            if (showSpaceHint) {
-                availableForLabel -= spaceHintLength;
-            }
-            
-            // Truncate label if needed
+            // Truncate label if needed FIRST
             let displayLabel = option.label;
             if (getVisualWidth(option.label) > availableForLabel && availableForLabel > 0) {
                 displayLabel = option.label.substring(0, availableForLabel - 1) + '…';
+            }
+            
+            // Only show space hint if there's room AFTER displaying the full or truncated label
+            const labelLength = getVisualWidth(displayLabel);
+            const remainingSpace = width - linePrefixLength - symbolLength - labelLength - 1; // -1 for safety
+            
+            // Determine which space hint to show (if any)
+            let spaceHintToShow = '';
+            if (isFocused && mode === 'checkbox') {
+                if (remainingSpace >= fullSpaceHintLength) {
+                    spaceHintToShow = fullSpaceHint;
+                } else if (remainingSpace >= shortSpaceHintLength) {
+                    spaceHintToShow = shortSpaceHint;
+                }
             }
             
             elements.push(
@@ -154,8 +165,8 @@ export const SelectionBody = ({
                     <Text color={isFocused ? theme.colors.accent : undefined}>
                         {symbol} {displayLabel}
                     </Text>
-                    {showSpaceHint && (
-                        <Text color={theme.colors.textMuted}>{spaceHint}</Text>
+                    {spaceHintToShow && (
+                        <Text color={theme.colors.textMuted}>{spaceHintToShow}</Text>
                     )}
                 </Box>
             );
