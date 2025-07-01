@@ -90,6 +90,12 @@ export class SelectionListItem implements IListItem {
             this._focusedIndex = 0;
             this.onExit();
             return true;
+        } else if ((key.upArrow || key.downArrow) && this._effectiveLayout === 'horizontal') {
+            // In horizontal layout, up/down arrows exit without saving
+            this._workingSelectedValues = [...this._selectedValues];
+            this._focusedIndex = 0;
+            this.onExit();
+            return true;
         } else if (key.return) {
             // For radio mode: select the focused option first
             if (this.mode === 'radio') {

@@ -238,12 +238,21 @@ export const ConfigurationPanel: React.FC<{
             // SelectionListItem - show space as the primary action
             // Use the effective layout to determine navigation keys
             const navKey = selectedItem.effectiveLayout === 'vertical' ? '↑↓' : '←→';
-            keyBindings = [
-                { key: 'Space', description: 'Toggle' },
-                { key: navKey, description: 'Navigate' },
-                { key: 'Esc', description: 'Cancel' },
-                { key: 'Enter', description: 'Save' }
-            ];
+            if (selectedItem.effectiveLayout === 'horizontal') {
+                keyBindings = [
+                    { key: 'Space', description: 'Toggle' },
+                    { key: navKey, description: 'Navigate' },
+                    { key: '↑↓/Esc', description: 'Cancel' },
+                    { key: 'Enter', description: 'Save' }
+                ];
+            } else {
+                keyBindings = [
+                    { key: 'Space', description: 'Toggle' },
+                    { key: navKey, description: 'Navigate' },
+                    { key: 'Esc', description: 'Cancel' },
+                    { key: 'Enter', description: 'Save' }
+                ];
+            }
         } else {
             // Generic edit mode for text inputs
             keyBindings = [
