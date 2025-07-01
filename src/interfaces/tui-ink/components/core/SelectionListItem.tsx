@@ -541,17 +541,58 @@ export class SelectionListItem implements IListItem {
             return 1; // Collapsed view is always 1 line
         }
         
-        if (this.autoSwitchLayout) {
-            // When auto-switching is enabled, return the minimum lines (horizontal layout)
-            // This ensures the panel will include the item even when space is tight
-            return 3; // Header + "Select one:" line + horizontal options line
-        } else {
-            // When auto-switching is disabled, return lines based on current layout
-            if (this.layout === 'vertical') {
-                return 2 + this.options.length; // Header + "Select one:" line + each option
-            } else {
-                return 3; // Header + "Select one:" line + horizontal options line
+        // Calculate effective layout based on available width
+        let effectiveLayout = this.layout;
+        
+        if (this.layout === 'horizontal') {
+            // Check if horizontal layout would require significant truncation
+            const prefixAndSuffix = 3 + 5; // "└─ " prefix + " [←→]" suffix minimum
+            const symbolSpace = 2; // "○ " per option
+            const separatorSpace = 3; // " │ " between options
+            
+            // Find longest option
+            const longestOptionLength = Math.max(...this.options.map(opt => getVisualWidth(opt.label)));
+            
+            // Calculate available width per option in horizontal layout
+            const structureWidth = prefixAndSuffix + 
+                (this.options.length * symbolSpace) + 
+                ((this.options.length - 1) * separatorSpace);
+            const availableForLabels = maxWidth - structureWidth - 1; // -1 for safety
+            const availablePerOption = Math.floor(availableForLabels / this.options.length);
+            
+            // Check if longest option would be truncated more than 10%
+            const truncationNeeded = longestOptionLength - availablePerOption;
+            const truncationPercentage = truncationNeeded > 0 ? (truncationNeeded / longestOptionLength) * 100 : 0;
+            
+            // Force vertical if truncation > 10% OR doesn't fit at all
+            if (truncationPercentage > 10 || availablePerOption < 3) {
+                effectiveLayout = 'vertical';
             }
+        } else if (this.autoSwitchLayout && this.layout === 'vertical' && maxHeight) {
+            // Check if vertical layout fits in available height
+            const requiredLines = 2 + this.options.length; // header + prompt + options
+            
+            // Only switch to horizontal if it would use less lines AND not truncate badly
+            if (requiredLines > maxHeight && maxHeight >= 3) {
+                // Re-check if horizontal would work without bad truncation
+                const longestOptionLength = Math.max(...this.options.map(opt => getVisualWidth(opt.label)));
+                const structureWidth = 8 + (this.options.length * 2) + ((this.options.length - 1) * 3);
+                const availableForLabels = maxWidth - structureWidth - 1;
+                const availablePerOption = Math.floor(availableForLabels / this.options.length);
+                const truncationPercentage = longestOptionLength > availablePerOption ? 
+                    ((longestOptionLength - availablePerOption) / longestOptionLength) * 100 : 0;
+                
+                if (truncationPercentage <= 10 && availablePerOption >= 3) {
+                    effectiveLayout = 'horizontal';
+                }
+            }
+        }
+        
+        // Return lines based on effective layout
+        if (effectiveLayout === 'vertical') {
+            return 2 + this.options.length; // Header + "Select one:" line + each option
+        } else {
+            return 3; // Header + "Select one:" line + horizontal options line
         }
     }
 }
