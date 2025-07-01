@@ -4,6 +4,7 @@ import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
 import { ILayoutConstraints } from '../models/types.js';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
+import { useNavigationContext } from '../contexts/NavigationContext.js';
 
 interface LayoutContainerProps {
     availableHeight: number;
@@ -20,7 +21,9 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
 }) => {
     const di = useDI();
     const debugService = di.resolve(ServiceTokens.DebugService);
+    const navigation = useNavigationContext();
     const isNarrow = availableWidth < narrowBreakpoint;
+    const isLowVerticalResolution = availableHeight < 20;
     
     // Log layout decisions in debug mode
     if (debugService.isEnabled()) {
@@ -33,15 +36,29 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         // Calculate heights for each panel
         const panelCount = children.length;
         
-        // For narrow mode, allocate space proportionally
-        // Use 70%/30% split to match horizontal layout proportions
-        const heights = panelCount === 2 
-            ? (() => {
-                const firstHeight = Math.floor(availableHeight * 0.7);
-                const secondHeight = availableHeight - firstHeight; // Use remaining space
-                return [firstHeight, secondHeight];
-              })()
-            : children.map(() => Math.floor(availableHeight / panelCount));
+        // Check if we're in low vertical resolution mode
+        let heights: number[];
+        if (isLowVerticalResolution && panelCount === 2) {
+            // In low resolution, minimize inactive panel
+            const MINIMIZED_HEIGHT = 3; // 1 content line + 2 borders
+            const activeHeight = availableHeight - MINIMIZED_HEIGHT;
+            
+            // Determine which panel is active
+            if (navigation.isConfigFocused) {
+                heights = [activeHeight, MINIMIZED_HEIGHT];
+            } else {
+                heights = [MINIMIZED_HEIGHT, activeHeight];
+            }
+        } else {
+            // Normal narrow mode: Use 70%/30% split
+            heights = panelCount === 2 
+                ? (() => {
+                    const firstHeight = Math.floor(availableHeight * 0.7);
+                    const secondHeight = availableHeight - firstHeight;
+                    return [firstHeight, secondHeight];
+                  })()
+                : children.map(() => Math.floor(availableHeight / panelCount));
+        }
         
         return (
             <Box flexDirection="column" height={availableHeight} width={availableWidth}>
@@ -52,13 +69,20 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                         overflow: 'truncate'
                     };
                     
+                    // Check if this panel is minimized in low resolution mode
+                    const isMinimized = isLowVerticalResolution && panelCount === 2 && (
+                        (index === 0 && !navigation.isConfigFocused) ||
+                        (index === 1 && navigation.isConfigFocused)
+                    );
+                    
                     const layoutKey = `layout-narrow-${index}`;
                     return (
                         <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
                             <Box height={heights[index]} width={availableWidth}>
                                 {React.cloneElement(child, {
                                     height: heights[index],
-                                    width: availableWidth
+                                    width: availableWidth,
+                                    isMinimized
                                 })}
                             </Box>
                         </LayoutConstraintProvider>

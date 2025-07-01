@@ -25,7 +25,8 @@ export const ConfigurationPanel: React.FC<{
     width?: number; 
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
-}> = ({ width, height, onEditModeChange }) => {
+    isMinimized?: boolean;
+}> = ({ width, height, onEditModeChange, isMinimized = false }) => {
     // Force update trigger
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
@@ -292,6 +293,40 @@ export const ConfigurationPanel: React.FC<{
         keyBindings: keyBindings,
         priority: isAnyItemInEditMode ? 1000 : 50 // Very high priority when in edit mode
     });
+    
+    // Handle minimized display
+    if (isMinimized) {
+        // Calculate available width for the message
+        const borderWidth = 2; // left and right borders
+        const paddingWidth = 2; // left and right padding
+        const availableWidth = panelWidth - borderWidth - paddingWidth;
+        const fullMessage = "Press tab to switch to Configuration";
+        
+        let displayText;
+        if (fullMessage.length <= availableWidth) {
+            displayText = fullMessage;
+        } else if (availableWidth > 3) {
+            // Truncate with ellipsis, ensuring we have room for at least one character + ...
+            displayText = fullMessage.slice(0, availableWidth - 3) + "...";
+        } else {
+            // Very narrow - just show ellipsis
+            displayText = "...";
+        }
+        
+        return (
+            <BorderedBox
+                title="Configuration"
+                subtitle=""
+                focused={false}
+                width={panelWidth}
+                height={actualHeight}
+                showScrollbar={false}
+                scrollbarElements={[]}
+            >
+                <Text color={theme.colors.textSecondary}>{displayText}</Text>
+            </BorderedBox>
+        );
+    }
     
     return (
         <BorderedBox

@@ -17,7 +17,7 @@ import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 const mixedItems = createStatusPanelItems();
 
 
-export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ width, height }) => {
+export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimized?: boolean }> = ({ width, height, isMinimized = false }) => {
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const constraints = useLayoutConstraints();
@@ -228,6 +228,41 @@ export const StatusPanel: React.FC<{ width?: number; height?: number }> = ({ wid
         keyBindings: keyBindings,
         priority: 50
     });
+    
+    // Handle minimized display
+    if (isMinimized) {
+        // Calculate available width for the message
+        const panelWidth = width || columns - 2;
+        // BorderedBox subtracts 4 for borders/padding, take safety buffer
+        const availableWidth = panelWidth - 4 - 1; // -1 for safety
+        const fullMessage = "Press tab to switch to System Status";
+        
+        let displayText;
+        if (fullMessage.length <= availableWidth) {
+            displayText = fullMessage;
+        } else if (availableWidth > 3) {
+            // Truncate with ellipsis
+            const maxChars = availableWidth - 3;
+            displayText = fullMessage.substring(0, maxChars) + "…";
+        } else {
+            // Very narrow - just show ellipsis
+            displayText = "…";
+        }
+        
+        return (
+            <BorderedBox
+                title="System Status"
+                subtitle=""
+                focused={false}
+                width={panelWidth}
+                height={actualHeight}
+                showScrollbar={false}
+                scrollbarElements={[]}
+            >
+                <Text color={theme.colors.textSecondary}>{displayText}</Text>
+            </BorderedBox>
+        );
+    }
     
     return (
         <BorderedBox
