@@ -86,6 +86,7 @@ export const SimpleMessageScroll = ({
         const globalLineIndex = scrollOffset + index;
         const isCursorLine = globalLineIndex === cursorLine;
         const cursorIndicator = isCursorLine ? '▶' : ' ';
+        const cursorColor = isCursorLine ? theme.colors.accent : undefined;
         
         // Split line to color appropriately
         const words = line.split(' ');
@@ -125,14 +126,14 @@ export const SimpleMessageScroll = ({
             // Very first line - continues from header with 3 spaces
             elements.push(
                 <Text key={`line-${index}`}>
-                    │  {cursorIndicator}{lineContent}
+                    <Text color={theme.colors.accent}>│  </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         } else if (index === 0) {
             // First visible line but scrolled - show scroll indicator
             elements.push(
                 <Text key={`line-${index}`}>
-                    │▲ {cursorIndicator}{lineContent}
+                    <Text color={theme.colors.accent}>│▲ </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         } else {
@@ -143,7 +144,7 @@ export const SimpleMessageScroll = ({
             
             elements.push(
                 <Text key={`line-${index}`}>
-                    │{scrollIndicator} {cursorIndicator}{lineContent}
+                    <Text color={theme.colors.accent}>│{scrollIndicator} </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         }

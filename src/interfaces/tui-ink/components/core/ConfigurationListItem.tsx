@@ -419,7 +419,8 @@ export class ConfigurationListItem extends ValidatedListItem {
             const elements: ReactElement[] = [];
             
             // Header with inline notification area
-            const bulletColor = this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted);
+            // Always use blue for the bullet in confirmation mode
+            const bulletColor = this._showingConfirmation ? theme.colors.accent : (this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted));
             
             // Build header text with truncation support
             const prefix = '■ ';
@@ -571,7 +572,20 @@ export class ConfigurationListItem extends ValidatedListItem {
                 
                 const buttonLine = (
                     <Text key="buttons">
-                        {buttonPrefix}{checkMark}{cancelLabel}{buttonSeparator}{crossMark}{confirmLabel}
+                        <Text color={theme.colors.accent}>{buttonPrefix}</Text>
+                        {this._confirmationFocusIndex === 0 ? (
+                            <>
+                                <Text color={theme.colors.accent}>{checkMark}{cancelLabel}</Text>
+                                <Text>{buttonSeparator}</Text>
+                                <Text>{crossMark}{confirmLabel}</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text>{checkMark}{cancelLabel}</Text>
+                                <Text>{buttonSeparator}</Text>
+                                <Text color={theme.colors.accent}>{crossMark}{confirmLabel}</Text>
+                            </>
+                        )}
                     </Text>
                 );
                 
