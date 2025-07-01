@@ -8,6 +8,7 @@ import { SimpleMessageScroll } from '../SimpleMessageScroll.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
+import { truncateButtons } from '../../utils/buttonTruncation.js';
 import type { IValidationRule } from '../../models/configuration.js';
 import { IDestructiveConfig } from '../../models/configuration.js';
 
@@ -564,27 +565,34 @@ export class ConfigurationListItem extends ValidatedListItem {
                 
                 // Add button line with proper truncation
                 // Calculate available space for buttons
-                const buttonPrefix = '└─  ';
+                const buttonPrefix = '└─ ';  // Only 2 spaces after └─
                 const buttonSeparator = '  ';
                 const crossMark = '✗ ';
                 const checkMark = '✓ ';
+                const cursorSpace = 1; // Space for cursor (▶ or space)
                 
-                // Calculate fixed width components
-                const fixedWidth = buttonPrefix.length + checkMark.length + crossMark.length + buttonSeparator.length;
+                // Get button labels from destructive config or defaults
+                const cancelLabel = this.destructive.cancelText || 'Keep Current';
+                const confirmLabel = this.destructive.confirmText || 'Change Model';
+                
+                // Calculate fixed width components (including cursor space for both buttons)
+                const fixedWidth = buttonPrefix.length + 
+                                 crossMark.length + 
+                                 checkMark.length + 
+                                 buttonSeparator.length + 
+                                 (cursorSpace * 2); // cursor space for both buttons
+                
                 const availableForLabels = Math.max(0, maxWidth - fixedWidth);
-                const maxLabelWidth = Math.floor(availableForLabels / 2);
                 
-                // Button labels
-                let cancelLabel = 'Keep Current';
-                let confirmLabel = 'Change Model';
+                // Use smart truncation
+                const truncatedButtons = truncateButtons({
+                    buttons: [cancelLabel, confirmLabel],
+                    availableWidth: availableForLabels,
+                    separator: buttonSeparator
+                });
                 
-                // Truncate both labels equally if needed
-                if (cancelLabel.length > maxLabelWidth) {
-                    cancelLabel = cancelLabel.substring(0, maxLabelWidth - 1) + '…';
-                }
-                if (confirmLabel.length > maxLabelWidth) {
-                    confirmLabel = confirmLabel.substring(0, maxLabelWidth - 1) + '…';
-                }
+                const truncatedCancelLabel = truncatedButtons[0].label;
+                const truncatedConfirmLabel = truncatedButtons[1].label;
                 
                 // Determine if cursor is on button line
                 const cursorOnButtons = this._confirmationCursorLine === -1;
@@ -596,16 +604,16 @@ export class ConfigurationListItem extends ValidatedListItem {
                         {this._confirmationFocusIndex === 0 ? (
                             <>
                                 <Text color={theme.colors.accent}>{buttonCursor}</Text>
-                                <Text><Text color={theme.colors.dangerRed}>{crossMark}</Text>{cancelLabel}</Text>
-                                <Text>{buttonSeparator} </Text>
-                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{confirmLabel}</Text>
+                                <Text><Text color={theme.colors.dangerRed}>{crossMark}</Text>{truncatedCancelLabel}</Text>
+                                <Text>{buttonSeparator}</Text>
+                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
                             </>
                         ) : (
                             <>
-                                <Text> <Text color={theme.colors.dangerRed}>{crossMark}</Text>{cancelLabel}</Text>
-                                <Text>{buttonSeparator}</Text>
+                                <Text> <Text color={theme.colors.dangerRed}>{crossMark}</Text>{truncatedCancelLabel}</Text>
+                                <Text> </Text>
                                 <Text color={theme.colors.accent}>{buttonCursor}</Text>
-                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{confirmLabel}</Text>
+                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
                             </>
                         )}
                     </Text>
