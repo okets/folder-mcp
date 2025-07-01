@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../../utils/theme.js';
+import type { IValidationRule } from '../../models/configuration.js';
+import { generatePasswordHint } from '../../utils/validationHints.js';
 
 export interface TextInputBodyProps {
     value: string;
@@ -12,6 +14,7 @@ export interface TextInputBodyProps {
     isPassword?: boolean; // Whether to mask the input as a password
     showPassword?: boolean; // Whether to temporarily show the password
     placeholder?: string; // Placeholder text to show when value is empty
+    validationRules?: IValidationRule<string>[]; // Validation rules for generating smart placeholders
 }
 
 /**
@@ -27,7 +30,8 @@ export const TextInputBody = ({
     headerColor,
     isPassword = false,
     showPassword = false,
-    placeholder
+    placeholder,
+    validationRules
 }: TextInputBodyProps): React.ReactElement[] => {
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
@@ -42,7 +46,8 @@ export const TextInputBody = ({
     const availableForBorder = Math.max(width - totalOverhead, minimumBorderWidth);
     
     // Use a reasonable default width that expands with content but respects limits
-    const desiredWidth = Math.max(value.length + 4, 20); // +4 for some padding
+    const baseDesiredWidth = Math.max(value.length + 4, 20); // +4 for some padding
+    const desiredWidth = isPassword ? baseDesiredWidth + 3 : baseDesiredWidth; // +3 extra width for password fields
     const maxAllowedWidth = Math.min(maxInputWidth, availableForBorder);
     const borderWidth = Math.min(desiredWidth, maxAllowedWidth);
     
@@ -77,8 +82,24 @@ export const TextInputBody = ({
     }
     
     // Check if we should show placeholder
-    const showPlaceholder = value.length === 0 && placeholder;
-    let placeholderText = isPassword ? '••••' : (placeholder || '');
+    const showPlaceholder = value.length === 0 && (placeholder || isPassword);
+    
+    // Generate smart placeholder for password fields
+    let placeholderText: string;
+    if (isPassword) {
+        if (placeholder) {
+            // Use custom placeholder if provided
+            placeholderText = placeholder;
+        } else if (validationRules && validationRules.length > 0) {
+            // Generate placeholder from validation rules
+            placeholderText = generatePasswordHint(validationRules);
+        } else {
+            // Default placeholder for password fields
+            placeholderText = 'Enter password...';
+        }
+    } else {
+        placeholderText = placeholder || '';
+    }
     
     // Truncate placeholder text to fit within contentAreaWidth if needed
     if (showPlaceholder && placeholderText.length > contentAreaWidth && contentAreaWidth > 0) {
@@ -104,11 +125,11 @@ export const TextInputBody = ({
             const firstChar = displayValue[0];
             const rest = displayValue.slice(1);
             // Apply light gray color to placeholder text after cursor
-            content = '\x1b[47m\x1b[30m' + firstChar + '\x1b[0m\x1b[38;5;245m' + rest + '\x1b[0m';
+            content = '\x1b[47m\x1b[30m' + firstChar + '\x1b[0m\x1b[38;5;240m' + rest + '\x1b[0m';
             displayLength = displayValue.length;
         } else {
             // Apply light gray color to entire placeholder when no cursor
-            content = '\x1b[38;5;245m' + displayValue + '\x1b[0m';
+            content = '\x1b[38;5;240m' + displayValue + '\x1b[0m';
             displayLength = displayValue.length;
         }
     } else if (cursorVisible && visibleCursorPos >= 0 && visibleCursorPos < visibleValue.length) {
@@ -144,11 +165,19 @@ export const TextInputBody = ({
     
     return [
         <Text key="top">
-            <Text color={headerColor}>│  </Text>
+            {headerColor ? (
+                <Text color={headerColor}>│  </Text>
+            ) : (
+                <Text>│  </Text>
+            )}
             <Text color={theme.colors.textInputBorder}>╭{'─'.repeat(borderWidth)}╮</Text>
         </Text>,
         <Text key="middle">
-            <Text color={headerColor}>└──</Text>
+            {headerColor ? (
+                <Text color={headerColor}>└──</Text>
+            ) : (
+                <Text>└──</Text>
+            )}
             <Text color={theme.colors.textInputBorder}>┤</Text>
             <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>

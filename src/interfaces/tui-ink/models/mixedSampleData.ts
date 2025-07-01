@@ -4,6 +4,7 @@ import { ConfigurationListItem } from '../components/core/ConfigurationListItem.
 import { SelectionListItem } from '../components/core/SelectionListItem.js';
 import { FilePickerListItem } from '../components/core/FilePickerListItem.js';
 import { validators } from '../utils/validators.js';
+import { ValidationRules } from '../models/validation.js';
 import * as os from 'os';
 
 // Mixed items for StatusPanel (now showing both logs and configs)
@@ -252,7 +253,12 @@ export function createConfigurationPanelItems(): IListItem[] {
                 ],
                 confirmText: 'Change Password',
                 cancelText: 'Keep Current'
-            }
+            },
+            // Add validation rules for smart placeholder generation
+            [
+                ValidationRules.minLength(8, 'Password must be at least 8 characters'),
+                ValidationRules.customRegex(/.*\d.*/, undefined, 'Password must contain at least one number')
+            ]
         ),
         
         // 5. File picker with destructive flag

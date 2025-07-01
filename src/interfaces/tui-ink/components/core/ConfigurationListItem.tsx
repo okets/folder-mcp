@@ -8,6 +8,7 @@ import { SimpleMessageScroll } from '../SimpleMessageScroll.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
+import type { IValidationRule } from '../../models/configuration.js';
 import { IDestructiveConfig } from '../../models/configuration.js';
 
 export class ConfigurationListItem extends ValidatedListItem {
@@ -44,7 +45,8 @@ export class ConfigurationListItem extends ValidatedListItem {
         validators?: Array<(value: string) => { isValid: boolean; error?: string }>,
         private isPassword: boolean = false,
         private placeholder?: string,
-        private destructive?: IDestructiveConfig
+        private destructive?: IDestructiveConfig,
+        private validationRules?: IValidationRule<string>[]
     ) {
         super(); // Call parent constructor
         this._editValue = editValue ?? this.value;
@@ -621,7 +623,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                     headerColor: this.isActive ? theme.colors.accent : undefined,
                     isPassword: this.isPassword,
                     showPassword: this._showPassword,
-                    placeholder: this.placeholder
+                    placeholder: this.placeholder,
+                    validationRules: this.validationRules
                 });
                 
                 return [...elements, ...bodyElements];
