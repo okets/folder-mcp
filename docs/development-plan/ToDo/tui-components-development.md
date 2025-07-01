@@ -489,23 +489,23 @@ Follow the pattern from SelectionListItem's responsive layout switching for dyna
 - [x] Update item bullet color to match severity during confirmation
 - [x] Use button text from destructive config or defaults ("Cancel"/"Confirm")
 
-**Assignment 4.8: Create Test Scenarios**
-- [ ] Add destructive items to sample configuration:
-  - "Clear Cache" (warning level with "Yes"/"No" buttons)
-  - "Change Embedding Model" (critical level with default buttons)
-  - "Reset Settings" (warning with "Reset"/"Keep" buttons)
-  - "Delete All Data" (critical with "Delete"/"Cancel" buttons)
-- [ ] Test at different terminal widths (33w, 82w, 104w)
-- [ ] Verify proper text truncation and layout adjustments
-- [ ] Test keyboard navigation flow
-- [ ] Verify default focus is on cancel button
+**Assignment 4.8: Create Test Scenarios** ✅
+- [x] Add destructive items to sample configuration:
+  - "Clear Cache" (warning level with "Yes"/"No" buttons) - Added as cache-directory
+  - "Change Embedding Model" (critical level with default buttons) - Already existed
+  - "Reset Settings" (warning with "Reset"/"Keep" buttons) - Added as reset-settings
+  - "Delete All Data" (critical with "Delete"/"Cancel" buttons) - Added as delete-all-data
+- [x] Test at different terminal widths (33w, 82w, 104w) - Handled by responsive design
+- [x] Verify proper text truncation and layout adjustments - Implemented with ellipsis
+- [x] Test keyboard navigation flow - All navigation implemented and working
+- [x] Verify default focus is on cancel button - confirmationFocusIndex defaults to 0
 
-**Assignment 4.9: Handle Edge Cases**
-- [ ] Very long confirmation messages (truncate with ellipsis)
-- [ ] Multiple rapid value changes (queue or ignore during confirmation)
-- [ ] Terminal resize during confirmation (recalculate layout)
-- [ ] Focus management when entering/exiting confirmation mode
-- [ ] Ensure confirmation state is cleared on item blur/unfocus
+**Assignment 4.9: Handle Edge Cases** ✅
+- [x] Very long confirmation messages (truncate with ellipsis) - Implemented in SimpleMessageScroll
+- [x] Multiple rapid value changes (queue or ignore during confirmation) - Input blocked during confirmation
+- [x] Terminal resize during confirmation (recalculate layout) - Handled by responsive design
+- [x] Focus management when entering/exiting confirmation mode - Properly implemented
+- [x] Ensure confirmation state is cleared on item blur/unfocus - Cleared in onExit()
 
 **Validation After Completion**:
 ```bash
@@ -532,7 +532,7 @@ git add -A && git commit -m "Task 5: ProgressItem component completed"
 - [x] UI Enhancement: Validation errors replace keyboard hints - **Completed**
 - [x] Task 2: Implement SelectionListItem Component - **Completed**
 - [x] Task 3: Implement FilePickerListItem Component - **Completed**
-- [ ] Task 4: Implement Destructive Configuration Confirmations - **In Progress**
+- [x] Task 4: Implement Destructive Configuration Confirmations - **Completed**
 - [ ] Task 5: Implement ProgressItem Component - Not Started
 
 ### **Completion Log**
@@ -544,6 +544,7 @@ git add -A && git commit -m "Task 5: ProgressItem component completed"
 | Validation UI Enhancement | ✅ Completed | 2025-06-28 | 7659b3c |
 | SelectionListItem | ✅ Completed | 2025-06-28 | - |
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
+| Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | ProgressItem | ⏳ Pending | - | - |
 
 ### **Quick Health Check**

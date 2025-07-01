@@ -166,5 +166,50 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
             ValidationRules.minLength(8, 'Password must be at least 8 characters'),
             ValidationRules.customRegex(/.*\d.*/, undefined, 'Password must contain at least one number')
         ]
+    },
+    {
+        id: 'reset-settings',
+        type: 'text',
+        label: 'Configuration Preset',
+        description: 'Select a configuration preset',
+        value: 'custom',
+        defaultValue: 'custom',
+        placeholder: 'custom',
+        destructive: {
+            level: 'warning',
+            title: 'Reset Configuration',
+            message: 'Changing preset will reset all settings to their defaults for the selected preset.',
+            consequences: [
+                'All custom configurations will be lost',
+                'Current indexing will be interrupted',
+                'Cache may be cleared'
+            ],
+            confirmText: 'Reset',
+            cancelText: 'Keep',
+            confirmSettingInitialValue: false
+        }
+    },
+    {
+        id: 'delete-all-data',
+        type: 'text',
+        label: 'Data Management',
+        description: 'Manage indexed data and cache',
+        value: 'preserve',
+        defaultValue: 'preserve',
+        placeholder: 'preserve',
+        destructive: {
+            level: 'critical',
+            title: 'Delete All Data',
+            message: 'This will permanently delete all indexed documents and cached embeddings.',
+            consequences: [
+                'All indexed documents will be removed',
+                'All embeddings will be deleted',
+                'All cache files will be purged',
+                'This action cannot be undone'
+            ],
+            estimatedTime: 'Immediate',
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+        }
     }
 ];

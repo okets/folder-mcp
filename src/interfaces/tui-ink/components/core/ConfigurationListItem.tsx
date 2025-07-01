@@ -243,7 +243,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                 this._showingConfirmation = true;
                 this._confirmationFocusIndex = 0; // Default to cancel
                 this._confirmationScrollOffset = 0; // Reset scroll
-                this._confirmationCursorLine = 0; // Start at first line (will be adjusted to first non-empty)
+                this._confirmationCursorLine = 0; // Start at first line
                 return true;
             }
             
@@ -255,10 +255,9 @@ export class ConfigurationListItem extends ValidatedListItem {
         } else if (key.leftArrow) {
             // Handle confirmation mode navigation
             if (this._showingConfirmation) {
-                // Only allow left/right on button line
-                if (this._confirmationCursorLine === -1) {
-                    this._confirmationFocusIndex = 0; // Move to cancel
-                }
+                // Left arrow moves cursor to button line and selects cancel
+                this._confirmationCursorLine = -1; // Jump to button line
+                this._confirmationFocusIndex = 0; // Select cancel button
                 return true;
             }
             
@@ -279,10 +278,9 @@ export class ConfigurationListItem extends ValidatedListItem {
         } else if (key.rightArrow) {
             // Handle confirmation mode navigation
             if (this._showingConfirmation) {
-                // Only allow left/right on button line
-                if (this._confirmationCursorLine === -1) {
-                    this._confirmationFocusIndex = 1; // Move to confirm
-                }
+                // Right arrow moves cursor to button line and selects confirm
+                this._confirmationCursorLine = -1; // Jump to button line
+                this._confirmationFocusIndex = 1; // Select confirm button
                 return true;
             }
             
@@ -304,23 +302,42 @@ export class ConfigurationListItem extends ValidatedListItem {
                 }
                 
                 if (key.upArrow) {
-                    // Move cursor up
-                    if (this._confirmationCursorLine > 0) {
+                    if (this._confirmationCursorLine === -1) {
+                        // From button line, go to last content line
+                        this._confirmationCursorLine = totalLines - 1;
+                        // Scroll to show the last line
+                        const visibleLines = 5;
+                        if (totalLines > visibleLines) {
+                            this._confirmationScrollOffset = totalLines - visibleLines;
+                        }
+                    } else if (this._confirmationCursorLine > 0) {
+                        // Move cursor up in content
                         this._confirmationCursorLine--;
                         // Scroll up if cursor moves above visible area
                         if (this._confirmationCursorLine < this._confirmationScrollOffset) {
                             this._confirmationScrollOffset = this._confirmationCursorLine;
                         }
+                    } else {
+                        // At first line, wrap to button line
+                        this._confirmationCursorLine = -1;
                     }
                 } else {
-                    // Move cursor down
-                    if (this._confirmationCursorLine < totalLines - 1) {
+                    // Down arrow
+                    if (this._confirmationCursorLine === -1) {
+                        // From button line, go to first content line
+                        this._confirmationCursorLine = 0;
+                        this._confirmationScrollOffset = 0;
+                    } else if (this._confirmationCursorLine < totalLines - 1) {
+                        // Move cursor down in content
                         this._confirmationCursorLine++;
                         // Scroll down if cursor moves below visible area
                         const visibleLines = 5; // Fixed 5 content lines
                         if (this._confirmationCursorLine >= this._confirmationScrollOffset + visibleLines) {
                             this._confirmationScrollOffset = this._confirmationCursorLine - visibleLines + 1;
                         }
+                    } else {
+                        // At last line, wrap to button line
+                        this._confirmationCursorLine = -1;
                     }
                 }
                 
@@ -531,9 +548,6 @@ export class ConfigurationListItem extends ValidatedListItem {
                     fullMessage += '\n' + this.destructive.consequences.map(c => `• ${c}`).join('\n');
                 }
                 
-                // Add a really long number for testing truncation
-                fullMessage += '\nEstimated vectors: 123456789012345678901234567890';
-                
                 const messageResult = SimpleMessageScroll({
                     message: fullMessage,
                     maxWidth: maxWidth - 4, // Account for prefixes
@@ -550,8 +564,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                 // Calculate available space for buttons
                 const buttonPrefix = '└─  ';
                 const buttonSeparator = '  ';
-                const checkMark = '✓ ';
                 const crossMark = '✗ ';
+                const checkMark = '✓ ';
                 
                 // Calculate fixed width components
                 const fixedWidth = buttonPrefix.length + checkMark.length + crossMark.length + buttonSeparator.length;
@@ -570,20 +584,26 @@ export class ConfigurationListItem extends ValidatedListItem {
                     confirmLabel = confirmLabel.substring(0, maxLabelWidth - 1) + '…';
                 }
                 
+                // Determine if cursor is on button line
+                const cursorOnButtons = this._confirmationCursorLine === -1;
+                const buttonCursor = cursorOnButtons ? '▶' : ' ';
+                
                 const buttonLine = (
                     <Text key="buttons">
                         <Text color={theme.colors.accent}>{buttonPrefix}</Text>
                         {this._confirmationFocusIndex === 0 ? (
                             <>
-                                <Text color={theme.colors.accent}>{checkMark}{cancelLabel}</Text>
-                                <Text>{buttonSeparator}</Text>
-                                <Text>{crossMark}{confirmLabel}</Text>
+                                <Text color={theme.colors.accent}>{buttonCursor}</Text>
+                                <Text><Text color={theme.colors.dangerRed}>{crossMark}</Text>{cancelLabel}</Text>
+                                <Text>{buttonSeparator} </Text>
+                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{confirmLabel}</Text>
                             </>
                         ) : (
                             <>
-                                <Text>{checkMark}{cancelLabel}</Text>
+                                <Text> <Text color={theme.colors.dangerRed}>{crossMark}</Text>{cancelLabel}</Text>
                                 <Text>{buttonSeparator}</Text>
-                                <Text color={theme.colors.accent}>{crossMark}{confirmLabel}</Text>
+                                <Text color={theme.colors.accent}>{buttonCursor}</Text>
+                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{confirmLabel}</Text>
                             </>
                         )}
                     </Text>
