@@ -406,6 +406,21 @@ Follow the pattern from SelectionListItem's responsive layout switching for dyna
 - [ ] Implement responsive text truncation for narrow terminals
 - [ ] Use theme colors based on severity level (yellow for warning, red for critical)
 - [ ] Show focused button with inverse colors
+- [ ] **Scrolling Implementation** (Following FilePickerBody pattern):
+  - Line prefixes integrate scroll indicators: `│▲` (scroll up), `│▼` (scroll down), `│ ` (normal)
+  - ConfirmationBody returns array of Text elements with proper line prefixes
+  - Each line wrapped as: `<Text key={lineKey}>{lineContent}</Text>`
+  - No nested Box components or separate scrollbar - indicators are part of line prefix
+  - Example line prefix pattern:
+    ```
+    │ │  ⚠️  Model Change Impact              <- normal line
+    │ │▲ Changing the embedding model...      <- first line when scrolled
+    │ │  will trigger a full reindex of       <- normal line
+    │ │  all documents.                        <- normal line
+    │ │  • All existing embeddings deleted     <- normal line
+    │ │▼ • Documents will be reprocessed       <- last line when more below
+    │ └─▶  ✓ Keep Current  ✗ Change Model     <- button line (always visible)
+    ```
 
 **Assignment 4.3: Add Confirmation State to ConfigurationListItem**
 - [ ] Add state properties:

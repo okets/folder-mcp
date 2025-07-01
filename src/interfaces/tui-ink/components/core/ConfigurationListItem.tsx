@@ -3,9 +3,11 @@ import { Box, Text, Key } from 'ink';
 import { ValidatedListItem } from './ValidatedListItem.js';
 import { TextInputBody } from './TextInputBody.js';
 import { NotificationArea } from './NotificationArea.js';
+import { ConfirmationBody } from '../ConfirmationBody.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
+import { IDestructiveConfig } from '../../models/configuration.js';
 
 export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
@@ -17,6 +19,13 @@ export class ConfigurationListItem extends ValidatedListItem {
     private _validationError: string | null = null;
     private validators: Array<(value: string) => { isValid: boolean; error?: string }> = [];
     private _showPassword: boolean = false;
+    
+    // Confirmation state
+    private _showingConfirmation: boolean = false;
+    private _pendingValue: string = '';
+    private _confirmationFocusIndex: number = 0; // 0 for cancel, 1 for confirm - default to cancel
+    private _originalValue: string;
+    private _hadInitialValidationError: boolean = false;
     
     constructor(
         public icon: string,
@@ -30,7 +39,8 @@ export class ConfigurationListItem extends ValidatedListItem {
         onValueChange?: (newValue: string) => void,
         validators?: Array<(value: string) => { isValid: boolean; error?: string }>,
         private isPassword: boolean = false,
-        private placeholder?: string
+        private placeholder?: string,
+        private destructive?: IDestructiveConfig
     ) {
         super(); // Call parent constructor
         this._editValue = editValue ?? this.value;
@@ -39,9 +49,17 @@ export class ConfigurationListItem extends ValidatedListItem {
         this.onValueChange = onValueChange;
         this.validators = validators ?? [];
         
-        // Validate initial value
+        // Store original value for confirmation checks
+        this._originalValue = this.value;
+        
+        // Validate initial value and check for errors
         if (this.validators.length > 0) {
             this.validateValue();
+            // Check if initial value has validation error (not warning)
+            const validationResult = this.performValidation();
+            if (validationResult && validationResult.state === ValidationState.Error) {
+                this._hadInitialValidationError = true;
+            }
         }
     }
     
@@ -134,14 +152,33 @@ export class ConfigurationListItem extends ValidatedListItem {
         if (!this._isControllingInput) return false;
         
         
-        // Check for password visibility toggle
-        if (this.isPassword && key.tab) {
-            // Tab key to toggle password visibility
-            this._showPassword = !this._showPassword;
-            return true;
+        // Check for tab key
+        if (key.tab) {
+            // In confirmation mode, tab cycles through buttons
+            if (this._showingConfirmation) {
+                this._confirmationFocusIndex = this._confirmationFocusIndex === 0 ? 1 : 0;
+                return true;
+            }
+            
+            // In password mode, tab toggles visibility
+            if (this.isPassword) {
+                this._showPassword = !this._showPassword;
+                return true;
+            }
         }
         
         if (key.escape) {
+            // Handle confirmation mode
+            if (this._showingConfirmation) {
+                // Cancel confirmation and return to edit mode
+                this._showingConfirmation = false;
+                this._pendingValue = '';
+                this._confirmationFocusIndex = 0;
+                this._editValue = this.value;
+                this._cursorPosition = this._editValue.length;
+                return true;
+            }
+            
             // Cancel editing
             this._editValue = this.value;
             this._cursorPosition = 0;
@@ -150,18 +187,55 @@ export class ConfigurationListItem extends ValidatedListItem {
             this.onExit();
             return true;
         } else if (key.return) {
+            // Handle confirmation mode
+            if (this._showingConfirmation) {
+                if (this._confirmationFocusIndex === 1) {
+                    // Confirm button selected - apply the change
+                    this.value = this._pendingValue;
+                    this.onValueChange?.(this._pendingValue);
+                    this._showingConfirmation = false;
+                    this._pendingValue = '';
+                    this._confirmationFocusIndex = 0;
+                    this.onExit();
+                } else {
+                    // Cancel button selected - discard changes
+                    this._showingConfirmation = false;
+                    this._pendingValue = '';
+                    this._confirmationFocusIndex = 0;
+                    // Return to edit mode with original value
+                    this._editValue = this.value;
+                    this._cursorPosition = this._editValue.length;
+                }
+                return true;
+            }
+            
             // Validate before saving
             this.validate(this._editValue);
             if (this._validationError) {
                 // Don't save if validation fails
                 return true;
             }
-            // Save changes
+            
+            // Check if confirmation is needed
+            if (this.shouldShowConfirmation(this._editValue)) {
+                this._pendingValue = this._editValue;
+                this._showingConfirmation = true;
+                this._confirmationFocusIndex = 0; // Default to cancel
+                return true;
+            }
+            
+            // Save changes without confirmation
             this.value = this._editValue;
             this.onValueChange?.(this._editValue);
             this.onExit();
             return true;
         } else if (key.leftArrow) {
+            // Handle confirmation mode navigation
+            if (this._showingConfirmation) {
+                this._confirmationFocusIndex = 0; // Move to cancel
+                return true;
+            }
+            
             // If cursor is at position 0, act as back/cancel
             if (this._cursorPosition === 0) {
                 // Cancel editing
@@ -177,6 +251,12 @@ export class ConfigurationListItem extends ValidatedListItem {
                 return true;
             }
         } else if (key.rightArrow) {
+            // Handle confirmation mode navigation
+            if (this._showingConfirmation) {
+                this._confirmationFocusIndex = 1; // Move to confirm
+                return true;
+            }
+            
             // Move cursor right
             this._cursorPosition = Math.min(this._editValue.length, this._cursorPosition + 1);
             return true;
@@ -189,6 +269,9 @@ export class ConfigurationListItem extends ValidatedListItem {
             this.onExit();
             return true;
         } else if (key.backspace || key.delete) {
+            // Block input during confirmation
+            if (this._showingConfirmation) return true;
+            
             // Delete character before cursor
             if (this._cursorPosition > 0) {
                 this._editValue = this._editValue.slice(0, this._cursorPosition - 1) + this._editValue.slice(this._cursorPosition);
@@ -204,6 +287,9 @@ export class ConfigurationListItem extends ValidatedListItem {
             }
             return true;
         } else if (input && !key.ctrl && !key.meta) {
+            // Block input during confirmation
+            if (this._showingConfirmation) return true;
+            
             // Insert character at cursor position
             this._editValue = this._editValue.slice(0, this._cursorPosition) + input + this._editValue.slice(this._cursorPosition);
             this._cursorPosition++;
@@ -226,6 +312,35 @@ export class ConfigurationListItem extends ValidatedListItem {
     
     onDeselect(): void {
         // Could remove visual feedback when deselected
+    }
+    
+    /**
+     * Check if confirmation is needed for the new value
+     */
+    private shouldShowConfirmation(newValue: string): boolean {
+        // No destructive config = no confirmation
+        if (!this.destructive) return false;
+        
+        // Value hasn't changed = no confirmation
+        if (newValue === this.value) return false;
+        
+        // Check confirmSettingInitialValue flag (default false)
+        const confirmInitial = this.destructive.confirmSettingInitialValue ?? false;
+        
+        if (!confirmInitial) {
+            // Skip confirmation if no original value exists
+            if (!this._originalValue || this._originalValue === '') {
+                return false;
+            }
+            
+            // Skip confirmation if original value had validation error
+            if (this._hadInitialValidationError) {
+                return false;
+            }
+        }
+        
+        // Show confirmation for all other cases
+        return true;
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
@@ -306,20 +421,33 @@ export class ConfigurationListItem extends ValidatedListItem {
             }
             
             
-            // Edit body - TextInputBody returns an array of elements
-            const bodyElements = TextInputBody({
-                value: this._editValue,
-                cursorPosition: this._cursorPosition,
-                cursorVisible: this._cursorVisible,
-                width: maxWidth,
-                maxInputWidth: 40, // Reasonable max width for input fields
-                headerColor: this.isActive ? theme.colors.accent : undefined,
-                isPassword: this.isPassword,
-                showPassword: this._showPassword,
-                placeholder: this.placeholder
-            });
-            
-            return [...elements, ...bodyElements];
+            // Show confirmation body or edit body
+            if (this._showingConfirmation && this.destructive) {
+                // Show confirmation dialog - ConfirmationBody returns an array
+                const confirmationElements = ConfirmationBody({
+                    destructiveConfig: this.destructive,
+                    currentValue: this.value,
+                    newValue: this._pendingValue,
+                    focusedButton: this._confirmationFocusIndex,
+                    maxWidth: maxWidth
+                });
+                return [...elements, ...confirmationElements];
+            } else {
+                // Edit body - TextInputBody returns an array of elements
+                const bodyElements = TextInputBody({
+                    value: this._editValue,
+                    cursorPosition: this._cursorPosition,
+                    cursorVisible: this._cursorVisible,
+                    width: maxWidth,
+                    maxInputWidth: 40, // Reasonable max width for input fields
+                    headerColor: this.isActive ? theme.colors.accent : undefined,
+                    isPassword: this.isPassword,
+                    showPassword: this._showPassword,
+                    placeholder: this.placeholder
+                });
+                
+                return [...elements, ...bodyElements];
+            }
         } else {
             // Collapsed view
             const displayValue = this.isPassword ? '•'.repeat(this.value.length) : this.value;
@@ -517,7 +645,33 @@ export class ConfigurationListItem extends ValidatedListItem {
     }
     
     getRequiredLines(maxWidth: number): number {
-        return this._isControllingInput ? 4 : 1;
+        if (!this._isControllingInput) return 1;
+        
+        // In confirmation mode, calculate height based on confirmation dialog
+        if (this._showingConfirmation && this.destructive) {
+            let height = 1; // Header line
+            height += 2; // Title with margin
+            height += 2; // Message with margin
+            
+            // Add lines for consequences if any
+            if (this.destructive.consequences && this.destructive.consequences.length > 0) {
+                height += this.destructive.consequences.length + 1; // +1 for margin
+            }
+            
+            height += 3; // Current/New value display with margin
+            
+            // Estimated time if provided
+            if (this.destructive.estimatedTime) {
+                height += 2; // Time display with margin
+            }
+            
+            height += 2; // Buttons with margin
+            
+            return height;
+        }
+        
+        // Normal edit mode
+        return 4;
     }
     
     private formatHeaderParts(maxWidth: number, displayValue?: string): { label: string; value: string; truncated: boolean } {

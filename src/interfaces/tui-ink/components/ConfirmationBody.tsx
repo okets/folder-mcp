@@ -2,7 +2,6 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../utils/theme.js';
 import { IDestructiveConfig } from '../models/configuration.js';
-import { truncateText } from '../utils/textUtils.js';
 
 interface ConfirmationBodyProps {
     destructiveConfig: IDestructiveConfig;
@@ -12,13 +11,56 @@ interface ConfirmationBodyProps {
     maxWidth: number;
 }
 
-export const ConfirmationBody: React.FC<ConfirmationBodyProps> = ({
+// Simple truncate function
+const truncateText = (text: string, maxLength: number): string => {
+    if (text.length <= maxLength) return text;
+    if (maxLength <= 3) return '…';
+    return text.substring(0, maxLength - 1) + '…';
+};
+
+// Split text into lines that fit within maxWidth
+const splitIntoLines = (text: string, maxWidth: number): string[] => {
+    if (text.length <= maxWidth) return [text];
+    
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+        if (currentLine.length === 0) {
+            currentLine = word;
+        } else if ((currentLine + ' ' + word).length <= maxWidth) {
+            currentLine += ' ' + word;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    
+    if (currentLine.length > 0) {
+        lines.push(currentLine);
+    }
+    
+    return lines;
+};
+
+/**
+ * Confirmation body component that returns an array of elements
+ * Following the same pattern as TextInputBody
+ */
+export const ConfirmationBody = ({
     destructiveConfig,
     currentValue,
     newValue,
     focusedButton,
     maxWidth
-}) => {
+}: ConfirmationBodyProps): React.ReactElement[] => {
+    const elements: React.ReactElement[] = [];
+    
+    // Calculate available width (account for indent)
+    const indentWidth = 3; // "│  "
+    const contentWidth = maxWidth - indentWidth - 2; // -2 for safety margin
+    
     // Get appropriate color based on severity level
     const severityColor = destructiveConfig.level === 'critical' 
         ? theme.colors.dangerRed 
@@ -36,77 +78,87 @@ export const ConfirmationBody: React.FC<ConfirmationBodyProps> = ({
         return String(value);
     };
     
-    // Calculate available content width
-    const contentWidth = maxWidth - 4; // Account for padding
-    
-    // Truncate message if needed for narrow terminals
-    const displayMessage = contentWidth < 50 
-        ? truncateText(destructiveConfig.message, contentWidth)
-        : destructiveConfig.message;
-    
-    return (
-        <Box flexDirection="column" width={contentWidth} paddingLeft={2}>
-            {/* Title with warning icon */}
-            <Box marginBottom={1}>
-                <Text color={severityColor} bold={destructiveConfig.level === 'critical'}>
-                    ⚠️  {truncateText(destructiveConfig.title, contentWidth - 4)}
-                </Text>
-            </Box>
-            
-            {/* Message */}
-            <Box marginBottom={1}>
-                <Text wrap="wrap">{displayMessage}</Text>
-            </Box>
-            
-            {/* Consequences list if provided */}
-            {destructiveConfig.consequences && destructiveConfig.consequences.length > 0 && (
-                <Box flexDirection="column" marginBottom={1}>
-                    {destructiveConfig.consequences.map((consequence, index) => (
-                        <Text key={index} color={theme.colors.textSecondary}>
-                            • {truncateText(consequence, contentWidth - 2)}
-                        </Text>
-                    ))}
-                </Box>
-            )}
-            
-            {/* Current vs New value */}
-            <Box flexDirection="column" marginBottom={1}>
-                <Text color={theme.colors.textSecondary}>
-                    Current: {truncateText(formatValue(currentValue), contentWidth - 9)}
-                </Text>
-                <Text color={theme.colors.textSecondary}>
-                    New: {truncateText(formatValue(newValue), contentWidth - 5)}
-                </Text>
-            </Box>
-            
-            {/* Estimated time if provided */}
-            {destructiveConfig.estimatedTime && (
-                <Box marginBottom={1}>
-                    <Text color={severityColor}>
-                        Estimated time: {destructiveConfig.estimatedTime}
-                    </Text>
-                </Box>
-            )}
-            
-            {/* Buttons */}
-            <Box gap={2}>
-                <Box>
-                    <Text 
-                        inverse={focusedButton === 0}
-                        color={focusedButton === 0 ? undefined : theme.colors.textSecondary}
-                    >
-                        [{cancelText}]
-                    </Text>
-                </Box>
-                <Box>
-                    <Text 
-                        inverse={focusedButton === 1}
-                        color={focusedButton === 1 ? severityColor : theme.colors.textSecondary}
-                    >
-                        [{confirmText}]
-                    </Text>
-                </Box>
-            </Box>
-        </Box>
+    // Title with warning icon
+    elements.push(
+        <Text key="title">
+            {'│  '}
+            <Text color={severityColor} bold={destructiveConfig.level === 'critical'}>
+                ⚠️  {truncateText(destructiveConfig.title, contentWidth - 4)}
+            </Text>
+        </Text>
     );
+    
+    // Empty line
+    elements.push(<Text key="space1">{'│'}</Text>);
+    
+    // Message - split into lines
+    const messageLines = splitIntoLines(destructiveConfig.message, contentWidth);
+    messageLines.forEach((line, index) => {
+        elements.push(
+            <Text key={`msg-${index}`}>
+                {'│  '}{line}
+            </Text>
+        );
+    });
+    
+    // Consequences if any
+    if (destructiveConfig.consequences && destructiveConfig.consequences.length > 0) {
+        elements.push(<Text key="space2">{'│'}</Text>);
+        destructiveConfig.consequences.forEach((consequence, index) => {
+            elements.push(
+                <Text key={`cons-${index}`} color={theme.colors.textSecondary}>
+                    {'│  '}• {truncateText(consequence, contentWidth - 2)}
+                </Text>
+            );
+        });
+    }
+    
+    // Empty line
+    elements.push(<Text key="space3">{'│'}</Text>);
+    
+    // Current vs New value
+    elements.push(
+        <Text key="current" color={theme.colors.textSecondary}>
+            {'│  '}Current: {truncateText(formatValue(currentValue), contentWidth - 10)}
+        </Text>
+    );
+    elements.push(
+        <Text key="new" color={theme.colors.textSecondary}>
+            {'│  '}New: {truncateText(formatValue(newValue), contentWidth - 6)}
+        </Text>
+    );
+    
+    // Estimated time if provided
+    if (destructiveConfig.estimatedTime) {
+        elements.push(
+            <Text key="time" color={severityColor}>
+                {'│  '}Estimated time: {destructiveConfig.estimatedTime}
+            </Text>
+        );
+    }
+    
+    // Empty line before buttons
+    elements.push(<Text key="space4">{'│'}</Text>);
+    
+    // Buttons
+    elements.push(
+        <Text key="buttons">
+            {'│  '}
+            <Text 
+                inverse={focusedButton === 0}
+                color={focusedButton === 0 ? undefined : theme.colors.textSecondary}
+            >
+                [{cancelText}]
+            </Text>
+            {'  '}
+            <Text 
+                inverse={focusedButton === 1}
+                color={focusedButton === 1 ? severityColor : theme.colors.textSecondary}
+            >
+                [{confirmText}]
+            </Text>
+        </Text>
+    );
+    
+    return elements;
 };

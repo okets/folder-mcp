@@ -166,8 +166,20 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Embedding model changed to:', newValue),
             [],
             false,
-            'e.g., text-embedding-3-large'
-            // TODO: Add destructive config once implemented
+            'e.g., text-embedding-3-large',
+            {
+                level: 'critical',
+                title: 'Model Change Impact',
+                message: 'Changing the embedding model will trigger a full reindex of all documents.',
+                consequences: [
+                    'All existing embeddings will be deleted',
+                    'Documents will be reprocessed',
+                    'Operation may consume API credits'
+                ],
+                estimatedTime: '15-20 minutes',
+                confirmText: 'Change Model',
+                cancelText: 'Keep Current'
+            }
         ),
         
         // 2. Empty text input with destructive flag (should not trigger confirmation)
@@ -183,8 +195,14 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('API key changed to:', newValue),
             [],
             false,
-            'Enter your API key...'
-            // TODO: Add destructive config once implemented
+            'Enter your API key...',
+            {
+                level: 'warning',
+                title: 'API Key Change',
+                message: 'Changing the API key will affect all API requests.',
+                confirmText: 'Update Key',
+                cancelText: 'Cancel'
+            }
         ),
         
         // 3. Text input with validation error and destructive flag (should not trigger confirmation)
@@ -200,8 +218,14 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Email changed to:', newValue),
             [validators.email],
             false,
-            'user@example.com'
-            // TODO: Add destructive config once implemented
+            'user@example.com',
+            {
+                level: 'warning',
+                title: 'Email Update',
+                message: 'Changing the email will update all notifications.',
+                confirmText: 'Yes',
+                cancelText: 'No'
+            }
         ),
         
         // 4. Password field with validation warning and destructive flag
@@ -216,8 +240,19 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
             [validators.password],
-            true  // isPassword
-            // TODO: Add destructive config once implemented
+            true,  // isPassword
+            undefined, // placeholder
+            {
+                level: 'critical',
+                title: 'Password Change',
+                message: 'Changing the admin password will log out all users.',
+                consequences: [
+                    'All active sessions will be terminated',
+                    'Users will need to re-authenticate'
+                ],
+                confirmText: 'Change Password',
+                cancelText: 'Keep Current'
+            }
         ),
         
         // 5. File picker with destructive flag
@@ -228,7 +263,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             'folder',
             (path) => console.log('Folder selected:', path)
-            // TODO: Add destructive config once implemented
+            // TODO: Add destructive config support to FilePickerListItem
         ),
         // File picker to test file mode (second position)
         new FilePickerListItem(
