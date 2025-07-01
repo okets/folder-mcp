@@ -159,8 +159,8 @@ export const TextInputBody = ({
     const padding = ' '.repeat(paddingNeeded);
     
     // Calculate if there's room for the password hint
-    const hintText = ` [tab] ${showPassword ? 'hide' : 'show'}`;
-    const totalLineLength = 3 + 1 + borderWidth + 1 + hintText.length; // "└──┤ content │ [tab] show"
+    const hintText = ` tab ${showPassword ? 'hide' : 'show'}`;
+    const totalLineLength = 3 + 1 + borderWidth + 1 + hintText.length; // "└──┤ content │ tab show"
     const showHint = isPassword && totalLineLength <= width;
     
     return [
@@ -182,7 +182,11 @@ export const TextInputBody = ({
             <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
             <Text color={theme.colors.textInputBorder}>│</Text>
             {showHint && (
-                <Text color={theme.colors.textMuted}>{hintText}</Text>
+                <>
+                    <Text color={theme.colors.textMuted}> </Text>
+                    <Text color={theme.colors.textMuted} bold>tab </Text>
+                    <Text color={theme.colors.textMuted}>{showPassword ? 'hide' : 'show'}</Text>
+                </>
             )}
         </Text>,
         <Text key="bottom">

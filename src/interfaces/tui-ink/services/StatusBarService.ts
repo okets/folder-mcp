@@ -6,36 +6,36 @@ export class StatusBarService implements IStatusBarService {
     private defaultBindings: Record<string, IKeyBinding[]> = {
         form: [
             { key: '↑↓', description: 'Navigate' },
-            { key: '→/Enter', description: 'Edit' },
-            { key: 'Tab', description: 'Switch Panel' },
+            { key: '→/enter', description: 'Edit' },
+            { key: 'tab', description: 'Switch Panel' },
             { key: 'q', description: 'Quit' }
         ],
         editing: [
             { key: '←→', description: 'Move cursor' },
-            { key: 'Backspace', description: 'Delete' },
-            { key: 'Esc', description: 'Cancel' },
-            { key: 'Enter', description: 'Save' }
+            { key: 'backspace', description: 'Delete' },
+            { key: 'esc', description: 'Cancel' },
+            { key: 'enter', description: 'Save' }
         ],
         selecting: [
             { key: '↑↓', description: 'Navigate' },
-            { key: 'Space/Enter', description: 'Select' },
-            { key: 'Esc', description: 'Cancel' }
+            { key: 'space/enter', description: 'Select' },
+            { key: 'esc', description: 'Cancel' }
         ],
         filtering: [
-            { key: 'Type', description: 'Filter' },
+            { key: 'type', description: 'Filter' },
             { key: '↑↓', description: 'Navigate' },
-            { key: 'Enter', description: 'Select' },
-            { key: 'Esc', description: 'Cancel' }
+            { key: 'enter', description: 'Select' },
+            { key: 'esc', description: 'Cancel' }
         ]
     };
 
     constructor() {
-        this.keyBindings = this.defaultBindings.form;
+        this.keyBindings = this.defaultBindings['form'];
     }
 
     setContext(context: 'form' | 'editing' | 'selecting' | 'filtering'): void {
         this.currentContext = context;
-        this.keyBindings = this.defaultBindings[context];
+        this.keyBindings = this.defaultBindings[context] || this.defaultBindings['form'];
     }
 
     setKeyBindings(bindings: IKeyBinding[]): void {

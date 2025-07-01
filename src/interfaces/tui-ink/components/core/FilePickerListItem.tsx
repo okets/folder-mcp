@@ -672,8 +672,8 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             
             // Build header with dynamic keyboard hints
-            const hiddenFilesHint = this._showHiddenFiles ? '[h] Hide Hidden' : '[h] Show Hidden';
-            const keyboardHints = `[enter] ${enterAction} · [esc] ✗ · ${hiddenFilesHint}`;
+            const hiddenFilesHint = this._showHiddenFiles ? '**h** Hide Hidden' : '**h** Show Hidden';
+            const keyboardHints = `**enter** ${enterAction} · **esc** ✗ · ${hiddenFilesHint}`;
             const fullKeyboardHints = keyboardHints.length; // Visual length
             const availableForHints = maxWidth - baseText.length - 1;
             
@@ -681,8 +681,8 @@ export class FilePickerListItem extends ValidatedListItem {
             const showValidation = this._validationMessage;
             
             // Calculate sizes for progressive hint display
-            const enterHint = `[enter] ${enterAction}`;
-            const escHint = ` · [esc] ✗`;
+            const enterHint = `**enter** ${enterAction}`;
+            const escHint = ` · **esc** ✗`;
             const hiddenHint = ` · ${hiddenFilesHint}`;
             
             const enterHintLength = enterHint.length;
@@ -717,18 +717,25 @@ export class FilePickerListItem extends ValidatedListItem {
                         {showEnterHint && (
                             <>
                                 <Text> </Text>
-                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.textMuted} bold>enter </Text>
                                 <Text color={theme.colors.successGreen}>{enterAction}</Text>
                             </>
                         )}
                         {showEscHint && (
                             <>
-                                <Text color={theme.colors.textMuted}> · [esc] </Text>
+                                <Text color={theme.colors.textMuted}> · </Text>
+                                <Text color={theme.colors.textMuted} bold>esc </Text>
                                 <Text color={theme.colors.warningOrange}>✗</Text>
                             </>
                         )}
                         {showHiddenHint && (
-                            <Text color={theme.colors.textMuted}> · {hiddenFilesHint}</Text>
+                            <Text color={theme.colors.textMuted}> · </Text>
+                        )}
+                        {showHiddenHint && (
+                            <Text color={theme.colors.textMuted} bold>h </Text>
+                        )}
+                        {showHiddenHint && (
+                            <Text color={theme.colors.textMuted}>{this._showHiddenFiles ? 'Hide Hidden' : 'Show Hidden'}</Text>
                         )}
                         {notification && availableForHints > 10 && (
                             <>

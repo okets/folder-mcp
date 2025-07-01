@@ -131,8 +131,8 @@ export const SelectionBody = ({
             // Calculate available space for option label
             const linePrefixLength = getVisualWidth(linePrefix) + 1; // +1 for space after prefix
             const symbolLength = getVisualWidth(symbol) + 1; // +1 for space after symbol
-            const fullSpaceHint = ' [space]';
-            const shortSpaceHint = ' [␣]';
+            const fullSpaceHint = ' space';
+            const shortSpaceHint = ' spc';
             const fullSpaceHintLength = getVisualWidth(fullSpaceHint);
             const shortSpaceHintLength = getVisualWidth(shortSpaceHint);
             
@@ -231,8 +231,19 @@ export const SelectionBody = ({
                 <Box>{optionElements}</Box>
                 {focusedIndex >= 0 && (
                     <Text color={theme.colors.textMuted}>
-                        {mode === 'checkbox' ? ' [←→] [space]' : ' [←→]'}
+                        {mode === 'checkbox' ? ' ' : ' '}
                     </Text>
+                )}
+                {focusedIndex >= 0 && (
+                    <Text color={theme.colors.textMuted} bold>
+                        {mode === 'checkbox' ? '←→' : '←→'}
+                    </Text>
+                )}
+                {focusedIndex >= 0 && mode === 'checkbox' && (
+                    <Text color={theme.colors.textMuted}> </Text>
+                )}
+                {focusedIndex >= 0 && mode === 'checkbox' && (
+                    <Text color={theme.colors.textMuted} bold>space</Text>
                 )}
             </Box>
         );

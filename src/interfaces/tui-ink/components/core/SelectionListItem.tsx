@@ -263,7 +263,7 @@ export class SelectionListItem implements IListItem {
             if (this.layout === 'horizontal') {
                 // Calculate space needed for structure
                 const promptLine = 3 + getVisualWidth(`Select ${this.mode === 'radio' ? 'one' : 'options'}:`); // "│  Select X:"
-                const prefixAndSuffix = 3 + 5; // "└─ " prefix + " [←→]" suffix minimum
+                const prefixAndSuffix = 3 + 5; // "└─ " prefix + " ←→" suffix minimum
                 const symbolSpace = 2; // "○ " per option
                 const separatorSpace = 3; // " │ " between options
                 
@@ -371,8 +371,8 @@ export class SelectionListItem implements IListItem {
                 // Show keyboard hints with progressive truncation
                 const baseLength = getVisualWidth(prefix) + getVisualWidth(labelPart) + 1; // "■ " + label + space
                 const availableForHints = maxWidth - baseLength - 1; // -1 for safety buffer
-                const fullHintsLength = 19; // "[enter] ✓ · [esc] ✗"
-                const partialHintsLength = 10; // "[enter] ✓"
+                const fullHintsLength = 15; // "enter ✓ · esc ✗"
+                const partialHintsLength = 8; // "enter ✓"
                 
                 let showFullHints = false;
                 let showPartialHints = false;
@@ -389,15 +389,16 @@ export class SelectionListItem implements IListItem {
                         <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
                         {showFullHints && (
                             <>
-                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.textMuted} bold>enter </Text>
                                 <Text color={theme.colors.successGreen}>✓</Text>
-                                <Text color={theme.colors.textMuted}> · [esc] </Text>
+                                <Text color={theme.colors.textMuted}> · </Text>
+                                <Text color={theme.colors.textMuted} bold>esc </Text>
                                 <Text color={theme.colors.warningOrange}>✗</Text>
                             </>
                         )}
                         {showPartialHints && !showFullHints && (
                             <>
-                                <Text color={theme.colors.textMuted}>[enter] </Text>
+                                <Text color={theme.colors.textMuted} bold>enter </Text>
                                 <Text color={theme.colors.successGreen}>✓</Text>
                             </>
                         )}
@@ -552,7 +553,7 @@ export class SelectionListItem implements IListItem {
         
         if (this.layout === 'horizontal') {
             // Check if horizontal layout would require significant truncation
-            const prefixAndSuffix = 3 + 5; // "└─ " prefix + " [←→]" suffix minimum
+            const prefixAndSuffix = 3 + 5; // "└─ " prefix + " ←→" suffix minimum
             const symbolSpace = 2; // "○ " per option
             const separatorSpace = 3; // " │ " between options
             
