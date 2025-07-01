@@ -16,9 +16,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
     const { columns } = useTerminalSize();
     
-    // Account for border (2 cells) and safety margin
-    // The Box component's width includes content area only, borders are extra
-    const statusBarWidth = columns - 1;
+    // Use full terminal width
+    // The Box component's width prop sets the total width including borders
+    const statusBarWidth = columns;
     
     // Update key bindings whenever they change
     useEffect(() => {
