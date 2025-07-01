@@ -34,10 +34,10 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         const panelCount = children.length;
         
         // For narrow mode, allocate space proportionally
-        // Use 50%/50% split for better balance
+        // Use 70%/30% split to match horizontal layout proportions
         const heights = panelCount === 2 
             ? (() => {
-                const firstHeight = Math.floor(availableHeight * 0.5);
+                const firstHeight = Math.floor(availableHeight * 0.7);
                 const secondHeight = availableHeight - firstHeight; // Use remaining space
                 return [firstHeight, secondHeight];
               })()
