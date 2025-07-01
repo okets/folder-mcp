@@ -377,8 +377,8 @@ Follow the pattern from SelectionListItem's responsive layout switching for dyna
 
 #### **Implementation Assignments:**
 
-**Assignment 4.1: Create Destructive Configuration Schema**
-- [ ] Add `destructive` property to configuration item interfaces in `src/interfaces/tui-ink/configuration/types.ts`:
+**Assignment 4.1: Create Destructive Configuration Schema** ✅
+- [x] Add `destructive` property to configuration item interfaces in `src/interfaces/tui-ink/models/configuration.ts`:
   ```typescript
   destructive?: {
     level: 'warning' | 'critical';
@@ -391,91 +391,103 @@ Follow the pattern from SelectionListItem's responsive layout switching for dyna
     confirmSettingInitialValue?: boolean; // Default: false
   }
   ```
-- [ ] Update IConfigurationItem interface to include destructive metadata
-- [ ] Add helper type guards for checking if item is destructive
+- [x] Update IConfigurationItem interface to include destructive metadata
+- [x] Add helper type guards for checking if item is destructive
 
-**Assignment 4.2: Create Confirmation Body Component**
-- [ ] Create `src/interfaces/tui-ink/components/ConfirmationBody.tsx`
-- [ ] Props: destructive config, onConfirm, onCancel, currentValue, newValue, focusedButton
-- [ ] Layout structure:
+**Assignment 4.2: Create Confirmation Body Component** ✅
+- [x] Create `src/interfaces/tui-ink/components/ConfirmationBody.tsx`
+- [x] Props: destructive config, currentValue, newValue, focusedButton, maxWidth, maxLines, scrollOffset
+- [x] Layout structure:
   - Warning icon and title with appropriate color
   - Message explaining the change
   - Optional consequences list (bullet points)
   - Current vs new value display
   - Button row with customizable text
-- [ ] Implement responsive text truncation for narrow terminals
-- [ ] Use theme colors based on severity level (yellow for warning, red for critical)
-- [ ] Show focused button with inverse colors
-- [ ] **Scrolling Implementation** (Following FilePickerBody pattern):
+- [x] Implement responsive text truncation for narrow terminals
+- [x] Use theme colors based on severity level (orange for warning, red for critical)
+- [x] Show focused button with inverse colors
+- [x] **Scrolling Implementation** (Following FilePickerBody pattern):
   - Line prefixes integrate scroll indicators: `│▲` (scroll up), `│▼` (scroll down), `│ ` (normal)
   - ConfirmationBody returns array of Text elements with proper line prefixes
   - Each line wrapped as: `<Text key={lineKey}>{lineContent}</Text>`
   - No nested Box components or separate scrollbar - indicators are part of line prefix
   - Example line prefix pattern:
     ```
-    │ │  ⚠️  Model Change Impact              <- normal line
-    │ │▲ Changing the embedding model...      <- first line when scrolled
-    │ │  will trigger a full reindex of       <- normal line
-    │ │  all documents.                        <- normal line
-    │ │  • All existing embeddings deleted     <- normal line
-    │ │▼ • Documents will be reprocessed       <- last line when more below
-    │ └─▶  ✓ Keep Current  ✗ Change Model     <- button line (always visible)
+    │ │ ▶⚠ Model Change Impact               <- cursor on first line (blue ▶)
+    │ │▲  Changing the embedding model...      <- first line when scrolled
+    │ │   will trigger a full reindex of       <- normal line
+    │ │   all documents.                        <- normal line
+    │ │   • All existing embeddings deleted     <- normal line
+    │ │▼  • Documents will be reprocessed       <- last line when more below
+    │ └─▶  ✓ Keep Current  ✗ Change Model     <- button line with cursor
     ```
+  - **Enhanced Navigation (Implemented)**:
+    - Blue cursor (▶) navigates through content lines
+    - Up/down arrows move cursor and auto-scroll to keep it visible
+    - Cursor jumps to button line after last content line
+    - Left/right arrows only work on button line for button selection
+    - Content shifted left by 1 cell to accommodate cursor
+    - Increased content width buffer to prevent "ghost lines" from truncation
 
-**Assignment 4.3: Add Confirmation State to ConfigurationListItem**
-- [ ] Add state properties:
+**Assignment 4.3: Add Confirmation State to ConfigurationListItem** ✅
+- [x] Add state properties:
   - `showingConfirmation: boolean`
   - `pendingValue: any` (stores new value during confirmation)
   - `confirmationFocusIndex: number` (0 for cancel, 1 for confirm - default to 0)
   - `originalValue: any` (store initial value when component mounts)
   - `hadInitialValidationError: boolean` (track if original value was invalid - meaning had a validation error when the component was first rendered, validation warnings are not considered here)
-- [ ] Modify `handleEnter()` to check if confirmation is needed:
+  - `confirmationCursorLine: number` (cursor position in content, -1 for button line)
+  - `confirmationTotalLines: number` (total content lines for navigation)
+- [x] Modify `handleEnter()` to check if confirmation is needed:
   - Check if item has destructive flag
   - If `confirmSettingInitialValue` is false (default):
     - Skip confirmation if no original value exists (undefined/null)
     - Skip confirmation if original value had validation error (check stored validation state, not current)
   - Show confirmation for all other cases
   - Note: Current typing validation errors don't affect this - only the original value's validation state matters
-- [ ] If confirmation needed, store pending value and show confirmation
-- [ ] Update `render()` to conditionally show ConfirmationBody vs normal body
+- [x] If confirmation needed, store pending value and show confirmation
+- [x] Update `render()` to conditionally show ConfirmationBody vs normal body
 
-**Assignment 4.4: Implement Dynamic Height Calculation**
-- [ ] Update `getRequiredLines()` to account for confirmation state
-- [ ] Calculate confirmation body height based on:
+**Assignment 4.4: Implement Dynamic Height Calculation** ✅
+- [x] Update `getRequiredLines()` to account for confirmation state
+- [x] Calculate confirmation body height based on:
   - Base height: 4 lines (title + message + buttons + padding)
   - +1 line per consequence item
   - +1 line for current/new value display
-- [ ] Ensure minimum height for readability
-- [ ] Cap maximum height to prevent UI overflow
+- [x] Ensure minimum height for readability
+- [x] Cap maximum height to prevent UI overflow
 
-**Assignment 4.5: Add Keyboard Navigation for Confirmations**
-- [ ] Implement confirmation-specific input handling:
-  - Left/Right arrows: navigate between Cancel/Confirm buttons
+**Assignment 4.5: Add Keyboard Navigation for Confirmations** ✅
+- [x] Implement confirmation-specific input handling:
+  - Left/Right arrows: navigate between Cancel/Confirm buttons (only on button line)
+  - Up/Down arrows: navigate through content with cursor
   - Enter: execute focused button action
   - ESC: always cancels (same as Cancel button)
   - Tab: cycle through buttons (optional alternative to arrows)
-- [ ] Visual focus indicators on buttons (inverse colors)
-- [ ] Update status bar hints during confirmation mode
-- [ ] Ensure Cancel button has initial focus (confirmationFocusIndex = 0)
+- [x] Visual focus indicators on buttons (inverse colors)
+- [x] Blue cursor (▶) for content navigation
+- [x] Cursor moves to button line after last content line
+- [x] Update status bar hints during confirmation mode
+- [x] Ensure Cancel button has initial focus (confirmationFocusIndex = 0)
 
-**Assignment 4.6: Implement Confirmation Actions**
-- [ ] On Cancel:
+**Assignment 4.6: Implement Confirmation Actions** ✅
+- [x] On Cancel:
   - Clear pending value
   - Hide confirmation
-  - Return to normal edit mode
-- [ ] On Confirm:
+  - Exit completely (not return to edit mode)
+- [x] On Confirm:
   - Apply pending value using existing onChange mechanism
   - Clear confirmation state
   - Exit edit mode
 
-**Assignment 4.7: Add Visual Feedback**
-- [ ] Use severity-appropriate colors:
+**Assignment 4.7: Add Visual Feedback** ✅
+- [x] Use severity-appropriate colors:
   - Warning: yellow borders and icons
-  - Critical: red/magenta borders and icons with bold styling
-- [ ] Add transition effects if possible (smooth height change)
-- [ ] Show appropriate icons: ⚠️ for all levels
-- [ ] Update item bullet color to match severity during confirmation
-- [ ] Use button text from destructive config or defaults ("Cancel"/"Confirm")
+  - Critical: red/magenta borders and icons
+- [x] Add transition effects if possible (smooth height change)
+- [x] Show appropriate icons: ⚠ for all levels (single-width character)
+- [x] Update item bullet color to match severity during confirmation
+- [x] Use button text from destructive config or defaults ("Cancel"/"Confirm")
 
 **Assignment 4.8: Create Test Scenarios**
 - [ ] Add destructive items to sample configuration:
@@ -520,7 +532,7 @@ git add -A && git commit -m "Task 5: ProgressItem component completed"
 - [x] UI Enhancement: Validation errors replace keyboard hints - **Completed**
 - [x] Task 2: Implement SelectionListItem Component - **Completed**
 - [x] Task 3: Implement FilePickerListItem Component - **Completed**
-- [ ] Task 4: Implement Destructive Configuration Confirmations - Not Started
+- [ ] Task 4: Implement Destructive Configuration Confirmations - **In Progress**
 - [ ] Task 5: Implement ProgressItem Component - Not Started
 
 ### **Completion Log**

@@ -4,6 +4,7 @@ import { ValidatedListItem } from './ValidatedListItem.js';
 import { TextInputBody } from './TextInputBody.js';
 import { NotificationArea } from './NotificationArea.js';
 import { ConfirmationBody } from '../ConfirmationBody.js';
+import { SimpleMessageScroll } from '../SimpleMessageScroll.js';
 import { theme } from '../../utils/theme.js';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
@@ -26,6 +27,9 @@ export class ConfigurationListItem extends ValidatedListItem {
     private _confirmationFocusIndex: number = 0; // 0 for cancel, 1 for confirm - default to cancel
     private _originalValue: string;
     private _hadInitialValidationError: boolean = false;
+    private _confirmationScrollOffset: number = 0;
+    private _confirmationCursorLine: number = 0; // Current cursor position in content (-1 for button line)
+    private _confirmationTotalLines: number = 0; // Total content lines in confirmation dialog
     
     constructor(
         public icon: string,
@@ -86,6 +90,12 @@ export class ConfigurationListItem extends ValidatedListItem {
         // Exit edit mode
         this._isControllingInput = false;
         this._showPassword = false; // Reset password visibility
+        // Clear confirmation state
+        this._showingConfirmation = false;
+        this._pendingValue = '';
+        this._confirmationFocusIndex = 0;
+        this._confirmationScrollOffset = 0;
+        this._confirmationCursorLine = 0;
         // Re-validate the stored value to ensure correct validation state
         this.validateValue();
     }
@@ -170,16 +180,22 @@ export class ConfigurationListItem extends ValidatedListItem {
         if (key.escape) {
             // Handle confirmation mode
             if (this._showingConfirmation) {
-                // Cancel confirmation and return to edit mode
+                // Cancel confirmation and exit completely
                 this._showingConfirmation = false;
                 this._pendingValue = '';
                 this._confirmationFocusIndex = 0;
+                this._confirmationScrollOffset = 0;
+                this._confirmationCursorLine = 0;
+                // Revert to original value
                 this._editValue = this.value;
-                this._cursorPosition = this._editValue.length;
+                this._cursorPosition = 0;
+                this._validationError = null;
+                this._validationMessage = null;
+                this.onExit();
                 return true;
             }
             
-            // Cancel editing
+            // Cancel editing - revert to original value
             this._editValue = this.value;
             this._cursorPosition = 0;
             this._validationError = null;
@@ -196,15 +212,20 @@ export class ConfigurationListItem extends ValidatedListItem {
                     this._showingConfirmation = false;
                     this._pendingValue = '';
                     this._confirmationFocusIndex = 0;
+                    this._confirmationCursorLine = 0;
                     this.onExit();
                 } else {
-                    // Cancel button selected - discard changes
+                    // Cancel button selected - discard changes and exit
                     this._showingConfirmation = false;
                     this._pendingValue = '';
                     this._confirmationFocusIndex = 0;
-                    // Return to edit mode with original value
+                    this._confirmationCursorLine = 0;
+                    // Revert to original value and exit
                     this._editValue = this.value;
-                    this._cursorPosition = this._editValue.length;
+                    this._cursorPosition = 0;
+                    this._validationError = null;
+                    this._validationMessage = null;
+                    this.onExit();
                 }
                 return true;
             }
@@ -221,6 +242,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                 this._pendingValue = this._editValue;
                 this._showingConfirmation = true;
                 this._confirmationFocusIndex = 0; // Default to cancel
+                this._confirmationScrollOffset = 0; // Reset scroll
+                this._confirmationCursorLine = 0; // Start at first line (will be adjusted to first non-empty)
                 return true;
             }
             
@@ -232,7 +255,10 @@ export class ConfigurationListItem extends ValidatedListItem {
         } else if (key.leftArrow) {
             // Handle confirmation mode navigation
             if (this._showingConfirmation) {
-                this._confirmationFocusIndex = 0; // Move to cancel
+                // Only allow left/right on button line
+                if (this._confirmationCursorLine === -1) {
+                    this._confirmationFocusIndex = 0; // Move to cancel
+                }
                 return true;
             }
             
@@ -253,7 +279,10 @@ export class ConfigurationListItem extends ValidatedListItem {
         } else if (key.rightArrow) {
             // Handle confirmation mode navigation
             if (this._showingConfirmation) {
-                this._confirmationFocusIndex = 1; // Move to confirm
+                // Only allow left/right on button line
+                if (this._confirmationCursorLine === -1) {
+                    this._confirmationFocusIndex = 1; // Move to confirm
+                }
                 return true;
             }
             
@@ -261,6 +290,47 @@ export class ConfigurationListItem extends ValidatedListItem {
             this._cursorPosition = Math.min(this._editValue.length, this._cursorPosition + 1);
             return true;
         } else if (key.upArrow || key.downArrow) {
+            // Handle confirmation mode navigation with cursor
+            if (this._showingConfirmation && this.destructive) {
+                const totalLines = this._confirmationTotalLines;
+                const maxLines = 8; // Available content lines (maxLines - header - button)
+                
+                // Debug navigation
+                if (process.env.TUI_DEBUG === 'true') {
+                    console.error(`\n=== Navigation Debug ===`);
+                    console.error(`Key: ${key.upArrow ? 'UP' : 'DOWN'}`);
+                    console.error(`Before: cursor=${this._confirmationCursorLine}, scroll=${this._confirmationScrollOffset}`);
+                    console.error(`TotalLines=${totalLines}, maxLines=${maxLines}`);
+                }
+                
+                if (key.upArrow) {
+                    // Move cursor up
+                    if (this._confirmationCursorLine > 0) {
+                        this._confirmationCursorLine--;
+                        // Scroll up if cursor moves above visible area
+                        if (this._confirmationCursorLine < this._confirmationScrollOffset) {
+                            this._confirmationScrollOffset = this._confirmationCursorLine;
+                        }
+                    }
+                } else {
+                    // Move cursor down
+                    if (this._confirmationCursorLine < totalLines - 1) {
+                        this._confirmationCursorLine++;
+                        // Scroll down if cursor moves below visible area
+                        const visibleLines = 5; // Fixed 5 content lines
+                        if (this._confirmationCursorLine >= this._confirmationScrollOffset + visibleLines) {
+                            this._confirmationScrollOffset = this._confirmationCursorLine - visibleLines + 1;
+                        }
+                    }
+                }
+                
+                if (process.env.TUI_DEBUG === 'true') {
+                    console.error(`After: cursor=${this._confirmationCursorLine}, scroll=${this._confirmationScrollOffset}`);
+                    console.error(`=== End Navigation ===\n`);
+                }
+                return true;
+            }
+            
             // Exit without saving on up/down arrows
             this._editValue = this.value;
             this._cursorPosition = 0;
@@ -411,27 +481,101 @@ export class ConfigurationListItem extends ValidatedListItem {
                     </Text>
                 );
             } else {
-                // No validation, simple header - add space after colon
-                elements.push(
-                    <Text key="header">
-                        <Text color={bulletColor}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
-                    </Text>
-                );
+                // No validation, simple header
+                if (this._showingConfirmation) {
+                    // In confirmation mode, add padding but no scroll indicator
+                    const headerText = `■ ${labelPart}`;
+                    const headerLength = getVisualWidth(headerText);
+                    const padding = ' '.repeat(Math.max(0, maxWidth - headerLength));
+                    
+                    elements.push(
+                        <Text key="header">
+                            <Text color={bulletColor}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            {padding}
+                        </Text>
+                    );
+                } else {
+                    // Normal mode with space after colon
+                    elements.push(
+                        <Text key="header">
+                            <Text color={bulletColor}>■ </Text>
+                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
+                        </Text>
+                    );
+                }
             }
             
             
             // Show confirmation body or edit body
             if (this._showingConfirmation && this.destructive) {
-                // Show confirmation dialog - ConfirmationBody returns an array
-                const confirmationElements = ConfirmationBody({
-                    destructiveConfig: this.destructive,
-                    currentValue: this.value,
-                    newValue: this._pendingValue,
-                    focusedButton: this._confirmationFocusIndex,
-                    maxWidth: maxWidth
+                // Test with simple message scroll
+                // Maximum 5 content lines (excluding header and button)
+                const maxContentLines = 5;
+                
+                // Build full message with title and bullet points
+                let fullMessage = '';
+                
+                // Add title if present
+                if (this.destructive.title) {
+                    fullMessage = this.destructive.title + '\n';
+                }
+                
+                // Add main message
+                fullMessage += this.destructive.message;
+                
+                // Add bullet points
+                if (this.destructive.consequences && this.destructive.consequences.length > 0) {
+                    // Add newlines before bullet points to ensure they start on new lines
+                    fullMessage += '\n' + this.destructive.consequences.map(c => `• ${c}`).join('\n');
+                }
+                
+                // Add a really long number for testing truncation
+                fullMessage += '\nEstimated vectors: 123456789012345678901234567890';
+                
+                const messageResult = SimpleMessageScroll({
+                    message: fullMessage,
+                    maxWidth: maxWidth - 4, // Account for prefixes
+                    maxLines: maxContentLines,
+                    scrollOffset: this._confirmationScrollOffset,
+                    cursorLine: this._confirmationCursorLine,
+                    hasTitle: !!this.destructive.title
                 });
-                return [...elements, ...confirmationElements];
+                
+                // Store total lines for navigation
+                this._confirmationTotalLines = messageResult.totalLines;
+                
+                // Add button line with proper truncation
+                // Calculate available space for buttons
+                const buttonPrefix = '└─  ';
+                const buttonSeparator = '  ';
+                const checkMark = '✓ ';
+                const crossMark = '✗ ';
+                
+                // Calculate fixed width components
+                const fixedWidth = buttonPrefix.length + checkMark.length + crossMark.length + buttonSeparator.length;
+                const availableForLabels = Math.max(0, maxWidth - fixedWidth);
+                const maxLabelWidth = Math.floor(availableForLabels / 2);
+                
+                // Button labels
+                let cancelLabel = 'Keep Current';
+                let confirmLabel = 'Change Model';
+                
+                // Truncate both labels equally if needed
+                if (cancelLabel.length > maxLabelWidth) {
+                    cancelLabel = cancelLabel.substring(0, maxLabelWidth - 1) + '…';
+                }
+                if (confirmLabel.length > maxLabelWidth) {
+                    confirmLabel = confirmLabel.substring(0, maxLabelWidth - 1) + '…';
+                }
+                
+                const buttonLine = (
+                    <Text key="buttons">
+                        {buttonPrefix}{checkMark}{cancelLabel}{buttonSeparator}{crossMark}{confirmLabel}
+                    </Text>
+                );
+                
+                return [...elements, ...messageResult.elements, buttonLine];
             } else {
                 // Edit body - TextInputBody returns an array of elements
                 const bodyElements = TextInputBody({
@@ -647,27 +791,10 @@ export class ConfigurationListItem extends ValidatedListItem {
     getRequiredLines(maxWidth: number): number {
         if (!this._isControllingInput) return 1;
         
-        // In confirmation mode, calculate height based on confirmation dialog
+        // In confirmation mode, use fixed height
         if (this._showingConfirmation && this.destructive) {
-            let height = 1; // Header line
-            height += 2; // Title with margin
-            height += 2; // Message with margin
-            
-            // Add lines for consequences if any
-            if (this.destructive.consequences && this.destructive.consequences.length > 0) {
-                height += this.destructive.consequences.length + 1; // +1 for margin
-            }
-            
-            height += 3; // Current/New value display with margin
-            
-            // Estimated time if provided
-            if (this.destructive.estimatedTime) {
-                height += 2; // Time display with margin
-            }
-            
-            height += 2; // Buttons with margin
-            
-            return height;
+            // 1 header + 5 content lines + 1 button = 7 total
+            return 7;
         }
         
         // Normal edit mode
