@@ -148,16 +148,16 @@ export function formatCollapsedValidation(
     // If still no room, ensure we show at least "[…]"
     if (availableWidth <= 0) {
         // If we have validation, still try to show the icon even in extreme cases
-        if (validation && validationIconSpace <= maxWidth - getVisualWidth(`${icon} …: […]`)) {
+        if (validation && validationIconSpace <= maxWidth - getVisualWidth(`${icon} …: []`)) {
             return {
-                displayValue: '…',
+                displayValue: '',
                 validationDisplay: ` ${validation.icon || getValidationIcon(validation.state)}`,
                 showValidation: true,
                 truncatedLabel: '…'
             };
         }
         return {
-            displayValue: '…',
+            displayValue: '',
             validationDisplay: '',
             showValidation: false,
             truncatedLabel: workingLabel
@@ -168,7 +168,7 @@ export function formatCollapsedValidation(
         // Handle value truncation without validation
         if (!value || value.length === 0) {
             return {
-                displayValue: '…',
+                displayValue: '',
                 validationDisplay: '',
                 showValidation: false,
                 truncatedLabel: workingLabel !== label ? workingLabel : undefined
