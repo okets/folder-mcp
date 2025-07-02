@@ -622,18 +622,28 @@ export class ConfigurationListItem extends ValidatedListItem {
                 return [...elements, ...messageResult.elements, buttonLine];
             } else {
                 // Edit body - TextInputBody returns an array of elements
-                const bodyElements = TextInputBody({
+                const textInputProps: TextInputBodyProps = {
                     value: this._editValue,
                     cursorPosition: this._cursorPosition,
                     cursorVisible: this._cursorVisible,
                     width: maxWidth,
                     maxInputWidth: 40, // Reasonable max width for input fields
-                    headerColor: this.isActive ? theme.colors.accent : undefined,
                     isPassword: this.isPassword,
-                    showPassword: this._showPassword,
-                    placeholder: this.placeholder,
-                    validationRules: this.validationRules
-                });
+                    showPassword: this._showPassword
+                };
+                
+                // Only add optional properties if they're defined
+                if (this.isActive) {
+                    textInputProps.headerColor = theme.colors.accent;
+                }
+                if (this.placeholder) {
+                    textInputProps.placeholder = this.placeholder;
+                }
+                if (this.validationRules) {
+                    textInputProps.validationRules = this.validationRules;
+                }
+                
+                const bodyElements = TextInputBody(textInputProps);
                 
                 return [...elements, ...bodyElements];
             }

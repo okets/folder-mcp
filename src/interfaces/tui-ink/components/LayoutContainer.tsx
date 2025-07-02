@@ -97,7 +97,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     return (
                         <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
                             <Box height={heights[index]} width={availableWidth}>
-                                {React.cloneElement(child, {
+                                {React.cloneElement(child as React.ReactElement<any>, {
                                     height: heights[index],
                                     width: availableWidth,
                                     isMinimized,
@@ -141,7 +141,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     return (
                         <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
                             <Box width={widths[index]} height={availableHeight} flexShrink={0}>
-                                {React.cloneElement(child, {
+                                {React.cloneElement(child as React.ReactElement<any>, {
                                     height: availableHeight,
                                     width: widths[index]
                                 })}
