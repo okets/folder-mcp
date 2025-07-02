@@ -61,8 +61,14 @@ export const SelectionBody = ({
             // Check if any option has details
             const hasDetails = options.some(opt => opt.details && Object.keys(opt.details).length > 0);
             if (hasDetails) {
-                // Available width for columns is panel width minus prefix
-                const availableWidth = width - 4; // "│  " prefix + space
+                // Available width for columns is panel width minus prefix and scrollbar
+                // Need to account for: "│ " (2) + symbol (1) + space (1) = 4
+                // But the logs show the prefix is actually "│  " which is 3 chars, not 2!
+                // So: prefix (3) + symbol (1) + space (1) = 5
+                // Plus potential scrollbar indicator (1) and its preceding space (1) = 2
+                const scrollbarSpace = (maxLines && options.length > maxLines - 1) ? 2 : 0;
+                const availableWidth = width - 5 - scrollbarSpace;
+                console.error(`[SelectionBody] Width: ${width}, scrollbarSpace: ${scrollbarSpace}, availableWidth: ${availableWidth}`);
                 columnLayout = calculateColumnLayout(options, detailColumns, availableWidth, true);
             }
         }
@@ -80,6 +86,9 @@ export const SelectionBody = ({
                     headerText += '  '; // Column spacing (2 spaces)
                 }
             });
+            
+            const totalHeaderLength = getVisualWidth(headerPrefix + '  ' + headerText);
+            console.error(`[SelectionBody] Header: prefix="${headerPrefix}" (${getVisualWidth(headerPrefix)}), spaces="  " (2), headerText length=${getVisualWidth(headerText)}, total=${totalHeaderLength}, width=${width}`);
             
             elements.push(
                 <Text key="header-row">
@@ -220,6 +229,27 @@ export const SelectionBody = ({
                         );
                     }
                 });
+                
+                // Debug logging for first few rows
+                if (actualIndex < 3) {
+                    const rowPrefix = linePrefix + ' ';
+                    const symbolAndSpace = symbol + ' ';
+                    console.error(`[SelectionBody] Debug: linePrefix="${linePrefix}" (len=${getVisualWidth(linePrefix)}), full prefix="${rowPrefix}" (len=${getVisualWidth(rowPrefix)})`);
+                    console.error(`[SelectionBody] Debug: symbol="${symbol}" (len=${getVisualWidth(symbol)}), with space="${symbolAndSpace}" (len=${getVisualWidth(symbolAndSpace)})`);
+                    let rowContent = '';
+                    columnLayout.columns.forEach((col, i) => {
+                        const cellValue = col.name === 'label' ? option.label : (option.details?.[col.name] || '');
+                        const truncated = col.truncated && getVisualWidth(cellValue) > col.width;
+                        const displayValue = truncated ? truncateToWidth(cellValue, col.width) : cellValue;
+                        const paddedValue = padToWidth(displayValue, col.width);
+                        rowContent += paddedValue;
+                        if (i < columnLayout.columns.length - 1) {
+                            rowContent += '  ';
+                        }
+                    });
+                    const totalRowLength = getVisualWidth(rowPrefix + symbolAndSpace + rowContent);
+                    console.error(`[SelectionBody] Row ${actualIndex}: prefix="${rowPrefix}" symbol="${symbolAndSpace}" content length=${getVisualWidth(rowContent)}, total=${totalRowLength}, width=${width}`);
+                }
                 
                 elements.push(
                     <Box key={`option-${actualIndex}`}>

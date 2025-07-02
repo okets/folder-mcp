@@ -140,9 +140,9 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
                 
                 itemElements.forEach((element, elementIndex) => {
                     const currentLine = itemStartLine + elementIndex;
-                    const scrollbarChar = showScrollbar && scrollbarElements[currentLine] 
+                    const scrollbarChar = showScrollbar && currentLine >= 0 && currentLine < scrollbarElements.length
                         ? scrollbarElements[currentLine] 
-                        : ' ';
+                        : (showScrollbar ? '┃' : ' '); // Default to vertical bar if within bounds
                     
                     elements.push(
                         <Box key={`${index}-${elementIndex}`}>
@@ -157,9 +157,9 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
             } else if (React.isValidElement(item)) {
                 // It's a React element
                 const currentLine = itemStartLine;
-                const scrollbarChar = showScrollbar && scrollbarElements[currentLine] 
+                const scrollbarChar = showScrollbar && currentLine >= 0 && currentLine < scrollbarElements.length
                     ? scrollbarElements[currentLine] 
-                    : ' ';
+                    : (showScrollbar ? '┃' : ' ');
                 
                 elements.push(
                     <Box key={index}>
@@ -176,13 +176,16 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
         });
         
         // Fill remaining space with empty lines and scrollbar
-        while (lineIndex < height && showScrollbar && scrollbarElements[lineIndex]) {
+        while (lineIndex < height && showScrollbar) {
+            const scrollbarChar = lineIndex < scrollbarElements.length 
+                ? scrollbarElements[lineIndex] 
+                : '┃';
             elements.push(
                 <Box key={`empty-${lineIndex}`}>
                     <Box width={contentWidth}>
                         <Text> </Text>
                     </Box>
-                    <Text color={theme.colors.border}> {scrollbarElements[lineIndex]}</Text>
+                    <Text color={theme.colors.border}> {scrollbarChar}</Text>
                 </Box>
             );
             lineIndex++;

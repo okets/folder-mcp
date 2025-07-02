@@ -742,7 +742,8 @@ git add -A && git commit -m "Task 7: ProgressBar component completed"
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
 | AnimationContainer | ✅ Completed | 2025-07-02 | 14c85f2, 6a2e4a5, 1fefd95 |
-| ProgressBar | ⏳ Pending | - | - |
+| ProgressBar | ✅ Completed | 2025-07-02 | - |
+| Detailed View Lists | ✅ Completed | 2025-07-02 | 64051d7 |
 
 ### **Quick Health Check**
 ```bash
@@ -791,7 +792,7 @@ npm run build && npm test && git status
 - Long mode: progress bar + spinner + percentage
 - Supports determinate and indeterminate states
 
-### **Task 8: Implement Detailed View Mode for Vertical Lists**
+### **Task 8: Implement Detailed View Mode for Vertical Lists** ✅
 
 **Design Requirements:**
 - Add support for "detailed view" in vertical SelectionList components
@@ -815,7 +816,7 @@ This builds on the existing SelectionListItem component, adding a new display mo
 #### **Implementation Assignments:**
 
 **Assignment 8.1: Extend SelectionListItem Data Model**
-- [ ] Update option interface to support detail fields:
+- [x] Update option interface to support detail fields:
   ```typescript
   interface SelectionOption {
     value: string;
@@ -823,44 +824,44 @@ This builds on the existing SelectionListItem component, adding a new display mo
     details?: Record<string, string>; // New: optional detail fields
   }
   ```
-- [ ] Add `detailColumns?: string[]` to SelectionListItem props to define column order
-- [ ] Add `showDetails?: boolean` flag to enable detailed view mode
-- [ ] Ensure backward compatibility with simple string options
+- [x] Add `detailColumns?: string[]` to SelectionListItem props to define column order
+- [x] Add `showDetails?: boolean` flag to enable detailed view mode
+- [x] Ensure backward compatibility with simple string options
 
 **Assignment 8.2: Create Column Layout Calculator**
-- [ ] Create utility function to calculate column widths:
+- [x] Create utility function to calculate column widths:
   - Measure header text length for each column
   - Measure maximum content length for each column
   - Account for selection indicator width (3 chars)
   - Add appropriate spacing between columns (2-3 spaces)
-- [ ] Handle responsive width constraints:
+- [x] Handle responsive width constraints:
   - Truncate columns that exceed available width
   - Prioritize label column, then distribute remaining space
   - Minimum column width of 3 characters
-- [ ] Calculate total required width for detailed view
+- [x] Calculate total required width for detailed view
 
 **Assignment 8.3: Implement Header Row Rendering**
-- [ ] Create header row with column names
-- [ ] Use subtle styling (dim or different color) for headers
-- [ ] Align headers with content columns
-- [ ] Add separator line below headers (optional)
-- [ ] Format: `│  Model Name    Your Machine    Parameters    Quantization  │`
+- [x] Create header row with column names
+- [x] Use subtle styling (dim or different color) for headers
+- [x] Align headers with content columns
+- [x] Add separator line below headers (optional)
+- [x] Format: `│  Model Name    Your Machine    Parameters    Quantization  │`
 
 **Assignment 8.4: Update Option Row Rendering**
-- [ ] Modify renderOption to support columnar display
-- [ ] Align content within calculated column widths
-- [ ] Maintain selection indicators (▣/▢) at start of row
-- [ ] Apply consistent padding and alignment
-- [ ] Handle missing detail values gracefully (show empty space)
-- [ ] Truncate long values with ellipsis (...)
+- [x] Modify renderOption to support columnar display
+- [x] Align content within calculated column widths
+- [x] Maintain selection indicators (▣/▢) at start of row
+- [x] Apply consistent padding and alignment
+- [x] Handle missing detail values gracefully (show empty space)
+- [x] Truncate long values with ellipsis (...)
 
 **Assignment 8.5: Adjust Height Calculations**
-- [ ] Update getRequiredLines() for detailed view:
+- [x] Update getRequiredLines() for detailed view:
   - Add 1-2 lines for header row
   - Keep same calculation for option rows
   - Account for any separator lines
-- [ ] Ensure scrollbar calculations work with headers
-- [ ] Test with various numbers of options
+- [x] Ensure scrollbar calculations work with headers
+- [x] Test with various numbers of options
 
 **Assignment 8.6: Maintain Keyboard Navigation**
 - [ ] Ensure up/down arrows skip header row
@@ -869,10 +870,10 @@ This builds on the existing SelectionListItem component, adding a new display mo
 - [ ] Test that all existing shortcuts work correctly
 
 **Assignment 8.7: Add Sample Data with Details**
-- [ ] Create model selection example with technical specs
-- [ ] Add package manager selection with version info
-- [ ] Include database selection with connection details
-- [ ] Test both vertical and horizontal layouts (details only in vertical)
+- [x] Create model selection example with technical specs
+- [x] Add package manager selection with version info
+- [x] Include database selection with connection details
+- [x] Test both vertical and horizontal layouts (details only in vertical)
 
 **Assignment 8.8: Handle Edge Cases**
 - [ ] Very narrow terminals (graceful degradation to simple view)

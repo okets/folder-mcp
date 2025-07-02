@@ -20,8 +20,8 @@ export function calculateColumnLayout(
     availableWidth: number,
     includeLabel: boolean = true
 ): ColumnLayout {
-    // Start with selection indicator width
-    let usedWidth = SELECTION_INDICATOR_WIDTH;
+    // Don't include selection indicator width - it's already accounted for by the caller
+    let usedWidth = 0;
     
     // Build column list (label is always first if included)
     const columnNames = includeLabel ? ['label', ...detailColumns] : detailColumns;
@@ -55,6 +55,8 @@ export function calculateColumnLayout(
     const totalSpacing = (columnNames.length - 1) * COLUMN_SPACING;
     const availableForColumns = availableWidth - usedWidth - totalSpacing;
     
+    console.error(`[columnLayout] availableWidth=${availableWidth}, selectionWidth=${usedWidth}, spacing=${totalSpacing}, forColumns=${availableForColumns}, columnCount=${columnNames.length}`);
+    
     // If we can't fit minimum columns, try with just label column
     if (availableForColumns < columnNames.length * MIN_COLUMN_WIDTH) {
         // Try with just the label column
@@ -65,7 +67,7 @@ export function calculateColumnLayout(
                     width: availableForColumns,
                     truncated: false
                 }],
-                totalWidth: SELECTION_INDICATOR_WIDTH + availableForColumns
+                totalWidth: availableForColumns
             };
         }
         
@@ -79,9 +81,10 @@ export function calculateColumnLayout(
     const columns = distributeColumnWidths(columnNames, maxWidths, availableForColumns);
     
     // Calculate total width
-    const totalWidth = SELECTION_INDICATOR_WIDTH + 
-        columns.reduce((sum, col) => sum + col.width, 0) +
-        totalSpacing;
+    const columnsWidth = columns.reduce((sum, col) => sum + col.width, 0);
+    const totalWidth = columnsWidth + totalSpacing;
+    
+    console.error(`[columnLayout] Result: columns=${columns.map(c => `${c.name}:${c.width}`).join(',')}, totalWidth=${totalWidth}`);
     
     return {
         columns,
@@ -99,6 +102,7 @@ function distributeColumnWidths(
     // Start with ideal widths
     let totalIdealWidth = columnNames.reduce((sum, col) => sum + (maxWidths[col] || 0), 0);
     
+    
     if (totalIdealWidth <= availableWidth) {
         // Everything fits!
         columnNames.forEach(col => {
@@ -110,10 +114,14 @@ function distributeColumnWidths(
         });
     } else {
         // Need to truncate - prioritize label column
+        // But ensure we leave enough space for other columns
+        const minSpaceForOthers = (columnNames.length - 1) * MIN_COLUMN_WIDTH;
+        const maxLabelWidth = Math.max(MIN_COLUMN_WIDTH, availableWidth - minSpaceForOthers);
         const labelWidth = includesLabel(columnNames) ? 
-            Math.min(maxWidths.label || 0, Math.max(15, Math.floor(availableWidth * 0.35))) : 0;
+            Math.min(maxWidths.label || 0, Math.max(MIN_COLUMN_WIDTH, Math.min(maxLabelWidth, Math.floor(availableWidth * 0.35)))) : 0;
         
         let remainingWidth = availableWidth - labelWidth;
+        console.error(`[distributeColumnWidths] Truncating: availableWidth=${availableWidth}, labelWidth=${labelWidth}, remainingWidth=${remainingWidth}, detailColumns=${columnNames.length - 1}`);
         const detailColumns = columnNames.filter(col => col !== 'label');
         
         // Add label column if present
