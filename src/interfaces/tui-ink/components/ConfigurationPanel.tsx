@@ -26,7 +26,8 @@ export const ConfigurationPanel: React.FC<{
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
     isMinimized?: boolean;
-}> = ({ width, height, onEditModeChange, isMinimized = false }) => {
+    isFrameOnly?: boolean;
+}> = ({ width, height, onEditModeChange, isMinimized = false, isFrameOnly = false }) => {
     // Force update trigger
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
@@ -295,22 +296,26 @@ export const ConfigurationPanel: React.FC<{
     });
     
     // Handle minimized display
-    if (isMinimized) {
+    if (isMinimized || isFrameOnly) {
         // Calculate available width for the message
         const borderWidth = 2; // left and right borders
         const paddingWidth = 2; // left and right padding
         const availableWidth = panelWidth - borderWidth - paddingWidth;
-        const fullMessage = "Press tab to switch to Configuration";
+        const fullMessage = "Compact Mode - tab to toggle panels";
         
-        let displayText;
-        if (fullMessage.length <= availableWidth) {
-            displayText = fullMessage;
-        } else if (availableWidth > 3) {
-            // Truncate with ellipsis, ensuring we have room for at least one character + ...
-            displayText = fullMessage.slice(0, availableWidth - 3) + "...";
-        } else {
-            // Very narrow - just show ellipsis
-            displayText = "...";
+        let displayText = "";
+        
+        // Only show text if not in frame-only mode
+        if (!isFrameOnly) {
+            if (fullMessage.length <= availableWidth) {
+                displayText = fullMessage;
+            } else if (availableWidth > 3) {
+                // Truncate with ellipsis, ensuring we have room for at least one character + ...
+                displayText = fullMessage.slice(0, availableWidth - 3) + "...";
+            } else {
+                // Very narrow - just show ellipsis
+                displayText = "...";
+            }
         }
         
         return (
@@ -323,7 +328,7 @@ export const ConfigurationPanel: React.FC<{
                 showScrollbar={false}
                 scrollbarElements={[]}
             >
-                <Text color={theme.colors.textSecondary}>{displayText}</Text>
+                {displayText && <Text color={theme.colors.textSecondary}>{displayText}</Text>}
             </BorderedBox>
         );
     }

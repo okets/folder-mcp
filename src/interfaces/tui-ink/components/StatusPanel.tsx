@@ -17,7 +17,7 @@ import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
 const mixedItems = createStatusPanelItems();
 
 
-export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimized?: boolean }> = ({ width, height, isMinimized = false }) => {
+export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimized?: boolean; isFrameOnly?: boolean }> = ({ width, height, isMinimized = false, isFrameOnly = false }) => {
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const constraints = useLayoutConstraints();
@@ -230,23 +230,27 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     });
     
     // Handle minimized display
-    if (isMinimized) {
+    if (isMinimized || isFrameOnly) {
         // Calculate available width for the message
         const panelWidth = width || columns - 2;
         // BorderedBox subtracts 4 for borders/padding, take safety buffer
         const availableWidth = panelWidth - 4 - 1; // -1 for safety
-        const fullMessage = "Press tab to switch to System Status";
+        const fullMessage = "Compact Mode - tab to toggle panels";
         
-        let displayText;
-        if (fullMessage.length <= availableWidth) {
-            displayText = fullMessage;
-        } else if (availableWidth > 3) {
-            // Truncate with ellipsis
-            const maxChars = availableWidth - 3;
-            displayText = fullMessage.substring(0, maxChars) + "…";
-        } else {
-            // Very narrow - just show ellipsis
-            displayText = "…";
+        let displayText = "";
+        
+        // Only show text if not in frame-only mode
+        if (!isFrameOnly) {
+            if (fullMessage.length <= availableWidth) {
+                displayText = fullMessage;
+            } else if (availableWidth > 3) {
+                // Truncate with ellipsis
+                const maxChars = availableWidth - 3;
+                displayText = fullMessage.substring(0, maxChars) + "…";
+            } else {
+                // Very narrow - just show ellipsis
+                displayText = "…";
+            }
         }
         
         return (
@@ -259,7 +263,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
                 showScrollbar={false}
                 scrollbarElements={[]}
             >
-                <Text color={theme.colors.textSecondary}>{displayText}</Text>
+                {displayText && <Text color={theme.colors.textSecondary}>{displayText}</Text>}
             </BorderedBox>
         );
     }

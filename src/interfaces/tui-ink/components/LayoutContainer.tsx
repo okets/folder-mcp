@@ -24,6 +24,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
     const navigation = useNavigationContext();
     const isNarrow = availableWidth < narrowBreakpoint;
     const isLowVerticalResolution = availableHeight < 20;
+    const isExtremelyLowVerticalResolution = availableHeight < 13;
     
     // Log layout decisions in debug mode
     if (debugService.isEnabled()) {
@@ -38,9 +39,19 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         
         // Check if we're in low vertical resolution mode
         let heights: number[];
-        if (isLowVerticalResolution && panelCount === 2) {
-            // In low resolution, minimize inactive panel
-            const MINIMIZED_HEIGHT = 3; // 1 content line + 2 borders
+        if (isExtremelyLowVerticalResolution && panelCount === 2) {
+            // Extremely low resolution: show frame only for inactive panel, full content for active
+            const FRAME_ONLY_HEIGHT = 2; // Just borders touching (top + bottom)
+            const activeHeight = availableHeight - FRAME_ONLY_HEIGHT;
+            
+            if (navigation.isConfigFocused) {
+                heights = [activeHeight, FRAME_ONLY_HEIGHT];
+            } else {
+                heights = [FRAME_ONLY_HEIGHT, activeHeight];
+            }
+        } else if (isLowVerticalResolution && panelCount === 2) {
+            // In low resolution, minimize inactive panel with message
+            const MINIMIZED_HEIGHT = 3; // 1 content line + 2 borders for message
             const activeHeight = availableHeight - MINIMIZED_HEIGHT;
             
             // Determine which panel is active
@@ -63,14 +74,21 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
         return (
             <Box flexDirection="column" height={availableHeight} width={availableWidth}>
                 {children.map((child, index) => {
+                    
                     const constraints: ILayoutConstraints = {
                         maxWidth: availableWidth,
                         maxHeight: heights[index],
                         overflow: 'truncate'
                     };
                     
-                    // Check if this panel is minimized in low resolution mode
-                    const isMinimized = isLowVerticalResolution && panelCount === 2 && (
+                    // Check if this panel is minimized in low resolution mode (but not extremely low)
+                    const isMinimized = isLowVerticalResolution && !isExtremelyLowVerticalResolution && panelCount === 2 && (
+                        (index === 0 && !navigation.isConfigFocused) ||
+                        (index === 1 && navigation.isConfigFocused)
+                    );
+                    
+                    // Check if this panel should show frame only (extremely low resolution, inactive panel)
+                    const isFrameOnly = isExtremelyLowVerticalResolution && panelCount === 2 && (
                         (index === 0 && !navigation.isConfigFocused) ||
                         (index === 1 && navigation.isConfigFocused)
                     );
@@ -82,7 +100,8 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                                 {React.cloneElement(child, {
                                     height: heights[index],
                                     width: availableWidth,
-                                    isMinimized
+                                    isMinimized,
+                                    isFrameOnly
                                 })}
                             </Box>
                         </LayoutConstraintProvider>
