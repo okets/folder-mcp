@@ -22,10 +22,15 @@ export const AppResponsive: React.FC = () => {
     });
     
     // Get panel dimensions
-    const [configPanelDimensions, statusPanelDimensions] = panelLayout.panels;
+    const configPanelDimensions = panelLayout.panels[0];
+    const statusPanelDimensions = panelLayout.panels[1];
     
     // Render panels based on layout
     const renderPanels = () => {
+        if (!configPanelDimensions || !statusPanelDimensions) {
+            return <Text>Loading layout...</Text>;
+        }
+        
         const panels = (
             <>
                 <ConfigurationPanelData 

@@ -591,8 +591,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                     separator: buttonSeparator
                 });
                 
-                const truncatedCancelLabel = truncatedButtons[0].label;
-                const truncatedConfirmLabel = truncatedButtons[1].label;
+                const truncatedCancelLabel = truncatedButtons[0]?.label || cancelLabel;
+                const truncatedConfirmLabel = truncatedButtons[1]?.label || confirmLabel;
                 
                 // Determine if cursor is on button line
                 const cursorOnButtons = this._confirmationCursorLine === -1;

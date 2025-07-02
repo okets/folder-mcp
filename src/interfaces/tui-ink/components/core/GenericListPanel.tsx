@@ -69,7 +69,8 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
     // Find first visible item
     let visibleStartIndex = 0;
     for (let i = 0; i < items.length && i < itemLinePositions.length; i++) {
-        if (itemLinePositions[i].end > lineScrollOffset) {
+        const position = itemLinePositions[i];
+        if (position && position.end > lineScrollOffset) {
             visibleStartIndex = i;
             break;
         }
@@ -80,7 +81,8 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
     const startLine = itemLinePositions[visibleStartIndex]?.start || 0;
     
     for (let i = visibleStartIndex; i < items.length && i < itemLinePositions.length; i++) {
-        if (itemLinePositions[i] && itemLinePositions[i].end - startLine <= maxLines) {
+        const position = itemLinePositions[i];
+        if (position && position.end - startLine <= maxLines) {
             visibleCount++;
         } else {
             break;
@@ -95,7 +97,7 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
         totalItems: totalContentLines,
         visibleItems: Math.min(totalContentLines, maxLines),
         scrollOffset: lineScrollOffset,
-        selectedIndex: selectedIndex < itemLinePositions.length ? itemLinePositions[selectedIndex].start : 0
+        selectedIndex: selectedIndex < itemLinePositions.length && itemLinePositions[selectedIndex] ? itemLinePositions[selectedIndex].start : 0
     }) : [];
     
     // Handle input

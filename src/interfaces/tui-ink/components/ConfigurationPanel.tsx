@@ -124,7 +124,8 @@ export const ConfigurationPanel: React.FC<{
     // Find first visible item based on line scroll offset
     let scrollOffset = 0;
     for (let i = 0; i < configListItems.length && i < itemLinePositions.length; i++) {
-        if (itemLinePositions[i].end > lineScrollOffset) {
+        const position = itemLinePositions[i];
+        if (position && position.end > lineScrollOffset) {
             scrollOffset = i;
             break;
         }
@@ -133,11 +134,15 @@ export const ConfigurationPanel: React.FC<{
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
     let linesUsed = 0;
-    let startLine = scrollOffset < itemLinePositions.length && itemLinePositions[scrollOffset] ? itemLinePositions[scrollOffset].start : 0;
+    const scrollPosition = itemLinePositions[scrollOffset];
+    let startLine = scrollPosition ? scrollPosition.start : 0;
     
     for (let i = scrollOffset; i < configListItems.length && i < itemLinePositions.length; i++) {
+        const position = itemLinePositions[i];
+        if (!position) continue;
+        
         const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
-        const remainingSpace = maxLines - (itemLinePositions[i].start - startLine);
+        const remainingSpace = maxLines - (position.start - startLine);
         
         // Include item if it at least partially fits (minimum 1 line for header)
         if (remainingSpace >= 1) {
@@ -166,9 +171,8 @@ export const ConfigurationPanel: React.FC<{
     const scrollbarLineOffset = lineScrollOffset;
     
     // Use the line position we already calculated
-    const selectedLinePosition = navigation.configSelectedIndex < itemLinePositions.length && itemLinePositions[navigation.configSelectedIndex]
-        ? itemLinePositions[navigation.configSelectedIndex].start
-        : 0;
+    const selectedPosition = itemLinePositions[navigation.configSelectedIndex];
+    const selectedLinePosition = selectedPosition ? selectedPosition.start : 0;
     
     const scrollbar = showScrollbar ? calculateScrollbar({
         totalItems: totalLines,
@@ -185,7 +189,7 @@ export const ConfigurationPanel: React.FC<{
         if (!selectedItem) return false;
         
         // If item is controlling input, delegate to it
-        if (selectedItem.isControllingInput) {
+        if (selectedItem.isControllingInput && selectedItem.handleInput) {
             const handled = selectedItem.handleInput(input, key);
             // Force re-render on any input
             setUpdateTrigger(prev => prev + 1);

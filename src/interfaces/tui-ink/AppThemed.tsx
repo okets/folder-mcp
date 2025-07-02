@@ -48,10 +48,15 @@ const ThemedAppContent: React.FC = () => {
         statusBarHeight: 4
     });
     
-    const [configPanelDimensions, statusPanelDimensions] = panelLayout.panels;
+    const configPanelDimensions = panelLayout.panels[0];
+    const statusPanelDimensions = panelLayout.panels[1];
     
     // Render panels
     const renderPanels = () => {
+        if (!configPanelDimensions || !statusPanelDimensions) {
+            return <Text>Loading layout...</Text>;
+        }
+        
         const panels = (
             <>
                 <ThemedConfigurationPanel

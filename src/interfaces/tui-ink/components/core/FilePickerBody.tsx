@@ -252,7 +252,8 @@ export const FilePickerBody = ({
         let regularFocusedIndex = -1;
         // Find the index in regularItems that corresponds to focusedIndex in items
         for (let i = 0, j = 0; i < items.length && j < regularItems.length; i++) {
-            if (!items[i].isConfirmAction) {
+            const item = items[i];
+            if (item && !item.isConfirmAction) {
                 if (i === focusedIndex) {
                     regularFocusedIndex = j;
                     break;
@@ -344,6 +345,8 @@ export const FilePickerBody = ({
             // Render each column in this row
             for (let col = 0; col < columns.length; col++) {
                 const columnItems = columns[col];
+                if (!columnItems) continue;
+                
                 const item = row < columnItems.length ? columnItems[row] : null;
                 
                 if (item) {
