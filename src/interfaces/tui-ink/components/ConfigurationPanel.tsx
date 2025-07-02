@@ -301,7 +301,7 @@ export const ConfigurationPanel: React.FC<{
         const borderWidth = 2; // left and right borders
         const paddingWidth = 2; // left and right padding
         const availableWidth = panelWidth - borderWidth - paddingWidth;
-        const fullMessage = "Compact Mode - tab to toggle panels";
+        const fullMessage = "Compact Mode - \x1b[1;37mtab\x1b[0m to toggle panels";
         
         let displayText = "";
         
