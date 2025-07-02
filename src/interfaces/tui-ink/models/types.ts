@@ -70,3 +70,9 @@ export interface ILayoutConstraints {
     maxHeight: number;
     overflow: 'truncate' | 'wrap' | 'hidden';
 }
+
+// Status item for status panel
+export interface StatusItem {
+    text: string;
+    status: string;
+}

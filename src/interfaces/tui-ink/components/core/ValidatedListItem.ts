@@ -11,7 +11,7 @@ export abstract class ValidatedListItem implements IListItem {
     abstract icon: string;
     abstract isActive: boolean;
     abstract readonly isControllingInput: boolean;
-    abstract readonly selfConstrained: boolean;
+    abstract readonly selfConstrained: true;
     
     // Protected validation state
     protected _validationMessage: ValidationMessage | null = null;

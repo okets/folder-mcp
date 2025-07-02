@@ -115,7 +115,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                 )}
                 <CollapsedSummary
                     label={node.label}
-                    value={node.password ? '•'.repeat(currentValue.length) : currentValue}
+                    value={node.password ? '•'.repeat(String(currentValue).length) : currentValue}
                     maxWidth={width - (!savedValueValidation.isValid ? 4 : 0)}
                     isSelected={isSelected}
                 />

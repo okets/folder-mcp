@@ -31,6 +31,9 @@ export interface DataPanelProps<T = any> {
 
 // Simple list item implementation for DataPanel
 class DataPanelItem implements IListItem {
+    readonly selfConstrained = true as const;
+    readonly isControllingInput = false;
+    
     constructor(
         private data: {
             id: string;
@@ -40,7 +43,7 @@ class DataPanelItem implements IListItem {
             statusColor?: string;
             selectable?: boolean;
         },
-        private isActive: boolean,
+        public isActive: boolean,
         private renderConfig?: DataPanelProps['renderConfig']
     ) {}
 

@@ -9,6 +9,7 @@ import { getVisualWidth } from '../../utils/validationDisplay';
 export interface SelectionOption {
     value: string;
     label: string;
+    details?: Record<string, string>;
 }
 
 export type SelectionMode = 'radio' | 'checkbox';
