@@ -236,7 +236,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
         const panelWidth = width || columns - 2;
         // BorderedBox subtracts 4 for borders/padding, take safety buffer
         const availableWidth = panelWidth - 4 - 1; // -1 for safety
-        const fullMessage = "Compact Mode - \x1b[1;37mtab\x1b[0m to toggle panels";
+        const fullMessage = "Compact Mode - tab to toggle panels"; // We'll handle styling differently
         
         let displayText = "";
         
@@ -264,7 +264,17 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
                 showScrollbar={false}
                 scrollbarElements={[]}
             >
-                {displayText && <Text color={theme.colors.textSecondary}>{displayText}</Text>}
+                {displayText && (
+                    displayText.includes('tab') && displayText === fullMessage ? (
+                        <Box>
+                            <Text color="#D1D5DB">Compact Mode - </Text>
+                            <Text color="#D1D5DB" bold>tab</Text>
+                            <Text color="#D1D5DB"> to toggle panels</Text>
+                        </Box>
+                    ) : (
+                        <Text color="#D1D5DB">{displayText}</Text>
+                    )
+                )}
             </BorderedBox>
         );
     }
