@@ -582,15 +582,139 @@ npm run build && npm test
 git add -A && git commit -m "Task 5: Vertical layout tightness fixes completed"
 ```
 
-### **Task 6: Implement ProgressItem Component**
-[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
+### **Task 6: Implement AnimationContainer Component**
 
-- [ ] Create ProgressItem that borrows most functionality from LogItem (read-only List Item)
+**Step 6.1: Proof of Concept - Header Spinner** ✅
+- [x] Added braille spinner animation to Header component
+- [x] Verified React hooks (useState, useEffect) work with Ink
+- [x] Tested animation performance (80ms interval)
+- [x] Confirmed no layout shifts with proper spacing
+
+**Step 6.2: Create AnimationContainer Component** ✅
+- [x] Create `src/interfaces/tui-ink/components/core/AnimationContainer.tsx`
+- [x] Props interface: `frames: string[]`, `interval?: number`, `play?: boolean`
+- [x] Implement frame rotation logic with useEffect
+- [x] Return Text component with current frame
+
+**Step 6.3: Add Width Stabilization** ✅
+- [x] Calculate longest frame length on mount
+- [x] Pad shorter frames with spaces to match longest
+- [x] Prevent layout jumps during animation
+- [x] Support optional `width` prop for manual override
+
+**Step 6.4: Add Manual Frame Control** ✅
+- [x] Add `currentFrame?: number` prop for manual control
+- [x] Support both auto-play and manual modes
+- [x] Add `onFrame?: (index: number) => void` callback
+- [x] Pause auto-play when currentFrame is provided
+
+**Step 6.5: Replace Header Spinner** ✅
+- [x] Import AnimationContainer into Header
+- [x] Replace inline animation with AnimationContainer
+- [x] Verify same behavior with new component
+
+**Step 6.6: Add Animation Pause Feature** ✅
+- [x] Create AnimationContext for global animation state
+- [x] Add Ctrl+A keyboard shortcut to toggle animations
+- [x] Update AnimationContainer to respect pause state
+- [x] Add key binding to status bar
 
 **Validation After Completion**:
 ```bash
 npm run build && npm test
-git add -A && git commit -m "Task 6: ProgressItem component completed"
+git add -A && git commit -m "Task 6: AnimationContainer component completed"
+```
+
+### **Task 7: Implement ProgressBar Component**
+
+**Step 7.1: Create Basic ProgressBar Component** ✅
+- [x] Create `src/interfaces/tui-ink/components/core/ProgressBar.tsx`
+- [x] Define props interface:
+  - `value?: number` (0-100 for determinate, undefined for indeterminate)
+  - `mode?: 'short' | 'long' | 'auto'` (default: 'auto')
+  - `width?: number` (total width available)
+  - `showPercentage?: boolean` (default: true)
+  - `color?: string` (progress bar color)
+- [x] Implement basic render logic returning a Box with Text components
+
+**Step 7.2: Implement Short Mode (4 characters)** ✅
+- [x] Use BRAILLE_SPINNER from animations.ts for spinner
+- [x] Format: `[spinner][percentage]` where percentage is 2-3 chars
+- [x] Handle number formatting:
+  - 0-9: "⠋ 0%" (spinner + space + digit + %)
+  - 10-99: "⠋50%" (spinner + 2 digits + %)
+  - 100: "✓   " (green checkmark + 3 spaces)
+  - -1: "✗ERR" (red X + ERR for error)
+  - undefined: "⠋   " (spinner + 3 spaces for indeterminate)
+- [x] Use AnimationContainer for spinner with conditional play (not at 100%)
+- [x] Integrated with LogItem - progress bars appear right-aligned using flexbox
+- [x] Added error state (-1) that shows red "✗ERR" using theme.colors.dangerRed
+- [x] Color scheme: orange for in-progress, green for complete, red for error
+- [x] All states maintain exactly 4 characters for perfect alignment
+
+**Step 7.3: Implement Long Mode with Progress Bar** ✅
+- [x] Calculate available width for bar: `width - spinner(1) - percentage(4)`
+- [x] Use filled/unfilled blocks (▰/▱) for progress visualization
+- [x] For determinate: calculate filled blocks based on percentage
+- [x] For indeterminate: show empty bar with "..." instead of percentage
+- [x] Format: `[spinner][bar][percentage]`
+- [x] Special states (all with consistent 15-character width):
+  - 0-99%: Orange spinner + bar + percentage (e.g., "⠋▱▱▱▱▱▱▱▱▱▱  0%", "⠋▰▰▰▰▰▱▱▱▱▱ 50%")
+  - 100%: Green checkmark + full bar + "100%" (e.g., "✓▰▰▰▰▰▰▰▰▰▰100%")
+  - Error: Red X + empty bar + " ERR" (e.g., "✗▱▱▱▱▱▱▱▱▱▱ ERR")
+  - Indeterminate: Orange spinner + empty bar + " ..." (e.g., "⠋▱▱▱▱▱▱▱▱▱▱ ...")
+- [x] Fixed bar width of 10 cells for consistency
+- [x] Falls back to short mode if insufficient space
+
+**Step 7.4: Implement Auto Mode Logic** ✅
+- [x] Define width thresholds:
+  - width < 6: Show only percentage/status (no spinner)
+    - In progress: " 50%" (right-aligned)
+    - Complete: "100%" (green)
+    - Error: "ERR " (red)
+    - Indeterminate: "... " (orange)
+  - width < 20: Use short mode (4 chars: spinner + percentage)
+  - width >= 20: Use long mode (spinner + bar + percentage)
+- [x] Never truncate AnimationContainers - switch modes instead
+- [x] Ensure minimum width requirements are met for each mode
+- [x] Graceful degradation as width decreases
+- [x] Panel-wide mode switching via ProgressModeContext (< 50 chars = short, ≥ 50 = long)
+- [x] LogItem text dynamically truncates based on actual progress mode
+- [x] Responsive text expansion when progress bars switch to short mode
+
+**Step 7.5: Handle Special States** ✅
+- [x] 100% completion:
+  - Remove spinner, show green checkmark
+  - Show full bar (if in long mode)
+  - Green color indicates completion
+- [x] 0% state:
+  - Show orange spinner with empty bar
+  - Clear visual indication of starting state
+- [x] Indeterminate state (no value):
+  - Short mode: Just spinner with spaces
+  - Long mode: Spinner with empty bar and "..."
+- [x] Error state (-1):
+  - Short mode: Red "✗ERR"
+  - Long mode: Red X with empty bar and "ERR"
+
+**Step 7.6: Integrate with LogItem** ✅
+- [x] Detect progress status in LogItem (e.g., status === '⋯')
+- [x] Add optional `progress?: number` property to LogItem
+- [x] Display ProgressBar to the right of text (not replacing icon)
+- [x] Calculate available width dynamically based on text length
+- [x] Use ProgressModeContext for consistent mode switching
+
+**Step 7.7: Add Progress Support to Sample Data** ✅
+- [x] Update mixedSampleData.ts with progress items
+- [x] Add items with different progress values (0%, 5%, 50%, 95%, 100%)
+- [x] Include indeterminate progress items
+- [x] Include error state (-1) test item
+- [x] Test items visible in Status panel
+
+**Validation After Completion**:
+```bash
+npm run build && npm test
+git add -A && git commit -m "Task 7: ProgressBar component completed"
 ```
 
 ## 📊 **Progress Tracking**
@@ -603,7 +727,8 @@ git add -A && git commit -m "Task 6: ProgressItem component completed"
 - [x] Task 3: Implement FilePickerListItem Component - **Completed**
 - [x] Task 4: Implement Destructive Configuration Confirmations - **Completed**
 - [x] Task 5: Fix Vertical Layout Tightness Issues - **Completed**
-- [ ] Task 6: Implement ProgressItem Component - Not Started
+- [x] Task 6: Implement AnimationContainer Component - **Completed**
+- [ ] Task 7: Implement ProgressBar Component - Not Started
 
 ### **Completion Log**
 | Task | Status | Completion Date | Commit Hash |
@@ -616,7 +741,8 @@ git add -A && git commit -m "Task 6: ProgressItem component completed"
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
-| ProgressItem | ⏳ Pending | - | - |
+| AnimationContainer | ✅ Completed | 2025-07-02 | 14c85f2, 6a2e4a5, 1fefd95 |
+| ProgressBar | ⏳ Pending | - | - |
 
 ### **Quick Health Check**
 ```bash
@@ -653,6 +779,14 @@ npm run build && npm test && git status
 - Compact inline browser with breadcrumbs
 - File/folder filtering capabilities
 
-**ProgressItem**:
-- Extends LogItem as read-only display
-- Progress bar visualization with percentage display
+**AnimationContainer**:
+- Frame-based animation system for TUI elements
+- Auto-play with configurable interval
+- Manual frame control support
+- Width calculation to prevent layout shifts
+
+**ProgressBar**:
+- Uses AnimationContainer for animations
+- Short mode: spinner + percentage
+- Long mode: progress bar + spinner + percentage
+- Supports determinate and indeterminate states

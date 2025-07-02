@@ -3,6 +3,8 @@ import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { AnimationContainer } from './core/AnimationContainer.js';
+import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations.js';
 
 export const Header: React.FC = () => {
     const di = useDI();
@@ -28,19 +30,61 @@ export const Header: React.FC = () => {
         const availableWidth = columns - 1; // -1 for safety margin
         
         // Build display text based on available width
-        if (availableWidth >= (appName.length + separator.length + resolution.length)) {
-            // Full display with resolution
+        if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
+            // Full display with resolution and spinner
             return (
                 <Box marginTop={1}>
-                    <Text color={frameColor}>
-                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
-                        <Text color={frameColor}>{separator}</Text>
-                        <Text color={frameColor}>{resolution}</Text>
-                    </Text>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{separator}</Text>
+                    <Text color={frameColor}>{resolution}</Text>
+                </Box>
+            );
+        } else if (availableWidth >= (appName.length + 2)) {
+            // Just app name with spinner, no resolution
+            return (
+                <Box marginTop={1}>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
                 </Box>
             );
         } else if (availableWidth >= appName.length) {
-            // Just app name, no resolution
+            // Just app name, no spinner or resolution
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>
@@ -82,9 +126,13 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
-        const textLength = 5 + 10; // Don't count the closing │
-        const remainingSpace = Math.max(0, innerWidth - textLength);
+        // Let's count actual rendered width:
+        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
+        // "folder-mcp" = 10 chars
+        // " " + spinner = 2 chars
+        // " " + ball animation = 12 chars (1 space + 11 for animation)
+        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -92,7 +140,36 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
@@ -107,9 +184,13 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
-        const textLength = 5 + 10; // Don't count the closing │
-        const remainingSpace = Math.max(0, innerWidth - textLength);
+        // Let's count actual rendered width:
+        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
+        // "folder-mcp" = 10 chars
+        // " " + spinner = 2 chars
+        // " " + ball animation = 12 chars (1 space + 11 for animation)
+        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -117,7 +198,36 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
@@ -126,8 +236,22 @@ export const Header: React.FC = () => {
         // No border, just truncated text
         const availableForText = columns - 1; // -1 for safety margin
         
-        if (appName.length <= availableForText) {
-            // Can fit full app name
+        if (appName.length + 2 <= availableForText) {
+            // Can fit full app name with spinner
+            return (
+                <Box marginTop={1}>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                </Box>
+            );
+        } else if (appName.length <= availableForText) {
+            // Can fit full app name without spinner
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>

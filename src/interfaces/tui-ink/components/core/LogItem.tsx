@@ -3,6 +3,8 @@ import { Box, Text } from 'ink';
 import chalk from 'chalk';
 import { IListItem } from './IListItem.js';
 import { theme } from '../../utils/theme.js';
+import { ProgressBar } from './ProgressBar.js';
+import { useProgressMode } from '../../contexts/ProgressModeContext.js';
 
 interface Segment {
     text: string;
@@ -20,7 +22,8 @@ export class LogItem implements IListItem {
         private status: string,
         public isActive: boolean,
         isExpanded: boolean,
-        private details?: string[]
+        private details?: string[],
+        public progress?: number
     ) {
         this._isExpanded = isExpanded;
         // Use status symbol as the bullet icon if available
@@ -78,7 +81,7 @@ export class LogItem implements IListItem {
             this.icon = tempIcon; // Restore original icon
             
             elements.push(
-                this.renderSegments(headerSegments)
+                this.renderSegments(headerSegments, maxWidth)
             );
             
             // Get the original status color for the vertical line (not the selection color)
@@ -123,7 +126,7 @@ export class LogItem implements IListItem {
         } else {
             // Collapsed view - use segments approach
             const segments = this.buildSegments(maxWidth);
-            return this.renderSegments(segments);
+            return this.renderSegments(segments, maxWidth);
         }
     }
     
@@ -249,17 +252,10 @@ export class LogItem implements IListItem {
         
         // Calculate space allocation
         const iconWidth = this.icon.length + 1; // icon + space
-        const availableTextWidth = safeWidth - iconWidth;
         
-        // Truncate text if needed
+        // For progress items, we need to reserve minimum space
+        // But we'll pass the full text and let renderSegments handle truncation
         let displayText = this.text;
-        if (this.text.length > availableTextWidth) {
-            if (availableTextWidth <= 3) {
-                displayText = '…';
-            } else {
-                displayText = this.text.slice(0, availableTextWidth - 1) + '…';
-            }
-        }
         
         // Build segments
         // Apply color to the icon (which is now the status symbol)
@@ -282,12 +278,12 @@ export class LogItem implements IListItem {
         return segments;
     }
     
-    private renderSegments(segments: Segment[]): ReactElement {
+    private renderSegments(segments: Segment[], maxWidth: number): ReactElement {
         const iconSegment = segments[0];
         const textSegment = segments[1];
         
         // If both have the same color, render as single Text to avoid issues
-        if (iconSegment.color === textSegment.color) {
+        if (iconSegment.color === textSegment.color && this.progress === undefined) {
             return (
                 <Text color={iconSegment.color}>
                     {iconSegment.text} {textSegment.text}
@@ -295,13 +291,70 @@ export class LogItem implements IListItem {
             );
         }
         
-        // Otherwise use Box with separate Text components
-        return (
-            <Box>
-                <Text color={iconSegment.color}>{iconSegment.text}</Text>
-                <Text> </Text>
-                <Text color={textSegment.color}>{textSegment.text}</Text>
-            </Box>
-        );
+        // Create a wrapper component to use hooks and handle text truncation
+        const ContentWithProgress = () => {
+            const progressMode = useProgressMode();
+            const hasProgress = this.progress !== undefined || this.status === '⋯';
+            
+            // Calculate available space for text
+            const iconLength = iconSegment.text.length + 1; // icon + space
+            const BUFFER = 2; // Safety buffer
+            
+            if (!hasProgress) {
+                // No progress bar, use all available space
+                const availableForText = maxWidth - iconLength - BUFFER;
+                
+                // Truncate text if needed
+                let displayText = textSegment.text;
+                if (textSegment.text.length > availableForText) {
+                    if (availableForText <= 3) {
+                        displayText = '…';
+                    } else {
+                        displayText = textSegment.text.slice(0, availableForText - 1) + '…';
+                    }
+                }
+                
+                return (
+                    <Box>
+                        <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                        <Text> </Text>
+                        <Text color={textSegment.color}>{displayText}</Text>
+                    </Box>
+                );
+            }
+            
+            // Calculate space needed for progress
+            // Short: 4 chars + 1 space = 5
+            // Long: 1 spinner + 10 bar + 1 space + 3-4 percentage = 15-16
+            const progressWidth = progressMode === 'short' ? 5 : 16; // Account for consistent spacing
+            const availableForText = maxWidth - iconLength - progressWidth - BUFFER;
+            
+            // Truncate text if needed
+            let displayText = textSegment.text;
+            if (textSegment.text.length > availableForText) {
+                if (availableForText <= 3) {
+                    displayText = '…';
+                } else {
+                    displayText = textSegment.text.slice(0, availableForText - 1) + '…';
+                }
+            }
+            
+            return (
+                <Box justifyContent="space-between" width="100%">
+                    <Box>
+                        <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                        <Text> </Text>
+                        <Text color={textSegment.color}>{displayText}</Text>
+                    </Box>
+                    <ProgressBar 
+                        value={this.progress}
+                        mode={progressMode}
+                        width={15}  // Not used in long mode since bar is fixed at 10
+                    />
+                </Box>
+            );
+        };
+        
+        return <ContentWithProgress />;
     }
 }

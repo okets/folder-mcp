@@ -17,7 +17,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
     if (bindings.length === 0 || availableWidth < 10) {
         return (
             <>
-                <Text color={colors.textPrimary} bold>q</Text>
+                <Text color="#D1D5DB" bold>q</Text>
                 <Text color={colors.textSecondary}>:Exit</Text>
             </>
         );
@@ -55,7 +55,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ text: binding.key, color: '#D1D5DB', bold: true });
             parts.push({ text: ':' + binding.description, color: colors.textSecondary });
         });
         
@@ -99,7 +99,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                         {formattedBindings.map((binding, index) => (
                             <React.Fragment key={index}>
                                 {index > 0 && ' '}
-                                <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                                <Text color="#D1D5DB" bold>{binding.key}</Text>
                             </React.Fragment>
                         ))}
                     </Text>
@@ -116,7 +116,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                             {keysToShow.map((binding, index) => (
                                 <React.Fragment key={index}>
                                     {index > 0 && ' '}
-                                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                                    <Text color="#D1D5DB" bold>{binding.key}</Text>
                                 </React.Fragment>
                             ))}
                         </Text>
@@ -132,7 +132,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                     {keysToShow.map((binding, index) => (
                         <React.Fragment key={index}>
                             {index > 0 && ' '}
-                            <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                            <Text color="#D1D5DB" bold>{binding.key}</Text>
                         </React.Fragment>
                     ))}
                 </Text>
@@ -146,7 +146,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ text: binding.key, color: '#D1D5DB', bold: true });
             parts.push({ text: ':' + (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
         });
         
@@ -171,7 +171,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                 {formattedBindings.map((binding, index) => (
                     <React.Fragment key={index}>
                         {index > 0 && ' '}
-                        <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                        <Text color="#D1D5DB" bold>{binding.key}</Text>
                     </React.Fragment>
                 ))}
             </Text>
@@ -188,7 +188,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                     {keysToShow.map((binding, index) => (
                         <React.Fragment key={index}>
                             {index > 0 && ' '}
-                            <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                            <Text color="#D1D5DB" bold>{binding.key}</Text>
                         </React.Fragment>
                     ))}
                 </Text>

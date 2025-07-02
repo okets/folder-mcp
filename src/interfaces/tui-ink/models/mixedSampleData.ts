@@ -10,6 +10,112 @@ import * as os from 'os';
 // Mixed items for StatusPanel (now showing both logs and configs)
 export function createStatusPanelItems(): IListItem[] {
     return [
+        // ProgressBar test items - Step 7.1
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 0%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 0%',
+                'Should show "⠋ 0%" (spinner + space + 0%)'
+            ],
+            0
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 50%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 50%',
+                'Should show "⠋50%" (spinner + 50%)'
+            ],
+            50
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 100%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 100%',
+                'Should show green "✓   " (no spinner)'
+            ],
+            100
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Indeterminate',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: undefined (indeterminate)',
+                'Should show "⠋   " (spinner + 3 spaces)'
+            ],
+            undefined
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Low (5%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing single digit percentage',
+                'Value: 5%',
+                'Should show "⠋ 5%" (spinner + space + 5%)'
+            ],
+            5
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: High (95%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing high percentage',
+                'Value: 95%',
+                'Should show "⠋95%" (no padding)'
+            ],
+            95
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Error state',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing error state',
+                'Value: -1 (error)',
+                'Should show red "✗ERR" (error indicator)'
+            ],
+            -1
+        ),
+        // Long mode progress test
+        new LogItem(
+            '⋯',
+            'Long Progress Test',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing long mode progress bar',
+                'This would show full bar in wide panels',
+                'Format: [spinner][bar][percentage]'
+            ],
+            75
+        ),
         // Components we're actually building
         new LogItem(
             '○',
@@ -137,14 +243,6 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Invalid IP changed to:', newValue),
             [validators.ipv4]
-        ),
-        
-        new LogItem(
-            '○',
-            'ProgressItem (TODO)',
-            '○',
-            false,
-            false
         )
     ];
 }

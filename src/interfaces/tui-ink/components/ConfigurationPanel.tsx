@@ -16,6 +16,7 @@ import { useFocusChain } from '../hooks/useFocusChain.js';
 import { useRenderSlots } from '../hooks/useRenderSlots.js';
 import { calculateScrollbar } from './core/ScrollbarCalculator.js';
 import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
+import { ProgressModeProvider } from '../contexts/ProgressModeContext.js';
 
 // Get mixed items for configuration panel
 const configItems = createConfigurationPanelItems();
@@ -334,16 +335,17 @@ export const ConfigurationPanel: React.FC<{
     }
     
     return (
-        <BorderedBox
-            title="Configuration"
-            subtitle="Setup your folder-mcp server"
-            focused={navigation.isConfigFocused}
-            width={panelWidth}
-            height={actualHeight}
-            showScrollbar={showScrollbar}
-            scrollbarElements={scrollbar}
-        >
-            {(() => {
+        <ProgressModeProvider width={panelWidth}>
+            <BorderedBox
+                title="Configuration"
+                subtitle="Setup your folder-mcp server"
+                focused={navigation.isConfigFocused}
+                width={panelWidth}
+                height={actualHeight}
+                showScrollbar={showScrollbar}
+                scrollbarElements={scrollbar}
+            >
+                {(() => {
                 // Build a flat array to avoid Fragment key issues
                 const elements: React.ReactElement[] = [];
                 
@@ -381,6 +383,7 @@ export const ConfigurationPanel: React.FC<{
                 
                 return elements;
             })()}
-        </BorderedBox>
+            </BorderedBox>
+        </ProgressModeProvider>
     );
 };
