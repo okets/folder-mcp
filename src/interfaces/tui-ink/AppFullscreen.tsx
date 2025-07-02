@@ -11,6 +11,13 @@ import { useDI } from './di/DIContext.js';
 import { ServiceTokens } from './di/tokens.js';
 import { NavigationProvider } from './contexts/NavigationContext.js';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext.js';
+import { createConfigurationPanelItems, createStatusPanelItems } from './models/mixedSampleData.js';
+
+// Get item counts once at module level to ensure consistency
+const CONFIG_ITEMS = createConfigurationPanelItems();
+const STATUS_ITEMS = createStatusPanelItems();
+const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
+const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 
 const AppContent: React.FC = () => {
     const { exit } = useApp();
@@ -61,7 +68,7 @@ const AppContent: React.FC = () => {
     }
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={16} statusItemCount={11}>
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={CONFIG_ITEM_COUNT} statusItemCount={STATUS_ITEM_COUNT}>
             <Box flexDirection="column" height={rows} width={columns}>
                 <Header />
                 

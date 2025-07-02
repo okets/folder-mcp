@@ -448,7 +448,7 @@ export class SelectionListItem implements IListItem {
                 const forcedTruncatedText = `${this.icon} ${label}: [${truncatedValue}…]`;
                 
                 return (
-                    <Text color={this.isActive ? theme.colors.accent : theme.colors.text}>
+                    <Text color={this.isActive ? theme.colors.accent : undefined}>
                         {forcedTruncatedText}
                     </Text>
                 );
@@ -458,7 +458,7 @@ export class SelectionListItem implements IListItem {
             const normalText = `${this.icon} ${label}: [${value}${truncated ? '…' : ''}]`;
             
             return (
-                <Text color={this.isActive ? theme.colors.accent : theme.colors.text}>
+                <Text color={this.isActive ? theme.colors.accent : undefined}>
                     {normalText}
                 </Text>
             );

@@ -546,15 +546,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Short text changed to:', newValue),
             [validators.minLength(5)]
-        ),
-        
-        new LogItem(
-            '○',
-            'ProgressItem (Task 4 - TODO)',
-            '○',
-            false,
-            false,
-            ['Extends LogItem', 'Progress bar visualization']
         )
     ];
 }
