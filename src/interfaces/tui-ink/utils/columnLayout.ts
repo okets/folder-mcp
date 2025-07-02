@@ -55,8 +55,6 @@ export function calculateColumnLayout(
     const totalSpacing = (columnNames.length - 1) * COLUMN_SPACING;
     const availableForColumns = availableWidth - usedWidth - totalSpacing;
     
-    console.error(`[columnLayout] availableWidth=${availableWidth}, selectionWidth=${usedWidth}, spacing=${totalSpacing}, forColumns=${availableForColumns}, columnCount=${columnNames.length}`);
-    
     // If we can't fit minimum columns, try with just label column
     if (availableForColumns < columnNames.length * MIN_COLUMN_WIDTH) {
         // Try with just the label column
@@ -83,8 +81,6 @@ export function calculateColumnLayout(
     // Calculate total width
     const columnsWidth = columns.reduce((sum, col) => sum + col.width, 0);
     const totalWidth = columnsWidth + totalSpacing;
-    
-    console.error(`[columnLayout] Result: columns=${columns.map(c => `${c.name}:${c.width}`).join(',')}, totalWidth=${totalWidth}`);
     
     return {
         columns,
@@ -121,7 +117,6 @@ function distributeColumnWidths(
             Math.min(maxWidths.label || 0, Math.max(MIN_COLUMN_WIDTH, Math.min(maxLabelWidth, Math.floor(availableWidth * 0.35)))) : 0;
         
         let remainingWidth = availableWidth - labelWidth;
-        console.error(`[distributeColumnWidths] Truncating: availableWidth=${availableWidth}, labelWidth=${labelWidth}, remainingWidth=${remainingWidth}, detailColumns=${columnNames.length - 1}`);
         const detailColumns = columnNames.filter(col => col !== 'label');
         
         // Add label column if present
