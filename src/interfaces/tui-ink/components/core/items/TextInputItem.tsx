@@ -179,17 +179,21 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
         </Box>
     );
     
+    // Render collapsed view
+    const collapsedView = (
+        <Text color={isActive ? theme.colors.accent : theme.colors.text}>
+            <Text>{label}: </Text>
+            <Text color={theme.colors.primary}>[{value}]</Text>
+            <Text> {isExpanded ? '▼' : '▶'}</Text>
+        </Text>
+    );
+    
     return (
         <ExpandableListItem
-            label={label}
-            value={value}
             isExpanded={isExpanded}
-            isActive={isActive}
-            expandedContent={expandedContent}
-            color={isActive ? theme.colors.accent : theme.colors.text}
-            valueColor={theme.colors.primary}
-            maxWidth={width}
-            showExpandIndicator={true}
-        />
+            onToggle={toggle}
+        >
+            {isExpanded ? expandedContent : collapsedView}
+        </ExpandableListItem>
     );
 };

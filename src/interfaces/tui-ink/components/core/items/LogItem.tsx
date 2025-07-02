@@ -167,18 +167,14 @@ export const LogItem: React.FC<LogItemProps> = ({
         </Box>
     );
     
+    // ExpandableListItem only needs basic props
     return (
         <ExpandableListItem
-            label=""
-            value=""
             isExpanded={isExpanded}
-            isActive={isActive}
-            expandedContent={expandedContent}
-            maxWidth={width}
-            showExpandIndicator={false}
-            renderCollapsed={renderCollapsed}
-            expandedIcon="▼"
-        />
+            onToggle={toggle}
+        >
+            {isExpanded ? expandedContent : renderCollapsed()}
+        </ExpandableListItem>
     );
 };
 

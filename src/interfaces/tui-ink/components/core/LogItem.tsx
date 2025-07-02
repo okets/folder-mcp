@@ -99,10 +99,13 @@ export class LogItem implements IListItem {
                 const wrappedLines = this.wordWrap(detail, maxWidth - 3, remainingLines ? remainingLines - allDetailLines.length : undefined);
                 
                 for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
-                    allDetailLines.push({
-                        text: wrappedLines[j],
-                        isLast: false
-                    });
+                    const line = wrappedLines[j];
+                    if (line !== undefined) {
+                        allDetailLines.push({
+                            text: line,
+                            isLast: false
+                        });
+                    }
                 }
             }
             

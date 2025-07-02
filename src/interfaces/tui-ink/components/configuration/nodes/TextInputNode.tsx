@@ -30,7 +30,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     const currentNode = configService.getNode(node.id);
     const currentValue = currentNode?.value ?? node.value;
     
-    const [localValue, setLocalValue] = useState(currentValue);
+    const [localValue, setLocalValue] = useState(String(currentValue));
     const [cursorPosition, setCursorPosition] = useState(0);
     const [validationError, setValidationError] = useState<string | null>(null);
 

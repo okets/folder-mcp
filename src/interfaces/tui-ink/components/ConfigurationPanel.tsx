@@ -293,14 +293,20 @@ export const ConfigurationPanel: React.FC<{
     }
     
     // Use focus chain
-    const { isInFocusChain } = useFocusChain({
+    const focusChainOptions = {
         elementId: 'config-panel',
         parentId: 'navigation',
         isActive: navigation.isConfigFocused,
-        onInput: navigation.isConfigFocused ? handleConfigInput : undefined,
         keyBindings: keyBindings,
         priority: isAnyItemInEditMode ? 1000 : 50 // Very high priority when in edit mode
-    });
+    };
+    
+    // Only add onInput if it's defined
+    if (navigation.isConfigFocused) {
+        (focusChainOptions as any).onInput = handleConfigInput;
+    }
+    
+    const { isInFocusChain } = useFocusChain(focusChainOptions as any);
     
     // Handle minimized display
     if (isMinimized || isFrameOnly) {

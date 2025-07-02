@@ -817,7 +817,12 @@ export class FilePickerListItem extends ValidatedListItem {
                 error: this._error || null,
                 enableColumns: true,
                 mode: this.mode,
-                validationMessage: this._validationMessage
+                validationMessage: this._validationMessage ? {
+                    state: this._validationMessage.state === ValidationState.Error ? 'error' : 
+                           this._validationMessage.state === ValidationState.Warning ? 'warning' : 'info',
+                    message: this._validationMessage.message,
+                    icon: this._validationMessage.icon
+                } : null
             });
             
             return [...elements, ...bodyElements];

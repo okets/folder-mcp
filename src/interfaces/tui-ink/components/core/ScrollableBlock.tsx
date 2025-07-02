@@ -115,12 +115,17 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
             ? itemLinePositions[selectedIndex].start
             : undefined;
         
-        return calculateScrollbar({
+        const scrollbarConfig: ScrollbarConfig = {
             totalItems: totalLines,
             visibleItems: height,
-            scrollOffset: scrollOffset,
-            selectedIndex: selectedLinePosition
-        });
+            scrollOffset: scrollOffset
+        };
+        
+        if (selectedLinePosition !== undefined) {
+            scrollbarConfig.selectedIndex = selectedLinePosition;
+        }
+        
+        return calculateScrollbar(scrollbarConfig);
     }, [showScrollbar, totalLines, height, scrollOffset, selectedIndex, itemLinePositions]);
     
     // Render content with scrollbar

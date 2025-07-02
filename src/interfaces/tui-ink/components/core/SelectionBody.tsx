@@ -203,7 +203,7 @@ export const SelectionBody = ({
                     if (col.name === 'label') {
                         cellValue = option.label;
                     } else if (option.details && option.details[col.name]) {
-                        cellValue = option.details[col.name];
+                        cellValue = option.details[col.name] || '';
                     }
                     
                     // Truncate if needed
