@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
+import { AnimationContainer } from './core/AnimationContainer.js';
+import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations.js';
 
 export const Header: React.FC = () => {
     const di = useDI();
@@ -10,22 +12,8 @@ export const Header: React.FC = () => {
     const colors = themeService.getColors();
     const { columns, rows } = useTerminalSize();
     
-    // Braille spinner animation frames
-    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    const [spinnerIndex, setSpinnerIndex] = useState(0);
-    
-    // Animation effect
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setSpinnerIndex((prev) => (prev + 1) % spinnerFrames.length);
-        }, 80);
-        
-        return () => clearInterval(interval);
-    }, [spinnerFrames.length]);
-    
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
-    const spinner = spinnerFrames[spinnerIndex];
     
     // Custom logo colors
     const frameColor = '#4c1589'; // rgb(76, 21, 137) - dark purple for frame and resolution
@@ -46,22 +34,53 @@ export const Header: React.FC = () => {
             // Full display with resolution and spinner
             return (
                 <Box marginTop={1}>
-                    <Text color={frameColor}>
-                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
-                        <Text color={colors.accent}> {spinner}</Text>
-                        <Text color={frameColor}>{separator}</Text>
-                        <Text color={frameColor}>{resolution}</Text>
-                    </Text>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{separator}</Text>
+                    <Text color={frameColor}>{resolution}</Text>
                 </Box>
             );
         } else if (availableWidth >= (appName.length + 2)) {
             // Just app name with spinner, no resolution
             return (
                 <Box marginTop={1}>
-                    <Text color={frameColor}>
-                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
-                        <Text color={colors.accent}> {spinner}</Text>
-                    </Text>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
                 </Box>
             );
         } else if (availableWidth >= appName.length) {
@@ -107,9 +126,13 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, " " + spinner = 2 chars, "│" = 1 char
-        const textLength = 5 + 10 + 2; // Don't count the closing │
-        const remainingSpace = Math.max(0, innerWidth - textLength);
+        // Let's count actual rendered width:
+        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
+        // "folder-mcp" = 10 chars
+        // " " + spinner = 2 chars
+        // " " + ball animation = 12 chars (1 space + 11 for animation)
+        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -117,8 +140,36 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> {spinner}</Text>
-                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
@@ -133,9 +184,13 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, " " + spinner = 2 chars, "│" = 1 char
-        const textLength = 5 + 10 + 2; // Don't count the closing │
-        const remainingSpace = Math.max(0, innerWidth - textLength);
+        // Let's count actual rendered width:
+        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
+        // "folder-mcp" = 10 chars
+        // " " + spinner = 2 chars
+        // " " + ball animation = 12 chars (1 space + 11 for animation)
+        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -143,8 +198,36 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> {spinner}</Text>
-                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
+                    <Text> </Text>
+                    <AnimationContainer 
+                        frames={[
+                            '[●        ]',
+                            '[ ●       ]',
+                            '[  ●      ]',
+                            '[   ●     ]',
+                            '[    ●    ]',
+                            '[     ●   ]',
+                            '[      ●  ]',
+                            '[       ● ]',
+                            '[        ●]',
+                            '[       ● ]',
+                            '[      ●  ]',
+                            '[     ●   ]',
+                            '[    ●    ]',
+                            '[   ●     ]',
+                            '[  ●      ]',
+                            '[ ●       ]'
+                        ]}
+                        interval={ANIMATION_TIMINGS.NORMAL}
+                        color={colors.warningOrange}
+                    />
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
@@ -157,10 +240,14 @@ export const Header: React.FC = () => {
             // Can fit full app name with spinner
             return (
                 <Box marginTop={1}>
-                    <Text color={frameColor}>
-                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
-                        <Text color={colors.accent}> {spinner}</Text>
-                    </Text>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> </Text>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={ANIMATION_TIMINGS.FAST}
+                        color={colors.accent}
+                    />
                 </Box>
             );
         } else if (appName.length <= availableForText) {

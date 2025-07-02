@@ -583,11 +583,35 @@ git add -A && git commit -m "Task 5: Vertical layout tightness fixes completed"
 ```
 
 ### **Task 6: Implement AnimationContainer Component**
-[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
 
-- [ ] Create AnimationContainer that handles frame-based animations for TUI elements
-- [ ] Support auto-play with interval and manual frame control
-- [ ] Calculate width based on longest frame to prevent layout shifts
+**Step 6.1: Proof of Concept - Header Spinner** ✅
+- [x] Added braille spinner animation to Header component
+- [x] Verified React hooks (useState, useEffect) work with Ink
+- [x] Tested animation performance (80ms interval)
+- [x] Confirmed no layout shifts with proper spacing
+
+**Step 6.2: Create AnimationContainer Component**
+- [ ] Create `src/interfaces/tui-ink/components/core/AnimationContainer.tsx`
+- [ ] Props interface: `frames: string[]`, `interval?: number`, `play?: boolean`
+- [ ] Implement frame rotation logic with useEffect
+- [ ] Return Text component with current frame
+
+**Step 6.3: Add Width Stabilization**
+- [ ] Calculate longest frame length on mount
+- [ ] Pad shorter frames with spaces to match longest
+- [ ] Prevent layout jumps during animation
+- [ ] Support optional `width` prop for manual override
+
+**Step 6.4: Add Manual Frame Control**
+- [ ] Add `currentFrame?: number` prop for manual control
+- [ ] Support both auto-play and manual modes
+- [ ] Add `onFrame?: (index: number) => void` callback
+- [ ] Pause auto-play when currentFrame is provided
+
+**Step 6.5: Replace Header Spinner**
+- [ ] Import AnimationContainer into Header
+- [ ] Replace inline animation with AnimationContainer
+- [ ] Verify same behavior with new component
 
 **Validation After Completion**:
 ```bash
@@ -633,7 +657,7 @@ git add -A && git commit -m "Task 7: ProgressBar component completed"
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
-| AnimationContainer | ⏳ Pending | - | - |
+| AnimationContainer | 🔄 In Progress | - | 14c85f2 (Step 6.1) |
 | ProgressBar | ⏳ Pending | - | - |
 
 ### **Quick Health Check**
