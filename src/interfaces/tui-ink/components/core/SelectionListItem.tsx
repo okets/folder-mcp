@@ -39,7 +39,9 @@ export class SelectionListItem implements IListItem {
         onValueChange?: (newValues: string[]) => void,
         private minSelections?: number,
         private maxSelections?: number,
-        private autoSwitchLayout: boolean = false
+        private autoSwitchLayout: boolean = false,
+        private showDetails: boolean = false,
+        private detailColumns?: string[]
     ) {
         this._selectedValues = [...selectedValues];
         this._workingSelectedValues = [...selectedValues];
@@ -420,7 +422,9 @@ export class SelectionListItem implements IListItem {
                 headerColor: this.isActive ? theme.colors.accent : undefined,
                 validationError: this._validationError,
                 useASCII: false, // Could detect terminal capabilities
-                maxLines: bodyMaxLines
+                maxLines: bodyMaxLines,
+                showDetails: this.showDetails && effectiveLayout === 'vertical', // Only show details in vertical layout
+                detailColumns: this.detailColumns
             });
             
             return [...elements, ...bodyElements];
@@ -597,6 +601,14 @@ export class SelectionListItem implements IListItem {
         
         // Return lines based on effective layout
         if (effectiveLayout === 'vertical') {
+            // Check if showing detailed view
+            if (this.showDetails && this.detailColumns && this.detailColumns.length > 0) {
+                // Check if any option has details
+                const hasDetails = this.options.some(opt => opt.details && Object.keys(opt.details).length > 0);
+                if (hasDetails) {
+                    return 2 + this.options.length; // Header + column headers + each option
+                }
+            }
             return 2 + this.options.length; // Header + "Select one:" line + each option
         } else {
             return 3; // Header + "Select one:" line + horizontal options line

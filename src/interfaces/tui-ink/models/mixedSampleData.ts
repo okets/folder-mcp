@@ -250,6 +250,224 @@ export function createStatusPanelItems(): IListItem[] {
 // Mixed items for ConfigurationPanel (now showing configs with inline help/status)
 export function createConfigurationPanelItems(): IListItem[] {
     return [
+        // Test SelectionListItem with detailed view (Task 8)
+        new SelectionListItem(
+            '■',
+            'Choose AI Model',
+            [
+                { 
+                    value: 'gpt4', 
+                    label: 'GPT-4',
+                    details: {
+                        provider: 'OpenAI',
+                        speed: 'Slow',
+                        cost: '$$$',
+                        quality: 'Excellent'
+                    }
+                },
+                { 
+                    value: 'gpt4-turbo', 
+                    label: 'GPT-4 Turbo',
+                    details: {
+                        provider: 'OpenAI',
+                        speed: 'Medium',
+                        cost: '$$',
+                        quality: 'Excellent'
+                    }
+                },
+                { 
+                    value: 'gpt35', 
+                    label: 'GPT-3.5 Turbo',
+                    details: {
+                        provider: 'OpenAI',
+                        speed: 'Fast',
+                        cost: '$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'claude3-opus', 
+                    label: 'Claude 3 Opus',
+                    details: {
+                        provider: 'Anthropic',
+                        speed: 'Medium',
+                        cost: '$$$',
+                        quality: 'Excellent'
+                    }
+                },
+                { 
+                    value: 'claude3-sonnet', 
+                    label: 'Claude 3 Sonnet',
+                    details: {
+                        provider: 'Anthropic',
+                        speed: 'Fast',
+                        cost: '$$',
+                        quality: 'Excellent'
+                    }
+                },
+                { 
+                    value: 'claude3-haiku', 
+                    label: 'Claude 3 Haiku',
+                    details: {
+                        provider: 'Anthropic',
+                        speed: 'Very Fast',
+                        cost: '$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'claude2', 
+                    label: 'Claude 2.1',
+                    details: {
+                        provider: 'Anthropic',
+                        speed: 'Medium',
+                        cost: '$$',
+                        quality: 'Very Good'
+                    }
+                },
+                { 
+                    value: 'llama2-70b', 
+                    label: 'Llama 2 70B',
+                    details: {
+                        provider: 'Meta',
+                        speed: 'Medium',
+                        cost: '$$',
+                        quality: 'Very Good'
+                    }
+                },
+                { 
+                    value: 'llama2-13b', 
+                    label: 'Llama 2 13B',
+                    details: {
+                        provider: 'Meta',
+                        speed: 'Fast',
+                        cost: '$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'llama2-7b', 
+                    label: 'Llama 2 7B',
+                    details: {
+                        provider: 'Meta',
+                        speed: 'Very Fast',
+                        cost: '$',
+                        quality: 'Fair'
+                    }
+                },
+                { 
+                    value: 'codellama', 
+                    label: 'Code Llama',
+                    details: {
+                        provider: 'Meta',
+                        speed: 'Fast',
+                        cost: '$',
+                        quality: 'Good*'
+                    }
+                },
+                { 
+                    value: 'mixtral-8x7b', 
+                    label: 'Mixtral 8x7B',
+                    details: {
+                        provider: 'Mistral AI',
+                        speed: 'Fast',
+                        cost: '$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'mistral-7b', 
+                    label: 'Mistral 7B',
+                    details: {
+                        provider: 'Mistral AI',
+                        speed: 'Very Fast',
+                        cost: '$',
+                        quality: 'Fair'
+                    }
+                },
+                { 
+                    value: 'gemini-pro', 
+                    label: 'Gemini Pro',
+                    details: {
+                        provider: 'Google',
+                        speed: 'Medium',
+                        cost: '$$',
+                        quality: 'Very Good'
+                    }
+                },
+                { 
+                    value: 'gemini-ultra', 
+                    label: 'Gemini Ultra',
+                    details: {
+                        provider: 'Google',
+                        speed: 'Slow',
+                        cost: '$$$',
+                        quality: 'Excellent'
+                    }
+                },
+                { 
+                    value: 'palm2', 
+                    label: 'PaLM 2',
+                    details: {
+                        provider: 'Google',
+                        speed: 'Medium',
+                        cost: '$$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'command-r', 
+                    label: 'Command R',
+                    details: {
+                        provider: 'Cohere',
+                        speed: 'Fast',
+                        cost: '$$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'command-r-plus', 
+                    label: 'Command R+',
+                    details: {
+                        provider: 'Cohere',
+                        speed: 'Medium',
+                        cost: '$$$',
+                        quality: 'Very Good'
+                    }
+                },
+                { 
+                    value: 'falcon-180b', 
+                    label: 'Falcon 180B',
+                    details: {
+                        provider: 'TII',
+                        speed: 'Slow',
+                        cost: '$$',
+                        quality: 'Good'
+                    }
+                },
+                { 
+                    value: 'falcon-40b', 
+                    label: 'Falcon 40B',
+                    details: {
+                        provider: 'TII',
+                        speed: 'Medium',
+                        cost: '$',
+                        quality: 'Fair'
+                    }
+                }
+            ],
+            ['claude3-sonnet'],
+            false,
+            'radio',
+            'vertical',
+            (newValues) => console.log('AI Model selected:', newValues),
+            undefined,  // No min selections
+            undefined,  // No max selections  
+            false,      // Don't auto-switch layout
+            true,       // showDetails - enable detailed view
+            ['provider', 'speed', 'cost', 'quality'] // Column order with all details
+        ),
+        
         // Test cases for destructive confirmations at the top
         
         // 1. Text input with destructive flag and existing value
