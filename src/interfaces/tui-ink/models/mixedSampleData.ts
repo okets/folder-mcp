@@ -10,6 +10,55 @@ import * as os from 'os';
 // Mixed items for StatusPanel (now showing both logs and configs)
 export function createStatusPanelItems(): IListItem[] {
     return [
+        // ProgressBar test items - Step 7.1
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 0%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 0%',
+                'Should show "0%" in next steps'
+            ]
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 50%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 50%',
+                'Should show "50%" in next steps'
+            ]
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 100%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 100%',
+                'Should show "100%" in next steps'
+            ]
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Indeterminate',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: undefined (indeterminate)',
+                'Should show "Loading..." in next steps'
+            ]
+        ),
         // Components we're actually building
         new LogItem(
             '○',
@@ -137,14 +186,6 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Invalid IP changed to:', newValue),
             [validators.ipv4]
-        ),
-        
-        new LogItem(
-            '○',
-            'ProgressItem (TODO)',
-            '○',
-            false,
-            false
         )
     ];
 }

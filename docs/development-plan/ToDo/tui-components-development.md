@@ -626,12 +626,72 @@ git add -A && git commit -m "Task 6: AnimationContainer component completed"
 ```
 
 ### **Task 7: Implement ProgressBar Component**
-[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
 
-- [ ] Create ProgressBar component using AnimationContainer
-- [ ] Support short mode (spinner + percentage) and long mode (bar + spinner + percentage)
-- [ ] Handle determinate, indeterminate, and 100% completion states
-- [ ] Integrate with LogItem for items with progress status
+**Step 7.1: Create Basic ProgressBar Component**
+- [ ] Create `src/interfaces/tui-ink/components/core/ProgressBar.tsx`
+- [ ] Define props interface:
+  - `value?: number` (0-100 for determinate, undefined for indeterminate)
+  - `mode?: 'short' | 'long' | 'auto'` (default: 'auto')
+  - `width?: number` (total width available)
+  - `showPercentage?: boolean` (default: true)
+  - `color?: string` (progress bar color)
+- [ ] Implement basic render logic returning a Box with Text components
+
+**Step 7.2: Implement Short Mode (4 characters)**
+- [ ] Use BRAILLE_SPINNER from animations.ts for spinner
+- [ ] Format: `[spinner][percentage]` where percentage is 2-3 chars
+- [ ] Handle number formatting:
+  - 0-9: "⠋0% " (space padding)
+  - 10-99: "⠋50%"
+  - 100: "100%" (no spinner)
+- [ ] Use AnimationContainer for spinner with conditional play (not at 100%)
+
+**Step 7.3: Implement Long Mode with Progress Bar**
+- [ ] Calculate available width for bar: `width - spinner(1) - space(1) - percentage(3) - space(1)`
+- [ ] Use createProgressBarFrames() to generate bar animation frames
+- [ ] For determinate: calculate filled blocks based on percentage
+- [ ] For indeterminate: use wave animation or pulsing effect
+- [ ] Format: `[bar] [spinner][percentage]`
+
+**Step 7.4: Implement Auto Mode Logic**
+- [ ] Define width thresholds:
+  - width < 6: Show only percentage (no spinner)
+  - width < 20: Use short mode
+  - width >= 20: Use long mode
+- [ ] Never truncate AnimationContainers - switch modes instead
+- [ ] Ensure minimum width requirements are met for each mode
+
+**Step 7.5: Handle Special States**
+- [ ] 100% completion:
+  - Remove spinner
+  - Show full bar (if in long mode)
+  - Optional completion animation (flash green)
+- [ ] 0% state:
+  - Show empty bar with subtle animation
+- [ ] Indeterminate state (no value):
+  - Short mode: Just spinner, no percentage
+  - Long mode: Animated wave or pulse in bar
+
+**Step 7.6: Create ProgressBar Demo**
+- [ ] Add to AnimationContainerTest.tsx or create new demo
+- [ ] Show multiple progress bars:
+  - Different percentages (0%, 25%, 50%, 75%, 100%)
+  - Indeterminate state
+  - Different widths to test auto mode
+- [ ] Verify smooth animations and proper formatting
+
+**Step 7.7: Integrate with LogItem**
+- [ ] Detect progress status in LogItem (e.g., status === '⋯')
+- [ ] Add optional `progress?: number` property to LogItem
+- [ ] Replace static icon with ProgressBar when in progress
+- [ ] Calculate available width: icon space (2) + some buffer
+- [ ] Use short mode by default in LogItem
+
+**Step 7.8: Add Progress Support to Sample Data**
+- [ ] Update mixedSampleData.ts with progress items
+- [ ] Add items with different progress values
+- [ ] Include indeterminate progress items
+- [ ] Test in both Configuration and Status panels
 
 **Validation After Completion**:
 ```bash
@@ -649,7 +709,7 @@ git add -A && git commit -m "Task 7: ProgressBar component completed"
 - [x] Task 3: Implement FilePickerListItem Component - **Completed**
 - [x] Task 4: Implement Destructive Configuration Confirmations - **Completed**
 - [x] Task 5: Fix Vertical Layout Tightness Issues - **Completed**
-- [ ] Task 6: Implement AnimationContainer Component - Not Started
+- [x] Task 6: Implement AnimationContainer Component - **Completed**
 - [ ] Task 7: Implement ProgressBar Component - Not Started
 
 ### **Completion Log**
@@ -663,7 +723,7 @@ git add -A && git commit -m "Task 7: ProgressBar component completed"
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
-| AnimationContainer | ✅ Completed | 2025-07-02 | 14c85f2, 6a2e4a5 |
+| AnimationContainer | ✅ Completed | 2025-07-02 | 14c85f2, 6a2e4a5, 1fefd95 |
 | ProgressBar | ⏳ Pending | - | - |
 
 ### **Quick Health Check**
