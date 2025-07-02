@@ -10,34 +10,42 @@ import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
 import { useDI } from './di/DIContext.js';
 import { ServiceTokens } from './di/tokens.js';
 import { NavigationProvider } from './contexts/NavigationContext.js';
+import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext.js';
 
-export const AppFullscreen: React.FC = () => {
+const AppContent: React.FC = () => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
+    const { toggleAnimations, animationsPaused } = useAnimationContext();
     
     // Set up root input handler
     useRootInput();
     
     // Register app-level input handler
     const handleAppInput = useCallback((input: string, key: Key): boolean => {
+        // Handle Ctrl+A to toggle animations
+        if (key.ctrl && input === 'a') {
+            toggleAnimations();
+            return true;
+        }
         // Handle 'q' to quit - always available unless something with higher priority handles it
         if (input === 'q' || input === 'Q') {
             exit();
             return true;
         }
         return false;
-    }, [exit]);
+    }, [exit, toggleAnimations]);
     
     // Use focus chain for app-level component
     useFocusChain({
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: 'Q', description: 'Quit' }
+            { key: 'Q', description: 'Quit' },
+            { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' }
         ],
         priority: -100 // Low priority so active elements can override
     });
@@ -69,5 +77,13 @@ export const AppFullscreen: React.FC = () => {
                 <StatusBar />
             </Box>
         </NavigationProvider>
+    );
+};
+
+export const AppFullscreen: React.FC = () => {
+    return (
+        <AnimationProvider>
+            <AppContent />
+        </AnimationProvider>
     );
 };

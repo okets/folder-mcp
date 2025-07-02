@@ -590,28 +590,34 @@ git add -A && git commit -m "Task 5: Vertical layout tightness fixes completed"
 - [x] Tested animation performance (80ms interval)
 - [x] Confirmed no layout shifts with proper spacing
 
-**Step 6.2: Create AnimationContainer Component**
-- [ ] Create `src/interfaces/tui-ink/components/core/AnimationContainer.tsx`
-- [ ] Props interface: `frames: string[]`, `interval?: number`, `play?: boolean`
-- [ ] Implement frame rotation logic with useEffect
-- [ ] Return Text component with current frame
+**Step 6.2: Create AnimationContainer Component** ✅
+- [x] Create `src/interfaces/tui-ink/components/core/AnimationContainer.tsx`
+- [x] Props interface: `frames: string[]`, `interval?: number`, `play?: boolean`
+- [x] Implement frame rotation logic with useEffect
+- [x] Return Text component with current frame
 
-**Step 6.3: Add Width Stabilization**
-- [ ] Calculate longest frame length on mount
-- [ ] Pad shorter frames with spaces to match longest
-- [ ] Prevent layout jumps during animation
-- [ ] Support optional `width` prop for manual override
+**Step 6.3: Add Width Stabilization** ✅
+- [x] Calculate longest frame length on mount
+- [x] Pad shorter frames with spaces to match longest
+- [x] Prevent layout jumps during animation
+- [x] Support optional `width` prop for manual override
 
-**Step 6.4: Add Manual Frame Control**
-- [ ] Add `currentFrame?: number` prop for manual control
-- [ ] Support both auto-play and manual modes
-- [ ] Add `onFrame?: (index: number) => void` callback
-- [ ] Pause auto-play when currentFrame is provided
+**Step 6.4: Add Manual Frame Control** ✅
+- [x] Add `currentFrame?: number` prop for manual control
+- [x] Support both auto-play and manual modes
+- [x] Add `onFrame?: (index: number) => void` callback
+- [x] Pause auto-play when currentFrame is provided
 
-**Step 6.5: Replace Header Spinner**
-- [ ] Import AnimationContainer into Header
-- [ ] Replace inline animation with AnimationContainer
-- [ ] Verify same behavior with new component
+**Step 6.5: Replace Header Spinner** ✅
+- [x] Import AnimationContainer into Header
+- [x] Replace inline animation with AnimationContainer
+- [x] Verify same behavior with new component
+
+**Step 6.6: Add Animation Pause Feature** ✅
+- [x] Create AnimationContext for global animation state
+- [x] Add Ctrl+A keyboard shortcut to toggle animations
+- [x] Update AnimationContainer to respect pause state
+- [x] Add key binding to status bar
 
 **Validation After Completion**:
 ```bash
@@ -657,7 +663,7 @@ git add -A && git commit -m "Task 7: ProgressBar component completed"
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
-| AnimationContainer | 🔄 In Progress | - | 14c85f2 (Step 6.1) |
+| AnimationContainer | ✅ Completed | 2025-07-02 | 14c85f2, 6a2e4a5 |
 | ProgressBar | ⏳ Pending | - | - |
 
 ### **Quick Health Check**

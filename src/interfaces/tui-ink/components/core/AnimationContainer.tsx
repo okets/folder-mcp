@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from 'ink';
+import { useAnimationContext } from '../../contexts/AnimationContext.js';
 
 interface AnimationContainerProps {
     /**
@@ -56,6 +57,9 @@ export const AnimationContainer: React.FC<AnimationContainerProps> = ({
     color,
     width
 }) => {
+    // Get global animation pause state
+    const { animationsPaused } = useAnimationContext();
+    
     // State for current frame index
     const [frameIndex, setFrameIndex] = useState(0);
     
@@ -69,8 +73,8 @@ export const AnimationContainer: React.FC<AnimationContainerProps> = ({
     
     // Auto-play effect
     useEffect(() => {
-        // Skip auto-play if manual frame control is active
-        if (currentFrame !== undefined || !play || frames.length <= 1) {
+        // Skip auto-play if manual frame control is active, animations are paused globally, or play is false
+        if (currentFrame !== undefined || !play || frames.length <= 1 || animationsPaused) {
             return;
         }
         
@@ -83,7 +87,7 @@ export const AnimationContainer: React.FC<AnimationContainerProps> = ({
         }, interval);
         
         return () => clearInterval(timer);
-    }, [frames.length, interval, play, currentFrame, onFrame]);
+    }, [frames.length, interval, play, currentFrame, onFrame, animationsPaused]);
     
     // Handle manual frame control
     useEffect(() => {
