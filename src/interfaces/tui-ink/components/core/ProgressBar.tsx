@@ -2,11 +2,13 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { AnimationContainer } from './AnimationContainer.js';
 import { BRAILLE_SPINNER, createProgressBarFrames, createWaveFrames } from '../../utils/animations.js';
+import { theme } from '../../utils/theme.js';
 
 interface ProgressBarProps {
     /**
      * Progress value from 0-100 for determinate progress
      * undefined for indeterminate progress
+     * -1 for error state
      */
     value?: number;
     
@@ -46,15 +48,56 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     showPercentage = true,
     color
 }) => {
-    // For now, just render a simple text to verify the component works
+    const isError = value === -1;
     const isIndeterminate = value === undefined;
-    const percentage = isIndeterminate ? 0 : Math.min(100, Math.max(0, Math.round(value)));
+    const percentage = (isIndeterminate || isError) ? 0 : Math.min(100, Math.max(0, Math.round(value)));
     
-    return (
-        <Box>
-            <Text color={color}>
-                {isIndeterminate ? 'Loading...' : `${percentage}%`}
-            </Text>
-        </Box>
-    );
+    // For Step 7.2, implement short mode
+    const renderShortMode = () => {
+        if (isError) {
+            // Error state: show red X with spaces
+            return <Text color={theme.colors.dangerRed}>✗   </Text>;
+        }
+        if (isIndeterminate) {
+            // Just spinner with 3 spaces for indeterminate
+            return (
+                <Box>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={80}
+                        color={theme.colors.warningOrange}
+                    />
+                    <Text>   </Text>
+                </Box>
+            );
+        }
+        
+        // Format percentage text
+        let percentText: string;
+        if (percentage === 100) {
+            // At 100%, show green checkmark with spaces
+            return <Text color={theme.colors.successGreen}>✓   </Text>;
+        } else if (percentage < 10) {
+            // 0-9: " 0%" with space before number
+            percentText = ` ${percentage}%`;
+        } else {
+            // 10-99: "50%"
+            percentText = `${percentage}%`;
+        }
+        
+        // Show spinner + percentage for all values < 100%
+        return (
+            <Box>
+                <AnimationContainer 
+                    frames={BRAILLE_SPINNER}
+                    interval={80}
+                    color={theme.colors.warningOrange}
+                />
+                <Text color={theme.colors.warningOrange}>{percentText}</Text>
+            </Box>
+        );
+    };
+    
+    // For now, always use short mode
+    return renderShortMode();
 };

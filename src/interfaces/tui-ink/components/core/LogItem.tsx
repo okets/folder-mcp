@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import chalk from 'chalk';
 import { IListItem } from './IListItem.js';
 import { theme } from '../../utils/theme.js';
+import { ProgressBar } from './ProgressBar.js';
 
 interface Segment {
     text: string;
@@ -20,7 +21,8 @@ export class LogItem implements IListItem {
         private status: string,
         public isActive: boolean,
         isExpanded: boolean,
-        private details?: string[]
+        private details?: string[],
+        public progress?: number
     ) {
         this._isExpanded = isExpanded;
         // Use status symbol as the bullet icon if available
@@ -245,7 +247,8 @@ export class LogItem implements IListItem {
     
     private buildSegments(maxWidth: number): Segment[] {
         const BUFFER = 2; // Prevent exact width match
-        const safeWidth = maxWidth - BUFFER;
+        const progressWidth = ((this.progress !== undefined || this.status === '⋯') ? 5 : 0); // space + 4 char progress
+        const safeWidth = maxWidth - BUFFER - progressWidth;
         
         // Calculate space allocation
         const iconWidth = this.icon.length + 1; // icon + space
@@ -287,7 +290,7 @@ export class LogItem implements IListItem {
         const textSegment = segments[1];
         
         // If both have the same color, render as single Text to avoid issues
-        if (iconSegment.color === textSegment.color) {
+        if (iconSegment.color === textSegment.color && this.progress === undefined) {
             return (
                 <Text color={iconSegment.color}>
                     {iconSegment.text} {textSegment.text}
@@ -297,10 +300,19 @@ export class LogItem implements IListItem {
         
         // Otherwise use Box with separate Text components
         return (
-            <Box>
-                <Text color={iconSegment.color}>{iconSegment.text}</Text>
-                <Text> </Text>
-                <Text color={textSegment.color}>{textSegment.text}</Text>
+            <Box justifyContent="space-between" width="100%">
+                <Box>
+                    <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                    <Text> </Text>
+                    <Text color={textSegment.color}>{textSegment.text}</Text>
+                </Box>
+                {/* Add progress bar to the right if we have progress */}
+                {(this.progress !== undefined || this.status === '⋯') && (
+                    <ProgressBar 
+                        value={this.progress}
+                        mode="short"
+                    />
+                )}
             </Box>
         );
     }

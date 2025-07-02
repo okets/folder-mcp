@@ -20,8 +20,9 @@ export function createStatusPanelItems(): IListItem[] {
             [
                 'Testing basic ProgressBar component',
                 'Value: 0%',
-                'Should show "0%" in next steps'
-            ]
+                'Should show "⠋ 0%" (spinner + space + 0%)'
+            ],
+            0
         ),
         new LogItem(
             '⋯',
@@ -32,8 +33,9 @@ export function createStatusPanelItems(): IListItem[] {
             [
                 'Testing basic ProgressBar component',
                 'Value: 50%',
-                'Should show "50%" in next steps'
-            ]
+                'Should show "⠋50%" (spinner + 50%)'
+            ],
+            50
         ),
         new LogItem(
             '⋯',
@@ -44,8 +46,9 @@ export function createStatusPanelItems(): IListItem[] {
             [
                 'Testing basic ProgressBar component',
                 'Value: 100%',
-                'Should show "100%" in next steps'
-            ]
+                'Should show green "✓   " (no spinner)'
+            ],
+            100
         ),
         new LogItem(
             '⋯',
@@ -56,8 +59,48 @@ export function createStatusPanelItems(): IListItem[] {
             [
                 'Testing basic ProgressBar component',
                 'Value: undefined (indeterminate)',
-                'Should show "Loading..." in next steps'
-            ]
+                'Should show "⠋   " (spinner + 3 spaces)'
+            ],
+            undefined
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Low (5%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing single digit percentage',
+                'Value: 5%',
+                'Should show "⠋ 5%" (spinner + space + 5%)'
+            ],
+            5
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: High (95%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing high percentage',
+                'Value: 95%',
+                'Should show "⠋95%" (no padding)'
+            ],
+            95
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Error state',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing error state',
+                'Value: -1 (error)',
+                'Should show red "✗   " (error indicator)'
+            ],
+            -1
         ),
         // Components we're actually building
         new LogItem(
