@@ -198,7 +198,9 @@ export const ConfigurationPanel: React.FC<{
         
         // Otherwise handle entering edit mode or expanding/collapsing
         if (key.return) {
-            selectedItem.onEnter();
+            if (selectedItem.onEnter) {
+                selectedItem.onEnter();
+            }
             // Force re-render to show edit mode
             setUpdateTrigger(prev => prev + 1);
             return true;
@@ -231,7 +233,7 @@ export const ConfigurationPanel: React.FC<{
     const hasDetails = isLogItem && (selectedItem as any).details;
     const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
     
-    let keyBindings = [];
+    let keyBindings: Array<{key: string, description: string}> = [];
     if (isAnyItemInEditMode) {
         // Check if it's a FilePickerListItem in control
         if (selectedItem instanceof FilePickerListItem && selectedItem.isControllingInput) {

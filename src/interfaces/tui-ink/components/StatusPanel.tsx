@@ -197,7 +197,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     const hasDetails = isLogItem && (selectedItem as any).details;
     const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
     
-    let keyBindings = [];
+    let keyBindings: Array<{key: string, description: string}> = [];
     if (isLogItem && hasDetails) {
         // LogItem with details - can expand/collapse
         if (isExpanded) {

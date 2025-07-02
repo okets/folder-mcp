@@ -108,7 +108,10 @@ export class LogItem implements IListItem {
             
             // Mark the last line
             if (allDetailLines.length > 0) {
-                allDetailLines[allDetailLines.length - 1].isLast = true;
+                const lastLine = allDetailLines[allDetailLines.length - 1];
+                if (lastLine) {
+                    lastLine.isLast = true;
+                }
             }
             
             // Now render with appropriate symbols
@@ -281,6 +284,11 @@ export class LogItem implements IListItem {
     private renderSegments(segments: Segment[], maxWidth: number): ReactElement {
         const iconSegment = segments[0];
         const textSegment = segments[1];
+        
+        // Handle missing segments
+        if (!iconSegment || !textSegment) {
+            return <Text></Text>;
+        }
         
         // If both have the same color, render as single Text to avoid issues
         if (iconSegment.color === textSegment.color && this.progress === undefined) {

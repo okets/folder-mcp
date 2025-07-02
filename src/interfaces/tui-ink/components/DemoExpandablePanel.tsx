@@ -88,7 +88,7 @@ export const DemoExpandablePanel: React.FC = () => {
                     activeIndex={navigation.configSelectedIndex}
                     isExpandable={isExpandable}
                     renderExpandableItem={renderExpandableItem}
-                    normalizeItem={(item, index) => {
+                    normalizeItem={(item: DemoItem, index: number) => {
                         switch (item.type) {
                             case 'simple':
                                 return {

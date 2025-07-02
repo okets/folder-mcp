@@ -490,8 +490,9 @@ export class FilePickerListItem extends ValidatedListItem {
                 // Single column navigation
                 if (this._focusedIndex < this._items.length - 1) {
                     // Check if we're moving to confirm item
+                    const lastItem = this._items[this._items.length - 1];
                     if (this._focusedIndex === this._items.length - 2 && 
-                        this._items[this._items.length - 1].isConfirmAction) {
+                        lastItem && lastItem.isConfirmAction) {
                         this._previousFocusedIndex = this._focusedIndex;
                     }
                     this._focusedIndex++;
