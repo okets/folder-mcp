@@ -13,6 +13,10 @@ export const Header: React.FC = () => {
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
     
+    // Custom logo colors
+    const frameColor = '#4c1589'; // rgb(76, 21, 137) - dark purple for frame and resolution
+    const logoTextColor = '#a65ff6'; // rgb(166, 95, 246) - light purple for "folder-mcp"
+    
     // Check for low vertical resolution
     const isLowResolution = rows < 25;
     
@@ -28,10 +32,10 @@ export const Header: React.FC = () => {
             // Full display with resolution
             return (
                 <Box marginTop={1}>
-                    <Text color={colors.accent}>
-                        📁 <Text bold>folder-mcp</Text>
-                        <Text color={colors.accent}>{separator}</Text>
-                        <Text color="gray">{resolution}</Text>
+                    <Text color={frameColor}>
+                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
+                        <Text color={frameColor}>{separator}</Text>
+                        <Text color={frameColor}>{resolution}</Text>
                     </Text>
                 </Box>
             );
@@ -39,8 +43,8 @@ export const Header: React.FC = () => {
             // Just app name, no resolution
             return (
                 <Box marginTop={1}>
-                    <Text color={colors.accent}>
-                        📁 <Text bold>folder-mcp</Text>
+                    <Text color={frameColor}>
+                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
                     </Text>
                 </Box>
             );
@@ -49,7 +53,7 @@ export const Header: React.FC = () => {
             const truncatedName = appName.substring(0, availableWidth - 1) + '…';
             return (
                 <Box marginTop={1}>
-                    <Text color={colors.accent}>{truncatedName}</Text>
+                    <Text color={frameColor}>{truncatedName}</Text>
                 </Box>
             );
         }
@@ -84,13 +88,13 @@ export const Header: React.FC = () => {
         
         return (
             <Box flexDirection="column" marginTop={1}>
-                <Text color={colors.accent}>{topBorder}</Text>
+                <Text color={frameColor}>{topBorder}</Text>
                 <Box>
-                    <Text color={colors.accent}>│ 📁 </Text>
-                    <Text color={colors.accent} bold>folder-mcp</Text>
-                    <Text color={colors.accent}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={frameColor}>│ 📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
                 </Box>
-                <Text color={colors.accent}>{bottomBorder}</Text>
+                <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
         );
     } else if (columns >= minBorderedWidth) {
@@ -109,13 +113,13 @@ export const Header: React.FC = () => {
         
         return (
             <Box flexDirection="column" marginTop={1}>
-                <Text color={colors.accent}>{topBorder}</Text>
+                <Text color={frameColor}>{topBorder}</Text>
                 <Box>
-                    <Text color={colors.accent}>│ 📁 </Text>
-                    <Text color={colors.accent} bold>folder-mcp</Text>
-                    <Text color={colors.accent}>{' '.repeat(remainingSpace + 1)}│</Text>
+                    <Text color={frameColor}>│ 📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
                 </Box>
-                <Text color={colors.accent}>{bottomBorder}</Text>
+                <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
         );
     } else {
@@ -126,8 +130,8 @@ export const Header: React.FC = () => {
             // Can fit full app name
             return (
                 <Box marginTop={1}>
-                    <Text color={colors.accent}>
-                        📁 <Text bold>folder-mcp</Text>
+                    <Text color={frameColor}>
+                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
                     </Text>
                 </Box>
             );
@@ -142,7 +146,7 @@ export const Header: React.FC = () => {
             
             return (
                 <Box marginTop={1}>
-                    <Text color={colors.accent}>{displayText}</Text>
+                    <Text color={frameColor}>{displayText}</Text>
                 </Box>
             );
         }
