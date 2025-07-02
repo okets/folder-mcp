@@ -12,6 +12,7 @@ import { createStatusPanelItems } from '../models/mixedSampleData.js';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
 import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
+import { ProgressModeProvider } from '../contexts/ProgressModeContext.js';
 
 // Get mixed items for this panel
 const mixedItems = createStatusPanelItems();
@@ -269,16 +270,17 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     }
     
     return (
-        <BorderedBox
-            title="System Status"
-            subtitle={actualHeight > 5 ? "Current state" : undefined}
-            focused={navigation.isStatusFocused}
-            width={width || columns - 2}
-            height={actualHeight}
-            showScrollbar={showScrollbar}
-            scrollbarElements={scrollbar}
-        >
-            {(() => {
+        <ProgressModeProvider width={panelWidth}>
+            <BorderedBox
+                title="System Status"
+                subtitle={actualHeight > 5 ? "Current state" : undefined}
+                focused={navigation.isStatusFocused}
+                width={width || columns - 2}
+                height={actualHeight}
+                showScrollbar={showScrollbar}
+                scrollbarElements={scrollbar}
+            >
+                {(() => {
                 // Build a flat array to avoid Fragment key issues
                 const elements: React.ReactElement[] = [];
                 
@@ -316,6 +318,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
                 
                 return elements.length > 0 ? elements : <Text color={theme.colors.textMuted}>{mixedItems.length} items</Text>;
             })()}
-        </BorderedBox>
+            </BorderedBox>
+        </ProgressModeProvider>
     );
 };

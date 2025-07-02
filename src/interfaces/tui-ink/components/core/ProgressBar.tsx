@@ -55,8 +55,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     // For Step 7.2, implement short mode
     const renderShortMode = () => {
         if (isError) {
-            // Error state: show red X with spaces
-            return <Text color={theme.colors.dangerRed}>✗   </Text>;
+            // Error state: show red X with ERR
+            return <Text color={theme.colors.dangerRed}>✗ERR</Text>;
         }
         if (isIndeterminate) {
             // Just spinner with 3 spaces for indeterminate
@@ -98,6 +98,93 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         );
     };
     
-    // For now, always use short mode
-    return renderShortMode();
+    // For Step 7.3, implement long mode
+    const renderLongMode = () => {
+        // Fixed bar width of 10 cells
+        const barWidth = 10;
+        
+        if (isError) {
+            // Error state in long mode
+            return (
+                <Box>
+                    <Text color={theme.colors.dangerRed}>✗</Text>
+                    <Text color={theme.colors.dangerRed}>{'▱'.repeat(barWidth)}</Text>
+                    <Text color={theme.colors.dangerRed}> ERR</Text>
+                </Box>
+            );
+        }
+        
+        if (isIndeterminate) {
+            // Indeterminate state - could add wave animation later
+            return (
+                <Box>
+                    <AnimationContainer 
+                        frames={BRAILLE_SPINNER}
+                        interval={80}
+                        color={theme.colors.warningOrange}
+                    />
+                    <Text color={theme.colors.warningOrange}>{'▱'.repeat(barWidth)}</Text>
+                    <Text color={theme.colors.warningOrange}> ...</Text>
+                </Box>
+            );
+        }
+        
+        // Determinate progress
+        const filledCount = Math.round((percentage / 100) * barWidth);
+        const emptyCount = barWidth - filledCount;
+        const progressBar = '▰'.repeat(filledCount) + '▱'.repeat(emptyCount);
+        
+        if (percentage === 100) {
+            // Complete state
+            return (
+                <Box>
+                    <Text color={theme.colors.successGreen}>✓</Text>
+                    <Text color={theme.colors.successGreen}>{progressBar}</Text>
+                    <Text color={theme.colors.successGreen}>100%</Text>
+                </Box>
+            );
+        }
+        
+        // In progress
+        const percentText = percentage < 10 ? `  ${percentage}%` : ` ${percentage}%`;
+        return (
+            <Box>
+                <AnimationContainer 
+                    frames={BRAILLE_SPINNER}
+                    interval={80}
+                    color={theme.colors.warningOrange}
+                />
+                <Text color={theme.colors.warningOrange}>{progressBar}</Text>
+                <Text color={theme.colors.warningOrange}>{percentText}</Text>
+            </Box>
+        );
+    };
+    
+    // Render based on mode
+    if (mode === 'short') {
+        return renderShortMode();
+    } else if (mode === 'long') {
+        return renderLongMode();
+    } else {
+        // Auto mode - choose based on width
+        if (width < 6) {
+            // Too narrow for any progress bar, just show percentage or status
+            if (isError) {
+                return <Text color={theme.colors.dangerRed}>ERR </Text>;
+            } else if (isIndeterminate) {
+                return <Text color={theme.colors.warningOrange}>... </Text>;
+            } else if (percentage === 100) {
+                return <Text color={theme.colors.successGreen}>100%</Text>;
+            } else {
+                const percentText = percentage < 10 ? `  ${percentage}%` : ` ${percentage}%`;
+                return <Text color={theme.colors.warningOrange}>{percentText}</Text>;
+            }
+        } else if (width < 20) {
+            // Use short mode for narrow spaces
+            return renderShortMode();
+        } else {
+            // Use long mode for wide spaces
+            return renderLongMode();
+        }
+    }
 };

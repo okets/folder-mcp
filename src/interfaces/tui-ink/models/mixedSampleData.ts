@@ -98,9 +98,23 @@ export function createStatusPanelItems(): IListItem[] {
             [
                 'Testing error state',
                 'Value: -1 (error)',
-                'Should show red "✗   " (error indicator)'
+                'Should show red "✗ERR" (error indicator)'
             ],
             -1
+        ),
+        // Long mode progress test
+        new LogItem(
+            '⋯',
+            'Long Progress Test',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing long mode progress bar',
+                'This would show full bar in wide panels',
+                'Format: [spinner][bar][percentage]'
+            ],
+            75
         ),
         // Components we're actually building
         new LogItem(

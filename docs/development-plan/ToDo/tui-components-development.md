@@ -644,39 +644,58 @@ git add -A && git commit -m "Task 6: AnimationContainer component completed"
   - 0-9: "⠋ 0%" (spinner + space + digit + %)
   - 10-99: "⠋50%" (spinner + 2 digits + %)
   - 100: "✓   " (green checkmark + 3 spaces)
-  - -1: "✗   " (red X + 3 spaces for error)
+  - -1: "✗ERR" (red X + ERR for error)
   - undefined: "⠋   " (spinner + 3 spaces for indeterminate)
 - [x] Use AnimationContainer for spinner with conditional play (not at 100%)
 - [x] Integrated with LogItem - progress bars appear right-aligned using flexbox
-- [x] Added error state (-1) that shows red "✗   " using theme.colors.dangerRed
+- [x] Added error state (-1) that shows red "✗ERR" using theme.colors.dangerRed
 - [x] Color scheme: orange for in-progress, green for complete, red for error
 - [x] All states maintain exactly 4 characters for perfect alignment
 
-**Step 7.3: Implement Long Mode with Progress Bar**
-- [ ] Calculate available width for bar: `width - spinner(1) - space(1) - percentage(3) - space(1)`
-- [ ] Use createProgressBarFrames() to generate bar animation frames
-- [ ] For determinate: calculate filled blocks based on percentage
-- [ ] For indeterminate: use wave animation or pulsing effect
-- [ ] Format: `[bar] [spinner][percentage]`
+**Step 7.3: Implement Long Mode with Progress Bar** ✅
+- [x] Calculate available width for bar: `width - spinner(1) - percentage(4)`
+- [x] Use filled/unfilled blocks (▰/▱) for progress visualization
+- [x] For determinate: calculate filled blocks based on percentage
+- [x] For indeterminate: show empty bar with "..." instead of percentage
+- [x] Format: `[spinner][bar][percentage]`
+- [x] Special states (all with consistent 15-character width):
+  - 0-99%: Orange spinner + bar + percentage (e.g., "⠋▱▱▱▱▱▱▱▱▱▱  0%", "⠋▰▰▰▰▰▱▱▱▱▱ 50%")
+  - 100%: Green checkmark + full bar + "100%" (e.g., "✓▰▰▰▰▰▰▰▰▰▰100%")
+  - Error: Red X + empty bar + " ERR" (e.g., "✗▱▱▱▱▱▱▱▱▱▱ ERR")
+  - Indeterminate: Orange spinner + empty bar + " ..." (e.g., "⠋▱▱▱▱▱▱▱▱▱▱ ...")
+- [x] Fixed bar width of 10 cells for consistency
+- [x] Falls back to short mode if insufficient space
 
-**Step 7.4: Implement Auto Mode Logic**
-- [ ] Define width thresholds:
-  - width < 6: Show only percentage (no spinner)
-  - width < 20: Use short mode
-  - width >= 20: Use long mode
-- [ ] Never truncate AnimationContainers - switch modes instead
-- [ ] Ensure minimum width requirements are met for each mode
+**Step 7.4: Implement Auto Mode Logic** ✅
+- [x] Define width thresholds:
+  - width < 6: Show only percentage/status (no spinner)
+    - In progress: " 50%" (right-aligned)
+    - Complete: "100%" (green)
+    - Error: "ERR " (red)
+    - Indeterminate: "... " (orange)
+  - width < 20: Use short mode (4 chars: spinner + percentage)
+  - width >= 20: Use long mode (spinner + bar + percentage)
+- [x] Never truncate AnimationContainers - switch modes instead
+- [x] Ensure minimum width requirements are met for each mode
+- [x] Graceful degradation as width decreases
+- [x] Panel-wide mode switching via ProgressModeContext (< 50 chars = short, ≥ 50 = long)
+- [x] LogItem text dynamically truncates based on actual progress mode
+- [x] Responsive text expansion when progress bars switch to short mode
 
-**Step 7.5: Handle Special States**
-- [ ] 100% completion:
-  - Remove spinner
+**Step 7.5: Handle Special States** ✅
+- [x] 100% completion:
+  - Remove spinner, show green checkmark
   - Show full bar (if in long mode)
-  - Optional completion animation (flash green)
-- [ ] 0% state:
-  - Show empty bar with subtle animation
-- [ ] Indeterminate state (no value):
-  - Short mode: Just spinner, no percentage
-  - Long mode: Animated wave or pulse in bar
+  - Green color indicates completion
+- [x] 0% state:
+  - Show orange spinner with empty bar
+  - Clear visual indication of starting state
+- [x] Indeterminate state (no value):
+  - Short mode: Just spinner with spaces
+  - Long mode: Spinner with empty bar and "..."
+- [x] Error state (-1):
+  - Short mode: Red "✗ERR"
+  - Long mode: Red X with empty bar and "ERR"
 
 **Step 7.6: Create ProgressBar Demo**
 - [ ] Add to AnimationContainerTest.tsx or create new demo
