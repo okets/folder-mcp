@@ -45,7 +45,7 @@ export const AppFullscreen: React.FC = () => {
     // Fixed height calculations (accounting for header margin)
     const isLowResolution = rows < 25;
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
-    const STATUS_BAR_HEIGHT = 3; // border + content + border
+    const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
     if (process.env.TUI_DEBUG) {

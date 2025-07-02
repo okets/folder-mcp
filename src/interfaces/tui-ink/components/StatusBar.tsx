@@ -63,7 +63,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             <Text>
                 {parts.map((part, i) => 
                     part.color ? (
-                        <Text key={i} color={part.color} bold={part.bold}>
+                        <Text key={i} color={part.color} bold={part.bold || false}>
                             {part.text}
                         </Text>
                     ) : part.text
@@ -154,7 +154,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             <Text>
                 {parts.map((part, i) => 
                     part.color ? (
-                        <Text key={i} color={part.color} bold={part.bold}>
+                        <Text key={i} color={part.color} bold={part.bold || false}>
                             {part.text}
                         </Text>
                     ) : part.text
@@ -220,7 +220,10 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
-    const { columns } = useTerminalSize();
+    const { columns, rows } = useTerminalSize();
+    
+    // Check if we're in low resolution mode (save vertical space)
+    const isLowResolution = rows < 25;
     
     // Use full terminal width
     // The Box component's width prop sets the total width including borders
@@ -256,8 +259,34 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
         }
     }, [di]);
      // Calculate available space for text (accounting for borders and padding)
-    const availableWidth = Math.max(0, statusBarWidth - 4); // -2 for borders, -2 for paddingX
+    const availableWidth = isLowResolution 
+        ? Math.max(0, statusBarWidth - 2) // -2 for paddingX in borderless mode
+        : Math.max(0, statusBarWidth - 4); // -2 for borders, -2 for paddingX in bordered mode
     
+    // Low resolution mode: no border to save 2 lines
+    if (isLowResolution) {
+        return (
+            <Box 
+                paddingX={1}
+                width={statusBarWidth}
+                flexDirection="row"
+                overflow="hidden"
+            >
+                {message ? (
+                    <Text color={colors.textSecondary} wrap="truncate">{message}</Text>
+                ) : (
+                    <StatusBarContent bindings={keyBindings.length > 0 ? keyBindings : [
+                        { key: '→/enter', description: 'Edit' },
+                        { key: 'tab', description: 'Switch Panel' },
+                        { key: '↑↓', description: 'Navigate' },
+                        { key: 'q', description: 'Quit' }
+                    ]} availableWidth={availableWidth} colors={colors} />
+                )}
+            </Box>
+        );
+    }
+    
+    // Normal resolution mode: with border
     return (
         <Box 
             borderStyle="single" 
