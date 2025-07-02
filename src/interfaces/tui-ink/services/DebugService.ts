@@ -1,4 +1,4 @@
-import { IDebugService } from './interfaces.js';
+import { IDebugService } from './interfaces';
 
 export class DebugService implements IDebugService {
     private enabled: boolean;

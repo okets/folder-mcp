@@ -1,10 +1,10 @@
 import React from 'react';
 import { Box } from 'ink';
-import { ConfigurationPanelData } from './components/ConfigurationPanelData.js';
-import { StatusPanelData } from './components/StatusPanelData.js';
-import { LayoutContainer } from './components/LayoutContainer.js';
-import { useTerminalSize } from './hooks/useTerminalSize.js';
-import { useNavigationContext } from './contexts/NavigationContext.js';
+import { ConfigurationPanelData } from './components/ConfigurationPanelData';
+import { StatusPanelData } from './components/StatusPanelData';
+import { LayoutContainer } from './components/LayoutContainer';
+import { useTerminalSize } from './hooks/useTerminalSize';
+import { useNavigationContext } from './contexts/NavigationContext';
 
 /**
  * Main app using generic panels

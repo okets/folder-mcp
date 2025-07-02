@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useTerminalSize } from './useTerminalSize.js';
-import { layoutService } from '../services/LayoutService.js';
+import { useTerminalSize } from './useTerminalSize';
+import { layoutService } from '../services/LayoutService';
 
 export interface ResponsiveLayoutOptions {
     /** Number of panels to display */

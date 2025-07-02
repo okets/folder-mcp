@@ -2,32 +2,26 @@
  * Core TUI components - generic, reusable building blocks
  */
 
-export { BorderedBox } from './BorderedBox.js';
-export type { BorderedBoxProps } from './BorderedBox.js';
+export { BorderedBox } from './BorderedBox';
+export type { BorderedBoxProps } from './BorderedBox';
 
-export { calculateScrollbar } from './ScrollbarCalculator.js';
-export type { ScrollbarConfig } from './ScrollbarCalculator.js';
+export { calculateScrollbar } from './ScrollbarCalculator';
+export type { ScrollbarConfig } from './ScrollbarCalculator';
 
-export { ListItem, truncate } from './ListItem.js';
-export type { ListItemProps } from './ListItem.js';
+export { TextInputBody } from './TextInputBody';
+export type { TextInputBodyProps } from './TextInputBody';
 
-export { TextInputBody } from './TextInputBody.js';
-export type { TextInputBodyProps } from './TextInputBody.js';
+export { ScrollableBlock } from './ScrollableBlock';
+export type { ScrollableBlockProps } from './ScrollableBlock';
 
-export { ScrollableBlock } from './ScrollableBlock.js';
-export type { ScrollableBlockProps } from './ScrollableBlock.js';
+export { GenericListPanel } from './GenericListPanel';
+export type { GenericListPanelProps } from './GenericListPanel';
 
-export { GenericPanel } from './GenericPanel.js';
-export type { GenericPanelProps } from './GenericPanel.js';
+export { SelectionListItem } from './SelectionListItem';
+export type { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem';
 
-export { SimplePanel } from './SimplePanel.js';
-export type { SimplePanelProps } from './SimplePanel.js';
+export { SelectionBody } from './SelectionBody';
+export type { SelectionBodyProps } from './SelectionBody';
 
-export { SelectionListItem } from './SelectionListItem.js';
-export type { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem.js';
-
-export { SelectionBody } from './SelectionBody.js';
-export type { SelectionBodyProps } from './SelectionBody.js';
-
-export { NotificationArea } from './NotificationArea.js';
-export type { NotificationAreaProps } from './NotificationArea.js';
+export { NotificationArea } from './NotificationArea';
+export type { NotificationAreaProps } from './NotificationArea';

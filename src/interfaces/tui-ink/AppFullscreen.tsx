@@ -1,17 +1,17 @@
 import React, { useCallback, useState } from 'react';
 import { Box, Text, useApp, Key } from 'ink';
-import { Header } from './components/Header.js';
-import { StatusBar } from './components/StatusBar.js';
-import { LayoutContainer } from './components/LayoutContainer.js';
-import { ConfigurationPanel } from './components/ConfigurationPanel.js';
-import { StatusPanel } from './components/StatusPanel.js';
-import { useTerminalSize } from './hooks/useTerminalSize.js';
-import { useRootInput, useFocusChain } from './hooks/useFocusChain.js';
-import { useDI } from './di/DIContext.js';
-import { ServiceTokens } from './di/tokens.js';
-import { NavigationProvider } from './contexts/NavigationContext.js';
-import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext.js';
-import { createConfigurationPanelItems, createStatusPanelItems } from './models/mixedSampleData.js';
+import { Header } from './components/Header';
+import { StatusBar } from './components/StatusBar';
+import { LayoutContainer } from './components/LayoutContainer';
+import { ConfigurationPanel } from './components/ConfigurationPanel';
+import { StatusPanel } from './components/StatusPanel';
+import { useTerminalSize } from './hooks/useTerminalSize';
+import { useRootInput, useFocusChain } from './hooks/useFocusChain';
+import { useDI } from './di/DIContext';
+import { ServiceTokens } from './di/tokens';
+import { NavigationProvider } from './contexts/NavigationContext';
+import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
+import { createConfigurationPanelItems, createStatusPanelItems } from './models/mixedSampleData';
 
 // Get item counts once at module level to ensure consistency
 const CONFIG_ITEMS = createConfigurationPanelItems();

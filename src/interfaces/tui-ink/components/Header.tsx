@@ -1,10 +1,10 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { AnimationContainer } from './core/AnimationContainer.js';
-import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { useTerminalSize } from '../hooks/useTerminalSize';
+import { AnimationContainer } from './core/AnimationContainer';
+import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations';
 
 export const Header: React.FC = () => {
     const di = useDI();

@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { AnimationContainer } from './AnimationContainer.js';
-import { BRAILLE_SPINNER, createProgressBarFrames, createWaveFrames } from '../../utils/animations.js';
-import { theme } from '../../utils/theme.js';
+import { AnimationContainer } from './AnimationContainer';
+import { BRAILLE_SPINNER, createProgressBarFrames, createWaveFrames } from '../../utils/animations';
+import { theme } from '../../utils/theme';
 
 interface ProgressBarProps {
     /**

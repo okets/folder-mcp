@@ -1,10 +1,10 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
-import { ILayoutConstraints } from '../models/types.js';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import { useNavigationContext } from '../contexts/NavigationContext.js';
+import { LayoutConstraintProvider } from '../contexts/LayoutContext';
+import { ILayoutConstraints } from '../models/types';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { useNavigationContext } from '../contexts/NavigationContext';
 
 interface LayoutContainerProps {
     availableHeight: number;

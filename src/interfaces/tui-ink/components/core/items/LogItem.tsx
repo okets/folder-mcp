@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem.js';
-import { useTheme } from '../../../contexts/ThemeContext.js';
+import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useInput } from 'ink';
 
 export interface LogEntry {

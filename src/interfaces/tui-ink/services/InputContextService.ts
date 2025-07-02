@@ -1,5 +1,5 @@
 import type { Key } from 'ink';
-import type { IInputContextService, IKeyBinding, IFocusChainService } from './interfaces.js';
+import type { IInputContextService, IKeyBinding, IFocusChainService } from './interfaces';
 
 export type InputHandler = (input: string, key: Key) => boolean;
 

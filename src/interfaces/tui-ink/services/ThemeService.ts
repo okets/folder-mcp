@@ -1,6 +1,6 @@
-import { IThemeService } from './interfaces.js';
-import { ThemeColors, ThemeSymbols, BorderStyle } from '../models/types.js';
-import { theme } from '../utils/theme.js';
+import { IThemeService } from './interfaces';
+import { ThemeColors, ThemeSymbols, BorderStyle } from '../models/types';
+import { theme } from '../utils/theme';
 
 export class ThemeService implements IThemeService {
     getColors(): ThemeColors {

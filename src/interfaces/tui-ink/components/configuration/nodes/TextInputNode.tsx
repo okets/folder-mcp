@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { TextInput } from '../../primitives/TextInput.js';
-import { CollapsedSummary } from '../shared/CollapsedSummary.js';
-import { BorderedBox } from '../../BorderedBox.js';
-import { theme } from '../../../utils/theme.js';
-import { useDI } from '../../../di/DIContext.js';
-import { ServiceTokens } from '../../../di/tokens.js';
-import type { ITextInputNode } from '../../../models/configuration.js';
+import { TextInput } from '../../primitives/TextInput';
+import { CollapsedSummary } from '../shared/CollapsedSummary';
+import { BorderedBox } from '../../BorderedBox';
+import { theme } from '../../../utils/theme';
+import { useDI } from '../../../di/DIContext';
+import { ServiceTokens } from '../../../di/tokens';
+import type { ITextInputNode } from '../../../models/configuration';
 
 interface TextInputNodeProps {
     node: ITextInputNode;

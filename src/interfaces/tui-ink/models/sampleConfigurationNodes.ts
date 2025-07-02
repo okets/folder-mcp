@@ -1,5 +1,5 @@
-import type { ConfigurationNode } from './configuration.js';
-import { ValidationRules } from './validation.js';
+import type { ConfigurationNode } from './configuration';
+import { ValidationRules } from './validation';
 
 export const sampleConfigurationNodes: ConfigurationNode[] = [
     {

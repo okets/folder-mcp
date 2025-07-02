@@ -1,4 +1,4 @@
-import { IStatusBarService, IKeyBinding } from './interfaces.js';
+import { IStatusBarService, IKeyBinding } from './interfaces';
 
 export class StatusBarService implements IStatusBarService {
     private currentContext: 'form' | 'editing' | 'selecting' | 'filtering' = 'form';

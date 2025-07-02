@@ -1,9 +1,9 @@
 import React, { useId } from 'react';
 import { Text, Box } from 'ink';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import { useLayoutConstraints } from '../contexts/LayoutContext.js';
-import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { useLayoutConstraints } from '../contexts/LayoutContext';
+import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper';
 
 interface ConstrainedContentProps {
     children: React.ReactNode;

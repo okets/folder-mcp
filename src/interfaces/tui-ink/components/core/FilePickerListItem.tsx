@@ -1,10 +1,10 @@
 import React, { ReactElement } from 'react';
 import { Text, Key, Transform } from 'ink';
-import { ValidatedListItem } from './ValidatedListItem.js';
-import { FilePickerBody } from './FilePickerBody.js';
-import { theme } from '../../utils/theme.js';
-import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
-import { formatCollapsedValidation, getValidationColor, formatValidationDisplay, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
+import { ValidatedListItem } from './ValidatedListItem';
+import { FilePickerBody } from './FilePickerBody';
+import { theme } from '../../utils/theme';
+import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
+import { formatCollapsedValidation, getValidationColor, formatValidationDisplay, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';

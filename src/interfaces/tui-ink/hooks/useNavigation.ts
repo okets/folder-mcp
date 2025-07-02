@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Key } from 'ink';
-import { useFocusChain } from './useFocusChain.js';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
+import { useFocusChain } from './useFocusChain';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
 
 export type ContainerType = 'config' | 'status';
 

@@ -2,7 +2,7 @@
  * Ink-adapted theme system from modernTheme.ts
  */
 
-import { Theme } from '../models/types.js';
+import { Theme } from '../models/types';
 
 export const theme: Theme = {
     colors: {

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import type { IKeyBinding } from '../services/interfaces.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import type { ThemeColors } from '../models/types.js';
-import { truncateButtons } from '../utils/buttonTruncation.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import type { IKeyBinding } from '../services/interfaces';
+import { useTerminalSize } from '../hooks/useTerminalSize';
+import type { ThemeColors } from '../models/types';
+import { truncateButtons } from '../utils/buttonTruncation';
 
 interface StatusBarContentProps {
     bindings: IKeyBinding[];

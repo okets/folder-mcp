@@ -1,10 +1,10 @@
-import { IListItem } from '../components/core/IListItem.js';
-import { LogItem } from '../components/core/LogItem.js';
-import { ConfigurationListItem } from '../components/core/ConfigurationListItem.js';
-import { SelectionListItem } from '../components/core/SelectionListItem.js';
-import { FilePickerListItem } from '../components/core/FilePickerListItem.js';
-import { validators } from '../utils/validators.js';
-import { ValidationRules } from '../models/validation.js';
+import { IListItem } from '../components/core/IListItem';
+import { LogItem } from '../components/core/LogItem';
+import { ConfigurationListItem } from '../components/core/ConfigurationListItem';
+import { SelectionListItem } from '../components/core/SelectionListItem';
+import { FilePickerListItem } from '../components/core/FilePickerListItem';
+import { validators } from '../utils/validators';
+import { ValidationRules } from '../models/validation';
 import * as os from 'os';
 
 // Mixed items for StatusPanel (now showing both logs and configs)

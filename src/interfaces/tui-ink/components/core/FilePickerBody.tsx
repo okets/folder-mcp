@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text, Transform } from 'ink';
-import { theme } from '../../utils/theme.js';
-import { getValidationColor, getValidationIcon, getVisualWidth } from '../../utils/validationDisplay.js';
+import { theme } from '../../utils/theme';
+import { getValidationColor, getValidationIcon, getVisualWidth } from '../../utils/validationDisplay';
 
 interface ColumnLayout {
     columnCount: number;

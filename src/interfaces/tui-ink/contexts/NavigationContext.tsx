@@ -1,5 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useNavigation } from '../hooks/useNavigation.js';
+import { useNavigation } from '../hooks/useNavigation';
 
 type NavigationContextType = ReturnType<typeof useNavigation>;
 

@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
-import { IListItem } from './IListItem.js';
-import { calculateScrollbar } from './ScrollbarCalculator.js';
-import { theme } from '../../utils/theme.js';
+import { IListItem } from './IListItem';
+import { calculateScrollbar } from './ScrollbarCalculator';
+import { theme } from '../../utils/theme';
 
 export interface ScrollableBlockProps {
     items: (IListItem | React.ReactNode)[];

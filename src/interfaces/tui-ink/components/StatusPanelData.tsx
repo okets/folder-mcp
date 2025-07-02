@@ -1,9 +1,9 @@
 import React from 'react';
-import { DataPanel } from './core/DataPanel.js';
-import { theme } from '../utils/theme.js';
-import { useNavigationContext } from '../contexts/NavigationContext.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { statusItems } from '../models/sampleData.js';
+import { DataPanel } from './core/DataPanel';
+import { theme } from '../utils/theme';
+import { useNavigationContext } from '../contexts/NavigationContext';
+import { useTerminalSize } from '../hooks/useTerminalSize';
+import { statusItems } from '../models/sampleData';
 
 /**
  * Status panel reimplemented using DataPanel

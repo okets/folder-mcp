@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { DIContainer } from './container.js';
+import { DIContainer } from './container';
 
 const DIContext = createContext<DIContainer | null>(null);
 

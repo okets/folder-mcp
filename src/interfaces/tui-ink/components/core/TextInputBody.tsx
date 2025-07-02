@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../../utils/theme.js';
-import type { IValidationRule } from '../../models/configuration.js';
-import { generatePasswordHint } from '../../utils/validationHints.js';
+import { theme } from '../../utils/theme';
+import type { IValidationRule } from '../../models/configuration';
+import { generatePasswordHint } from '../../utils/validationHints';
 
 export interface TextInputBodyProps {
     value: string;

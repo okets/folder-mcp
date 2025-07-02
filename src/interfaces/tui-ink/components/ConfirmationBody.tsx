@@ -1,8 +1,8 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../utils/theme.js';
-import { IDestructiveConfig } from '../models/configuration.js';
-import { getVisualWidth } from '../utils/validationDisplay.js';
+import { theme } from '../utils/theme';
+import { IDestructiveConfig } from '../models/configuration';
+import { getVisualWidth } from '../utils/validationDisplay';
 
 export interface ConfirmationBodyProps {
     destructiveConfig: IDestructiveConfig;

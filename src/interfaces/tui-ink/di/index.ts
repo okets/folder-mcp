@@ -1,4 +1,4 @@
-export { DIContainer } from './container.js';
-export { ServiceTokens } from './tokens.js';
-export { DIProvider, useDI } from './DIContext.js';
-export { setupDIContainer } from './setup.js';
+export { DIContainer } from './container';
+export { ServiceTokens } from './tokens';
+export { DIProvider, useDI } from './DIContext';
+export { setupDIContainer } from './setup';

@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useInput, Key } from 'ink';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import type { IKeyBinding, InputHandler } from '../services/interfaces.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import type { IKeyBinding, InputHandler } from '../services/interfaces';
 
 interface UseFocusChainOptions {
     elementId: string;

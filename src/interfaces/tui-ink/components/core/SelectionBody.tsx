@@ -1,9 +1,9 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../../utils/theme.js';
-import { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem.js';
-import { getVisualWidth } from '../../utils/validationDisplay.js';
-import { calculateColumnLayout, formatColumnHeader, truncateToWidth, padToWidth } from '../../utils/columnLayout.js';
+import { theme } from '../../utils/theme';
+import { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem';
+import { getVisualWidth } from '../../utils/validationDisplay';
+import { calculateColumnLayout, formatColumnHeader, truncateToWidth, padToWidth } from '../../utils/columnLayout';
 
 export interface SelectionBodyProps {
     options: SelectionOption[];

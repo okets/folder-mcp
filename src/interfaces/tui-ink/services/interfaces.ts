@@ -6,7 +6,7 @@ import {
     FocusedPanel,
     StatusItem,
     TerminalSize
-} from '../models/types.js';
+} from '../models/types';
 
 export interface IThemeService {
     getColors(): ThemeColors;
@@ -45,8 +45,8 @@ export interface IDebugService {
 }
 
 // Configuration-related services
-import type { ConfigurationNode, IValidationRule } from '../models/configuration.js';
-import type { IValidationResult } from '../models/validation.js';
+import type { ConfigurationNode, IValidationRule } from '../models/configuration';
+import type { IValidationResult } from '../models/validation';
 
 export interface IConfigurationService {
     // Initialize with nodes

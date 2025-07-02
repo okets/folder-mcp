@@ -1,10 +1,10 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
-import { IListItem } from './IListItem.js';
-import { theme } from '../../utils/theme.js';
-import { SelectionBody } from './SelectionBody.js';
-import { NotificationArea } from './NotificationArea.js';
-import { getVisualWidth } from '../../utils/validationDisplay.js';
+import { IListItem } from './IListItem';
+import { theme } from '../../utils/theme';
+import { SelectionBody } from './SelectionBody';
+import { NotificationArea } from './NotificationArea';
+import { getVisualWidth } from '../../utils/validationDisplay';
 
 export interface SelectionOption {
     value: string;

@@ -1,4 +1,4 @@
-import type { IFocusChainService } from './interfaces.js';
+import type { IFocusChainService } from './interfaces';
 
 /**
  * Service that manages the focus chain hierarchy.

@@ -1,7 +1,7 @@
-import { IConfigurationService, IValidationService } from './interfaces.js';
-import type { ConfigurationNode } from '../models/configuration.js';
-import type { IValidationResult } from '../models/validation.js';
-import { ServiceTokens } from '../di/tokens.js';
+import { IConfigurationService, IValidationService } from './interfaces';
+import type { ConfigurationNode } from '../models/configuration';
+import type { IValidationResult } from '../models/validation';
+import { ServiceTokens } from '../di/tokens';
 
 export class ConfigurationService implements IConfigurationService {
     private nodes = new Map<string, ConfigurationNode>();

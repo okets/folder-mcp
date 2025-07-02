@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, measureElement } from 'ink';
-import { theme } from '../../utils/theme.js';
+import { theme } from '../../utils/theme';
 
 export interface NotificationAreaProps {
     validationError?: string | null;

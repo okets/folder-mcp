@@ -1,7 +1,7 @@
-import { IDataService } from './interfaces.js';
-import { StatusItem } from '../models/types.js';
-import { configItems, statusItems } from '../models/sampleData.js';
-import { longConfigItems, longStatusItems, getTestDataForWidth } from '../models/testData.js';
+import { IDataService } from './interfaces';
+import { StatusItem } from '../models/types';
+import { configItems, statusItems } from '../models/sampleData';
+import { longConfigItems, longStatusItems, getTestDataForWidth } from '../models/testData';
 
 export class DataService implements IDataService {
     private useTestData: boolean;

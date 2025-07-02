@@ -1,11 +1,11 @@
 import React from 'react';
 import { Box } from 'ink';
-import { ExpandableDataPanel } from './core/ExpandableDataPanel.js';
-import { TextInputItem } from './core/items/TextInputItem.js';
-import { LogItem, sampleLogs } from './core/items/LogItem.js';
-import { useNavigation } from '../hooks/useNavigation.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { ThemeProvider } from '../contexts/ThemeContext.js';
+import { ExpandableDataPanel } from './core/ExpandableDataPanel';
+import { TextInputItem } from './core/items/TextInputItem';
+import { LogItem, sampleLogs } from './core/items/LogItem';
+import { useNavigation } from '../hooks/useNavigation';
+import { useTerminalSize } from '../hooks/useTerminalSize';
+import { ThemeProvider } from '../contexts/ThemeContext';
 
 // Mixed item types for demo
 type DemoItem = 

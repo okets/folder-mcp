@@ -1,5 +1,5 @@
-import { SelectionOption } from '../components/core/SelectionListItem.js';
-import { getVisualWidth } from './validationDisplay.js';
+import { SelectionOption } from '../components/core/SelectionListItem';
+import { getVisualWidth } from './validationDisplay';
 
 export interface ColumnLayout {
     columns: {

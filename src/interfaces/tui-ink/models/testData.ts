@@ -1,4 +1,4 @@
-import { StatusItem } from './types.js';
+import { StatusItem } from './types';
 
 // Test data with extremely long text for overflow testing
 export const longConfigItems: string[] = [

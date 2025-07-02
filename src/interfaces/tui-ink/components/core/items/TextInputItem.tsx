@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput, Key } from 'ink';
-import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem.js';
-import { useTheme } from '../../../contexts/ThemeContext.js';
+import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 export interface TextInputItemProps {
     /** Label for the input field */

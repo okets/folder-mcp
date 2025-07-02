@@ -1,4 +1,4 @@
-import { IFormNavigationService } from './interfaces.js';
+import { IFormNavigationService } from './interfaces';
 
 export class FormNavigationService implements IFormNavigationService {
     private expandedNodeId: string | null = null;

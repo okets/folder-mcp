@@ -1,10 +1,10 @@
 import React, { ReactElement } from 'react';
 import { Box, Text } from 'ink';
 import chalk from 'chalk';
-import { IListItem } from './IListItem.js';
-import { theme } from '../../utils/theme.js';
-import { ProgressBar } from './ProgressBar.js';
-import { useProgressMode } from '../../contexts/ProgressModeContext.js';
+import { IListItem } from './IListItem';
+import { theme } from '../../utils/theme';
+import { ProgressBar } from './ProgressBar';
+import { useProgressMode } from '../../contexts/ProgressModeContext';
 
 interface Segment {
     text: string;

@@ -1,5 +1,5 @@
-import { ValidationState, ValidationMessage } from '../validation/ValidationState.js';
-import { theme } from './theme.js';
+import { ValidationState, ValidationMessage } from '../validation/ValidationState';
+import { theme } from './theme';
 
 /**
  * Get the appropriate color for a validation state

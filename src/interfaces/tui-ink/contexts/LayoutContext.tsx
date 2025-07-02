@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { ILayoutConstraints } from '../models/types.js';
+import { ILayoutConstraints } from '../models/types';
 
 const LayoutConstraintContext = createContext<ILayoutConstraints | null>(null);
 

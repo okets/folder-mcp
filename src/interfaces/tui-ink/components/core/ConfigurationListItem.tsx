@@ -1,16 +1,16 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
-import { ValidatedListItem } from './ValidatedListItem.js';
-import { TextInputBody } from './TextInputBody.js';
-import { NotificationArea } from './NotificationArea.js';
-import { ConfirmationBody } from '../ConfirmationBody.js';
-import { SimpleMessageScroll } from '../SimpleMessageScroll.js';
-import { theme } from '../../utils/theme.js';
-import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState.js';
-import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay.js';
-import { truncateButtons } from '../../utils/buttonTruncation.js';
-import type { IValidationRule } from '../../models/configuration.js';
-import { IDestructiveConfig } from '../../models/configuration.js';
+import { ValidatedListItem } from './ValidatedListItem';
+import { TextInputBody } from './TextInputBody';
+import { NotificationArea } from './NotificationArea';
+import { ConfirmationBody } from '../ConfirmationBody';
+import { SimpleMessageScroll } from '../SimpleMessageScroll';
+import { theme } from '../../utils/theme';
+import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
+import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
+import { truncateButtons } from '../../utils/buttonTruncation';
+import type { IValidationRule } from '../../models/configuration';
+import { IDestructiveConfig } from '../../models/configuration';
 
 export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;

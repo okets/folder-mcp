@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ThemeProvider, themes, ThemeName, useTheme } from './contexts/ThemeContext.js';
-import { ThemedConfigurationPanel, ThemedStatusPanel } from './components/core/ThemedPanel.js';
-import { useResponsiveLayout } from './hooks/useResponsiveLayout.js';
-import { useNavigationContext } from './contexts/NavigationContext.js';
-import { configItems } from './models/sampleData.js';
-import { statusItems } from './models/sampleData.js';
+import { ThemeProvider, themes, ThemeName, useTheme } from './contexts/ThemeContext';
+import { ThemedConfigurationPanel, ThemedStatusPanel } from './components/core/ThemedPanel';
+import { useResponsiveLayout } from './hooks/useResponsiveLayout';
+import { useNavigationContext } from './contexts/NavigationContext';
+import { configItems } from './models/sampleData';
+import { statusItems } from './models/sampleData';
 
 /**
  * Theme switcher component

@@ -1,9 +1,9 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { ConfigurationPanelData } from './components/ConfigurationPanelData.js';
-import { StatusPanelData } from './components/StatusPanelData.js';
-import { useResponsiveLayout } from './hooks/useResponsiveLayout.js';
-import { useNavigationContext } from './contexts/NavigationContext.js';
+import { ConfigurationPanelData } from './components/ConfigurationPanelData';
+import { StatusPanelData } from './components/StatusPanelData';
+import { useResponsiveLayout } from './hooks/useResponsiveLayout';
+import { useNavigationContext } from './contexts/NavigationContext';
 
 /**
  * Responsive TUI app that adapts to terminal size

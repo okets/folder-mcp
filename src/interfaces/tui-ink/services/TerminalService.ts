@@ -1,5 +1,5 @@
-import { ITerminalService } from './interfaces.js';
-import { TerminalSize } from '../models/types.js';
+import { ITerminalService } from './interfaces';
+import { TerminalSize } from '../models/types';
 
 export class TerminalService implements ITerminalService {
     private narrowBreakpoint = 100;

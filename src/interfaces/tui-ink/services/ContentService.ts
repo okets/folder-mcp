@@ -1,4 +1,4 @@
-import { IContentService } from './interfaces.js';
+import { IContentService } from './interfaces';
 
 export class ContentService implements IContentService {
     measureText(text: string): number {

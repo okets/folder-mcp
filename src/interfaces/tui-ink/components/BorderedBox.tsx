@@ -1,11 +1,11 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../utils/theme.js';
-import { ILayoutConstraints } from '../models/types.js';
-import { LayoutConstraintProvider } from '../contexts/LayoutContext.js';
-import { ConstrainedContent } from './ConstrainedContent.js';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
+import { theme } from '../utils/theme';
+import { ILayoutConstraints } from '../models/types';
+import { LayoutConstraintProvider } from '../contexts/LayoutContext';
+import { ConstrainedContent } from './ConstrainedContent';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
 
 interface BorderedBoxProps {
     title: string;

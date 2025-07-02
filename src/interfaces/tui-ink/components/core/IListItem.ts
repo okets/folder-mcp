@@ -1,7 +1,7 @@
 import { ReactElement } from 'react';
 import { Key } from 'ink';
-import { ISelfConstrainedItem } from './ISelfConstrainedItem.js';
-import { ValidationMessage } from '../../validation/ValidationState.js';
+import { ISelfConstrainedItem } from './ISelfConstrainedItem';
+import { ValidationMessage } from '../../validation/ValidationState';
 
 /**
  * Interface for all list item types in the TUI

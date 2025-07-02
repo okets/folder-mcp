@@ -1,4 +1,4 @@
-import type { IValidationRule } from './configuration.js';
+import type { IValidationRule } from './configuration';
 
 // Validation result type
 export interface IValidationResult {

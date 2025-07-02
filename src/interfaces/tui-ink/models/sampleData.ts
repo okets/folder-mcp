@@ -1,4 +1,4 @@
-import { StatusItem } from './StatusItem.js';
+import { StatusItem } from './StatusItem';
 
 export const configItems: string[] = [
     'Create optimized configuration for my machine',

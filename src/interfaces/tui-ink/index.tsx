@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import React from 'react';
 import { render } from 'ink';
-import { AppFullscreen as App } from './AppFullscreen.js';
-import { DIProvider, setupDIContainer } from './di/index.js';
+import { AppFullscreen as App } from './AppFullscreen';
+import { DIProvider, setupDIContainer } from './di/index';
 
 // Check if we're in a proper TTY environment
 if (!process.stdin.isTTY || !process.stdout.isTTY) {

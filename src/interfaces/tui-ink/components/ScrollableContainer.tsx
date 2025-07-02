@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { theme } from '../utils/theme.js';
+import { theme } from '../utils/theme';
 
 interface ScrollableContainerProps {
     title: string;

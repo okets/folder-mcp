@@ -1,4 +1,4 @@
-import { IInputService } from './interfaces.js';
+import { IInputService } from './interfaces';
 
 export class InputService implements IInputService {
     private cursorPosition = 0;

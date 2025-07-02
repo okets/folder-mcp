@@ -1,4 +1,4 @@
-import type { IValidationRule } from '../models/configuration.js';
+import type { IValidationRule } from '../models/configuration';
 
 /**
  * Generates a helpful placeholder hint for password fields

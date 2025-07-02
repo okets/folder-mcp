@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { AnimationContainer } from '../components/core/AnimationContainer.js';
+import { AnimationContainer } from '../components/core/AnimationContainer';
 
 /**
  * Test component to demonstrate AnimationContainer functionality

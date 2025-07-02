@@ -1,4 +1,4 @@
-import { theme } from '../utils/theme.js';
+import { theme } from '../utils/theme';
 
 /**
  * Unified data structure for list items

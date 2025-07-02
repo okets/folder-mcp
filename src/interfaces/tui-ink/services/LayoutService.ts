@@ -1,5 +1,5 @@
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
 
 /**
  * Layout calculation utilities for responsive TUI design

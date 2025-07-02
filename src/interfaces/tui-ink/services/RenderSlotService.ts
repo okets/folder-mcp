@@ -1,4 +1,4 @@
-import type { IRenderSlotService } from './interfaces.js';
+import type { IRenderSlotService } from './interfaces';
 
 interface SlotAllocation {
     elementId: string;

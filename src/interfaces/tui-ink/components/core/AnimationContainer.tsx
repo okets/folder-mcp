@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from 'ink';
-import { useAnimationContext } from '../../contexts/AnimationContext.js';
+import { useAnimationContext } from '../../contexts/AnimationContext';
 
 interface AnimationContainerProps {
     /**

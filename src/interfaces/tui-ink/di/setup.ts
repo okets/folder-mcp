@@ -1,15 +1,15 @@
-import { DIContainer } from './container.js';
-import { ServiceTokens } from './tokens.js';
-import { ThemeService, DataService, NavigationService, TerminalService, ContentService } from '../services/index.js';
-import { DebugService } from '../services/DebugService.js';
-import { ConfigurationService } from '../services/ConfigurationService.js';
-import { FormNavigationService } from '../services/FormNavigationService.js';
-import { ValidationService } from '../services/ValidationService.js';
-import { InputService } from '../services/InputService.js';
-import { StatusBarService } from '../services/StatusBarService.js';
-import { FocusChainService } from '../services/FocusChainService.js';
-import { InputContextService } from '../services/InputContextService.js';
-import { RenderSlotService } from '../services/RenderSlotService.js';
+import { DIContainer } from './container';
+import { ServiceTokens } from './tokens';
+import { ThemeService, DataService, NavigationService, TerminalService, ContentService } from '../services/index';
+import { DebugService } from '../services/DebugService';
+import { ConfigurationService } from '../services/ConfigurationService';
+import { FormNavigationService } from '../services/FormNavigationService';
+import { ValidationService } from '../services/ValidationService';
+import { InputService } from '../services/InputService';
+import { StatusBarService } from '../services/StatusBarService';
+import { FocusChainService } from '../services/FocusChainService';
+import { InputContextService } from '../services/InputContextService';
+import { RenderSlotService } from '../services/RenderSlotService';
 
 export const setupDIContainer = (): DIContainer => {
     const container = new DIContainer();

@@ -1,18 +1,18 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, Key } from 'ink';
-import { BorderedBox } from './core/BorderedBox.js';
-import { LogItem } from './core/LogItem.js';
-import { calculateScrollbar } from './core/ScrollbarCalculator.js';
-import { theme } from '../utils/theme.js';
-import { useNavigationContext } from '../contexts/NavigationContext.js';
-import { useTerminalSize } from '../hooks/useTerminalSize.js';
-import { useLayoutConstraints } from '../contexts/LayoutContext.js';
-import { useFocusChain } from '../hooks/useFocusChain.js';
-import { createStatusPanelItems } from '../models/mixedSampleData.js';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
-import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper.js';
-import { ProgressModeProvider } from '../contexts/ProgressModeContext.js';
+import { BorderedBox } from './core/BorderedBox';
+import { LogItem } from './core/LogItem';
+import { calculateScrollbar } from './core/ScrollbarCalculator';
+import { theme } from '../utils/theme';
+import { useNavigationContext } from '../contexts/NavigationContext';
+import { useTerminalSize } from '../hooks/useTerminalSize';
+import { useLayoutConstraints } from '../contexts/LayoutContext';
+import { useFocusChain } from '../hooks/useFocusChain';
+import { createStatusPanelItems } from '../models/mixedSampleData';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper';
+import { ProgressModeProvider } from '../contexts/ProgressModeContext';
 
 // Get mixed items for this panel
 const mixedItems = createStatusPanelItems();

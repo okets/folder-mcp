@@ -13,7 +13,7 @@ import {
     IFocusChainService,
     IInputContextService,
     IRenderSlotService
-} from '../services/interfaces.js';
+} from '../services/interfaces';
 
 // Type-safe service tokens using symbols
 export const ServiceTokens = {

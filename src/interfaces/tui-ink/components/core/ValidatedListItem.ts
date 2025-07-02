@@ -1,6 +1,6 @@
-import { IListItem } from './IListItem.js';
-import { ValidationMessage, ValidationState } from '../../validation/ValidationState.js';
-import { getValidationColor } from '../../utils/validationDisplay.js';
+import { IListItem } from './IListItem';
+import { ValidationMessage, ValidationState } from '../../validation/ValidationState';
+import { getValidationColor } from '../../utils/validationDisplay';
 
 /**
  * Abstract base class for list items that support validation

@@ -1,8 +1,8 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../../../utils/theme.js';
-import { useDI } from '../../../di/DIContext.js';
-import { ServiceTokens } from '../../../di/tokens.js';
+import { theme } from '../../../utils/theme';
+import { useDI } from '../../../di/DIContext';
+import { ServiceTokens } from '../../../di/tokens';
 
 interface ICollapsedSummaryProps {
     label: string;

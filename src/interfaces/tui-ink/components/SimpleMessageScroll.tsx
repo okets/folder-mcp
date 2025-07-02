@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../utils/theme.js';
+import { theme } from '../utils/theme';
 
 export interface SimpleMessageScrollProps {
     message: string;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useDI } from '../di/DIContext.js';
-import { ServiceTokens } from '../di/tokens.js';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
 
 interface UseRenderSlotsOptions {
     elementId: string;

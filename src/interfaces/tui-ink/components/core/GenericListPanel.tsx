@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, Key } from 'ink';
-import { BorderedBox } from '../BorderedBox.js';
-import { IListItem } from './IListItem.js';
-import { calculateScrollbar } from './ScrollbarCalculator.js';
-import { theme } from '../../utils/theme.js';
-import { SelfConstrainedWrapper } from './SelfConstrainedWrapper.js';
+import { BorderedBox } from '../BorderedBox';
+import { IListItem } from './IListItem';
+import { calculateScrollbar } from './ScrollbarCalculator';
+import { theme } from '../../utils/theme';
+import { SelfConstrainedWrapper } from './SelfConstrainedWrapper';
 
 export interface GenericListPanelProps {
     title: string;

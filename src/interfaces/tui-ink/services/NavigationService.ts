@@ -1,5 +1,5 @@
-import { INavigationService } from './interfaces.js';
-import { NavigationState, FocusedPanel } from '../models/types.js';
+import { INavigationService } from './interfaces';
+import { NavigationState, FocusedPanel } from '../models/types';
 
 export class NavigationService implements INavigationService {
     private state: NavigationState = {

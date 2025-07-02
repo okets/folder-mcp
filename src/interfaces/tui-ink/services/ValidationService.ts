@@ -1,6 +1,6 @@
-import type { IValidationService } from './interfaces.js';
-import type { IValidationResult } from '../models/validation.js';
-import type { IValidationRule } from '../models/configuration.js';
+import type { IValidationService } from './interfaces';
+import type { IValidationResult } from '../models/validation';
+import type { IValidationRule } from '../models/configuration';
 
 export class ValidationService implements IValidationService {
     private registeredRules = new Map<string, IValidationRule<any>>();
