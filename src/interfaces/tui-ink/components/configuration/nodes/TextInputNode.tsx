@@ -38,8 +38,9 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     useEffect(() => {
         if (isExpanded) {
             // Always start with the current stored value when expanding
-            setLocalValue(currentValue);
-            inputService.setCurrentText(currentValue);
+            const stringValue = String(currentValue);
+            setLocalValue(stringValue);
+            inputService.setCurrentText(stringValue);
             inputService.setCursorPosition(cursorPosition);
             
             // Update status bar
@@ -115,7 +116,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
                 )}
                 <CollapsedSummary
                     label={node.label}
-                    value={node.password ? '•'.repeat(String(currentValue).length) : currentValue}
+                    value={node.password ? '•'.repeat(String(currentValue).length) : String(currentValue)}
                     maxWidth={width - (!savedValueValidation.isValid ? 4 : 0)}
                     isSelected={isSelected}
                 />

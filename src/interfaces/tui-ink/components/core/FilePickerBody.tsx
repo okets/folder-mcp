@@ -150,8 +150,8 @@ export const FilePickerBody = ({
     
     // Add validation message after the path
     if (validationMessage) {
-        const validationIcon = validationMessage.icon || getValidationIcon(validationMessage.state);
-        const validationColor = getValidationColor(validationMessage.state);
+        const validationIcon = validationMessage.icon || getValidationIcon(validationMessage.state as any);
+        const validationColor = getValidationColor(validationMessage.state as any);
         
         // Calculate available space for validation message
         const pathLineLength = getVisualWidth(`│  ${showPathLabel ? 'Path: ' : ''}[${pathLine}]`);
@@ -355,10 +355,10 @@ export const FilePickerBody = ({
                     
                     // For column 0, we don't add leading spaces
                     // For other columns, we always reserve space for indicator
-                    let cellWidth = columnWidths[col];
+                    let cellWidth = columnWidths[col] || 0;
                     let cellContent = '';
                     
-                    if (col === 0) {
+                    if (col === 0 && cellWidth > 0) {
                         // First column: needs consistent spacing
                         const truncName = itemName.length > cellWidth - 1 // -1 for safety buffer
                             ? itemName.slice(0, cellWidth - 2) + '…' // -2 for ellipsis and safety
@@ -369,7 +369,7 @@ export const FilePickerBody = ({
                         } else {
                             cellContent = '  ' + truncName;  // 2 spaces to align with focused
                         }
-                    } else {
+                    } else if (cellWidth > 0) {
                         // Other columns: always have indicator space
                         const maxName = cellWidth - 2 - 1; // -2 for indicator, -1 for safety buffer
                         const truncName = itemName.length > maxName

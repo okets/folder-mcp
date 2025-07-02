@@ -19,7 +19,10 @@ const ThemeSwitcher: React.FC = () => {
         if (input === 't' || input === 'T') {
             // Cycle through themes
             const nextIndex = (currentIndex + 1) % themeNames.length;
-            setTheme(themeNames[nextIndex]);
+            const nextTheme = themeNames[nextIndex];
+            if (nextTheme) {
+                setTheme(nextTheme);
+            }
         }
     });
     
@@ -60,16 +63,10 @@ const ThemedAppContent: React.FC = () => {
         const panels = (
             <>
                 <ThemedConfigurationPanel
-                    items={configItems}
-                    activeIndex={navigation.configSelectedIndex}
-                    focused={navigation.isConfigFocused}
                     width={configPanelDimensions.width}
                     height={configPanelDimensions.height}
                 />
                 <ThemedStatusPanel
-                    items={statusItems}
-                    activeIndex={navigation.statusSelectedIndex}
-                    focused={navigation.isStatusFocused}
                     width={statusPanelDimensions.width}
                     height={statusPanelDimensions.height}
                 />
