@@ -582,15 +582,31 @@ npm run build && npm test
 git add -A && git commit -m "Task 5: Vertical layout tightness fixes completed"
 ```
 
-### **Task 6: Implement ProgressItem Component**
+### **Task 6: Implement AnimationContainer Component**
 [BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
 
-- [ ] Create ProgressItem that borrows most functionality from LogItem (read-only List Item)
+- [ ] Create AnimationContainer that handles frame-based animations for TUI elements
+- [ ] Support auto-play with interval and manual frame control
+- [ ] Calculate width based on longest frame to prevent layout shifts
 
 **Validation After Completion**:
 ```bash
 npm run build && npm test
-git add -A && git commit -m "Task 6: ProgressItem component completed"
+git add -A && git commit -m "Task 6: AnimationContainer component completed"
+```
+
+### **Task 7: Implement ProgressBar Component**
+[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task, here in this document, with implementation steps when implementation begins.]
+
+- [ ] Create ProgressBar component using AnimationContainer
+- [ ] Support short mode (spinner + percentage) and long mode (bar + spinner + percentage)
+- [ ] Handle determinate, indeterminate, and 100% completion states
+- [ ] Integrate with LogItem for items with progress status
+
+**Validation After Completion**:
+```bash
+npm run build && npm test
+git add -A && git commit -m "Task 7: ProgressBar component completed"
 ```
 
 ## 📊 **Progress Tracking**
@@ -603,7 +619,8 @@ git add -A && git commit -m "Task 6: ProgressItem component completed"
 - [x] Task 3: Implement FilePickerListItem Component - **Completed**
 - [x] Task 4: Implement Destructive Configuration Confirmations - **Completed**
 - [x] Task 5: Fix Vertical Layout Tightness Issues - **Completed**
-- [ ] Task 6: Implement ProgressItem Component - Not Started
+- [ ] Task 6: Implement AnimationContainer Component - Not Started
+- [ ] Task 7: Implement ProgressBar Component - Not Started
 
 ### **Completion Log**
 | Task | Status | Completion Date | Commit Hash |
@@ -616,7 +633,8 @@ git add -A && git commit -m "Task 6: ProgressItem component completed"
 | FilePickerListItem | ✅ Completed | 2025-06-29 | - |
 | Destructive Confirmations | ✅ Completed | 2025-07-01 | - |
 | Vertical Layout Fixes | ✅ Completed | 2025-07-02 | - |
-| ProgressItem | ⏳ Pending | - | - |
+| AnimationContainer | ⏳ Pending | - | - |
+| ProgressBar | ⏳ Pending | - | - |
 
 ### **Quick Health Check**
 ```bash
@@ -653,6 +671,14 @@ npm run build && npm test && git status
 - Compact inline browser with breadcrumbs
 - File/folder filtering capabilities
 
-**ProgressItem**:
-- Extends LogItem as read-only display
-- Progress bar visualization with percentage display
+**AnimationContainer**:
+- Frame-based animation system for TUI elements
+- Auto-play with configurable interval
+- Manual frame control support
+- Width calculation to prevent layout shifts
+
+**ProgressBar**:
+- Uses AnimationContainer for animations
+- Short mode: spinner + percentage
+- Long mode: progress bar + spinner + percentage
+- Supports determinate and indeterminate states

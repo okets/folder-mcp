@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext.js';
 import { ServiceTokens } from '../di/tokens.js';
@@ -10,8 +10,22 @@ export const Header: React.FC = () => {
     const colors = themeService.getColors();
     const { columns, rows } = useTerminalSize();
     
+    // Braille spinner animation frames
+    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    const [spinnerIndex, setSpinnerIndex] = useState(0);
+    
+    // Animation effect
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setSpinnerIndex((prev) => (prev + 1) % spinnerFrames.length);
+        }, 80);
+        
+        return () => clearInterval(interval);
+    }, [spinnerFrames.length]);
+    
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
+    const spinner = spinnerFrames[spinnerIndex];
     
     // Custom logo colors
     const frameColor = '#4c1589'; // rgb(76, 21, 137) - dark purple for frame and resolution
@@ -28,19 +42,30 @@ export const Header: React.FC = () => {
         const availableWidth = columns - 1; // -1 for safety margin
         
         // Build display text based on available width
-        if (availableWidth >= (appName.length + separator.length + resolution.length)) {
-            // Full display with resolution
+        if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
+            // Full display with resolution and spinner
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>
                         📁 <Text color={logoTextColor} bold>folder-mcp</Text>
+                        <Text color={colors.accent}> {spinner}</Text>
                         <Text color={frameColor}>{separator}</Text>
                         <Text color={frameColor}>{resolution}</Text>
                     </Text>
                 </Box>
             );
+        } else if (availableWidth >= (appName.length + 2)) {
+            // Just app name with spinner, no resolution
+            return (
+                <Box marginTop={1}>
+                    <Text color={frameColor}>
+                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
+                        <Text color={colors.accent}> {spinner}</Text>
+                    </Text>
+                </Box>
+            );
         } else if (availableWidth >= appName.length) {
-            // Just app name, no resolution
+            // Just app name, no spinner or resolution
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>
@@ -82,8 +107,8 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
-        const textLength = 5 + 10; // Don't count the closing │
+        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, " " + spinner = 2 chars, "│" = 1 char
+        const textLength = 5 + 10 + 2; // Don't count the closing │
         const remainingSpace = Math.max(0, innerWidth - textLength);
         
         return (
@@ -92,6 +117,7 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> {spinner}</Text>
                     <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -107,8 +133,8 @@ export const Header: React.FC = () => {
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format
-        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, "│" = 1 char
-        const textLength = 5 + 10; // Don't count the closing │
+        // "│ 📁 " = 5 chars, "folder-mcp" = 10 chars, " " + spinner = 2 chars, "│" = 1 char
+        const textLength = 5 + 10 + 2; // Don't count the closing │
         const remainingSpace = Math.max(0, innerWidth - textLength);
         
         return (
@@ -117,6 +143,7 @@ export const Header: React.FC = () => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={colors.accent}> {spinner}</Text>
                     <Text color={frameColor}>{' '.repeat(remainingSpace + 1)}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -126,8 +153,18 @@ export const Header: React.FC = () => {
         // No border, just truncated text
         const availableForText = columns - 1; // -1 for safety margin
         
-        if (appName.length <= availableForText) {
-            // Can fit full app name
+        if (appName.length + 2 <= availableForText) {
+            // Can fit full app name with spinner
+            return (
+                <Box marginTop={1}>
+                    <Text color={frameColor}>
+                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
+                        <Text color={colors.accent}> {spinner}</Text>
+                    </Text>
+                </Box>
+            );
+        } else if (appName.length <= availableForText) {
+            // Can fit full app name without spinner
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>
