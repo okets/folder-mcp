@@ -42,29 +42,6 @@ export const Header: React.FC = () => {
                         interval={ANIMATION_TIMINGS.FAST}
                         color={colors.accent}
                     />
-                    <Text> </Text>
-                    <AnimationContainer 
-                        frames={[
-                            '[●        ]',
-                            '[ ●       ]',
-                            '[  ●      ]',
-                            '[   ●     ]',
-                            '[    ●    ]',
-                            '[     ●   ]',
-                            '[      ●  ]',
-                            '[       ● ]',
-                            '[        ●]',
-                            '[       ● ]',
-                            '[      ●  ]',
-                            '[     ●   ]',
-                            '[    ●    ]',
-                            '[   ●     ]',
-                            '[  ●      ]',
-                            '[ ●       ]'
-                        ]}
-                        interval={ANIMATION_TIMINGS.NORMAL}
-                        color={colors.warningOrange}
-                    />
                     <Text color={frameColor}>{separator}</Text>
                     <Text color={frameColor}>{resolution}</Text>
                 </Box>
@@ -116,7 +93,6 @@ export const Header: React.FC = () => {
         // Full bordered layout with resolution in border - maximize dash area
         const innerWidth = columns - 2; // -2 for corner characters
         const resolutionSpace = ` ${resolution} `;
-        const appContent = ` ${appName} `;
         
         // Calculate how much space we can fill with dashes
         // Total: ╭ + dashes + space + resolution + space + ╮
@@ -130,8 +106,7 @@ export const Header: React.FC = () => {
         // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
         // "folder-mcp" = 10 chars
         // " " + spinner = 2 chars
-        // " " + ball animation = 12 chars (1 space + 11 for animation)
-        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const textLength = 5 + 10 + 2; // Total: 17 chars (not including closing │)
         const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
@@ -145,29 +120,6 @@ export const Header: React.FC = () => {
                         frames={BRAILLE_SPINNER}
                         interval={ANIMATION_TIMINGS.FAST}
                         color={colors.accent}
-                    />
-                    <Text> </Text>
-                    <AnimationContainer 
-                        frames={[
-                            '[●        ]',
-                            '[ ●       ]',
-                            '[  ●      ]',
-                            '[   ●     ]',
-                            '[    ●    ]',
-                            '[     ●   ]',
-                            '[      ●  ]',
-                            '[       ● ]',
-                            '[        ●]',
-                            '[       ● ]',
-                            '[      ●  ]',
-                            '[     ●   ]',
-                            '[    ●    ]',
-                            '[   ●     ]',
-                            '[  ●      ]',
-                            '[ ●       ]'
-                        ]}
-                        interval={ANIMATION_TIMINGS.NORMAL}
-                        color={colors.warningOrange}
                     />
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
@@ -177,8 +129,6 @@ export const Header: React.FC = () => {
     } else if (columns >= minBorderedWidth) {
         // Bordered layout without resolution - expand to fill terminal width
         const innerWidth = columns - 2; // -2 for corner characters
-        const appContent = ` ${appName} `;
-        const middlePadding = innerWidth - appContent.length;
         
         const topBorder = `╭${'─'.repeat(innerWidth)}╮`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
@@ -188,8 +138,7 @@ export const Header: React.FC = () => {
         // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
         // "folder-mcp" = 10 chars
         // " " + spinner = 2 chars
-        // " " + ball animation = 12 chars (1 space + 11 for animation)
-        const textLength = 5 + 10 + 2 + 12; // Total: 29 chars (not including closing │)
+        const textLength = 5 + 10 + 2; // Total: 17 chars (not including closing │)
         const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
@@ -203,29 +152,6 @@ export const Header: React.FC = () => {
                         frames={BRAILLE_SPINNER}
                         interval={ANIMATION_TIMINGS.FAST}
                         color={colors.accent}
-                    />
-                    <Text> </Text>
-                    <AnimationContainer 
-                        frames={[
-                            '[●        ]',
-                            '[ ●       ]',
-                            '[  ●      ]',
-                            '[   ●     ]',
-                            '[    ●    ]',
-                            '[     ●   ]',
-                            '[      ●  ]',
-                            '[       ● ]',
-                            '[        ●]',
-                            '[       ● ]',
-                            '[      ●  ]',
-                            '[     ●   ]',
-                            '[    ●    ]',
-                            '[   ●     ]',
-                            '[  ●      ]',
-                            '[ ●       ]'
-                        ]}
-                        interval={ANIMATION_TIMINGS.NORMAL}
-                        color={colors.warningOrange}
                     />
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
