@@ -20,7 +20,7 @@ export const StatusPanelData: React.FC<{
     return (
         <DataPanel
             title="System Status"
-            subtitle={effectiveHeight > 5 ? "Current state" : undefined}
+            subtitle={effectiveHeight > 5 ? "Current state" : ''}
             focused={navigation.isStatusFocused}
             width={width || columns - 2}
             height={effectiveHeight}
@@ -39,8 +39,8 @@ export const StatusPanelData: React.FC<{
                 icon: '○',
                 statusColor: item.status === '✓' ? theme.colors.successGreen :
                            item.status === '⚠' ? theme.colors.warningOrange :
-                           item.status === '⋯' ? theme.colors.accent : 
-                           undefined,
+                           item.status === '⋯' ? theme.colors.accent :
+                           theme.colors.textPrimary,
                 selectable: true
             })}
         />

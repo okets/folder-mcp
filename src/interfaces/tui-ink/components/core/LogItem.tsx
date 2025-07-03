@@ -96,11 +96,11 @@ export class LogItem implements IListItem {
             
             // First collect all detail lines
             for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
-                const detail = this.details[i];
+                const detail = this.details[i] ?? '';
                 const maxLinesForDetail = remainingLines ? remainingLines - allDetailLines.length : undefined;
                 const wrappedLines = maxLinesForDetail !== undefined 
-                    ? this.wordWrap(detail, maxWidth - 3, maxLinesForDetail)
-                    : this.wordWrap(detail, maxWidth - 3);
+                    ? this.wordWrap(String(detail), maxWidth - 3, maxLinesForDetail)
+                    : this.wordWrap(String(detail), maxWidth - 3);
                 
                 for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
                     const line = wrappedLines[j];

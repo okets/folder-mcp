@@ -54,12 +54,13 @@ export function useResponsiveLayout(options: ResponsiveLayoutOptions) {
             });
         
         // Calculate text layout for each panel
+        const breakpoint = layoutService.getBreakpoint(columns);
         const textLayouts = panelLayout.panels.map(panel => 
             layoutService.calculateTextLayout(panel.width, {
                 hasScrollbar: true,
                 hasIndicator: true,
-                hasValue: config.breakpoint !== 'small',
-                hasStatus: config.breakpoint !== 'small'
+                hasValue: breakpoint !== 'small',
+                hasStatus: breakpoint !== 'small'
             })
         );
         
@@ -68,7 +69,7 @@ export function useResponsiveLayout(options: ResponsiveLayoutOptions) {
             panelLayout,
             textLayouts,
             config,
-            breakpoint: layoutService.getBreakpoint(columns)
+            breakpoint
         };
     }, [columns, rows, panelCount, preferredLayout, minPanelWidth, minPanelHeight, statusBarHeight]);
 }

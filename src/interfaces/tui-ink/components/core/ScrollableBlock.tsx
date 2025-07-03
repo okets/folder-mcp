@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { IListItem } from './IListItem';
 import { calculateScrollbar } from './ScrollbarCalculator';
+import type { ScrollbarConfig } from './ScrollbarCalculator';
 import { theme } from '../../utils/theme';
 
 export interface ScrollableBlockProps {
@@ -62,20 +63,20 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
         if (selectedIndex >= 0 && selectedIndex < itemLinePositions.length) {
             const selectedItem = itemLinePositions[selectedIndex];
             let offset = 0;
-            
-            // Calculate the optimal scroll position
-            // Try to show the full selected item
-            if (selectedItem.end > height) {
-                // Item extends beyond viewport when at top
-                offset = selectedItem.end - height;
-            } else {
-                // Item fits in viewport when at top
-                offset = 0;
-            }
-            
-            // Adjust if item would be cut off at the top
-            if (selectedItem.start < offset) {
-                offset = selectedItem.start;
+            if (selectedItem) {
+                // Calculate the optimal scroll position
+                // Try to show the full selected item
+                if (selectedItem.end > height) {
+                    // Item extends beyond viewport when at top
+                    offset = selectedItem.end - height;
+                } else {
+                    // Item fits in viewport when at top
+                    offset = 0;
+                }
+                // Adjust if item would be cut off at the top
+                if (selectedItem.start < offset) {
+                    offset = selectedItem.start;
+                }
             }
             
             // Ensure we don't scroll past the end
@@ -93,13 +94,13 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
         
         items.forEach((item, index) => {
             const position = itemLinePositions[index];
-            
-            // Check if this item is at least partially visible
-            if (position.end > scrollOffset && position.start < scrollOffset + height) {
-                visible.push({ item, index });
+            if (position) {
+                // Check if this item is at least partially visible
+                if (position.end > scrollOffset && position.start < scrollOffset + height) {
+                    visible.push({ item, index });
+                }
+                currentLineOffset = position.end;
             }
-            
-            currentLineOffset = position.end;
         });
         
         return visible;
@@ -112,7 +113,7 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
         }
         
         const selectedLinePosition = selectedIndex >= 0 && selectedIndex < itemLinePositions.length
-            ? itemLinePositions[selectedIndex].start
+            ? itemLinePositions[selectedIndex]?.start
             : undefined;
         
         const scrollbarConfig: ScrollbarConfig = {
@@ -136,6 +137,7 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
         
         visibleItems.forEach(({ item, index }) => {
             const itemPosition = itemLinePositions[index];
+            if (!itemPosition) return;
             const itemStartLine = itemPosition.start - scrollOffset;
             
             if (item && typeof item === 'object' && 'render' in item) {

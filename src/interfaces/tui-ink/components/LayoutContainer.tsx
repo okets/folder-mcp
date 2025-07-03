@@ -77,7 +77,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     
                     const constraints: ILayoutConstraints = {
                         maxWidth: availableWidth,
-                        maxHeight: heights[index],
+                        maxHeight: heights[index] ?? availableHeight,
                         overflow: 'truncate'
                     };
                     
@@ -132,7 +132,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             <Box height={availableHeight} width={availableWidth} flexDirection="row" flexWrap="nowrap" alignItems="flex-start">
                 {children.map((child, index) => {
                     const constraints: ILayoutConstraints = {
-                        maxWidth: widths[index],
+                        maxWidth: widths[index] ?? availableWidth,
                         maxHeight: availableHeight,
                         overflow: 'truncate'
                     };

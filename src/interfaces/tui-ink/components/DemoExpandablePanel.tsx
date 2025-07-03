@@ -84,34 +84,9 @@ export const DemoExpandablePanel: React.FC = () => {
                     focused={true}
                     width={columns - 2}
                     height={rows - 2}
-                    items={demoItems}
-                    activeIndex={navigation.configSelectedIndex}
-                    isExpandable={isExpandable}
-                    renderExpandableItem={renderExpandableItem}
-                    normalizeItem={(item: DemoItem, index: number) => {
-                        switch (item.type) {
-                            case 'simple':
-                                return {
-                                    id: `item-${index}`,
-                                    text: item.text,
-                                    selectable: false,
-                                    icon: ' '
-                                };
-                            case 'config':
-                                return {
-                                    id: `config-${index}`,
-                                    text: item.label,
-                                    value: configValues[item.label] || item.value,
-                                    selectable: true
-                                };
-                            case 'log':
-                                return {
-                                    id: item.log.id,
-                                    text: `[${item.log.timestamp.toLocaleTimeString()}] ${item.log.message}`,
-                                    selectable: true
-                                };
-                        }
-                    }}
+                    items={demoItems as any}
+                    selectedIndex={navigation.configSelectedIndex}
+                    // Only supported props passed
                 />
             </Box>
         </ThemeProvider>

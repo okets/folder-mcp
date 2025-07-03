@@ -52,6 +52,7 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
             }, 530);
             return () => clearInterval(interval);
         }
+        return undefined;
     }, [isExpanded]);
     
     // Handle input when expanded
@@ -189,6 +190,9 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
         </Text>
     );
     
+    // Provide a toggle function for ExpandableListItem
+    const toggle = isExpanded ? collapse : expand;
+
     return (
         <ExpandableListItem
             isExpanded={isExpanded}

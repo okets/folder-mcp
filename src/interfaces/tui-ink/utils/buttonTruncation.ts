@@ -78,29 +78,30 @@ export function truncateButtons(options: TruncateButtonsOptions): TruncatedButto
         // Find the longest string
         let longestIndex = -1;
         let longestLength = 0;
-        
         for (let i = 0; i < result.length; i++) {
-            // Skip empty strings
-            if (result[i].length > longestLength && result[i].length > 0) {
-                longestLength = result[i].length;
+            const current = result[i];
+            if (typeof current === 'string' && current.length > longestLength && current.length > 0) {
+                longestLength = current.length;
                 longestIndex = i;
             }
         }
-        
         // If no string can be truncated further, we're done
         if (longestIndex === -1 || longestLength <= 0) {
             break;
         }
-        
         // Remove one character from the longest string
-        result[longestIndex] = result[longestIndex].slice(0, -1);
+        const toTruncate = result[longestIndex];
+        if (typeof toTruncate === 'string') {
+            result[longestIndex] = toTruncate.slice(0, -1);
+        }
     }
     
     // Add ellipsis to truncated strings and return
     return result.map((label, index) => {
-        const wasTruncated = label.length < labels[index].length;
+        const orig = labels[index];
+        const wasTruncated = typeof label === 'string' && typeof orig === 'string' && label.length < orig.length;
         // Only add ellipsis if there's something left to show
-        const finalLabel = wasTruncated && label.length > 0 ? label + ellipsis : label;
+        const finalLabel = wasTruncated && typeof label === 'string' && label.length > 0 ? label + ellipsis : label;
         return {
             label: finalLabel,
             truncated: wasTruncated

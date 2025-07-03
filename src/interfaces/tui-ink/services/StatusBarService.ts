@@ -30,12 +30,12 @@ export class StatusBarService implements IStatusBarService {
     };
 
     constructor() {
-        this.keyBindings = this.defaultBindings['form'];
+        this.keyBindings = this.defaultBindings['form'] ?? [];
     }
 
     setContext(context: 'form' | 'editing' | 'selecting' | 'filtering'): void {
         this.currentContext = context;
-        this.keyBindings = this.defaultBindings[context] || this.defaultBindings['form'];
+        this.keyBindings = this.defaultBindings[context] ?? this.defaultBindings['form'] ?? [];
     }
 
     setKeyBindings(bindings: IKeyBinding[]): void {

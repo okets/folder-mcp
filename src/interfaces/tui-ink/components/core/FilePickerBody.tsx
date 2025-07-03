@@ -33,7 +33,7 @@ function calculateColumnLayout(
     // Try different column counts to find the best fit
     for (let colCount = maxColumns; colCount >= 1; colCount--) {
         const itemsPerCol = Math.ceil(items.length / colCount);
-        const columns: typeof ColumnLayout.prototype.columns = [];
+        const columns: ColumnLayout['columns'] = [];
         const columnWidths: number[] = [];
         
         // Distribute items into columns (vertical-first distribution)
@@ -44,8 +44,7 @@ function calculateColumnLayout(
                 ...item,
                 originalIndex: startIdx + idx
             }));
-            
-            if (columnItems.length > 0) {
+            if (Array.isArray(columnItems) && columnItems.length > 0) {
                 columns.push(columnItems);
                 // Calculate column width based on longest item
                 // All columns need space for indicator (2 chars)
@@ -346,10 +345,8 @@ export const FilePickerBody = ({
             // Render each column in this row
             for (let col = 0; col < columns.length; col++) {
                 const columnItems = columns[col];
-                if (!columnItems) continue;
-                
+                if (!Array.isArray(columnItems) || columnItems.length === 0) continue;
                 const item = row < columnItems.length ? columnItems[row] : null;
-                
                 if (item) {
                     const isFocused = item.originalIndex === regularFocusedIndex;
                     const itemName = item.name + (item.isDirectory ? '/' : '');

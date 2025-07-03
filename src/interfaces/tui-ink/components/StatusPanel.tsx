@@ -44,7 +44,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     // Update item states based on selection
     mixedItems.forEach((item, index) => {
         const isSelected = navigation.isStatusFocused && navigation.statusSelectedIndex === index;
-        if ('icon' in item && 'isActive' in item) {
+        if (item && typeof item === 'object' && 'icon' in item && 'isActive' in item) {
             if (isSelected) {
                 // Check if it's a LogItem without details
                 if (item instanceof LogItem && !(item as any).details) {
@@ -67,9 +67,10 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     // Only calculate if we have items
     if (mixedItems.length > 0) {
         for (let i = 0; i < mixedItems.length; i++) {
-            const itemLines = mixedItems[i].getRequiredLines(itemMaxWidth);
+            const item = mixedItems[i];
+            if (!item) continue;
+            const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
             totalContentLines += itemLines;
-            
             itemLinePositions.push({
                 start: currentLine,
                 end: currentLine + itemLines
@@ -98,7 +99,8 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     // Find first visible item based on line scroll offset
     let scrollOffset = 0;
     for (let i = 0; i < mixedItems.length && i < itemLinePositions.length; i++) {
-        if (itemLinePositions[i].end > lineScrollOffset) {
+        const pos = itemLinePositions[i];
+        if (pos && pos.end > lineScrollOffset) {
             scrollOffset = i;
             break;
         }
@@ -107,16 +109,24 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
     let linesUsed = 0;
-    let startLine = scrollOffset < itemLinePositions.length && itemLinePositions[scrollOffset] ? itemLinePositions[scrollOffset].start : 0;
+    let startLine = 0;
+    if (scrollOffset < itemLinePositions.length) {
+        const pos = itemLinePositions[scrollOffset];
+        if (pos && typeof pos.start === 'number') {
+            startLine = pos.start;
+        }
+    }
     
     for (let i = scrollOffset; i < mixedItems.length && i < itemLinePositions.length; i++) {
-        const itemLines = mixedItems[i].getRequiredLines(itemMaxWidth);
-        const remainingSpace = maxLines - (itemLinePositions[i].start - startLine);
-        
+        const item = mixedItems[i];
+        const pos = itemLinePositions[i];
+        if (!item || !pos) continue;
+        const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
+        const remainingSpace = maxLines - (pos.start - (itemLinePositions[scrollOffset]?.start ?? 0));
         // Include item if it at least partially fits (minimum 1 line for header)
         if (remainingSpace >= 1) {
             visibleCount++;
-            linesUsed = itemLinePositions[i].start - startLine + Math.min(itemLines, remainingSpace);
+            linesUsed = pos.start - (itemLinePositions[scrollOffset]?.start ?? 0) + Math.min(itemLines, remainingSpace);
         } else {
             break;
         }
@@ -141,14 +151,14 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
     
     // Use the line position we already calculated
     const selectedLinePosition = navigation.statusSelectedIndex < itemLinePositions.length && itemLinePositions[navigation.statusSelectedIndex] 
-        ? itemLinePositions[navigation.statusSelectedIndex].start 
+        ? itemLinePositions[navigation.statusSelectedIndex]?.start 
         : 0;
     
     const scrollbar = showScrollbar ? calculateScrollbar({
         totalItems: totalLines,
         visibleItems: Math.min(visibleLines, maxLines),
         scrollOffset: scrollbarLineOffset,
-        selectedIndex: selectedLinePosition
+        ...(typeof selectedLinePosition === 'number' ? { selectedIndex: selectedLinePosition } : {}),
     }) : [];
     
     // Handle status panel input

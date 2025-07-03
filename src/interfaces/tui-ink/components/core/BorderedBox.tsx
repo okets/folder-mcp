@@ -7,7 +7,7 @@ import { ConstrainedContent } from '../ConstrainedContent';
 import { useDI } from '../../di/DIContext';
 import { ServiceTokens } from '../../di/tokens';
 
-interface BorderedBoxProps {
+export interface BorderedBoxProps {
     title: string;
     subtitle?: string;
     focused?: boolean;

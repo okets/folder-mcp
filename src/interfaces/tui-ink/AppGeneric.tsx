@@ -27,11 +27,10 @@ export const AppGeneric: React.FC = () => {
     
     return (
         <Box flexDirection="column" height={rows}>
-            <LayoutContainer>
+            <LayoutContainer availableHeight={rows - 1} availableWidth={columns}>
                 <ConfigurationPanelData {...configPanelProps} />
                 <StatusPanelData {...statusPanelProps} />
             </LayoutContainer>
-            
             {/* Status bar */}
             <Box height={1} justifyContent="center">
                 <Text color="gray">

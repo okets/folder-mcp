@@ -94,7 +94,9 @@ export const ConfigurationPanel: React.FC<{
     
     if (configListItems.length > 0) {
         for (let i = 0; i < configListItems.length; i++) {
-            const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
+            const item = configListItems[i];
+            if (!item) continue;
+            const itemLines = item.getRequiredLines(itemMaxWidth);
             totalContentLines += itemLines;
             itemLinePositions.push({
                 start: currentLine,
@@ -141,13 +143,17 @@ export const ConfigurationPanel: React.FC<{
         const position = itemLinePositions[i];
         if (!position) continue;
         
-        const itemLines = configListItems[i].getRequiredLines(itemMaxWidth);
+        const item = configListItems[i];
+        if (!item) continue;
+        const itemLines = item.getRequiredLines(itemMaxWidth);
         const remainingSpace = maxLines - (position.start - startLine);
         
         // Include item if it at least partially fits (minimum 1 line for header)
         if (remainingSpace >= 1) {
             visibleCount++;
-            linesUsed = itemLinePositions[i].start - startLine + Math.min(itemLines, remainingSpace);
+            const itemPosition = itemLinePositions[i];
+            if (!itemPosition) continue;
+            linesUsed = itemPosition.start - startLine + Math.min(itemLines, remainingSpace);
         } else {
             break;
         }
@@ -185,41 +191,37 @@ export const ConfigurationPanel: React.FC<{
     const handleConfigInput = useCallback((input: string, key: Key): boolean => {
         const selectedIndex = navigation.configSelectedIndex;
         const selectedItem = configListItems[selectedIndex];
-        
         if (!selectedItem) return false;
-        
+
         // If item is controlling input, delegate to it
-        if (selectedItem.isControllingInput && selectedItem.handleInput) {
+        if (selectedItem.isControllingInput && typeof selectedItem.handleInput === 'function') {
             const handled = selectedItem.handleInput(input, key);
-            // Force re-render on any input
             setUpdateTrigger(prev => prev + 1);
             return handled;
         }
-        
+
         // Otherwise handle entering edit mode or expanding/collapsing
         if (key.return) {
-            if (selectedItem.onEnter) {
+            if (typeof selectedItem.onEnter === 'function') {
                 selectedItem.onEnter();
             }
-            // Force re-render to show edit mode
             setUpdateTrigger(prev => prev + 1);
             return true;
         } else if (key.rightArrow) {
             // Right arrow expands LogItems or enters edit mode for ConfigurationListItems
-            if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
-                selectedItem.onExpand();
+            if (typeof (selectedItem as any).onExpand === 'function') {
+                (selectedItem as any).onExpand();
                 setUpdateTrigger(prev => prev + 1);
                 return true;
-            } else if (selectedItem.onEnter) {
-                // For ConfigurationListItems, right arrow enters edit mode
+            } else if (typeof selectedItem.onEnter === 'function') {
                 selectedItem.onEnter();
                 setUpdateTrigger(prev => prev + 1);
                 return true;
             }
         } else if (key.leftArrow || key.escape) {
             // Left arrow or ESC collapses LogItems
-            if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
-                selectedItem.onCollapse();
+            if (typeof (selectedItem as any).onCollapse === 'function') {
+                (selectedItem as any).onCollapse();
                 setUpdateTrigger(prev => prev + 1);
                 return true;
             }
@@ -229,9 +231,9 @@ export const ConfigurationPanel: React.FC<{
     
     // Determine key bindings based on selected item and edit mode
     const selectedItem = configListItems[navigation.configSelectedIndex];
-    const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
-    const hasDetails = isLogItem && (selectedItem as any).details;
-    const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
+    const isLogItem = !!selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+    const hasDetails = isLogItem && selectedItem && (selectedItem as any).details;
+    const isExpanded = isLogItem && selectedItem && (selectedItem as any)._isExpanded;
     
     let keyBindings: Array<{key: string, description: string}> = [];
     if (isAnyItemInEditMode) {

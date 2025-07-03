@@ -114,8 +114,10 @@ export class ContentService implements IContentService {
                             remainingWord = remainingWord.substring(part.length);
                         } else {
                             // Can't fit even one character, force it
-                            lines.push(remainingWord[0]);
-                            remainingWord = remainingWord.substring(1);
+                            if (typeof remainingWord === 'string' && remainingWord.length > 0) {
+                                lines.push(remainingWord[0] as string);
+                                remainingWord = remainingWord.substring(1);
+                            }
                         }
                     }
                     currentLine = '';

@@ -80,7 +80,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
             }
         } else if (key.escape) {
             // Cancel changes - reset to the current stored value
-            setLocalValue(currentValue);
+            setLocalValue(String(currentValue));
             setValidationError(null);
             formNavService.collapseNode();
             statusBarService.setContext('form');

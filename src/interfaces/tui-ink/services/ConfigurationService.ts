@@ -66,7 +66,29 @@ export class ConfigurationService implements IConfigurationService {
             return { isValid: true, errors: [] };
         }
 
-        return this.validationService.validate(valueToValidate, node.validation);
+        if (typeof valueToValidate === 'string') {
+            return this.validationService.validate(
+                valueToValidate,
+                node.validation as import('../models/configuration').IValidationRule<string>[]
+            );
+        } else if (typeof valueToValidate === 'number') {
+            return this.validationService.validate(
+                valueToValidate,
+                node.validation as import('../models/configuration').IValidationRule<number>[]
+            );
+        } else if (Array.isArray(valueToValidate)) {
+            return this.validationService.validate(
+                valueToValidate,
+                node.validation as import('../models/configuration').IValidationRule<string[]>[]
+            );
+        } else if (typeof valueToValidate === 'boolean') {
+            return this.validationService.validate(
+                valueToValidate,
+                node.validation as import('../models/configuration').IValidationRule<boolean>[]
+            );
+        }
+        // fallback
+        return this.validationService.validate(valueToValidate, node.validation as any);
     }
 
     validateAll(): IValidationResult[] {

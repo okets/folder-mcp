@@ -25,46 +25,42 @@ export const ConstrainedContent: React.FC<ConstrainedContentProps> = ({ children
             // Truncate plain text
             return contentService.truncateText(node, maxWidth);
         }
-        
+
         if (React.isValidElement(node)) {
             // Check if this is a SelfConstrainedWrapper
             if (node.type === SelfConstrainedWrapper) {
-                // Return the wrapper with its children untouched
-                // This prevents any truncation of self-constrained content
                 return node;
             }
-            
+
+            // Type guard for props
+            const props = (node as React.ReactElement & { props?: any }).props ?? {};
+
             // Skip processing if component handles its own layout
-            // Check if it's a Box with flexDirection="row" - likely a layout component
-            if (node.type === Box && node.props.flexDirection === 'row') {
-                return node; // Don't process, it handles its own layout
+            if (node.type === Box && props.flexDirection === 'row') {
+                return node;
             }
-            
+
             // Handle Text components
             if (node.type === Text) {
-                const textContent = React.Children.toArray(node.props.children)
+                const textContent = React.Children.toArray(props.children)
                     .map(child => typeof child === 'string' ? child : '')
                     .join('');
-                
                 const truncatedText = contentService.truncateText(textContent, maxWidth);
-                
                 return React.cloneElement(node, {
-                    ...node.props,
+                    ...props,
                     children: truncatedText
                 });
             }
-            
+
             // Recursively process other components
-            if (node.props.children) {
-                // Don't process children if this is already inside a SelfConstrainedWrapper
-                // This prevents double-processing of self-constrained content
+            if (props.children) {
                 return React.cloneElement(node, {
-                    ...node.props,
-                    children: React.Children.map(node.props.children, processNode)
+                    ...props,
+                    children: React.Children.map(props.children, processNode)
                 });
             }
         }
-        
+
         return node;
     };
     
