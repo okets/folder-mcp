@@ -5,6 +5,7 @@ import { FilePickerBody } from './FilePickerBody';
 import { theme } from '../../utils/theme';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
 import { formatCollapsedValidation, getValidationColor, formatValidationDisplay, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
+import { textColorProp } from '../../utils/conditionalProps';
 import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
@@ -711,37 +712,37 @@ export class FilePickerListItem extends ValidatedListItem {
             elements.push(
                 <Text key="header">
                     <Transform transform={output => output}>
-                        <Text color={notification ? 'red' : (this.isActive ? theme.colors.accent : undefined)}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(notification ? 'red' : (this.isActive ? theme.colors.accent : undefined))}>■ </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             {displayContent}: 
                         </Text>
                         {showEnterHint && (
                             <>
                                 <Text> </Text>
-                                <Text color={theme.colors.textMuted} bold>enter </Text>
-                                <Text color={theme.colors.successGreen}>{enterAction}</Text>
+                                <Text {...textColorProp(theme.colors.textMuted)} bold>enter </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>{enterAction}</Text>
                             </>
                         )}
                         {showEscHint && (
                             <>
-                                <Text color={theme.colors.textMuted}> · </Text>
-                                <Text color={theme.colors.textMuted} bold>esc </Text>
-                                <Text color={theme.colors.warningOrange}>✗</Text>
+                                <Text {...textColorProp(theme.colors.textMuted)}> · </Text>
+                                <Text {...textColorProp(theme.colors.textMuted)} bold>esc </Text>
+                                <Text {...textColorProp(theme.colors.warningOrange)}>✗</Text>
                             </>
                         )}
                         {showHiddenHint && (
-                            <Text color={theme.colors.textMuted}> · </Text>
+                            <Text {...textColorProp(theme.colors.textMuted)}> · </Text>
                         )}
                         {showHiddenHint && (
-                            <Text color={theme.colors.textMuted} bold>h </Text>
+                            <Text {...textColorProp(theme.colors.textMuted)} bold>h </Text>
                         )}
                         {showHiddenHint && (
-                            <Text color={theme.colors.textMuted}>{this._showHiddenFiles ? 'Hide Hidden' : 'Show Hidden'}</Text>
+                            <Text {...textColorProp(theme.colors.textMuted)}>{this._showHiddenFiles ? 'Hide Hidden' : 'Show Hidden'}</Text>
                         )}
                         {notification && availableForHints > 10 && (
                             <>
                                 <Text> </Text>
-                                <Text color="red">
+                                <Text {...textColorProp('red')}>
                                     {notification.length > availableForHints - 1
                                         ? notification.slice(0, availableForHints - 4) + '…'
                                         : notification}
@@ -821,7 +822,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     state: this._validationMessage.state === ValidationState.Error ? 'error' : 
                            this._validationMessage.state === ValidationState.Warning ? 'warning' : 'info',
                     message: this._validationMessage.message,
-                    icon: this._validationMessage.icon
+                    ...(this._validationMessage.icon !== undefined ? { icon: this._validationMessage.icon } : {})
                 } : null
             });
             
@@ -849,16 +850,16 @@ export class FilePickerListItem extends ValidatedListItem {
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                                 {this.icon}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{formatted.truncatedLabel || this.label}: [</Text>
-                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {formatted.displayValue}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
-                            <Text color={validationColor}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>]</Text>
+                            <Text {...textColorProp(validationColor)}>
                                 {formatted.validationDisplay}
                             </Text>
                         </Transform>
@@ -902,19 +903,19 @@ export class FilePickerListItem extends ValidatedListItem {
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                                 {this.icon}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{finalLabel}: [
                             </Text>
-                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {finalValue}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 ]
                             </Text>
-                            <Text color={validationColor}>
+                            <Text {...textColorProp(validationColor)}>
                                 {' '}{validationIcon}
                             </Text>
                         </Transform>
@@ -935,15 +936,15 @@ export class FilePickerListItem extends ValidatedListItem {
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                                 {this.icon}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{formatted.truncatedLabel || this.label}: [</Text>
-                            <Text color={!this._selectedPathValid ? 'red' : theme.colors.configValuesColor}>
+                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {formatted.displayValue}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>]</Text>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>]</Text>
                         </Transform>
                     </Text>
                 );

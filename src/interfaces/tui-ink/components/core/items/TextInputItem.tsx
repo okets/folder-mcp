@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput, Key } from 'ink';
 import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { textColorProp } from '../../../utils/conditionalProps';
 
 export interface TextInputItemProps {
     /** Label for the input field */
@@ -122,7 +123,7 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
         const displayValue = editValue || placeholder || '';
         
         if (!cursorVisible) {
-            return <Text color={theme.colors.textMuted}>{displayValue || ' '}</Text>;
+            return <Text {...textColorProp(theme.colors.textMuted)}>{displayValue || ' '}</Text>;
         }
         
         if (cursorPosition < displayValue.length) {
@@ -132,18 +133,18 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
             const after = displayValue.slice(cursorPosition + 1);
             
             return (
-                <Text color={theme.colors.textMuted}>
+                <Text {...textColorProp(theme.colors.textMuted)}>
                     {before}
-                    <Text backgroundColor="white" color="black">{cursorChar}</Text>
+                    <Text backgroundColor="white" {...textColorProp('black')}>{cursorChar}</Text>
                     {after}
                 </Text>
             );
         } else {
             // Cursor at end
             return (
-                <Text color={theme.colors.textMuted}>
+                <Text {...textColorProp(theme.colors.textMuted)}>
                     {displayValue}
-                    <Text backgroundColor="white" color="black"> </Text>
+                    <Text backgroundColor="white" {...textColorProp('black')}> </Text>
                 </Text>
             );
         }
@@ -154,25 +155,25 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
         <Box flexDirection="column" width={width ? width - 4 : undefined}>
             {/* Input box with border */}
             <Box flexDirection="column">
-                <Text color={theme.colors.border}>╭{'─'.repeat(Math.max(20, editValue.length + 4))}╮</Text>
+                <Text {...textColorProp(theme.colors.border)}>╭{'─'.repeat(Math.max(20, editValue.length + 4))}╮</Text>
                 <Box>
-                    <Text color={theme.colors.border}>│ </Text>
+                    <Text {...textColorProp(theme.colors.border)}>│ </Text>
                     {renderTextWithCursor()}
-                    <Text color={theme.colors.border}> │</Text>
+                    <Text {...textColorProp(theme.colors.border)}> │</Text>
                 </Box>
-                <Text color={theme.colors.border}>╰{'─'.repeat(Math.max(20, editValue.length + 4))}╯</Text>
+                <Text {...textColorProp(theme.colors.border)}>╰{'─'.repeat(Math.max(20, editValue.length + 4))}╯</Text>
             </Box>
             
             {/* Validation error */}
             {validationError && (
                 <Box paddingTop={1}>
-                    <Text color={theme.colors.error}>⚠ {validationError}</Text>
+                    <Text {...textColorProp(theme.colors.error)}>⚠ {validationError}</Text>
                 </Box>
             )}
             
             {/* Help text */}
             <Box paddingTop={1}>
-                <Text color={theme.colors.textMuted}>
+                <Text {...textColorProp(theme.colors.textMuted)}>
                     Enter: Save | Esc: Cancel | ←→: Move cursor
                 </Text>
             </Box>
@@ -181,9 +182,9 @@ export const TextInputItem: React.FC<TextInputItemProps> = ({
     
     // Render collapsed view
     const collapsedView = (
-        <Text color={isActive ? theme.colors.accent : theme.colors.text}>
+        <Text {...textColorProp(isActive ? theme.colors.accent : theme.colors.text)}>
             <Text>{label}: </Text>
-            <Text color={theme.colors.primary}>[{value}]</Text>
+            <Text {...textColorProp(theme.colors.primary)}>[{value}]</Text>
             <Text> {isExpanded ? '▼' : '▶'}</Text>
         </Text>
     );

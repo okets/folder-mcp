@@ -13,6 +13,7 @@ import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper';
 import { ProgressModeProvider } from '../contexts/ProgressModeContext';
+import { textColorProp, buildProps } from '../utils/conditionalProps';
 
 // Get mixed items for this panel
 const mixedItems = createStatusPanelItems();
@@ -225,9 +226,9 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
         elementId: 'status-panel',
         parentId: 'navigation',
         isActive: navigation.isStatusFocused,
-        onInput: navigation.isStatusFocused ? handleStatusInput : undefined,
         keyBindings: keyBindings,
-        priority: 50
+        priority: 50,
+        ...(navigation.isStatusFocused ? { onInput: handleStatusInput } : {})
     });
     
     // Handle minimized display
@@ -257,22 +258,22 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
         return (
             <BorderedBox
                 title="System Status"
-                subtitle=""
                 focused={false}
                 width={panelWidth}
                 height={actualHeight}
                 showScrollbar={false}
                 scrollbarElements={[]}
+                {...buildProps({ subtitle: "" })}
             >
                 {displayText && (
                     displayText.includes('tab') && displayText === fullMessage ? (
                         <Box>
-                            <Text color="#D1D5DB">Compact Mode - </Text>
-                            <Text color="#D1D5DB" bold>tab</Text>
-                            <Text color="#D1D5DB"> to toggle panels</Text>
+                            <Text {...textColorProp('#D1D5DB')}>Compact Mode - </Text>
+                            <Text {...textColorProp('#D1D5DB')} bold>tab</Text>
+                            <Text {...textColorProp('#D1D5DB')}> to toggle panels</Text>
                         </Box>
                     ) : (
-                        <Text color="#D1D5DB">{displayText}</Text>
+                        <Text {...textColorProp('#D1D5DB')}>{displayText}</Text>
                     )
                 )}
             </BorderedBox>
@@ -283,12 +284,12 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
         <ProgressModeProvider width={panelWidth}>
             <BorderedBox
                 title="System Status"
-                subtitle={actualHeight > 5 ? "Current state" : undefined}
                 focused={navigation.isStatusFocused}
                 width={width || columns - 2}
                 height={actualHeight}
                 showScrollbar={showScrollbar}
                 scrollbarElements={scrollbar}
+                {...(actualHeight > 5 ? { subtitle: "Current state" } : {})}
             >
                 {(() => {
                 // Build a flat array to avoid Fragment key issues
@@ -326,7 +327,7 @@ export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimize
                     }
                 });
                 
-                return elements.length > 0 ? elements : <Text color={theme.colors.textMuted}>{mixedItems.length} items</Text>;
+                return elements.length > 0 ? elements : <Text {...textColorProp(theme.colors.textMuted)}>{mixedItems.length} items</Text>;
             })()}
             </BorderedBox>
         </ProgressModeProvider>

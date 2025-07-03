@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { theme } from '../../utils/theme';
 import type { IValidationRule } from '../../models/configuration';
 import { generatePasswordHint } from '../../utils/validationHints';
+import { textColorProp } from '../../utils/conditionalProps';
 
 export interface TextInputBodyProps {
     value: string;
@@ -166,32 +167,32 @@ export const TextInputBody = ({
     return [
         <Text key="top">
             {headerColor ? (
-                <Text color={headerColor}>│  </Text>
+                <Text {...textColorProp(headerColor)}>│  </Text>
             ) : (
                 <Text>│  </Text>
             )}
-            <Text color={theme.colors.textInputBorder}>╭{'─'.repeat(borderWidth)}╮</Text>
+            <Text {...textColorProp(theme.colors.textInputBorder)}>╭{'─'.repeat(borderWidth)}╮</Text>
         </Text>,
         <Text key="middle">
             {headerColor ? (
-                <Text color={headerColor}>└──</Text>
+                <Text {...textColorProp(headerColor)}>└──</Text>
             ) : (
                 <Text>└──</Text>
             )}
-            <Text color={theme.colors.textInputBorder}>┤</Text>
-            <Text color={theme.colors.configValuesColor}> {content}{padding}</Text>
-            <Text color={theme.colors.textInputBorder}>│</Text>
+            <Text {...textColorProp(theme.colors.textInputBorder)}>┤</Text>
+            <Text {...textColorProp(theme.colors.configValuesColor)}> {content}{padding}</Text>
+            <Text {...textColorProp(theme.colors.textInputBorder)}>│</Text>
             {showHint && (
                 <>
-                    <Text color={theme.colors.textMuted}> </Text>
-                    <Text color={theme.colors.textMuted} bold>tab </Text>
-                    <Text color={theme.colors.textMuted}>{showPassword ? 'hide' : 'show'}</Text>
+                    <Text {...textColorProp(theme.colors.textMuted)}> </Text>
+                    <Text {...textColorProp(theme.colors.textMuted)} bold>tab </Text>
+                    <Text {...textColorProp(theme.colors.textMuted)}>{showPassword ? 'hide' : 'show'}</Text>
                 </>
             )}
         </Text>,
         <Text key="bottom">
             <Text>   </Text>
-            <Text color={theme.colors.textInputBorder}>╰{'─'.repeat(borderWidth)}╯</Text>
+            <Text {...textColorProp(theme.colors.textInputBorder)}>╰{'─'.repeat(borderWidth)}╯</Text>
         </Text>
     ];
 };

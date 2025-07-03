@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text } from 'ink';
 import { theme } from '../utils/theme';
+import { textColorProp } from '../utils/conditionalProps';
 
 export interface SimpleMessageScrollProps {
     message: string;
@@ -126,14 +127,14 @@ export const SimpleMessageScroll = ({
             // Very first line - continues from header with 3 spaces
             elements.push(
                 <Text key={`line-${index}`}>
-                    <Text color={theme.colors.accent}>│  </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
+                    <Text {...textColorProp(theme.colors.accent)}>│  </Text><Text {...textColorProp(cursorColor)}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         } else if (index === 0) {
             // First visible line but scrolled - show scroll indicator
             elements.push(
                 <Text key={`line-${index}`}>
-                    <Text color={theme.colors.accent}>│▲ </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
+                    <Text {...textColorProp(theme.colors.accent)}>│▲ </Text><Text {...textColorProp(cursorColor)}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         } else {
@@ -144,7 +145,7 @@ export const SimpleMessageScroll = ({
             
             elements.push(
                 <Text key={`line-${index}`}>
-                    <Text color={theme.colors.accent}>│{scrollIndicator} </Text><Text color={cursorColor}>{cursorIndicator}</Text>{lineContent}
+                    <Text {...textColorProp(theme.colors.accent)}>│{scrollIndicator} </Text><Text {...textColorProp(cursorColor)}>{cursorIndicator}</Text>{lineContent}
                 </Text>
             );
         }

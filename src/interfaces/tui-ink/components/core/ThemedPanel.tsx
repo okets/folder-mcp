@@ -2,6 +2,7 @@ import React from 'react';
 import { ConfigurationPanel } from '../ConfigurationPanel';
 import { StatusPanel } from '../StatusPanel';
 import { useTheme } from '../../contexts/ThemeContext';
+import { buildProps } from '../../utils/conditionalProps';
 
 /**
  * Themed wrapper components for panels
@@ -15,7 +16,7 @@ export const ThemedConfigurationPanel: React.FC<{
     const { theme } = useTheme();
     
     // ConfigurationPanel already uses theme context internally
-    return <ConfigurationPanel width={width} height={height} />;
+    return <ConfigurationPanel {...buildProps({ width, height })} />;
 };
 
 export const ThemedStatusPanel: React.FC<{
@@ -25,5 +26,5 @@ export const ThemedStatusPanel: React.FC<{
     const { theme } = useTheme();
     
     // StatusPanel already uses theme context internally
-    return <StatusPanel width={width} height={height} />;
+    return <StatusPanel {...buildProps({ width, height })} />;
 };

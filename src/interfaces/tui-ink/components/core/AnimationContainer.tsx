@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Text } from 'ink';
 import { useAnimationContext } from '../../contexts/AnimationContext';
+import { textColorProp } from '../../utils/conditionalProps';
 
 interface AnimationContainerProps {
     /**
@@ -101,5 +102,5 @@ export const AnimationContainer: React.FC<AnimationContainerProps> = ({
     const currentFrameText = frames[frameIndex] || frames[0] || '';
     const paddedFrame = currentFrameText.padEnd(containerWidth, ' ');
     
-    return <Text color={color}>{paddedFrame}</Text>;
+    return <Text {...textColorProp(color)}>{paddedFrame}</Text>;
 };

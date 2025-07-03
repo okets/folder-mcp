@@ -1,6 +1,7 @@
 import React from 'react';
 import { GenericListPanel, GenericListPanelProps } from './GenericListPanel';
 import { IListItem } from './IListItem';
+import { buildProps } from '../../utils/conditionalProps';
 
 /**
  * DataPanel - a simplified wrapper around GenericListPanel
@@ -108,12 +109,14 @@ export const DataPanel: React.FC<DataPanelProps> = ({
     return (
         <GenericListPanel
             title={title}
-            subtitle={subtitle}
             items={listItems}
-            width={width}
-            height={height}
-            focused={focused}
             selectedIndex={activeIndex}
+            {...buildProps({
+                subtitle,
+                width,
+                height,
+                focused
+            })}
         />
     );
 };

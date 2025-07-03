@@ -5,10 +5,11 @@ import { IListItem } from './IListItem';
 import { theme } from '../../utils/theme';
 import { ProgressBar } from './ProgressBar';
 import { useProgressMode } from '../../contexts/ProgressModeContext';
+import { textColorProp, buildProps } from '../../utils/conditionalProps';
 
 interface Segment {
     text: string;
-    color?: string;
+    color?: string | undefined;
 }
 
 export class LogItem implements IListItem {
@@ -96,7 +97,10 @@ export class LogItem implements IListItem {
             // First collect all detail lines
             for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
                 const detail = this.details[i];
-                const wrappedLines = this.wordWrap(detail, maxWidth - 3, remainingLines ? remainingLines - allDetailLines.length : undefined);
+                const maxLinesForDetail = remainingLines ? remainingLines - allDetailLines.length : undefined;
+                const wrappedLines = maxLinesForDetail !== undefined 
+                    ? this.wordWrap(detail, maxWidth - 3, maxLinesForDetail)
+                    : this.wordWrap(detail, maxWidth - 3);
                 
                 for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
                     const line = wrappedLines[j];
@@ -122,8 +126,8 @@ export class LogItem implements IListItem {
                 const symbol = line.isLast ? '└' : '│';
                 elements.push(
                     <Text key={`detail-${index}`}>
-                        <Text color={headerColor}>{symbol}  </Text>
-                        <Text color={theme.colors.textMuted}>{line.text}</Text>
+                        <Text {...textColorProp(headerColor)}>{symbol}  </Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>{line.text}</Text>
                     </Text>
                 );
             });
@@ -296,7 +300,7 @@ export class LogItem implements IListItem {
         // If both have the same color, render as single Text to avoid issues
         if (iconSegment.color === textSegment.color && this.progress === undefined) {
             return (
-                <Text color={iconSegment.color}>
+                <Text {...textColorProp(iconSegment.color)}>
                     {iconSegment.text} {textSegment.text}
                 </Text>
             );
@@ -327,9 +331,9 @@ export class LogItem implements IListItem {
                 
                 return (
                     <Box>
-                        <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                        <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
                         <Text> </Text>
-                        <Text color={textSegment.color}>{displayText}</Text>
+                        <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
                     </Box>
                 );
             }
@@ -353,14 +357,14 @@ export class LogItem implements IListItem {
             return (
                 <Box justifyContent="space-between" width="100%">
                     <Box>
-                        <Text color={iconSegment.color}>{iconSegment.text}</Text>
+                        <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
                         <Text> </Text>
-                        <Text color={textSegment.color}>{displayText}</Text>
+                        <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
                     </Box>
                     <ProgressBar 
-                        value={this.progress}
                         mode={progressMode}
                         width={15}  // Not used in long mode since bar is fixed at 10
+                        {...(this.progress !== undefined ? { value: this.progress } : {})}
                     />
                 </Box>
             );

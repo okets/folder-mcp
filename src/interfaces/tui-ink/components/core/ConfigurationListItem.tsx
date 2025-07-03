@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
 import { ValidatedListItem } from './ValidatedListItem';
-import { TextInputBody } from './TextInputBody';
+import { TextInputBody, TextInputBodyProps } from './TextInputBody';
 import { NotificationArea } from './NotificationArea';
 import { ConfirmationBody } from '../ConfirmationBody';
 import { SimpleMessageScroll } from '../SimpleMessageScroll';
@@ -9,6 +9,7 @@ import { theme } from '../../utils/theme';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
 import { truncateButtons } from '../../utils/buttonTruncation';
+import { textColorProp } from '../../utils/conditionalProps';
 import type { IValidationRule } from '../../models/configuration';
 import { IDestructiveConfig } from '../../models/configuration';
 
@@ -53,7 +54,9 @@ export class ConfigurationListItem extends ValidatedListItem {
         this._editValue = editValue ?? this.value;
         this._cursorPosition = cursorPosition ?? this._editValue.length;
         this._cursorVisible = cursorVisible ?? true;
-        this.onValueChange = onValueChange;
+        if (onValueChange) {
+            this.onValueChange = onValueChange;
+        }
         this.validators = validators ?? [];
         
         // Store original value for confirmation checks
@@ -496,9 +499,9 @@ export class ConfigurationListItem extends ValidatedListItem {
                 
                 elements.push(
                     <Text key="header">
-                        <Text color={bulletColor}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                        <Text color={validationColor}>{validationText}</Text>
+                        <Text {...textColorProp(bulletColor)}>■ </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
+                        <Text {...textColorProp(validationColor)}>{validationText}</Text>
                     </Text>
                 );
             } else {
@@ -511,8 +514,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     elements.push(
                         <Text key="header">
-                            <Text color={bulletColor}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
+                            <Text {...textColorProp(bulletColor)}>■ </Text>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
                             {padding}
                         </Text>
                     );
@@ -520,8 +523,8 @@ export class ConfigurationListItem extends ValidatedListItem {
                     // Normal mode with space after colon
                     elements.push(
                         <Text key="header">
-                            <Text color={bulletColor}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
+                            <Text {...textColorProp(bulletColor)}>■ </Text>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart} </Text>
                         </Text>
                     );
                 }
@@ -600,20 +603,20 @@ export class ConfigurationListItem extends ValidatedListItem {
                 
                 const buttonLine = (
                     <Text key="buttons">
-                        <Text color={theme.colors.accent}>{buttonPrefix}</Text>
+                        <Text {...textColorProp(theme.colors.accent)}>{buttonPrefix}</Text>
                         {this._confirmationFocusIndex === 0 ? (
                             <>
-                                <Text color={theme.colors.accent}>{buttonCursor}</Text>
-                                <Text><Text color={theme.colors.dangerRed}>{crossMark}</Text>{truncatedCancelLabel}</Text>
+                                <Text {...textColorProp(theme.colors.accent)}>{buttonCursor}</Text>
+                                <Text><Text {...textColorProp(theme.colors.dangerRed)}>{crossMark}</Text>{truncatedCancelLabel}</Text>
                                 <Text>{buttonSeparator}</Text>
-                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
+                                <Text><Text {...textColorProp(theme.colors.successGreen)}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
                             </>
                         ) : (
                             <>
-                                <Text> <Text color={theme.colors.dangerRed}>{crossMark}</Text>{truncatedCancelLabel}</Text>
+                                <Text> <Text {...textColorProp(theme.colors.dangerRed)}>{crossMark}</Text>{truncatedCancelLabel}</Text>
                                 <Text> </Text>
-                                <Text color={theme.colors.accent}>{buttonCursor}</Text>
-                                <Text><Text color={theme.colors.successGreen}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
+                                <Text {...textColorProp(theme.colors.accent)}>{buttonCursor}</Text>
+                                <Text><Text {...textColorProp(theme.colors.successGreen)}>{checkMark}</Text>{truncatedConfirmLabel}</Text>
                             </>
                         )}
                     </Text>
@@ -711,19 +714,19 @@ export class ConfigurationListItem extends ValidatedListItem {
                 
                 return (
                     <Text>
-                        <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                             {this.icon}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             {' '}{finalLabel}: [
                         </Text>
-                        <Text color={theme.colors.configValuesColor}>
+                        <Text {...textColorProp(theme.colors.configValuesColor)}>
                             {finalValue}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             ]
                         </Text>
-                        <Text color={validationColor}>
+                        <Text {...textColorProp(validationColor)}>
                             {' '}{validationIcon}
                         </Text>
                     </Text>
@@ -758,16 +761,16 @@ export class ConfigurationListItem extends ValidatedListItem {
                     
                     return (
                         <Text>
-                            <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                                 {this.icon}
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{label}: [
                             </Text>
-                            <Text color={theme.colors.configValuesColor}>
+                            <Text {...textColorProp(theme.colors.configValuesColor)}>
                                 {truncatedValue}…
                             </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 ]
                             </Text>
                         </Text>
@@ -779,16 +782,16 @@ export class ConfigurationListItem extends ValidatedListItem {
                 // Render with colored value (brackets stay in default color)
                 return (
                     <Text>
-                        <Text color={this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted)}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
                             {this.icon}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             {' '}{label}: [
                         </Text>
-                        <Text color={theme.colors.configValuesColor}>
+                        <Text {...textColorProp(theme.colors.configValuesColor)}>
                             {value}{truncated ? '…' : ''}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             ]
                         </Text>
                     </Text>
@@ -823,19 +826,19 @@ export class ConfigurationListItem extends ValidatedListItem {
             
             return (
                 <Text>
-                    <Text color={this.isActive ? theme.colors.accent : this.getBulletColor()}>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor())}>
                         {this.icon}
                     </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         {' '}{formatted.truncatedLabel || this.label}: [
                     </Text>
-                    <Text color={theme.colors.configValuesColor}>
+                    <Text {...textColorProp(theme.colors.configValuesColor)}>
                         {formatted.displayValue}
                     </Text>
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         ]
                     </Text>
-                    <Text color={validationColor}>
+                    <Text {...textColorProp(validationColor)}>
                         {formatted.validationDisplay}
                     </Text>
                 </Text>

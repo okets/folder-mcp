@@ -1,5 +1,6 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
+import { buildProps } from '../utils/conditionalProps';
 
 type NavigationContextType = ReturnType<typeof useNavigation>;
 
@@ -16,7 +17,10 @@ export const NavigationProvider: React.FC<{
     configItemCount,
     statusItemCount
 }) => {
-    const navigation = useNavigation({ isBlocked, configItemCount, statusItemCount });
+    const navigation = useNavigation({ 
+        isBlocked, 
+        ...buildProps({ configItemCount, statusItemCount })
+    });
     
     return (
         <NavigationContext.Provider value={navigation}>

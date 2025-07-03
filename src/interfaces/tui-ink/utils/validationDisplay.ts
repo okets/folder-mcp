@@ -1,5 +1,6 @@
 import { ValidationState, ValidationMessage } from '../validation/ValidationState';
 import { theme } from './theme';
+import { buildProps } from './conditionalProps';
 
 /**
  * Get the appropriate color for a validation state
@@ -116,7 +117,7 @@ export function formatCollapsedValidation(
     displayValue: string;
     validationDisplay: string;
     showValidation: boolean;
-    truncatedLabel?: string;
+    truncatedLabel?: string | undefined;
 } {
     
     // Note: isActive parameter kept for API compatibility but focus marker
@@ -153,14 +154,14 @@ export function formatCollapsedValidation(
                 displayValue: '',
                 validationDisplay: ` ${validation.icon || getValidationIcon(validation.state)}`,
                 showValidation: true,
-                truncatedLabel: '…'
+                ...buildProps({ truncatedLabel: '…' })
             };
         }
         return {
             displayValue: '',
             validationDisplay: '',
             showValidation: false,
-            truncatedLabel: workingLabel
+            ...buildProps({ truncatedLabel: workingLabel })
         };
     }
     
@@ -171,7 +172,7 @@ export function formatCollapsedValidation(
                 displayValue: '',
                 validationDisplay: '',
                 showValidation: false,
-                truncatedLabel: workingLabel !== label ? workingLabel : undefined
+                ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
             };
         }
         
@@ -183,14 +184,14 @@ export function formatCollapsedValidation(
                 displayValue: truncatedValue,
                 validationDisplay: '',
                 showValidation: false,
-                truncatedLabel: workingLabel !== label ? workingLabel : undefined
+                ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
             };
         }
         return {
             displayValue: value,
             validationDisplay: '',
             showValidation: false,
-            truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
         };
     }
     
@@ -209,7 +210,7 @@ export function formatCollapsedValidation(
             displayValue: value,
             validationDisplay: fullValidation,
             showValidation: true,
-            truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
         };
     }
     
@@ -225,7 +226,7 @@ export function formatCollapsedValidation(
                     displayValue: value,
                     validationDisplay: validationStr,
                     showValidation: true,
-                    truncatedLabel: workingLabel !== label ? workingLabel : undefined
+                    ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
                 };
             }
         }
@@ -235,7 +236,7 @@ export function formatCollapsedValidation(
             displayValue: value,
             validationDisplay: iconOnly,
             showValidation: true,
-            truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
         };
     }
     
@@ -249,7 +250,7 @@ export function formatCollapsedValidation(
             displayValue: truncatedValue,
             validationDisplay: iconOnly,
             showValidation: true,
-            truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
         };
     }
     
@@ -259,7 +260,7 @@ export function formatCollapsedValidation(
             displayValue: '…',
             validationDisplay: iconOnly,
             showValidation: true,
-            truncatedLabel: workingLabel !== label ? workingLabel : undefined
+            ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
         };
     }
     
@@ -268,6 +269,6 @@ export function formatCollapsedValidation(
         displayValue: value,
         validationDisplay: '',
         showValidation: false,
-        truncatedLabel: workingLabel !== label ? workingLabel : undefined
+        ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
     };
 }

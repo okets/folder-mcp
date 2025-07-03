@@ -1,5 +1,6 @@
 import React from 'react';
 import { ConfigurationPanel } from './ConfigurationPanel';
+import { buildProps } from '../utils/conditionalProps';
 
 /**
  * ConfigurationPanelData - wrapper around ConfigurationPanel for compatibility
@@ -9,5 +10,5 @@ export const ConfigurationPanelData: React.FC<{
     width?: number;
     height?: number;
 }> = ({ width, height }) => {
-    return <ConfigurationPanel width={width} height={height} />;
+    return <ConfigurationPanel {...buildProps({ width, height })} />;
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { theme } from '../../utils/theme';
+import { textColorProp } from '../../utils/conditionalProps';
 
 interface TextInputProps {
     value: string;
@@ -69,7 +70,7 @@ export const TextInput: React.FC<TextInputProps> = ({
 
         if (!isActive || !showCursor) {
             return (
-                <Text color={isPlaceholder ? theme.colors.textMuted : undefined}>
+                <Text {...textColorProp(isPlaceholder ? theme.colors.textMuted : undefined)}>
                     {maskedValue}
                 </Text>
             );
@@ -83,13 +84,13 @@ export const TextInput: React.FC<TextInputProps> = ({
 
         return (
             <Text>
-                <Text color={isPlaceholder ? theme.colors.textMuted : undefined}>
+                <Text {...textColorProp(isPlaceholder ? theme.colors.textMuted : undefined)}>
                     {before}
                 </Text>
-                <Text backgroundColor={theme.colors.accent} color={theme.colors.textPrimary}>
+                <Text backgroundColor={theme.colors.accent} {...textColorProp(theme.colors.textPrimary)}>
                     {cursorChar}
                 </Text>
-                <Text color={isPlaceholder ? theme.colors.textMuted : undefined}>
+                <Text {...textColorProp(isPlaceholder ? theme.colors.textMuted : undefined)}>
                     {afterCursor}
                 </Text>
             </Text>

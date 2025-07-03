@@ -5,6 +5,7 @@ import { theme } from '../../utils/theme';
 import { SelectionBody } from './SelectionBody';
 import { NotificationArea } from './NotificationArea';
 import { getVisualWidth } from '../../utils/validationDisplay';
+import { textColorProp, buildProps } from '../../utils/conditionalProps';
 
 export interface SelectionOption {
     value: string;
@@ -46,7 +47,9 @@ export class SelectionListItem implements IListItem {
     ) {
         this._selectedValues = [...selectedValues];
         this._workingSelectedValues = [...selectedValues];
-        this.onValueChange = onValueChange;
+        if (onValueChange !== undefined) {
+            this.onValueChange = onValueChange;
+        }
         this._effectiveLayout = layout; // Initialize with the original layout
     }
     
@@ -343,9 +346,9 @@ export class SelectionListItem implements IListItem {
                     // Everything fits
                     elements.push(
                         <Text key="header">
-                            <Text color={bulletColor}>■ </Text>
-                            <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                            <Text color="red">{errorText}</Text>
+                            <Text {...textColorProp(bulletColor)}>■ </Text>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
+                            <Text {...textColorProp('red')}>{errorText}</Text>
                         </Text>
                     );
                 } else {
@@ -355,17 +358,17 @@ export class SelectionListItem implements IListItem {
                         const truncatedError = this._validationError.slice(0, availableForError - 3 - 1) + '…';
                         elements.push(
                             <Text key="header">
-                                <Text color={bulletColor}>■ </Text>
-                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart}</Text>
-                                <Text color="red"> ✗ {truncatedError}</Text>
+                                <Text {...textColorProp(bulletColor)}>■ </Text>
+                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
+                                <Text {...textColorProp('red')}> ✗ {truncatedError}</Text>
                             </Text>
                         );
                     } else {
                         // Not enough space for error, just show label
                         elements.push(
                             <Text key="header">
-                                <Text color={bulletColor}>■ </Text>
-                                <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
+                                <Text {...textColorProp(bulletColor)}>■ </Text>
+                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart} </Text>
                             </Text>
                         );
                     }
@@ -388,21 +391,21 @@ export class SelectionListItem implements IListItem {
                 
                 elements.push(
                     <Text key="header">
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>■ </Text>
-                        <Text color={this.isActive ? theme.colors.accent : undefined}>{labelPart} </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>■ </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart} </Text>
                         {showFullHints && (
                             <>
-                                <Text color={theme.colors.textMuted} bold>enter </Text>
-                                <Text color={theme.colors.successGreen}>✓</Text>
-                                <Text color={theme.colors.textMuted}> · </Text>
-                                <Text color={theme.colors.textMuted} bold>esc </Text>
-                                <Text color={theme.colors.warningOrange}>✗</Text>
+                                <Text {...textColorProp(theme.colors.textMuted)} bold>enter </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
+                                <Text {...textColorProp(theme.colors.textMuted)}> · </Text>
+                                <Text {...textColorProp(theme.colors.textMuted)} bold>esc </Text>
+                                <Text {...textColorProp(theme.colors.warningOrange)}>✗</Text>
                             </>
                         )}
                         {showPartialHints && !showFullHints && (
                             <>
-                                <Text color={theme.colors.textMuted} bold>enter </Text>
-                                <Text color={theme.colors.successGreen}>✓</Text>
+                                <Text {...textColorProp(theme.colors.textMuted)} bold>enter </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
                             </>
                         )}
                     </Text>
@@ -420,12 +423,12 @@ export class SelectionListItem implements IListItem {
                 mode: this.mode,
                 layout: effectiveLayout,
                 width: maxWidth,
-                headerColor: this.isActive ? theme.colors.accent : undefined,
                 validationError: this._validationError,
                 useASCII: false, // Could detect terminal capabilities
-                maxLines: bodyMaxLines,
                 showDetails: this.showDetails && effectiveLayout === 'vertical', // Only show details in vertical layout
-                detailColumns: this.detailColumns
+                ...(bodyMaxLines !== undefined ? { maxLines: bodyMaxLines } : {}),
+                ...(this.isActive ? { headerColor: theme.colors.accent } : {}),
+                ...(this.detailColumns !== undefined ? { detailColumns: this.detailColumns } : {})
             });
             
             return [...elements, ...bodyElements];
@@ -453,7 +456,7 @@ export class SelectionListItem implements IListItem {
                 const forcedTruncatedText = `${this.icon} ${label}: [${truncatedValue}…]`;
                 
                 return (
-                    <Text color={this.isActive ? theme.colors.accent : undefined}>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         {forcedTruncatedText}
                     </Text>
                 );
@@ -463,7 +466,7 @@ export class SelectionListItem implements IListItem {
             const normalText = `${this.icon} ${label}: [${value}${truncated ? '…' : ''}]`;
             
             return (
-                <Text color={this.isActive ? theme.colors.accent : undefined}>
+                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                     {normalText}
                 </Text>
             );

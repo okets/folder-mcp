@@ -1,4 +1,5 @@
 import { theme } from '../utils/theme';
+import { buildProps } from '../utils/conditionalProps';
 
 /**
  * Unified data structure for list items
@@ -86,10 +87,12 @@ export class ItemRenderer {
             return {
                 id: item.id || `status-${index}`,
                 text: item.text,
-                status: item.status,
-                color: item.color,
                 icon: '○',
-                selectable: item.selectable !== false
+                selectable: item.selectable !== false,
+                ...buildProps({
+                    status: item.status,
+                    color: item.color
+                })
             };
         }
         
@@ -150,10 +153,12 @@ export class ItemRenderer {
         return {
             icon,
             text: item.text,
-            value,
-            status: item.status,
-            color,
-            statusColor: item.statusColor || item.color // Use statusColor if provided, otherwise item.color
+            ...buildProps({
+                value,
+                status: item.status,
+                color,
+                statusColor: item.statusColor || item.color // Use statusColor if provided, otherwise item.color
+            })
         };
     }
     

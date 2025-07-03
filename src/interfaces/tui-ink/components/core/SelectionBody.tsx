@@ -4,6 +4,7 @@ import { theme } from '../../utils/theme';
 import { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem';
 import { getVisualWidth } from '../../utils/validationDisplay';
 import { calculateColumnLayout, formatColumnHeader, truncateToWidth, padToWidth } from '../../utils/columnLayout';
+import { textColorProp } from '../../utils/conditionalProps';
 
 export interface SelectionBodyProps {
     options: SelectionOption[];
@@ -89,9 +90,9 @@ export const SelectionBody = ({
             
             elements.push(
                 <Text key="header-row">
-                    <Text color={headerColor}>{headerPrefix}</Text>
+                    <Text {...textColorProp(headerColor)}>{headerPrefix}</Text>
                     <Text>  </Text>{/* Space for selection symbol (2 spaces) */}
-                    <Text color={theme.colors.textMuted} dimColor>{headerText}</Text>
+                    <Text {...textColorProp(theme.colors.textMuted)} dimColor>{headerText}</Text>
                 </Text>
             );
         } else {
@@ -104,8 +105,8 @@ export const SelectionBody = ({
                 // Full prompt fits
                 elements.push(
                     <Text key="select-prompt-v">
-                        <Text color={headerColor}>{promptPrefix}</Text>
-                        <Text color={theme.colors.textMuted}>{promptText}</Text>
+                        <Text {...textColorProp(headerColor)}>{promptPrefix}</Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>{promptText}</Text>
                     </Text>
                 );
             } else {
@@ -121,8 +122,8 @@ export const SelectionBody = ({
                 
                 elements.push(
                     <Text key="select-prompt-v">
-                        <Text color={headerColor}>{promptPrefix}</Text>
-                        <Text color={theme.colors.textMuted}>{displayPrompt}</Text>
+                        <Text {...textColorProp(headerColor)}>{promptPrefix}</Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>{displayPrompt}</Text>
                     </Text>
                 );
             }
@@ -181,12 +182,12 @@ export const SelectionBody = ({
                 
                 // Add line prefix
                 rowElements.push(
-                    <Text key="prefix" color={headerColor}>{linePrefix} </Text>
+                    <Text key="prefix" {...textColorProp(headerColor)}>{linePrefix} </Text>
                 );
                 
                 // Add selection symbol with space
                 rowElements.push(
-                    <Text key="symbol" color={isFocused ? theme.colors.accent : undefined}>
+                    <Text key="symbol" {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
                         {symbol}
                     </Text>
                 );
@@ -215,7 +216,7 @@ export const SelectionBody = ({
                     cellValue = padToWidth(cellValue, col.width);
                     
                     rowElements.push(
-                        <Text key={`col-${colIndex}`} color={isFocused ? theme.colors.accent : undefined}>
+                        <Text key={`col-${colIndex}`} {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
                             {cellValue}
                         </Text>
                     );
@@ -267,12 +268,12 @@ export const SelectionBody = ({
                 
                 elements.push(
                     <Box key={`option-${actualIndex}`}>
-                        <Text color={headerColor}>{linePrefix} </Text>
-                        <Text color={isFocused ? theme.colors.accent : undefined}>
+                        <Text {...textColorProp(headerColor)}>{linePrefix} </Text>
+                        <Text {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
                             {symbol} {displayLabel}
                         </Text>
                         {spaceHintToShow && (
-                            <Text color={theme.colors.textMuted}>{spaceHintToShow}</Text>
+                            <Text {...textColorProp(theme.colors.textMuted)}>{spaceHintToShow}</Text>
                         )}
                     </Box>
                 );
@@ -289,8 +290,8 @@ export const SelectionBody = ({
             // Full prompt fits
             elements.push(
                 <Text key="select-prompt-h">
-                    <Text color={headerColor}>{promptPrefix}</Text>
-                    <Text color={theme.colors.textMuted}>{promptText}</Text>
+                    <Text {...textColorProp(headerColor)}>{promptPrefix}</Text>
+                    <Text {...textColorProp(theme.colors.textMuted)}>{promptText}</Text>
                 </Text>
             );
         } else {
@@ -306,8 +307,8 @@ export const SelectionBody = ({
             
             elements.push(
                 <Text key="select-prompt-h">
-                    <Text color={headerColor}>{promptPrefix}</Text>
-                    <Text color={theme.colors.textMuted}>{displayPrompt}</Text>
+                    <Text {...textColorProp(headerColor)}>{promptPrefix}</Text>
+                    <Text {...textColorProp(theme.colors.textMuted)}>{displayPrompt}</Text>
                 </Text>
             );
         }
@@ -321,12 +322,12 @@ export const SelectionBody = ({
             
             if (index > 0) {
                 optionElements.push(
-                    <Text key={`sep-${index}`} color={theme.colors.textMuted}> │ </Text>
+                    <Text key={`sep-${index}`} {...textColorProp(theme.colors.textMuted)}> │ </Text>
                 );
             }
             
             optionElements.push(
-                <Text key={`opt-${index}`} color={isFocused ? theme.colors.accent : undefined}>
+                <Text key={`opt-${index}`} {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
                     {symbol} {option.label}
                 </Text>
             );
@@ -334,7 +335,7 @@ export const SelectionBody = ({
         
         elements.push(
             <Box key="options">
-                <Text color={headerColor}>└─ </Text>
+                <Text {...textColorProp(headerColor)}>└─ </Text>
                 <Box>{optionElements}</Box>
                 {focusedIndex >= 0 && (
                     <Text color={theme.colors.textMuted}>

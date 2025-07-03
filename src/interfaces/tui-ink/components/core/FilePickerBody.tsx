@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text, Transform } from 'ink';
 import { theme } from '../../utils/theme';
 import { getValidationColor, getValidationIcon, getVisualWidth } from '../../utils/validationDisplay';
+import { textColorProp } from '../../utils/conditionalProps';
 
 interface ColumnLayout {
     columnCount: number;
@@ -136,13 +137,13 @@ export const FilePickerBody = ({
     
     // Build the complete line to ensure it fits
     const pathElements: React.ReactElement[] = [];
-    pathElements.push(<Text key="prefix" color={headerColor || undefined}>│  </Text>);
+    pathElements.push(<Text key="prefix" {...textColorProp(headerColor || undefined)}>│  </Text>);
     if (showPathLabel) {
         pathElements.push(<Text key="label">Path: </Text>);
     }
     pathElements.push(<Text key="bracket-open">[</Text>);
     pathElements.push(
-        <Text key="path" color={theme.colors.configValuesColor}>
+        <Text key="path" {...textColorProp(theme.colors.configValuesColor)}>
             {pathLine}
         </Text>
     );
@@ -209,8 +210,8 @@ export const FilePickerBody = ({
         
         elements.push(
             <Text key="error">
-                <Text color={headerColor}>└─ </Text>
-                <Text color={theme.colors.textMuted}>{errorMessage}</Text>
+                <Text {...textColorProp(headerColor)}>└─ </Text>
+                <Text {...textColorProp(theme.colors.textMuted)}>{errorMessage}</Text>
             </Text>
         );
         return elements;
@@ -220,8 +221,8 @@ export const FilePickerBody = ({
         // Empty directory
         elements.push(
             <Text key="empty">
-                <Text color={headerColor || undefined}>└─ </Text>
-                <Text color={theme.colors.textMuted}>(empty)</Text>
+                <Text {...textColorProp(headerColor || undefined)}>└─ </Text>
+                <Text {...textColorProp(theme.colors.textMuted)}>(empty)</Text>
             </Text>
         );
         return elements;
@@ -339,7 +340,7 @@ export const FilePickerBody = ({
             }
             
             rowElements.push(
-                <Text key="prefix" color={headerColor || undefined}>{linePrefix}</Text>
+                <Text key="prefix" {...textColorProp(headerColor || undefined)}>{linePrefix}</Text>
             );
             
             // Render each column in this row
@@ -384,7 +385,7 @@ export const FilePickerBody = ({
                     // Render the cell with appropriate color
                     if (isFocused) {
                         rowElements.push(
-                            <Text key={`col-${col}`} color={theme.colors.accent}>
+                            <Text key={`col-${col}`} {...textColorProp(theme.colors.accent)}>
                                 {fullCellContent}
                             </Text>
                         );
@@ -392,7 +393,7 @@ export const FilePickerBody = ({
                         // Use different color for directories
                         const itemColor = item.isDirectory ? theme.colors.textSecondary : undefined;
                         rowElements.push(
-                            <Text key={`col-${col}`} color={itemColor}>
+                            <Text key={`col-${col}`} {...textColorProp(itemColor)}>
                                 {fullCellContent}
                             </Text>
                         );
@@ -490,11 +491,11 @@ export const FilePickerBody = ({
             // Build the line with appropriate color
             elements.push(
                 <Text key={`item-${actualIndex}`}>
-                    <Text color={headerColor}>{linePrefix}</Text>
+                    <Text {...textColorProp(headerColor)}>{linePrefix}</Text>
                     {isFocused ? (
-                        <Text color={theme.colors.accent}>▶ {displayName}</Text>
+                        <Text {...textColorProp(theme.colors.accent)}>▶ {displayName}</Text>
                     ) : (
-                        <Text color={item.isDirectory ? theme.colors.textSecondary : undefined}>
+                        <Text {...textColorProp(item.isDirectory ? theme.colors.textSecondary : undefined)}>
                             {'  '}{displayName}
                         </Text>
                     )}

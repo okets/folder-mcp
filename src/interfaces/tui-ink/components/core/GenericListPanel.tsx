@@ -5,6 +5,7 @@ import { IListItem } from './IListItem';
 import { calculateScrollbar } from './ScrollbarCalculator';
 import { theme } from '../../utils/theme';
 import { SelfConstrainedWrapper } from './SelfConstrainedWrapper';
+import { buildProps } from '../../utils/conditionalProps';
 
 export interface GenericListPanelProps {
     title: string;
@@ -137,12 +138,12 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
     return (
         <BorderedBox
             title={title}
-            subtitle={subtitle}
             focused={focused}
             width={panelWidth}
             height={actualHeight}
             showScrollbar={showScrollbar}
             scrollbarElements={scrollbar}
+            {...buildProps({ subtitle })}
         >
             {visibleItems.length > 0 ? (
                 visibleItems.map((item, visualIndex) => {

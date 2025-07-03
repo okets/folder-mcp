@@ -3,6 +3,7 @@ import { Text } from 'ink';
 import { theme } from '../../../utils/theme';
 import { useDI } from '../../../di/DIContext';
 import { ServiceTokens } from '../../../di/tokens';
+import { textColorProp } from '../../../utils/conditionalProps';
 
 interface ICollapsedSummaryProps {
     label: string;
@@ -45,7 +46,7 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     const fullDisplayText = `${prefix} ${truncatedLabel}: [${displayValue}] →`;
     
     return (
-        <Text color={isSelected ? theme.colors.accent : undefined}>
+        <Text {...textColorProp(isSelected ? theme.colors.accent : undefined)}>
             {fullDisplayText}
         </Text>
     );

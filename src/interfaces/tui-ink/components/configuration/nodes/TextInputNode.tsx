@@ -7,6 +7,7 @@ import { theme } from '../../../utils/theme';
 import { useDI } from '../../../di/DIContext';
 import { ServiceTokens } from '../../../di/tokens';
 import type { ITextInputNode } from '../../../models/configuration';
+import { textColorProp } from '../../../utils/conditionalProps';
 
 interface TextInputNodeProps {
     node: ITextInputNode;
@@ -112,7 +113,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
         return (
             <Box>
                 {!savedValueValidation.isValid && (
-                    <Text color="red">[!] </Text>
+                    <Text {...textColorProp('red')}>[!] </Text>
                 )}
                 <CollapsedSummary
                     label={node.label}
@@ -128,7 +129,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     return (
         <Box flexDirection="column">
             <Box>
-                <Text color={theme.colors.accent}>▼ {node.label}:</Text>
+                <Text {...textColorProp(theme.colors.accent)}>▼ {node.label}:</Text>
             </Box>
             <Box paddingLeft={2} paddingTop={1}>
                 <TextInput
@@ -145,14 +146,14 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
             </Box>
             {validationError && (
                 <Box paddingLeft={2} paddingTop={1}>
-                    <Text color="red">
+                    <Text {...textColorProp('red')}>
                         ✗ {validationError}
                     </Text>
                 </Box>
             )}
             {node.description && (
                 <Box paddingLeft={2} paddingTop={1}>
-                    <Text color={theme.colors.textMuted} wrap="wrap">
+                    <Text {...textColorProp(theme.colors.textMuted)} wrap="wrap">
                         {node.description}
                     </Text>
                 </Box>
