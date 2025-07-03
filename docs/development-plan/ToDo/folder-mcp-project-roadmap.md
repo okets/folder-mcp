@@ -224,7 +224,7 @@ Create a daemon-based system that manages multiple MCP servers for shared folder
 - **As a user, I want to see daemon status**: `folder-mcp status`
 - **As a user, I want the same operations in TUI**: `folder-mcp` opens admin screen
 
-### Task 1: Basic Daemon Architecture
+### Task 6: Basic Daemon Architecture
 
 **Goal**: Create daemon that manages single multi-folder MCP server
 
@@ -245,7 +245,7 @@ Create a daemon-based system that manages multiple MCP servers for shared folder
 - **Automated**: Daemon startup, MCP server spawning, process monitoring
 - **Manual E2E**: Start daemon, verify MCP server responds, stop daemon cleanly
 
-### Task 2: Extend MCP Server for Multiple Folders
+### Task 7: Extend MCP Server for Multiple Folders
 
 **Goal**: Modify existing MCP server to handle multiple folders instead of one
 
@@ -266,7 +266,7 @@ Create a daemon-based system that manages multiple MCP servers for shared folder
 - **Automated**: Multi-folder indexing, cross-folder search, file watching
 - **Manual E2E**: Add multiple folders, search across them, verify results
 
-### Task 3: Basic CLI Commands
+### Task 8: Basic CLI Commands
 
 **Goal**: Implement core CLI commands for daemon management
 
@@ -288,7 +288,7 @@ Create a daemon-based system that manages multiple MCP servers for shared folder
 - **Automated**: All CLI commands with various scenarios
 - **Manual E2E**: Full user workflow via CLI only
 
-### Task 4: Basic TUI Admin Screen
+### Task 9: Basic TUI Admin Screen
 
 **Goal**: Create TUI interface with identical functionality to CLI
 
@@ -310,7 +310,7 @@ Create a daemon-based system that manages multiple MCP servers for shared folder
 - **Automated**: TUI component testing
 - **Manual E2E**: Same user workflows as CLI but via TUI
 
-### Task 5: CLI/TUI Parity Validation
+### Task 10: CLI/TUI Parity Validation
 
 **Goal**: Ensure both interfaces are functionally identical
 
@@ -355,7 +355,7 @@ After completing all Phase 1 tasks, conduct mandatory review:
 - **As a user, I want to monitor system health**: CPU, memory, disk usage
 - **As a user, I want to handle errors gracefully**: Clear error messages and recovery
 
-### Task 6: Progress & Status System
+### Task 11: Progress & Status System
 
 **Goal**: Real-time feedback on all operations
 
@@ -376,7 +376,7 @@ After completing all Phase 1 tasks, conduct mandatory review:
 - **Automated**: Progress tracking, status updates
 - **Manual E2E**: User observes progress for large folder operations
 
-### Task 7: Intelligent Model Management
+### Task 12: Intelligent Model Management
 
 **Goal**: Device-specific model recommendations with language optimization
 
@@ -415,7 +415,7 @@ After completing all Phase 1 tasks, conduct mandatory review:
 - **Automated**: Device detection, HuggingFace API, model selection logic, BitNet fallback
 - **Manual E2E**: User on different hardware gets appropriate recommendations, language-specific optimization works
 
-### Task 8: Version Control & Update System
+### Task 13: Version Control & Update System
 
 **Goal**: Easy version management and seamless user updates
 
@@ -443,7 +443,7 @@ After completing all Phase 1 tasks, conduct mandatory review:
 - **Automated**: Update checking, version comparison, re-embedding triggers
 - **Manual E2E**: User updates via TUI, CLI, and Claude-mediated MCP update
 
-### Task 9: Auto-Config Placement & Client Support
+### Task 14: Auto-Config Placement & Client Support
 
 **Goal**: Automatic MCP client configuration management
 
@@ -465,7 +465,7 @@ After completing all Phase 1 tasks, conduct mandatory review:
 - **Automated**: Config generation, file placement, validation
 - **Manual E2E**: User connects Claude Desktop and VSCode without manual config
 
-### Task 10: Configuration Management
+### Task 15: Configuration Management
 
 **Goal**: Comprehensive configuration system
 
@@ -503,7 +503,7 @@ After completing all Phase 2 tasks, conduct mandatory review:
 - **As a user, I want secure remote access**: Authentication and security
 - **As a user, I want reliable operation**: Auto-recovery and monitoring
 
-### Task 9: Cloudflare Tunnel Integration
+### Task 16: Cloudflare Tunnel Integration
 
 **Goal**: Seamless remote access setup
 
@@ -524,7 +524,7 @@ After completing all Phase 2 tasks, conduct mandatory review:
 - **Automated**: Tunnel operations, connection handling
 - **Manual E2E**: User sets up remote access, tests from different device
 
-### Task 10: Security & Authentication
+### Task 17: Security & Authentication
 
 **Goal**: Secure remote access
 
@@ -545,7 +545,7 @@ After completing all Phase 2 tasks, conduct mandatory review:
 - **Automated**: Security operations, authentication
 - **Manual E2E**: User configures security, tests access control
 
-### Task 12: VSCode 1.101 MCP Integration
+### Task 18: VSCode 1.101 MCP Integration
 
 **Goal**: Optimize folder-mcp for VSCode 1.101 advanced MCP features
 
@@ -569,7 +569,7 @@ After completing all Phase 2 tasks, conduct mandatory review:
 - **Automated**: VSCode integration features, tool organization
 - **Manual E2E**: Developer uses folder-mcp seamlessly within VSCode workflow
 
-### Task 13: Production Readiness
+### Task 19: Production Readiness
 
 **Goal**: Reliable production operation
 
@@ -607,7 +607,7 @@ After completing all Phase 3 tasks, conduct mandatory review:
 - **As a user, I want file format support**: More document types
 - **As a user, I want performance optimization**: Large folder handling
 
-### Task 12: Advanced Search Features
+### Task 20: Advanced Search Features
 
 **Goal**: Powerful search capabilities
 
@@ -628,7 +628,7 @@ After completing all Phase 3 tasks, conduct mandatory review:
 - **Automated**: Search operations, filtering
 - **Manual E2E**: User performs complex searches
 
-### Task 13: Extended File Format Support
+### Task 21: Extended File Format Support
 
 **Goal**: Support for more document types
 
@@ -650,7 +650,7 @@ After completing all Phase 3 tasks, conduct mandatory review:
 - **Automated**: File format processing
 - **Manual E2E**: User indexes folders with various file types
 
-### Task 14: Code Intelligence Enhancement
+### Task 22: Code Intelligence Enhancement
 
 **Goal**: Enhance existing MCP endpoints with code-specific intelligence
 
@@ -710,7 +710,7 @@ search(query: "add customer endpoint") → {
 - **Automated**: Enhanced parsing integrates with existing 277-test suite
 - **Manual E2E**: Developer asks "find add customer endpoint" via existing Claude Desktop integration, gets enhanced results
 
-### Task 15: Legacy Format Support & Advanced File Processing
+### Task 23: Legacy Format Support & Advanced File Processing
 
 **Goal**: Comprehensive support for all document types users might have
 
@@ -735,7 +735,7 @@ search(query: "add customer endpoint") → {
 - **Automated**: Format processing, extraction accuracy, performance
 - **Manual E2E**: User indexes folders with diverse file types
 
-### Task 16: Image Processing Research & Implementation
+### Task 24: Image Processing Research & Implementation
 
 **Goal**: Research and implement local image processing capabilities
 
@@ -763,7 +763,7 @@ search(query: "add customer endpoint") → {
 - **Automated**: Image processing accuracy, performance benchmarks
 - **Manual E2E**: User searches for content in scanned documents and images
 
-### Task 17: Performance & Scalability
+### Task 25: Performance & Scalability
 
 **Goal**: Handle large folders efficiently
 
@@ -784,7 +784,7 @@ search(query: "add customer endpoint") → {
 - **Automated**: Performance benchmarks, scalability tests
 - **Manual E2E**: User processes very large folders
 
-### Task 18: Chat with Your Data
+### Task 26: Chat with Your Data
 
 **Goal**: LangChain-powered chat interface for conversational data interaction
 
@@ -827,7 +827,7 @@ After completing all Phase 4 tasks, conduct mandatory review:
 
 **Goal**: Production release preparation
 
-### Task 19: Testing & Quality Assurance
+### Task 27: Testing & Quality Assurance
 
 **Goal**: Comprehensive testing and quality assurance
 
@@ -844,7 +844,7 @@ After completing all Phase 4 tasks, conduct mandatory review:
 - [ ] Security audit
 - [ ] Load testing
 
-### Task 20: Documentation & Release
+### Task 28: Documentation & Release
 
 **Goal**: Complete documentation and release preparation
 
@@ -861,7 +861,7 @@ After completing all Phase 4 tasks, conduct mandatory review:
 - [ ] Release automation
 - [ ] Community setup
 
-### Task 21: Help MCP Endpoint
+### Task 29: Help MCP Endpoint
 
 **Goal**: Self-documenting system through MCP protocol
 
