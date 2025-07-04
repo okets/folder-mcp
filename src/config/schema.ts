@@ -5,6 +5,11 @@
 import { SystemCapabilities } from './system.js';
 
 /**
+ * Configuration source types
+ */
+export type ConfigSource = 'default' | 'system' | 'user' | 'profile' | 'environment' | 'runtime' | 'cli';
+
+/**
  * Core configuration sections that are shared across different config types
  */
 
@@ -129,6 +134,13 @@ export interface LocalConfig {
   
   // User preferences
   userChoices?: Record<string, unknown>;
+  
+  // Development settings
+  development?: {
+    enableDebugOutput?: boolean;
+    mockOllamaApi?: boolean;
+    skipGpuDetection?: boolean;
+  };
   
   // Metadata
   version?: string;
