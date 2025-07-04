@@ -7,7 +7,7 @@ import { SystemCapabilities } from './system.js';
 /**
  * Configuration source types
  */
-export type ConfigSource = 'default' | 'system' | 'user' | 'profile' | 'environment' | 'runtime' | 'cli';
+export type ConfigSource = 'default' | 'system' | 'user' | 'profile' | 'environment' | 'runtime' | 'cli' | 'file-watch';
 
 /**
  * Core configuration sections that are shared across different config types

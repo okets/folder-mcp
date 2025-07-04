@@ -17,7 +17,10 @@ import { validateConfig } from './validator.js';
 import { RuntimeConfigCache } from './cache-wrapper.js';
 import { SystemConfigLoader } from './loaders/system.js';
 import { ProfileManager } from './profiles.js';
+import { ConfigurationWatcher, ConfigFileChangeEvent } from './watcher.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
+import { homedir } from 'os';
+import { join } from 'path';
 
 const logger = createConsoleLogger('warn');
 
@@ -86,6 +89,7 @@ export class ConfigurationManager extends EventEmitter {
   private sources: Map<ConfigSource, ConfigSourceInfo>;
   private mergedConfig?: ResolvedConfig;
   private watchers: Set<ConfigWatcher>;
+  private configWatcher?: ConfigurationWatcher;
   private options: Required<ConfigManagerOptions>;
 
   constructor(options: ConfigManagerOptions = {}) {
@@ -436,8 +440,67 @@ export class ConfigurationManager extends EventEmitter {
    * Enable configuration watching
    */
   async enableWatch(): Promise<void> {
+    if (this.options.watchEnabled && this.configWatcher?.isRunning()) {
+      return;
+    }
+
     this.options.watchEnabled = true;
-    // Watcher implementation will be added in Task 1.4
+
+    // Collect all configuration file paths to watch
+    const pathsToWatch: string[] = [];
+    
+    // System config path
+    if (this.options.systemConfigPath) {
+      pathsToWatch.push(this.options.systemConfigPath);
+    }
+    
+    // User config path
+    if (this.options.userConfigPath) {
+      pathsToWatch.push(this.options.userConfigPath);
+    }
+    
+    // Profile directory
+    const profilesDir = join(homedir(), '.folder-mcp', 'profiles');
+    pathsToWatch.push(profilesDir);
+
+    // Create and start watcher
+    this.configWatcher = new ConfigurationWatcher({
+      paths: pathsToWatch,
+      debounceDelay: 500,
+      ignored: ['*.tmp', '*.swp', '*~']
+    });
+
+    // Handle configuration changes
+    this.configWatcher.on('change', async (event: ConfigFileChangeEvent) => {
+      logger.info('Configuration file changed:', { path: event.path, type: event.type });
+      
+      try {
+        const previousConfig = this.mergedConfig!;
+        
+        // Clear caches to force reload
+        this.profileManager.clearCache();
+        if (this.options.cacheEnabled) {
+          await this.cache.clear();
+        }
+        
+        // Reload configuration
+        await this.load();
+        
+        // Emit change event
+        this.emit('configChanged', {
+          previousConfig,
+          newConfig: this.mergedConfig!,
+          changedPaths: ['*'], // We don't know exactly what changed
+          source: 'file-watch'
+        } as ConfigChangeEvent);
+      } catch (error) {
+        logger.error('Failed to reload configuration after file change:', error as Error);
+        this.emit('error', error);
+      }
+    });
+
+    await this.configWatcher.start();
+    logger.info('Configuration watching enabled');
   }
 
   /**
@@ -445,7 +508,13 @@ export class ConfigurationManager extends EventEmitter {
    */
   async disableWatch(): Promise<void> {
     this.options.watchEnabled = false;
-    // Watcher cleanup will be added in Task 1.4
+    
+    if (this.configWatcher) {
+      await this.configWatcher.stop();
+      this.configWatcher = undefined as any;
+    }
+    
+    logger.info('Configuration watching disabled');
   }
 }
 

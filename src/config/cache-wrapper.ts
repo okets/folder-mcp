@@ -2,7 +2,7 @@
  * Cache wrapper for configuration manager
  */
 
-import { readFromCache, writeToCache, clearCache, CacheOptions } from './cache.js';
+import { readFromCache, writeToCache, clearCache, clearAllCache, CacheOptions } from './cache.js';
 
 /**
  * Runtime configuration cache
@@ -31,7 +31,12 @@ export class RuntimeConfigCache {
   /**
    * Clear a cached value
    */
-  async clear(key: string): Promise<boolean> {
-    return clearCache(key);
+  async clear(key?: string): Promise<boolean | number> {
+    if (key) {
+      return clearCache(key);
+    } else {
+      // Clear all cache entries
+      return clearAllCache();
+    }
   }
 }
