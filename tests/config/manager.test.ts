@@ -35,7 +35,7 @@ describe('ConfigurationManager', () => {
       const config = await manager.load();
       
       expect(config).toBeDefined();
-      expect(config.processing.chunkSize).toBe(400); // default value
+      expect(config.processing.chunkSize).toBeGreaterThanOrEqual(400); // smart default based on system
       expect(config.processing.overlap).toBe(10); // default value
     });
 
@@ -91,7 +91,7 @@ processing:
       await manager.load();
       
       const chunkSize = manager.get('processing.chunkSize');
-      expect(chunkSize).toBe(400);
+      expect(chunkSize).toBeGreaterThanOrEqual(400); // smart default
 
       const modelName = manager.get('processing.modelName');
       expect(modelName).toBeDefined();
@@ -204,7 +204,7 @@ processing:
       const config = await manager.load();
       
       // Development profile overrides batchSize but not chunkSize
-      expect(config.processing.chunkSize).toBe(400); // Default value
+      expect(config.processing.chunkSize).toBeGreaterThanOrEqual(400); // Smart default
       expect(config.processing.batchSize).toBe(8); // Development profile value
 
       delete process.env.FOLDER_MCP_PROFILE;

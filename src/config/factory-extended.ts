@@ -11,6 +11,7 @@ import { ConfigFactory } from './factory.js';
 import { LocalConfig, ResolvedConfig as BaseResolvedConfig } from './schema.js';
 import { ExtendedResolvedConfig } from './types.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
+import { smartDefaults } from './defaults/smart.js';
 
 const logger = createConsoleLogger('warn');
 
@@ -23,7 +24,16 @@ export class ExtendedConfigFactory extends ConfigFactory {
    * Create default configuration
    */
   createDefault(): Partial<LocalConfig> {
-    return ConfigFactory.createLocalConfig();
+    // Get static defaults first
+    const staticDefaults = ConfigFactory.createLocalConfig();
+    
+    // Generate smart defaults based on system capabilities
+    const smart = smartDefaults.generate({
+      environment: process.env.NODE_ENV as any
+    });
+    
+    // Merge static and smart defaults (smart takes precedence)
+    return this.merge(staticDefaults, smart);
   }
 
   /**
