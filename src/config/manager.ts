@@ -22,6 +22,7 @@ import { ConfigurationWatcher, ConfigFileChangeEvent } from './watcher.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 import { homedir } from 'os';
 import { join } from 'path';
+import { configRegistry } from './registry.js';
 
 const logger = createConsoleLogger('warn');
 
@@ -191,6 +192,27 @@ export class ConfigurationManager extends EventEmitter {
   get<T = any>(path: string): T | undefined {
     const config = this.getConfig();
     return path.split('.').reduce((obj: any, key) => obj?.[key], config) as T;
+  }
+
+  /**
+   * Get configuration option metadata
+   */
+  getOptionMetadata(path: string) {
+    return configRegistry.get(path);
+  }
+
+  /**
+   * Search configuration options
+   */
+  searchOptions(query: string) {
+    return configRegistry.search(query);
+  }
+
+  /**
+   * Get all configuration options
+   */
+  getAllOptions() {
+    return configRegistry.getAll();
   }
 
   /**
