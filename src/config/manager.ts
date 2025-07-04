@@ -15,6 +15,7 @@ import { LocalConfig, ConfigSource } from './schema.js';
 import { ExtendedResolvedConfig } from './types.js';
 import { validateConfig } from './validator.js';
 import { RuntimeConfigCache } from './cache-wrapper.js';
+import { SystemConfigLoader } from './loaders/system.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 
 const logger = createConsoleLogger('warn');
@@ -277,19 +278,28 @@ export class ConfigurationManager extends EventEmitter {
    */
   private async loadSystemConfig(): Promise<void> {
     try {
-      const systemConfig = await this.factory.loadFromFile(this.options.systemConfigPath);
+      // Use SystemConfigLoader for platform-specific paths
+      const loader = new SystemConfigLoader(
+        this.options.systemConfigPath ? [this.options.systemConfigPath] : undefined
+      );
+      
+      const { config: systemConfig, path } = await loader.load();
+      
       if (systemConfig) {
         this.sources.set('system', {
           source: 'system',
           priority: ConfigPriority.SYSTEM,
-          path: this.options.systemConfigPath,
+          ...(path && { path }),
           data: systemConfig,
           loadedAt: new Date()
         });
+        logger.info(`Loaded system configuration from: ${path}`);
+      } else {
+        logger.debug('No system configuration found in platform-specific paths');
       }
     } catch (error) {
       // System config is optional, so we just log and continue
-      logger.debug('System configuration not found or not accessible:', { error: String(error) });
+      logger.debug('System configuration loading error:', { error: String(error) });
     }
   }
 

@@ -169,6 +169,31 @@ processing:
     });
   });
 
+  describe('system configuration', () => {
+    it('should load system configuration with proper priority', async () => {
+      // Create system and user configs
+      const systemConfig = `
+processing:
+  chunkSize: 350
+  batchSize: 16
+`;
+      const userConfig = `
+processing:
+  chunkSize: 450
+`;
+      
+      await fs.writeFile(join(tempDir, 'system.yaml'), systemConfig);
+      await fs.writeFile(join(tempDir, 'user.yaml'), userConfig);
+      
+      const config = await manager.load();
+      
+      // User config (450) should override system config (350)
+      expect(config.processing.chunkSize).toBe(450);
+      // But system config batchSize should be used
+      expect(config.processing.batchSize).toBe(16);
+    });
+  });
+
   describe('profile support', () => {
     it('should load profile configuration when FOLDER_MCP_PROFILE is set', async () => {
       process.env.FOLDER_MCP_PROFILE = 'development';
