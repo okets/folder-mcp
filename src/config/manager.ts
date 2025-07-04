@@ -16,6 +16,7 @@ import { ExtendedResolvedConfig } from './types.js';
 import { validateConfig } from './validator.js';
 import { RuntimeConfigCache } from './cache-wrapper.js';
 import { SystemConfigLoader } from './loaders/system.js';
+import { ProfileManager } from './profiles.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 
 const logger = createConsoleLogger('warn');
@@ -81,6 +82,7 @@ export interface ConfigManagerOptions {
 export class ConfigurationManager extends EventEmitter {
   private factory: ExtendedConfigFactory;
   private cache: RuntimeConfigCache;
+  private profileManager: ProfileManager;
   private sources: Map<ConfigSource, ConfigSourceInfo>;
   private mergedConfig?: ResolvedConfig;
   private watchers: Set<ConfigWatcher>;
@@ -91,6 +93,7 @@ export class ConfigurationManager extends EventEmitter {
     
     this.factory = new ExtendedConfigFactory();
     this.cache = new RuntimeConfigCache();
+    this.profileManager = new ProfileManager();
     this.sources = new Map();
     this.watchers = new Set();
     
@@ -331,26 +334,31 @@ export class ConfigurationManager extends EventEmitter {
       return;
     }
 
-    const profile = process.env.FOLDER_MCP_PROFILE || 'default';
-    if (profile === 'default') {
+    const profileName = this.profileManager.getActiveProfile();
+    if (profileName === 'default') {
       return;
     }
 
     try {
-      const profilePath = `${this.options.userConfigPath.replace('.yaml', '')}/profiles/${profile}.yaml`;
-      const profileConfig = await this.factory.loadFromFile(profilePath);
+      const profileConfig = await this.profileManager.load(profileName);
       
       if (profileConfig) {
+        // Remove profile metadata before using as config
+        const { profile, description, extends: _, ...configData } = profileConfig;
+        
         this.sources.set('profile', {
           source: 'profile',
           priority: ConfigPriority.PROFILE,
-          path: profilePath,
-          data: profileConfig,
+          data: configData,
           loadedAt: new Date()
         });
+        
+        logger.info(`Loaded profile configuration: ${profileName}`);
+      } else {
+        logger.warn(`Profile '${profileName}' not found`);
       }
     } catch (error) {
-      logger.warn(`Profile '${profile}' not found:`, { error: String(error) });
+      logger.warn(`Failed to load profile '${profileName}':`, { error: String(error) });
     }
   }
 
