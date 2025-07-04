@@ -14,6 +14,7 @@ import { ExtendedConfigFactory } from './factory-extended.js';
 import { LocalConfig, ConfigSource } from './schema.js';
 import { ExtendedResolvedConfig } from './types.js';
 import { validateConfig } from './validator.js';
+import { enhancedValidator } from './validation/enhanced.js';
 import { RuntimeConfigCache } from './cache-wrapper.js';
 import { SystemConfigLoader } from './loaders/system.js';
 import { ProfileManager } from './profiles.js';
@@ -137,10 +138,27 @@ export class ConfigurationManager extends EventEmitter {
       // Merge all configurations
       const merged = await this.mergeConfigurations();
       
-      // Validate the merged configuration
-      const validation = await validateConfig(merged);
-      if (!validation.valid) {
-        throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+      // Basic validation first
+      const basicValidation = await validateConfig(merged);
+      if (!basicValidation.valid) {
+        throw new Error(`Configuration validation failed: ${basicValidation.errors.join(', ')}`);
+      }
+
+      // Enhanced validation with warnings
+      const enhancedValidation = await enhancedValidator.validate(merged);
+      if (!enhancedValidation.valid) {
+        const errorMessages = enhancedValidation.results
+          .filter(r => r.severity === 'error')
+          .map(r => `${r.field}: ${r.message}`);
+        throw new Error(`Enhanced validation failed: ${errorMessages.join(', ')}`);
+      }
+
+      // Log warnings
+      if (enhancedValidation.hasWarnings) {
+        const warnings = enhancedValidation.results
+          .filter(r => r.severity === 'warning')
+          .map(r => `${r.field}: ${r.message}`);
+        warnings.forEach(warning => logger.warn(warning));
       }
 
       // Cache the result if enabled
