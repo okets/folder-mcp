@@ -1,5 +1,6 @@
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
+import { ILayoutService } from './interfaces';
 
 /**
  * Layout calculation utilities for responsive TUI design
@@ -32,7 +33,7 @@ export interface TextLayout {
 /**
  * Service for managing TUI layout calculations
  */
-export class LayoutService {
+export class LayoutService implements ILayoutService {
     /**
      * Calculate panel dimensions for horizontal layout
      */

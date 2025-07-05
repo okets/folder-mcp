@@ -1,6 +1,6 @@
 import { DIContainer } from './container';
 import { ServiceTokens } from './tokens';
-import { ThemeService, DataService, NavigationService, TerminalService, ContentService } from '../services/index';
+import { ThemeService, DataService, NavigationService, TerminalService, ContentService, LayoutService } from '../services/index';
 import { DebugService } from '../services/DebugService';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { FormNavigationService } from '../services/FormNavigationService';
@@ -37,6 +37,7 @@ export const setupDIContainer = (): DIContainer => {
         container.resolve(ServiceTokens.FocusChainService)
     ));
     container.register(ServiceTokens.RenderSlotService, new RenderSlotService());
+    container.register(ServiceTokens.LayoutService, new LayoutService());
     
     return container;
 };

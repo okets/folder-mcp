@@ -6,5 +6,5 @@ export { NavigationService } from './NavigationService';
 export { ContentService } from './ContentService';
 export { itemRenderer, ItemRenderer } from './ItemRenderer';
 export type { ListItemData, ItemRenderConfig } from './ItemRenderer';
-export { layoutService, LayoutService } from './LayoutService';
+export { LayoutService } from './LayoutService';
 export type { LayoutDimensions, PanelLayout, TextLayout } from './LayoutService';

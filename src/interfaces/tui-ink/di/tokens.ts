@@ -12,7 +12,8 @@ import {
     IStatusBarService,
     IFocusChainService,
     IInputContextService,
-    IRenderSlotService
+    IRenderSlotService,
+    ILayoutService
 } from '../services/interfaces';
 
 // Type-safe service tokens using symbols
@@ -30,5 +31,6 @@ export const ServiceTokens = {
     StatusBarService: Symbol('StatusBarService') as symbol & { __type: IStatusBarService },
     FocusChainService: Symbol('FocusChainService') as symbol & { __type: IFocusChainService },
     InputContextService: Symbol('InputContextService') as symbol & { __type: IInputContextService },
-    RenderSlotService: Symbol('RenderSlotService') as symbol & { __type: IRenderSlotService }
+    RenderSlotService: Symbol('RenderSlotService') as symbol & { __type: IRenderSlotService },
+    LayoutService: Symbol('LayoutService') as symbol & { __type: ILayoutService }
 };

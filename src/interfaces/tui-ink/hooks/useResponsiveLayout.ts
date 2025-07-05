@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useTerminalSize } from './useTerminalSize';
-import { layoutService } from '../services/LayoutService';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { ILayoutService } from '../services/interfaces';
 
 export interface ResponsiveLayoutOptions {
     /** Number of panels to display */
@@ -41,6 +43,9 @@ export function useResponsiveLayout(options: ResponsiveLayoutOptions) {
             layout = preferredLayout;
         }
         
+        // Get layout service via DI
+        const layoutService = useDI().resolve(ServiceTokens.LayoutService) as ILayoutService;
+        
         // Get responsive configuration
         const config = layoutService.getResponsiveConfig(columns, availableHeight);
         
@@ -55,7 +60,7 @@ export function useResponsiveLayout(options: ResponsiveLayoutOptions) {
         
         // Calculate text layout for each panel
         const breakpoint = layoutService.getBreakpoint(columns);
-        const textLayouts = panelLayout.panels.map(panel => 
+        const textLayouts = panelLayout.panels.map((panel: { width: number; height: number }) => 
             layoutService.calculateTextLayout(panel.width, {
                 hasScrollbar: true,
                 hasIndicator: true,

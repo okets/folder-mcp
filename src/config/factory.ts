@@ -26,8 +26,7 @@ export class ConfigFactory {
       chunkSize: 1000,
       overlap: 10,
       batchSize: 32,
-      maxWorkers: 4,
-      timeoutMs: 30000,
+      modelName: 'all-minilm',
       maxConcurrentOperations: 14,
       fileExtensions: ['.txt', '.md', '.pdf', '.docx'],
       ignorePatterns: ['node_modules/**', '.git/**', '*.tmp'],
@@ -143,6 +142,48 @@ export class ExtendedConfigFactory extends ConfigFactory implements IConfigFacto
         logger.error(`Error loading configuration from ${filePath}:`, error);
       }
       return null;
+    }
+  }
+
+  /**
+   * Load configuration from YAML content
+   */
+  loadFromYaml(content: string, path?: string): LocalConfig {
+    try {
+      const rawConfig = loadYaml(content) as any;
+      const config = ConfigFactory.createLocalConfig();
+      
+      if (!rawConfig || typeof rawConfig !== 'object') {
+        return config;
+      }
+      
+      // Same parsing logic as loadFromFile
+      if (rawConfig.processing) {
+        if (rawConfig.processing.chunkSize !== undefined) config.chunkSize = rawConfig.processing.chunkSize;
+        if (rawConfig.processing.overlap !== undefined) config.overlap = rawConfig.processing.overlap;
+        if (rawConfig.processing.batchSize !== undefined) config.batchSize = rawConfig.processing.batchSize;
+        if (rawConfig.processing.modelName !== undefined) config.modelName = rawConfig.processing.modelName;
+        if (rawConfig.processing.maxConcurrentOperations !== undefined) config.maxConcurrentOperations = rawConfig.processing.maxConcurrentOperations;
+      }
+      
+      if (rawConfig.files) {
+        if (rawConfig.files.extensions) config.fileExtensions = rawConfig.files.extensions;
+        if (rawConfig.files.ignorePatterns) config.ignorePatterns = rawConfig.files.ignorePatterns;
+      }
+      
+      // Handle flat properties
+      if (rawConfig.chunkSize !== undefined) config.chunkSize = rawConfig.chunkSize;
+      if (rawConfig.overlap !== undefined) config.overlap = rawConfig.overlap;
+      if (rawConfig.batchSize !== undefined) config.batchSize = rawConfig.batchSize;
+      if (rawConfig.modelName !== undefined) config.modelName = rawConfig.modelName;
+      if (rawConfig.fileExtensions !== undefined) config.fileExtensions = rawConfig.fileExtensions;
+      if (rawConfig.ignorePatterns !== undefined) config.ignorePatterns = rawConfig.ignorePatterns;
+      if (rawConfig.development !== undefined) config.development = rawConfig.development;
+      
+      return config;
+    } catch (error: any) {
+      logger.error(`Error parsing YAML content${path ? ` from ${path}` : ''}:`, error);
+      return ConfigFactory.createLocalConfig();
     }
   }
 

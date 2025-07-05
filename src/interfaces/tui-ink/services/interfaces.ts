@@ -154,8 +154,55 @@ export interface IFocusChainService {
 
 // Input Context Management
 import type { Key } from 'ink';
+import type { LayoutDimensions, PanelLayout, TextLayout } from './LayoutService';
 
 export type InputHandler = (input: string, key: Key) => boolean;
+
+export interface ILayoutService {
+    calculateHorizontalLayout(
+        containerWidth: number,
+        containerHeight: number,
+        panelCount: number,
+        options?: {
+            gap?: number;
+            minPanelWidth?: number;
+            equalWidth?: boolean;
+        }
+    ): PanelLayout;
+    
+    calculateVerticalLayout(
+        containerWidth: number,
+        containerHeight: number,
+        panelCount: number,
+        options?: {
+            gap?: number;
+            minPanelHeight?: number;
+            equalHeight?: boolean;
+        }
+    ): PanelLayout;
+    
+    calculateTextLayout(
+        panelWidth: number,
+        options?: {
+            hasBorder?: boolean;
+            hasScrollbar?: boolean;
+            hasIndicator?: boolean;
+            hasValue?: boolean;
+            hasStatus?: boolean;
+            indicatorWidth?: number;
+            padding?: number;
+        }
+    ): TextLayout;
+    
+    getBreakpoint(width: number): 'small' | 'medium' | 'large';
+    
+    getResponsiveConfig(width: number, height: number): {
+        layout: 'horizontal' | 'vertical';
+        showSubtitles: boolean;
+        showScrollbars: boolean;
+        abbreviateText: boolean;
+    };
+}
 
 export interface IInputContextService {
     // Register handler for an element (with optional key bindings for status bar)

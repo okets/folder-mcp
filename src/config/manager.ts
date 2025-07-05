@@ -27,6 +27,9 @@ import {
   ConfigOption
 } from './interfaces.js';
 
+// Re-export for external use
+export { ConfigChangeEvent } from './interfaces.js';
+
 const logger = createConsoleLogger('warn');
 
 // Use ExtendedResolvedConfig as our ResolvedConfig
