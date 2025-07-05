@@ -225,6 +225,12 @@ export function setupDependencyInjection(options: {
     });
   }
 
+  // Register daemon services (if daemon is enabled)
+  container.registerSingleton(SERVICE_TOKENS.DAEMON_SERVICE, () => {
+    // For now, return a placeholder - proper implementation will be added in Assignment 3+
+    return null;
+  });
+
   return container;
 }
 

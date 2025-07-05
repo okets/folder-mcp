@@ -142,6 +142,37 @@ export interface LocalConfig {
     skipGpuDetection?: boolean;
   };
   
+  // Daemon configuration
+  daemon?: {
+    enabled?: boolean;
+    port?: number;
+    pidFile?: string;
+    healthCheck?: {
+      enabled?: boolean;
+      interval?: number;
+      timeout?: number;
+      retries?: number;
+    };
+    autoRestart?: {
+      enabled?: boolean;
+      maxRetries?: number;
+      delay?: number;
+      exponentialBackoff?: boolean;
+      maxDelay?: number;
+    };
+    performance?: {
+      monitoring?: boolean;
+      metricsInterval?: number;
+      logLevel?: 'debug' | 'info' | 'warn' | 'error';
+      memoryTracking?: boolean;
+      cpuTracking?: boolean;
+      diskTracking?: boolean;
+    };
+    shutdownTimeout?: number;
+    shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT';
+    reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
+  };
+  
   // Metadata
   version?: string;
   createdAt?: string;
@@ -380,6 +411,61 @@ export const VALIDATION_RULES: ValidationRule[] = [
     default: 24,
     message: 'Cache cleanup interval must be between 1 and 168 hours',
     fix: 'Set cleanupInterval to a value between 1 and 168 hours'
+  },
+  
+  // Daemon rules
+  {
+    field: 'daemon.port',
+    type: 'number',
+    min: 1024,
+    max: 65535,
+    message: 'Daemon port must be between 1024 and 65535',
+    fix: 'Set daemon port to a value between 1024 and 65535'
+  },
+  {
+    field: 'daemon.healthCheck.interval',
+    type: 'number',
+    min: 5000,
+    max: 300000,
+    default: 30000,
+    message: 'Health check interval must be between 5 seconds and 5 minutes',
+    fix: 'Set health check interval between 5000 and 300000 milliseconds'
+  },
+  {
+    field: 'daemon.healthCheck.timeout',
+    type: 'number',
+    min: 1000,
+    max: 60000,
+    default: 5000,
+    message: 'Health check timeout must be between 1 and 60 seconds',
+    fix: 'Set health check timeout between 1000 and 60000 milliseconds'
+  },
+  {
+    field: 'daemon.autoRestart.delay',
+    type: 'number',
+    min: 100,
+    max: 60000,
+    default: 1000,
+    message: 'Auto-restart delay must be between 100ms and 60 seconds',
+    fix: 'Set auto-restart delay between 100 and 60000 milliseconds'
+  },
+  {
+    field: 'daemon.performance.metricsInterval',
+    type: 'number',
+    min: 1000,
+    max: 600000,
+    default: 60000,
+    message: 'Performance metrics interval must be between 1 second and 10 minutes',
+    fix: 'Set metrics interval between 1000 and 600000 milliseconds'
+  },
+  {
+    field: 'daemon.shutdownTimeout',
+    type: 'number',
+    min: 1000,
+    max: 60000,
+    default: 10000,
+    message: 'Shutdown timeout must be between 1 and 60 seconds',
+    fix: 'Set shutdown timeout between 1000 and 60000 milliseconds'
   }
 ];
 
@@ -476,6 +562,36 @@ export const DEFAULT_VALUES = {
   
   misc: {
     debounceDelay: 1000 as number
+  },
+  
+  daemon: {
+    enabled: false,
+    port: undefined as number | undefined,
+    pidFile: undefined as string | undefined,
+    healthCheck: {
+      enabled: true,
+      interval: 30000,
+      timeout: 5000,
+      retries: 3
+    },
+    autoRestart: {
+      enabled: true,
+      maxRetries: 5,
+      delay: 1000,
+      exponentialBackoff: true,
+      maxDelay: 30000
+    },
+    performance: {
+      monitoring: true,
+      metricsInterval: 60000,
+      logLevel: 'info' as const,
+      memoryTracking: true,
+      cpuTracking: true,
+      diskTracking: false
+    },
+    shutdownTimeout: 10000,
+    shutdownSignal: 'SIGTERM' as const,
+    reloadSignal: 'SIGHUP' as const
   }
 };
 // Re-export types for backward compatibility
@@ -542,5 +658,19 @@ export function getTransportDefaults(): TransportConfig {
     remote: { ...DEFAULT_VALUES.transport.remote },
     http: { ...DEFAULT_VALUES.transport.http },
     security: { ...DEFAULT_VALUES.transport.security }
+  };
+}
+
+export function getDaemonDefaults() {
+  return {
+    enabled: DEFAULT_VALUES.daemon.enabled,
+    port: DEFAULT_VALUES.daemon.port,
+    pidFile: DEFAULT_VALUES.daemon.pidFile,
+    healthCheck: { ...DEFAULT_VALUES.daemon.healthCheck },
+    autoRestart: { ...DEFAULT_VALUES.daemon.autoRestart },
+    performance: { ...DEFAULT_VALUES.daemon.performance },
+    shutdownTimeout: DEFAULT_VALUES.daemon.shutdownTimeout,
+    shutdownSignal: DEFAULT_VALUES.daemon.shutdownSignal,
+    reloadSignal: DEFAULT_VALUES.daemon.reloadSignal
   };
 }

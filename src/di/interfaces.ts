@@ -465,6 +465,15 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   
   // Interface Layer
   MCP_SERVER: Symbol('MCPServer'),
+  
+  // Daemon Layer
+  DAEMON_SERVICE: Symbol('DaemonService'),
+  PROCESS_MANAGER: Symbol('ProcessManager'),
+  HEALTH_MONITOR: Symbol('HealthMonitor'),
+  SIGNAL_HANDLER: Symbol('SignalHandler'),
+  PERFORMANCE_MONITOR: Symbol('PerformanceMonitor'),
+  PID_MANAGER: Symbol('PidManager'),
+  SYSTEM_MONITOR: Symbol('SystemMonitor'),
 } as const;
 
 /**
