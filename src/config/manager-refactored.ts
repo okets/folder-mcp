@@ -400,10 +400,32 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
    * Load environment configuration
    */
   private async loadEnvironmentConfig(): Promise<void> {
-    // This will be implemented in Task 4
-    // For now, just check for the existing environment variables
     const envConfig: Partial<LocalConfig> = {};
+    const prefix = 'FOLDER_MCP_';
 
+    // Process all FOLDER_MCP_* environment variables
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key.startsWith(prefix) && value !== undefined) {
+        const flatKey = this.envKeyToFlatKey(key.substring(prefix.length));
+        const parsedValue = this.parseEnvValue(value);
+        
+        // Map to flat structure that matches current schema
+        if (flatKey) {
+          if (flatKey.startsWith('development.')) {
+            // Handle nested development settings
+            if (!envConfig.development) {
+              envConfig.development = {};
+            }
+            const devKey = flatKey.substring('development.'.length);
+            (envConfig.development as any)[devKey] = parsedValue;
+          } else {
+            (envConfig as any)[flatKey] = parsedValue;
+          }
+        }
+      }
+    }
+
+    // Legacy environment variables for backward compatibility
     if (process.env.ENABLE_ENHANCED_MCP_FEATURES) {
       envConfig.development = {
         enableDebugOutput: process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true'
@@ -418,6 +440,153 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
         loadedAt: new Date()
       });
     }
+  }
+
+  /**
+   * Convert environment variable key to flat configuration key
+   * Maps FOLDER_MCP_* variables to the existing flat configuration structure
+   */
+  private envKeyToFlatKey(envKey: string): string | null {
+    const key = envKey.toLowerCase();
+    
+    // Map common environment variables to flat config keys
+    const mapping: Record<string, string> = {
+      // Processing/embedding settings
+      'model_name': 'modelName',
+      'embeddings_backend': 'modelName',  // backend type maps to model name
+      'embeddings_model': 'modelName',
+      'chunk_size': 'chunkSize',
+      'overlap': 'overlap',
+      'batch_size': 'batchSize',
+      'processing_batch_size': 'batchSize',
+      'max_workers': 'maxWorkers',
+      'timeout_ms': 'timeoutMs',
+      'max_concurrent_operations': 'maxConcurrentOperations',
+      'processing_max_concurrent': 'maxConcurrentOperations',
+      
+      // File settings
+      'file_extensions': 'fileExtensions',
+      'ignore_patterns': 'ignorePatterns',
+      
+      // General settings
+      'debounce_delay': 'debounceDelay',
+      'version': 'version',
+      
+      // Development settings (these will be handled specially)
+      'development_enabled': 'development.enableDebugOutput',
+      'development_debug': 'development.enableDebugOutput',
+      'development_mock_ollama': 'development.mockOllamaApi',
+      'development_skip_gpu': 'development.skipGpuDetection',
+    };
+    
+    // Check for direct mapping
+    if (mapping[key]) {
+      return mapping[key];
+    }
+    
+    // Try without prefixes for common patterns
+    if (key.startsWith('embeddings_')) {
+      const subKey = key.substring('embeddings_'.length);
+      if (mapping[subKey]) {
+        return mapping[subKey];
+      }
+    }
+    
+    if (key.startsWith('processing_')) {
+      const subKey = key.substring('processing_'.length);
+      if (mapping[subKey]) {
+        return mapping[subKey];
+      }
+    }
+    
+    if (key.startsWith('files_')) {
+      const subKey = key.substring('files_'.length);
+      const result = mapping[subKey] || mapping[`file_${subKey}`];
+      if (result) {
+        return result;
+      }
+    }
+    
+    // Return null if no mapping found
+    return null;
+  }
+
+  /**
+   * Convert environment variable key to configuration path (for future nested structure)
+   * Examples:
+   * - EMBEDDINGS_BACKEND -> embeddings.backend
+   * - PROCESSING_BATCH_SIZE -> processing.batchSize
+   * - FOLDERS_WATCH_ENABLED -> folders.watchEnabled
+   */
+  private envKeyToConfigPath(envKey: string): string {
+    const parts = envKey.toLowerCase().split('_');
+    
+    // First part stays as-is for the main section
+    const mainSection = parts[0];
+    
+    // Remaining parts get converted to camelCase as a single property name
+    if (parts.length === 1) {
+      return mainSection;
+    }
+    
+    const propertyParts = parts.slice(1);
+    const camelCaseProperty = propertyParts
+      .map((part, index) => {
+        return index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join('');
+    
+    return `${mainSection}.${camelCaseProperty}`;
+  }
+
+  /**
+   * Parse environment variable value to appropriate type
+   */
+  private parseEnvValue(value: string): any {
+    // Handle JSON values (for arrays and objects)
+    if (value.startsWith('{') || value.startsWith('[')) {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value; // Fall back to string if invalid JSON
+      }
+    }
+
+    // Handle boolean values
+    if (value.toLowerCase() === 'true') return true;
+    if (value.toLowerCase() === 'false') return false;
+
+    // Handle numeric values
+    if (/^\d+$/.test(value)) {
+      const num = parseInt(value, 10);
+      if (!isNaN(num)) return num;
+    }
+
+    if (/^\d*\.\d+$/.test(value)) {
+      const num = parseFloat(value);
+      if (!isNaN(num)) return num;
+    }
+
+    // Return as string for everything else
+    return value;
+  }
+
+  /**
+   * Set nested value in configuration object
+   */
+  private setNestedValue(obj: any, path: string, value: any): void {
+    const keys = path.split('.');
+    const lastKey = keys.pop()!;
+    
+    let current = obj;
+    for (const key of keys) {
+      if (!current[key]) {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+    
+    current[lastKey] = value;
   }
 
   /**

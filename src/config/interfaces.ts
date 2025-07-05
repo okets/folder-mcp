@@ -13,6 +13,9 @@ import { ProfileConfig } from './profiles.js';
 import { ConfigOption } from './registry.js';
 import { SystemCapabilities } from './system.js';
 
+// Re-export types that might be needed elsewhere
+export type { ConfigOption };
+
 /**
  * Configuration source metadata
  */
