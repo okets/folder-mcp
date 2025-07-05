@@ -69,7 +69,7 @@ export interface ConfigManagerOptions {
  */
 export class ConfigurationManager extends EventEmitter implements IConfigurationManager {
   private sources: Map<ConfigSource, ConfigSourceInfo>;
-  private mergedConfig?: ResolvedConfig;
+  private mergedConfig?: ExtendedResolvedConfig;
   private watchers: Set<ConfigWatcher>;
   private options: Required<ConfigManagerOptions>;
   private configWatcher?: IConfigWatcher;
@@ -167,7 +167,7 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
   /**
    * Get current configuration
    */
-  getConfig(): ResolvedConfig {
+  getConfig(): ExtendedResolvedConfig {
     if (!this.mergedConfig) {
       throw new Error('Configuration not loaded. Call load() first.');
     }
@@ -526,7 +526,7 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
     
     // Remaining parts get converted to camelCase as a single property name
     if (parts.length === 1) {
-      return mainSection;
+      return mainSection || '';
     }
     
     const propertyParts = parts.slice(1);
@@ -600,7 +600,7 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
   /**
    * Merge all configurations based on priority
    */
-  private async mergeConfigurations(): Promise<ResolvedConfig> {
+  private async mergeConfigurations(): Promise<ExtendedResolvedConfig> {
     const sortedSources = Array.from(this.sources.values())
       .sort((a, b) => a.priority - b.priority);
 
@@ -610,9 +610,9 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
       merged = this.factory.merge(merged, source.data);
     }
 
-    // Convert to ResolvedConfig
+    // Convert to ExtendedResolvedConfig
     const resolved = await this.factory.resolve(merged);
-    return resolved;
+    return resolved as ExtendedResolvedConfig;
   }
 
   /**
@@ -696,7 +696,7 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
     
     if (this.configWatcher) {
       await this.configWatcher.stop();
-      this.configWatcher = undefined;
+      this.configWatcher = undefined as any;
     }
     
     logger.info('Configuration watching disabled');

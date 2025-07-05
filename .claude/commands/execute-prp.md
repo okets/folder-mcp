@@ -1,6 +1,8 @@
 # execute-prp
 
-Execute a PRP (Problem-Resolution Plan) with proper DI enforcement, validation, and progress tracking. Intelligently handles both fresh starts and partial task continuation.
+**MANDATORY** execution command for all task plans. This is the ONLY approved way to implement task plans with proper DI enforcement, validation, and progress tracking. Intelligently handles both fresh starts and partial task continuation.
+
+**⚠️ CRITICAL**: All task implementation MUST use this command. Direct implementation bypasses validation and violates the established workflow.
 
 ## Usage
 

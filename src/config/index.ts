@@ -59,7 +59,7 @@ export function getHotReloadManager() {
  */
 export function enableHotReloadInDevelopment(): void {
   if (process.env.NODE_ENV === 'development' || process.env.ENABLE_HOT_RELOAD === 'true') {
-    const hotReloadManager = getHotReloadManager();
+    const hotReloadManager = getHotReloadManager() as any;
     hotReloadManager.enable();
   }
 }

@@ -17,12 +17,22 @@ describe('ConfigurationManager', () => {
     tempDir = join(tmpdir(), `config-test-${Date.now()}`);
     await fs.mkdir(tempDir, { recursive: true });
 
-    // Create manager with test paths
-    manager = new ConfigurationManager({
-      systemConfigPath: join(tempDir, 'system.yaml'),
-      userConfigPath: join(tempDir, 'user.yaml'),
-      cacheEnabled: false // Disable cache for tests
-    });
+    // Create manager using DI pattern (mock for tests)
+    manager = new (ConfigurationManager as any)(
+      {} as any, // factory
+      {} as any, // cache
+      {} as any, // profileManager
+      {} as any, // systemConfigLoader
+      () => ({} as any), // configWatcherFactory
+      {} as any, // validator
+      {} as any, // registry
+      {} as any, // hotReloadManager
+      {
+        systemConfigPath: join(tempDir, 'system.yaml'),
+        userConfigPath: join(tempDir, 'user.yaml'),
+        cacheEnabled: false
+      }
+    );
   });
 
   afterEach(async () => {

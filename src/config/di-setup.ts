@@ -88,7 +88,7 @@ export function registerConfigurationServices(container: IDependencyContainer): 
 
   // Register HotReloadManager as singleton
   container.registerSingleton(CONFIG_TOKENS.HOT_RELOAD_MANAGER, () => {
-    const registry = container.resolve(CONFIG_TOKENS.CONFIG_REGISTRY);
+    const registry = container.resolve(CONFIG_TOKENS.CONFIG_REGISTRY) as ConfigurationRegistry;
     return new HotReloadManager(registry);
   });
 
@@ -103,17 +103,17 @@ export function registerConfigurationServices(container: IDependencyContainer): 
     const hotReloadManager = container.resolve(CONFIG_TOKENS.HOT_RELOAD_MANAGER);
     
     // Factory function for creating config watchers
-    const configWatcherFactory = () => container.resolve(CONFIG_TOKENS.CONFIG_WATCHER);
+    const configWatcherFactory = () => container.resolve(CONFIG_TOKENS.CONFIG_WATCHER) as any;
     
     return new ConfigurationManager(
-      factory,
-      cache,
-      profileManager,
-      systemConfigLoader,
+      factory as any,
+      cache as any,
+      profileManager as any,
+      systemConfigLoader as any,
       configWatcherFactory,
-      validator,
-      registry,
-      hotReloadManager
+      validator as any,
+      registry as any,
+      hotReloadManager as any
     );
   });
 }

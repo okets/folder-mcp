@@ -362,7 +362,7 @@ describe('HotReloadManager', () => {
       process.env = { ...originalEnv, NODE_ENV: 'development' };
       
       const hotReloadManager = getHotReloadManager();
-      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
+      const enableSpy = vi.spyOn(hotReloadManager as any, 'enable');
       
       enableHotReloadInDevelopment();
       
@@ -373,7 +373,7 @@ describe('HotReloadManager', () => {
       process.env = { ...originalEnv, ENABLE_HOT_RELOAD: 'true' };
       
       const hotReloadManager = getHotReloadManager();
-      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
+      const enableSpy = vi.spyOn(hotReloadManager as any, 'enable');
       
       enableHotReloadInDevelopment();
       
@@ -384,7 +384,7 @@ describe('HotReloadManager', () => {
       process.env = { ...originalEnv, NODE_ENV: 'production' };
       
       const hotReloadManager = getHotReloadManager();
-      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
+      const enableSpy = vi.spyOn(hotReloadManager as any, 'enable');
       
       enableHotReloadInDevelopment();
       

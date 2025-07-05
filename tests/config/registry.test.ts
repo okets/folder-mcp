@@ -227,7 +227,7 @@ describe('ConfigurationRegistry', () => {
   describe('DI integration', () => {
     it('should provide registry via DI container', () => {
       setupForTesting();
-      const registry = getConfigRegistry();
+      const registry = getConfigRegistry() as any;
       
       expect(registry).toBeDefined();
       expect(registry).toBeInstanceOf(ConfigurationRegistry);

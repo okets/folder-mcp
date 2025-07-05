@@ -7,7 +7,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { ConfigChangeEvent } from './manager.js';
+import { ConfigChangeEvent } from './interfaces.js';
 import { IConfigRegistry } from './interfaces.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 
@@ -252,7 +252,7 @@ export class HotReloadManager extends EventEmitter {
       name: 'logging',
       requiresRestart: false,
       handler: async (event) => {
-        const debugEnabled = event.newConfig.development?.enableDebugOutput;
+        const debugEnabled = (event.newConfig as any).development?.enableDebugOutput;
         logger.info('Reloading logging configuration', { debugEnabled });
         // In a real implementation, this would update the logger
       }
@@ -291,7 +291,7 @@ export class HotReloadManager extends EventEmitter {
       },
       validate: (event) => {
         // Validate file extensions format
-        const extensions = event.newConfig.files?.extensions;
+        const extensions = (event.newConfig as any).files?.extensions;
         if (extensions && Array.isArray(extensions)) {
           return extensions.every(ext => typeof ext === 'string' && ext.startsWith('.'));
         }

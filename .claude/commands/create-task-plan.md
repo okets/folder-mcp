@@ -77,6 +77,27 @@ Since the configuration system drives ALL functionality:
 **Complexity**: [High/Medium/Low based on scope size]  
 **Approach**: [Brief strategy for this task]
 
+## 🚨 **EXECUTION REQUIREMENTS**
+
+**⚠️ CRITICAL: This task plan MUST be executed using the `/execute-prp` command.**
+
+```bash
+/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-[X]-Task-[Y]-[name].md
+```
+
+**❌ PROHIBITED**: Direct implementation without execute-prp
+- Bypasses architectural validation
+- Skips DI enforcement checks  
+- Avoids progress tracking
+- Violates established workflow
+
+**✅ MANDATORY WORKFLOW**:
+1. Task plan created with `/create-task-plan [phase] [task]`
+2. Task executed with `/execute-prp [task-plan-file]`
+3. All assignments validated through execute-prp
+4. Progress tracking maintained automatically
+5. Only commit after execute-prp completion
+
 ## 🎯 **Task Objective**
 
 [EXACT GOAL FROM ROADMAP TASK]

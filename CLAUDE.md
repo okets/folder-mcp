@@ -22,6 +22,12 @@ npm run test:performance # Run performance tests
 npm run test:coverage  # Generate coverage report
 ```
 
+**Configuration Testing:**
+```bash
+npm run test:unit -- tests/config/        # Run configuration unit tests
+npm run test:integration -- tests/integration/config/  # Run configuration integration tests
+```
+
 **MCP Server Usage:**
 ```bash
 node dist/mcp-server.js <folder-path>  # Start MCP server with folder path
@@ -67,13 +73,45 @@ Key files:
 
 ### Configuration System
 
-The project uses a centralized YAML configuration (`config.yaml`) with:
-- Embedding models (Nomic, MixedBread AI, etc.)
-- Cache settings, processing parameters
-- Development mode options (hot reload, debugging)
-- VSCode MCP integration settings
+The project uses a comprehensive hierarchical configuration system with multiple sources and validation:
 
-Configuration is resolved through `src/config/resolver.ts` which handles environment-specific overrides.
+**Configuration Hierarchy (highest priority wins):**
+1. **Defaults** (Priority 0) - Smart defaults embedded in code
+2. **System Config** (Priority 1) - `/etc/folder-mcp/config.yaml` (optional)
+3. **User Config** (Priority 2) - `~/.folder-mcp/config.yaml`
+4. **Environment Variables** (Priority 4) - `FOLDER_MCP_*` variables
+5. **Runtime** (Priority 5) - CLI flags and programmatic changes
+
+**Key Features:**
+- YAML configuration files with flat structure
+- Comprehensive environment variable support (`FOLDER_MCP_*`)
+- Configuration validation with helpful error messages
+- Configuration source tracking
+- Hot reload capabilities
+- CLI management commands (`folder-mcp config`)
+
+**Essential Environment Variables:**
+- `FOLDER_MCP_MODEL_NAME` - Embedding model name
+- `FOLDER_MCP_BATCH_SIZE` - Processing batch size
+- `FOLDER_MCP_DEVELOPMENT_ENABLED` - Enable development mode
+- `ENABLE_ENHANCED_MCP_FEATURES` - Legacy development mode (still supported)
+
+**Configuration Management:**
+```bash
+folder-mcp config get modelName           # Get configuration value
+folder-mcp config set batchSize 64        # Set configuration value
+folder-mcp config show --sources          # Show configuration hierarchy
+folder-mcp config validate               # Validate configuration
+folder-mcp config env list               # List environment variables
+```
+
+**Core Implementation:**
+- `src/config/manager-refactored.ts` - Main configuration manager with hierarchy support
+- `src/config/interfaces.ts` - Configuration interfaces and tokens
+- `src/config/di-setup.ts` - Dependency injection setup for configuration services
+- `src/interfaces/cli/commands/config.ts` - CLI configuration management commands
+
+See `docs/configuration.md` for complete configuration documentation.
 
 ## MCP Protocol Implementation
 
@@ -115,11 +153,13 @@ Configuration is resolved through `src/config/resolver.ts` which handles environ
 
 ## Development Mode Features
 
-Enable with `ENABLE_ENHANCED_MCP_FEATURES=true`:
+Enable with `FOLDER_MCP_DEVELOPMENT_ENABLED=true` or legacy `ENABLE_ENHANCED_MCP_FEATURES=true`:
 - Hot reload on file changes
 - Enhanced debugging output
 - Real-time file system monitoring
 - Development-specific MCP endpoints
+- Configuration hot reload
+- Enhanced error reporting
 
 ## Key Integration Points
 

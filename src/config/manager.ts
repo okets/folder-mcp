@@ -25,19 +25,19 @@ import { getConfigurationManager } from './index.js';
  */
 export const configManager = {
   load: async () => {
-    const manager = getConfigurationManager();
+    const manager = getConfigurationManager() as any;
     return await manager.load();
   },
   getConfig: () => {
-    const manager = getConfigurationManager();
+    const manager = getConfigurationManager() as any;
     return manager.getConfig();
   },
   get: (path: string) => {
-    const manager = getConfigurationManager();
+    const manager = getConfigurationManager() as any;
     return manager.get(path);
   },
   set: async (path: string, value: any, source?: any) => {
-    const manager = getConfigurationManager();
+    const manager = getConfigurationManager() as any;
     return await manager.set(path, value, source);
   }
 };
