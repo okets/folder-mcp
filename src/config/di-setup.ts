@@ -14,7 +14,7 @@ import { ConfigurationWatcher } from './watcher.js';
 import { enhancedValidator } from './validation/enhanced.js';
 import { ConfigurationRegistry } from './registry.js';
 import { HotReloadManager } from './hot-reload.js';
-import { ConfigurationManager } from './manager-refactored.js';
+import { ConfigurationManager } from './manager.js';
 import { SmartDefaultsGenerator } from './defaults/smart.js';
 import { homedir } from 'os';
 import { join } from 'path';

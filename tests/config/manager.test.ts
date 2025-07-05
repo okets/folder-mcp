@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConfigurationManager, ConfigPriority } from '../../src/config/manager-refactored.js';
+import { ConfigurationManager, ConfigPriority } from '../../src/config/manager.js';
 import { DependencyContainer } from '../../src/di/container.js';
 import { registerConfigurationServices } from '../../src/config/di-setup.js';
 import { CONFIG_TOKENS } from '../../src/config/interfaces.js';

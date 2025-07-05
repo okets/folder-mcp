@@ -1,29 +1,90 @@
 /**
- * Extended Configuration Factory
+ * Configuration Factory
  * 
- * Extends the base ConfigFactory with additional functionality needed
- * by the ConfigurationManager for loading from files and enhanced merging
+ * Provides configuration creation and management functionality
  */
 
 import { readFile } from 'fs/promises';
 import { load as loadYaml } from 'js-yaml';
-import { ConfigFactory } from './factory.js';
-import { LocalConfig, ResolvedConfig as BaseResolvedConfig } from './schema.js';
+import { LocalConfig, ResolvedConfig as BaseResolvedConfig, CLIArgs } from './schema.js';
 import { ExtendedResolvedConfig } from './types.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 import { smartDefaults } from './defaults/smart.js';
+import { IConfigFactory } from './interfaces.js';
 
 const logger = createConsoleLogger('warn');
 
 /**
+ * Base configuration factory with static methods
+ */
+export class ConfigFactory {
+  /**
+   * Create a local configuration with defaults
+   */
+  static createLocalConfig(overrides: Partial<LocalConfig> = {}): LocalConfig {
+    const defaults: LocalConfig = {
+      chunkSize: 1000,
+      overlap: 10,
+      batchSize: 32,
+      maxWorkers: 4,
+      timeoutMs: 30000,
+      maxConcurrentOperations: 14,
+      fileExtensions: ['.txt', '.md', '.pdf', '.docx'],
+      ignorePatterns: ['node_modules/**', '.git/**', '*.tmp'],
+      debounceDelay: 1000,
+      userChoices: {},
+      version: '1.0.0',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      development: {
+        enableDebugOutput: false,
+        mockOllamaApi: false,
+        skipGpuDetection: false
+      }
+    };
+
+    return { ...defaults, ...overrides };
+  }
+
+  /**
+   * Create a resolved configuration
+   */
+  static createResolvedConfig(
+    folderPath: string,
+    localConfig: Partial<LocalConfig>,
+    cliArgs: Partial<CLIArgs> = {}
+  ): BaseResolvedConfig {
+    const fullLocalConfig = ConfigFactory.createLocalConfig(localConfig);
+    
+    return {
+      ...fullLocalConfig,
+      folderPath,
+      ...cliArgs
+    } as BaseResolvedConfig;
+  }
+
+  /**
+   * Create runtime configuration  
+   */
+  static createRuntimeConfig(resolvedConfig: BaseResolvedConfig, toolVersion: string): any {
+    return {
+      ...resolvedConfig,
+      toolVersion,
+      runtimeVersion: process.version,
+      platform: process.platform
+    };
+  }
+}
+
+/**
  * Extended configuration factory with file loading and enhanced merging
  */
-export class ExtendedConfigFactory extends ConfigFactory {
+export class ExtendedConfigFactory extends ConfigFactory implements IConfigFactory {
   
   /**
    * Create default configuration
    */
-  createDefault(): Partial<LocalConfig> {
+  createDefault(): LocalConfig {
     // Get static defaults first
     const staticDefaults = ConfigFactory.createLocalConfig();
     

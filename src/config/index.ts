@@ -11,7 +11,7 @@ import { CONFIG_TOKENS } from './interfaces.js';
 export * from './schema.js';
 export * from './types.js';
 export * from './interfaces.js';
-export { ConfigPriority, ConfigManagerOptions } from './manager-refactored.js';
+export { ConfigPriority, ConfigManagerOptions } from './manager.js';
 export { ProfileConfig } from './profiles.js';
 export { ConfigOption } from './registry.js';
 export { ValidationReport, ValidationResult } from './validation/enhanced.js';
