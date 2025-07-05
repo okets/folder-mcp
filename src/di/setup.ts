@@ -11,6 +11,8 @@ import { SERVICE_TOKENS, MODULE_TOKENS, ILoggingService } from './interfaces.js'
 import { ResolvedConfig, resolveConfig } from '../config/resolver.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
+import { CONFIG_TOKENS } from '../config/interfaces.js';
+import { registerConfigurationServices, createConfigurationServiceAdapter } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
 import { 
@@ -56,9 +58,13 @@ export function setupDependencyInjection(options: {
     return new NodePathProvider();
   });
 
-  // Register configuration service as singleton
+  // Register all configuration services
+  registerConfigurationServices(container);
+  
+  // Register configuration service adapter for backward compatibility
   container.registerSingleton(SERVICE_TOKENS.CONFIGURATION, () => {
-    return serviceFactory.createConfigurationService();
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
+    return createConfigurationServiceAdapter(configManager);
   });
 
   // Register file parsing service as singleton

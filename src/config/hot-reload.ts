@@ -8,7 +8,7 @@
 
 import { EventEmitter } from 'events';
 import { ConfigChangeEvent } from './manager.js';
-import { configRegistry } from './registry.js';
+import { IConfigRegistry } from './interfaces.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 
 const logger = createConsoleLogger('warn');
@@ -58,7 +58,7 @@ export class HotReloadManager extends EventEmitter {
   private reloadInProgress: boolean = false;
   private pendingReloads: Set<string> = new Set();
 
-  constructor() {
+  constructor(private configRegistry?: IConfigRegistry) {
     super();
     this.registerBuiltInStrategies();
   }
@@ -162,9 +162,9 @@ export class HotReloadManager extends EventEmitter {
         if (strategy.requiresRestart) {
           requiresRestartPaths.push(path);
         }
-      } else {
+      } else if (this.configRegistry) {
         // Check if this option requires restart from registry
-        const option = configRegistry.get(path);
+        const option = this.configRegistry.get(path);
         if (option?.requiresRestart) {
           requiresRestartPaths.push(path);
         }
@@ -343,17 +343,5 @@ export class HotReloadManager extends EventEmitter {
   }
 }
 
-/**
- * Singleton instance
- */
-export const hotReloadManager = new HotReloadManager();
-
-/**
- * Development mode helper
- */
-export function enableHotReloadInDevelopment(): void {
-  if (process.env.NODE_ENV === 'development' || process.env.ENABLE_HOT_RELOAD === 'true') {
-    hotReloadManager.enable();
-    logger.info('Hot reload enabled for development mode');
-  }
-}
+// Note: Singleton instance removed - use DI container instead
+// The enableHotReloadInDevelopment function is now in index.ts

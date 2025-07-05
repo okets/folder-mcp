@@ -5,9 +5,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { 
   ConfigurationRegistry, 
-  ConfigOption,
-  configRegistry 
+  ConfigOption
 } from '../../src/config/registry.js';
+import { getConfigRegistry } from '../../src/config/index.js';
+import { setupForTesting } from '../../src/di/setup.js';
 
 describe('ConfigurationRegistry', () => {
   let registry: ConfigurationRegistry;
@@ -223,13 +224,16 @@ describe('ConfigurationRegistry', () => {
     });
   });
 
-  describe('singleton instance', () => {
-    it('should provide a singleton instance', () => {
-      expect(configRegistry).toBeDefined();
-      expect(configRegistry).toBeInstanceOf(ConfigurationRegistry);
+  describe('DI integration', () => {
+    it('should provide registry via DI container', () => {
+      setupForTesting();
+      const registry = getConfigRegistry();
+      
+      expect(registry).toBeDefined();
+      expect(registry).toBeInstanceOf(ConfigurationRegistry);
       
       // Should have built-in options
-      const chunkSize = configRegistry.get('processing.chunkSize');
+      const chunkSize = registry.get('processing.chunkSize');
       expect(chunkSize).toBeDefined();
     });
   });

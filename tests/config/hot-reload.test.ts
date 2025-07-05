@@ -5,11 +5,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { 
   HotReloadManager, 
-  ReloadStrategy,
-  hotReloadManager,
-  enableHotReloadInDevelopment
+  ReloadStrategy
 } from '../../src/config/hot-reload.js';
 import { ConfigChangeEvent } from '../../src/config/manager.js';
+import { enableHotReloadInDevelopment, getHotReloadManager } from '../../src/config/index.js';
+import { setupForTesting } from '../../src/di/setup.js';
 
 describe('HotReloadManager', () => {
   let manager: HotReloadManager;
@@ -348,6 +348,11 @@ describe('HotReloadManager', () => {
 
   describe('enableHotReloadInDevelopment', () => {
     const originalEnv = process.env;
+    let container: any;
+
+    beforeEach(() => {
+      container = setupForTesting();
+    });
 
     afterEach(() => {
       process.env = originalEnv;
@@ -356,36 +361,34 @@ describe('HotReloadManager', () => {
     it('should enable in development mode', () => {
       process.env = { ...originalEnv, NODE_ENV: 'development' };
       
-      const manager = new HotReloadManager();
-      const enableSpy = vi.spyOn(manager, 'enable');
-      
-      // Mock the singleton
-      vi.spyOn(hotReloadManager, 'enable');
+      const hotReloadManager = getHotReloadManager();
+      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
       
       enableHotReloadInDevelopment();
       
-      expect(hotReloadManager.enable).toHaveBeenCalled();
+      expect(enableSpy).toHaveBeenCalled();
     });
 
     it('should enable with ENABLE_HOT_RELOAD flag', () => {
       process.env = { ...originalEnv, ENABLE_HOT_RELOAD: 'true' };
       
-      vi.spyOn(hotReloadManager, 'enable');
+      const hotReloadManager = getHotReloadManager();
+      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
       
       enableHotReloadInDevelopment();
       
-      expect(hotReloadManager.enable).toHaveBeenCalled();
+      expect(enableSpy).toHaveBeenCalled();
     });
 
     it('should not enable in production', () => {
       process.env = { ...originalEnv, NODE_ENV: 'production' };
       
-      const manager = new HotReloadManager();
-      vi.spyOn(manager, 'enable');
+      const hotReloadManager = getHotReloadManager();
+      const enableSpy = vi.spyOn(hotReloadManager, 'enable');
       
       enableHotReloadInDevelopment();
       
-      expect(manager.enable).not.toHaveBeenCalled();
+      expect(enableSpy).not.toHaveBeenCalled();
     });
   });
 });

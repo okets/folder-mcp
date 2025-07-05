@@ -527,7 +527,5 @@ export class ConfigurationRegistry {
   }
 }
 
-/**
- * Singleton instance
- */
-export const configRegistry = new ConfigurationRegistry();
+// Note: Singleton instance removed - use DI container instead
+// Access via getConfigRegistry() from index.ts
