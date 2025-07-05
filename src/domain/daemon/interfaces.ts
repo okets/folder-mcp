@@ -81,6 +81,10 @@ export interface HealthStatus {
 export interface PerformanceMetrics {
   /** Timestamp of metrics collection */
   timestamp: Date;
+  /** Process uptime in milliseconds */
+  uptime: number;
+  /** CPU usage percentage */
+  cpu: number;
   /** Memory usage in bytes */
   memory: {
     rss: number;
@@ -88,26 +92,35 @@ export interface PerformanceMetrics {
     heapTotal: number;
     external: number;
   };
-  /** CPU usage percentage */
-  cpu: {
-    user: number;
-    system: number;
-    total: number;
-  };
-  /** System load averages */
-  load: {
-    load1: number;
-    load5: number;
-    load15: number;
-  };
-  /** Disk usage if enabled */
-  disk?: {
+  /** Disk usage */
+  disk: {
     used: number;
     free: number;
     total: number;
   };
+  /** Number of running processes */
+  processCount: number;
   /** Custom metrics */
-  custom: Record<string, number>;
+  customMetrics: Record<string, number>;
+  /** Collection information */
+  collectionInfo: {
+    lastCollection: Date | null;
+    totalCollections: number;
+    monitoringActive: boolean;
+    intervalMs: number;
+  };
+}
+
+/**
+ * Individual metric record
+ */
+export interface MetricRecord {
+  /** Timestamp of the measurement */
+  timestamp: Date;
+  /** Metric value */
+  value: number;
+  /** Type of metric */
+  type: string;
 }
 
 /**
@@ -244,12 +257,12 @@ export interface ISignalHandler {
   /**
    * Handle graceful shutdown signal
    */
-  handleShutdown(): Promise<void>;
+  handleShutdown(signal: string): Promise<void>;
 
   /**
    * Handle configuration reload signal
    */
-  handleReload(): Promise<void>;
+  handleReload(signal: string): Promise<void>;
 
   /**
    * Unregister all signal handlers
@@ -257,9 +270,9 @@ export interface ISignalHandler {
   unregisterHandlers(): void;
 
   /**
-   * Get registered signal information
+   * Check if shutdown is in progress
    */
-  getRegisteredSignals(): SignalInfo[];
+  isShuttingDown(): boolean;
 }
 
 /**
@@ -287,9 +300,9 @@ export interface IPerformanceMonitor {
   recordMetric(name: string, value: number): void;
 
   /**
-   * Get historical metrics
+   * Get historical metrics for a specific metric
    */
-  getHistoricalMetrics(duration: number): PerformanceMetrics[];
+  getHistoricalMetrics(metricName: string, limit?: number): MetricRecord[];
 
   /**
    * Check if monitoring is active

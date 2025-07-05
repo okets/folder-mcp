@@ -73,7 +73,7 @@ export interface DaemonConfig {
   /** Graceful shutdown timeout in milliseconds */
   shutdownTimeout?: number;
   /** Signal to use for graceful shutdown (Unix only) */
-  shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT';
+  shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT' | 'SIGUSR2';
   /** Signal to use for configuration reload (Unix only) */
   reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
 }

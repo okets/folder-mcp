@@ -41,7 +41,7 @@ const mockSignalHandler = {
   handleShutdown: vi.fn(),
   handleReload: vi.fn(),
   unregisterHandlers: vi.fn(),
-  getRegisteredSignals: vi.fn()
+  isShuttingDown: vi.fn(() => false)
 };
 
 const mockPerformanceMonitor = {
