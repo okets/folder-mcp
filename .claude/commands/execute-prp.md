@@ -1,6 +1,6 @@
 # execute-prp
 
-Execute a PRP (Problem-Resolution Plan) with proper DI enforcement, validation, and progress tracking.
+Execute a PRP (Problem-Resolution Plan) with proper DI enforcement, validation, and progress tracking. Intelligently handles both fresh starts and partial task continuation.
 
 ## Usage
 
@@ -15,11 +15,116 @@ Example:
 
 ## What this command does
 
-1. **Loads the PRP** from the specified file
-2. **Enforces architectural requirements** (DI, module boundaries)
-3. **Validates after each step** (TypeScript, tests, DI patterns)
-4. **Tracks progress** and updates the plan
-5. **Summarizes for human verification** (never marks complete)
+1. **Analyzes current task state** (fresh, partial, or complete)
+2. **Loads the PRP** from the specified file
+3. **Determines resume point** based on completed assignments
+4. **Enforces architectural requirements** (DI, module boundaries)
+5. **Validates after each step** (TypeScript, tests, DI patterns)
+6. **Tracks progress** and updates the plan
+7. **Summarizes for human verification** (never marks complete)
+
+## State Detection and Resume Logic
+
+### Task State Analysis
+
+When loading a PRP, the command performs intelligent state detection:
+
+1. **Parse Assignment Status**
+   ```markdown
+   - [x] Assignment 1: ✅ COMPLETED (Old Method)
+   - [x] Assignment 2: ✅ COMPLETED (Old Method)  
+   - [ ] Assignment 3: ⚠️ PARTIAL (Env loader incomplete)
+   - [ ] Assignment 4: Not Started
+   ```
+
+2. **Check Git Status**
+   ```bash
+   git status --porcelain
+   # Detect uncommitted changes that might indicate work in progress
+   ```
+
+3. **Correlate File Changes**
+   ```bash
+   git diff --name-only
+   # Match changed files against current assignment's expected file paths
+   ```
+
+### Resume Strategies
+
+#### **Fresh Start** (All assignments unchecked)
+```
+🚀 Starting fresh implementation of [Task Name]
+
+📋 Assignments to complete:
+- Assignment 1: [Description]
+- Assignment 2: [Description]
+- ...
+
+Beginning with Assignment 1...
+```
+
+#### **Partial Completion** (Some assignments checked)
+```
+📊 Task Analysis: [Task Name]
+
+✅ COMPLETED:
+- Assignment 1: [Description]
+- Assignment 2: [Description]
+
+⚠️ PARTIAL:
+- Assignment 3: [Description] (Sub-task 3.2 incomplete)
+
+🔄 REMAINING:
+- Assignment 4: [Description]
+- Assignment 5: [Description]
+
+🎯 RESUME POINT: Assignment 3.2 - [Sub-task Description]
+
+Continue with Assignment 3.2? (y/n)
+```
+
+#### **Work In Progress** (Uncommitted changes detected)
+```
+🔄 Resuming interrupted work on [Task Name]
+
+📁 Uncommitted Changes Detected:
+src/application/config/EnhancedValidator.ts
+src/application/config/ErrorFormatter.ts
+tests/unit/config/validation/enhanced-validator.test.ts
+
+🔨 Build Status:
+ERROR in src/application/config/ErrorFormatter.ts:45:3
+';' expected.
+
+📍 Current Assignment: Assignment 4 - Configuration Validation
+📍 Current Sub-task: 4.2 Create error formatter
+
+⏭️ Next Steps:
+1. [ ] Fix syntax error at ErrorFormatter.ts:45
+2. [ ] Complete sub-task 4.2: Create error formatter
+3. [ ] Run tests: npm test -- tests/unit/config/validation
+4. [ ] Mark assignment complete with ✅
+5. [ ] Commit: git commit -m "Task [X].[Y]: Assignment 4 validation system completed"
+
+Continue fixing the syntax error? (y/n)
+```
+
+#### **Task Complete** (All assignments checked)
+```
+✅ Task [Name] appears to be COMPLETE
+
+All assignments marked as completed:
+- Assignment 1: ✅ COMPLETED
+- Assignment 2: ✅ COMPLETED
+- ...
+
+🔍 Verification Check:
+- Build status: [Run npm run build]
+- Test status: [Run npm test]
+- Git status: [Check for uncommitted work]
+
+Run final verification? (y/n)
+```
 
 ## Execution Guidelines
 
@@ -199,22 +304,112 @@ After completing each assignment:
 
 ## Implementation Workflow
 
-1. **Load PRP**
+1. **Analyze and Load PRP**
    ```javascript
    const prp = await readFile($ARGUMENTS.planFile);
-   const assignments = extractAssignments(prp);
+   const taskState = analyzeTaskState(prp);
+   const resumePoint = determineResumePoint(taskState);
    ```
 
-2. **Execute Each Assignment**
+2. **Smart Resume Logic**
+   - **Fresh Start**: Begin with Assignment 1
+   - **Partial Completion**: Resume from first incomplete assignment
+   - **Work In Progress**: Continue current assignment from interruption point
+   - **Already Complete**: Run verification checks
+
+3. **Execute Remaining Assignments**
    - Check prerequisites
    - Implement following DI patterns
-   - Run validation suite
-   - Update progress
+   - Run validation suite after each sub-task
+   - Update progress in real-time
 
-3. **Never Auto-Complete**
+4. **Never Auto-Complete**
    - Summarize what was done
    - Provide verification commands
    - Wait for human confirmation
+
+## State Detection Implementation
+
+### Assignment Status Parsing
+```javascript
+function parseAssignmentStatus(prp) {
+  const assignments = [];
+  const lines = prp.split('\n');
+  
+  for (const line of lines) {
+    if (line.match(/^- \[(x| )\] Assignment \d+:/)) {
+      const isComplete = line.includes('[x]');
+      const assignmentNumber = line.match(/Assignment (\d+):/)[1];
+      const description = line.split(': ')[1];
+      
+      assignments.push({
+        number: parseInt(assignmentNumber),
+        description,
+        completed: isComplete,
+        partial: line.includes('⚠️ PARTIAL')
+      });
+    }
+  }
+  
+  return assignments;
+}
+```
+
+### Git State Analysis
+```javascript
+function analyzeGitState() {
+  const status = execSync('git status --porcelain').toString();
+  const uncommittedFiles = status.split('\n').filter(Boolean);
+  
+  const lastCommit = execSync('git log -1 --pretty=format:"%s"').toString();
+  const taskPattern = /Task \d+\.\d+: Assignment \d+ .* completed/;
+  
+  return {
+    hasUncommittedChanges: uncommittedFiles.length > 0,
+    uncommittedFiles,
+    lastCommitWasTaskCompletion: taskPattern.test(lastCommit)
+  };
+}
+```
+
+### Resume Point Determination
+```javascript
+function determineResumePoint(assignments, gitState) {
+  const completedCount = assignments.filter(a => a.completed).length;
+  const partialAssignment = assignments.find(a => a.partial);
+  const firstIncomplete = assignments.find(a => !a.completed);
+  
+  if (completedCount === assignments.length) {
+    return { type: 'COMPLETE', message: 'All assignments marked complete' };
+  }
+  
+  if (gitState.hasUncommittedChanges) {
+    return { 
+      type: 'IN_PROGRESS', 
+      assignment: partialAssignment || firstIncomplete,
+      uncommittedFiles: gitState.uncommittedFiles
+    };
+  }
+  
+  if (partialAssignment) {
+    return {
+      type: 'PARTIAL',
+      assignment: partialAssignment,
+      resumeMessage: `Resume from incomplete sub-tasks in Assignment ${partialAssignment.number}`
+    };
+  }
+  
+  if (firstIncomplete) {
+    return {
+      type: 'CONTINUE',
+      assignment: firstIncomplete,
+      resumeMessage: `Continue with Assignment ${firstIncomplete.number}`
+    };
+  }
+  
+  return { type: 'FRESH_START', assignment: assignments[0] };
+}
+```
 
 ## Error Handling
 
@@ -233,28 +428,99 @@ The command succeeds when:
 - ✅ DI patterns followed
 - ✅ Human verification complete
 
-## Example Execution
+## Example Executions
 
+### Fresh Start Example
 ```bash
 /execute-prp docs/development-plan/roadmap/Phase-6-Task-1-Configuration-System.md
 
 # Output:
-Executing Phase 6 Task 1: Configuration System Foundation
-Assignment 1/5: Review and Extend Existing Configuration
-  ✓ TypeScript build clean
-  ✓ DI pattern check passed
-  ✓ Tests passing
-  Progress: 20% complete
+🚀 Starting fresh implementation of Configuration System Foundation
 
-Assignment 2/5: Implement Configuration Manager
-  ✓ Interface created: IConfigurationManager
-  ✓ Implementation uses DI
-  ✓ Registered in container
-  ✓ Tests added: 5 passing
-  Progress: 40% complete
+📋 Assignments to complete:
+- Assignment 1: Review and Plan Configuration Extension
+- Assignment 2: Implement Configuration Manager Core
+- Assignment 3: Implement Configuration Loaders
+- Assignment 4: Implement Configuration Validation
+- Assignment 5: Implement Configuration Profiles
 
-[... continues for all assignments ...]
+Beginning with Assignment 1...
+```
 
-EXECUTION COMPLETE - AWAITING HUMAN VERIFICATION
-See summary above for review checklist.
+### Partial Completion Example (Current Scenario)
+```bash
+/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-6-Task-1-Configuration-System-Foundation.md
+
+# Output:
+📊 Task Analysis: Configuration System Foundation
+
+✅ COMPLETED (Old Method):
+- Assignment 1: Review and Plan Configuration Extension
+- Assignment 2: Implement Configuration Manager Core
+- Assignment 4: Implement Configuration Validation
+- Assignment 5: Implement Configuration Profiles
+- Assignment 6: Implement Hot Reload System
+- Assignment 7: Implement Smart Defaults System
+
+⚠️ PARTIAL:
+- Assignment 3: Implement Configuration Loaders (Environment loader incomplete)
+
+🔄 REMAINING:
+- Assignment 8: Create Configuration CLI Commands
+- Assignment 9: Integration Testing and Documentation
+
+🎯 RESUME POINT: Assignment 3.3 - Implement environment variable loader
+
+Continue with Assignment 3.3? (y/n)
+```
+
+### Work In Progress Example
+```bash
+/execute-prp docs/development-plan/roadmap/Phase-6-Task-1-Configuration-System.md
+
+# Output:
+🔄 Resuming interrupted work on Configuration System Foundation
+
+📁 Uncommitted Changes Detected:
+src/application/config/EnhancedValidator.ts
+src/application/config/ErrorFormatter.ts
+tests/unit/config/validation/enhanced-validator.test.ts
+
+🔨 Build Status:
+ERROR in src/application/config/ErrorFormatter.ts:45:3
+';' expected.
+
+📍 Current Assignment: Assignment 4 - Configuration Validation
+📍 Current Sub-task: 4.2 Create error formatter
+
+⏭️ Next Steps:
+1. [ ] Fix syntax error at ErrorFormatter.ts:45
+2. [ ] Complete sub-task 4.2: Create error formatter
+3. [ ] Run tests: npm test -- tests/unit/config/validation
+4. [ ] Mark assignment complete with ✅
+5. [ ] Commit: git commit -m "Task 6.1: Assignment 4 validation system completed"
+
+Continue fixing the syntax error? (y/n)
+```
+
+### Already Complete Example
+```bash
+/execute-prp docs/development-plan/roadmap/Phase-6-Task-1-Configuration-System.md
+
+# Output:
+✅ Task Configuration System Foundation appears to be COMPLETE
+
+All assignments marked as completed:
+- Assignment 1: ✅ COMPLETED
+- Assignment 2: ✅ COMPLETED
+- Assignment 3: ✅ COMPLETED
+- Assignment 4: ✅ COMPLETED
+- Assignment 5: ✅ COMPLETED
+
+🔍 Verification Check:
+- Build status: [Running npm run build...]
+- Test status: [Running npm test...]
+- Git status: Clean working directory
+
+Task appears complete. Run final verification? (y/n)
 ```
