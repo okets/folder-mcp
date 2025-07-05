@@ -23,6 +23,7 @@ import { createConsoleLogger } from '../infrastructure/logging/logger.js';
 import { homedir } from 'os';
 import { join } from 'path';
 import { configRegistry } from './registry.js';
+import { hotReloadManager } from './hot-reload.js';
 
 const logger = createConsoleLogger('warn');
 
@@ -79,6 +80,7 @@ export interface ConfigManagerOptions {
   profilesEnabled?: boolean;
   systemConfigPath?: string;
   userConfigPath?: string;
+  hotReloadEnabled?: boolean;
 }
 
 /**
@@ -108,7 +110,8 @@ export class ConfigurationManager extends EventEmitter {
       watchEnabled: options.watchEnabled ?? false,
       profilesEnabled: options.profilesEnabled ?? true,
       systemConfigPath: options.systemConfigPath ?? this.getSystemConfigPath(),
-      userConfigPath: options.userConfigPath ?? this.getUserConfigPath()
+      userConfigPath: options.userConfigPath ?? this.getUserConfigPath(),
+      hotReloadEnabled: options.hotReloadEnabled ?? false
     };
   }
 
@@ -263,12 +266,19 @@ export class ConfigurationManager extends EventEmitter {
     await this.load();
 
     // Emit change event
-    this.emit('configChanged', {
+    const changeEvent: ConfigChangeEvent = {
       previousConfig,
       newConfig: this.mergedConfig!,
       changedPaths: [path],
       source
-    } as ConfigChangeEvent);
+    };
+    
+    this.emit('configChanged', changeEvent);
+    
+    // Trigger hot reload if enabled
+    if (this.options.hotReloadEnabled) {
+      await hotReloadManager.handleConfigChange(changeEvent);
+    }
   }
 
   /**
@@ -527,12 +537,19 @@ export class ConfigurationManager extends EventEmitter {
         await this.load();
         
         // Emit change event
-        this.emit('configChanged', {
+        const changeEvent: ConfigChangeEvent = {
           previousConfig,
           newConfig: this.mergedConfig!,
           changedPaths: ['*'], // We don't know exactly what changed
           source: 'file-watch'
-        } as ConfigChangeEvent);
+        };
+        
+        this.emit('configChanged', changeEvent);
+        
+        // Trigger hot reload if enabled
+        if (this.options.hotReloadEnabled) {
+          await hotReloadManager.handleConfigChange(changeEvent);
+        }
       } catch (error) {
         logger.error('Failed to reload configuration after file change:', error as Error);
         this.emit('error', error);
@@ -555,6 +572,45 @@ export class ConfigurationManager extends EventEmitter {
     }
     
     logger.info('Configuration watching disabled');
+  }
+
+  /**
+   * Enable hot reload
+   */
+  enableHotReload(): void {
+    this.options.hotReloadEnabled = true;
+    hotReloadManager.enable();
+    logger.info('Hot reload enabled');
+  }
+
+  /**
+   * Disable hot reload
+   */
+  disableHotReload(): void {
+    this.options.hotReloadEnabled = false;
+    hotReloadManager.disable();
+    logger.info('Hot reload disabled');
+  }
+
+  /**
+   * Check if hot reload is enabled
+   */
+  isHotReloadEnabled(): boolean {
+    return this.options.hotReloadEnabled && hotReloadManager.isEnabled();
+  }
+
+  /**
+   * Register a component for hot reload
+   */
+  registerHotReloadComponent(name: string, callback: (config: any) => Promise<void>): void {
+    hotReloadManager.registerComponent(name, callback);
+  }
+
+  /**
+   * Get hot reload statistics
+   */
+  getHotReloadStats() {
+    return hotReloadManager.getStats();
   }
 }
 
