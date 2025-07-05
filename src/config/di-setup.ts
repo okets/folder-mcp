@@ -6,7 +6,7 @@
 
 import { IDependencyContainer } from '../di/interfaces.js';
 import { CONFIG_TOKENS } from './interfaces.js';
-import { ExtendedConfigFactory } from './factory-extended.js';
+import { ExtendedConfigFactory } from './factory.js';
 import { RuntimeConfigCache } from './cache-wrapper.js';
 import { ProfileManager } from './profiles.js';
 import { SystemConfigLoader } from './loaders/system.js';

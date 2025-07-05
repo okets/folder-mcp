@@ -3,39 +3,62 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { ConfigurationManager, ConfigPriority } from '../../src/config/manager.js';
+import { ConfigurationManager, ConfigPriority } from '../../src/config/manager-refactored.js';
+import { DependencyContainer } from '../../src/di/container.js';
+import { registerConfigurationServices } from '../../src/config/di-setup.js';
+import { CONFIG_TOKENS } from '../../src/config/interfaces.js';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 describe('ConfigurationManager', () => {
   let manager: ConfigurationManager;
+  let container: DependencyContainer;
   let tempDir: string;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
+    // Save original environment
+    originalEnv = { ...process.env };
+    
+    // Clear FOLDER_MCP_* environment variables
+    for (const key in process.env) {
+      if (key.startsWith('FOLDER_MCP_')) {
+        delete process.env[key];
+      }
+    }
+
     // Create temp directory for test configs
-    tempDir = join(tmpdir(), `config-test-${Date.now()}`);
+    tempDir = join(tmpdir(), `config-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     await fs.mkdir(tempDir, { recursive: true });
 
-    // Create manager using DI pattern (mock for tests)
-    manager = new (ConfigurationManager as any)(
-      {} as any, // factory
-      {} as any, // cache
-      {} as any, // profileManager
-      {} as any, // systemConfigLoader
-      () => ({} as any), // configWatcherFactory
-      {} as any, // validator
-      {} as any, // registry
-      {} as any, // hotReloadManager
+    // Setup DI container
+    container = new DependencyContainer();
+    registerConfigurationServices(container);
+    
+    // Get the manager and override the config paths for testing
+    manager = new ConfigurationManager(
+      container.resolve(CONFIG_TOKENS.CONFIG_FACTORY),
+      container.resolve(CONFIG_TOKENS.CONFIG_CACHE),
+      container.resolve(CONFIG_TOKENS.PROFILE_MANAGER),
+      container.resolve(CONFIG_TOKENS.SYSTEM_CONFIG_LOADER),
+      () => container.resolve(CONFIG_TOKENS.CONFIG_WATCHER),
+      container.resolve(CONFIG_TOKENS.CONFIG_VALIDATOR),
+      container.resolve(CONFIG_TOKENS.CONFIG_REGISTRY),
+      container.resolve(CONFIG_TOKENS.HOT_RELOAD_MANAGER),
       {
         systemConfigPath: join(tempDir, 'system.yaml'),
         userConfigPath: join(tempDir, 'user.yaml'),
-        cacheEnabled: false
+        cacheEnabled: false,
+        watchEnabled: false
       }
     );
   });
 
   afterEach(async () => {
+    // Restore environment
+    process.env = originalEnv;
+    
     // Cleanup temp directory
     await fs.rm(tempDir, { recursive: true, force: true });
   });

@@ -320,19 +320,19 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
    */
   private async loadSystemConfig(): Promise<void> {
     try {
-      const { config: systemConfig, path } = await this.systemConfigLoader.load();
+      const systemConfig = await this.factory.loadFromFile(this.options.systemConfigPath);
       
       if (systemConfig) {
         this.sources.set('system', {
           source: 'system',
           priority: ConfigPriority.SYSTEM,
-          ...(path && { path }),
+          path: this.options.systemConfigPath,
           data: systemConfig,
           loadedAt: new Date()
         });
-        logger.info(`Loaded system configuration from: ${path}`);
+        logger.info(`Loaded system configuration from: ${this.options.systemConfigPath}`);
       } else {
-        logger.debug('No system configuration found in platform-specific paths');
+        logger.debug('No system configuration found at: ' + this.options.systemConfigPath);
       }
     } catch (error) {
       // System config is optional, so we just log and continue
@@ -406,10 +406,11 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
     // Process all FOLDER_MCP_* environment variables
     for (const [key, value] of Object.entries(process.env)) {
       if (key.startsWith(prefix) && value !== undefined) {
-        const flatKey = this.envKeyToFlatKey(key.substring(prefix.length));
+        const envKeyWithoutPrefix = key.substring(prefix.length);
         const parsedValue = this.parseEnvValue(value);
         
-        // Map to flat structure that matches current schema
+        // Try flat mapping first (for backward compatibility)
+        const flatKey = this.envKeyToFlatKey(envKeyWithoutPrefix);
         if (flatKey) {
           if (flatKey.startsWith('development.')) {
             // Handle nested development settings
@@ -420,6 +421,12 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
             (envConfig.development as any)[devKey] = parsedValue;
           } else {
             (envConfig as any)[flatKey] = parsedValue;
+          }
+        } else {
+          // If no flat mapping, use nested path mapping
+          const nestedPath = this.envKeyToConfigPath(envKeyWithoutPrefix);
+          if (nestedPath) {
+            this.setNestedValue(envConfig, nestedPath, parsedValue);
           }
         }
       }
@@ -607,12 +614,50 @@ export class ConfigurationManager extends EventEmitter implements IConfiguration
     let merged = {} as any;
 
     for (const source of sortedSources) {
-      merged = this.factory.merge(merged, source.data);
+      merged = this.deepMerge(merged, source.data);
     }
 
     // Convert to ExtendedResolvedConfig
     const resolved = await this.factory.resolve(merged);
+    
+    // Preserve nested properties that may have been stripped by factory.resolve()
+    const nestedProperties = ['folders', 'embeddings', 'server', 'transport', 'performance', 'feature'];
+    for (const prop of nestedProperties) {
+      if (merged[prop] && !(resolved as any)[prop]) {
+        (resolved as any)[prop] = merged[prop];
+      }
+    }
+    
     return resolved as ExtendedResolvedConfig;
+  }
+
+  /**
+   * Deep merge two configuration objects
+   */
+  private deepMerge(target: any, source: any): any {
+    if (!source) return target;
+    if (!target) return source;
+
+    const result = { ...target };
+
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        if (this.isObject(source[key]) && this.isObject(target[key])) {
+          result[key] = this.deepMerge(target[key], source[key]);
+        } else {
+          result[key] = source[key];
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Check if value is a plain object
+   */
+  private isObject(value: any): boolean {
+    return value && typeof value === 'object' && !Array.isArray(value);
   }
 
   /**

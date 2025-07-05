@@ -202,5 +202,5 @@ export class LayoutService {
     }
 }
 
-// Export singleton instance
-export const layoutService = new LayoutService();
+// LayoutService should be instantiated through DI container
+// Use: const layoutService = useDI().resolve(ServiceTokens.LAYOUT_SERVICE);
