@@ -8,288 +8,310 @@ Create a detailed, context-aware implementation plan for a specific task.
 /create-task-plan <phase-number> <task-number>
 ```
 
-Example:
-```
-/create-task-plan 6 1
-/create-task-plan 6 2
-/create-task-plan 7 8
-```
+## EXACT Implementation Instructions
 
-## What this command does
+When this command is executed, you MUST:
 
-1. **Extracts specific task** from the phase in roadmap
-2. **Gathers all context** including dependencies and related info
-3. **Creates actionable plan** with implementation assignments
-4. **Includes validation** specific to the task
+1. **Read the roadmap file**:
+   - File: `docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md`
+   - Find `## Phase <phase-number>:`
+   - Within that phase, find `### Task <task-number>:`
+   - Extract ALL content for that specific task
 
-## Implementation
+2. **Extract these EXACT elements from the task**:
+   - Task name from the heading
+   - **Goal** statement
+   - **Scope** items (all bullet points)
+   - **Implementation Details** (if present)
+   - **Configuration** examples (if present)
+   - **Completion Criteria** (all checkboxes)
+   - **Testing** requirements
 
-When executed, this command will:
+3. **Gather context from**:
+   - Phase-level user stories that relate to this task
+   - Configuration principles from the phase
+   - Any code examples in the task section
+   - Dependencies mentioned in scope
 
-### 1. Extract Task Context
-```javascript
-const roadmap = await readFile('docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md');
-const phase = extractPhase(roadmap, $ARGUMENTS.phaseNumber);
-const task = phase.tasks[$ARGUMENTS.taskNumber - 1];
-const taskName = task.name;
-const taskScope = task.scope;
-const completionCriteria = task.completionCriteria;
-```
+4. **Generate the output file**:
+   - Location: `docs/development-plan/roadmap/currently-implementing/Phase-{phase}-Task-{number}-{name-kebab}.md`
+   - Break scope into logical assignments (3-5 assignments per task)
+   - Each assignment should be independently implementable
 
-### 2. Generate Task Plan
+## Assignment Generation Rules
 
-Create file in: `docs/development-plan/roadmap/Phase-{phase}-Task-{number}-{name}.md`
+### For Configuration Tasks:
+1. Schema/Interface definition
+2. Implementation with validation
+3. Integration with existing systems
+4. Testing and documentation
+
+### For Service/Manager Tasks:
+1. Interface definition (domain layer)
+2. Implementation with DI
+3. DI container registration
+4. Unit tests with mocks
+5. Integration tests
+
+### For CLI/TUI Tasks:
+1. Command structure setup
+2. Core functionality implementation
+3. Configuration integration
+4. User feedback/validation
+5. Testing
+
+### CRITICAL: Configuration System Planning
+Since the configuration system drives ALL functionality:
+- **ALWAYS** include configuration schema changes in relevant tasks
+- **ALWAYS** define how the feature will be configuration-driven
+- **ALWAYS** plan configuration validation and defaults
+
+## Required Output Format
 
 ```markdown
-# Task [Phase].[Number]: [Task Name]
+# Task [PHASE].[NUMBER]: [EXACT TASK NAME FROM ROADMAP]
 
-**Phase**: [X] - [Phase Name]  
+**Phase**: [PHASE NUMBER] - [PHASE NAME]  
 **Status**: 🚧 IN PROGRESS  
-**Created**: [Current Date]  
-**Complexity**: [Auto-determined from scope]  
+**Created**: [TODAY'S DATE]  
+**Complexity**: [High/Medium/Low based on scope size]  
+**Approach**: [Brief strategy for this task]
 
 ## 🎯 **Task Objective**
 
-[Goal from roadmap task]
+[EXACT GOAL FROM ROADMAP TASK]
+
+## 🔍 **Pre-Implementation Checklist**
+
+- [ ] Review existing code in: [LIST RELEVANT DIRECTORIES]
+- [ ] Identify reusable components: [LIST EXPECTED COMPONENTS]
+- [ ] Check for similar patterns in: [LIST REFERENCE FILES]
+- [ ] Consider platform differences: [Windows/Unix/Cross-platform]
+- [ ] Review related tests: [LIST TEST DIRECTORIES]
 
 ## 📋 **Scope**
 
-[All scope items from roadmap task, formatted as checklist]
-- [ ] [Scope item 1]
-- [ ] [Scope item 2]
-- [ ] [Scope item 3]
+[CONVERT ALL SCOPE BULLETS TO CHECKBOXES]
+- [ ] [Scope item 1 from roadmap]
+- [ ] [Scope item 2 from roadmap]
+- [ ] [Continue for all scope items]
 
-## 📚 **MUST READ - Essential Project Context**
+## 📚 **Essential Project Context**
 
-### From Roadmap Phase 0 - Current State
-[Extract relevant "What We Have Now" items that this task builds upon]
-- **[Relevant System]**: [Current capability this extends]
-- **[Related Feature]**: [How it works now]
-
-### Core Project Documentation
-- **Project Goal**: [From roadmap - how this task contributes]
-- **Architecture**: [Relevant architecture section from roadmap]
-- **Success Metrics**: [Related metrics this impacts]
+### From Completed Work
+[REFERENCE RELEVANT COMPLETED PHASES/TASKS]
+- Phase 1-5: MCP endpoints, file processing, TUI framework  
+- Current capabilities: 9 MCP endpoints, FAISS search, Ollama embeddings
 
 ### Critical Files to Understand
-1. `src/[existing-file].ts` - **why**: [Current implementation to extend/modify]
-2. `src/[another-file].ts` - **why**: [Integration point or pattern to follow]
-3. `tests/[test-file].test.ts` - **why**: [Testing patterns in use]
-4. `[completed-phase-doc].md` - **why**: [Lessons learned or patterns established]
+[LIST RELEVANT FILES BASED ON TASK SCOPE]
 
 ## 🔗 **Dependencies & Related Work**
 
 ### Prerequisite Tasks
-- **Phase [X] Task [Y]**: [What was implemented] - See `Phase-X-Task-Y-[name].md`
-  - Key outcome: [What this provided that we need]
-  - Integration point: [How this task connects]
-
-### Current System Dependencies
-- **[Component/System]**: Located at `src/[path]`
-  - Current responsibility: [What it does]
-  - How this task affects it: [Changes needed]
+[LIST PREVIOUS TASKS IN THIS PHASE IF TASK NUMBER > 1]
 
 ### Task Sequence
-- **Previous Task**: [What was just completed] - [What it provided]
-- **This Task**: [Current focus] - [What it adds]
-- **Next Task**: [What comes after] - [What this enables for it]
-
-### Future Dependencies
-- **Enables Phase [X]**: [What future work this unblocks]
-- **Required by**: [Future features that depend on this]
+- **Previous**: [Task X-1 name] - [What it provided]
+- **Current**: [This task name] - [What it adds]
+- **Next**: [Task X+1 name] - [What it will need]
 
 ## 📍 **Context from Roadmap**
 
-### User Stories (Related)
-[User stories that this task addresses]
+### Related User Stories
+[COPY RELEVANT USER STORIES FROM PHASE]
 
-### Configuration Integration (if applicable)
-```yaml
-# Relevant configuration section this task affects
-[Configuration snippet from roadmap]
-```
+### Configuration System Design
+[REQUIRED FOR ALL TASKS - Define how this feature will be configuration-driven]
+- **Config Schema**: What configuration options will this feature expose?
+- **Default Values**: What are sensible defaults that work out-of-box?
+- **Validation Rules**: What validation is needed for config values?
+- **Code Updates**: What existing code needs updating to use the new config?
 
-### Technical Constraints
-- [Any constraints mentioned in roadmap]
-- [Performance requirements]
-- [Compatibility needs]
-
-## 🚨 **Safety Framework**
-
-### **Task Backup**
-```powershell
-# Create task-specific branch
-git checkout -b task/phase-[X]-[task-number]-[task-name-kebab]
-git add -A && git commit -m "Starting Task [X].[N]: [Task Name]"
-```
-
-### **Validation Commands**
-```powershell
-# Run after each assignment
-npm run build && npm test
-git add -A && git commit -m "Task [X].[N]: [Current step] completed"
-```
+### Implementation Details
+[COPY ANY CODE EXAMPLES OR IMPLEMENTATION NOTES FROM TASK]
 
 ## 🔧 **Implementation Assignments**
 
-### Assignment 1: [First Logical Step]
-**Goal**: [What this assignment accomplishes]
+[GENERATE 5-10 ASSIGNMENTS BASED ON SCOPE - MORE GRANULAR THAN BEFORE]
 
-**Steps**:
-1. [ ] [Specific action with file path]
+### Assignment 1: [FIRST LOGICAL STEP BASED ON SCOPE]
+**Goal**: [What this accomplishes from scope]
+**Estimated Time**: [X hours]
+
+#### Sub-tasks:
+1. [ ] **1.1 [First sub-task]**
    ```typescript
-   // In src/[specific-file].ts
+   // In src/[path]/[file].ts
    [Code structure to implement]
    ```
-
-2. [ ] [Next specific action]
-   - File: `src/[path]/[file].ts`
-   - Action: [What to do]
-   - Note: [Any special consideration]
-
-3. [ ] [Validation step]
-   ```bash
-   npm test -- tests/unit/[specific-test]
-   # Expected: [What should happen]
+   
+2. [ ] **1.2 [Second sub-task]**
+   - Platform considerations: [Windows/Unix specifics if any]
+   - Related files: [List files that need updates]
+   
+3. [ ] **1.3 [Test creation]**
+   ```typescript
+   // In tests/unit/[module]/[test].test.ts
+   describe('[Feature]', () => {
+     test('should [behavior]', () => {
+       // Test implementation
+     });
+   });
    ```
 
+**Validation**:
+```bash
+npm run build && npm test -- tests/unit/[module]
+# Expected: Build succeeds, tests pass
+
+# Platform-specific validation if needed:
+# Windows: [specific command]
+# Unix: [specific command]
+```
+
+**Implementation Notes**:
+- [Key decisions to make during implementation]
+- [Potential gotchas or edge cases]
+- [Performance considerations]
+
 **Completion Criteria**:
-- [ ] Code compiles without errors
-- [ ] Specific test passes
-- [ ] [Other criteria]
+- [ ] All sub-tasks complete
+- [ ] Tests pass on all platforms
+- [ ] No TypeScript errors
+- [ ] [Other specific criteria from scope]
 
 ---
 
-### Assignment 2: [Next Logical Step]
-**Goal**: [What this accomplishes]
-
-[Continue pattern...]
-
----
-
-### Assignment 3: [Integration/Polish Step]
-**Goal**: [Final integration and validation]
-
-[Final steps...]
+[CONTINUE WITH MORE GRANULAR ASSIGNMENTS]
 
 ## ✅ **Task Completion Criteria**
 
 From roadmap:
-[All completion criteria as checkboxes]
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
-- [ ] [Criterion 3]
+[COPY ALL COMPLETION CRITERIA AS CHECKBOXES]
 
 Additional requirements:
 - [ ] All assignments completed
 - [ ] All tests passing
-- [ ] No TypeScript errors
-- [ ] Proper DI patterns used
-- [ ] Documentation updated (if needed)
+- [ ] Documentation updated
 
 ## 🧪 **Testing Requirements**
 
-### New Tests to Add
-```typescript
-// tests/unit/[feature]/[test-name].test.ts
-describe('[Feature]', () => {
-  test('[specific behavior]', () => {
-    // Test implementation
-  });
-});
-```
+### Unit Tests
+[LIST SPECIFIC TEST FILES TO CREATE/UPDATE]
+- Configuration validation tests
+- Feature functionality tests
+- Edge case handling tests
 
-### Existing Tests to Update
-- [ ] [Test file] - [What to update]
+### Integration Tests
+[REQUIRED - How does this integrate with the configuration system?]
+- Configuration loading and parsing
+- Feature behavior with different configs
 
-### Manual Testing
-1. [Manual test scenario 1]
-2. [Manual test scenario 2]
+### Manual E2E Testing
+[DETAILED USER SCENARIOS]
+- User configures the feature via YAML
+- User uses environment variables to override
+- User validates feature behavior changes with config
+- User troubleshoots with help endpoint
+
+### Configuration Test Cases
+- **Default Config**: Feature works with zero configuration
+- **Custom Config**: Feature respects all configuration options
+- **Invalid Config**: Proper error messages for invalid values
 
 ## 📊 **Progress Tracking**
 
 ### Assignment Status
-- [ ] Assignment 1: [Name] - Not Started
-- [ ] Assignment 2: [Name] - Not Started  
-- [ ] Assignment 3: [Name] - Not Started
+[LIST ALL ASSIGNMENTS WITH SUB-TASKS AS NESTED CHECKBOXES]
 
 ### Time Tracking
-| Assignment | Estimated | Actual | Notes |
-|------------|-----------|--------|-------|
-| Setup | 30m | - | - |
-| Assignment 1 | 2h | - | - |
-| Assignment 2 | 3h | - | - |
-| Assignment 3 | 1h | - | - |
-| **Total** | **6.5h** | **-** | **-** |
+| Assignment | Estimated | Actual | Status | Notes |
+|------------|-----------|--------|--------|-------|
+[CREATE ROW FOR EACH ASSIGNMENT WITH STATUS: Not Started/In Progress/Complete/Blocked]
+
+### Implementation Discoveries
+[THIS SECTION GETS UPDATED AS WORK PROGRESSES]
+- **Key Findings**: [Document what was discovered during implementation]
+- **Decisions Made**: [Record important implementation decisions]
+- **Changes from Plan**: [Note any deviations from original plan and why]
+- **Reusable Patterns**: [Document patterns that could be used elsewhere]
+
+### Platform-Specific Notes
+[TRACK PLATFORM-SPECIFIC ISSUES AND SOLUTIONS]
+- **Windows**: [Issues/solutions specific to Windows]
+- **macOS**: [Issues/solutions specific to macOS]
+- **Linux**: [Issues/solutions specific to Linux]
 
 ## 🔍 **Quick Reference**
 
-### Key Files
-- Main implementation: `src/[primary-file].ts`
-- Tests: `tests/unit/[test-file].test.ts`
-- Config (if applicable): `src/config/[config-file].ts`
-
 ### Key Commands
 ```bash
-# Build
-npm run build
-
-# Test specific feature
-npm test -- tests/unit/[feature]
-
-# Run in dev mode
-npm run dev
-
-# Check everything
+# Build and test
 npm run build && npm test
+
+# Run specific tests
+npm test -- tests/unit/[feature]
 ```
 
 ### Common Issues
-- **TypeScript errors**: Check `tsconfig.json` settings
-- **Test failures**: Ensure following project patterns
-- **Build issues**: Clear `dist/` and rebuild
-
-## 📝 **Notes Section**
-
-[Space for implementation notes as you work]
+- **Build errors**: Check imports and types
+- **Test failures**: Verify test setup and mocks
 
 ---
 
-## 📝 **Notes Section**
-
-[Space for implementation notes as you work]
-
----
-
-**To execute this plan with proper validation and DI enforcement:**
+**To execute this plan:**
 ```
-/execute-prp docs/development-plan/roadmap/Phase-X-Task-Y-[name].md
+/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-[X]-Task-[Y]-[name].md
 ```
 ```
 
-### 3. Intelligent Assignment Generation
+## 📝 **Living Document Note**
 
-The command will:
-- Break down scope items into logical implementation steps
-- **ENFORCE DI PATTERN** in every service creation
-- Order assignments by dependency
-- Include interface definition before implementation
-- Ensure each assignment is independently testable
-- Include specific file paths following module structure
-- Add DI container registration for every service
-- Include DI validation commands in each assignment
+**IMPORTANT**: This task plan is a LIVING DOCUMENT that should be updated throughout implementation:
+- Update assignment status as work progresses (Not Started → In Progress → Complete)
+- Document discoveries and decisions in the Implementation Discoveries section
+- Add platform-specific notes as issues are encountered
+- Update time tracking with actual hours spent
+- If assignments need to be broken down further, add sub-tasks as needed
+- Mark completed items with ✅ and include completion date
 
-**Every assignment creating a service will include:**
-1. Interface definition (domain layer)
-2. Implementation with constructor DI (application/infrastructure)
-3. DI container registration
-4. Unit tests using mocked dependencies
-5. Validation commands to verify DI pattern
+When marking an assignment complete, consider adding:
+- What was actually implemented (if different from plan)
+- Key code snippets showing the solution
+- Any patterns that emerged
+- Links to relevant commits
 
-### 4. Output Summary
+## CRITICAL EXTRACTION RULES
 
-After generation, display:
-- Task name and number
-- Number of assignments generated
-- Estimated time (based on scope)
-- First assignment to start with
+1. **Exact Task Content**: Extract the COMPLETE task section from roadmap
+2. **Scope Preservation**: Keep ALL scope items, don't summarize
+3. **Code Examples**: Include any code snippets from the task
+4. **Assignment Logic**: Break scope into implementable chunks
+5. **Context Focus**: Include what to build, not how to build it
+6. **Configuration First**: ALWAYS plan how the feature will be configuration-driven
+7. **Test Planning**: Include comprehensive test scenarios for both automated and manual testing
+
+## Example: Phase 6, Task 2 Should Extract
+
+From roadmap section "### Task 2: Basic Daemon Architecture":
+- Goal: "Create configuration-driven daemon..."
+- Scope items about daemon, configuration, health checks, etc.
+- Configuration YAML example
+- Completion criteria checkboxes
+
+Then generate assignments like:
+1. Core Daemon Class Structure
+2. Process Manager Implementation  
+3. Health Monitor Implementation
+4. Signal Handler Implementation
+5. CLI Integration
+
+## Validation
+
+After generating, verify:
+- [ ] All scope items are covered by assignments
+- [ ] Each assignment is actionable and clear
+- [ ] Testing is included in each assignment
+- [ ] File paths are specific and correct
+- [ ] Completion criteria match roadmap exactly

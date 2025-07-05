@@ -101,6 +101,38 @@ After completing each assignment:
    git commit -m "Task [X].[Y]: [Assignment description] completed"
    ```
 
+### 📝 **Living Document Updates**
+
+**After EACH assignment completion:**
+
+1. **Update Assignment Status**:
+   ```markdown
+   ### Assignment 1: [Name] ✅ COMPLETED
+   **Completion Date**: [DATE]
+   **Actual Time**: [X hours]
+   ```
+
+2. **Document Discoveries**:
+   ```markdown
+   ### Implementation Discoveries
+   - **Key Findings**: 
+     - Found existing ValidationService can be extended
+     - Windows paths require special handling for %ProgramData%
+   - **Decisions Made**:
+     - Chose to extend rather than replace existing config system
+     - Used chokidar for file watching due to cross-platform support
+   - **Changes from Plan**:
+     - Added sub-task 1.4 for platform-specific path resolution
+   ```
+
+3. **Add Code Snippets** (if helpful):
+   ```typescript
+   // Actual implementation that worked well
+   export class ConfigurationManager {
+     // Show key implementation details
+   }
+   ```
+
 ### 👤 **Human Verification Process**
 
 **After ALL assignments complete:**
@@ -124,6 +156,10 @@ After completing each assignment:
    **Key Decisions:**
    - Used singleton lifecycle for ConfigurationManager
    - Implemented async loading pattern
+   
+   **Platform-Specific Handling:**
+   - Windows: Added %ProgramData% path resolution
+   - Unix: Added /etc path permission checking
    ```
 
 2. **Human Verification Checklist:**
@@ -136,13 +172,13 @@ After completing each assignment:
    npm test
    # All tests must pass
    
-   # DI Architecture Review
-   npm run check:di
-   # No violations outside DI container
+   # Architecture Tests (if available)
+   npm run test:architectural
+   # Validates DI patterns and boundaries
    
-   # Circular Dependencies
-   npm run check:circular
-   # No circular dependencies
+   # Manual DI Pattern Check
+   grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
+   # Should only show instances in DI container or factories
    
    # Manual Review
    - [ ] Check src/di/container.ts for all registrations

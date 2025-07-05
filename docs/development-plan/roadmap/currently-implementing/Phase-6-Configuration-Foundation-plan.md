@@ -1,34 +1,50 @@
-# Configuration Foundation & CLI/TUI Parity Implementation Plan
+# Phase 6: Configuration Foundation & CLI/TUI Parity Implementation Plan
 
-## 🎯 **Project Overview**
+**Status**: 📋 PLANNED  
+**Start Date**: 2025-07-05  
+**Target Completion**: ~2-3 weeks  
 
-**Project**: Configuration Foundation & CLI/TUI Parity  
-**Phase**: 6  
-**Status**: 📋 **PLANNED**  
-**Goal**: Establish configuration as the core architectural principle driving all folder-mcp functionality, with complete feature parity between CLI and TUI interfaces.
+## 🎯 **Phase Overview**
 
-**Core Philosophy**: Configuration drives flexibility throughout the system. Every aspect of folder-mcp is configurable, with smart defaults that work out-of-the-box while enabling deep customization for power users.
+**Goal**: Establish configuration system as the foundation for all features, then achieve identical functionality between CLI and TUI interfaces
 
-**Implementation Strategy**: 
+### **User Stories**
+- **As a user, I want sensible defaults**: System works without any configuration
+- **As a user, I want to customize behavior**: Easy configuration for common needs
+- **As a power user, I want full control**: Every aspect configurable
+- **As a user, I want to add a folder to be shared**: `folder-mcp add ~/Documents`
+- **As a user, I want to see all shared folders**: `folder-mcp list`
+- **As a user, I want to check configuration**: `folder-mcp config get`
+
+### **Success Criteria**
+- Configuration system drives all functionality
+- Users can manage entire system via configuration
+- CLI and TUI provide identical capabilities
+- Smart defaults with deep customization
+- Transport strategy locked in: stdio + SSE only
+- Foundation ready for feature development
+
+## 🏗️ **Implementation Strategy**
+
+### **Core Philosophy**
+Configuration drives flexibility throughout the system. Every aspect of folder-mcp is configurable, with smart defaults that work out-of-the-box while enabling deep customization for power users.
+
+### **Implementation Approach**
 - **Incremental Approach**: Build core configuration system first, then layer on features
 - **Testing Early**: Build testing framework alongside implementation, not after
 - **Schema-First Design**: Define complete configuration schema upfront to avoid breaking changes
 - **Reuse Existing**: Review and extend existing configuration code at `src/config/`
+- **Platform Awareness**: Consider Windows/Unix differences from the start
 
----
+### **Why This Order?**
+The tasks have been carefully ordered to optimize development flow:
 
-## 📋 **Implementation Order Rationale**
-
-The tasks have been reordered from the original plan to optimize development flow:
-
-1. **Pre-Implementation Review**: Understand existing configuration code to avoid reinventing the wheel
-2. **Core System (Task 1)**: Foundation that everything else builds upon
-3. **Schema (Task 2)**: Define the complete configuration structure upfront
-4. **Testing Foundation (Task 3)**: Enable test-driven development for remaining tasks
-5. **Environment Variables (Task 4)**: Fundamental integration needed early
-6. **CLI/TUI (Tasks 5-6)**: User interfaces built on solid foundation
-7. **Transport (Task 7)**: Configuration-driven transport selection
-8. **Validation & Polish (Tasks 8-11)**: Ensure quality and completeness
+1. **Configuration System Foundation** must come first as it's the architectural foundation everything else depends on
+2. **Basic Daemon Architecture** builds on configuration to manage the server lifecycle
+3. **Extend MCP Server** leverages configuration for multi-folder support
+4. **CLI Commands** expose configuration management to users
+5. **TUI Interface** mirrors CLI functionality for consistency
+6. **Parity Validation** ensures both interfaces deliver identical capabilities
 
 This order ensures:
 - We build on existing code rather than starting from scratch
@@ -36,659 +52,449 @@ This order ensures:
 - User-facing features have a solid foundation
 - Complex features come after basics are proven
 
----
+## 📚 **MUST READ - Essential Project Context**
 
-## 🔧 **Safety Framework**
+### Project Goal
+Create a configuration-driven daemon-based system that manages multiple MCP servers for shared folders, with TUI/CLI interfaces, intelligent model selection, and 13 LLM-optimized endpoints including enhanced search with answer modes, topic discovery, context assembly, code examples, relationship navigation, and comprehensive help - all designed for optimal LLM consumption patterns.
 
-### **Pre-Implementation Backup**
-```powershell
-# Create a safety backup before starting Phase 6
-git checkout -b phase6-config-foundation-backup
-git add -A && git commit -m "Backup: Phase 6 Configuration Foundation starting point"
-git push origin phase6-config-foundation-backup
+### Architecture Overview
+```
+┌─────────────────────────────────────────────────────────┐
+│                   User Interfaces                        │
+├───────────────────────────┬─────────────────────────────┤
+│           CLI             │            TUI              │
+│      (headless)           │       (interactive)         │
+│                           │                             │
+│   folder-mcp add ~/docs   │    ┌─┐ Management Console  │
+│   folder-mcp config set   │    │ │ - Add/remove folders │
+│   folder-mcp status       │    │ │ - View status        │
+│   folder-mcp tunnel       │    │ │ - Configure settings │
+│                           │    └─┘ - Real-time updates  │
+└───────────────────────────┴─────────────────────────────┘
+                            │
+                    ┌───────▼────────┐
+                    │ Configuration  │
+                    │    Manager     │
+                    └───────┬────────┘
+                            │
+                       ┌────▼────┐
+                       │ Daemon  │ ← Driven by Config
+                       │ Process │    (~/.folder-mcp/)
+                       └────┬────┘
+                            │ Manages
+                            ▼
+                    ┌───────────────┐
+                    │   MCP Server  │ ← Multi-folder
+                    └───────┬───────┘    stdio (local)
+```
 
-# Create working branch
-git checkout -b phase6-config-foundation
+### Key Concepts & Terminology
+
+**Configuration Manager**  
+The central component that loads, validates, merges, and provides configuration to all other components. It handles the configuration hierarchy, environment variable expansion, live reloading, and validation. The Configuration Manager is the first component initialized and drives the behavior of all other components.
+
+**Daemon**  
+A configuration-aware background process that runs continuously and manages the lifecycle of a single multi-folder MCP server. The daemon's behavior is entirely driven by configuration, including auto-start behavior, health check intervals, and restart policies.
+
+**MCP Server**  
+A single process that serves multiple folders via the Model Context Protocol. The MCP server's capabilities, performance characteristics, and behavior are determined by configuration. It dynamically loads folder-specific configurations and adjusts its behavior accordingly.
+
+### Development Philosophy
+
+**Core Principle**: Every feature is designed from the user experience first, then implemented to support that experience, with configuration enabling different user preferences.
+
+### Success Metrics
+1. **Configuration Coverage**: 100% of features configurable
+2. **Zero-Config Success**: 90% of users succeed with defaults
+3. **Performance Impact**: <5% overhead from configuration system
+4. **Power User Satisfaction**: Advanced users have needed control
+
+## 📍 **Current System State**
+
+### What We Have (Foundation)
+✅ **Comprehensive MCP Server**: Advanced v2.0 endpoint system (redesigned December 2024)  
+✅ **9 Production MCP Endpoints**: Complete document intelligence API  
+✅ **Claude Desktop Integration**: Fully working with 277 tests passing  
+✅ **Simple Transport Architecture**: MCP via stdio (local)  
+✅ **Real Integration Testing**: Comprehensive test suite with actual business documents  
+✅ **File Processing Pipeline**: PDF, DOCX, XLSX, PPTX, TXT, MD with embeddings  
+✅ **FAISS Vector Search**: Semantic search with Ollama GPU acceleration  
+✅ **Document Chunking**: Smart chunking with overlap for context preservation  
+✅ **Rich Metadata System**: Location info, content snippets, structured responses  
+✅ **Advanced TUI Framework**: Ink-based components (BorderedBox, NavigationBar, etc.)  
+✅ **Existing Configuration**: Basic config system with TypeScript types, validation, factory pattern
+
+### What This Phase Adds
+❌ **Configuration System**: Comprehensive configuration architecture driving all features  
+❌ **Daemon Process**: Configuration-aware background service managing single multi-folder MCP server  
+❌ **Multi-Folder MCP Server**: Extend current server to handle multiple folders via configuration  
+❌ **Admin TUI**: Configuration-driven management interface  
+❌ **CLI/TUI Parity**: Identical functionality with configuration at the core
+
+## 🚨 **Safety Framework**
+
+### **Backup Strategy**
+```bash
+# Create backup branch before starting Phase 6
+git checkout -b backup/pre-phase-6
+git add -A
+git commit -m "Backup before Phase 6: Configuration Foundation & CLI/TUI Parity"
+
+# Create phase branch  
+git checkout -b phase-6-implementation
 ```
 
 ### **Rollback Plan**
-```powershell
-# If critical issues arise, rollback to backup
-git checkout main
-git reset --hard phase6-config-foundation-backup
+```bash
+# If major issues arise, return to backup
+git checkout backup/pre-phase-6
+git checkout -b phase-6-retry
 ```
 
----
+## 🔍 **Pre-Implementation Review**
 
-## 🎯 **Implementation Tasks**
+### **What to Review**
+- Existing configuration code at `src/config/` - understand current capabilities
+- Configuration interfaces and types - identify extension points
+- Current validation and schema systems - plan enhancements
+- Factory pattern implementation - determine reusability
+- Environment variable handling - assess limitations
+- Test coverage for configuration - identify gaps
 
-### **Pre-Implementation: Review Existing Configuration**
+### **Expected Findings**
+Based on the codebase structure:
+- Strong existing foundation with TypeScript types and validation
+- Multi-layered config system (global → local → CLI) to extend
+- Limited environment variable support (only 2 vars currently)
+- No hot-reload or profile support yet
+- Good schema validation that can be enhanced
+- Factory pattern that can be leveraged
 
-**[✅ COMPLETED]**
+## 📋 **Phase Tasks Overview**
 
-- [x] Review existing configuration code at `src/config/`
-- [x] Document current configuration capabilities
-- [x] Identify reusable components
-- [x] Plan integration with new comprehensive system
+Total Tasks: 6
+Estimated Duration: ~2-3 weeks
 
-**Key Findings:**
-- Strong existing foundation with TypeScript types, validation, and factory pattern
-- Multi-layered config system (global → local → CLI)
-- Excellent schema validation and error messages
-- Limited environment variable support (only 2 vars)
-- No hot-reload, profiles, or systematic env mapping
+| Task # | Task Name | Complexity | Status | Command |
+|--------|-----------|------------|--------|---------|
+| 1 | Configuration System Foundation | High | ⏳ | `/create-task-plan 6 1` |
+| 2 | Basic Daemon Architecture | Medium | ⏳ | `/create-task-plan 6 2` |
+| 3 | Extend MCP Server for Multiple Folders | Medium | ⏳ | `/create-task-plan 6 3` |
+| 4 | Configuration-Aware CLI Commands | Medium | ⏳ | `/create-task-plan 6 4` |
+| 5 | Configuration-Driven TUI | Medium | ⏳ | `/create-task-plan 6 5` |
+| 6 | CLI/TUI Parity Validation | Low | ⏳ | `/create-task-plan 6 6` |
 
-### **Task 1: Core Configuration System Architecture**
+### **Task Order Rationale**
+1. **Task 1 (Configuration System)**: Foundation that everything else builds upon - must establish configuration hierarchy, validation, and loading before any other component can use it
+2. **Task 2 (Daemon Architecture)**: Uses configuration system from Task 1 to drive all daemon behavior - can't be configuration-driven without Task 1
+3. **Task 3 (Multi-Folder MCP)**: Extends existing server using configuration for folder management - needs daemon from Task 2 to manage its lifecycle
+4. **Task 4 (CLI Commands)**: Exposes configuration management to users - needs working configuration system and daemon to interact with
+5. **Task 5 (TUI Interface)**: Mirrors CLI functionality for consistency - builds on CLI commands to ensure parity
+6. **Task 6 (Parity Validation)**: Final validation that both interfaces work identically - can only validate after both are complete
 
-**[✅ COMPLETED - Implementation Breakdown]**
+## 🔗 **Dependencies & Related Work**
 
-#### **1.1 Extend Configuration Manager** ✅
-- [x] Create `src/config/manager.ts` as the central configuration orchestrator
-- [x] Extend existing `ConfigFactory` to support new configuration sources
-- [x] Add configuration source priority enum: `DEFAULT < SYSTEM < USER < ENV < RUNTIME`
-- [x] Implement configuration source tracking for debugging
+### Prerequisite Phases
+- **Phase 1-5**: Foundation with 9 working MCP endpoints, file processing, embeddings, and Claude Desktop integration
+- **Completed Components**: MCP server, file processing pipeline, FAISS search, TUI framework
+- **Existing Configuration**: Basic config system to review and extend
 
-**Implementation:**
-```typescript
-// src/config/manager.ts
-export class ConfigurationManager {
-  private sources: Map<ConfigSource, Partial<Config>>;
-  private merged: ResolvedConfig;
-  private watchers: Set<ConfigWatcher>;
-  
-  async load(): Promise<ResolvedConfig> {
-    // Load from all sources in priority order
-    const defaults = await this.loadDefaults();
-    const system = await this.loadSystemConfig();
-    const user = await this.loadUserConfig();
-    const env = await this.loadEnvConfig();
-    const runtime = await this.loadRuntimeConfig();
-    
-    // Merge using existing ConfigFactory
-    return this.factory.merge(defaults, system, user, env, runtime);
-  }
-}
-```
+### Inter-Task Dependencies
+- **Task 1**: Creates configuration system that all other tasks depend on
+- **Task 2**: Uses configuration system to manage daemon lifecycle
+- **Task 3**: Extends MCP server using configuration for multi-folder support
+- **Task 4**: CLI commands use configuration manager from Task 1
+- **Task 5**: TUI uses configuration system and depends on CLI commands for parity
+- **Task 6**: Validates that Tasks 4 and 5 achieved functional parity
 
-#### **1.2 Add System Configuration Support** ✅
-- [x] Create system config loader in `src/config/loaders/system.ts`
-- [x] Check `/etc/folder-mcp/config.yaml` on Unix systems
-- [x] Check `%ProgramData%\folder-mcp\config.yaml` on Windows
-- [x] Add permission handling for system directories
-- [x] Gracefully handle missing system config
+### Future Dependencies
+- **Phase 7**: Enhanced features will build on configuration foundation
+- **Phase 8**: Remote access will use configuration for authentication and transport
+- **Phase 9**: Advanced features will be configuration-driven
+- **All future development**: Every new feature must be configuration-aware
 
-#### **1.3 Implement Configuration Profiles** ✅
-- [x] Create `src/config/profiles.ts` for profile management
-- [x] Add profile selection logic (development, staging, production)
-- [x] Support `--profile` CLI argument
-- [x] Allow `FOLDER_MCP_PROFILE` environment variable
-- [x] Merge profile-specific overrides
+### External Dependencies
+- **Ollama**: For embeddings (existing)
+- **FAISS**: For vector search (existing)
+- **Express.js**: For SSE server (Phase 8)
+- **Cloudflare**: For tunnels (Phase 8)
 
-**Profile Structure:**
-```yaml
-# ~/.folder-mcp/profiles/development.yaml
-profile: development
-embeddings:
-  backend: "direct"  # Faster for development
-  batchSize: 8      # Smaller batches for debugging
-logging:
-  level: "debug"
-  verbose: true
-```
+## 🎯 **Implementation Order**
 
-#### **1.4 Create Configuration Watcher** ✅
-- [x] Implement `src/config/watcher.ts` using chokidar
-- [x] Watch configuration files for changes
-- [x] Debounce rapid changes (500ms)
-- [x] Emit configuration change events
-- [x] Support selective reload (only changed sections)
-- [x] Add `--watch-config` flag for development
+### Sequential Execution Plan:
+1. **Configuration System Foundation**: Create the core configuration infrastructure with hierarchy, validation, profiles, and hot-reload
+2. **Basic Daemon Architecture**: Build daemon that reads and respects configuration for all behavior
+3. **Extend MCP Server for Multiple Folders**: Modify existing server to be multi-folder aware using configuration
+4. **Configuration-Aware CLI Commands**: Add configuration management commands to CLI
+5. **Configuration-Driven TUI**: Create TUI that mirrors CLI functionality
+6. **CLI/TUI Parity Validation**: Verify both interfaces provide identical capabilities
 
-#### **1.5 Enhance Configuration Validation** ✅
-- [x] Extend existing validation in `src/config/schema.ts`
-- [x] Add cross-field validation support
-- [x] Implement warning-level validations (non-breaking)
-- [x] Create validation context with helpful suggestions
-- [x] Add async validation for external resources
+### Task Dependencies:
+- Task order defines dependencies (Task 2 depends on Task 1, etc.)
+- Each task assumes all previous tasks are complete
+- No parallel execution - pure linear progress
+- Clear handoff points between tasks
+- Measurable progress: X/6 tasks = Y% complete
 
-#### **1.6 Implement Smart Defaults** ✅
-- [x] Create `src/config/defaults.ts` with intelligent defaults
-- [x] Detect system capabilities and adjust defaults
-- [x] Use performance tier to set optimal values
-- [x] Provide different defaults per profile
-- [x] Document why each default was chosen
+## 📚 **Key Implementation Details from Roadmap**
 
-**Smart Default Examples:**
-```typescript
-// Adjust based on system capabilities
-if (systemCapabilities.gpuAvailable) {
-  defaults.embeddings.backend = 'ollama';
-  defaults.processing.batchSize = 64;
-} else {
-  defaults.embeddings.backend = 'direct';
-  defaults.processing.batchSize = 16;
-}
-```
-
-#### **1.7 Create Configuration Registry** ✅
-- [x] Build `src/config/registry.ts` for configuration metadata
-- [x] Track all configurable options with descriptions
-- [x] Support configuration discovery for CLI/TUI
-- [x] Generate configuration documentation
-- [x] Enable configuration search and filtering
-
-#### **1.8 Add Development Hot-Reload** ✅
-- [x] Integrate configuration watcher with application
-- [x] Implement reload strategies per component
-- [x] Add reload hooks for services
-- [x] Create reload event system
-- [x] Show reload notifications in CLI/TUI
-- [x] Prevent reload of critical settings
-
-**Hot-Reload Strategy:**
-```typescript
-// Some configs can reload immediately
-onConfigChange('logging.level', (newLevel) => {
-  logger.setLevel(newLevel);
-});
-
-// Others need service restart
-onConfigChange('server.port', async (newPort) => {
-  await server.stop();
-  await server.start(newPort);
-});
-```
+### Configuration Architecture
 
 **Configuration Hierarchy**:
-1. **Defaults**: Smart defaults embedded in code
-2. **System Config**: `/etc/folder-mcp/config.yaml` (optional)
-3. **User Config**: `~/.folder-mcp/config.yaml`
-4. **Environment**: `FOLDER_MCP_*` environment variables
-5. **Runtime**: Command-line arguments and API parameters
+1. **Defaults**: Smart defaults embedded in code that work for 90% of users
+2. **System Config**: `/etc/folder-mcp/config.yaml` for system-wide settings (optional)
+3. **User Config**: `~/.folder-mcp/config.yaml` for user preferences  
+4. **Environment**: Override any setting via `FOLDER_MCP_*` environment variables
+5. **Runtime**: CLI flags and TUI settings override everything
 
-**Testing Strategy for Task 1:**
-- Unit tests for each sub-component (manager, loaders, watcher)
-- Integration tests for configuration merging
-- Performance tests for configuration loading
-- Hot-reload tests in development mode
-
-**Completion Criteria:**
-- [x] All 8 sub-tasks implemented and tested
-- [x] Configuration loads from all 5 sources correctly
-- [x] Hot-reload working in development mode
-- [x] Profiles system functioning
-- [x] No regression in existing configuration functionality
-- [x] Documentation updated for new features
-
-**Validation After Completion**:
-```powershell
-# Run configuration-specific tests
-npm run test:config
-
-# Test hot-reload manually
-npm run dev -- --watch-config
-
-# Verify all sources work
-FOLDER_MCP_PROFILE=development npm run dev
-
-# Full test suite
-npm run build && npm test
-git add -A && git commit -m "Task 1: Core configuration system architecture completed"
-```
-
-### **Task 2: Configuration Schema & YAML Structure**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Define complete YAML configuration schema
-- [ ] Document every configuration option with examples
-- [ ] Create configuration migration system for version updates
-- [ ] Implement schema validation with helpful error messages
-- [ ] Add configuration templates for common use cases
-- [ ] Create configuration generation wizard for new users
+**Configuration Principles**:
+- **Progressive Disclosure**: Simple users see simple options, advanced users can access everything
+- **Strategy Pattern**: All major components pluggable via configuration
+- **Feature Flags**: Enable/disable features without code changes
+- **Performance Tuning**: Every performance parameter exposed in config
+- **Zero Config**: Works perfectly with no configuration file
+- **Config Validation**: Comprehensive validation with helpful error messages
+- **Live Reload**: Changes apply without restart where possible
+- **Smart Defaults**: Sensible defaults that maximize functionality
+- **Simple Transport**: Following Crawl4AI, only stdio and SSE transports supported
 
 **Core Configuration Structure**:
+The configuration system uses a hierarchical YAML structure with these main sections:
+- **general**: Basic settings (autoStart, logLevel, telemetry)
+- **daemon**: Process management (port, pidFile, healthCheck, autoRestart)
+- **embeddings**: Backend selection (ollama, direct, auto) with hardware optimization
+- **search**: Core search and clustering configuration
+- **transport**: Simple transports only (stdio for local, SSE for remote)
+- **authentication**: API key-based authentication
+- **folders**: Default settings and per-folder overrides
+- **performance**: Resource limits and monitoring
+- **ui**: Theme and display preferences for CLI/TUI
+- **features**: Feature flags for new capabilities
+
+### Configuration Usage Examples
+
+```bash
+# Override via environment variables
+FOLDER_MCP_EMBEDDINGS_BACKEND=direct folder-mcp add ~/Documents
+
+# Override via CLI flags
+folder-mcp --config ~/.folder-mcp/prod.yaml add ~/Documents
+folder-mcp --embeddings-backend ollama --log-level debug
+
+# Query current configuration
+folder-mcp config get embeddings.backend
+folder-mcp config set search.clustering.enabled true
+folder-mcp config validate
+
+# Enable new features
+folder-mcp config set features.topicDiscovery true
+
+# Remote access setup
+folder-mcp auth create "My Claude Desktop"  # Creates API key
+folder-mcp tunnel setup                      # Interactive Cloudflare setup
+```
+
+## 📊 **Phase Progress Tracking**
+
+### **Overall Status**
+- [ ] Phase backup created
+- [ ] Phase documentation reviewed
+- [ ] All task plans generated
+- [ ] Task 1: Configuration System Foundation
+- [ ] Task 2: Basic Daemon Architecture
+- [ ] Task 3: Extend MCP Server for Multiple Folders
+- [ ] Task 4: Configuration-Aware CLI Commands
+- [ ] Task 5: Configuration-Driven TUI
+- [ ] Task 6: CLI/TUI Parity Validation
+
+### **Phase Metrics**
+| Metric | Target | Current | Status | Progress |
+|--------|--------|---------|--------|----------|
+| Tasks Completed | 6 | 0 | 🔴 | 0% |
+| Test Coverage | 80%+ | - | ⏳ | - |
+| Documentation | Complete | - | ⏳ | - |
+| Time Elapsed | 14-21 days | 0 | ⏳ | 0% |
+
+### **Linear Progress Bar**
+```
+□□□□□□ 0/6 Tasks (0%)
+```
+
+### **Phase Completion Log**
+| Task | Status | Completion Date | Key Decisions/Findings |
+|------|--------|-----------------|------------------------|
+| Pre-Implementation Review | ⏳ | - | - |
+| Task 1: Configuration System Foundation | ⏳ | - | - |
+| Task 2: Basic Daemon Architecture | ⏳ | - | - |
+| Task 3: Extend MCP Server for Multiple Folders | ⏳ | - | - |
+| Task 4: Configuration-Aware CLI Commands | ⏳ | - | - |
+| Task 5: Configuration-Driven TUI | ⏳ | - | - |
+| Task 6: CLI/TUI Parity Validation | ⏳ | - | - |
+
+### **Milestone Tracking**
+| Milestone | Date | Notes |
+|-----------|------|-------|
+| Phase Started | - | - |
+| First Task Complete | - | - |
+| 50% Complete | - | - |
+| All Tasks Complete | - | - |
+| Phase Review | - | - |
+
+## 🔍 **Phase-Specific Context**
+
+### Key Architecture Concepts
+
+The Configuration Manager is the heart of Phase 6, driving all other components:
+
+1. **Configuration Loading Pipeline**:
+   - Read defaults from code
+   - Load system config from `/etc/folder-mcp/config.yaml`
+   - Load user config from `~/.folder-mcp/config.yaml`
+   - Apply environment variable overrides
+   - Apply runtime flags
+
+2. **Configuration Schema**:
+   - Uses JSON Schema for validation
+   - Provides helpful error messages
+   - Supports nested configuration
+   - Allows partial updates
+
+3. **Live Configuration Updates**:
+   - Some settings can be changed without restart
+   - Others require daemon restart
+   - Configuration manager handles both cases
+
+### Configuration Examples
+
+Example minimal configuration:
 ```yaml
 # ~/.folder-mcp/config.yaml
-version: "1.0"
+folders:
+  - path: ~/Documents
+    name: "My Documents"
+  - path: ~/Projects
+    name: "Code Projects"
+    embeddings:
+      backend: direct  # Override for this folder
+```
 
-# Folder Configuration
+Example advanced configuration:
+```yaml
+# ~/.folder-mcp/config.yaml
+general:
+  autoStart: true
+  logLevel: info
+  
+daemon:
+  port: 3456
+  healthCheck:
+    interval: 30
+    timeout: 5
+    
+embeddings:
+  backend: auto
+  hardware:
+    preferGPU: true
+    maxMemory: 4096
+    
 folders:
   defaults:
-    watch: false
-    embeddings: true
-    cache: true
-  
-  monitored:
-    - path: "~/Documents"
-      name: "docs"
-      watch: true
+    exclude:
+      - "node_modules"
+      - ".git"
+      - "*.tmp"
+  list:
+    - path: ~/Documents
+      name: "My Documents"
+    - path: ~/Projects
+      name: "Code Projects"
       embeddings:
-        enabled: true
+        backend: ollama
         model: "nomic-embed-text"
-        chunkSize: 1000
-        overlap: 200
-
-# Transport Configuration  
-transports:
-  local:
-    type: "stdio"
-    enabled: true
+        
+ui:
+  theme: dark
+  animations: true
   
-  remote:
-    type: "sse"
-    enabled: false
-    port: 8080
-    auth:
-      type: "bearer"
-      token: "${FOLDER_MCP_API_KEY}"
-
-# MCP Endpoints Configuration
-endpoints:
-  search:
-    modes: ["answer", "locate", "explore"]
-    defaultMode: "answer"
-    maxResults: 10
-  
-  explore_topics:
-    clustering:
-      enabled: true
-      minClusterSize: 5
-  
-  get_context:
-    defaultTokenLimit: 4000
-    includeMetadata: true
-
-# Embedding Configuration
-embeddings:
-  backend: "auto"  # ollama, direct, auto
-  models:
-    ollama:
-      url: "http://localhost:11434"
-      timeout: 30000
-    direct:
-      modelPath: "./models"
-  
-  processing:
-    batchSize: 32
-    maxConcurrent: 10
-
-# Performance Configuration
-performance:
-  caching:
-    enabled: true
-    directory: "~/.cache/folder-mcp"
-    maxSize: "10GB"
-    ttl: "7d"
-  
-  memory:
-    maxHeap: "4GB"
-    adaptiveMode: true
+features:
+  topicDiscovery: false  # Not yet implemented
+  remoteAccess: false    # Phase 8
 ```
 
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 2: Configuration schema and YAML structure completed"
-```
+### Related Roadmap Sections
 
-### **Task 3: Configuration Testing Framework (Foundation)**
+This phase establishes the foundation that all future phases will build upon. The configuration system is not just a feature - it's the architectural principle that enables:
 
-**[BEFORE STARTING: This is a partial implementation of Task 10, moved earlier to enable test-driven development]**
+- **Phase 7**: Enhanced features controlled by configuration
+- **Phase 8**: Remote access configuration, security settings
+- **Phase 9**: Advanced feature flags and performance tuning
+- **Phase 10**: Configuration migration and documentation
 
-- [ ] Create basic configuration unit test structure
-- [ ] Implement configuration schema validation tests
-- [ ] Add configuration loading and merging tests
-- [ ] Create test fixtures for various configuration scenarios
-- [ ] Implement configuration error case tests
-- [ ] Add performance benchmarks for configuration operations
+## ✅ **Phase Validation**
 
-**Testing Philosophy**:
-- Test as we build, not after
-- Every configuration feature gets tests immediately
-- Use test-driven development where practical
-- Maintain high test coverage from the start
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test:config
-git add -A && git commit -m "Task 3: Configuration testing framework foundation completed"
-```
-
-### **Task 4: Environment Variable Integration**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Define environment variable naming convention
-- [ ] Implement automatic environment variable mapping
-- [ ] Add environment variable validation
-- [ ] Create environment variable documentation generator
-- [ ] Implement secure credential handling via environment
-- [ ] Add environment variable debugging tools
-- [ ] Write comprehensive tests for environment integration
-
-**Environment Variable Mapping**:
+### Build Validation
 ```bash
-# Pattern: FOLDER_MCP_<SECTION>_<KEY>
-FOLDER_MCP_FOLDERS_WATCH=true
-FOLDER_MCP_EMBEDDINGS_BACKEND=ollama
-FOLDER_MCP_TRANSPORTS_REMOTE_PORT=8080
-FOLDER_MCP_TRANSPORTS_REMOTE_AUTH_TOKEN=secret
+npm run build
+# Expected: 0 errors after phase completion
 ```
 
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 4: Environment variable integration completed"
-```
-
-### **Task 5: CLI Configuration Interface**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Implement CLI commands for configuration management
-- [ ] Add `folder-mcp config` command with subcommands (show, set, get, validate)
-- [ ] Create interactive configuration wizard (`folder-mcp config --wizard`)
-- [ ] Add configuration profiles support (`folder-mcp --profile development`)
-- [ ] Implement configuration export/import functionality
-- [ ] Add configuration diff and merge tools
-- [ ] Create configuration debugging commands
-
-**CLI Configuration Commands**:
+### Test Suite Validation
 ```bash
-# View current configuration
-folder-mcp config show [--effective] [--source]
-
-# Set configuration values
-folder-mcp config set folders.monitored[0].path ~/Projects
-
-# Get specific configuration
-folder-mcp config get embeddings.backend
-
-# Validate configuration
-folder-mcp config validate [--fix]
-
-# Configuration wizard
-folder-mcp config --wizard
-
-# Profile management
-folder-mcp --profile production serve
+npm test
+# Expected: All existing tests pass + new tests added
 ```
 
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 5: CLI configuration interface completed"
+### Feature Validation
+```bash
+# Test configuration loading
+folder-mcp config validate
+
+# Test daemon with configuration
+folder-mcp daemon start
+folder-mcp daemon status
+
+# Test multi-folder support
+folder-mcp add ~/Documents
+folder-mcp add ~/Projects
+folder-mcp list
+
+# Test CLI configuration commands
+folder-mcp config get
+folder-mcp config set embeddings.backend direct
+
+# Test TUI
+folder-mcp tui
+# Navigate to settings panel and verify configuration
 ```
 
-### **Task 6: TUI Configuration Manager**
+## 📝 **Phase Completion Checklist**
 
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
+Before marking this phase complete:
+- [ ] All tasks completed and validated
+- [ ] No regression in existing functionality  
+- [ ] Documentation updated
+- [ ] Tests added for new features
+- [ ] Phase review conducted
+- [ ] Next phase dependencies satisfied
 
-- [ ] Create TUI configuration editor component
-- [ ] Implement tree-view configuration browser
-- [ ] Add live configuration validation with visual feedback
-- [ ] Create configuration presets/templates UI
-- [ ] Implement configuration comparison view
-- [ ] Add configuration search and filtering
-- [ ] Create visual configuration impact preview
+**Phase 6 Completion Review**:
+After completing all Phase 6 tasks, conduct mandatory review:
+- **Configuration Completeness**: Does configuration cover all aspects?
+- **User Experience**: Is configuration approachable for new users?
+- **Power User Features**: Do advanced users have enough control?
+- **Performance Impact**: Does configuration system add overhead?
+- **Document Updates**: Update future phases based on configuration architecture
 
-**TUI Configuration Features**:
-- **Visual Editor**: Form-based editing with validation
-- **Tree Browser**: Navigate configuration hierarchy
-- **Live Preview**: See effects of configuration changes
-- **Profile Switcher**: Quick profile changes
-- **Template Gallery**: Common configuration patterns
-- **Validation Panel**: Real-time error detection
+## 🚀 **Next Steps**
 
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 6: TUI configuration manager completed"
-```
-
-### **Task 7: Configuration-Driven Transport System**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Implement transport factory based on configuration
-- [ ] Create stdio transport with configuration options
-- [ ] Implement SSE transport with full configuration
-- [ ] Add transport health monitoring and metrics
-- [ ] Create transport switching without restart
-- [ ] Implement transport-specific configuration validation
-
-**Transport Configuration**:
-```yaml
-transports:
-  # Local transport (stdio) - Zero network overhead
-  local:
-    type: "stdio"
-    enabled: true
-    logging:
-      level: "error"  # Only errors to stderr
-      
-  # Remote transport (SSE) - HTTP-based streaming
-  remote:
-    type: "sse"
-    enabled: false
-    host: "0.0.0.0"
-    port: 8080
-    cors:
-      enabled: true
-      origins: ["*"]
-    auth:
-      type: "bearer"
-      token: "${FOLDER_MCP_API_KEY}"
-    keepAlive:
-      enabled: true
-      interval: 30
-    cloudflare:
-      tunnel: false
-      tunnelId: ""
-```
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 7: Configuration-driven transport system completed"
-```
-
-### **Task 8: CLI/TUI Feature Parity Validation**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Create comprehensive parity checklist
-- [ ] Implement automated parity testing
-- [ ] Ensure identical configuration capabilities
-- [ ] Validate same error messages and help text
-- [ ] Test performance equivalence
-- [ ] Document any intentional differences
-- [ ] Create parity maintenance guidelines
-
-**Parity Checklist**:
-- [ ] Configuration viewing (show all, show specific)
-- [ ] Configuration editing (set, unset, append)
-- [ ] Configuration validation (syntax, semantic)
-- [ ] Profile management (create, switch, delete)
-- [ ] Template operations (list, apply, export)
-- [ ] Environment integration (view, override)
-- [ ] Help and documentation (context-aware)
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 8: CLI/TUI feature parity validation completed"
-```
-
-### **Task 9: Configuration Migration System**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Design configuration version tracking
-- [ ] Implement automatic migration on version change
-- [ ] Create migration rollback capability
-- [ ] Add migration testing framework
-- [ ] Implement configuration backup before migration
-- [ ] Create migration documentation generator
-
-**Migration Features**:
-```yaml
-# Configuration version tracking
-version: "1.0"
-migrated_from: "0.9"
-migration_date: "2025-01-15T10:30:00Z"
-
-# Automatic migrations
-migrations:
-  "0.9-to-1.0":
-    - rename: "folders.watch_enabled" -> "folders.watch"
-    - default: "embeddings.backend" = "auto"
-    - remove: "deprecated.old_setting"
-```
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 9: Configuration migration system completed"
-```
-
-### **Task 10: Performance & Memory Configuration**
-
-**[BEFORE STARTING: Break down this task into smaller assignments focusing on HOW to implement, not just WHAT to do. Update this task description when implementation begins.]**
-
-- [ ] Implement memory limit configuration
-- [ ] Add adaptive memory management based on config
-- [ ] Create cache size and TTL configuration
-- [ ] Implement concurrent operation limits
-- [ ] Add performance profiling configuration
-- [ ] Create resource usage monitoring
-
-**Performance Configuration**:
-```yaml
-performance:
-  memory:
-    maxHeap: "4GB"
-    adaptiveMode: true
-    gcStrategy: "balanced"
-    
-  processing:
-    maxConcurrent: 10
-    queueSize: 1000
-    timeout: 30000
-    
-  caching:
-    strategy: "lru"
-    maxEntries: 10000
-    maxSize: "10GB"
-    compression: true
-```
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 10: Performance and memory configuration completed"
-```
-
-### **Task 11: Complete Configuration Testing Framework**
-
-**[BEFORE STARTING: This completes the testing framework started in Task 3]**
-
-- [ ] Extend configuration integration tests
-- [ ] Complete configuration validation test suite
-- [ ] Finalize configuration performance benchmarks
-- [ ] Implement configuration security tests
-- [ ] Add configuration regression tests
-- [ ] Create end-to-end configuration scenarios
-
-**Testing Coverage Extension**:
-- **Integration Tests**: Full configuration loading, hot-reload, migration
-- **E2E Tests**: Complete user workflows with configuration
-- **Performance Tests**: Configuration at scale, memory usage patterns
-- **Security Tests**: Credential handling, path traversal prevention
-- **Regression Tests**: Ensure backward compatibility
-
-**Validation After Completion**:
-```powershell
-npm run build && npm test
-git add -A && git commit -m "Task 11: Complete configuration testing framework completed"
-```
+After completing this phase:
+1. Run `/create-phase-plan 7` for Phase 7: Enhanced UX & Core Features
+2. Conduct phase retrospective
+3. Update roadmap with actual timings
 
 ---
 
-## 📊 **Progress Tracking**
-
-### **Current Status**
-- [x] Pre-Implementation: Review existing configuration - ✅ Completed
-- [x] Safety framework set up (backup branch created) - ✅ Completed
-- [x] Task 1: Core Configuration System Architecture - ✅ Completed
-- [ ] Task 2: Configuration Schema & YAML Structure - Not Started
-- [ ] Task 3: Configuration Testing Framework (Foundation) - Not Started
-- [ ] Task 4: Environment Variable Integration - Not Started
-- [ ] Task 5: CLI Configuration Interface - Not Started
-- [ ] Task 6: TUI Configuration Manager - Not Started
-- [ ] Task 7: Configuration-Driven Transport System - Not Started
-- [ ] Task 8: CLI/TUI Feature Parity Validation - Not Started
-- [ ] Task 9: Configuration Migration System - Not Started
-- [ ] Task 10: Performance & Memory Configuration - Not Started
-- [ ] Task 11: Complete Configuration Testing Framework - Not Started
-
-### **Completion Log**
-| Task | Status | Completion Date | Commit Hash |
-|------|--------|----------------|-------------|
-| Pre-Implementation Review | ✅ Complete | 2025-01-04 | - |
-| Safety Setup | ✅ Complete | 2025-01-04 | 197d76c |
-| Core Config System | ✅ Complete | 2025-01-05 | - |
-| Config Schema | ⏳ Pending | - | - |
-| Testing Framework (Foundation) | ⏳ Pending | - | - |
-| Environment Vars | ⏳ Pending | - | - |
-| CLI Config | ⏳ Pending | - | - |
-| TUI Config | ⏳ Pending | - | - |
-| Transport Config | ⏳ Pending | - | - |
-| Parity Validation | ⏳ Pending | - | - |
-| Migration System | ⏳ Pending | - | - |
-| Performance Config | ⏳ Pending | - | - |
-| Complete Testing Framework | ⏳ Pending | - | - |
-
-### **Success Criteria**
-- ✅ Configuration system drives all functionality
-- ✅ Users can manage entire system via configuration
-- ✅ CLI and TUI provide identical capabilities
-- ✅ Smart defaults with deep customization
-- ✅ Transport strategy locked in: stdio + SSE only
-- ✅ Foundation ready for feature development
-
-### **Phase 6 Completion Checklist**
-- [ ] Pre-implementation review completed
-- [ ] All 11 tasks completed with validation
-- [ ] Configuration covers 100% of features
-- [ ] CLI/TUI parity tests passing
-- [ ] Performance benchmarks within targets
-- [ ] Documentation complete and helpful
-- [ ] Migration system tested with examples
-- [ ] No regression in existing functionality
-- [ ] Test coverage maintained throughout development
-
-### **Quick Health Check**
-```powershell
-# Run this anytime to verify system health
-npm run build && npm test && git status
-
-# Specific configuration validation
-npm run test:config
-npm run test:parity
+**To implement individual tasks, use:**
 ```
-
----
-
-## 🚀 **Next Phase Preview**
-
-After Phase 6 completion, Phase 7 will focus on:
-- **Transport Implementation**: SSE remote access with Cloudflare tunnel support
-- **LLM Endpoint Optimization**: Implementing the 13 enhanced endpoints
-- **Embedding Backend System**: Modular backends (Ollama/direct/auto)
-- **Configuration-Driven Features**: All new features built on config foundation
-
----
-
-**IMPLEMENTATION NOTE**: This plan follows the Simple Task Implementation Methodology. Each task should be completed in order, with validation after each step. The configuration system is the foundation for all future features, so quality and completeness are critical. Tasks will be broken down into specific implementation steps as work begins, following the "HOW to implement" principle.
+/create-task-plan 6 1  # Start with first task
+```

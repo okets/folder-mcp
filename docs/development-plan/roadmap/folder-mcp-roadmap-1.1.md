@@ -117,157 +117,19 @@ Daemon → Single MCP Server → Multiple folders (from config)
 
 ### Core Configuration Structure
 
-```yaml
-# ~/.folder-mcp/config.yaml
-version: 1.0
+The configuration system uses a hierarchical YAML structure with these main sections:
+- **general**: Basic settings (autoStart, logLevel, telemetry)
+- **daemon**: Process management (port, pidFile, healthCheck, autoRestart)
+- **embeddings**: Backend selection (ollama, direct, auto) with hardware optimization
+- **search**: Core search and clustering configuration
+- **transport**: Simple transports only (stdio for local, SSE for remote)
+- **authentication**: API key-based authentication
+- **folders**: Default settings and per-folder overrides
+- **performance**: Resource limits and monitoring
+- **ui**: Theme and display preferences for CLI/TUI
+- **features**: Feature flags for new capabilities
 
-# General settings
-general:
-  autoStart: true
-  logLevel: "info"  # debug, info, warn, error
-  telemetry: false
-
-# Daemon configuration
-daemon:
-  port: 50051
-  pidFile: "~/.folder-mcp/daemon.pid"
-  healthCheckInterval: 30
-  autoRestart: true
-  maxRestarts: 3
-
-# Embedding configuration
-embeddings:
-  backend: "auto"  # Automatically selects best available option
-  batchSize: "auto"
-  maxMemoryUsage: "80%"
-  preloadModel: true
-  
-  backends:
-    ollama:
-      enabled: true
-      apiUrl: "http://127.0.0.1:11434"
-      models: ["nomic-embed-text", "mxbai-embed-large"]
-      timeout: 30
-      
-    direct:
-      enabled: true
-      defaultModel: "sentence-transformers/all-MiniLM-L6-v2"
-      cachePath: "~/.cache/folder-mcp/models"
-      device: "auto"  # auto, cuda, cpu
-      dtype: "auto"   # auto, float16, float32
-
-# Search configuration with clustering enabled
-search:
-  # Core search settings
-  minScore: 0.7
-  maxResults: 50
-  enableRegex: true
-  
-  # Clustering for topic discovery
-  clustering:
-    enabled: true  # Pre-compute clusters for better search
-    strategy: "pre-computed"
-    updateExisting: true
-    
-    algorithms:
-      semantic:
-        method: "hierarchical"
-        linkage: "ward"
-        threshold: 0.5
-      folder:
-        method: "path-based"
-        depth: 3
-
-# Simple transport endpoints
-transport:
-  local: "stdio"  # Direct process communication
-  remote: "sse"   # Server-Sent Events only
-  
-  # Deliberately NO WebSockets - SSE is optimal for LLM consumption
-  # No gRPC - adds complexity without benefit
-  # No custom protocols - HTTP/SSE works everywhere
-  
-  server:
-    port: 3000
-    endpoints:
-      health: "/health"
-      info: "/"
-      mcp: "/mcp/sse"
-
-# Authentication (simple API keys)
-authentication:
-  type: "api-key"
-  prefix: "fmcp_"
-  storage: "~/.folder-mcp/api-keys.json"
-
-# Folder configuration
-folders:
-  defaults:
-    watch: true
-    recursive: true
-    excludePatterns: ["node_modules", ".git", "*.tmp"]
-    includeHidden: false
-    maxFileSize: "100MB"
-    # Chunking settings (existing behavior)
-    chunkSize: 1000
-    chunkOverlap: 200
-    
-  # Per-folder overrides
-  overrides:
-    "~/Documents":
-      backend: "ollama"  # Can override backend per folder
-      model: "mxbai-embed-large"
-      languages: ["en", "es"]
-    "~/Code":
-      backend: "direct"  # Use faster backend for code
-      model: "codebert-base"
-      excludePatterns: ["node_modules", ".git", "dist", "build"]
-
-# Performance configuration
-performance:
-  indexing:
-    maxConcurrency: "auto"  # auto or number
-    chunkSize: 1000  # Preserve existing chunking
-    overlapSize: 200
-    
-  memory:
-    maxUsage: "80%"
-    gcInterval: 300
-    cacheSize: "1GB"
-    
-  monitoring:
-    enabled: true
-    metricsPort: 9090
-    exportFormat: "prometheus"
-
-# UI configuration
-ui:
-  theme: "auto"  # auto, dark, light
-  animations: true
-  updateInterval: 100
-  
-  tui:
-    boxStyle: "rounded"  # rounded, sharp, double
-    colorScheme: "default"  # default, high-contrast, minimal
-    
-  cli:
-    output: "pretty"  # pretty, json, quiet
-    colors: true
-    progressBar: true
-
-# Feature flags
-features:
-  experimentalCodeIntelligence: true
-  advancedClustering: true
-  topicDiscovery: true  # explore_topics endpoint
-  contextAssembly: true  # get_context endpoint
-  codeExamples: true  # find_code_examples endpoint
-  relationshipMapping: true  # get_related endpoint
-  enhancedSearch: true  # answer/locate/explore modes
-  remoteAccess: true
-  chatInterface: false  # Still experimental
-  imageOCR: false  # Pending research
-```
+Configuration follows the hierarchy: Defaults → System → User → Environment → Runtime
 
 ### Configuration Usage Examples
 
@@ -521,38 +383,6 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - Default configuration generation
 - Configuration profiles support
 
-**Implementation Details**:
-```typescript
-// Core configuration manager
-class ConfigurationManager {
-  // Load from all sources in priority order
-  async load(): Promise<Config> {
-    const defaults = this.getDefaults();
-    const system = await this.loadSystemConfig();
-    const user = await this.loadUserConfig();
-    const env = this.loadEnvOverrides();
-    const runtime = this.loadRuntimeOverrides();
-    
-    return this.merge(defaults, system, user, env, runtime);
-  }
-  
-  // Validate against schema
-  validate(config: Config): ValidationResult {
-    return ajv.validate(configSchema, config);
-  }
-  
-  // Support dot notation access
-  get(path: string): any {
-    // "embeddings.backend" → config.embeddings.backend
-  }
-  
-  // Live configuration updates
-  set(path: string, value: any): void {
-    // Update and notify watchers
-  }
-}
-```
-
 **Completion Criteria**:
 - [ ] Configuration schema defined and documented
 - [ ] Loader handles all configuration sources
@@ -561,9 +391,6 @@ class ConfigurationManager {
 - [ ] Hot reload for applicable settings
 - [ ] Configuration CLI commands working
 
-**Testing**:
-- **Automated**: Configuration loading, merging, validation
-- **Manual E2E**: User creates custom config, system respects it
 
 ### Task 2: Basic Daemon Architecture
 
@@ -576,25 +403,6 @@ class ConfigurationManager {
 - Health checks and restart policies from config
 - Performance monitoring per configuration
 
-**Configuration Integration**:
-```typescript
-class Daemon {
-  constructor(private config: ConfigurationManager) {}
-  
-  async start() {
-    const daemonConfig = this.config.get('daemon');
-    
-    // Start with configured settings
-    this.healthCheckInterval = daemonConfig.healthCheckInterval;
-    this.autoRestart = daemonConfig.autoRestart;
-    this.maxRestarts = daemonConfig.maxRestarts;
-    
-    // Watch for configuration changes
-    this.config.watch('daemon', this.handleConfigChange);
-  }
-}
-```
-
 **Completion Criteria**:
 - [ ] Daemon respects all configuration settings
 - [ ] Configuration reload without restart
@@ -602,9 +410,6 @@ class Daemon {
 - [ ] Auto-restart follows configuration
 - [ ] Performance metrics per configuration
 
-**Testing**:
-- **Automated**: Configuration-driven behavior, hot reload
-- **Manual E2E**: Change config, observe daemon behavior change
 
 ### Task 3: Extend MCP Server for Multiple Folders
 
@@ -618,25 +423,6 @@ class Daemon {
 - Performance settings per folder
 - Preserve existing endpoint functionality
 
-**Configuration Usage**:
-```yaml
-folders:
-  defaults:
-    backend: "auto"  # Smart backend selection
-    model: "nomic-embed-text"
-    watch: true
-    chunkSize: 1000
-    chunkOverlap: 200
-    
-  overrides:
-    "~/Documents":
-      model: "mxbai-embed-large"  # Better model for important docs
-    "~/Code":
-      backend: "direct"  # Faster backend for code
-      excludePatterns: ["node_modules", "dist"]
-      model: "codebert-base"  # Code-specific model
-```
-
 **Completion Criteria**:
 - [ ] MCP server reads folder configuration
 - [ ] Per-folder settings applied correctly
@@ -644,9 +430,6 @@ folders:
 - [ ] Folder-specific models working
 - [ ] Performance tuning per folder
 
-**Testing**:
-- **Automated**: Multi-folder configuration, per-folder settings
-- **Manual E2E**: Different folders use different models
 
 ### Task 4: Configuration-Aware CLI Commands
 
@@ -659,31 +442,6 @@ folders:
 - All commands accept config overrides
 - Help shows configuration options
 
-**Implementation**:
-```bash
-# Configuration management
-folder-mcp config get embeddings.backend
-folder-mcp config set search.clustering.enabled true
-folder-mcp config validate
-
-# Profile management
-folder-mcp profile use production
-folder-mcp profile list
-
-# API key management (for remote access)
-folder-mcp auth create "Claude Desktop"
-folder-mcp auth list
-folder-mcp auth revoke fmcp_abc123...
-
-# Override configuration
-folder-mcp add ~/Documents --embeddings-backend direct
-folder-mcp daemon start --log-level debug
-
-# Remote access setup
-folder-mcp tunnel setup  # Interactive Cloudflare tunnel setup
-folder-mcp tunnel status
-```
-
 **Completion Criteria**:
 - [ ] Configuration commands working
 - [ ] All commands accept config overrides
@@ -691,9 +449,6 @@ folder-mcp tunnel status
 - [ ] Help includes configuration options
 - [ ] JSON output for automation
 
-**Testing**:
-- **Automated**: All CLI configuration operations
-- **Manual E2E**: User manages configuration via CLI
 
 ### Task 5: Configuration-Driven TUI
 
@@ -720,9 +475,6 @@ folder-mcp tunnel status
 - [ ] Profile management in TUI
 - [ ] Theme/style from configuration
 
-**Testing**:
-- **Automated**: TUI configuration operations
-- **Manual E2E**: User edits configuration via TUI
 
 ### Task 6: CLI/TUI Parity Validation
 
@@ -741,9 +493,6 @@ folder-mcp tunnel status
 - [ ] Consistent user experience
 - [ ] Documentation covers both
 
-**Testing**:
-- **Automated**: Parity test suite for configuration operations
-- **Manual E2E**: Same configuration tasks in CLI and TUI
 
 **Phase 6 Success Criteria**:
 - Configuration system drives all functionality
@@ -787,23 +536,6 @@ After completing all Phase 6 tasks, conduct mandatory review:
 - Performance metrics based on configuration
 - Log levels and destinations from configuration
 
-**Configuration**:
-```yaml
-ui:
-  progressBar:
-    style: "emoji"  # emoji, simple, detailed
-    updateInterval: 100
-    showETA: true
-    
-logging:
-  level: "info"
-  destinations:
-    - type: "file"
-      path: "~/.folder-mcp/logs/daemon.log"
-    - type: "console"
-      format: "pretty"  # pretty, json
-```
-
 **Completion Criteria**:
 - [ ] Progress display respects configuration
 - [ ] Configurable verbosity levels
@@ -811,9 +543,6 @@ logging:
 - [ ] Logging configuration working
 - [ ] Status display customizable
 
-**Testing**:
-- **Automated**: Configuration-driven progress and logging
-- **Manual E2E**: User configures progress display preferences
 
 ### Task 8: Intelligent Embedding & Search System with Enhanced Endpoints
 
@@ -830,28 +559,10 @@ logging:
 
 2. **Pre-clustering Pipeline**  
    - Compute cluster assignments during indexing
-   - Dual clustering approach:
-     ```typescript
-     {
-       content: "...",
-       embedding: [...],
-       location: { file: "...", line: 10 },
-       semanticClusterId: 5,    // "Budget Planning"  
-       folderClusterId: 12      // "Finance/2024/Q1"
-     }
-     ```
+   - Dual clustering approach: semantic (by meaning) and folder (by location)
 
 3. **Enhanced Search Endpoint**
-   - Enhance existing `search` endpoint with modes:
-     ```typescript
-     interface SearchRequest {
-       query: string;
-       mode?: "locate" | "answer" | "explore";  // NEW - Default: "locate"
-       limit?: number;
-       folder?: string;
-       fileTypes?: string[];
-     }
-     ```
+   - Enhance existing `search` endpoint with modes: locate, answer, explore
    - Answer mode: Query expansion, semantic boundaries, complete sections
    - Locate mode: Current behavior for specific items
    - Explore mode: Broader results for discovery
@@ -873,36 +584,6 @@ logging:
    - Merge `get_pages` → `get_document_data` with pageNumbers parameter
    - Merge `get_slides` → `get_document_data` with slideNumbers parameter
 
-**Configuration**:
-```yaml
-embeddings:
-  backend: "auto"  # Intelligently selects best available
-  
-search:
-  modes:
-    answer:
-      queryExpansion: true
-      semanticBoundaries: true
-      completeSection: true
-    locate:
-      exactMatch: true
-    explore:
-      broaderResults: true
-      
-  clustering:
-    enabled: true
-    updateInterval: "on-change"
-
-endpoints:
-  enhanced:
-    documentData:
-      supportSections: true
-      supportPageRanges: true
-      supportSlideRanges: true
-    listDocuments:
-      detectTypes: ["guide", "reference", "example", "config", "test"]
-```
-
 **Implementation Strategy**:
 1. Build modular embedding backend system
 2. Implement pre-clustering during indexing
@@ -921,9 +602,6 @@ endpoints:
 - [ ] Old endpoints properly deprecated/merged
 - [ ] Configuration drives all behavior
 
-**Testing**:
-- **Automated**: Backend selection, clustering, all endpoints
-- **Manual E2E**: User explores topics, gets context, finds examples
 
 ### Task 9: Version Control & Update System
 
@@ -936,21 +614,6 @@ endpoints:
 - Update notifications configurable
 - MCP endpoint for version checking
 
-**Configuration**:
-```yaml
-updates:
-  checkForUpdates: true
-  checkInterval: "daily"  # startup, hourly, daily, weekly
-  autoUpdate: false
-  channel: "stable"  # stable, beta, nightly
-  
-  notifications:
-    desktop: true
-    cli: true
-    tui: true
-    mcp: true  # Notify via MCP endpoint
-```
-
 **Completion Criteria**:
 - [ ] Update checking follows configuration
 - [ ] Configurable update channels
@@ -959,9 +622,6 @@ updates:
 - [ ] MCP version endpoint available
 - [ ] Manual update trigger available
 
-**Testing**:
-- **Automated**: Update configuration, migration
-- **Manual E2E**: User configures update preferences
 
 ### Task 10: Auto-Config Placement & Client Support
 
@@ -973,28 +633,6 @@ updates:
 - Auto-placement based on configuration
 - Multiple client support via configuration
 
-**Configuration**:
-```yaml
-clients:
-  claude:
-    enabled: true
-    autoConfig: true
-    configPath: "~/Library/Application Support/Claude/config.json"
-    
-  vscode:
-    enabled: true
-    autoConfig: true
-    configPath: "~/.config/Code/User/globalStorage/mcp-vscode"
-      
-  cursor:
-    enabled: true
-    autoConfig: true
-
-# Auto-generated client configs will include:
-# - Local: stdio transport with direct command
-# - Remote: SSE transport with URL and API key
-```
-
 **Completion Criteria**:
 - [ ] Client list from configuration
 - [ ] Auto-config respects settings
@@ -1004,9 +642,6 @@ clients:
 - [ ] All 13 endpoints included in client configs
 - [ ] New endpoints included when enabled
 
-**Testing**:
-- **Automated**: Client configuration generation
-- **Manual E2E**: User enables clients via configuration
 
 **Phase 7 Completion Review**:
 After completing all Phase 7 tasks, conduct mandatory review:
@@ -1066,114 +701,6 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 - Health check and status endpoints
 - Cloudflare tunnel integration wizard
 
-**Implementation (Following Crawl4AI Exactly)**:
-```typescript
-import express from 'express';
-import { SSEHandler } from './sse-handler';
-
-const app = express();
-
-// Enable connection keep-alive for LLM sequential requests
-app.use((req, res, next) => {
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Keep-Alive', 'timeout=30');
-  next();
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'folder-mcp',
-    version: config.version,
-    uptime: process.uptime()
-  });
-});
-
-// Basic info endpoint
-app.get('/', (req, res) => {
-  res.json({
-    name: 'folder-mcp',
-    endpoints: ['/health', '/mcp/sse'],
-    docs: 'https://github.com/user/folder-mcp'
-  });
-});
-
-// MCP SSE endpoint - exactly like Crawl4AI
-app.get('/mcp/sse', async (req, res) => {
-  // Simple API key validation
-  const apiKey = req.headers.authorization?.replace('Bearer ', '');
-  if (!validateApiKey(apiKey)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  // SSE headers
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // For nginx
-  
-  // Handle MCP protocol over SSE
-  const handler = new SSEHandler(mpcServer);
-  handler.handle(req, res);
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`folder-mcp SSE server listening on port ${PORT}`);
-});
-```
-
-**Configuration**:
-```yaml
-transport:
-  remote:
-    type: "sse"  # Only SSE, no other options
-    port: 3000
-    endpoints:
-      health: "/health"
-      info: "/"
-      mcp: "/mcp/sse"
-    
-authentication:
-  type: "api-key"
-  storage: "~/.folder-mcp/api-keys.json"
-  
-cloudflare:
-  tunnel:
-    enabled: false
-    name: "folder-mcp-tunnel"
-    url: "http://localhost:3000"
-```
-
-**Client Connection Pattern**:
-```typescript
-// Local connection (unchanged)
-{
-  "mcpServers": {
-    "folder-mcp": {
-      "command": "node",
-      "args": ["dist/mcp-server.js"]
-    }
-  }
-}
-
-// Remote connection (Crawl4AI style)
-{
-  "mcpServers": {
-    "folder-mcp-remote": {
-      "command": "npx",
-      "args": ["@modelcontextprotocol/client-stdio"],
-      "env": {
-        "MCP_SERVER_URL": "https://folder-mcp.yourdomain.com/mcp/sse",
-        "API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
 **Completion Criteria**:
 - [ ] Express server with exact Crawl4AI endpoints
 - [ ] SSE transport working (no WebSockets)
@@ -1183,9 +710,6 @@ cloudflare:
 - [ ] Cloudflare tunnel setup wizard
 - [ ] Client configuration examples
 
-**Testing**:
-- **Automated**: SSE connection, authentication, health checks
-- **Manual E2E**: User connects remotely via Cloudflare tunnel
 
 ### Task 12: Simple Security Configuration
 
@@ -1197,53 +721,6 @@ cloudflare:
 - Basic audit logging
 - CORS configuration for web clients
 
-**Implementation**:
-```typescript
-// API Key Management (simple JSON file like Crawl4AI)
-{
-  "keys": [
-    {
-      "key": "fmcp_abc123...",
-      "name": "Claude Desktop",
-      "created": "2024-01-15",
-      "lastUsed": "2024-01-20"
-    }
-  ]
-}
-
-// Express middleware for security
-app.use(rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 100 // 100 requests per hour
-}));
-
-app.use(cors({
-  origin: config.security.cors.origins,
-  credentials: true
-}));
-```
-
-**Configuration**:
-```yaml
-security:
-  authentication:
-    type: "api-key"  # Only option
-    prefix: "fmcp_"  # Key prefix
-    
-  rateLimiting:
-    enabled: true
-    requests: 100
-    window: "1h"
-    
-  audit:
-    enabled: true
-    logPath: "~/.folder-mcp/audit.log"
-    
-  cors:
-    enabled: true
-    origins: ["https://claude.ai", "https://cursor.sh"]
-```
-
 **Completion Criteria**:
 - [ ] Simple API key management
 - [ ] Rate limiting via middleware
@@ -1251,9 +728,6 @@ security:
 - [ ] CORS properly configured
 - [ ] No complex auth systems
 
-**Testing**:
-- **Automated**: API key validation, rate limiting
-- **Manual E2E**: User manages API keys
 
 ### Task 13: VSCode 1.101 MCP Integration
 
@@ -1265,25 +739,6 @@ security:
 - Development mode configuration
 - Feature flags for VSCode features
 
-**Configuration**:
-```yaml
-clients:
-  vscode:
-    toolSets:
-      development:
-        icon: "code"
-        tools: ["search", "get_document_data", "explore_topics"]
-        
-    features:
-      hotReload: true
-      resourceDrag: true
-      contextIntegration: true
-      
-    development:
-      watchMode: true
-      debugPort: 9229
-```
-
 **Completion Criteria**:
 - [ ] VSCode features configuration-driven
 - [ ] Tool organization via config
@@ -1291,9 +746,6 @@ clients:
 - [ ] Feature flags working
 - [ ] Hot reload configurable
 
-**Testing**:
-- **Automated**: VSCode configuration generation
-- **Manual E2E**: Developer configures VSCode features
 
 ### Task 14: Production Readiness Configuration
 
@@ -1306,60 +758,6 @@ clients:
 - Backup configuration
 - Cloudflare tunnel deployment
 
-**Configuration**:
-```yaml
-production:
-  autoStart:
-    enabled: true
-    method: "systemd"  # systemd, launchd, init
-    
-  resilience:
-    autoRestart: true
-    maxRestarts: 3
-    restartDelay: 5
-    
-  monitoring:
-    healthCheck:
-      enabled: true
-      interval: 30
-      timeout: 5
-      
-  backup:
-    enabled: true
-    schedule: "daily"
-    retention: 7
-    location: "~/.folder-mcp/backups"
-    
-  # Cloudflare deployment
-  deployment:
-    tunnel:
-      persistent: true  # Keep tunnel running
-      autoreconnect: true
-      metrics: true  # Enable tunnel metrics
-```
-
-**Cloudflare Deployment Pattern**:
-```bash
-# Production deployment following Crawl4AI
-# 1. Install cloudflared
-# 2. Create tunnel
-cloudflared tunnel create folder-mcp
-
-# 3. Configure tunnel (auto-generated)
-# ~/.cloudflared/config.yml
-tunnel: <TUNNEL_ID>
-credentials-file: /home/user/.cloudflared/<TUNNEL_ID>.json
-
-ingress:
-  - hostname: folder-mcp.yourdomain.com
-    service: http://localhost:3000
-  - service: http_status:404
-
-# 4. Run tunnel as service
-cloudflared service install
-systemctl start cloudflared
-```
-
 **Completion Criteria**:
 - [ ] Production features configuration-driven
 - [ ] Auto-start configurable by platform
@@ -1368,9 +766,6 @@ systemctl start cloudflared
 - [ ] Backup system configurable
 - [ ] Cloudflare tunnel auto-deployment
 
-**Testing**:
-- **Automated**: Production configuration scenarios
-- **Manual E2E**: User deploys to production with tunnel
 
 **Phase 8 Completion Review**:
 After completing all Phase 8 tasks, conduct mandatory review:
@@ -1400,36 +795,6 @@ After completing all Phase 8 tasks, conduct mandatory review:
 - Export configuration
 - Integration with topic discovery
 
-**Configuration**:
-```yaml
-search:
-  algorithms:
-    semantic:
-      enabled: true
-      weight: 0.7
-      
-    keyword:
-      enabled: true
-      weight: 0.3
-      
-  ranking:
-    factors:
-      - relevance: 0.4
-      - recency: 0.3
-      - location: 0.3
-      
-  filters:
-    fileTypes:
-      enabled: true
-      groups:
-        documents: [".pdf", ".docx", ".txt"]
-        code: [".js", ".py", ".ts"]
-        
-  export:
-    formats: ["json", "csv", "markdown"]
-    maxResults: 1000
-```
-
 **Completion Criteria**:
 - [ ] Search algorithms configurable
 - [ ] Ranking fully customizable
@@ -1437,9 +802,6 @@ search:
 - [ ] Export options configurable
 - [ ] Performance tuning exposed
 
-**Testing**:
-- **Automated**: Search configuration scenarios
-- **Manual E2E**: User customizes search behavior
 
 ### Task 16: File Format Support Configuration
 
@@ -1451,45 +813,12 @@ search:
 - Parser selection via configuration
 - Performance settings per format
 
-**Configuration**:
-```yaml
-formats:
-  pdf:
-    enabled: true
-    parser: "pdfjs"  # pdfjs, pypdf
-    extractImages: false
-    maxPages: 1000
-    
-  office:
-    legacy:
-      enabled: true
-      formats: [".doc", ".xls", ".ppt"]
-      
-  code:
-    enabled: true
-    languages:
-      javascript:
-        extensions: [".js", ".jsx", ".ts", ".tsx"]
-        parser: "typescript"
-        extractAST: true
-        
-  images:
-    enabled: false  # Pending research
-    ocr:
-      engine: "tesseract"
-      languages: ["en", "es"]
-```
-
 **Completion Criteria**:
 - [ ] Format support configurable
 - [ ] Parser selection working
 - [ ] Format-specific options
 - [ ] Performance settings apply
 - [ ] Feature flags for formats
-
-**Testing**:
-- **Automated**: Format configuration validation
-- **Manual E2E**: User enables/configures formats
 
 ### Task 17: Code Intelligence Configuration
 
@@ -1502,32 +831,6 @@ formats:
 - Language-specific settings
 - Integration with existing search
 
-**Configuration**:
-```yaml
-codeIntelligence:
-  enabled: true
-  
-  ast:
-    enabled: true
-    languages: ["javascript", "typescript", "python"]
-    extractFunctions: true
-    extractClasses: true
-    extractImports: true
-    
-  frameworks:
-    detect: true
-    supported:
-      - name: "express"
-        patterns: ["app.get", "app.post", "router."]
-      - name: "fastapi"
-        patterns: ["@app.get", "@app.post", "FastAPI()"]
-        
-  search:
-    includeComments: false
-    includeDocstrings: true
-    semanticCodeSearch: true
-```
-
 **Completion Criteria**:
 - [ ] Code features configuration-driven
 - [ ] AST options configurable
@@ -1535,10 +838,6 @@ codeIntelligence:
 - [ ] Search behavior customizable
 - [ ] Language settings working
 - [ ] Integrates with existing search endpoint
-
-**Testing**:
-- **Automated**: Code intelligence configuration
-- **Manual E2E**: User configures code features
 
 ### Task 18: Performance & Scalability Configuration
 
@@ -1550,43 +849,12 @@ codeIntelligence:
 - Resource limits configuration
 - Cache configuration
 
-**Configuration**:
-```yaml
-performance:
-  scaling:
-    mode: "auto"  # auto, manual
-    maxWorkers: "auto"  # auto = CPU cores
-    
-  limits:
-    maxMemory: "4GB"
-    maxCPU: "80%"
-    maxDisk: "10GB"
-    
-  cache:
-    embedding:
-      size: "1GB"
-      ttl: "7d"
-      
-    search:
-      size: "100MB"
-      ttl: "1h"
-      
-  optimization:
-    lazyLoading: true
-    incrementalIndexing: true
-    compressionLevel: 6
-```
-
 **Completion Criteria**:
 - [ ] All performance configurable
 - [ ] Resource limits enforced
 - [ ] Cache behavior configurable
 - [ ] Optimization flags working
 - [ ] Scaling configuration applied
-
-**Testing**:
-- **Automated**: Performance configuration scenarios
-- **Manual E2E**: User tunes performance via configuration
 
 ### Task 19: Chat Interface Configuration
 
@@ -1598,42 +866,12 @@ performance:
 - Session management configuration
 - Export configuration
 
-**Configuration**:
-```yaml
-chat:
-  enabled: false
-  
-  providers:
-    openai:
-      enabled: true
-      apiKey: "${OPENAI_API_KEY}"
-      model: "gpt-4"
-      
-    ollama:
-      enabled: true
-      model: "llama2"
-      
-  behavior:
-    systemPrompt: "You are a helpful assistant..."
-    maxTokens: 4000
-    temperature: 0.7
-    
-  sessions:
-    autoSave: true
-    maxHistory: 100
-    exportFormats: ["markdown", "json"]
-```
-
 **Completion Criteria**:
 - [ ] Chat fully configuration-driven
 - [ ] Provider selection via config
 - [ ] Behavior customizable
 - [ ] Session management configurable
 - [ ] Export options working
-
-**Testing**:
-- **Automated**: Chat configuration validation
-- **Manual E2E**: User configures chat features
 
 **Phase 9 Completion Review**:
 After completing all Phase 9 tasks, conduct mandatory review:
@@ -1716,10 +954,6 @@ After completing all Phase 9 tasks, conduct mandatory review:
 - [ ] Best practices documented
 - [ ] Troubleshooting guide ready
 - [ ] Help endpoint serves all documentation
-
-**Testing**:
-- **Automated**: Configuration validation tests
-- **Manual E2E**: User configures system successfully
 
 ### Task 22: Release Automation
 
