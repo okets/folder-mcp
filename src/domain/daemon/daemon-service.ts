@@ -42,7 +42,7 @@ export class DaemonService extends EventEmitter implements IDaemonService {
     private config: DaemonConfig,
     private processManager: IProcessManager,
     private healthMonitor: IHealthMonitor,
-    private signalHandler: ISignalHandler,
+    private signalHandler: ISignalHandler | null,
     private performanceMonitor: IPerformanceMonitor,
     private logger: { info: (msg: string) => void; error: (msg: string, error?: Error) => void; warn: (msg: string) => void; debug: (msg: string) => void; }
   ) {
@@ -68,8 +68,10 @@ export class DaemonService extends EventEmitter implements IDaemonService {
       this.logger.info('Starting daemon...');
       this.setStatus(DaemonStatus.STARTING);
 
-      // Register signal handlers
-      this.signalHandler.registerHandlers();
+      // Register signal handlers if available
+      if (this.signalHandler) {
+        this.signalHandler.registerHandlers();
+      }
 
       // Start the MCP server process
       await this.processManager.startMcpServer();
@@ -133,8 +135,10 @@ export class DaemonService extends EventEmitter implements IDaemonService {
       // Stop the MCP server process
       await this.processManager.stopMcpServer();
 
-      // Unregister signal handlers
-      this.signalHandler.unregisterHandlers();
+      // Unregister signal handlers if available
+      if (this.signalHandler) {
+        this.signalHandler.unregisterHandlers();
+      }
 
       this.setStatus(DaemonStatus.STOPPED);
       this.startTime = null;
@@ -297,16 +301,11 @@ export class DaemonService extends EventEmitter implements IDaemonService {
       }
     });
 
-    // Signal handlers
-    this.signalHandler.handleShutdown = async () => {
-      this.logger.info('Received shutdown signal, stopping daemon...');
-      await this.stop();
-    };
-
-    this.signalHandler.handleReload = async () => {
-      this.logger.info('Received reload signal, reloading configuration...');
-      await this.reload();
-    };
+    // Signal handlers (if available)
+    if (this.signalHandler) {
+      // Note: Signal handlers are set up during registration, not here
+      // The signal handler already has the shutdown/reload logic
+    }
   }
 
   /**

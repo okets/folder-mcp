@@ -3,6 +3,7 @@
 // to eliminate duplication across the configuration system
 
 import { SystemCapabilities } from './system.js';
+import { DaemonConfig } from './schema/daemon.js';
 
 /**
  * Configuration source types
@@ -169,7 +170,7 @@ export interface LocalConfig {
       diskTracking?: boolean;
     };
     shutdownTimeout?: number;
-    shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT';
+    shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT' | 'SIGUSR2';
     reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
   };
   
@@ -210,6 +211,9 @@ export interface ResolvedConfig {
   ignorePatterns: string[];
   maxConcurrentOperations: number;
   debounceDelay: number;
+  
+  // Daemon configuration
+  daemon?: DaemonConfig;
   
   // Source tracking for debugging
   sources: {

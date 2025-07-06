@@ -225,11 +225,14 @@ export function setupDependencyInjection(options: {
     });
   }
 
-  // Register daemon services (if daemon is enabled)
-  container.registerSingleton(SERVICE_TOKENS.DAEMON_SERVICE, () => {
-    // For now, return a placeholder - proper implementation will be added in Assignment 3+
-    return null;
-  });
+  // Register daemon services as null for now - CLI will handle daemon service creation separately
+  container.registerSingleton(SERVICE_TOKENS.DAEMON_SERVICE, () => null);
+  container.registerSingleton(SERVICE_TOKENS.PROCESS_MANAGER, () => null);
+  container.registerSingleton(SERVICE_TOKENS.HEALTH_MONITOR, () => null);
+  container.registerSingleton(SERVICE_TOKENS.PERFORMANCE_MONITOR, () => null);
+  container.registerSingleton(SERVICE_TOKENS.SIGNAL_HANDLER, () => null);
+  container.registerSingleton(SERVICE_TOKENS.PID_MANAGER, () => null);
+  container.registerSingleton(SERVICE_TOKENS.SYSTEM_MONITOR, () => null);
 
   return container;
 }

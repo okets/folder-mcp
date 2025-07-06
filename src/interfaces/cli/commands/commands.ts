@@ -12,6 +12,7 @@ import { SearchCommand } from './search.js';
 import { WatchCommand } from './watch.js';
 import { StatusCommand } from './status.js';
 import { ConfigCommand } from './config.js';
+import { DaemonCommand } from './daemon.js';
 
 export function setupCommands(program: CLIProgram): void {
   // Add all commands - they now use lazy DI resolution, so no need to resolve services here
@@ -26,4 +27,7 @@ export function setupCommands(program: CLIProgram): void {
   // Status and configuration commands
   program.addCommand(new StatusCommand());
   program.addCommand(new ConfigCommand());
+  
+  // Daemon management commands
+  program.addCommand(new DaemonCommand());
 }
