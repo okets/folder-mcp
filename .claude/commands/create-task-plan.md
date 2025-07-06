@@ -59,6 +59,53 @@ Every task plan will include these MANDATORY patterns that MUST be followed:
 
 When this command is executed, you MUST:
 
+### 0. **Pre-Check: Verify Previous Task Completion** (if task-number > 1)
+
+For any task number greater than 1, FIRST check if the previous task was marked complete IN THE PHASE PLAN:
+
+```bash
+# Find the phase plan
+PHASE_PLAN=$(find docs/development-plan/roadmap/currently-implementing -name "Phase-${phase-number}-*-plan.md" -type f | head -1)
+
+if [ -n "$PHASE_PLAN" ] && [ $task-number -gt 1 ]; then
+  # Check if previous task is marked complete in the Phase Completion Log
+  PREV_TASK_NUM=$((task-number - 1))
+  
+  # Look in the Phase Completion Log table for the previous task's status
+  PREV_TASK_STATUS=$(grep -E "Task ${PREV_TASK_NUM}:|Task ${PREV_TASK_NUM} " "$PHASE_PLAN" | grep -c "✅")
+  
+  if [ "$PREV_TASK_STATUS" -eq 0 ]; then
+    # Previous task not marked complete in phase plan
+    echo "⚠️ Task ${PREV_TASK_NUM} is not marked as complete in the Phase Plan Completion Log."
+    echo ""
+    echo "The Phase Plan must be updated before creating a new task plan."
+    echo ""
+    echo "Options:"
+    echo "1. Update phase plan to mark Task ${PREV_TASK_NUM} as complete, then continue"
+    echo "2. Continue without updating (NOT RECOMMENDED - phase plan will be out of sync)"
+    echo "3. Abort - go back and properly complete Task ${PREV_TASK_NUM} first"
+    echo ""
+    echo "What would you like to do? (1/2/3)"
+  fi
+fi
+```
+
+**If option 1 is chosen**: 
+- First, update the Phase Plan Completion Log to mark Task {prev} as ✅ COMPLETE
+- Update the Phase Tasks Overview table to show ✅ status
+- Add completion date and key findings to the completion log
+- Then continue with creating the new task plan
+
+**If option 2 is chosen**:
+- Log a WARNING that phase plan is out of sync
+- Continue creating the new task plan
+- Note: This will create inconsistency between actual progress and reported progress
+
+**If option 3 is chosen**:
+- Stop the current command
+- Provide guidance to properly complete the previous task
+- Suggest using `/next-please` to resume where they left off
+
 1. **Read the roadmap file**:
    - File: `docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md`
    - Find `## Phase <phase-number>:`
@@ -837,3 +884,93 @@ When human feedback is received during task review, follow this workflow:
 - ✅ Human confirmation received (if needed)
 
 **CRITICAL**: Never resume implementation until the feedback has been properly planned and the human has confirmed the approach.
+
+## 🔄 **Phase Plan Update Process**
+
+### When to Update Phase Plan
+
+The phase plan MUST be updated when:
+1. **Task Completion**: When marking a task as ✅ COMPLETE
+2. **Before Commit**: After human review confirms task is complete
+3. **Creating Next Task**: When previous task wasn't marked complete
+
+### Phase Plan Update Instructions
+
+When a task is marked complete, update the phase plan (`Phase-{number}-{name}-plan.md`):
+
+#### 1. **Update Phase Tasks Overview Table**
+```markdown
+| Task # | Task Name | Complexity | Status | Command |
+|--------|-----------|------------|--------|---------|
+| 1 | Configuration System Foundation | High | ✅ | ~~`/create-task-plan 6 1`~~ |
+| 2 | Basic Daemon Architecture | Medium | ⏳ | `/create-task-plan 6 2` |
+```
+Change status from ⏳ to ✅ and strike through the command.
+
+#### 2. **Update Phase Completion Log**
+```markdown
+### **Phase Completion Log**
+| Task | Status | Completion Date | Key Decisions/Findings |
+|------|--------|-----------------|------------------------|
+| Task 1: Configuration System Foundation | ✅ | 2025-07-05 | Implemented comprehensive config hierarchy with DI |
+| Task 2: Basic Daemon Architecture | ⏳ | - | - |
+```
+Add completion date and key findings from task implementation.
+
+#### 3. **Update Progress Metrics** (if present)
+```markdown
+### **Phase Progress**
+- Tasks Complete: 2/6 (33%)
+- Estimated Remaining: ~10 days
+- On Track: ✅ Yes
+```
+
+#### 4. **Update Success Criteria Tracking**
+Check off any phase-level success criteria that the completed task satisfies.
+
+### Automated Phase Plan Update Template
+
+When marking a task complete, use this template:
+
+```markdown
+## 📋 Phase Plan Update Required
+
+**Task Completed**: Phase {X} Task {Y} - {Task Name}
+**Completion Date**: {Today's Date}
+
+### Updates to Make:
+1. **Phase Tasks Overview**: 
+   - Change Task {Y} status from ⏳ to ✅
+   - Strike through the create command
+   
+2. **Phase Completion Log**:
+   - Mark Task {Y} as ✅
+   - Add completion date: {Today's Date}
+   - Add key findings: {Brief summary from Implementation Discoveries}
+   
+3. **Progress Metrics**:
+   - Update tasks complete: {Y}/{Total} ({Percentage}%)
+   - Update time estimates if needed
+   
+4. **Success Criteria**:
+   - Check off: {List any phase success criteria this task satisfied}
+
+**Command to edit phase plan:**
+```
+Edit docs/development-plan/roadmap/currently-implementing/Phase-{X}-{name}-plan.md
+```
+```
+
+### Integration with Task Workflow
+
+The complete workflow now becomes:
+
+1. **Start Task**: `/create-task-plan X Y` (checks previous task completion)
+2. **Implement**: Follow embedded execution guidance
+3. **Complete Assignments**: Update task plan as living document
+4. **Human Review**: Get confirmation that task works correctly
+5. **Update Phase Plan**: Mark task complete in phase plan
+6. **Commit**: Include both task completion and phase plan update
+7. **Next Task**: `/create-task-plan X Y+1` or `/next-please`
+
+This ensures the phase plan always reflects the true state of progress.

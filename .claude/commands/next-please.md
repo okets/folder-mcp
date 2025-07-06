@@ -34,7 +34,28 @@ CURRENT_PHASE=$(echo "$PHASE_PLANS" | tail -1 | grep -oP 'Phase-\K[0-9]+')
 ACTIVE_TASK=$(echo "$TASK_PLANS" | tail -1)
 ```
 
-### 2. **Analyze Task Plan Progress (Living Document)**
+### 2. **Check Phase Plan Synchronization**
+
+```bash
+# Check if task is marked complete in task plan but not in phase plan
+TASK_STATUS=$(grep -m1 "Status.*:" "$ACTIVE_TASK" | grep -o "✅ COMPLETE")
+TASK_NUMBER=$(echo "$ACTIVE_TASK" | grep -oP 'Task-\K[0-9]+')
+
+if [ -n "$TASK_STATUS" ]; then
+  # Task marked complete, check phase plan
+  PHASE_PLAN=$(find docs/development-plan/roadmap/currently-implementing -name "Phase-${CURRENT_PHASE}-*-plan.md" -type f | head -1)
+  
+  # Check if task is marked complete in phase plan completion log
+  PHASE_LOG_STATUS=$(grep "Task ${TASK_NUMBER}:" "$PHASE_PLAN" | grep -c "✅")
+  
+  if [ "$PHASE_LOG_STATUS" -eq 0 ]; then
+    # Task complete but phase plan not updated - this is State C
+    echo "WARNING: Task marked complete but phase plan not updated"
+  fi
+fi
+```
+
+### 3. **Analyze Task Plan Progress (Living Document)**
 
 If task plan exists, analyze these specific sections:
 
@@ -158,25 +179,77 @@ Follow the assignment guidance above directly from your task plan. All DI patter
 **Ready to start Assignment [X+1]?**
 ```
 
-#### **State C: Task Complete, Need Next Task**
+#### **State C: Task Complete, Need Phase Plan Update**
 
 Indicators:
 - All assignments marked ✅ COMPLETED
 - Time Tracking shows all "Complete"
 - Implementation Discoveries & Decision Log populated with learnings
-- More tasks exist in phase plan
+- Task plan shows ✅ COMPLETE but phase plan not updated
 
 ```markdown
-## 🎯 Task [T] Complete → Create Task [T+1] Plan
+## 🎯 Task [T] Complete → Update Phase Plan First
 
 **Completed**: Phase [P] Task [T] - [Task Name]
-**Next**: Phase [P] Task [T+1] - [Next Task Name]
+**Status**: Task complete but phase plan needs updating
 
 ### ✓ Task Completion Verification:
 - All [X] assignments: ✅ COMPLETED
 - Build passing: ✅
 - Implementation Discoveries updated: ✅
 - Key decisions documented: ✅
+
+### ⚠️ **Phase Plan Update Required**
+
+The task is complete but the phase plan hasn't been updated. This MUST be done before proceeding:
+
+### 📋 Phase Plan Updates Needed:
+
+1. **Phase Tasks Overview Table**: 
+   - Change Task [T] status from ⏳ to ✅
+   - Strike through the create command
+   
+2. **Phase Completion Log**:
+   - Mark Task [T] as ✅
+   - Add completion date: [Today's Date]
+   - Add key findings: [Brief summary from Implementation Discoveries]
+   
+3. **Progress Metrics**:
+   - Update tasks complete: [T]/[Total] ([Percentage]%)
+
+### 📝 Key Findings to Add:
+From Implementation Discoveries:
+- **Main Achievement**: [Core feature implemented]
+- **Architecture Decisions**: [Key DI patterns used]
+- **Lessons Learned**: [Important discoveries]
+
+**Command to update phase plan:**
+```
+Edit docs/development-plan/roadmap/currently-implementing/Phase-[P]-[name]-plan.md
+```
+
+After updating the phase plan, commit both the task completion and phase plan update together.
+
+**Ready to update the phase plan?**
+```
+
+#### **State D: Task Complete & Phase Plan Updated, Need Next Task**
+
+Indicators:
+- All assignments marked ✅ COMPLETED
+- Phase plan shows task as ✅ in completion log
+- More tasks exist in phase plan
+
+```markdown
+## ✅ Task [T] Complete → Create Task [T+1] Plan
+
+**Completed**: Phase [P] Task [T] - [Task Name]
+**Next**: Phase [P] Task [T+1] - [Next Task Name]
+
+### ✓ Task Fully Complete:
+- All assignments: ✅ COMPLETED
+- Phase plan updated: ✅
+- Ready for next task: ✅
 
 ### 📋 Management-Style Task Summary:
 **What Was Accomplished**: [From Implementation Discoveries]
@@ -197,7 +270,7 @@ Scope: [Number] items
 **Ready to create plan for Task [T+1]?**
 ```
 
-#### **State D: Phase Complete, Ready for Next Phase**
+#### **State E: Phase Complete, Ready for Next Phase**
 
 Indicators:
 - All tasks in Phase Completion Log show ✅
@@ -235,7 +308,7 @@ Indicators:
 
 ### 5. **Handle Edge Cases**
 
-#### **State E: No Task Plan but Phase Plan Exists**
+#### **State F: No Task Plan but Phase Plan Exists**
 
 ```markdown
 ## 📋 No Active Task - Start First Task
@@ -252,7 +325,7 @@ Indicators:
 ```
 ```
 
-#### **State F: Conflicting/Unclear State**
+#### **State G: Conflicting/Unclear State**
 
 ```markdown
 ## ⚠️ Ambiguous State Detected
