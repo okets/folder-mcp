@@ -9,22 +9,22 @@ import { buildProps } from '../../utils/conditionalProps';
  * These components apply theme-aware styling to the base panels
  */
 
-export const ThemedMainPanel: React.FC<{
+export const ThemedConfigurationPanel: React.FC<{
     width?: number;
     height?: number;
 }> = ({ width, height }) => {
     const { theme } = useTheme();
     
-    // MainPanel already uses theme context internally
+    // ConfigurationPanel already uses theme context internally
     return <MainPanel {...buildProps({ width, height })} />;
 };
 
-export const ThemedSecondaryPanel: React.FC<{
+export const ThemedStatusPanel: React.FC<{
     width?: number;
     height?: number;
 }> = ({ width, height }) => {
     const { theme } = useTheme();
     
-    // SecondaryPanel already uses theme context internally
+    // StatusPanel already uses theme context internally
     return <SecondaryPanel {...buildProps({ width, height })} />;
 };

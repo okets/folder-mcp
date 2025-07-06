@@ -317,7 +317,7 @@ folder-mcp tunnel setup                      # Interactive Cloudflare setup
 
 ### **Linear Progress Bar**
 ```
-■■□□□□ 2/6 Tasks (33%)
+■■■■□□ 4/6 Tasks (67%)
 ```
 
 ### **Phase Completion Log**
@@ -327,7 +327,7 @@ folder-mcp tunnel setup                      # Interactive Cloudflare setup
 | Task 1: Configuration System Foundation | ✅ | 2025-07-05 | Comprehensive configuration system with hierarchy, validation, hot-reload |
 | Task 2: Basic Daemon Architecture | ✅ | 2025-07-05 | Event-driven daemon with 127 tests, full process management |
 | Task 3: Extend MCP Server for Multiple Folders | ✅ | 2025-07-06 | Multi-folder MCP server implemented with real-data testing |
-| Task 4: Configuration-Aware CLI Commands | ⏳ | - | - |
+| Task 4: Configuration-Aware CLI Commands | ✅ | 2025-07-06 | Full CLI command suite with config management, 42 tests passing |
 | Task 5: Configuration-Driven TUI | ⏳ | - | - |
 | Task 6: CLI/TUI Parity Validation | ⏳ | - | - |
 

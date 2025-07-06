@@ -4,11 +4,6 @@ import { render } from 'ink';
 import { AppFullscreen as App } from './AppFullscreen';
 import { DIProvider, setupDIContainer } from './di/index';
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-const screenArg = args.find(arg => arg.startsWith('--screen='));
-const screenName = screenArg ? screenArg.split('=')[1] : undefined;
-
 // Check if we're in a proper TTY environment
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
     console.error('Error: This application must be run in an interactive terminal.');
@@ -36,7 +31,7 @@ if (!isRawModeSupported) {
 // Start the Ink TUI in fullscreen mode
 const app = render(
     <DIProvider container={container}>
-        <App {...(screenName ? { screenName } : {})} />
+        <App />
     </DIProvider>,
     {
         exitOnCtrlC: true  // Allow standard Ctrl+C behavior for better terminal compatibility

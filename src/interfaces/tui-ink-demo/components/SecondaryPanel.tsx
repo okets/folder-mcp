@@ -19,7 +19,7 @@ import { textColorProp, buildProps } from '../utils/conditionalProps';
 const mixedItems = createStatusPanelItems();
 
 
-export const StatusPanel: React.FC<{ width?: number; height?: number; isMinimized?: boolean; isFrameOnly?: boolean }> = ({ width, height, isMinimized = false, isFrameOnly = false }) => {
+export const SecondaryPanel: React.FC<{ width?: number; height?: number; isMinimized?: boolean; isFrameOnly?: boolean }> = ({ width, height, isMinimized = false, isFrameOnly = false }) => {
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const constraints = useLayoutConstraints();

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import { ThemeProvider, themes, ThemeName, useTheme } from './contexts/ThemeContext';
-import { ThemedMainPanel, ThemedSecondaryPanel } from './components/core/ThemedPanel';
+import { ThemedConfigurationPanel, ThemedStatusPanel } from './components/core/ThemedPanel';
 import { useResponsiveLayout } from './hooks/useResponsiveLayout';
 import { useNavigationContext } from './contexts/NavigationContext';
 import { configItems } from './models/sampleData';
@@ -62,11 +62,11 @@ const ThemedAppContent: React.FC = () => {
         
         const panels = (
             <>
-                <ThemedMainPanel
+                <ThemedConfigurationPanel
                     width={configPanelDimensions.width}
                     height={configPanelDimensions.height}
                 />
-                <ThemedSecondaryPanel
+                <ThemedStatusPanel
                     width={statusPanelDimensions.width}
                     height={statusPanelDimensions.height}
                 />

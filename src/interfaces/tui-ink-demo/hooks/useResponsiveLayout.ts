@@ -1,0 +1,80 @@
+import { useMemo } from 'react';
+import { useTerminalSize } from './useTerminalSize';
+import { useDI } from '../di/DIContext';
+import { ServiceTokens } from '../di/tokens';
+import { ILayoutService } from '../services/interfaces';
+
+export interface ResponsiveLayoutOptions {
+    /** Number of panels to display */
+    panelCount: number;
+    /** Preferred layout direction */
+    preferredLayout?: 'horizontal' | 'vertical' | 'auto';
+    /** Minimum panel dimensions */
+    minPanelWidth?: number;
+    minPanelHeight?: number;
+    /** Space reserved for status bar */
+    statusBarHeight?: number;
+}
+
+/**
+ * Hook for responsive panel layout based on terminal size
+ */
+export function useResponsiveLayout(options: ResponsiveLayoutOptions) {
+    const { columns, rows } = useTerminalSize();
+    const {
+        panelCount,
+        preferredLayout = 'auto',
+        minPanelWidth = 30,
+        minPanelHeight = 10,
+        statusBarHeight = 2
+    } = options;
+    
+    return useMemo(() => {
+        // Calculate available space
+        const availableHeight = rows - statusBarHeight;
+        
+        // Determine layout direction
+        let layout: 'horizontal' | 'vertical';
+        if (preferredLayout === 'auto') {
+            // Use horizontal if we have enough width for all panels
+            const requiredWidth = panelCount * minPanelWidth + (panelCount - 1) * 2;
+            layout = columns >= requiredWidth ? 'horizontal' : 'vertical';
+        } else {
+            layout = preferredLayout;
+        }
+        
+        // Get layout service via DI
+        const layoutService = useDI().resolve(ServiceTokens.LayoutService) as ILayoutService;
+        
+        // Get responsive configuration
+        const config = layoutService.getResponsiveConfig(columns, availableHeight);
+        
+        // Calculate panel layout
+        const panelLayout = layout === 'horizontal'
+            ? layoutService.calculateHorizontalLayout(columns, availableHeight, panelCount, {
+                minPanelWidth
+            })
+            : layoutService.calculateVerticalLayout(columns, availableHeight, panelCount, {
+                minPanelHeight
+            });
+        
+        // Calculate text layout for each panel
+        const breakpoint = layoutService.getBreakpoint(columns);
+        const textLayouts = panelLayout.panels.map((panel: { width: number; height: number }) => 
+            layoutService.calculateTextLayout(panel.width, {
+                hasScrollbar: true,
+                hasIndicator: true,
+                hasValue: breakpoint !== 'small',
+                hasStatus: breakpoint !== 'small'
+            })
+        );
+        
+        return {
+            layout,
+            panelLayout,
+            textLayouts,
+            config,
+            breakpoint
+        };
+    }, [columns, rows, panelCount, preferredLayout, minPanelWidth, minPanelHeight, statusBarHeight]);
+}

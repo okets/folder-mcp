@@ -22,13 +22,14 @@ import { ProgressModeProvider } from '../contexts/ProgressModeContext';
 const configItems = createConfigurationPanelItems();
 
 
-export const ConfigurationPanel: React.FC<{ 
+export const MainPanel: React.FC<{ 
     width?: number; 
     height?: number;
     onEditModeChange?: (isInEditMode: boolean) => void;
     isMinimized?: boolean;
     isFrameOnly?: boolean;
-}> = ({ width, height, onEditModeChange, isMinimized = false, isFrameOnly = false }) => {
+    screenName?: string;
+}> = ({ width, height, onEditModeChange, isMinimized = false, isFrameOnly = false, screenName }) => {
     // Force update trigger
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
@@ -335,7 +336,7 @@ export const ConfigurationPanel: React.FC<{
         
         return (
             <BorderedBox
-                title="Configuration"
+                title={screenName ? `Main · ${screenName}` : "Main"}
                 subtitle=""
                 focused={false}
                 width={panelWidth}
@@ -351,7 +352,7 @@ export const ConfigurationPanel: React.FC<{
     return (
         <ProgressModeProvider width={panelWidth}>
             <BorderedBox
-                title="Configuration"
+                title={screenName ? `Main · ${screenName}` : "Main"}
                 subtitle="Setup your folder-mcp server"
                 focused={navigation.isConfigFocused}
                 width={panelWidth}

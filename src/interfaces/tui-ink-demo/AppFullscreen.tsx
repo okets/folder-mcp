@@ -19,11 +19,7 @@ const STATUS_ITEMS = createStatusPanelItems();
 const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 
-interface AppContentProps {
-    screenName?: string;
-}
-
-const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
+const AppContent: React.FC = () => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const di = useDI();
@@ -81,7 +77,7 @@ const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
                     availableWidth={columns}
                     narrowBreakpoint={100}
                 >
-                    <MainPanel onEditModeChange={setIsNodeInEditMode} {...(screenName ? { screenName } : {})} />
+                    <MainPanel onEditModeChange={setIsNodeInEditMode} />
                     <SecondaryPanel />
                 </LayoutContainer>
                 
@@ -91,14 +87,10 @@ const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
     );
 };
 
-interface AppFullscreenProps {
-    screenName?: string;
-}
-
-export const AppFullscreen: React.FC<AppFullscreenProps> = ({ screenName }) => {
+export const AppFullscreen: React.FC = () => {
     return (
         <AnimationProvider>
-            <AppContent {...(screenName ? { screenName } : {})} />
+            <AppContent />
         </AnimationProvider>
     );
 };
