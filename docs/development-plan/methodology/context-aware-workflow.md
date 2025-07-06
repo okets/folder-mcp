@@ -123,7 +123,6 @@ folder-mcp/
 └── [Your implementation plans will be generated here]
 ```
 
-**Note**: The `/execute-prp` command has been **removed** and its functionality consolidated into the enhanced `/create-task-plan` command to prevent architectural drift during long implementation sessions.
 
 ## 💡 Usage Tips for Linear Workflow
 

@@ -652,10 +652,8 @@ npm test -- tests/integration/daemon
 
 ---
 
-**To execute this plan:**
-```
-/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-6-Task-2-basic-daemon-architecture.md
-```
+**To implement this plan:**
+Work on each assignment directly according to the specifications provided below.
 
 ## 📝 **Living Document Note**
 

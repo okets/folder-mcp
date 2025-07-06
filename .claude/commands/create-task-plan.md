@@ -1,21 +1,12 @@
 # create-task-plan
 
-**ENHANCED VERSION**: Creates detailed implementation plans with MANDATORY architectural enforcement and execution guidance embedded throughout. This is now the SINGLE command for both planning and implementing tasks.
+Create a detailed, context-aware implementation plan for a specific task.
 
 ## Usage
 
 ```
 /create-task-plan <phase-number> <task-number>
 ```
-
-## 🚨 **CRITICAL CHANGE - NO MORE `/execute-prp`**
-
-This command now **INCLUDES ALL EXECUTION GUIDANCE** within the task plan itself. The `/execute-prp` command has been **REMOVED** to prevent confusion and ensure architectural patterns are visible throughout long implementation sessions.
-
-**NEW WORKFLOW**:
-1. `/create-task-plan 6 2` → Creates plan with execution guidance embedded
-2. Follow the embedded execution guidance within the task plan
-3. All DI patterns, validation steps, and living document requirements are built into each assignment
 
 ## 🏗️ **MANDATORY ARCHITECTURAL PATTERNS**
 
