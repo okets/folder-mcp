@@ -10,10 +10,11 @@ Intelligently determine and prepare the next action in the development workflow 
 
 ## Workflow Context
 
-This command works within the 3-command linear workflow:
-1. `/create-phase-plan [phase]` → Creates `Phase-{number}-{name-kebab-case}-plan.md`
-2. `/create-task-plan [phase] [task]` → Creates `Phase-{phase}-Task-{number}-{name-kebab}.md`
-3. `/execute-prp [task-plan-file]` → Executes assignments with validation
+This command works within the simplified 2-command linear workflow:
+1. `/create-phase-plan [phase]` → Creates `Phase-{number}-{name-kebab-case}-plan.md` (auto-archives previous phase)
+2. `/create-task-plan [phase] [task]` → Creates `Phase-{phase}-Task-{number}-{name-kebab}.md` with embedded execution guidance
+
+**Key Change**: No separate execution command needed. Task plans contain all execution guidance embedded within assignments.
 
 ## EXACT Implementation Instructions
 
@@ -33,7 +34,7 @@ CURRENT_PHASE=$(echo "$PHASE_PLANS" | tail -1 | grep -oP 'Phase-\K[0-9]+')
 ACTIVE_TASK=$(echo "$TASK_PLANS" | tail -1)
 ```
 
-### 2. **Analyze Task Plan Progress**
+### 2. **Analyze Task Plan Progress (Living Document)**
 
 If task plan exists, analyze these specific sections:
 
@@ -50,11 +51,13 @@ Look for patterns:
 | Assignment | Estimated | Actual | Status | Notes |
 Check the Status column: Not Started/In Progress/Complete/Blocked
 
-### Implementation Discoveries
-Check if populated - indicates work has been done
+### Implementation Discoveries & Decision Log
+- 🎯 Key Decisions Made & Rationale - Recent implementation decisions
+- 🐰 Rabbit Holes & Problem-Solving - Current challenges being worked on
+- 🏗️ Architecture & DI Insights - Technical discoveries
+- 📚 Unexpected Discoveries - Things learned during implementation
 
-### Platform-Specific Notes
-Check for any platform issues encountered
+Check if populated - indicates active work has been done
 ```
 
 ### 3. **Analyze Git State**
@@ -78,12 +81,13 @@ git diff --name-only | head -10
 
 ### 4. **Determine Exact State and Next Action**
 
-#### **State A: Mid-Assignment Work Interrupted**
+#### **State A: Mid-Assignment Work in Progress**
 
 Indicators:
 - Uncommitted changes matching current assignment files
 - Assignment not marked with ✅ COMPLETED
 - Sub-tasks partially checked
+- Implementation Discoveries & Decision Log shows recent work
 
 ```markdown
 ## 🔄 Resuming Assignment [X]: [Assignment Name]
@@ -103,28 +107,29 @@ npm run build
 ```
 
 ### 📍 Where You Left Off:
-Based on Implementation Discoveries and changes:
-- Last completed: [Sub-task X.Y]
-- Currently working on: [Sub-task X.Z]
-- Code changes in: [specific files]
+Based on Implementation Discoveries & Decision Log:
+- **Last completed**: [Sub-task X.Y from ✅ markers]
+- **Currently working on**: [Sub-task X.Z from uncommitted files]
+- **Recent decisions**: [From Key Decisions Made & Rationale]
+- **Current challenges**: [From Rabbit Holes & Problem-Solving]
 
 ### ⏭️ Next Steps:
-1. [ ] Fix build errors in [file:line]
-2. [ ] Complete sub-task [X.Z]: [description]
-3. [ ] Run tests: `npm test -- tests/unit/[module]`
-4. [ ] Update Implementation Discoveries section
-5. [ ] Mark assignment complete with ✅
-6. [ ] Commit: `git commit -m "Task [P].[T]: Assignment [X] [name] completed"`
+1. [ ] [Specific next step based on current sub-task from task plan]
+2. [ ] [Address any build errors if present]
+3. [ ] [Run relevant tests based on task type]
+4. [ ] Update Implementation Discoveries & Decision Log with progress
+5. [ ] Mark assignment complete with ✅ when done
+6. [ ] Continue to next assignment or commit when task complete
 
 **Ready to continue with Assignment [X]?**
 ```
 
-#### **State B: Assignment Just Completed**
+#### **State B: Ready for Next Assignment**
 
 Indicators:
-- Clean git status OR uncommitted changes are test/docs
 - Last assignment marked ✅ COMPLETED
-- More assignments remain
+- Clean git status OR only documentation changes uncommitted  
+- More assignments remain in task plan
 
 ```markdown
 ## ✅ Assignment [X] Complete → Start Assignment [X+1]
@@ -136,21 +141,21 @@ Indicators:
 **Goal**: [Goal from task plan]
 **Estimated Time**: [X hours]
 
+#### 🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT:
+[Copy DI pattern requirements from task plan]
+
 #### Sub-tasks:
-[Copy full assignment details from task plan]
+[Copy full assignment details from task plan including validation checklist]
 
 ### ✓ Pre-flight Check:
 - Build passing: ✅
-- Tests passing: ✅ 
-- Previous work committed: ✅
-- Ready to start: ✅
+- Previous assignment marked ✅ COMPLETED: ✅
+- Implementation ready to continue: ✅
 
-**Command to continue:**
-```
-/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-[P]-Task-[T]-[name].md
-```
+### ⏭️ Start Assignment [X+1]:
+Follow the assignment guidance above directly from your task plan. All DI patterns, validation steps, and completion criteria are embedded in the assignment.
 
-**Confirm: Start Assignment [X+1]?**
+**Ready to start Assignment [X+1]?**
 ```
 
 #### **State C: Task Complete, Need Next Task**
@@ -158,6 +163,7 @@ Indicators:
 Indicators:
 - All assignments marked ✅ COMPLETED
 - Time Tracking shows all "Complete"
+- Implementation Discoveries & Decision Log populated with learnings
 - More tasks exist in phase plan
 
 ```markdown
@@ -167,13 +173,18 @@ Indicators:
 **Next**: Phase [P] Task [T+1] - [Next Task Name]
 
 ### ✓ Task Completion Verification:
-- All [X] assignments: ✅
+- All [X] assignments: ✅ COMPLETED
 - Build passing: ✅
-- Tests passing: ✅
-- Documentation updated: [Check]
-- Task committed: [Check last commit]
+- Implementation Discoveries updated: ✅
+- Key decisions documented: ✅
 
-### 📋 Next Task from Phase Plan:
+### 📋 Management-Style Task Summary:
+**What Was Accomplished**: [From Implementation Discoveries]
+**Key Decisions Made**: [From Decision Log]
+**Architecture Insights**: [From DI Insights section]
+**Lessons Learned**: [From Unexpected Discoveries]
+
+### 🚀 Next Task from Phase Plan:
 **Task [T+1]: [Name]**
 Goal: [Goal from phase plan]
 Scope: [Number] items
@@ -183,47 +194,43 @@ Scope: [Number] items
 /create-task-plan [P] [T+1]
 ```
 
-**Confirm: Create plan for Task [T+1]?**
+**Ready to create plan for Task [T+1]?**
 ```
 
-#### **State D: Phase Complete, Archive and Continue**
+#### **State D: Phase Complete, Ready for Next Phase**
 
 Indicators:
 - All tasks in Phase Completion Log show ✅
 - No more tasks in phase plan
 - Phase Success Criteria met
+- All task Implementation Discoveries populated
 
 ```markdown
-## 🎉 Phase [P] Complete → Archive & Start Phase [P+1]
+## 🎉 Phase [P] Complete → Start Phase [P+1]
 
 **Completed Phase**: Phase [P] - [Phase Name]
 **All [N] Tasks**: ✅ COMPLETE
 
-### 📦 Archive Actions:
-1. Move completed documents:
-```bash
-mkdir -p docs/development-plan/roadmap/completed/phase-[P]
-mv docs/development-plan/roadmap/currently-implementing/Phase-[P]-*.md \
-   docs/development-plan/roadmap/completed/phase-[P]/
-```
-
-2. Update Phase Completion Log with final notes
-
-3. Commit phase completion:
-```bash
-git add -A
-git commit -m "Phase [P]: [Name] completed - all [N] tasks done"
-```
+### 📋 Phase Completion Summary:
+**Major Accomplishments**: [From completed task summaries]
+**Architecture Decisions**: [Key DI patterns and boundaries established]
+**Lessons Learned**: [Critical insights for future phases]
+**Technical Debt**: [Items to address in future phases]
 
 ### 🚀 Start Next Phase:
 **Phase [P+1]: [Name from roadmap]**
 
-**Command to create phase plan:**
+**Command to create next phase plan (will auto-archive Phase [P]):**
 ```
 /create-phase-plan [P+1]
 ```
 
-**Confirm: Archive Phase [P] and create Phase [P+1] plan?**
+**Note**: The create-phase-plan command will automatically:
+1. Validate Phase [P] is 100% complete
+2. Archive Phase [P] documents to completed/phase-[P]/
+3. Create clean Phase [P+1] plan in currently-implementing/
+
+**Ready to start Phase [P+1]?**
 ```
 
 ### 5. **Handle Edge Cases**

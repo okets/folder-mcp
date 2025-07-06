@@ -20,14 +20,30 @@ This command follows context engineering best practices:
 
 When this command is executed, you MUST:
 
-1. **Read the ENTIRE roadmap file for context**:
+1. **FIRST: Validate Previous Phase Complete (if creating Phase N+1)**:
+   - Check `docs/development-plan/roadmap/currently-implementing/` for Phase N documents
+   - If Phase N documents exist, verify ALL tasks are ✅ COMPLETED:
+     - Read each `Phase-N-Task-X-*.md` file
+     - Check "Progress Tracking" → "Assignment Status" for ✅ COMPLETED markers
+     - Check "Time Tracking" table for "Complete" status
+   - **IF INCOMPLETE**: STOP with validation error message (see template below)
+   - **IF COMPLETE**: Archive Phase N documents to `completed/phase-N/`
+
+2. **Archive Previous Phase (if validated complete)**:
+   ```bash
+   mkdir -p docs/development-plan/roadmap/completed/phase-N
+   mv docs/development-plan/roadmap/currently-implementing/Phase-N-*.md \
+      docs/development-plan/roadmap/completed/phase-N/
+   ```
+
+3. **Read the ENTIRE roadmap file for context**:
    - File: `docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md`
    - First scan for: Project Goal, Architecture sections, Component Definitions, Success Metrics
    - Then find the section starting with `## Phase <number>:`
    - Extract ALL content until the next `## Phase` section
    - Look back for any sections referenced by the phase
 
-2. **Extract these EXACT elements**:
+4. **Extract these EXACT elements**:
    - Phase number and name from the heading
    - All user stories from "### **User Stories**" section
    - Success criteria from "### **Success Criteria**" section
@@ -36,14 +52,36 @@ When this command is executed, you MUST:
    - Any configuration examples or architecture details mentioned in tasks
    - Related sections from earlier in roadmap that provide context (e.g., Configuration Architecture, Component Definitions)
 
-3. **Count the tasks correctly**:
+5. **Count the tasks correctly**:
    - Search for all "### Task [number]:" patterns within the phase
    - The task count determines the progress tracking
 
-4. **Generate the output file**:
+6. **Generate the output file**:
    - Location: `docs/development-plan/roadmap/currently-implementing/Phase-{number}-{name-kebab-case}-plan.md`
    - Use the EXACT template format below
    - Fill in ALL extracted information
+
+### Validation Error Template
+
+If previous phase is incomplete, output this format:
+
+```markdown
+❌ **Cannot create Phase [N+1] - Phase [N] is incomplete**
+
+### Issues Found:
+- [ ] **Phase-[N]-Task-[X]**: [List incomplete assignments]
+- [ ] **Phase-[N]-Task-[Y]**: Time tracking shows "In Progress"
+- [ ] **Phase-[N]-Task-[Z]**: Missing ✅ COMPLETED markers
+
+### Required Actions:
+1. Complete all remaining assignments in Phase [N]
+2. Mark all assignments with ✅ COMPLETED in task documents
+3. Update time tracking tables to show "Complete" status
+4. Run `/next-please` to verify phase completion
+5. Then retry: `/create-phase-plan [N+1]`
+
+**Phase [N] must be 100% complete before starting Phase [N+1]**
+```
 
 ## Required Output Format
 

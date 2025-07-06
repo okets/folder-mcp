@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Development Workflow Preferences
+
+**File Modification Policy**: 
+- ✅ **Edit files freely** - No permission needed for any file changes
+- ✅ **Run builds/tests freely** - Verify changes work automatically  
+- ✅ **Show results** - Let you review the changes and outcomes
+- ⚠️ **Confirm git commits only** - Always ask before `git commit` or `git push`
+
+**Rationale**: Git provides complete rollback protection. Focus on efficient development, not file permission overhead.
+
 ## Essential Commands
 
 **Build and Development:**
