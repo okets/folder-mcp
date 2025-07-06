@@ -1,21 +1,20 @@
 # Context-Aware Planning Workflow for folder-mcp
 
-## 🔄 Three-Command Linear Workflow
+## 🔄 Two-Command Enhanced Workflow
 
-This workflow uses three commands for clean separation of concerns:
+This workflow uses two commands for streamlined development with embedded architectural enforcement:
 
 1. **`/create-phase-plan`** - Creates phase overview
-2. **`/create-task-plan`** - Creates task details (WHAT to do)
-3. **`/execute-prp`** - Executes with validation (HOW to do it properly)
+2. **`/create-task-plan`** - Creates comprehensive task plans with embedded execution guidance and mandatory DI patterns
 
 ```mermaid
 graph TD
     A[folder-mcp-roadmap-1.1.md] -->|/create-phase-plan 6| B[Phase-6-plan.md]
-    B -->|/create-task-plan 6 1| C[Phase-6-Task-1.md]
-    C -->|/execute-prp Phase-6-Task-1.md| D[Implementation + Validation]
+    B -->|/create-task-plan 6 1| C[Phase-6-Task-1.md with Embedded DI Guidance]
+    C -->|Follow Embedded Execution Guidance| D[Implementation with Mandatory DI Validation]
     D -->|Human Verification| E[✅ Task 1 Complete]
-    E -->|/create-task-plan 6 2| F[Phase-6-Task-2.md]
-    F -->|/execute-prp Phase-6-Task-2.md| G[Implementation + Validation]
+    E -->|/create-task-plan 6 2| F[Phase-6-Task-2.md with Embedded DI Guidance]
+    F -->|Follow Embedded Execution Guidance| G[Implementation with Mandatory DI Validation]
     G -->|Human Verification| H[✅ Task 2 Complete]
     
     E --> I[Update Phase Plan Progress]
@@ -35,17 +34,18 @@ This generates a **high-level overview** with:
 - Progress tracking for the entire phase
 - Links to create individual task plans
 
-### Step 2: Create Task Plans (As Needed)
+### Step 2: Create Enhanced Task Plans (As Needed)
 ```bash
 /create-task-plan 6 1  # For Configuration System Foundation
 /create-task-plan 6 2  # For Basic Daemon Architecture
 # etc...
 ```
-Each generates a **detailed implementation plan** with:
-- Specific implementation assignments
-- Task-specific validation
-- Granular progress tracking
-- Exact code locations and structures
+Each generates a **comprehensive implementation plan** with:
+- Specific implementation assignments with embedded DI patterns
+- Mandatory architectural validation after every assignment
+- Living document progress tracking requirements
+- Exact code locations and DI structure requirements
+- Built-in module boundary enforcement
 
 ## 📊 Measurable Linear Progress
 
@@ -84,14 +84,13 @@ Creates: `Phase-6-Task-1-Configuration-System.md` with:
 - Progress shown as percentage complete
 - ~8-10 implementation steps in order
 
-### 3. Execute Task with Validation
-```bash
-/execute-prp docs/implementation-plans/Phase-6-Task-1-Configuration-System.md
-```
-- Enforces DI patterns automatically
-- Validates after each assignment
-- Summarizes for human verification
-- **Never marks complete without human**
+### 3. Follow Embedded Execution Guidance
+The task plan now contains **all execution guidance embedded within**:
+- **Mandatory DI patterns** visible in every assignment
+- **Validation checklists** after each assignment
+- **Living document requirements** built into progress tracking
+- **Module boundary enforcement** throughout implementation
+- **Human verification checklist** at task completion
 
 ### 4. Human Verification
 - Review AI summary
@@ -118,18 +117,20 @@ folder-mcp/
 ├── .claude/
 │   └── commands/
 │       ├── create-phase-plan.md
-│       └── create-task-plan.md
+│       └── create-task-plan.md  # Enhanced with embedded execution guidance
 ├── folder-mcp-roadmap-1.1.md
 ├── IMPLEMENTATION-METHODOLOGY.md
 └── [Your implementation plans will be generated here]
 ```
+
+**Note**: The `/execute-prp` command has been **removed** and its functionality consolidated into the enhanced `/create-task-plan` command to prevent architectural drift during long implementation sessions.
 
 ## 💡 Usage Tips for Linear Workflow
 
 1. **Complete Tasks Sequentially**: Never start Task N+1 until Task N is 100% complete
 2. **Track Progress Linearly**: Update percentage complete after each assignment
 3. **Create Task Plans One at a Time**: Generate task plan only when ready to start that task
-4. **Validate Before Moving On**: Each task must pass all validation before proceeding
+4. **Follow Embedded Validation**: Each assignment includes mandatory DI validation checklists
 5. **Commit at Milestones**: Clear git history showing linear progression
 
 ## 🚀 Getting Started
@@ -139,32 +140,41 @@ folder-mcp/
 3. Run `/create-phase-plan 6` to start with Phase 6
 4. Run `/create-task-plan 6 1` when ready to implement first task
 
-The commands will automatically:
+The enhanced `/create-task-plan` command will automatically:
 - Extract all relevant information from your roadmap
-- Structure it into actionable plans
-- Include validation at every step
-- Provide clear implementation guidance
+- Structure it into actionable plans with embedded DI patterns
+- Include mandatory validation checklists after every assignment
+- Provide comprehensive architectural enforcement throughout
+- Build in living document requirements for progress tracking
 
-## 🚨 Critical Quality Gates
+## 🚨 Enhanced Quality Gates
 
-Every task plan now includes:
+Every task plan now includes **MANDATORY ARCHITECTURAL ENFORCEMENT**:
 
-1. **DI Enforcement Throughout**
-   - Examples in every assignment
-   - Validation commands after each step
-   - Human review checklist
+1. **DI Patterns Embedded Throughout**
+   - Interface → Implementation → Registration pattern in every assignment
+   - Constructor injection requirements with validation commands
+   - Module boundary checks after each step
+   - Zero direct instantiation enforcement
 
-2. **Zero TypeScript Errors**
-   - First item in completion criteria
-   - Blocks progress if not met
-   - Checked after every assignment
+2. **Comprehensive Validation After Every Assignment**
+   - TypeScript build validation (zero errors required)
+   - DI pattern compliance checks
+   - Module boundary verification
+   - Integration test requirements
 
-3. **Human-Only Completion**
-   - AI summarizes what was done
-   - Human runs verification steps
-   - Human signs off on completion
+3. **Living Document Progress Tracking**
+   - Built-in progress tracking templates
+   - Discovery documentation requirements
+   - Time tracking and completion status
+   - Human verification checklists embedded
 
-These are non-negotiable requirements that ensure code quality and architectural consistency across your entire project.
+4. **Architectural Consistency Throughout Long Sessions**
+   - DI patterns visible in every assignment (prevents architectural drift)
+   - Validation steps prevent progression with violations
+   - Module boundary enforcement prevents coupling
+
+These requirements are now **embedded within each task plan** to ensure visibility and compliance during long implementation sessions.
 
 Complete Folder Structure for folder-mcp
 📁 Project Structure with Context Engineering
@@ -172,8 +182,7 @@ folder-mcp/
 ├── .claude/                           # Claude-specific files
 │   └── commands/                      # Slash commands
 │       ├── create-phase-plan.md       # Creates phase overview
-│       ├── create-task-plan.md        # Creates task details
-│       └── execute-prp.md             # Executes plans with validation
+│       └── create-task-plan.md        # Creates comprehensive task plans with embedded execution guidance
 │
 ├── docs/                              # All documentation
 │   ├── development-plan/              # Development planning

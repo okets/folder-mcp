@@ -1,11 +1,58 @@
 # create-task-plan
 
-Create a detailed, context-aware implementation plan for a specific task.
+**ENHANCED VERSION**: Creates detailed implementation plans with MANDATORY architectural enforcement and execution guidance embedded throughout. This is now the SINGLE command for both planning and implementing tasks.
 
 ## Usage
 
 ```
 /create-task-plan <phase-number> <task-number>
+```
+
+## 🚨 **CRITICAL CHANGE - NO MORE `/execute-prp`**
+
+This command now **INCLUDES ALL EXECUTION GUIDANCE** within the task plan itself. The `/execute-prp` command has been **REMOVED** to prevent confusion and ensure architectural patterns are visible throughout long implementation sessions.
+
+**NEW WORKFLOW**:
+1. `/create-task-plan 6 2` → Creates plan with execution guidance embedded
+2. Follow the embedded execution guidance within the task plan
+3. All DI patterns, validation steps, and living document requirements are built into each assignment
+
+## 🏗️ **MANDATORY ARCHITECTURAL PATTERNS**
+
+Every task plan will include these MANDATORY patterns that MUST be followed:
+
+### **🔧 DI ENFORCEMENT (In Every Assignment)**
+```markdown
+**🚨 MANDATORY DI PATTERN**:
+1. **Interface First**: `domain/[feature]/I[Service].ts` - Pure interface, no implementation
+2. **Constructor Injection**: `application/[feature]/[Service].ts` - All dependencies injected
+3. **DI Registration**: `di/setup.ts` - Register interface → implementation mapping
+4. **Zero Direct Instantiation**: NEVER use `new` outside DI container or tests
+
+**VALIDATION AFTER EACH ASSIGNMENT**:
+- [ ] `npm run build` → MUST show 0 TypeScript errors
+- [ ] `grep "new [A-Z]" src/ --exclude-dir=di` → Should only show factories/DI
+- [ ] Interface in domain/, implementation in application/
+- [ ] Service registered in DI container
+```
+
+### **📐 Module Boundary Checks (After Every Assignment)**
+```markdown
+**✅ MODULE BOUNDARY VALIDATION**:
+- [ ] **Domain Layer**: Only interfaces, no implementations
+- [ ] **Application Layer**: Business logic with injected dependencies  
+- [ ] **Infrastructure Layer**: External dependencies, no business logic
+- [ ] **Interface Layer**: Thin controllers/commands, delegates to application
+- [ ] **No Cross-Layer Violations**: Application never imports infrastructure
+```
+
+### **📝 Living Document Requirements (Built-in)**
+```markdown
+**📋 PROGRESS TRACKING** (Update after each assignment):
+1. **Update Status**: `[x] Assignment N: ✅ COMPLETED (Date: YYYY-MM-DD)`
+2. **Document Discoveries**: Add to "Implementation Discoveries" section
+3. **Time Tracking**: Record actual vs estimated time
+4. **Commit Progress**: `git commit -m "Assignment N: [description]"`
 ```
 
 ## EXACT Implementation Instructions
@@ -36,35 +83,58 @@ When this command is executed, you MUST:
 4. **Generate the output file**:
    - Location: `docs/development-plan/roadmap/currently-implementing/Phase-{phase}-Task-{number}-{name-kebab}.md`
    - Break scope into logical assignments (3-5 assignments per task)
+   - Each assignment MUST include mandatory DI patterns and validation
    - Each assignment should be independently implementable
 
-## Assignment Generation Rules
+## Assignment Generation Rules with DI Enforcement
 
 ### For Configuration Tasks:
-1. Schema/Interface definition
-2. Implementation with validation
-3. Integration with existing systems
-4. Testing and documentation
+1. **Assignment 1**: Schema/Interface definition (domain layer)
+   - **DI Pattern**: Define `IConfigurationSchema` interface
+   - **Validation**: Interface in domain/, no implementation logic
+2. **Assignment 2**: Implementation with validation (application layer)
+   - **DI Pattern**: Implement with constructor injection of dependencies
+   - **Validation**: All dependencies injected, no direct instantiation
+3. **Assignment 3**: DI Registration and Integration
+   - **DI Pattern**: Register in DI container, integrate with existing systems
+   - **Validation**: Service properly registered, injection working
+4. **Assignment 4**: Testing and documentation
+   - **DI Pattern**: Unit tests with mocked dependencies
+   - **Validation**: Tests use DI container or proper mocks
 
 ### For Service/Manager Tasks:
-1. Interface definition (domain layer)
-2. Implementation with DI
-3. DI container registration
-4. Unit tests with mocks
-5. Integration tests
+1. **Assignment 1**: Interface definition (domain layer)
+   - **DI Pattern**: Pure interface in `domain/[feature]/I[Service].ts`
+   - **Validation**: No implementation logic in interface
+2. **Assignment 2**: Implementation with DI (application layer)
+   - **DI Pattern**: Constructor injection, all dependencies abstracted
+   - **Validation**: Zero direct instantiation, proper abstractions
+3. **Assignment 3**: DI container registration
+   - **DI Pattern**: Register service with proper lifetime management
+   - **Validation**: Service resolves correctly from container
+4. **Assignment 4**: Unit tests with mocks
+   - **DI Pattern**: Test with mocked dependencies, verify DI patterns
+   - **Validation**: Tests don't violate DI principles
+5. **Assignment 5**: Integration tests
+   - **DI Pattern**: Full DI integration testing
+   - **Validation**: End-to-end DI workflow working
 
 ### For CLI/TUI Tasks:
-1. Command structure setup
-2. Core functionality implementation
-3. Configuration integration
-4. User feedback/validation
-5. Testing
-
-### CRITICAL: Configuration System Planning
-Since the configuration system drives ALL functionality:
-- **ALWAYS** include configuration schema changes in relevant tasks
-- **ALWAYS** define how the feature will be configuration-driven
-- **ALWAYS** plan configuration validation and defaults
+1. **Assignment 1**: Command structure setup (interface layer)
+   - **DI Pattern**: Commands use BaseCommand with DI access
+   - **Validation**: No business logic in commands, delegates to application
+2. **Assignment 2**: Core functionality implementation (application layer)
+   - **DI Pattern**: Application services handle business logic
+   - **Validation**: Proper separation between interface and application
+3. **Assignment 3**: DI Integration
+   - **DI Pattern**: Commands resolve services through DI
+   - **Validation**: No direct service construction in commands
+4. **Assignment 4**: Configuration integration
+   - **DI Pattern**: Configuration injected through DI
+   - **Validation**: Configuration properly abstracted
+5. **Assignment 5**: Testing with DI patterns
+   - **DI Pattern**: Test commands and services independently
+   - **Validation**: Tests respect DI boundaries
 
 ## Required Output Format
 
@@ -77,26 +147,74 @@ Since the configuration system drives ALL functionality:
 **Complexity**: [High/Medium/Low based on scope size]  
 **Approach**: [Brief strategy for this task]
 
-## 🚨 **EXECUTION REQUIREMENTS**
+## 🚨 **MANDATORY ARCHITECTURAL REQUIREMENTS**
 
-**⚠️ CRITICAL: This task plan MUST be executed using the `/execute-prp` command.**
+**⚠️ CRITICAL**: This task plan contains MANDATORY architectural patterns that MUST be followed throughout implementation. These patterns are embedded in every assignment to ensure consistency during long implementation sessions.
 
-```bash
-/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-[X]-Task-[Y]-[name].md
+### **🏗️ DI ENFORCEMENT THROUGHOUT**
+Every service/manager/repository created MUST follow this pattern:
+
+1. **Interface First** (Domain Layer):
+   ```typescript
+   // domain/[feature]/I[Service].ts
+   export interface IService {
+     method(): Promise<Result>;
+   }
+   ```
+
+2. **Constructor Injection** (Application Layer):
+   ```typescript
+   // application/[feature]/[Service].ts
+   export class Service implements IService {
+     constructor(
+       private readonly dep1: IDep1,
+       private readonly dep2: IDep2
+     ) {}
+   }
+   ```
+
+3. **DI Registration** (DI Layer):
+   ```typescript
+   // di/setup.ts
+   container.register<IService>('IService', {
+     useClass: Service,
+     lifecycle: Lifecycle.Singleton
+   });
+   ```
+
+### **📐 Module Boundary Rules**
+```
+src/
+├── domain/        # Interfaces ONLY - no implementations
+├── application/   # Business logic with DI - no external dependencies
+├── infrastructure/# External dependencies - no business logic
+└── di/           # All service registrations - imports from all layers
 ```
 
-**❌ PROHIBITED**: Direct implementation without execute-prp
-- Bypasses architectural validation
-- Skips DI enforcement checks  
-- Avoids progress tracking
-- Violates established workflow
+### **✅ VALIDATION REQUIREMENTS (After EVERY Assignment)**
+```bash
+# 1. TypeScript MUST compile (ZERO errors)
+npm run build
+# Expected: "Found 0 errors"
 
-**✅ MANDATORY WORKFLOW**:
-1. Task plan created with `/create-task-plan [phase] [task]`
-2. Task executed with `/execute-prp [task-plan-file]`
-3. All assignments validated through execute-prp
-4. Progress tracking maintained automatically
-5. Only commit after execute-prp completion
+# 2. Tests MUST pass
+npm test -- tests/unit/[feature]
+# Expected: All tests pass
+
+# 3. DI Pattern Check
+grep "constructor(" [new-service-file]
+# Expected: Shows dependency parameters
+
+# 4. No Direct Instantiation
+grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
+# Expected: Only factories or DI container usage
+
+# 5. Module Boundary Check
+# Domain: Only interfaces
+# Application: Business logic with DI
+# Infrastructure: External deps only
+# Interface: Thin layer, delegates to application
+```
 
 ## 🎯 **Task Objective**
 
@@ -160,11 +278,18 @@ Since the configuration system drives ALL functionality:
 **Goal**: [What this accomplishes from scope]
 **Estimated Time**: [X hours]
 
+#### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
+1. **Interface First**: Define `I[Service]` in `domain/[feature]/`
+2. **No Implementation Logic**: Interface must be pure contract
+3. **Proper Abstractions**: Use domain types, not infrastructure
+
 #### Sub-tasks:
 1. [ ] **1.1 [First sub-task]**
    ```typescript
-   // In src/[path]/[file].ts
-   [Code structure to implement]
+   // In domain/[path]/I[interface].ts
+   export interface I[Service] {
+     method(): Promise<Result>;
+   }
    ```
    
 2. [ ] **1.2 [Second sub-task]**
@@ -181,158 +306,534 @@ Since the configuration system drives ALL functionality:
    });
    ```
 
-**Validation**:
+#### **✅ VALIDATION CHECKLIST**:
 ```bash
-npm run build && npm test -- tests/unit/[module]
-# Expected: Build succeeds, tests pass
+npm run build
+# Expected: 0 TypeScript errors
 
-# Platform-specific validation if needed:
-# Windows: [specific command]
-# Unix: [specific command]
+# Check interface is in domain layer
+ls domain/[feature]/I[Service].ts
+# Expected: File exists
+
+# Verify no implementation logic in interface
+grep -E "(class|function|=)" domain/[feature]/I[Service].ts
+# Expected: No matches (only interface definitions)
 ```
 
-**Implementation Notes**:
+#### **Implementation Notes**:
 - [Key decisions to make during implementation]
 - [Potential gotchas or edge cases]
 - [Performance considerations]
 
-**Completion Criteria**:
+#### **Completion Criteria**:
 - [ ] All sub-tasks complete
-- [ ] Tests pass on all platforms
+- [ ] Interface defined in domain layer
 - [ ] No TypeScript errors
 - [ ] [Other specific criteria from scope]
 
+**📝 UPDATE AFTER COMPLETION**:
+```markdown
+### Assignment 1: [Name] ✅ COMPLETED
+**Completion Date**: [YYYY-MM-DD]
+**Actual Time**: [X hours]
+**Key Discoveries**: [What was learned during implementation]
+```
+
 ---
 
-[CONTINUE WITH MORE GRANULAR ASSIGNMENTS]
+### Assignment 2: [SECOND LOGICAL STEP]
+**Goal**: [What this accomplishes from scope]
+**Estimated Time**: [X hours]
+
+#### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
+1. **Constructor Injection**: All dependencies injected via constructor
+2. **Application Layer**: Implementation goes in `application/[feature]/`
+3. **Interface Implementation**: Implements the interface from Assignment 1
+4. **Zero Direct Instantiation**: No `new` calls except factories
+
+#### Sub-tasks:
+1. [ ] **2.1 [Implementation sub-task]**
+   ```typescript
+   // In application/[path]/[Service].ts
+   export class [Service] implements I[Service] {
+     constructor(
+       private readonly dependency1: IDependency1,
+       private readonly dependency2: IDependency2
+     ) {}
+     
+     async method(): Promise<Result> {
+       // Implementation using injected dependencies
+     }
+   }
+   ```
+
+#### **✅ VALIDATION CHECKLIST**:
+```bash
+npm run build
+# Expected: 0 TypeScript errors
+
+# Check constructor injection pattern
+grep "constructor(" application/[feature]/[Service].ts
+# Expected: Shows injected dependencies
+
+# Verify no direct instantiation
+grep -r "new [A-Z]" application/[feature]/[Service].ts
+# Expected: No matches (only dependency injection)
+
+# Check interface implementation
+grep "implements I[Service]" application/[feature]/[Service].ts
+# Expected: Shows interface implementation
+```
+
+#### **Completion Criteria**:
+- [ ] Implementation complete in application layer
+- [ ] All dependencies injected via constructor
+- [ ] Implements interface from Assignment 1
+- [ ] No direct instantiation of external services
+
+**📝 UPDATE AFTER COMPLETION**:
+```markdown
+### Assignment 2: [Name] ✅ COMPLETED
+**Completion Date**: [YYYY-MM-DD]
+**Actual Time**: [X hours]
+**Key Discoveries**: [What was learned during implementation]
+```
+
+---
+
+[CONTINUE WITH MORE ASSIGNMENTS FOLLOWING SAME PATTERN]
+
+### Assignment N: DI Registration and Integration
+**Goal**: Register service in DI container and integrate with existing systems
+**Estimated Time**: [X hours]
+
+#### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
+1. **Container Registration**: Add to `di/setup.ts`
+2. **Lifetime Management**: Choose appropriate lifecycle (Singleton/Transient)
+3. **Dependency Resolution**: Ensure all dependencies are registered
+4. **Integration Testing**: Verify end-to-end DI resolution
+
+#### Sub-tasks:
+1. [ ] **N.1 Register in DI Container**
+   ```typescript
+   // In di/setup.ts
+   container.registerSingleton(SERVICE_TOKENS.[SERVICE], () => {
+     return serviceFactory.create[Service](container);
+   });
+   ```
+
+2. [ ] **N.2 Integration with Existing Systems**
+   - Update existing services to use new service
+   - Ensure proper dependency chains
+
+#### **✅ VALIDATION CHECKLIST**:
+```bash
+npm run build
+# Expected: 0 TypeScript errors
+
+# Check service registration
+grep "[Service]" di/setup.ts
+# Expected: Shows registration
+
+# Test DI resolution
+npm test -- tests/unit/di/
+# Expected: Service resolves correctly
+
+# Integration test
+npm test -- tests/integration/[feature]/
+# Expected: End-to-end functionality works
+```
+
+#### **Completion Criteria**:
+- [ ] Service registered in DI container
+- [ ] Integration with existing systems complete
+- [ ] All DI chains resolve correctly
+- [ ] Integration tests pass
+
+**📝 UPDATE AFTER COMPLETION**:
+```markdown
+### Assignment N: [Name] ✅ COMPLETED
+**Completion Date**: [YYYY-MM-DD]
+**Actual Time**: [X hours]
+**Key Discoveries**: [What was learned during implementation]
+```
 
 ## ✅ **Task Completion Criteria**
 
 From roadmap:
 [COPY ALL COMPLETION CRITERIA AS CHECKBOXES]
 
-Additional requirements:
-- [ ] All assignments completed
-- [ ] All tests passing
-- [ ] Documentation updated
+Additional DI requirements:
+- [ ] All services follow interface → implementation → registration pattern
+- [ ] Zero TypeScript errors throughout implementation
+- [ ] All module boundaries respected
+- [ ] Comprehensive DI integration tests
+- [ ] Living document updated with discoveries
 
-## 🧪 **Testing Requirements**
+## 🧪 **Context-Aware Testing Requirements**
 
-### Unit Tests
-[LIST SPECIFIC TEST FILES TO CREATE/UPDATE]
-- Configuration validation tests
-- Feature functionality tests
-- Edge case handling tests
+**🤖 SMART TESTING**: The testing checklist below is AUTOMATICALLY FILTERED based on task type. Only relevant tests for this specific task type will be shown to avoid irrelevant validation overhead.
 
-### Integration Tests
-[REQUIRED - How does this integrate with the configuration system?]
-- Configuration loading and parsing
-- Feature behavior with different configs
+### Task Type Auto-Detection
+**Detected Categories** (populate during task creation):
+- [ ] **DI/Architecture**: Services, managers, repositories, DI container setup
+- [ ] **Configuration**: Config schemas, validation, hierarchy, environment variables  
+- [ ] **CLI/Commands**: Command-line interfaces, argument parsing, help text
+- [ ] **TUI/Visual**: Terminal UI components, layouts, visual elements, user interaction
+- [ ] **Infrastructure**: File system, external APIs, platform integration, process management
+- [ ] **Testing**: Test infrastructure, mocks, fixtures, test utilities
 
-### Manual E2E Testing
-[DETAILED USER SCENARIOS]
-- User configures the feature via YAML
-- User uses environment variables to override
-- User validates feature behavior changes with config
-- User troubleshoots with help endpoint
+### Filtered Testing Checklist
 
-### Configuration Test Cases
-- **Default Config**: Feature works with zero configuration
-- **Custom Config**: Feature respects all configuration options
-- **Invalid Config**: Proper error messages for invalid values
+#### IF Task Contains DI/Architecture Work:
+- [ ] **Interface Contracts**: Test behavior contracts, not implementation details
+- [ ] **Dependency Injection**: All dependencies injected via constructor, no direct instantiation
+- [ ] **DI Container**: Services resolve correctly from container
+- [ ] **Module Boundaries**: Domain/Application/Infrastructure separation maintained
+- [ ] **Service Registration**: All services properly registered in DI container
 
-## 📊 **Progress Tracking**
+#### IF Task Contains Configuration Work:
+- [ ] **Schema Validation**: Config accepts valid inputs, rejects invalid ones
+- [ ] **Environment Variables**: All FOLDER_MCP_* variables work correctly
+- [ ] **Hierarchy Testing**: Precedence order works (defaults < user < env < runtime)
+- [ ] **Config Commands**: `folder-mcp config` commands work as expected
+- [ ] **Integration**: Feature respects configuration settings
+
+#### IF Task Contains CLI/Commands Work:
+- [ ] **Argument Parsing**: Command accepts expected flags and arguments
+- [ ] **Help Output**: `--help` shows clear usage information
+- [ ] **Error Handling**: Invalid arguments show helpful error messages
+- [ ] **Exit Codes**: Success (0) and error (1) codes work correctly
+- [ ] **Integration**: Command integrates properly with core services
+
+#### IF Task Contains TUI/Visual Work:
+- [ ] **Layout Rendering**: Components display in correct positions
+- [ ] **Keyboard Navigation**: Arrow keys, Enter, Escape work as expected
+- [ ] **Visual Output**: Terminal output matches expected format
+- [ ] **Error Display**: Error messages appear clearly to user
+- [ ] **Responsive**: Works with different terminal sizes
+
+#### IF Task Contains Infrastructure Work:
+- [ ] **Platform Support**: Works on Windows, macOS, Linux as required
+- [ ] **External Dependencies**: Graceful handling when services unavailable
+- [ ] **File Operations**: Proper file handling, permissions, cleanup
+- [ ] **Process Management**: Processes start/stop/restart correctly
+- [ ] **Error Recovery**: System recovers gracefully from failures
+
+#### Always Include (Cross-Cutting):
+- [ ] **Build Validation**: `npm run build` shows 0 TypeScript errors
+- [ ] **Core Functionality**: Main feature works end-to-end
+- [ ] **Integration**: Feature integrates with existing system
+- [ ] **Configuration**: Feature respects relevant configuration settings
+
+## 📊 **Progress Tracking** (Living Document)
 
 ### Assignment Status
 [LIST ALL ASSIGNMENTS WITH SUB-TASKS AS NESTED CHECKBOXES]
+- [ ] Assignment 1: [Name]
+  - [ ] 1.1 [Sub-task]
+  - [ ] 1.2 [Sub-task]
+- [ ] Assignment 2: [Name]
+  - [ ] 2.1 [Sub-task]
+  - [ ] 2.2 [Sub-task]
 
 ### Time Tracking
 | Assignment | Estimated | Actual | Status | Notes |
 |------------|-----------|--------|--------|-------|
-[CREATE ROW FOR EACH ASSIGNMENT WITH STATUS: Not Started/In Progress/Complete/Blocked]
+| 1: [Name]  | X hours   |        | Not Started | |
+| 2: [Name]  | X hours   |        | Not Started | |
 
-### Implementation Discoveries
-[THIS SECTION GETS UPDATED AS WORK PROGRESSES]
-- **Key Findings**: [Document what was discovered during implementation]
-- **Decisions Made**: [Record important implementation decisions]
-- **Changes from Plan**: [Note any deviations from original plan and why]
-- **Reusable Patterns**: [Document patterns that could be used elsewhere]
+### Implementation Discoveries & Decision Log
+**CRITICAL**: Update this section after EACH assignment completion:
 
-### Platform-Specific Notes
-[TRACK PLATFORM-SPECIFIC ISSUES AND SOLUTIONS]
-- **Windows**: [Issues/solutions specific to Windows]
-- **macOS**: [Issues/solutions specific to macOS]
-- **Linux**: [Issues/solutions specific to Linux]
+#### 🎯 **Key Decisions Made & Rationale**
+- **[Date] Assignment X**: [Decision description]
+  - **Why**: [Rationale for this approach]
+  - **Alternatives Considered**: [Other options evaluated]
+  - **Impact**: [How this affects future work]
+
+#### 🐰 **Rabbit Holes & Problem-Solving**
+- **[Date] Issue**: [Problem encountered]
+  - **Time Spent**: [How long to resolve]
+  - **Root Cause**: [What actually caused the issue]
+  - **Solution**: [How it was solved]
+  - **Prevention**: [How to avoid this in future]
+
+#### 🏗️ **Architecture & DI Insights**
+- **DI Patterns That Worked**: [Document successful DI implementations]
+- **Module Boundary Decisions**: [Boundary choices made and reasoning]
+- **Service Design Choices**: [Interface vs implementation decisions]
+- **Integration Approaches**: [How services connect together]
+
+#### 📚 **Unexpected Discoveries**
+- **Code Insights**: [Things learned about existing codebase]
+- **Platform Differences**: [OS/environment specific findings]
+- **Performance Observations**: [Speed/memory insights]
+- **Configuration Behavior**: [How config system actually works]
+
+#### 🔄 **Plan Deviations & Adaptations**
+- **Changes from Original Plan**: [What was modified and why]
+- **Scope Adjustments**: [Features added/removed during implementation]
+- **Timeline Impacts**: [How changes affected estimates]
+- **Future Implications**: [How deviations affect upcoming work]
+
+#### 🎨 **Reusable Patterns & Best Practices**
+- **Code Patterns**: [Patterns that could be used elsewhere]
+- **Testing Approaches**: [Test strategies that worked well]
+- **Configuration Patterns**: [Config approaches worth reusing]
+- **DI Patterns**: [Dependency injection patterns for future reference]
+
+### DI Architecture Validation
+Track DI compliance throughout implementation:
+
+- **Services Created**: [List with their DI patterns]
+- **Interfaces Defined**: [List domain interfaces created]
+- **DI Registrations**: [List container registrations added]
+- **Dependency Chains**: [Document complex dependency relationships]
+- **Boundary Violations Fixed**: [Any violations found and corrected]
 
 ## 🔍 **Quick Reference**
 
 ### Key Commands
 ```bash
-# Build and test
+# Build and test (run after EVERY assignment)
 npm run build && npm test
+
+# DI-specific validation
+grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
+# Should only show factories or test fixtures
+
+# Module boundary check
+ls domain/[feature]/        # Should only contain interfaces
+ls application/[feature]/   # Should contain implementations with DI
+ls infrastructure/[feature]/ # Should contain external dependency wrappers
 
 # Run specific tests
 npm test -- tests/unit/[feature]
+npm test -- tests/integration/[feature]
 ```
 
-### Common Issues
-- **Build errors**: Check imports and types
-- **Test failures**: Verify test setup and mocks
+### Common DI Issues and Solutions
+- **Build errors**: Check interface imports and DI registrations
+- **Test failures**: Verify mocks match interface contracts
+- **Circular dependencies**: Review module organization
+- **Missing registrations**: Check DI container setup
 
 ---
 
-**To execute this plan:**
-```
-/execute-prp docs/development-plan/roadmap/currently-implementing/Phase-[X]-Task-[Y]-[name].md
-```
+## 📝 **Living Document Requirements**
+
+**CRITICAL**: This task plan is a LIVING DOCUMENT that MUST be updated throughout implementation:
+
+### After EACH Assignment:
+1. **Update Status**: Change `[ ]` to `[x]` and add completion date
+2. **Record Time**: Update "Actual" time in tracking table
+3. **Document Discoveries**: Add findings to "Implementation Discoveries"
+4. **Update DI Validation**: Record DI patterns used
+5. **Commit Progress**: `git commit -m "Assignment N: [description]"`
+
+### Completion Format:
+```markdown
+### Assignment N: [Name] ✅ COMPLETED
+**Completion Date**: YYYY-MM-DD
+**Actual Time**: X hours (estimated Y hours)
+**DI Patterns Used**: [List patterns implemented]
+**Key Discoveries**: [What was learned]
+**Code Locations**: [Files created/modified]
 ```
 
-## 📝 **Living Document Note**
+### 🔍 **Human Review Process** (Management-Style)
 
-**IMPORTANT**: This task plan is a LIVING DOCUMENT that should be updated throughout implementation:
-- Update assignment status as work progresses (Not Started → In Progress → Complete)
-- Document discoveries and decisions in the Implementation Discoveries section
-- Add platform-specific notes as issues are encountered
-- Update time tracking with actual hours spent
-- If assignments need to be broken down further, add sub-tasks as needed
-- Mark completed items with ✅ and include completion date
+When this task is complete, provide the following information for human review:
 
-When marking an assignment complete, consider adding:
-- What was actually implemented (if different from plan)
-- Key code snippets showing the solution
-- Any patterns that emerged
-- Links to relevant commits
+#### **📋 Implementation Summary for Review**
+```markdown
+## Task Implementation Summary
+
+### 🎯 What Was Accomplished
+- **Core Feature**: [Brief description of main functionality implemented]
+- **Key Components**: [List major components/services/files created]
+- **Integration Points**: [How this integrates with existing system]
+
+### 🛤️ Implementation Journey & Context
+- **Approach Taken**: [High-level strategy used and why]
+- **Key Decisions Made**: [Important implementation decisions with rationale]
+- **Rabbit Holes Encountered**: [Problems that took time to solve, dead ends explored]
+- **Alternative Approaches Considered**: [Other options evaluated and why they were rejected]
+- **Unexpected Discoveries**: [Things learned that weren't obvious from the task description]
+
+### 🧪 How to Verify This Works
+**Quick Functional Test**:
+[Provide 2-3 simple commands/steps the manager can run to verify core functionality]
+
+**Configuration Test** (if applicable):
+[Show how to test different configuration scenarios]
+
+**Error Scenarios** (if applicable):
+[How to test error handling works correctly]
+
+### 🔧 Technical Validation Commands
+[Only include commands relevant to this task type - auto-filtered based on categories above]
+
+### 📚 Key Learnings & Implications
+- **Architecture Insights**: [Important findings about system architecture]
+- **Future Impact**: [How this affects future development]
+- **Breaking Changes**: [Any compatibility issues introduced]
+- **Test Impact**: [If tests are broken/modified and when they should be fixed]
+- **Documentation Needs**: [What documentation should be updated]
+
+### ⚠️ Open Issues & Follow-Up Actions
+- **Immediate**: [Issues that should be resolved before continuing]
+- **Future Phase**: [Items to address in later phases]
+- **Dependencies**: [What this task enables for future work]
+```
+
+#### **🎯 Context-Aware Validation Commands**
+
+**Build & Core Validation** (Always Required):
+```bash
+npm run build
+# Expected: "Found 0 errors"
+
+npm test
+# Expected: All tests pass
+```
+
+**DI/Architecture Tasks Only**:
+```bash
+# Verify dependency injection patterns
+grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
+# Expected: Only factories, builders, or test fixtures
+
+# Check service registration
+grep "[ServiceName]" src/di/setup.ts
+# Expected: Service properly registered in DI container
+```
+
+**Configuration Tasks Only**:
+```bash
+# Test configuration commands
+npx folder-mcp config get [newConfigKey]
+# Expected: Shows correct value
+
+# Test environment variable
+FOLDER_MCP_[NEW_SETTING]=test npx folder-mcp config get [newConfigKey]
+# Expected: Environment variable takes precedence
+```
+
+**CLI/Commands Tasks Only**:
+```bash
+# Test new command
+npx folder-mcp [new-command] --help
+# Expected: Shows clear help information
+
+# Test command functionality
+npx folder-mcp [new-command] [test-args]
+# Expected: Command works as designed
+```
+
+**TUI/Visual Tasks Only**:
+```bash
+# Test visual interface
+npx folder-mcp [tui-command]
+# Expected: Interface displays correctly, navigation works
+```
+
+**Infrastructure Tasks Only**:
+```bash
+# Test platform-specific functionality
+[platform-specific-test-command]
+# Expected: Feature works on target platform
+
+# Test error recovery
+[command-that-might-fail]
+# Expected: Graceful error handling
+```
 
 ## CRITICAL EXTRACTION RULES
 
 1. **Exact Task Content**: Extract the COMPLETE task section from roadmap
 2. **Scope Preservation**: Keep ALL scope items, don't summarize
-3. **Code Examples**: Include any code snippets from the task
-4. **Assignment Logic**: Break scope into implementable chunks
-5. **Context Focus**: Include what to build, not how to build it
-6. **Configuration First**: ALWAYS plan how the feature will be configuration-driven
-7. **Test Planning**: Include comprehensive test scenarios for both automated and manual testing
+3. **DI Pattern Integration**: Embed DI requirements in EVERY assignment
+4. **Validation Enforcement**: Include validation steps after every assignment
+5. **Living Document**: Build in progress tracking and discovery documentation
+6. **Module Boundaries**: Ensure proper layer separation in every assignment
+7. **Configuration First**: ALWAYS plan how the feature will be configuration-driven
 
-## Example: Phase 6, Task 2 Should Extract
+## Example Enhanced Assignment Structure
 
-From roadmap section "### Task 2: Basic Daemon Architecture":
-- Goal: "Create configuration-driven daemon..."
-- Scope items about daemon, configuration, health checks, etc.
-- Configuration YAML example
-- Completion criteria checkboxes
+Every assignment follows this enhanced structure:
 
-Then generate assignments like:
-1. Core Daemon Class Structure
-2. Process Manager Implementation  
-3. Health Monitor Implementation
-4. Signal Handler Implementation
-5. CLI Integration
+```markdown
+### Assignment X: [Name]
+**Goal**: [What this accomplishes]
+**Estimated Time**: [X hours]
 
-## Validation
+#### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
+[Specific DI requirements for this assignment]
 
-After generating, verify:
-- [ ] All scope items are covered by assignments
-- [ ] Each assignment is actionable and clear
-- [ ] Testing is included in each assignment
-- [ ] File paths are specific and correct
-- [ ] Completion criteria match roadmap exactly
+#### Sub-tasks:
+[Detailed implementation steps with code examples]
+
+#### **✅ VALIDATION CHECKLIST**:
+[Specific validation commands and expected results]
+
+#### **Completion Criteria**:
+[Assignment-specific completion requirements]
+
+**📝 UPDATE AFTER COMPLETION**:
+[Template for living document updates]
+```
+
+This ensures that every assignment has embedded DI requirements, validation steps, and living document maintenance, preventing architectural drift during long implementation sessions.
+
+## 🔄 **Actionable Input Integration Workflow**
+
+When human feedback is received during task review, follow this workflow:
+
+### 1. **Categorize Feedback**
+```markdown
+## Human Feedback Received: [Date]
+
+### Immediate Action Items (Address Before Continuing)
+- [ ] [Feedback item that must be fixed now]
+- [ ] [Another immediate issue]
+
+### Future Phase Items (Address Later)  
+- [ ] [Feedback for future consideration]
+- [ ] [Enhancement suggestion for later phase]
+
+### Clarification Needed
+- [ ] [Question that needs human clarification]
+```
+
+### 2. **Update Plans Before Resuming**
+**For Immediate Items**: Update this task plan with new assignments
+**For Future Items**: Add to Phase plan or roadmap
+**For Clarifications**: Document questions and wait for answers
+
+### 3. **Implementation Strategy**
+```markdown
+## Feedback Integration Plan
+
+### How Immediate Items Will Be Addressed:
+1. [Describe approach for first immediate item]
+2. [Describe approach for second immediate item]
+
+### Timeline Impact:
+- Original estimate: X hours
+- Additional work: Y hours  
+- New total: Z hours
+
+### Dependencies Created:
+- [What this feedback creates as dependencies for future work]
+```
+
+### 4. **Resume Coding Only After Planning**
+- ✅ All immediate feedback categorized
+- ✅ Implementation approach planned
+- ✅ Timeline updated
+- ✅ Dependencies documented
+- ✅ Human confirmation received (if needed)
+
+**CRITICAL**: Never resume implementation until the feedback has been properly planned and the human has confirmed the approach.
