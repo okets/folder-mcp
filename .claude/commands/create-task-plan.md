@@ -25,6 +25,37 @@ Create a detailed, context-aware implementation plan for a specific task.
 - **No dual-mode support**: Implement only the new approach, remove old approach entirely
 - **Fresh start testing**: Clear test fixtures and create new ones that match the new design
 
+## 🧪 **MANDATORY TESTING APPROACH**
+
+**CRITICAL**: All tests MUST use real test data from `tests/fixtures/test-knowledge-base/`, not mocks!
+
+### Testing Requirements
+- **Use Real Test Data**: Tests must use files from `tests/fixtures/test-knowledge-base/`
+- **No Mocks for Internal Logic**: Only mock external dependencies (APIs, databases, file system operations)
+- **Expand Test Fixtures**: If your feature needs specific test scenarios, add real files to the test folder
+- **Real File Operations**: Test actual file parsing, processing, and indexing with real documents
+- **Authentic Test Scenarios**: Use realistic business documents that match actual use cases
+
+### When to Mock vs Use Real Data
+```typescript
+// ✅ CORRECT: Use real test data
+const testKnowledgeBase = '/tests/fixtures/test-knowledge-base/Finance'
+const response = await endpoint.listDocuments({ folder: 'Finance' })
+
+// ✅ CORRECT: Mock external dependencies only
+const mockOllamaAPI = { generateEmbedding: () => mockVector }
+
+// ❌ WRONG: Don't mock internal business logic
+const mockFolderManager = { getFolders: () => mockFolders }
+```
+
+### Test Data Expansion
+If your task needs specific test scenarios:
+1. **Add real files** to `tests/fixtures/test-knowledge-base/`
+2. **Create authentic documents** that match the feature requirements  
+3. **Use proper file formats** (real PDFs, Excel files, etc.)
+4. **Document the test data** in the task plan
+
 ## 🏗️ **MANDATORY ARCHITECTURAL PATTERNS**
 
 Every task plan will include these MANDATORY patterns that MUST be followed:
@@ -730,11 +761,57 @@ When this task is complete, provide the following information for human review:
 ### 🔧 Technical Validation Commands
 [Only include commands relevant to this task type - auto-filtered based on categories above]
 
+### 🧪 **Test Changes Summary**
+**CRITICAL**: Document all test modifications for review and maintenance tracking.
+
+#### **Tests Added**
+- `[test-file-path]`: [Brief description of what this test covers]
+  - **Purpose**: [Why this test was needed]
+  - **Test Data Used**: [Real files from test-knowledge-base or external mocks]
+  - **Key Scenarios**: [Main test cases covered]
+
+#### **Tests Modified**
+- `[test-file-path]`: [What was changed and why]
+  - **Change Type**: [Updated expectations/Fixed assertions/Added scenarios/Refactored structure]
+  - **Reason**: [Why the modification was necessary]
+  - **Impact**: [How this affects existing test coverage]
+
+#### **Tests Removed**
+- `[test-file-path]`: [What was removed and justification]
+  - **Reason**: [Why removal was appropriate - unimplemented feature/obsolete functionality/duplicate coverage]
+  - **Coverage Impact**: [What test coverage was lost, if any]
+  - **Mitigation**: [How the lost coverage is handled elsewhere, if applicable]
+
+#### **Test Data Changes**
+- **Added to test-knowledge-base**: [New files added to fixtures]
+  - **Location**: `tests/fixtures/test-knowledge-base/[path]`
+  - **Purpose**: [What scenarios these files enable testing]
+- **Modified fixtures**: [Changes to existing test data]
+- **External mocks updated**: [Changes to API/service mocks]
+
+#### **Test Infrastructure Changes**
+- **Test utilities**: [New helper functions or test utilities created]
+- **Mock improvements**: [Better mocks for external dependencies]
+- **Test setup changes**: [Modifications to test environment/configuration]
+
+#### **Test Results Impact**
+```bash
+# Before task implementation
+Test Files  X failed | Y passed | Z skipped (Total)
+Tests       A failed | B passed | C skipped (Total)
+
+# After task implementation  
+Test Files  X failed | Y passed | Z skipped (Total)
+Tests       A failed | B passed | C skipped (Total)
+
+# Net change: [Summary of test health improvement]
+```
+
 ### 📚 Key Learnings & Implications
 - **Architecture Insights**: [Important findings about system architecture]
 - **Future Impact**: [How this affects future development]
 - **Breaking Changes**: [Any compatibility issues introduced]
-- **Test Impact**: [If tests are broken/modified and when they should be fixed]
+- **Test Coverage**: [How test coverage changed and what gaps remain]
 - **Documentation Needs**: [What documentation should be updated]
 
 ### ⚠️ Open Issues & Follow-Up Actions
