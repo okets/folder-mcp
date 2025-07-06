@@ -8,6 +8,7 @@
 import { Command } from 'commander';
 import { BaseCommand } from './base-command.js';
 import { SERVICE_TOKENS, ILoggingService } from '../../../di/interfaces.js';
+import { DependencyContainer } from '../../../di/container.js';
 import { 
   IDaemonService, 
   IProcessManager, 
@@ -423,19 +424,31 @@ export class DaemonCommand extends BaseCommand {
   }
 
   /**
+   * Cached daemon container to avoid re-registration
+   */
+  private _daemonContainer?: DependencyContainer;
+
+  /**
+   * Get or create daemon container with proper DI setup (respecting module boundaries)
+   */
+  private async getDaemonContainer(folderPath: string, logLevel: string = 'info'): Promise<DependencyContainer> {
+    if (!this._daemonContainer) {
+      // Create base container through interface layer (proper boundary)
+      this._daemonContainer = this.getContainer(folderPath, logLevel as any);
+      
+      // Register daemon services ONCE through domain boundary
+      const { registerDaemonServices } = await import('../../../domain/daemon/di-setup.js');
+      registerDaemonServices(this._daemonContainer, folderPath, { logLevel: logLevel as any });
+    }
+    
+    return this._daemonContainer;
+  }
+
+  /**
    * Get daemon service with proper DI setup
    */
   private async getDaemonService(folderPath: string, logLevel: string = 'info'): Promise<IDaemonService> {
-    // Import daemon DI setup
-    const { registerDaemonServices } = await import('../../../domain/daemon/di-setup.js');
-    
-    // Create a separate container for daemon services
-    const container = this.getContainer(folderPath, logLevel as any);
-    
-    // Register daemon services
-    registerDaemonServices(container, folderPath, { logLevel: logLevel as any });
-    
-    // Return daemon service
+    const container = await this.getDaemonContainer(folderPath, logLevel);
     const daemonService = container.resolve(SERVICE_TOKENS.DAEMON_SERVICE) as IDaemonService;
     
     if (!daemonService) {
@@ -449,11 +462,9 @@ export class DaemonCommand extends BaseCommand {
    * Get process manager service
    */
   private async getProcessManager(folderPath: string, logLevel: string = 'info'): Promise<IProcessManager> {
-    const { registerDaemonServices } = await import('../../../domain/daemon/di-setup.js');
-    const container = this.getContainer(folderPath, logLevel as any);
-    registerDaemonServices(container, folderPath, { logLevel: logLevel as any });
-    
+    const container = await this.getDaemonContainer(folderPath, logLevel);
     const processManager = container.resolve(SERVICE_TOKENS.PROCESS_MANAGER) as IProcessManager;
+    
     if (!processManager) {
       throw new Error('Failed to create process manager service');
     }
@@ -465,11 +476,9 @@ export class DaemonCommand extends BaseCommand {
    * Get health monitor service
    */
   private async getHealthMonitor(folderPath: string, logLevel: string = 'info'): Promise<IHealthMonitor> {
-    const { registerDaemonServices } = await import('../../../domain/daemon/di-setup.js');
-    const container = this.getContainer(folderPath, logLevel as any);
-    registerDaemonServices(container, folderPath, { logLevel: logLevel as any });
-    
+    const container = await this.getDaemonContainer(folderPath, logLevel);
     const healthMonitor = container.resolve(SERVICE_TOKENS.HEALTH_MONITOR) as IHealthMonitor;
+    
     if (!healthMonitor) {
       throw new Error('Failed to create health monitor service');
     }
@@ -481,11 +490,9 @@ export class DaemonCommand extends BaseCommand {
    * Get performance monitor service
    */
   private async getPerformanceMonitor(folderPath: string, logLevel: string = 'info'): Promise<IPerformanceMonitor> {
-    const { registerDaemonServices } = await import('../../../domain/daemon/di-setup.js');
-    const container = this.getContainer(folderPath, logLevel as any);
-    registerDaemonServices(container, folderPath, { logLevel: logLevel as any });
-    
+    const container = await this.getDaemonContainer(folderPath, logLevel);
     const performanceMonitor = container.resolve(SERVICE_TOKENS.PERFORMANCE_MONITOR) as IPerformanceMonitor;
+    
     if (!performanceMonitor) {
       throw new Error('Failed to create performance monitor service');
     }
