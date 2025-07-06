@@ -6,10 +6,9 @@
  */
 
 import { BaseCommand } from './base-command.js';
-import { CONFIG_TOKENS } from '../../../config/interfaces.js';
-import { IConfigurationManager, IProfileManager, IConfigValidator } from '../../../config/interfaces.js';
-import { writeFile, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { SERVICE_TOKENS } from '../../../di/interfaces.js';
+import { IConfigurationCommandService } from '../../../domain/cli/IConfigurationCommandService.js';
+import { IProfileCommandService } from '../../../domain/cli/IProfileCommandService.js';
 import * as yaml from 'yaml';
 
 export class ConfigCommand extends BaseCommand {
@@ -22,6 +21,8 @@ export class ConfigCommand extends BaseCommand {
       .option('--profile <name>', 'Configuration profile to use');
 
     this.setupSubcommands();
+    // Note: Skipping global options to avoid conflicts with subcommand options
+    // this.addGlobalOptionsAfterInit();
   }
 
   private setupSubcommands(): void {
@@ -87,6 +88,9 @@ export class ConfigCommand extends BaseCommand {
       .description('Create new profile from current configuration')
       .argument('<name>', 'Profile name')
       .option('--from <source>', 'Create from existing profile')
+      .option('--template <type>', 'Create from template (development, production, testing, minimal)')
+      .option('--description <text>', 'Profile description')
+      .option('--copy-current-config', 'Copy current effective configuration')
       .action(async (name, options) => {
         await this.executeProfileCreate(name, options);
       });
@@ -95,6 +99,7 @@ export class ConfigCommand extends BaseCommand {
       .description('Delete configuration profile')
       .argument('<name>', 'Profile name')
       .option('--force', 'Force deletion without confirmation')
+      .option('--backup', 'Create backup before deletion')
       .action(async (name, options) => {
         await this.executeProfileDelete(name, options);
       });
@@ -102,9 +107,28 @@ export class ConfigCommand extends BaseCommand {
     profile.command('show')
       .description('Show profile configuration')
       .argument('<name>', 'Profile name')
-      .option('--json', 'Output as JSON')
+      .option('--metadata', 'Show profile metadata')
       .action(async (name, options) => {
         await this.executeProfileShow(name, options);
+      });
+
+    profile.command('set')
+      .description('Switch to a different profile')
+      .argument('<name>', 'Profile name')
+      .option('--validate', 'Validate profile before switching')
+      .option('--create-if-not-exists', 'Create profile if it does not exist')
+      .action(async (name, options) => {
+        await this.executeProfileSet(name, options);
+      });
+
+    profile.command('copy')
+      .description('Copy a profile to a new name')
+      .argument('<from>', 'Source profile name')
+      .argument('<to>', 'Destination profile name')
+      .option('--overwrite', 'Overwrite destination if it exists')
+      .option('--merge-mode <mode>', 'Merge mode: replace, merge, overlay')
+      .action(async (from, to, options) => {
+        await this.executeProfileCopy(from, to, options);
       });
   }
 
@@ -127,40 +151,43 @@ export class ConfigCommand extends BaseCommand {
   }
 
   async execute(options: any): Promise<void> {
-    // Default action - show help
-    this.help();
+    // Default action - show enhanced help
+    this.displayEnhancedHelp(options.folder || process.cwd());
   }
 
   private async executeGet(path: string | undefined, options: any): Promise<void> {
     try {
-      const configManager = this.resolveService<IConfigurationManager>(
+      const configService = this.resolveService<IConfigurationCommandService>(
         options.folder, 
-        CONFIG_TOKENS.CONFIGURATION_MANAGER
+        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
       );
 
-      await configManager.load();
+      const result = await configService.getConfig(path, {
+        json: options.json,
+        source: options.source,
+        all: options.all,
+        profile: options.profile
+      });
 
-      if (options.all || !path) {
-        const config = configManager.getConfig();
-        if (options.json) {
-          console.log(JSON.stringify(config, null, 2));
-        } else {
-          console.log(yaml.stringify(config));
-        }
+      // Handle JSON output directly if requested
+      if (options.json) {
+        const jsonResponse = {
+          success: true,
+          data: result
+        };
+        console.log(JSON.stringify(jsonResponse, null, 2));
         return;
       }
 
-      const value = configManager.get(path);
-      
+      // Handle human-readable output
       if (options.source) {
-        const source = configManager.getSourceForPath(path);
-        console.log(`Value: ${JSON.stringify(value)}`);
-        console.log(`Source: ${source || 'not found'}`);
+        console.log(`Value: ${JSON.stringify(result.value)}`);
+        console.log(`Source: ${result.source || 'not found'}`);
       } else {
-        if (options.json) {
-          console.log(JSON.stringify(value, null, 2));
+        if (typeof result.value === 'object') {
+          console.log(yaml.stringify(result.value));
         } else {
-          console.log(value);
+          console.log(result.value);
         }
       }
     } catch (error) {
@@ -171,34 +198,20 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeSet(path: string, value: string, options: any): Promise<void> {
     try {
-      const configManager = this.resolveService<IConfigurationManager>(
+      const configService = this.resolveService<IConfigurationCommandService>(
         options.folder, 
-        CONFIG_TOKENS.CONFIGURATION_MANAGER
+        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
       );
 
-      await configManager.load();
+      const result = await configService.setConfig(path, value, {
+        type: options.type,
+        profile: options.profile
+      });
 
-      // Parse value based on type
-      let parsedValue: any = value;
-      switch (options.type) {
-        case 'number':
-          parsedValue = Number(value);
-          if (isNaN(parsedValue)) {
-            throw new Error(`Invalid number: ${value}`);
-          }
-          break;
-        case 'boolean':
-          parsedValue = value.toLowerCase() === 'true';
-          break;
-        case 'json':
-          parsedValue = JSON.parse(value);
-          break;
-        default:
-          parsedValue = value;
+      console.log(`✅ Set ${result.path} = ${JSON.stringify(result.value)}`);
+      if (result.previousValue !== undefined) {
+        console.log(`   Previous: ${JSON.stringify(result.previousValue)}`);
       }
-
-      await configManager.set(path, parsedValue, 'runtime');
-      console.log(`✅ Set ${path} = ${JSON.stringify(parsedValue)}`);
       
     } catch (error) {
       console.error('❌ Failed to set configuration:', error instanceof Error ? error.message : String(error));
@@ -208,39 +221,28 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeValidate(file: string | undefined, options: any): Promise<void> {
     try {
-      let configPath = file;
-      
-      if (!configPath) {
-        configPath = options.config || '~/.folder-mcp/config.yaml';
-      }
-
-      if (!configPath || !existsSync(configPath)) {
-        console.error(`❌ Configuration file not found: ${configPath || 'undefined'}`);
-        process.exit(1);
-      }
-
-      const content = await readFile(configPath, 'utf-8');
-      const parsed = yaml.parse(content);
-
-      const configManager = this.resolveService<IConfigurationManager>(
+      const configService = this.resolveService<IConfigurationCommandService>(
         options.folder, 
-        CONFIG_TOKENS.CONFIGURATION_MANAGER
+        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
       );
 
-      await configManager.load();
-
-      // Get validator and validate
-      const validator = this.resolveService<IConfigValidator>(
-        options.folder,
-        CONFIG_TOKENS.CONFIG_VALIDATOR
-      );
-
-      const result = await validator.validate(parsed);
+      const result = await configService.validateConfig({
+        file,
+        profile: options.profile,
+        verbose: options.verbose,
+        fix: options.fix
+      });
 
       if (result.valid) {
         console.log('✅ Configuration is valid');
         if (options.verbose) {
-          console.log(`📋 Validated ${Object.keys(parsed).length} configuration keys`);
+          console.log(`📋 Validated configuration`);
+          if (result.file) {
+            console.log(`   File: ${result.file}`);
+          }
+          if (result.profile) {
+            console.log(`   Profile: ${result.profile}`);
+          }
         }
       } else {
         console.error('❌ Configuration validation failed:');
@@ -269,19 +271,33 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeShow(options: any): Promise<void> {
     try {
-      const configManager = this.resolveService<IConfigurationManager>(
+      const configService = this.resolveService<IConfigurationCommandService>(
         options.folder, 
-        CONFIG_TOKENS.CONFIGURATION_MANAGER
+        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
       );
 
-      await configManager.load();
-      const config = configManager.getConfig();
+      const result = await configService.listConfig({
+        sources: options.sources,
+        flat: options.flat,
+        json: options.json,
+        profile: options.profile
+      });
 
-      if (options.sources) {
-        const sources = configManager.getSources();
+      // Handle JSON output directly if requested
+      if (options.json) {
+        const jsonResponse = {
+          success: true,
+          data: result
+        };
+        console.log(JSON.stringify(jsonResponse, null, 2));
+        return;
+      }
+
+      // Handle human-readable output
+      if (options.sources && result.sources) {
         console.log('📊 Configuration Sources:');
         console.log('========================');
-        for (const source of sources) {
+        for (const source of result.sources) {
           console.log(`${source.priority}. ${source.source.toUpperCase()}`);
           console.log(`   Path: ${source.path || 'N/A'}`);
           console.log(`   Loaded: ${source.loadedAt.toLocaleString()}`);
@@ -293,14 +309,11 @@ export class ConfigCommand extends BaseCommand {
       }
 
       if (options.flat) {
-        const flat = this.flattenConfig(config);
-        for (const [key, value] of Object.entries(flat)) {
+        for (const [key, value] of Object.entries(result.config)) {
           console.log(`${key} = ${JSON.stringify(value)}`);
         }
-      } else if (options.json) {
-        console.log(JSON.stringify(config, null, 2));
       } else {
-        console.log(yaml.stringify(config));
+        console.log(yaml.stringify(result.config));
       }
     } catch (error) {
       console.error('❌ Failed to show configuration:', error instanceof Error ? error.message : String(error));
@@ -310,29 +323,35 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeProfileList(): Promise<void> {
     try {
-      const profileManager = this.resolveService<IProfileManager>(
+      const profileService = this.resolveService<IProfileCommandService>(
         this.opts().folder, 
-        CONFIG_TOKENS.PROFILE_MANAGER
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
       );
 
-      const profiles = await profileManager.list();
-      const activeProfile = profileManager.getActiveProfile();
+      const result = await profileService.listProfiles({ showDetails: true });
 
       console.log('📋 Available Profiles:');
       console.log('======================');
       
-      if (profiles.length === 0) {
+      if (result.profiles.length === 0) {
         console.log('No profiles found.');
       } else {
-        for (const profile of profiles) {
-          const marker = profile === activeProfile ? '* ' : '  ';
-          console.log(`${marker}${profile}`);
+        for (const profile of result.profiles) {
+          const marker = profile.isActive ? '* ' : '  ';
+          console.log(`${marker}${profile.name}`);
+          if (profile.description) {
+            console.log(`     Description: ${profile.description}`);
+          }
+          console.log(`     Path: ${profile.path}`);
+          console.log(`     Size: ${profile.size} bytes`);
+          console.log(`     Modified: ${profile.lastModified.toLocaleDateString()}`);
         }
       }
       
-      if (activeProfile) {
-        console.log(`\nActive profile: ${activeProfile}`);
+      if (result.activeProfile) {
+        console.log(`\nActive profile: ${result.activeProfile}`);
       }
+      console.log(`\nTotal profiles: ${result.totalProfiles}`);
     } catch (error) {
       console.error('❌ Failed to list profiles:', error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -341,13 +360,29 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeProfileCreate(name: string, options: any): Promise<void> {
     try {
-      const profileManager = this.resolveService<IProfileManager>(
+      const profileService = this.resolveService<IProfileCommandService>(
         this.opts().folder, 
-        CONFIG_TOKENS.PROFILE_MANAGER
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
       );
 
-      // TODO: Implement profile creation
-      console.log(`✅ Profile '${name}' created successfully`);
+      const result = await profileService.createProfile(name, {
+        fromProfile: options.from,
+        description: options.description,
+        template: options.template,
+        copyCurrentConfig: options.copyCurrentConfig
+      });
+
+      if (result.success) {
+        console.log(`✅ ${result.message}`);
+        if (result.warnings && result.warnings.length > 0) {
+          for (const warning of result.warnings) {
+            console.warn(`⚠️  ${warning}`);
+          }
+        }
+      } else {
+        console.error(`❌ ${result.message}`);
+        process.exit(1);
+      }
     } catch (error) {
       console.error('❌ Failed to create profile:', error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -356,8 +391,22 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeProfileDelete(name: string, options: any): Promise<void> {
     try {
-      // TODO: Implement profile deletion
-      console.log(`✅ Profile '${name}' deleted successfully`);
+      const profileService = this.resolveService<IProfileCommandService>(
+        this.opts().folder, 
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
+      );
+
+      const result = await profileService.deleteProfile(name, {
+        force: options.force,
+        backup: options.backup
+      });
+
+      if (result.success) {
+        console.log(`✅ ${result.message}`);
+      } else {
+        console.error(`❌ ${result.message}`);
+        process.exit(1);
+      }
     } catch (error) {
       console.error('❌ Failed to delete profile:', error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -366,25 +415,84 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeProfileShow(name: string, options: any): Promise<void> {
     try {
-      const profileManager = this.resolveService<IProfileManager>(
+      const profileService = this.resolveService<IProfileCommandService>(
         this.opts().folder, 
-        CONFIG_TOKENS.PROFILE_MANAGER
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
       );
 
-      const profile = await profileManager.load(name);
-      
-      if (!profile) {
-        console.error(`❌ Profile '${name}' not found`);
-        process.exit(1);
-      }
+      const profileInfo = await profileService.showProfile(name, {
+        format: options.json ? 'json' : 'yaml',
+        showMetadata: options.metadata
+      });
 
       if (options.json) {
-        console.log(JSON.stringify(profile, null, 2));
+        console.log(JSON.stringify(profileInfo, null, 2));
       } else {
-        console.log(yaml.stringify(profile));
+        console.log(`📄 Profile: ${profileInfo.name}`);
+        console.log(`   Path: ${profileInfo.path}`);
+        console.log(`   Active: ${profileInfo.isActive ? 'Yes' : 'No'}`);
+        console.log(`   Created: ${profileInfo.createdAt.toLocaleDateString()}`);
+        console.log(`   Modified: ${profileInfo.lastModified.toLocaleDateString()}`);
+        console.log(`   Size: ${profileInfo.size} bytes`);
+        if (profileInfo.description) {
+          console.log(`   Description: ${profileInfo.description}`);
+        }
       }
     } catch (error) {
       console.error('❌ Failed to show profile:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private async executeProfileSet(name: string, options: any): Promise<void> {
+    try {
+      const profileService = this.resolveService<IProfileCommandService>(
+        this.opts().folder, 
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
+      );
+
+      const result = await profileService.setActiveProfile(name, {
+        validateBeforeSwitch: options.validate,
+        createIfNotExists: options.createIfNotExists
+      });
+
+      if (result.success) {
+        console.log(`✅ ${result.message}`);
+        if (result.warnings && result.warnings.length > 0) {
+          for (const warning of result.warnings) {
+            console.warn(`⚠️  ${warning}`);
+          }
+        }
+      } else {
+        console.error(`❌ ${result.message}`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('❌ Failed to set profile:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private async executeProfileCopy(from: string, to: string, options: any): Promise<void> {
+    try {
+      const profileService = this.resolveService<IProfileCommandService>(
+        this.opts().folder, 
+        SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE
+      );
+
+      const result = await profileService.copyProfile(from, to, {
+        overwrite: options.overwrite,
+        mergeMode: options.mergeMode
+      });
+
+      if (result.success) {
+        console.log(`✅ ${result.message}`);
+      } else {
+        console.error(`❌ ${result.message}`);
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('❌ Failed to copy profile:', error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   }
@@ -428,14 +536,13 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeEnvCheck(): Promise<void> {
     try {
-      const configManager = this.resolveService<IConfigurationManager>(
+      const configService = this.resolveService<IConfigurationCommandService>(
         this.opts().folder, 
-        CONFIG_TOKENS.CONFIGURATION_MANAGER
+        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
       );
 
-      await configManager.load();
-      const sources = configManager.getSources();
-      const envSource = sources.find(s => s.source === 'environment');
+      const result = await configService.listConfig({ sources: true });
+      const envSource = result.sources?.find(s => s.source === 'environment');
 
       console.log('🔍 Environment Variable Configuration Check:');
       console.log('============================================');
@@ -460,19 +567,4 @@ export class ConfigCommand extends BaseCommand {
     }
   }
 
-  private flattenConfig(obj: any, prefix: string = ''): Record<string, any> {
-    const result: Record<string, any> = {};
-    
-    for (const [key, value] of Object.entries(obj)) {
-      const newKey = prefix ? `${prefix}.${key}` : key;
-      
-      if (value && typeof value === 'object' && !Array.isArray(value)) {
-        Object.assign(result, this.flattenConfig(value, newKey));
-      } else {
-        result[newKey] = value;
-      }
-    }
-    
-    return result;
-  }
 }

@@ -19,7 +19,8 @@ export class IndexCommand extends BaseCommand {
       .option('-b, --batch-size <size>', 'Batch size for processing', '10')
       .option('-c, --chunk-size <size>', 'Chunk size for text processing', '1000')
       .option('-s, --show-config', 'Show configuration details')
-      .action(this.execute.bind(this));
+      .action(this.execute.bind(this))
+      .addGlobalOptionsAfterInit();
   }
 
   private async execute(folder: string, options: any): Promise<void> {

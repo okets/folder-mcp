@@ -13,6 +13,8 @@ export class StatusCommand extends BaseCommand {
       .requiredOption('-f, --folder <path>', 'Target folder path')
       .option('--grpc-socket <path>', 'gRPC socket path', '\\\\.\\pipe\\folder-mcp')
       .option('--format <format>', 'Output format (table, json)', 'table');
+    
+    this.addGlobalOptionsAfterInit();
   }
 
   async execute(options: any): Promise<void> {

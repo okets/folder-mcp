@@ -482,6 +482,13 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   // Interface Layer
   MCP_SERVER: Symbol('MCPServer'),
   
+  // CLI Layer
+  CLI_CONFIGURATION_COMMAND_SERVICE: Symbol('CLIConfigurationCommandService'),
+  CLI_CONFIGURATION_OVERRIDE_SERVICE: Symbol('CLIConfigurationOverrideService'),
+  CLI_PROFILE_COMMAND_SERVICE: Symbol('CLIProfileCommandService'),
+  CLI_HELP_SYSTEM_SERVICE: Symbol('CLIHelpSystemService'),
+  CLI_JSON_OUTPUT_SERVICE: Symbol('CLIJsonOutputService'),
+  
   // Daemon Layer
   DAEMON_SERVICE: Symbol('DaemonService'),
   PROCESS_MANAGER: Symbol('ProcessManager'),

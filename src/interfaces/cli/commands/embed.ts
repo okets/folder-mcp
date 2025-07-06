@@ -18,7 +18,8 @@ export class EmbeddingsCommand extends BaseCommand {
       .argument('<folder>', 'Folder to process')
       .option('-b, --batch-size <size>', 'Batch size for processing', '10')
       .option('-m, --model <name>', 'Model to use for embeddings', 'default')
-      .action(this.execute.bind(this));
+      .action(this.execute.bind(this))
+      .addGlobalOptionsAfterInit();
   }
 
   private async execute(folder: string, options: any): Promise<void> {

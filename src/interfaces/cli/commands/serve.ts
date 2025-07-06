@@ -18,7 +18,8 @@ export class ServeCommand extends BaseCommand {
       .option('-p, --port <port>', 'Port to listen on', '8080')
       .option('-h, --host <host>', 'Host to bind to', 'localhost')
       .option('-t, --transport <transport>', 'Transport protocol', 'stdio')
-      .action(this.execute.bind(this));
+      .action(this.execute.bind(this))
+      .addGlobalOptionsAfterInit();
   }
 
   /**

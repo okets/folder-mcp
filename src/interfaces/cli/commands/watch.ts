@@ -18,7 +18,8 @@ export class WatchCommand extends BaseCommand {
       .argument('<folder>', 'Folder to watch')
       .option('-d, --debounce <ms>', 'Debounce delay in milliseconds', '1000')
       .option('-b, --batch-size <size>', 'Batch size for processing changes', '10')
-      .action(this.execute.bind(this));
+      .action(this.execute.bind(this))
+      .addGlobalOptionsAfterInit();
   }
   private async execute(folder: string, options: any): Promise<void> {
     try {

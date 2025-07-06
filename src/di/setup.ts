@@ -11,7 +11,7 @@ import { SERVICE_TOKENS, MODULE_TOKENS, ILoggingService } from './interfaces.js'
 import { ResolvedConfig, resolveConfig } from '../config/resolver.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
-import { CONFIG_TOKENS } from '../config/interfaces.js';
+import { CONFIG_TOKENS, IConfigurationManager, IProfileManager, IConfigValidator } from '../config/interfaces.js';
 import { registerConfigurationServices, createConfigurationServiceAdapter } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
@@ -20,6 +20,14 @@ import {
   NodeCryptographyProvider, 
   NodePathProvider 
 } from '../infrastructure/providers/node-providers.js';
+
+// Import CLI services
+import { ConfigurationCommandService } from '../application/cli/ConfigurationCommandService.js';
+import { ConfigurationOverrideService } from '../application/cli/ConfigurationOverrideService.js';
+import { ProfileCommandService } from '../application/cli/ProfileCommandService.js';
+import { HelpSystemService } from '../application/cli/HelpSystemService.js';
+import { JsonOutputService } from '../application/cli/JsonOutputService.js';
+import { IConfigurationOverrideService } from '../domain/cli/IConfigurationOverrideService.js';
 
 /**
  * Setup the dependency injection container with all services
@@ -133,6 +141,36 @@ export function setupDependencyInjection(options: {
   container.registerSingleton(SERVICE_TOKENS.CONFIGURATION, () => {
     const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
     return createConfigurationServiceAdapter(configManager);
+  });
+
+  // Register CLI command services
+  container.registerSingleton(SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE, () => {
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
+    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
+    const configValidator = container.resolve(CONFIG_TOKENS.CONFIG_VALIDATOR) as IConfigValidator;
+    return new ConfigurationCommandService(configManager, profileManager, configValidator);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.CLI_CONFIGURATION_OVERRIDE_SERVICE, () => {
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
+    return new ConfigurationOverrideService(configManager);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE, () => {
+    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
+    const configValidator = container.resolve(CONFIG_TOKENS.CONFIG_VALIDATOR) as IConfigValidator;
+    return new ProfileCommandService(profileManager, configValidator);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.CLI_HELP_SYSTEM_SERVICE, () => {
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
+    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
+    const overrideService = container.resolve(SERVICE_TOKENS.CLI_CONFIGURATION_OVERRIDE_SERVICE) as IConfigurationOverrideService;
+    return new HelpSystemService(configManager, profileManager, overrideService);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.CLI_JSON_OUTPUT_SERVICE, () => {
+    return new JsonOutputService();
   });
 
   // Register file parsing service as singleton

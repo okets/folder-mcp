@@ -72,7 +72,7 @@ describe('Configuration CLI Commands', () => {
     });
 
     it('should output JSON when requested', async () => {
-      const result = runCLI(['config', 'get', 'modelName', '--json', '--folder', testDir]);
+      const result = runCLI(['config', 'get', 'processing.modelName', '--json', '--folder', testDir]);
       expect(result.code).toBe(0);
       expect(() => JSON.parse(result.stdout)).not.toThrow();
     });
@@ -80,15 +80,15 @@ describe('Configuration CLI Commands', () => {
 
   describe('config set command', () => {
     it('should set string configuration value', async () => {
-      const result = runCLI(['config', 'set', 'modelName', 'test-model', '--folder', testDir]);
+      const result = runCLI(['config', 'set', 'processing.modelName', 'test-model', '--folder', testDir]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Set modelName = "test-model"');
+      expect(result.stdout).toContain('Set processing.modelName = "test-model"');
     });
 
     it('should set number configuration value', async () => {
-      const result = runCLI(['config', 'set', 'chunkSize', '800', '--type', 'number', '--folder', testDir]);
+      const result = runCLI(['config', 'set', 'processing.chunkSize', '800', '--type', 'number', '--folder', testDir]);
       expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Set chunkSize = 800');
+      expect(result.stdout).toContain('Set processing.chunkSize = 800');
     });
 
     it('should set boolean configuration value', async () => {
@@ -144,7 +144,7 @@ describe('Configuration CLI Commands', () => {
     it('should handle missing configuration file', async () => {
       const result = runCLI(['config', 'validate', 'nonexistent.yaml', '--folder', testDir]);
       expect(result.code).toBe(1);
-      expect(result.stderr).toContain('Configuration file not found');
+      expect(result.stderr).toContain('Failed to read or parse file');
     });
 
     it('should show verbose validation output', async () => {
@@ -154,7 +154,7 @@ describe('Configuration CLI Commands', () => {
       const result = runCLI(['config', 'validate', configPath, '--verbose', '--folder', testDir]);
       expect(result.code).toBe(0);
       expect(result.stdout).toContain('Validated');
-      expect(result.stdout).toContain('configuration keys');
+      expect(result.stdout).toContain('File:');
     });
   });
 

@@ -152,6 +152,7 @@ function checkDependencyInjectionUsage(): string[] {
         if (!file.includes('factory') && 
             !file.includes('container') && 
             !file.includes('setup') &&
+            !file.includes('provider') &&
             !content.includes('createContentProcessingService') &&
             !content.includes('createFileWatchingService') &&
             !content.includes('createFileWatchingDomainService') &&

@@ -79,11 +79,11 @@ describe('MCP Server Multi-Folder Startup Integration', () => {
       const status3 = await monitoringWorkflow.getWatchingStatus(tempDir3);
       
       expect(status1).toBeDefined();
-      expect(status1.isWatching).toBe(true);
+      expect(status1.isActive).toBe(true);
       expect(status2).toBeDefined();
-      expect(status2.isWatching).toBe(true);
+      expect(status2.isActive).toBe(true);
       expect(status3).toBeDefined();
-      expect(status3.isWatching).toBe(false); // Folder 3 is disabled
+      expect(status3.isActive).toBe(false); // Folder 3 is disabled
     });
 
     it('should use resolveAsync for monitoring workflow (not sync resolve)', async () => {

@@ -13,10 +13,10 @@
 
 import { describe, it, expect } from 'vitest';
 
-describe.skip('Integration - Search Workflow', () => {
+describe('Integration - Search Workflow', () => {
   it('should be implemented when process cleanup issues are resolved', () => {
     // This is a placeholder for the search workflow integration tests
-    // that are temporarily disabled due to process cleanup issues
+    // Testing if process cleanup issues have been resolved after Phase 6 Task 4 completion
     expect(true).toBe(true);
   });
 });

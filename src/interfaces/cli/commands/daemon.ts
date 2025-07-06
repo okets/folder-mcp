@@ -33,6 +33,7 @@ export class DaemonCommand extends BaseCommand {
     this.addCommand(this.createRestartCommand());
     this.addCommand(this.createStatusCommand());
     this.addCommand(this.createReloadCommand());
+    this.addGlobalOptionsAfterInit();
   }
 
   /**
@@ -144,8 +145,8 @@ export class DaemonCommand extends BaseCommand {
         return;
       }
 
-      // Apply configuration overrides
-      await this.applyConfigurationOverrides(options);
+      // Apply daemon-specific configuration overrides
+      await this.applyDaemonConfigurationOverrides(options);
 
       // Start the daemon
       await daemonService.start();
@@ -305,9 +306,9 @@ export class DaemonCommand extends BaseCommand {
   }
 
   /**
-   * Apply configuration overrides from CLI options
+   * Apply daemon-specific configuration overrides from CLI options
    */
-  private async applyConfigurationOverrides(options: any): Promise<void> {
+  private async applyDaemonConfigurationOverrides(options: any): Promise<void> {
     // This would integrate with the configuration system to apply CLI overrides
     // For now, we'll document the intended behavior
     

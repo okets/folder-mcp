@@ -179,8 +179,8 @@ Estimated Duration: ~2-3 weeks
 |--------|-----------|------------|--------|---------|
 | 1 | Configuration System Foundation | High | ✅ | `/create-task-plan 6 1` |
 | 2 | Basic Daemon Architecture | Medium | ✅ | `/create-task-plan 6 2` |
-| 3 | Extend MCP Server for Multiple Folders | Medium | ⏳ | `/create-task-plan 6 3` |
-| 4 | Configuration-Aware CLI Commands | Medium | ⏳ | `/create-task-plan 6 4` |
+| 3 | Extend MCP Server for Multiple Folders | Medium | ✅ | `/create-task-plan 6 3` |
+| 4 | Configuration-Aware CLI Commands | Medium | ✅ | `/create-task-plan 6 4` |
 | 5 | Configuration-Driven TUI | Medium | ⏳ | `/create-task-plan 6 5` |
 | 6 | CLI/TUI Parity Validation | Low | ⏳ | `/create-task-plan 6 6` |
 
