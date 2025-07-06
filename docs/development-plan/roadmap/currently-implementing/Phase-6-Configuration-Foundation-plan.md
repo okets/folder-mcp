@@ -467,6 +467,57 @@ folder-mcp tui
 # Navigate to settings panel and verify configuration
 ```
 
+## 🚨 **Critical Test Failures to Resolve**
+
+Based on architectural analysis, Phase 6 must resolve these **42 configuration-related test failures**:
+
+### Configuration System Test Failures (38 total)
+1. **`tests/integration/cli/config-commands.test.ts`** (28 failed)
+   - Configuration CLI commands not working
+   - Config get/set/validate operations failing
+   - **Root Cause**: Configuration system foundation issues
+
+2. **`tests/config/env-loader.test.ts`** (9 failed)
+   - Environment variable loading broken
+   - `FOLDER_MCP_*` variable handling issues
+   - **Root Cause**: Environment expansion system problems
+
+3. **`tests/architectural/patterns.test.ts`** (1 failed)
+   - Architectural pattern violations
+   - **Root Cause**: Configuration hierarchy not properly implemented
+
+### CLI Command Test Failures (4 total)
+4. **`tests/unit/interfaces/cli.test.ts`** (4 failed)
+   - "cannot add command 'config'" conflicts
+   - CLI command registration issues
+   - **Root Cause**: Duplicate command registration in CLI system
+
+### Pre-Phase 6 Requirements
+These **42 total test failures** must be resolved before Phase 6 can be considered complete, as they indicate fundamental issues with:
+- Configuration system foundation (Tasks 1 & 2)
+- CLI command infrastructure (Task 4)
+- Multi-folder implementation quality (Task 3)
+
+### Test Validation Requirements
+```bash
+# All these must pass by end of Phase 6:
+npm test -- tests/integration/cli/config-commands.test.ts     # 28 tests
+npm test -- tests/config/env-loader.test.ts                  # 9 tests  
+npm test -- tests/architectural/patterns.test.ts             # 1 test
+npm test -- tests/unit/interfaces/cli.test.ts               # 4 tests
+npm test -- tests/integration/workflows/indexing-real-data.test.ts # 8 tests
+
+# Overall target: 50 failing tests → 0 failing tests
+npm test  # Expected: 0 failed, 871+ passed
+```
+
+### Success Criteria Update
+The Phase 6 success criteria must include:
+- **Configuration Foundation**: All 38 configuration tests pass  
+- **CLI Infrastructure**: All 4 CLI command tests pass
+- **Real Data Validation**: All 8 real-data indexing tests pass
+- **Zero Test Regression**: No new test failures introduced
+
 ## 📝 **Phase Completion Checklist**
 
 Before marking this phase complete:

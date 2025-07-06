@@ -66,7 +66,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       
       // Update final status
       status.isRunning = false;
-      result.processingTime = Date.now() - startTime;
+      // processingTime is already calculated in executeIndexingWorkflow
       
       this.loggingService.info('Folder indexing completed', { 
         folderPath: path, 
@@ -83,6 +83,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     } catch (error) {
       status.isRunning = false;
       this.loggingService.error('Folder indexing failed', error instanceof Error ? error : new Error(String(error)), { folderPath: path });
+      
+      // Re-throw specific errors that should not be caught
+      if (error instanceof Error && error.message.includes('Folder does not exist')) {
+        throw error;
+      }
       
       return {
         success: false,
@@ -133,8 +138,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       }
     }
 
-    result.processingTime = Date.now() - startTime;
-    result.success = result.errors.length === 0;
+    // Success if we processed at least some files, and all errors are recoverable
+    result.success = result.filesProcessed > 0 && result.errors.every(e => e.recoverable);
 
     this.loggingService.info('File indexing completed', { 
       filesProcessed: result.filesProcessed,
@@ -175,6 +180,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     options: IndexingOptions,
     status: IndexingStatus
   ): Promise<IndexingResult> {
+    // 0. Validate folder exists
+    const { existsSync } = await import('fs');
+    if (!existsSync(folderPath)) {
+      throw new Error(`Folder does not exist: ${folderPath}`);
+    }
+    
     // 1. Generate fingerprints for all supported files
     const extensions = this.fileParsingService.getSupportedExtensions();
     const fingerprints = await this.fileSystemService.generateFingerprints(
@@ -197,7 +208,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     });
 
     // 3. Process files: parse → chunk → embed → cache
-    const result = await this.processFingerprints(filesToProcess, options, status);
+    const result = await this.processFingerprints(filesToProcess, folderPath, options, status);
 
     return result;
   }
@@ -215,9 +226,13 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
   private async processFingerprints(
     fingerprints: FileFingerprint[],
+    folderPath: string,
     options: IndexingOptions,
     status: IndexingStatus
-  ): Promise<IndexingResult> {    const result: IndexingResult = {
+  ): Promise<IndexingResult> {
+    const processingStartTime = Date.now();
+    
+    const result: IndexingResult = {
       success: true,
       filesProcessed: 0,
       chunksGenerated: 0,
@@ -237,7 +252,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       status.currentFile = fingerprint.path;
       
       try {
-        const fileResult = await this.processFile(fingerprint.path, options);
+        // Import path module for joining paths
+        const { join } = await import('path');
+        const absoluteFilePath = join(folderPath, fingerprint.path);
+        
+        const fileResult = await this.processFile(absoluteFilePath, options);
         this.mergeFileResult(result, fileResult);
         
         // Collect embeddings and metadata for vector index
@@ -280,7 +299,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       }
     }
 
-    result.success = result.errors.length === 0;
+    // Calculate processing time for just the file processing
+    result.processingTime = Date.now() - processingStartTime;
+    
+    // Success if we processed at least some files, and all errors are recoverable
+    result.success = result.filesProcessed > 0 && result.errors.every(e => e.recoverable);
+    
     return result;
   }
   private async processFile(filePath: string, options: IndexingOptions): Promise<{

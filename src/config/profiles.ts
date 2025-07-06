@@ -90,6 +90,7 @@ export interface ProfileConfig extends Partial<LocalConfig> {
 export class ProfileManager {
   private profilesDir: string;
   private cache: Map<string, ProfileConfig> = new Map();
+  private activeProfile: string = '';
 
   constructor(profilesDir?: string) {
     this.profilesDir = profilesDir || join(homedir(), '.folder-mcp', 'profiles');
@@ -367,5 +368,28 @@ export class ProfileManager {
    */
   clearCache(): void {
     this.cache.clear();
+  }
+
+  /**
+   * List all available profiles (IProfileManager interface method)
+   */
+  async list(): Promise<string[]> {
+    const profiles = await this.listProfiles();
+    return profiles.map(p => p.name);
+  }
+
+  /**
+   * Set the active profile name
+   */
+  setActiveProfile(profileName: string): void {
+    this.activeProfile = profileName;
+  }
+
+  /**
+   * Save a profile configuration
+   */
+  async save(profileName: string, config: ProfileConfig): Promise<void> {
+    // TODO: Implement saving profiles to disk
+    logger.warn('Profile saving not yet implemented');
   }
 }

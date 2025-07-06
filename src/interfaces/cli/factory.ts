@@ -19,8 +19,9 @@ export class CLIFactory {
     program
       .name('folder-mcp')
       .description('Universal Folder-to-MCP-Server Tool - Transform any local folder into an intelligent knowledge base')
-      .version(packageJson.version);    // Add config command (infrastructure layer)
-    setupConfigCommand(program);
+      .version(packageJson.version);
+    
+    // Config command is added in modular commands
     
     // Add log management commands
     configureLogCommands(program);

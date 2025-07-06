@@ -152,10 +152,13 @@ export class FileParsingService implements IFileParsingService {
   async parseFile(filePath: string, fileType: string): Promise<ParsedContent> {
     this.loggingService.debug('Parsing file with proper domain parser', { filePath, fileType });
     
+    const { resolve, isAbsolute } = await import('path');
+    
+    // If the path is already absolute, use it directly
+    // Otherwise, resolve it relative to basePath
+    const absolutePath = isAbsolute(filePath) ? filePath : resolve(this.basePath, filePath);
+    
     try {
-      const { resolve } = await import('path');
-      const absolutePath = resolve(this.basePath, filePath);
-      
       // Use domain layer FileParser with proper infrastructure providers
       const result = await this.parseWithDomainLayer(absolutePath, fileType);
       
@@ -173,7 +176,7 @@ export class FileParsingService implements IFileParsingService {
       // Fallback to simple text reading for .txt and .md files
       if (fileType === '.txt' || fileType === '.md') {
         this.loggingService.warn('Falling back to simple text parsing', { filePath, fileType });
-        return this.parseAsText(filePath, fileType);
+        return this.parseAsText(absolutePath, fileType);
       }
       
       throw error;

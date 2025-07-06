@@ -9,17 +9,11 @@
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../../helpers/setup.js';
+import path from 'path';
 import { MCPEndpoints, type IMCPEndpoints } from '../../../../src/interfaces/mcp/endpoints.js';
 import type { 
   SearchRequest, SearchResponse,
-  GetDocumentOutlineRequest, GetDocumentOutlineResponse,
-  GetDocumentDataRequest, GetDocumentDataResponse,
-  ListFoldersResponse, ListDocumentsRequest, ListDocumentsResponse,
-  GetSheetDataRequest, GetSheetDataResponse,
-  GetSlidesRequest, GetSlidesResponse,
-  GetPagesRequest, GetPagesResponse,
-  GetEmbeddingRequest, GetEmbeddingResponse,
-  GetStatusRequest, GetStatusResponse
+  ListDocumentsRequest, ListDocumentsResponse
 } from '../../../../src/interfaces/mcp/types.js';
 
 // Import service interfaces for dependency injection
@@ -40,7 +34,7 @@ describe('MCP Endpoints - User Story Tests', () => {
     testEnv = await setupTestEnvironment();
     
     // Create mock services for testing
-    const mockServices = createMockServices();
+    const mockServices = createMockServices(testEnv);
     
     // Create real MCPEndpoints instance with mocked dependencies
     endpoints = new MCPEndpoints(
@@ -464,7 +458,7 @@ describe('MCP Endpoints - User Story Tests', () => {
 
       test('Step 2: List documents in specific folder', async () => {
         const response = await endpoints.listDocuments({
-          folder: "Finance/2024/Q4"
+          folder: "Finance"
         });
 
         expect(response.status.code).toBe('success');
@@ -712,7 +706,7 @@ describe('MCP Endpoints - User Story Tests', () => {
  * Create mock services for testing endpoints
  * These mocks provide the necessary dependencies for MCPEndpoints
  */
-function createMockServices() {
+function createMockServices(testEnv: any) {
   const mockLogger: ILoggingService = {
     debug: () => {},
     info: () => {},
@@ -927,7 +921,7 @@ function createMockServices() {
         };
       }
     },
-    isSupported: (fileExtension: string) => true,
+    isSupported: () => true,
     getSupportedExtensions: () => ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx', '.csv']
   };
 
@@ -988,16 +982,62 @@ function createMockServices() {
     }
   };
 
+  const testKnowledgeBasePath = testEnv.folderPath;
   const mockFolderManager: any = {
-    getAllFolders: () => [],
-    getFolder: () => null,
-    addFolder: () => {},
-    removeFolder: () => {},
-    updateFolderConfig: () => {}
+    getFolders: async () => [
+      { name: 'Finance', path: path.join(testKnowledgeBasePath, 'Finance'), enabled: true },
+      { name: 'Sales', path: path.join(testKnowledgeBasePath, 'Sales'), enabled: true },
+      { name: 'Marketing', path: path.join(testKnowledgeBasePath, 'Marketing'), enabled: true },
+      { name: 'Legal', path: path.join(testKnowledgeBasePath, 'Legal'), enabled: true },
+      { name: 'Engineering', path: path.join(testKnowledgeBasePath, 'Engineering'), enabled: true }
+    ],
+    getFolderByPath: async (folderPath: string) => {
+      const folders = await mockFolderManager.getFolders();
+      return folders.find((f: any) => f.path === folderPath) || null;
+    },
+    getFolderByName: async (name: string) => {
+      const folders = await mockFolderManager.getFolders();
+      const folder = folders.find((f: any) => f.name === name);
+      if (folder) {
+        return {
+          ...folder,
+          resolvedPath: folder.path // Add the resolvedPath property that listDocuments expects
+        };
+      }
+      return null;
+    },
+    addFolder: async () => {},
+    removeFolder: async () => {},
+    updateFolder: async () => {}
   };
 
   const mockMultiFolderStorageProvider: any = {
-    search: async () => [],
+    search: async () => {
+      // Return mock search results for semantic search
+      return [
+        {
+          documentId: 'Sales/Data/Sales_Pipeline.xlsx',
+          content: 'Mock sales performance data for October 2024',
+          score: 0.95,
+          metadata: {
+            document_type: 'xlsx',
+            folder: 'Sales',
+            sheet: 'Summary' // Add sheet info for Excel files
+          },
+          chunkId: 'chunk_1'
+        },
+        {
+          documentId: 'Sales/Presentations/Q4_Board_Deck.pptx',
+          content: 'Mock Q4 board presentation content',
+          score: 0.88,
+          metadata: {
+            document_type: 'pptx',
+            folder: 'Sales'
+          },
+          chunkId: 'chunk_2'
+        }
+      ];
+    },
     getStorage: () => null,
     initializeStorage: async () => {},
     clearStorage: async () => {}

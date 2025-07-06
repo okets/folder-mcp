@@ -12,7 +12,11 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 // Only run CLI if this is the main module
-if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
+const normalizedArgv1 = process.argv[1]?.replace(/\\/g, '/');
+const expectedUrl = `file:///${normalizedArgv1}`;
+const isMainModule = import.meta.url === expectedUrl || process.argv[1]?.endsWith('/cli/index.js');
+
+if (isMainModule) {
   // CLI Runner
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
@@ -23,7 +27,7 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
       const { CLIEntry } = await import('./entry.js');
       
       // Read package.json to get version
-      const packageJsonPath = join(__dirname, '..', '..', '..', 'package.json');
+      const packageJsonPath = join(__dirname, '..', '..', '..', '..', 'package.json');
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
 
       // Run CLI with appropriate configuration

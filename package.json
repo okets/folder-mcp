@@ -12,7 +12,7 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "tui": "tsx src/interfaces/tui-ink/index.tsx",
-    "test-embeddings": "node dist/cli.js test-embeddings",
+    "test-embeddings": "node dist/src/interfaces/cli/index.js test-embeddings",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",

@@ -626,6 +626,41 @@ Additional requirements:
 - [ ] All tests passing
 - [ ] Documentation updated
 
+## 🧪 **Test Requirements from Architectural Bug Analysis**
+
+### Critical Test Failures to Resolve
+Based on real-data testing analysis, this task must ensure these failing tests pass:
+
+#### Real Data Indexing Workflow Tests (8 failures)
+- **File**: `tests/integration/workflows/indexing-real-data.test.ts`
+- **Issue**: Path resolution bugs and indexing workflow failures exposed by real business documents
+- **Root Cause**: File parsing system looks for files in wrong directory (project root instead of subdirectories)
+- **Fix Target**: All 8 real-data indexing tests must pass
+
+**Example of issue being fixed**:
+```
+Error: ENOENT: no such file or directory, open '/Users/user/Projects/folder-mcp/market_research.md'
+Expected: /Users/user/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Marketing/market_research.md
+```
+
+#### Additional Requirements
+- **Real document processing**: Must successfully index actual business documents from test knowledge base
+- **Path resolution**: Fix file parsing service path resolution for subdirectory files  
+- **Error handling**: Proper error handling for indexing workflow failures
+- **Statistics tracking**: Accurate progress and statistics with real files
+
+### Test Validation Criteria
+```bash
+# These specific tests must pass after implementation:
+npm test -- tests/integration/workflows/indexing-real-data.test.ts
+# Expected: 0 failed, 8 passed
+
+# Verify real document indexing works:
+npm test -- tests/unit/domain/files.test.ts
+npm test -- tests/unit/domain/content.test.ts
+# Expected: All real-data tests pass
+```
+
 ## 🧪 **Testing Requirements**
 
 ### Unit Tests

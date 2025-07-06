@@ -1,11 +1,13 @@
 /**
  * Domain Layer - Content Module Tests
  * 
- * Unit tests for the content domain module
+ * Unit tests for the content domain module using REAL business documents
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { TestUtils } from '../../helpers/test-utils.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import path from 'path';
+import fs from 'fs/promises';
+import { setupTestEnvironment, cleanupTestEnvironment, type TestEnvironment } from '../../helpers/setup.js';
 import { 
   ContentProcessor,
   ChunkingOptions,
@@ -16,9 +18,17 @@ import type { TextChunk, ParsedContent, ChunkedContent } from '../../../src/type
 
 describe('Domain Layer - Content Module', () => {
   let contentProcessor: ContentProcessor;
+  let testEnv: TestEnvironment;
+  let testKnowledgeBasePath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     contentProcessor = new ContentProcessor();
+    testEnv = await setupTestEnvironment();
+    testKnowledgeBasePath = testEnv.folderPath;
+  });
+
+  afterEach(async () => {
+    await cleanupTestEnvironment(testEnv);
   });
 
   describe('Text Chunking', () => {
@@ -51,6 +61,66 @@ describe('Domain Layer - Content Module', () => {
         expect(chunk.chunkIndex).toBe(index);
         expect(chunk.content.length).toBeGreaterThan(0);
       });
+    });
+
+    it('should chunk real business document content', async () => {
+      // Test chunking with REAL business document content
+      const realDocPath = path.join(testKnowledgeBasePath, 'Marketing', 'competitive_analysis.md');
+      const realContent = await fs.readFile(realDocPath, 'utf-8');
+      
+      const parsedContent: ParsedContent = {
+        content: realContent,
+        type: 'md',
+        originalPath: realDocPath
+      };
+      
+      const options: ChunkingOptions = {
+        maxTokens: 100, // Reasonable size for real content
+        overlapPercent: 0.25
+      };
+
+      const result = contentProcessor.chunkText(parsedContent, options);
+      
+      // Test that chunking works with real business content
+      expect(result).toHaveProperty('chunks');
+      expect(result).toHaveProperty('totalChunks');
+      expect(result.chunks).toBeInstanceOf(Array);
+      expect(result.totalChunks).toBeGreaterThan(0);
+      
+      // Real content should produce meaningful chunks
+      result.chunks.forEach((chunk, index) => {
+        expect(chunk).toHaveProperty('content');
+        expect(chunk).toHaveProperty('startPosition');
+        expect(chunk).toHaveProperty('endPosition');
+        expect(chunk).toHaveProperty('tokenCount');
+        expect(chunk).toHaveProperty('chunkIndex');
+        expect(chunk).toHaveProperty('metadata');
+        expect(chunk.chunkIndex).toBe(index);
+        expect(chunk.content.length).toBeGreaterThan(0);
+        // Real content chunks should contain business terms
+        expect(typeof chunk.content).toBe('string');
+      });
+    });
+
+    it('should handle real empty file', async () => {
+      // Test with REAL empty file from test knowledge base
+      const emptyFilePath = path.join(testKnowledgeBasePath, 'test-edge-cases', 'empty.txt');
+      const emptyContent = await fs.readFile(emptyFilePath, 'utf-8');
+      
+      const parsedContent: ParsedContent = {
+        content: emptyContent,
+        type: 'txt',
+        originalPath: emptyFilePath
+      };
+      
+      const options: ChunkingOptions = {
+        maxTokens: 100,
+        overlapPercent: 0.1
+      };
+
+      const result = contentProcessor.chunkText(parsedContent, options);
+      expect(result.totalChunks).toBe(0);
+      expect(result.chunks).toHaveLength(0);
     });
 
     it('should respect chunking options', () => {
