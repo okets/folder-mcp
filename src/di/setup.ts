@@ -58,6 +58,74 @@ export function setupDependencyInjection(options: {
     return new NodePathProvider();
   });
 
+  // Register folder domain services as singletons
+  container.registerSingleton(SERVICE_TOKENS.FOLDER_PATH_RESOLVER, () => {
+    const { FolderPathResolver } = require('../domain/folders/folder-manager.js');
+    return new FolderPathResolver();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.FOLDER_CONFIG_MERGER, () => {
+    const { FolderConfigMerger } = require('../domain/folders/folder-manager.js');
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
+    return new FolderConfigMerger(pathResolver);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.FOLDER_VALIDATOR, () => {
+    const { FolderValidator } = require('../domain/folders/folder-manager.js');
+    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
+    return new FolderValidator(fileSystem, pathResolver, configManager);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.FOLDER_MANAGER, () => {
+    const { FolderManager } = require('../domain/folders/folder-manager.js');
+    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
+    const validator = container.resolve(SERVICE_TOKENS.FOLDER_VALIDATOR);
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
+    const configMerger = container.resolve(SERVICE_TOKENS.FOLDER_CONFIG_MERGER);
+    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
+    return new FolderManager(configManager, validator, pathResolver, configMerger, fileSystem);
+  });
+
+  // Register storage factory
+  container.registerSingleton(SERVICE_TOKENS.STORAGE_FACTORY, () => {
+    const { StorageFactory } = require('../infrastructure/storage/multi-folder-storage.js');
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    const createVectorSearchService = (cacheDir: string) => {
+      return serviceFactory.createVectorSearchService(cacheDir);
+    };
+    return new StorageFactory(createVectorSearchService, loggingService);
+  });
+
+  // Register multi-folder storage provider
+  container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER, () => {
+    const { MultiFolderStorageProvider } = require('../infrastructure/storage/multi-folder-storage.js');
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
+    const storageFactory = container.resolve(SERVICE_TOKENS.STORAGE_FACTORY);
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    return new MultiFolderStorageProvider(folderManager, storageFactory, loggingService);
+  });
+
+  // Register multi-folder indexing workflow
+  container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, () => {
+    const { MultiFolderIndexingWorkflow } = require('../application/indexing/multi-folder-indexing.js');
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
+    const storageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER);
+    const singleFolderIndexing = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW);
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    return new MultiFolderIndexingWorkflow(folderManager, storageProvider, singleFolderIndexing, loggingService);
+  });
+
+  // Register multi-folder monitoring workflow
+  container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW, () => {
+    const { MultiFolderMonitoringWorkflow } = require('../application/monitoring/multi-folder-monitoring.js');
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
+    const singleFolderMonitoring = container.resolve(SERVICE_TOKENS.MONITORING_WORKFLOW);
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    return new MultiFolderMonitoringWorkflow(folderManager, singleFolderMonitoring, loggingService);
+  });
+
   // Register all configuration services
   registerConfigurationServices(container);
   

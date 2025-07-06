@@ -97,3 +97,6 @@ export interface ChangesSummary {
 export { IndexingOrchestrator } from './orchestrator.js';
 export { IndexingPipeline } from './pipeline.js';
 export { IncrementalIndexer, createIncrementalIndexer } from './incremental.js';
+
+// Multi-folder indexing
+export * from './multi-folder-indexing.js';

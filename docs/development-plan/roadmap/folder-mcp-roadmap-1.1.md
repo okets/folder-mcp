@@ -972,6 +972,25 @@ After completing all Phase 9 tasks, conduct mandatory review:
 - [ ] Default updates documented
 - [ ] Release process documented
 
+### Task 23: Update Development Workflow Guidance
+
+**Goal**: Remove pre-production notices from development commands
+
+**Scope**:
+- Update `.claude/commands/create-task-plan.md` to remove pre-production project notice
+- Remove guidance about no backwards compatibility being required
+- Restore standard production-ready development practices
+- Update to include proper migration and compatibility considerations
+
+**Rationale**: During pre-production development, the create-task-plan command was modified to specify that no backwards compatibility was required. Once the project reaches production release, this guidance should be removed to ensure proper production development practices.
+
+**Completion Criteria**:
+- [ ] Pre-production notice removed from create-task-plan.md
+- [ ] Backwards compatibility guidance restored
+- [ ] Migration planning requirements re-added
+- [ ] Production-appropriate development practices documented
+- [ ] Command updated to support production workflow
+
 **Phase 10 Completion Review**:
 After completing all Phase 10 tasks, conduct final project review:
 - **Configuration Success**: Is everything truly configuration-driven?

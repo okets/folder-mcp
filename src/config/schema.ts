@@ -4,6 +4,7 @@
 
 import { SystemCapabilities } from './system.js';
 import { DaemonConfig } from './schema/daemon.js';
+import { FoldersConfig } from './schema/folders.js';
 
 /**
  * Configuration source types
@@ -174,6 +175,35 @@ export interface LocalConfig {
     reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
   };
   
+  // Folders configuration
+  folders?: {
+    defaults?: {
+      exclude?: string[];
+      embeddings?: {
+        backend?: 'ollama' | 'direct' | 'auto';
+        model?: string;
+      };
+      performance?: {
+        batchSize?: number;
+        maxConcurrency?: number;
+      };
+    };
+    list?: Array<{
+      path: string;
+      name: string;
+      enabled?: boolean;
+      embeddings?: {
+        backend?: 'ollama' | 'direct' | 'auto';
+        model?: string;
+      };
+      exclude?: string[];
+      performance?: {
+        batchSize?: number;
+        maxConcurrency?: number;
+      };
+    }>;
+  };
+  
   // Metadata
   version?: string;
   createdAt?: string;
@@ -215,6 +245,9 @@ export interface ResolvedConfig {
   // Daemon configuration
   daemon?: DaemonConfig;
   
+  // Folders configuration
+  folders?: FoldersConfig;
+  
   // Source tracking for debugging
   sources: {
     chunkSize: 'cli' | 'local' | 'global';
@@ -225,6 +258,7 @@ export interface ResolvedConfig {
     ignorePatterns: 'cli' | 'local' | 'global';
     maxConcurrentOperations: 'cli' | 'local' | 'global';
     debounceDelay: 'cli' | 'local' | 'global';
+    folders: 'cli' | 'local' | 'global';
   };
 }
 
@@ -596,6 +630,30 @@ export const DEFAULT_VALUES = {
     shutdownTimeout: 10000,
     shutdownSignal: 'SIGTERM' as const,
     reloadSignal: 'SIGHUP' as const
+  },
+  
+  folders: {
+    defaults: {
+      exclude: [
+        'node_modules',
+        '.git',
+        '.folder-mcp',
+        'dist',
+        'build',
+        '.DS_Store',
+        'Thumbs.db',
+        '*.tmp',
+        '*.log'
+      ],
+      embeddings: {
+        backend: 'auto' as const
+      },
+      performance: {
+        batchSize: 32,
+        maxConcurrency: 4
+      }
+    },
+    list: [] as any[]
   }
 };
 // Re-export types for backward compatibility
@@ -676,5 +734,16 @@ export function getDaemonDefaults() {
     shutdownTimeout: DEFAULT_VALUES.daemon.shutdownTimeout,
     shutdownSignal: DEFAULT_VALUES.daemon.shutdownSignal,
     reloadSignal: DEFAULT_VALUES.daemon.reloadSignal
+  };
+}
+
+export function getFoldersDefaults(): FoldersConfig {
+  return {
+    defaults: {
+      exclude: [...DEFAULT_VALUES.folders.defaults.exclude],
+      embeddings: { ...DEFAULT_VALUES.folders.defaults.embeddings },
+      performance: { ...DEFAULT_VALUES.folders.defaults.performance }
+    },
+    list: [...DEFAULT_VALUES.folders.list]
   };
 }

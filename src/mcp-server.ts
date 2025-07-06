@@ -44,27 +44,27 @@ export async function main(): Promise<void> {
   let devModeManager: DevModeManager | null = null;
   
   try {
-    debug('Starting MCP server');
+    debug('Starting MCP server in multi-folder mode');
     
-    // Check if folder path is provided as argument
-    const folderPath = process.argv[2];
-    if (!folderPath) {
-      debug('Error: Folder path is required');
-      debug('Usage: node dist/mcp-server.js <folder-path>');
+    // Load configuration from config file
+    const { resolveConfig } = await import('./config/resolver.js');
+    const config = resolveConfig(process.cwd(), {});
+    
+    // Validate that folders are configured
+    if (!config.folders || !config.folders.list || config.folders.list.length === 0) {
+      debug('Error: No folders configured');
+      debug('Please configure folders in your configuration file (folder-mcp.yaml)');
+      debug('Run: folder-mcp migrate --sample > folder-mcp.yaml');
       process.exit(1);
     }
     
-    debug(`Using folder path: ${folderPath}`);
+    debug(`Found ${config.folders.list.length} configured folders`);
+    
     debug('Setting up dependency injection...');
     
-    // Setup dependency injection with real config to enable all services
-    const { resolveConfig } = await import('./config/resolver.js');
-    const config = resolveConfig(folderPath, {});
-    
     const container = setupDependencyInjection({
-      folderPath,
       config,
-      logLevel: 'info'
+      logLevel: 'info' as const
     });
 
     // Create the official MCP SDK server
@@ -90,14 +90,21 @@ export async function main(): Promise<void> {
     const fileSystem = container.resolve(SERVICE_TOKENS.FILE_SYSTEM);
     const logger = container.resolve(SERVICE_TOKENS.LOGGING);
 
+    // Get multi-folder services
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
+    const multiFolderStorageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER);
+    debug('Multi-folder services initialized');
+
     const endpoints = new MCPEndpoints(
-      folderPath,
+      process.cwd(), // Base directory for multi-folder mode
       vectorSearchService as any,
       fileParsingService as any,
       embeddingService as any,
       fileSystemService as any,
       fileSystem as any,
-      logger as any
+      logger as any,
+      folderManager,
+      multiFolderStorageProvider
     );
 
     // Register tool handlers with the official SDK
@@ -109,12 +116,22 @@ export async function main(): Promise<void> {
         tools: [
           {
             name: 'search',
-            description: 'Semantic search across documents',
+            description: 'Semantic search across documents with optional folder filtering',
             inputSchema: {
               type: 'object',
               properties: {
                 query: { type: 'string', description: 'Search query' },
-                limit: { type: 'number', description: 'Maximum results to return' }
+                mode: { type: 'string', enum: ['semantic', 'regex'], description: 'Search mode', default: 'semantic' },
+                scope: { type: 'string', enum: ['documents', 'chunks'], description: 'Search scope', default: 'documents' },
+                filters: {
+                  type: 'object',
+                  properties: {
+                    folder: { type: 'string', description: 'Folder name to search in' },
+                    fileType: { type: 'string', description: 'File type filter' }
+                  }
+                },
+                limit: { type: 'number', description: 'Maximum results to return' },
+                max_tokens: { type: 'number', description: 'Maximum tokens in response' }
               },
               required: ['query']
             }
@@ -203,6 +220,14 @@ export async function main(): Promise<void> {
               type: 'object',
               properties: {}
             }
+          },
+          {
+            name: 'get_folder_info',
+            description: 'Get comprehensive folder information with status, document counts, and settings',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
           }
         ]
       };
@@ -242,6 +267,9 @@ export async function main(): Promise<void> {
             break;
           case 'get_status':
             result = await endpoints.getStatus(args as any);
+            break;
+          case 'get_folder_info':
+            result = await endpoints.getFolderInfo();
             break;
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -299,21 +327,18 @@ export async function main(): Promise<void> {
     }
 
     // Defer indexing to avoid initialization timeout (MCP server is already responding)
-    debug('Scheduling background indexing...');
+    debug('Scheduling background multi-folder indexing...');
     setTimeout(async () => {
       try {
-        const indexingWorkflow = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
-        debug('Starting folder indexing with incremental processing...');
-        const indexingResult = await indexingWorkflow.indexFolder(folderPath, {
-          includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-          excludePatterns: ['node_modules', '.git', '.folder-mcp'],
-          embeddingModel: 'nomic-embed-text',
-          forceReindex: true
+        const multiFolderIndexing = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW) as any;
+        const indexingResult = await multiFolderIndexing.indexAllFolders({
+          forceReindex: true,
+          continueOnError: true
         });
         
-        debug(`Indexing completed: ${indexingResult.filesProcessed} files processed, ${indexingResult.chunksGenerated} chunks generated`);
+        debug(`Multi-folder indexing completed: ${indexingResult.totalFoldersProcessed} folders, ${indexingResult.totalFilesProcessed} files`);
         if (indexingResult.errors.length > 0) {
-          debug(`Indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
+          debug(`Multi-folder indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -322,25 +347,26 @@ export async function main(): Promise<void> {
     }, 1000);
 
     // Defer file watching
-    debug('Scheduling background file watching...');
+    debug('Scheduling background multi-folder file watching...');
     setTimeout(async () => {
       try {
-        const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
-        debug('Starting real-time file watching...');
-        const watchingResult = await monitoringWorkflow.startFileWatching(folderPath, {
-          includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
-          excludePatterns: ['node_modules', '.git', '.folder-mcp'],
-          debounceMs: 1000,
-          enableBatchProcessing: true,
-          batchSize: 10
+        const multiFolderMonitoring = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
+        const watchingResult = await multiFolderMonitoring.startMonitoringAllFolders({
+          baseOptions: {
+            includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            excludePatterns: ['node_modules', '.git', '.folder-mcp'],
+            debounceMs: 1000,
+            enableBatchProcessing: true,
+            batchSize: 10
+          },
+          continueOnError: true
         });
         
         if (watchingResult.success) {
-          debug(`✅ File watching started successfully - Watch ID: ${watchingResult.watchId}`);
-          debug(`📁 Monitoring folder: ${folderPath}`);
-          debug(`⏱️ Debounce delay: 1000ms`);
+          debug(`✅ Multi-folder monitoring started successfully - ${watchingResult.activeWatchers} active watchers`);
+          debug(`📁 Monitoring ${watchingResult.folderResults.length} folders`);
         } else {
-          debug(`❌ File watching failed to start: ${watchingResult.error}`);
+          debug(`❌ Multi-folder monitoring failed: ${watchingResult.systemErrors.join(', ')}`);
         }
       } catch (error) {
         debug('File watching startup failed (non-critical):', error);
@@ -357,9 +383,9 @@ export async function main(): Promise<void> {
         }
         
         try {
-          const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
-          await monitoringWorkflow.stopFileWatching(folderPath);
-          debug('File watching stopped successfully');
+          const multiFolderMonitoring = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
+          await multiFolderMonitoring.stopMonitoringAllFolders();
+          debug('Multi-folder monitoring stopped successfully');
         } catch (error) {
           debug('File watching shutdown failed (non-critical):', error);
         }

@@ -265,3 +265,25 @@ export interface GetStatusResponse {
   progress: number;
   message: string;
 }
+
+// Multi-folder info endpoint types
+export interface FolderInfo {
+  name: string;
+  path: string;
+  enabled: boolean;
+  documentCount: number;
+  indexingStatus: 'ready' | 'indexing' | 'error' | 'not_indexed';
+  lastIndexed?: string;
+  size: string;
+  settings?: {
+    model?: string;
+    backend?: string;
+    excludePatterns?: string[];
+  };
+}
+
+export type FolderInfoResponse = StandardResponse<{
+  folders: FolderInfo[];
+  totalDocuments: number;
+  systemStatus: 'ready' | 'partial' | 'error';
+}>;

@@ -454,6 +454,22 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   DOMAIN_CRYPTOGRAPHY_PROVIDER: Symbol('DomainCryptographyProvider'),
   DOMAIN_PATH_PROVIDER: Symbol('DomainPathProvider'),
   
+  // Folder Domain Services
+  FOLDER_MANAGER: Symbol('FolderManager'),
+  FOLDER_VALIDATOR: Symbol('FolderValidator'),
+  FOLDER_PATH_RESOLVER: Symbol('FolderPathResolver'),
+  FOLDER_CONFIG_MERGER: Symbol('FolderConfigMerger'),
+  
+  // Multi-Folder Storage Services
+  STORAGE_FACTORY: Symbol('StorageFactory'),
+  MULTI_FOLDER_STORAGE_PROVIDER: Symbol('MultiFolderStorageProvider'),
+  
+  // Multi-Folder Indexing Services
+  MULTI_FOLDER_INDEXING_WORKFLOW: Symbol('MultiFolderIndexingWorkflow'),
+  
+  // Multi-Folder Monitoring Services
+  MULTI_FOLDER_MONITORING_WORKFLOW: Symbol('MultiFolderMonitoringWorkflow'),
+  
   // Transport Layer
   TRANSPORT_FACTORY: Symbol('TransportFactory'),
   TRANSPORT_MANAGER: Symbol('TransportManager'),

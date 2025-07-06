@@ -59,6 +59,8 @@ export class MCPServer extends EventEmitter {
     embeddingService: IEmbeddingService,
     fileSystemService: IFileSystemService,
     fileSystem: IFileSystem,
+    folderManager: any,
+    multiFolderStorageProvider: any,
     logger?: ILoggingService
   ) {
     super();
@@ -80,7 +82,9 @@ export class MCPServer extends EventEmitter {
       embeddingService,
       fileSystemService,
       fileSystem,
-      this.logger
+      this.logger,
+      folderManager,
+      multiFolderStorageProvider
     );
   }
 

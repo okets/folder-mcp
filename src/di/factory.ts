@@ -316,6 +316,10 @@ export class ServiceFactory implements IServiceFactory {
     // Import MCPServer
     const { MCPServer } = await import('../interfaces/mcp/server.js');
 
+    // Get multi-folder services
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
+    const multiFolderStorageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER) as any;
+
     // Create MCP server with new endpoint-enabled constructor
     return new MCPServer(
       {
@@ -337,6 +341,8 @@ export class ServiceFactory implements IServiceFactory {
       embeddingService,
       fileSystemService,
       fileSystem,
+      folderManager,
+      multiFolderStorageProvider,
       loggingService
     );
   }

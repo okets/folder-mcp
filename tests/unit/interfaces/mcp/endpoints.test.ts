@@ -50,7 +50,9 @@ describe('MCP Endpoints - User Story Tests', () => {
       mockServices.embeddingService,
       mockServices.fileSystemService,
       mockServices.fileSystem,
-      mockServices.logger
+      mockServices.logger,
+      mockServices.folderManager,
+      mockServices.multiFolderStorageProvider
     );
   });
 
@@ -986,12 +988,29 @@ function createMockServices() {
     }
   };
 
+  const mockFolderManager: any = {
+    getAllFolders: () => [],
+    getFolder: () => null,
+    addFolder: () => {},
+    removeFolder: () => {},
+    updateFolderConfig: () => {}
+  };
+
+  const mockMultiFolderStorageProvider: any = {
+    search: async () => [],
+    getStorage: () => null,
+    initializeStorage: async () => {},
+    clearStorage: async () => {}
+  };
+
   return {
     logger: mockLogger,
     vectorSearchService: mockVectorSearchService,
     fileParsingService: mockFileParsingService,
     embeddingService: mockEmbeddingService,
     fileSystemService: mockFileSystemService,
-    fileSystem: mockFileSystem
+    fileSystem: mockFileSystem,
+    folderManager: mockFolderManager,
+    multiFolderStorageProvider: mockMultiFolderStorageProvider
   };
 }

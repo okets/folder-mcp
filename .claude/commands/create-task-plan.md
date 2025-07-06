@@ -8,6 +8,23 @@ Create a detailed, context-aware implementation plan for a specific task.
 /create-task-plan <phase-number> <task-number>
 ```
 
+## 🚨 **PRE-PRODUCTION PROJECT NOTICE**
+
+**CRITICAL**: This is a PRE-PRODUCTION project. No backwards compatibility or migration support is required.
+
+- **No Legacy Support**: Delete old files, configurations, or data structures freely
+- **Breaking Changes OK**: Interface changes don't need migration paths  
+- **Clean Slate Approach**: Replace rather than extend existing implementations
+- **No Production Users**: No need to maintain existing workflows
+- **Delete and Recreate**: When restructuring, remove old embeddings/config and recreate fresh
+
+### What to Do Instead of Migration
+- **Delete test data**: Remove old embeddings, config files, and test folders completely
+- **Simplify interfaces**: Remove optional parameters and fallback logic
+- **Clean implementation**: Build the simplest, most direct solution for the new requirements
+- **No dual-mode support**: Implement only the new approach, remove old approach entirely
+- **Fresh start testing**: Clear test fixtures and create new ones that match the new design
+
 ## 🏗️ **MANDATORY ARCHITECTURAL PATTERNS**
 
 Every task plan will include these MANDATORY patterns that MUST be followed:

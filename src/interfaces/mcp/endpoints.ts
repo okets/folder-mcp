@@ -18,6 +18,7 @@ import type {
   GetPagesRequest, GetPagesResponse,
   GetEmbeddingRequest, GetEmbeddingResponse,
   GetStatusRequest, GetStatusResponse,
+  FolderInfoResponse, FolderInfo,
   StandardResponse, DocumentMetadata, LocationInfo, ContextInfo
 } from './types.js';
 
@@ -48,6 +49,8 @@ export interface IMCPEndpoints {
   getPages(request: GetPagesRequest): Promise<GetPagesResponse>;
   getEmbedding(request: GetEmbeddingRequest): Promise<GetEmbeddingResponse>;
   getStatus(request?: GetStatusRequest): Promise<GetStatusResponse>;
+  // New multi-folder endpoint
+  getFolderInfo(): Promise<FolderInfoResponse>;
 }
 
 /**
@@ -55,6 +58,7 @@ export interface IMCPEndpoints {
  * 
  * Implements all new MCP endpoints with proper error handling,
  * token-based pagination, and standardized response format.
+ * Now supports multi-folder operations through folder manager and storage provider.
  */
 export class MCPEndpoints implements IMCPEndpoints {
   private readonly folderPath: string;
@@ -64,6 +68,10 @@ export class MCPEndpoints implements IMCPEndpoints {
   private readonly fileSystemService: IFileSystemService;
   private readonly fileSystem: IFileSystem;
   private readonly logger: ILoggingService;
+  
+  // Multi-folder support
+  private readonly folderManager: any; // IFolderManager
+  private readonly multiFolderStorageProvider: any; // IMultiFolderStorageProvider
 
   constructor(
     folderPath: string,
@@ -72,7 +80,9 @@ export class MCPEndpoints implements IMCPEndpoints {
     embeddingService: IEmbeddingService,
     fileSystemService: IFileSystemService,
     fileSystem: IFileSystem,
-    logger: ILoggingService
+    logger: ILoggingService,
+    folderManager: any,
+    multiFolderStorageProvider: any
   ) {
     this.folderPath = folderPath;
     this.vectorSearchService = vectorSearchService;
@@ -81,6 +91,8 @@ export class MCPEndpoints implements IMCPEndpoints {
     this.fileSystemService = fileSystemService;
     this.fileSystem = fileSystem;
     this.logger = logger;
+    this.folderManager = folderManager;
+    this.multiFolderStorageProvider = multiFolderStorageProvider;
   }
 
   /**
@@ -104,22 +116,44 @@ export class MCPEndpoints implements IMCPEndpoints {
         const queryEmbedding = await this.embeddingService.generateQueryEmbedding(request.query);
         this.logger.debug('Generated query embedding with dimensions:', Array.isArray(queryEmbedding) ? queryEmbedding.length : 0);
         
-        // Perform real vector search
+        // Perform multi-folder vector search
         try {
-          const vectorResults = await (this.vectorSearchService as any).searchSimilarDocuments(
-            queryEmbedding,
-            {
-              limit: (request as any).limit || 10,
-              threshold: 0.1, // Lower threshold to get more results
-              includeMetadata: true
-            }
-          );
+          let vectorResults;
+          
+          if (request.filters?.folder) {
+            // Search specific folder
+            this.logger.debug('Searching specific folder:', request.filters.folder);
+            vectorResults = await this.multiFolderStorageProvider.search(
+              queryEmbedding,
+              {
+                limit: (request as any).limit || 10,
+                threshold: 0.1,
+                includeMetadata: true,
+                folderName: request.filters.folder
+              }
+            );
+          } else {
+            // Search all folders
+            this.logger.debug('Searching all folders');
+            vectorResults = await this.multiFolderStorageProvider.search(
+              queryEmbedding,
+              {
+                limit: (request as any).limit || 10,
+                threshold: 0.1,
+                includeMetadata: true
+              }
+            );
+          }
+          
           this.logger.debug('Vector search results count:', vectorResults.length);
           
           for (const result of vectorResults) {
-            // Create search result with proper metadata
+            // Create search result with proper metadata including folder attribution
+            const documentId = result.documentId || result.chunkId || 'unknown';
+            const folderName = result.folderName || null;
+            
             const searchResult: SearchResult = {
-              document_id: result.documentId || result.chunkId || 'unknown',
+              document_id: documentId,
               preview: this.truncateText(result.content || result.text || '', 200),
               score: result.score || result.similarity || 0,
               location: {
@@ -132,7 +166,7 @@ export class MCPEndpoints implements IMCPEndpoints {
                 before: result.metadata?.before || '',
                 after: result.metadata?.after || ''
               },
-              metadata: await this.getDocumentMetadata(result.documentId || result.chunkId || 'unknown')
+              metadata: await this.getDocumentMetadata(documentId, folderName)
             };
 
             results.push(searchResult);
@@ -404,21 +438,19 @@ export class MCPEndpoints implements IMCPEndpoints {
     try {
       this.logger.debug('MCP ListFolders endpoint called');
 
-      const folders = await this.listDirectories(this.folderPath);
-      const filteredFolders = folders.filter((folder: string) => 
-        !folder.startsWith('.') && // Skip hidden folders
-        folder !== 'node_modules' && // Skip common excluded folders
-        folder !== '.git'
-      );
+      // Use multi-folder configuration
+      this.logger.debug('Using folder manager for folder list');
+      const configuredFolders = await this.folderManager.getFolders();
+      const folders = configuredFolders.map((folder: any) => folder.name);
 
       return {
         data: {
-          folders: filteredFolders,
-          token_count: this.estimateTokens(JSON.stringify(filteredFolders))
+          folders,
+          token_count: this.estimateTokens(JSON.stringify(folders))
         },
         status: {
           code: 'success',
-          message: `Found ${filteredFolders.length} folders`
+          message: `Found ${folders.length} folders`
         },
         continuation: {
           has_more: false
@@ -438,8 +470,16 @@ export class MCPEndpoints implements IMCPEndpoints {
       this.logger.debug('MCP ListDocuments endpoint called', request);
 
       // Handle both 'folder' and 'folderPath' for compatibility
-      const folder = (request as any).folder || (request as any).folderPath || '';
-      const folderPath = this.resolveFolderPath(folder);
+      const folderName = (request as any).folder || (request as any).folderPath || '';
+      
+      // Use folder manager to resolve folder path
+      this.logger.debug('Using folder manager to resolve folder path:', folderName);
+      const folder = await this.folderManager.getFolderByName(folderName);
+      if (!folder) {
+        throw new Error(`Folder '${folderName}' not found in configuration`);
+      }
+      const folderPath = folder.resolvedPath;
+      
       const files = await this.listFiles(folderPath);
       const maxTokens = request.max_tokens || 4000;
       
@@ -869,6 +909,119 @@ export class MCPEndpoints implements IMCPEndpoints {
     }
   }
 
+  /**
+   * Get folder information with status
+   * New endpoint for multi-folder configuration insight
+   */
+  async getFolderInfo(): Promise<FolderInfoResponse> {
+    try {
+      this.logger.debug('MCP GetFolderInfo endpoint called');
+
+      const folders: FolderInfo[] = [];
+      let totalDocuments = 0;
+      let systemStatus: 'ready' | 'partial' | 'error' = 'ready';
+
+      if (this.folderManager) {
+        // Use multi-folder configuration
+        const configuredFolders = await this.folderManager.getFolders();
+        
+        for (const folder of configuredFolders) {
+          try {
+            // Get document count for this folder
+            const files = await this.listFiles(folder.resolvedPath);
+            const documentCount = files.length;
+            totalDocuments += documentCount;
+
+            // Get folder size (simplified)
+            const folderStats = await this.getFolderStats(folder.resolvedPath);
+            
+            // Create folder info
+            const folderInfo: FolderInfo = {
+              name: folder.name,
+              path: folder.resolvedPath,
+              enabled: folder.enabled,
+              documentCount,
+              indexingStatus: folder.enabled ? 'ready' : 'not_indexed',
+              lastIndexed: new Date().toISOString(), // Would track actual indexing time
+              size: this.formatFileSize(folderStats.totalSize),
+              settings: {
+                model: folder.embeddings?.model,
+                backend: folder.embeddings?.backend,
+                excludePatterns: folder.exclude
+              }
+            };
+
+            folders.push(folderInfo);
+          } catch (error) {
+            this.logger.warn(`Failed to get info for folder ${folder.name}:`, error);
+            
+            // Add error folder info
+            folders.push({
+              name: folder.name,
+              path: folder.resolvedPath,
+              enabled: false,
+              documentCount: 0,
+              indexingStatus: 'error',
+              size: '0 Bytes',
+              settings: {
+                model: folder.embeddings?.model,
+                backend: folder.embeddings?.backend,
+                excludePatterns: folder.exclude
+              }
+            });
+            
+            systemStatus = 'partial';
+          }
+        }
+      } else {
+        // Fall back to single-folder mode
+        try {
+          const files = await this.listFiles(this.folderPath);
+          const folderStats = await this.getFolderStats(this.folderPath);
+          totalDocuments = files.length;
+
+          folders.push({
+            name: 'default',
+            path: this.folderPath,
+            enabled: true,
+            documentCount: files.length,
+            indexingStatus: 'ready',
+            lastIndexed: new Date().toISOString(),
+            size: this.formatFileSize(folderStats.totalSize),
+            settings: {}
+          });
+        } catch (error) {
+          this.logger.error('Failed to get single-folder info:', error as Error);
+          systemStatus = 'error';
+        }
+      }
+
+      return {
+        data: {
+          folders,
+          totalDocuments,
+          systemStatus,
+          token_count: this.estimateTokens(JSON.stringify({ folders, totalDocuments, systemStatus }))
+        },
+        status: {
+          code: 'success',
+          message: `Retrieved information for ${folders.length} folders`
+        },
+        continuation: {
+          has_more: false
+        },
+        actions: [{
+          id: 'refresh',
+          description: 'Refresh folder information',
+          params: {}
+        }]
+      };
+    } catch (error) {
+      this.logger.error('GetFolderInfo endpoint error', error as Error);
+      return this.createErrorResponse(error, 'folder_info_failed');
+    }
+  }
+
   // ===== PRIVATE HELPER METHODS =====
 
   private async getFileStats(filePath: string) {
@@ -884,6 +1037,31 @@ export class MCPEndpoints implements IMCPEndpoints {
     } catch (error) {
       this.logger.error('Failed to get file stats:', error as Error);
       throw error;
+    }
+  }
+
+  private async getFolderStats(folderPath: string): Promise<{ totalSize: number; fileCount: number }> {
+    try {
+      const files = await this.listFiles(folderPath);
+      let totalSize = 0;
+      
+      for (const file of files) {
+        try {
+          const stats = await this.getFileStats(file);
+          totalSize += stats.size;
+        } catch (error) {
+          // Skip files that can't be accessed
+          this.logger.debug(`Skipping file ${file} due to access error:`, error);
+        }
+      }
+      
+      return {
+        totalSize,
+        fileCount: files.length
+      };
+    } catch (error) {
+      this.logger.error('Failed to get folder stats:', error as Error);
+      return { totalSize: 0, fileCount: 0 };
     }
   }
 
@@ -1041,7 +1219,16 @@ export class MCPEndpoints implements IMCPEndpoints {
     return mockPages;
   }
 
-  private resolveDocumentPath(documentId: string): string {
+  private resolveDocumentPath(documentId: string, folderName?: string): string {
+    if (this.folderManager && folderName) {
+      // Use folder manager to resolve path for specific folder
+      const folder = this.folderManager.getFolderByName(folderName);
+      if (folder) {
+        return path.join(folder.resolvedPath, documentId);
+      }
+    }
+    
+    // Fall back to single-folder resolution
     return path.join(this.folderPath, documentId);
   }
 
@@ -1110,9 +1297,9 @@ export class MCPEndpoints implements IMCPEndpoints {
     };
   }
 
-  private async getDocumentMetadata(documentId: string): Promise<DocumentMetadata> {
+  private async getDocumentMetadata(documentId: string, folderName?: string): Promise<DocumentMetadata> {
     try {
-      const filePath = this.resolveDocumentPath(documentId);
+      const filePath = this.resolveDocumentPath(documentId, folderName);
       
       // For test files, return realistic metadata based on the document ID
       // Check for exact matches first, then substring matches

@@ -194,3 +194,6 @@ export interface HealthRecommendation {
 // Application implementations
 export { MonitoringOrchestrator } from './orchestrator.js';
 export { HealthMonitoringService } from './health.js';
+
+// Multi-folder monitoring
+export * from './multi-folder-monitoring.js';
