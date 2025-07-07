@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ThemeProvider, themes, ThemeName, useTheme } from './contexts/ThemeContext';
+import { themes, ThemeName, useTheme } from './contexts/ThemeContext';
 import { ThemedMainPanel, ThemedSecondaryPanel } from './components/core/ThemedPanel';
 import { useResponsiveLayout } from './hooks/useResponsiveLayout';
 import { useNavigationContext } from './contexts/NavigationContext';
@@ -121,11 +121,6 @@ const ThemedAppContent: React.FC = () => {
  * Themed TUI app demonstrating theme support
  */
 export const AppThemed: React.FC = () => {
-    const [currentTheme, setCurrentTheme] = useState<ThemeName>('default');
-    
-    return (
-        <ThemeProvider initialTheme={currentTheme}>
-            <ThemedAppContent />
-        </ThemeProvider>
-    );
+    // Theme is now provided by parent ConfigurationThemeProvider
+    return <ThemedAppContent />;
 };
