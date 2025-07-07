@@ -346,12 +346,24 @@ grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
 ### Related User Stories
 [COPY RELEVANT USER STORIES FROM PHASE]
 
-### Configuration System Design
-[REQUIRED FOR ALL TASKS - Define how this feature will be configuration-driven]
-- **Config Schema**: What configuration options will this feature expose?
-- **Default Values**: What are sensible defaults that work out-of-box?
-- **Validation Rules**: What validation is needed for config values?
-- **Code Updates**: What existing code needs updating to use the new config?
+### Configuration Requirements
+[REQUIRED FOR ALL TASKS - Distinguish between user and system configurations]
+
+#### User Configuration (config.yaml)
+- **Schema Definition**: What user-facing options will this feature expose?
+- **Default Values**: What defaults go in config-defaults.yaml?
+- **Validation Rules**: What schema validation is needed?
+- **UI Components**: How will these appear in the TUI?
+
+#### System Configuration (system-configuration.json)
+- **Internal Settings**: What non-user-facing settings are needed?
+- **No Schema Required**: These are internal, not UI-generated
+- **Direct JSON Access**: Simple key-value pairs
+
+#### Integration
+- **Code Updates**: How will the feature access configuration?
+- **User Config**: Via SimpleConfigManager and schema validation
+- **System Config**: Direct JSON loading at startup
 
 ### Implementation Details
 [COPY ANY CODE EXAMPLES OR IMPLEMENTATION NOTES FROM TASK]
@@ -563,7 +575,8 @@ Additional DI requirements:
 ### Task Type Auto-Detection
 **Detected Categories** (populate during task creation):
 - [ ] **DI/Architecture**: Services, managers, repositories, DI container setup
-- [ ] **Configuration**: Config schemas, validation, hierarchy, environment variables  
+- [ ] **User Configuration**: Schema-driven config.yaml settings, validation, UI generation
+- [ ] **System Configuration**: Internal system-configuration.json settings  
 - [ ] **CLI/Commands**: Command-line interfaces, argument parsing, help text
 - [ ] **TUI/Visual**: Terminal UI components, layouts, visual elements, user interaction
 - [ ] **Infrastructure**: File system, external APIs, platform integration, process management
@@ -578,12 +591,19 @@ Additional DI requirements:
 - [ ] **Module Boundaries**: Domain/Application/Infrastructure separation maintained
 - [ ] **Service Registration**: All services properly registered in DI container
 
-#### IF Task Contains Configuration Work:
-- [ ] **Schema Validation**: Config accepts valid inputs, rejects invalid ones
-- [ ] **Environment Variables**: All FOLDER_MCP_* variables work correctly
-- [ ] **Hierarchy Testing**: Precedence order works (defaults < user < env < runtime)
-- [ ] **Config Commands**: `folder-mcp config` commands work as expected
-- [ ] **Integration**: Feature respects configuration settings
+#### IF Task Contains User Configuration Work:
+- [ ] **Schema Definition**: User config schema properly defined
+- [ ] **Schema Validation**: Config accepts valid inputs per schema
+- [ ] **Override Testing**: config-defaults.yaml < config.yaml < CLI args
+- [ ] **Config Commands**: `folder-mcp config get/set` work correctly
+- [ ] **UI Generation**: TUI shows configuration options from schema
+- [ ] **External Data**: JSON files load correctly for dynamic options
+
+#### IF Task Contains System Configuration Work:
+- [ ] **JSON Structure**: system-configuration.json properly formatted
+- [ ] **No User Access**: Settings not exposed via CLI/TUI
+- [ ] **Startup Loading**: System config loads at application start
+- [ ] **No Schema**: Internal settings don't need validation schema
 
 #### IF Task Contains CLI/Commands Work:
 - [ ] **Argument Parsing**: Command accepts expected flags and arguments
@@ -969,6 +989,33 @@ When human feedback is received during task review, follow this workflow:
 - ✅ Human confirmation received (if needed)
 
 **CRITICAL**: Never resume implementation until the feedback has been properly planned and the human has confirmed the approach.
+
+## 📋 **Configuration Pattern Examples**
+
+### User Configuration Pattern (Schema-Driven)
+```typescript
+// In config-schema.ts
+embedding: {
+  model: {
+    type: 'select',
+    label: 'Embedding Model',
+    detailsSource: 'data/embedding-models.json',
+    detailsColumns: ['provider', 'speed', 'cost']
+  }
+}
+```
+Result: Appears in TUI, validates input, saves to config.yaml
+
+### System Configuration Pattern (Direct JSON)
+```json
+// In system-configuration.json
+{
+  "internalBufferSize": 1024,
+  "maxRetries": 3,
+  "debugMode": false
+}
+```
+Result: Internal only, no UI, loaded at startup
 
 ## 🔄 **Phase Plan Update Process**
 

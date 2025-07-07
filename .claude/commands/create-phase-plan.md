@@ -239,9 +239,11 @@ Estimated Duration: ~[ESTIMATE]
 [FOR EACH TASK THAT HAS IMPLEMENTATION DETAILS, CONFIGURATION, OR CODE EXAMPLES IN THE ROADMAP:
 ### Task X: [Name]
 - Include any code snippets
-- Include any YAML configuration examples
+- Include any configuration examples, noting type:
+  - **User Config (config.yaml)**: Schema-driven, user-facing
+  - **System Config (system-configuration.json)**: Internal only
 - Include any specific implementation notes
-- Keep the full context that was carefully added to the roadmap]
+- Note which configuration system each setting uses]
 
 ## 📊 **Phase Progress Tracking**
 
@@ -297,6 +299,13 @@ Estimated Duration: ~[ESTIMATE]
 - Component Definitions (if introducing new components)
 - System Architecture (if modifying architecture)
 - Success Metrics (specific to this phase)]
+
+### Configuration Guidance for This Phase
+[BASED ON PHASE 7 DESIGN, CLARIFY CONFIGURATION APPROACH:
+- **User Configurations**: Settings that users control via config.yaml with schema
+- **System Configurations**: Internal settings in system-configuration.json
+- **Migration Note**: Phase 7 introduces the new 2-file configuration system
+- **Key Principle**: User-facing = schema-driven, Internal = direct JSON]
 
 ## ✅ **Phase Validation**
 

@@ -95,13 +95,13 @@ Daemon → Single MCP Server → Multiple folders (from config)
 
 **Core Philosophy**: Configuration drives flexibility throughout the system. Every aspect of folder-mcp is configurable, with smart defaults that work out-of-the-box while enabling deep customization for power users.
 
-### Configuration Hierarchy
+### Configuration System (After Phase 7)
 
-1. **Defaults**: Smart defaults embedded in code that work for 90% of users
-2. **System Config**: `/etc/folder-mcp/config.yaml` for system-wide settings (optional)
-3. **User Config**: `~/.folder-mcp/config.yaml` for user preferences  
-4. **Environment**: Override any setting via `FOLDER_MCP_*` environment variables
-5. **Runtime**: CLI flags and TUI settings override everything
+1. **Defaults**: `config-defaults.yaml` with sensible defaults
+2. **User Config**: `~/.folder-mcp/config.yaml` for user overrides
+3. **CLI Arguments**: Command-line flags for temporary overrides
+
+**Schema-Driven**: Configuration structure defined by schemas that drive both validation and UI generation
 
 ### Configuration Principles
 
@@ -117,7 +117,7 @@ Daemon → Single MCP Server → Multiple folders (from config)
 
 ### Core Configuration Structure
 
-The configuration system uses a hierarchical YAML structure with these main sections:
+The configuration system uses a flat YAML structure with these main sections:
 - **general**: Basic settings (autoStart, logLevel, telemetry)
 - **daemon**: Process management (port, pidFile, healthCheck, autoRestart)
 - **embeddings**: Backend selection (ollama, direct, auto) with hardware optimization
@@ -129,12 +129,14 @@ The configuration system uses a hierarchical YAML structure with these main sect
 - **ui**: Theme and display preferences for CLI/TUI
 - **features**: Feature flags for new capabilities
 
-Configuration follows the hierarchy: Defaults → System → User → Environment → Runtime
+Configuration follows simple override: config-defaults.yaml → config.yaml → CLI Arguments
+
+**Note**: Phase 7 replaces the original 6-source hierarchical system with this simplified approach
 
 ### Configuration Usage Examples
 
 ```bash
-# Override via environment variables
+# Override via CLI arguments
 FOLDER_MCP_EMBEDDINGS_BACKEND=direct folder-mcp add ~/Documents
 
 # Override via CLI flags
@@ -161,7 +163,7 @@ This section establishes the common terminology used throughout this document, w
 ### Core Components
 
 **Configuration Manager**  
-The central component that loads, validates, merges, and provides configuration to all other components. It handles the configuration hierarchy, environment variable expansion, live reloading, and validation. The Configuration Manager is the first component initialized and drives the behavior of all other components.
+The central component that loads, validates, merges, and provides configuration to all other components. It handles the simple two-file system (defaults and user config), validation via schemas, and live reloading. The Configuration Manager is the first component initialized and drives the behavior of all other components.
 
 **Daemon**  
 A configuration-aware background process that runs continuously and manages the lifecycle of a single multi-folder MCP server. The daemon's behavior is entirely driven by configuration, including auto-start behavior, health check intervals, and restart policies.
@@ -221,12 +223,12 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                   User Interfaces                        │
+│                   User Interfaces                       │
 ├───────────────────────────┬─────────────────────────────┤
 │           CLI             │            TUI              │
 │      (headless)           │       (interactive)         │
 │                           │                             │
-│   folder-mcp add ~/docs   │    ┌─┐ Management Console  │
+│   folder-mcp add ~/docs   │    ┌─┐ Management Console   │
 │   folder-mcp config set   │    │ │ - Add/remove folders │
 │   folder-mcp status       │    │ │ - View status        │
 │   folder-mcp tunnel       │    │ │ - Configure settings │
@@ -250,8 +252,8 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
                             │            
                             ├─────────────────┐
                             │                 │
-                       Local │            Remote │
-                      (stdio)│              (SSE)│
+                      Local │          Remote │
+                     (stdio)│            (SSE)│
                             │                 │
                             ▼                 ▼
                     ┌───────────────┐ ┌───────────────┐
@@ -292,7 +294,7 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - Validate configuration against schema
 - Provide configuration to all components
 - Handle live configuration updates
-- Manage configuration profiles
+- Manage configuration settings
 
 **Daemon Process**
 - Configuration-driven lifecycle management
@@ -353,7 +355,7 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 6. **Adaptive Planning**: Configuration schema evolves with learnings
 
 ### **Configuration-Driven UX**
-- **Profiles**: Pre-configured profiles for common use cases
+- **Templates**: Example configurations for common use cases
 - **Wizards**: Interactive configuration for complex settings
 - **Validation**: Helpful error messages for configuration issues
 - **Defaults**: Smart defaults that work without configuration
@@ -377,17 +379,17 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 
 **Scope**:
 - Configuration schema definition (YAML with JSON Schema validation)
-- Configuration loader with hierarchy support
+- Configuration loader with schema validation
 - Environment variable expansion
 - Configuration validation with helpful errors
 - Default configuration generation
-- Configuration profiles support
+- Configuration schema definitions
 
 **Completion Criteria**:
 - [ ] Configuration schema defined and documented
 - [ ] Loader handles all configuration sources
 - [ ] Validation provides helpful error messages
-- [ ] Configuration profiles working
+- [ ] Configuration schema validation working
 - [ ] Hot reload for applicable settings
 - [ ] Configuration CLI commands working
 
@@ -438,7 +440,7 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 **Scope**:
 - `folder-mcp config get/set/list` - Configuration management
 - `folder-mcp add --backend <backend>` - Override configuration
-- `folder-mcp profile <name>` - Switch configuration profiles
+- `folder-mcp config show` - Display current configuration
 - All commands accept config overrides
 - Help shows configuration options
 
@@ -450,67 +452,169 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - [ ] JSON output for automation
 
 
-### Task 5: Configuration-Driven TUI
-
-**Goal**: Create TUI interface that exposes configuration management
-
-**Scope**:
-- Configuration editor in TUI
-- Visual configuration validation
-- Profile management UI
-- Live configuration preview
-- Theme and style from configuration
-
-**TUI Features**:
-- Settings panel with configuration tree
-- Real-time validation feedback
-- Configuration diff viewer
-- Profile selector
-- Theme follows configuration
-
-**Completion Criteria**:
-- [ ] TUI renders based on configuration
-- [ ] Configuration editor working
-- [ ] Live validation and feedback
-- [ ] Profile management in TUI
-- [ ] Theme/style from configuration
-
-
-### Task 6: CLI/TUI Parity Validation
-
-**Goal**: Ensure both interfaces provide identical configuration capabilities
-
-**Scope**:
-- Every configuration option available in both
-- Same validation and error messages
-- Consistent configuration effects
-- Performance parity
-
-**Completion Criteria**:
-- [ ] Configuration parity checklist complete
-- [ ] Same operations available in both
-- [ ] Identical configuration effects
-- [ ] Consistent user experience
-- [ ] Documentation covers both
-
-
 **Phase 6 Success Criteria**:
-- Configuration system drives all functionality
-- Users can manage entire system via configuration
-- CLI and TUI provide identical capabilities
-- Smart defaults with deep customization
-- Transport strategy locked in: stdio + SSE only
-- Foundation ready for feature development
+- ✅ Configuration system foundation established
+- ✅ Basic daemon architecture implemented
+- ✅ MCP server extended for multiple folders
+- ✅ Configuration-aware CLI commands working
+- Configuration system ready for overhaul in Phase 7
 
-**Phase 6 Completion Review**:
-After completing all Phase 6 tasks, conduct mandatory review:
-- **Configuration Completeness**: Does configuration cover all aspects?
-- **User Experience**: Is configuration approachable for new users?
-- **Power User Features**: Do advanced users have enough control?
-- **Performance Impact**: Does configuration system add overhead?
-- **Document Updates**: Update future phases based on configuration architecture
+## Phase 7: Configuration System Overhaul
 
-## Phase 7: Enhanced UX & Core Features
+**Goal**: Replace the complex 6-source configuration system with a simple, schema-driven system focused on user configurations
+
+**Reference Documents**:
+- `docs/development-plan/roadmap/currently-implementing/configuration-system-design.md` - Complete design specification
+- `docs/development-plan/roadmap/currently-implementing/configurable-parameters.md` - Schema examples and parameter documentation
+
+### **User Stories**
+- **As a user, I want simple configuration**: Just two YAML files with clear purpose
+- **As a user, I want schema validation**: Know immediately if my config is wrong
+- **As a user, I want dynamic UI**: Configuration options that adapt based on my choices
+- **As a developer, I want clear separation**: System config vs user config with no overlap
+
+### Task 1: Remove Old Configuration System Tests
+
+**Goal**: Clean up all tests related to the old 6-source configuration system
+
+**Scope**:
+- Remove tests for system config, profiles, environment expansion
+- Remove tests for complex hierarchy merging
+- Remove tests for hot reload of all sources
+- Keep only tests that will be relevant to new system
+
+**Completion Criteria**:
+- [ ] Old configuration tests removed
+- [ ] Test suite passes without old config tests
+- [ ] No references to old config system in tests
+
+### Task 2: Simplify Current Configuration System
+
+**Goal**: Move all current configurations to a single system-configuration.json file
+
+**Scope**:
+- Create system-configuration.json with ALL current configs
+- Include both system and user-related configurations temporarily
+- Simple JSON loader that reads this file on startup
+- No hierarchy, no merging, no environment variables
+- Write tests for simple JSON loading mechanism
+
+**Configuration Items to Move**:
+- Model settings (modelName, batchSize, etc.)
+- File processing settings (extensions, ignore patterns)
+- Performance settings
+- Development flags
+- All other current configurations
+
+**Completion Criteria**:
+- [ ] system-configuration.json contains all current configs
+- [ ] Simple loader reads JSON on startup
+- [ ] Application works with single config file
+- [ ] Tests verify JSON loading mechanism
+- [ ] No regression in functionality
+
+### Task 3: Implement New User Configuration System
+
+**Goal**: Build schema-driven configuration system as designed in configuration-system-design.md
+
+**Scope**:
+- Implement SimpleConfigManager (loads config-defaults.yaml and config.yaml) 
+- Create configuration schema with single test item (embedding models)
+- Move embedding model list from system-configuration.json to new system
+- Implement CLI config commands (get/set/show)
+- Add tests for merging and override behavior
+- Follow the architecture defined in `configuration-system-design.md`
+- Use schema patterns from `configurable-parameters.md`
+
+**Test Configuration Item**:
+```yaml
+# config-defaults.yaml
+modelName: "nomic-embed-text"
+
+# Schema includes detailsSource pointing to data/embedding-models.json
+```
+
+**Completion Criteria**:
+- [ ] SimpleConfigManager implemented and tested
+- [ ] Schema system working with embedding model config
+- [ ] CLI can get/set model configuration
+- [ ] config.yaml overrides config-defaults.yaml
+- [ ] External data loaded from JSON file
+- [ ] Tests verify override hierarchy
+
+### Task 4: Create Schema-Driven TUI
+
+**Goal**: Build real TUI that generates UI from configuration schema
+
+**Scope**:
+- Move all test items from MainPanel to SecondaryPanel
+- Implement ConfigurationItemFactory
+- Generate model selection UI from schema
+- Connect UI to real config.yaml file
+- Save changes persist to config.yaml
+
+**TUI Changes**:
+- MainPanel: Real configuration items from schema
+- SecondaryPanel: Test items for reference
+- Model selection with detailed comparison view
+- Real-time validation from schema
+
+**Completion Criteria**:
+- [ ] TUI generates model selection from schema
+- [ ] Selection saved to config.yaml
+- [ ] UI updates when config.yaml changes
+- [ ] Validation prevents invalid selections
+- [ ] Test items moved to SecondaryPanel
+
+### Task 5: Define All User Configurations
+
+**Goal**: Identify and implement all user-facing configuration options
+
+**Scope**:
+- Analyze codebase for all user-configurable items
+- Create schema definitions for each
+- Move items from system-configuration.json to user config
+- Implement CLI support for all options
+- Add all options to TUI automatically via schema
+
+**User Configuration Categories**:
+- Embedding settings (models, batch sizes)
+- File processing (extensions, patterns, limits)
+- UI preferences (themes, display options)
+- Performance tuning (cache, concurrency)
+- Feature flags (development mode, etc.)
+
+**Completion Criteria**:
+- [ ] All user configs identified and documented
+- [ ] Schema definitions for all user configs
+- [ ] CLI commands work for all configs
+- [ ] TUI shows all configuration options
+- [ ] system-configuration.json only has internal configs
+
+### Task 6: Update Roadmap for New Architecture
+
+**Goal**: Update all future phases to use new configuration system
+
+**Scope**:
+- Remove references to old configuration system
+- Add user configuration items for each feature
+- Update task descriptions to use new schema
+- Ensure gradual config growth pattern
+
+**Completion Criteria**:
+- [ ] All phases updated for new config system
+- [ ] Each phase adds its config items to schema
+- [ ] No references to old 6-source system
+- [ ] Clear pattern for adding new configs
+
+**Phase 7 Success Criteria**:
+- Simple 2-file configuration system operational
+- Schema drives both CLI and TUI interfaces
+- All user configs in config.yaml with defaults
+- System configs isolated in system-configuration.json
+- Clean, maintainable configuration architecture
+
+## Phase 8: Enhanced UX & Core Features
 
 **Goal**: Build upon configuration foundation to add advanced features
 
@@ -526,134 +630,79 @@ After completing all Phase 6 tasks, conduct mandatory review:
 - **As an LLM, I want clear endpoint documentation**: Know exactly when and how to use each endpoint
 - **As an LLM, I want helpful error messages**: Understand what went wrong and what to try next
 
-### Task 7: Progress & Status System
+### Task 1: Progress & Status System
 
-**Goal**: Configuration-driven feedback on all operations
-
-**Scope**:
-- Progress display configuration (update intervals, verbosity)
-- Configurable status information
-- Performance metrics based on configuration
-- Log levels and destinations from configuration
+**Goal**: Provide configurable feedback on all operations
 
 **Completion Criteria**:
-- [ ] Progress display respects configuration
+- [ ] Progress displays for long operations
 - [ ] Configurable verbosity levels
-- [ ] Performance metrics follow configuration
-- [ ] Logging configuration working
-- [ ] Status display customizable
+- [ ] Performance metrics available
+- [ ] Flexible logging system
+- [ ] Status information accessible
 
 
-### Task 8: Intelligent Embedding & Search System with Enhanced Endpoints
+### Task 2: Intelligent Embedding & Search System with Enhanced Endpoints
 
-**Goal**: Build a comprehensive embedding and search system with new LLM-optimized endpoints
+**Goal**: Build comprehensive embedding and search capabilities with LLM-optimized endpoints
 
-**Scope**:
+**Requirements**:
+- Support multiple embedding backends with automatic selection
+- Enhance search with answer, locate, and explore modes
+- Add topic discovery and clustering capabilities
+- Provide intelligent context assembly within token limits
+- Enable code example discovery
+- Support document relationship navigation
+- Consolidate and optimize existing endpoints
 
-1. **Modular Embedding System**
-   - Implement IEmbeddingBackend interface
-   - Support multiple backends: Ollama, direct sentence-transformers, auto-selection
-   - Hardware detection for GPU/CPU/Apple Metal optimization
-   - Memory-adaptive batch processing
-   - Smart chunking strategy with configurable overlap
-
-2. **Pre-clustering Pipeline**  
-   - Compute cluster assignments during indexing
-   - Dual clustering approach: semantic (by meaning) and folder (by location)
-
-3. **Enhanced Search Endpoint**
-   - Enhance existing `search` endpoint with modes: locate, answer, explore
-   - Answer mode: Query expansion, semantic boundaries, complete sections
-   - Locate mode: Current behavior for specific items
-   - Explore mode: Broader results for discovery
-
-4. **New LLM-Optimized Endpoints**
-   - `explore_topics`: Topic discovery using pre-computed clusters
-   - `get_context`: Intelligent context assembly within token limits
-   - `find_code_examples`: Practical code usage discovery
-   - `get_related`: Document relationship navigation
-   - `help`: LLM-optimized endpoint documentation
-
-5. **Enhanced Existing Endpoints**
-   - `get_document_data`: Add section parameter, absorb get_pages/get_slides functionality
-   - `list_documents`: Add document type detection (guide|reference|example|config|test)
-   - `get_sheet_data`: Return structured JSON objects instead of arrays
-
-6. **Endpoint Consolidation**
-   - Remove `get_embedding` (no LLM use case)
-   - Merge `get_pages` → `get_document_data` with pageNumbers parameter
-   - Merge `get_slides` → `get_document_data` with slideNumbers parameter
-
-**Implementation Strategy**:
-1. Build modular embedding backend system
-2. Implement pre-clustering during indexing
-3. Enhance search with three modes
-4. Add new endpoints progressively
-5. Optimize for performance with caching
+**New Endpoints**:
+- `explore_topics` - Topic discovery
+- `get_context` - Smart context assembly
+- `find_code_examples` - Code usage discovery
+- `get_related` - Document relationships
+- `help` - LLM-optimized documentation
 
 **Completion Criteria**:
-- [ ] Modular embedding backends working (ollama/direct/auto)
-- [ ] Hardware auto-detection and optimization
-- [ ] Memory-adaptive processing prevents OOM
-- [ ] Pre-clustering adds <5% to indexing time
-- [ ] Search modes (answer/locate/explore) working
-- [ ] All 5 new endpoints implemented
-- [ ] Existing endpoints enhanced as specified
-- [ ] Old endpoints properly deprecated/merged
-- [ ] Configuration drives all behavior
+- [ ] Multiple embedding backends supported
+- [ ] Search modes implemented (answer/locate/explore)
+- [ ] Topic clustering available
+- [ ] All new endpoints functional
+- [ ] Existing endpoints enhanced
+- [ ] Configuration-driven behavior
 
 
-### Task 9: Version Control & Update System
+### Task 3: Version Control & Update System
 
-**Goal**: Configuration-aware updates and migrations
-
-**Scope**:
-- Version checking respects configuration
-- Update behavior configurable
-- Configuration migration between versions
-- Update notifications configurable
-- MCP endpoint for version checking
+**Goal**: Enable version management and updates
 
 **Completion Criteria**:
-- [ ] Update checking follows configuration
-- [ ] Configurable update channels
-- [ ] Configuration migration working
-- [ ] Notification preferences respected
-- [ ] MCP version endpoint available
-- [ ] Manual update trigger available
+- [ ] Version checking available
+- [ ] Update notifications working
+- [ ] Configuration migration supported
+- [ ] Update preferences configurable
+- [ ] Version information accessible via MCP
 
 
-### Task 10: Auto-Config Placement & Client Support
+### Task 4: Auto-Config Placement & Client Support
 
-**Goal**: Configuration-driven client setup
-
-**Scope**:
-- Client configurations generated from main config
-- Configurable client preferences
-- Auto-placement based on configuration
-- Multiple client support via configuration
+**Goal**: Automate client configuration setup
 
 **Completion Criteria**:
-- [ ] Client list from configuration
-- [ ] Auto-config respects settings
-- [ ] Per-client configuration options
-- [ ] Placement paths configurable
-- [ ] Client-specific settings working
-- [ ] All 13 endpoints included in client configs
-- [ ] New endpoints included when enabled
+- [ ] Multiple client support (Claude Desktop, VSCode, etc.)
+- [ ] Automatic configuration generation
+- [ ] Client-specific settings supported
+- [ ] All endpoints included in configs
+- [ ] Configuration placement automated
 
 
-**Phase 7 Completion Review**:
-After completing all Phase 7 tasks, conduct mandatory review:
-- **Feature Adoption**: Are users embracing the new features?
-- **Performance Impact**: How do enhancements affect overall performance?
-- **Configuration Coverage**: Are all new features configuration-driven?
-- **User Experience**: Is the system intuitive with smart defaults?
-- **LLM Experience**: Can LLMs effectively use endpoints with the new documentation?
-- **Error Recovery**: Do LLMs successfully recover from errors using the suggestions?
-- **Document Updates**: Update remaining phases based on learnings
+**Phase 8 Completion Review**:
+- Feature adoption and user feedback
+- Performance impact assessment
+- System usability evaluation
+- LLM integration effectiveness
+- Lessons learned for next phases
 
-## Phase 8: Remote Access & Production Features
+## Phase 9: Remote Access & Production Features
 
 **Goal**: Enable simple remote access using proven patterns and production-ready features
 
@@ -690,92 +739,63 @@ Since LLMs (like Claude) are the primary consumers of MCP servers, we chose our 
 
 This choice optimizes for LLM consumption patterns while maintaining maximum simplicity.
 
-### Task 12: Simple SSE Remote Access
+### Task 1: Simple SSE Remote Access
 
-**Goal**: Implement Crawl4AI's proven SSE pattern for remote access
-
-**Scope**:
-- Express server with exact endpoint structure from Crawl4AI
-- SSE transport implementation (no WebSockets, no gRPC)
-- Simple Bearer token authentication
-- Health check and status endpoints
-- Cloudflare tunnel integration wizard
+**Goal**: Enable remote access to MCP server
 
 **Completion Criteria**:
-- [ ] Express server with exact Crawl4AI endpoints
-- [ ] SSE transport working (no WebSockets)
-- [ ] Bearer token authentication
-- [ ] Health and info endpoints
-- [ ] Connection keep-alive for LLM sequential requests
-- [ ] Cloudflare tunnel setup wizard
-- [ ] Client configuration examples
+- [ ] Remote access working via SSE
+- [ ] Authentication implemented
+- [ ] Health monitoring available
+- [ ] Cloudflare tunnel support
+- [ ] Client configuration automated
 
 
-### Task 12: Simple Security Configuration
+### Task 2: Simple Security Configuration
 
-**Goal**: Simple, effective security following Crawl4AI patterns
-
-**Scope**:
-- API key generation and management
-- Rate limiting via Express middleware
-- Basic audit logging
-- CORS configuration for web clients
+**Goal**: Implement effective security measures
 
 **Completion Criteria**:
-- [ ] Simple API key management
-- [ ] Rate limiting via middleware
-- [ ] Audit logging to file
-- [ ] CORS properly configured
-- [ ] No complex auth systems
+- [ ] API key authentication working
+- [ ] Rate limiting implemented
+- [ ] Audit logging available
+- [ ] CORS configured for web clients
+- [ ] Security settings configurable
 
 
-### Task 13: VSCode 1.101 MCP Integration
+### Task 3: VSCode 1.101 MCP Integration
 
-**Goal**: Configuration-based VSCode optimization
-
-**Scope**:
-- VSCode-specific configuration section
-- Tool organization via configuration
-- Development mode configuration
-- Feature flags for VSCode features
+**Goal**: Optimize for VSCode MCP support
 
 **Completion Criteria**:
-- [ ] VSCode features configuration-driven
-- [ ] Tool organization via config
-- [ ] Development mode configurable
-- [ ] Feature flags working
-- [ ] Hot reload configurable
+- [ ] VSCode integration working
+- [ ] Development features available
+- [ ] Tool organization supported
+- [ ] Feature flags functional
+- [ ] Configuration-driven behavior
 
 
-### Task 14: Production Readiness Configuration
+### Task 4: Production Readiness
 
-**Goal**: Production behavior through configuration
-
-**Scope**:
-- Auto-start configuration
-- Resilience configuration  
-- Monitoring configuration
-- Backup configuration
-- Cloudflare tunnel deployment
+**Goal**: Prepare system for production deployment
 
 **Completion Criteria**:
-- [ ] Production features configuration-driven
-- [ ] Auto-start configurable by platform
-- [ ] Resilience fully configurable
-- [ ] Monitoring configuration complete
-- [ ] Backup system configurable
-- [ ] Cloudflare tunnel auto-deployment
+- [ ] Auto-start capability
+- [ ] Resilience features implemented
+- [ ] Monitoring system available
+- [ ] Backup functionality working
+- [ ] Platform-specific optimizations
+- [ ] All features configurable
 
 
-**Phase 8 Completion Review**:
-After completing all Phase 8 tasks, conduct mandatory review:
-- **Remote Access Simplicity**: Is SSE transport working reliably?
-- **Security Effectiveness**: Are API keys sufficient for access control?
-- **Production Readiness**: Does the simple approach scale?
-- **Platform Coverage**: Does configuration work across platforms?
-- **Document Updates**: Update Phase 9 based on production experience
+**Phase 9 Completion Review**:
+- Remote access reliability
+- Security effectiveness
+- Production readiness assessment
+- Platform compatibility
+- Deployment experience feedback
 
-## Phase 9: Advanced Features & Polish
+## Phase 10: Advanced Features & Polish
 
 **Goal**: Configuration-driven advanced features building on stable foundation
 
@@ -784,231 +804,137 @@ After completing all Phase 8 tasks, conduct mandatory review:
 - **As a user, I want format support configured**: Enable/disable formats
 - **As a user, I want performance tuned**: Configuration-based optimization
 
-### Task 15: Advanced Search Configuration
+### Task 1: Advanced Search Features
 
-**Goal**: Search behavior entirely configuration-driven
-
-**Scope**:
-- Search algorithms configurable
-- Ranking configuration
-- Filter configuration
-- Export configuration
-- Integration with topic discovery
+**Goal**: Enhance search capabilities
 
 **Completion Criteria**:
-- [ ] Search algorithms configurable
-- [ ] Ranking fully customizable
-- [ ] Filters configuration-driven
-- [ ] Export options configurable
-- [ ] Performance tuning exposed
+- [ ] Multiple search algorithms available
+- [ ] Customizable ranking system
+- [ ] Advanced filtering options
+- [ ] Export functionality
+- [ ] Integration with topic discovery
 
 
-### Task 16: File Format Support Configuration
+### Task 2: Extended File Format Support
 
-**Goal**: Format support through configuration
-
-**Scope**:
-- Enable/disable format support
-- Format-specific configuration
-- Parser selection via configuration
-- Performance settings per format
+**Goal**: Expand and optimize file format handling
 
 **Completion Criteria**:
-- [ ] Format support configurable
-- [ ] Parser selection working
-- [ ] Format-specific options
-- [ ] Performance settings apply
-- [ ] Feature flags for formats
+- [ ] Additional format support
+- [ ] Format-specific optimizations
+- [ ] Parser selection available
+- [ ] Performance tuning per format
+- [ ] Configurable format features
 
-### Task 17: Code Intelligence Configuration
+### Task 3: Code Intelligence Features
 
-**Goal**: Code features through configuration
-
-**Scope**:
-- AST parsing configuration
-- Framework detection configuration
-- Code-specific search configuration
-- Language-specific settings
-- Integration with existing search
+**Goal**: Add intelligent code analysis capabilities
 
 **Completion Criteria**:
-- [ ] Code features configuration-driven
-- [ ] AST options configurable
-- [ ] Framework detection configurable
-- [ ] Search behavior customizable
-- [ ] Language settings working
-- [ ] Integrates with existing search endpoint
+- [ ] AST parsing functional
+- [ ] Framework detection working
+- [ ] Code-aware search available
+- [ ] Language-specific features
+- [ ] Integration with search system
+- [ ] All features configurable
 
-### Task 18: Performance & Scalability Configuration
+### Task 4: Performance & Scalability
 
-**Goal**: Performance entirely configuration-driven
-
-**Scope**:
-- All performance parameters exposed
-- Scaling configuration
-- Resource limits configuration
-- Cache configuration
+**Goal**: Optimize system performance and scalability
 
 **Completion Criteria**:
-- [ ] All performance configurable
-- [ ] Resource limits enforced
-- [ ] Cache behavior configurable
-- [ ] Optimization flags working
-- [ ] Scaling configuration applied
+- [ ] Performance parameters tunable
+- [ ] Resource limits implemented
+- [ ] Caching system optimized
+- [ ] Scaling capabilities available
+- [ ] All settings configurable
 
-### Task 19: Chat Interface Configuration
+### Task 5: Chat Interface
 
-**Goal**: Chat features through configuration
-
-**Scope**:
-- LLM provider configuration
-- Chat behavior configuration
-- Session management configuration
-- Export configuration
+**Goal**: Add interactive chat capabilities
 
 **Completion Criteria**:
-- [ ] Chat fully configuration-driven
-- [ ] Provider selection via config
-- [ ] Behavior customizable
-- [ ] Session management configurable
-- [ ] Export options working
+- [ ] Chat interface functional
+- [ ] Multiple LLM providers supported
+- [ ] Session management working
+- [ ] Export functionality available
+- [ ] All features configurable
 
-**Phase 9 Completion Review**:
-After completing all Phase 9 tasks, conduct mandatory review:
-- **Feature Configuration**: Are all features configuration-driven?
-- **Complexity Balance**: Is configuration approachable?
-- **Performance Impact**: Does configuration affect performance?
-- **User Feedback**: What configuration do users actually use?
-- **Document Updates**: Prepare final phase based on learnings
+**Phase 10 Completion Review**:
+- Feature completeness
+- System complexity assessment
+- Performance evaluation
+- User satisfaction metrics
+- Final preparation checklist
 
-## Phase 10: Release & Documentation
+## Phase 11: Release & Documentation
 
 **Goal**: Production release with configuration-focused documentation
 
-### Task 20: Configuration Testing & Validation
+### Task 1: System Testing & Validation
 
-**Goal**: Comprehensive configuration testing
-
-**Scope**:
-- Configuration validation test suite
-- Migration testing
-- Performance impact testing
-- Cross-platform configuration testing
+**Goal**: Comprehensive system testing
 
 **Completion Criteria**:
-- [ ] Full configuration test coverage
-- [ ] Migration scenarios tested
-- [ ] Performance benchmarks with various configs
-- [ ] Platform-specific configs tested
+- [ ] Full test coverage achieved
+- [ ] Migration scenarios validated
+- [ ] Performance benchmarks completed
+- [ ] Cross-platform testing done
 - [ ] Edge cases handled
 
-### Task 21: Configuration Documentation
+### Task 2: Documentation
 
-**Goal**: Complete configuration reference
+**Goal**: Complete system documentation
 
-**Scope**:
-- Configuration reference documentation
-- Configuration cookbook
-- Migration guides
-- Best practices guide
-
-**Deliverables**:
-- Complete YAML schema documentation
-- Environment variable reference
-- Configuration examples for common scenarios
-- Performance tuning guide
-- Security configuration guide
+**Note**: The `help` endpoint provides LLM-optimized documentation for all endpoints.
 
 **Completion Criteria**:
-- [ ] All configuration options documented
-- [ ] Examples for every feature
-- [ ] Migration guides complete
-- [ ] Best practices documented
-- [ ] Troubleshooting guide ready
+- [ ] User guide complete
+- [ ] Configuration reference documented
+- [ ] API documentation available
+- [ ] Examples for all features
+- [ ] Migration guides ready
+- [ ] Troubleshooting guide complete
 
-### Task 21: Configuration Documentation & Testing
+### Task 3: Release Automation
 
-**Goal**: Complete configuration reference and testing
-
-**Scope**:
-- Configuration reference documentation
-- Configuration cookbook
-- Migration guides
-- Best practices guide
-- Integration with help endpoint
-
-**Note**: The `help` endpoint itself is implemented as part of the 13 core endpoints in Task 8/11, providing LLM-optimized documentation for all endpoints and configuration options.
-
-**Deliverables**:
-- Complete YAML schema documentation
-- Environment variable reference
-- Configuration examples for common scenarios
-- Performance tuning guide
-- Security configuration guide
-- Help endpoint integration examples
+**Goal**: Automate release process
 
 **Completion Criteria**:
-- [ ] All configuration options documented
-- [ ] Examples for every feature
-- [ ] Migration guides complete
-- [ ] Best practices documented
-- [ ] Troubleshooting guide ready
-- [ ] Help endpoint serves all documentation
-
-### Task 22: Release Automation
-
-**Goal**: Configuration-aware release process
-
-**Scope**:
-- Configuration migration in releases
-- Default configuration updates
-- Release notes for configuration changes
-- Configuration compatibility checking
-
-**Completion Criteria**:
-- [ ] Migration automation working
-- [ ] Configuration changelog generated
-- [ ] Compatibility checking automated
-- [ ] Default updates documented
+- [ ] Release automation working
+- [ ] Changelog generation automated
+- [ ] Compatibility checking implemented
+- [ ] Migration tools available
 - [ ] Release process documented
 
-### Task 23: Update Development Workflow Guidance
+### Task 4: Update Development Workflow
 
-**Goal**: Remove pre-production notices from development commands
-
-**Scope**:
-- Update `.claude/commands/create-task-plan.md` to remove pre-production project notice
-- Remove guidance about no backwards compatibility being required
-- Restore standard production-ready development practices
-- Update to include proper migration and compatibility considerations
-
-**Rationale**: During pre-production development, the create-task-plan command was modified to specify that no backwards compatibility was required. Once the project reaches production release, this guidance should be removed to ensure proper production development practices.
+**Goal**: Update development practices for production
 
 **Completion Criteria**:
-- [ ] Pre-production notice removed from create-task-plan.md
-- [ ] Backwards compatibility guidance restored
-- [ ] Migration planning requirements re-added
-- [ ] Production-appropriate development practices documented
-- [ ] Command updated to support production workflow
+- [ ] Development workflow updated
+- [ ] Production practices documented
+- [ ] Migration procedures established
+- [ ] Compatibility guidelines defined
+- [ ] Team processes formalized
 
-**Phase 10 Completion Review**:
-After completing all Phase 10 tasks, conduct final project review:
-- **Configuration Success**: Is everything truly configuration-driven?
-- **User Adoption**: Do users embrace the configuration model?
-- **Complexity Assessment**: Is configuration approachable enough?
-- **Performance Review**: What's the configuration overhead?
-- **Feature Completeness**: Are all features working seamlessly?
-- **Future Planning**: What configuration features for v2.0?
+**Phase 11 Completion Review**:
+- System readiness verification
+- User adoption success metrics
+- Performance benchmarks achieved
+- Quality assurance complete
+- Future roadmap defined
 
 ## Success Metrics
 
-1. **Configuration Coverage**: 100% of features configurable
-2. **Zero-Config Success**: 90% of users succeed with defaults
-3. **Feature Completeness**: All 13 endpoints working seamlessly
-4. **Search Effectiveness**: Answer mode provides complete, actionable information
-5. **Context Efficiency**: get_context respects token limits while maximizing relevance
-6. **Discovery Speed**: explore_topics helps understand new codebases in <5 queries
-7. **Power User Satisfaction**: Advanced users have needed control
+1. **Feature Completeness**: All 13 MCP endpoints fully functional
+2. **Ease of Use**: 90% of users succeed with default settings
+3. **Search Effectiveness**: Enhanced search modes deliver relevant results
+4. **LLM Integration**: Endpoints optimized for AI consumption
+5. **Performance**: Fast indexing and search across large repositories
+6. **Reliability**: Production-ready with monitoring and resilience
+7. **Flexibility**: Power users can customize all aspects
 8. **Performance Impact**: <5% overhead from configuration system
 9. **LLM Optimization**: Transport layer optimized for LLM consumption patterns
 10. **LLM Usability**: LLMs can use endpoints effectively without exploration
