@@ -515,81 +515,86 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 
 ### Task 3: Implement New User Configuration System
 
-**Goal**: Build schema-driven configuration system as designed in configuration-system-design.md
+**Goal**: Build schema-driven configuration system with DEAD SIMPLE architecture
+
+**Configuration Architecture (DEAD SIMPLE)**:
+- **system-configuration.json** = Constants (file extensions, model names, never user-configurable)
+- **config-defaults.yaml** = Default values for user preferences  
+- **config.yaml** = User overrides (ONLY selected items, added one by one as TUI grows)
 
 **Scope**:
 - Implement ConfigManager (loads config-defaults.yaml and config.yaml) 
-- Create configuration schema with single test item (embedding models)
-- Move embedding model list from system-configuration.json to new system
-- Implement CLI config commands (get/set/show)
+- Create configuration schema with single test item (theme selection)
+- Implement CLI config commands (get/set/show) for user preferences
 - Add tests for merging and override behavior
-- Follow the architecture defined in `configuration-system-design.md`
-- Use schema patterns from `configurable-parameters.md`
+- Keep system constants in JSON, user preferences in YAML
 
 **Test Configuration Item**:
 ```yaml
 # config-defaults.yaml
-modelName: "nomic-embed-text"
+theme: "auto"  # Options: light, dark, auto
 
-# Schema includes detailsSource pointing to data/embedding-models.json
+# User can override in config.yaml
+theme: "dark"  # User prefers dark mode
 ```
 
 **Completion Criteria**:
 - [ ] ConfigManager implemented and tested
-- [ ] Schema system working with embedding model config
-- [ ] CLI can get/set model configuration
+- [ ] Schema system working with theme configuration
+- [ ] CLI can get/set theme configuration  
 - [ ] config.yaml overrides config-defaults.yaml
-- [ ] External data loaded from JSON file
+- [ ] Theme changes reflected in TUI
 - [ ] Tests verify override hierarchy
 
 ### Task 4: Create Schema-Driven TUI
 
-**Goal**: Build real TUI that generates UI from configuration schema
+**Goal**: Build real TUI that generates UI from configuration schema for user preferences
 
 **Scope**:
 - Move all test items from MainPanel to SecondaryPanel
-- Implement ConfigurationItemFactory
-- Generate model selection UI from schema
+- Implement ConfigurationItemFactory for user preferences
+- Generate theme selection UI from schema  
 - Connect UI to real config.yaml file
 - Save changes persist to config.yaml
 
 **TUI Changes**:
-- MainPanel: Real configuration items from schema
+- MainPanel: Real user configuration (theme selection initially)
 - SecondaryPanel: Test items for reference
-- Model selection with detailed comparison view
+- Theme selection with instant visual feedback
 - Real-time validation from schema
 
 **Completion Criteria**:
-- [ ] TUI generates model selection from schema
-- [ ] Selection saved to config.yaml
+- [ ] TUI generates theme selection from schema
+- [ ] Theme selection saved to config.yaml
 - [ ] UI updates when config.yaml changes
+- [ ] Theme changes immediately visible in TUI
 - [ ] Validation prevents invalid selections
 - [ ] Test items moved to SecondaryPanel
 
 ### Task 5: Define All User Configurations
 
-**Goal**: Identify and implement all user-facing configuration options
+**Goal**: Gradually migrate selected items from JSON constants to user-configurable YAML
 
-**Scope**:
-- Analyze codebase for all user-configurable items
-- Create schema definitions for each
-- Move items from system-configuration.json to user config
-- Implement CLI support for all options
-- Add all options to TUI automatically via schema
+**Scope (PROGRESSIVE MIGRATION)**:
+- Start with theme (completed in Task 3-4)
+- Add development settings (enabled, hotReload, debugOutput) 
+- Add performance tuning (batchSize, maxConcurrentOperations) when TUI needs it
+- Create schema definitions for each new item
+- Move items from system-configuration.json to user config ONE BY ONE
 
-**User Configuration Categories**:
-- Embedding settings (models, batch sizes)
-- File processing (extensions, patterns, limits)
-- UI preferences (themes, display options)
-- Performance tuning (cache, concurrency)
-- Feature flags (development mode, etc.)
+**Progressive Addition Strategy**:
+- **Phase 1**: Theme (light/dark/auto) ← DONE
+- **Phase 2**: Development flags (enabled, hotReload) 
+- **Phase 3**: Performance tuning (when users request it)
+- **Phase 4**: UI preferences (when TUI expands)
 
 **Completion Criteria**:
-- [ ] All user configs identified and documented
-- [ ] Schema definitions for all user configs
-- [ ] CLI commands work for all configs
-- [ ] TUI shows all configuration options
-- [ ] system-configuration.json only has internal configs
+- [ ] Theme configuration working end-to-end
+- [ ] Development configuration added to schema
+- [ ] Performance settings available when needed
+- [ ] CLI commands work for all migrated configs
+- [ ] TUI shows all migrated configuration options
+- [ ] system-configuration.json keeps only true constants
 
 ### Task 6: Update Roadmap for New Architecture
 

@@ -209,25 +209,26 @@ Estimated Duration: ~14 days
 - **Test Configuration** (User Config):
   ```yaml
   # config-defaults.yaml
-  modelName: "nomic-embed-text"
+  theme: "auto"  # Options: light, dark, auto
   
-  # Schema includes detailsSource pointing to data/embedding-models.json
+  # User can override in config.yaml  
+  theme: "dark"  # User prefers dark mode
   ```
 
 ### Task 4: Create Schema-Driven TUI
 - **TUI Changes**:
-  - MainPanel: Real configuration items from schema
+  - MainPanel: Real user configuration (theme selection initially)
   - SecondaryPanel: Test items for reference
-  - Model selection with detailed comparison view
+  - Theme selection with instant visual feedback
   - Real-time validation from schema
 
 ### Task 5: Define All User Configurations
-- **User Configuration Categories**:
-  - Embedding settings (models, batch sizes)
-  - File processing (extensions, patterns, limits)
-  - UI preferences (themes, display options)  
-  - Performance tuning (cache, concurrency)
-  - Feature flags (development mode, etc.)
+- **Progressive Migration Strategy (DEAD SIMPLE)**:
+  - **Phase 1**: Theme (light/dark/auto) ← Start here
+  - **Phase 2**: Development flags (enabled, hotReload, debugOutput)
+  - **Phase 3**: Performance tuning (batchSize, maxConcurrentOperations) - when needed
+  - **Phase 4**: UI preferences - when TUI expands
+- **Key Principle**: Move items from system-configuration.json to YAML ONE BY ONE, only when TUI needs them
 
 ## 🚨 **MANDATORY ARCHITECTURAL REQUIREMENTS**
 
@@ -365,36 +366,44 @@ interface ConfigItem {
 
 ```yaml
 # config-defaults.yaml (read-only, shipped with application)
-modelName: "nomic-embed-text"
-batchSize: 32
-maxFileSize: 10485760  # 10MB
-enableDevelopmentMode: false
-logLevel: "info"
+theme: "auto"
+development:
+  enabled: false
+  hotReload: false
+  debugOutput: false
+performance:
+  batchSize: 32
+  maxConcurrentOperations: 10
 
 # config.yaml (user modifications only)
-modelName: "mxbai-embed-large"
-batchSize: 64
-enableDevelopmentMode: true
+theme: "dark"
+development:
+  enabled: true
+  hotReload: true
 ```
 
 **Example Schema Definition**:
 ```typescript
-// schemas/embedding-config.schema.ts
-export const embeddingConfigSchema: ConfigSchema = {
-  modelName: {
+// schemas/theme-config.schema.ts
+export const themeConfigSchema: ConfigSchema = {
+  theme: {
     type: 'select',
-    label: 'Embedding Model',
-    description: 'Select the model for generating embeddings',
-    ui: { component: 'detailed-select' },
-    detailsSource: 'data/embedding-models.json',
-    detailsColumns: ['provider', 'dimensions', 'speed', 'quality'],
-    valueColumn: 'id'
+    label: 'Theme',
+    description: 'Color theme for the interface',
+    validation: { options: ['light', 'dark', 'auto'] },
+    ui: { component: 'radio' }
   },
-  batchSize: {
-    type: 'number',
-    label: 'Batch Size',
-    description: 'Number of documents to process in parallel',
-    validation: { min: 1, max: 256 }
+  development: {
+    enabled: {
+      type: 'boolean',
+      label: 'Development Mode',
+      description: 'Enable development features'
+    },
+    hotReload: {
+      type: 'boolean', 
+      label: 'Hot Reload',
+      description: 'Automatically reload on file changes'
+    }
   }
 }
 ```
