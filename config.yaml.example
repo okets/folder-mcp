@@ -1,0 +1,23 @@
+# User Configuration Example
+#
+# Copy this file to config.yaml and modify the settings you want to override.
+# Any setting not specified here will use the default from config-defaults.yaml
+
+# Override the UI theme (uncomment to use)
+# theme: "dark"  # Options: light, dark, auto
+
+# Enable development features (uncomment to use)
+# development:
+#   enabled: true
+#   hotReload: true
+#   debugOutput: true
+
+# Adjust performance settings (uncomment to use)
+# performance:
+#   batchSize: 64
+#   maxConcurrentOperations: 5
+
+# Override logging settings (uncomment to use)  
+# logging:
+#   level: "debug"
+#   format: "json"

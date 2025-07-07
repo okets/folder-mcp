@@ -90,9 +90,11 @@ Build schema-driven configuration system as designed in configuration-system-des
 ## 📋 **Scope**
 
 - [ ] Implement ConfigManager (loads config-defaults.yaml and config.yaml)
-- [ ] Create configuration schema with single test item (embedding models)
-- [ ] Move embedding model list from system-configuration.json to new system
+- [ ] Create configuration schema with single test item (theme selection)
+- [ ] Implement theme configuration with instant visual feedback
+- [ ] Test CLI parameter override (--theme flag)
 - [ ] Implement CLI config commands (get/set/show)
+- [ ] Connect theme configuration to TUI ThemeProvider
 - [ ] Add tests for merging and override behavior
 - [ ] Follow the architecture defined in `configuration-system-design.md`
 - [ ] Use schema patterns from `configurable-parameters.md`
@@ -135,10 +137,11 @@ Build schema-driven configuration system as designed in configuration-system-des
 ### Configuration Requirements
 
 #### User Configuration (config.yaml)
-- **Schema Definition**: Embedding model selection with external data
-- **Default Values**: modelName: "nomic-embed-text" in config-defaults.yaml
-- **Validation Rules**: Must be valid model from data/embedding-models.json
-- **UI Components**: Detailed-select with provider, speed, cost columns
+- **Schema Definition**: Theme selection for UI appearance
+- **Default Values**: theme: "auto" in config-defaults.yaml
+- **Validation Rules**: Must be one of: light, dark, auto
+- **UI Components**: Simple select/radio button group
+- **Visual Feedback**: Instant theme change in TUI
 
 #### System Configuration (system-configuration.json)
 - **Internal Settings**: Already handled by Task 2
@@ -154,9 +157,13 @@ Build schema-driven configuration system as designed in configuration-system-des
 **Test Configuration Item**:
 ```yaml
 # config-defaults.yaml
-modelName: "nomic-embed-text"
+theme: "auto"  # Options: light, dark, auto
 
-# Schema includes detailsSource pointing to data/embedding-models.json
+# User can override in config.yaml
+theme: "dark"  # User prefers dark mode
+
+# CLI can override both
+npx folder-mcp tui --theme light
 ```
 
 ## 🔧 **Implementation Assignments**
@@ -879,11 +886,12 @@ npx folder-mcp config get modelName
 
 From roadmap:
 - [ ] ConfigManager implemented and tested
-- [ ] Schema system working with embedding model config
-- [ ] CLI can get/set model configuration
+- [ ] Schema system working with theme configuration
+- [ ] CLI can get/set theme configuration
 - [ ] config.yaml overrides config-defaults.yaml
-- [ ] External data loaded from JSON file
+- [ ] Theme changes reflected visually in TUI
 - [ ] Tests verify override hierarchy
+- [ ] CLI --theme flag overrides config files
 
 Additional DI requirements:
 - [ ] All services follow interface → implementation → registration pattern
@@ -1256,11 +1264,11 @@ grep "ConfigManager" src/di/setup.ts
 **User Configuration Tasks**:
 ```bash
 # Test configuration commands
-npx folder-mcp config get modelName
+npx folder-mcp config get theme
 # Expected: Shows correct value
 
 # Test configuration validation
-npx folder-mcp config set modelName nomic-embed-text
+npx folder-mcp config set theme dark
 # Expected: Updates successfully
 
 # Show full configuration
@@ -1275,7 +1283,7 @@ npx folder-mcp config --help
 # Expected: Shows usage for config commands
 
 # Test command functionality
-npx folder-mcp config get modelName
+npx folder-mcp config get theme
 # Expected: Returns configuration value
 ```
 
@@ -1325,12 +1333,14 @@ When a task is marked complete, update the phase plan (`Phase-7-configuration-sy
 ### User Configuration Pattern (Schema-Driven)
 ```typescript
 // In config-schema.yaml
-modelName:
+theme:
   type: select
-  label: Embedding Model
-  detailsSource: data/embedding-models.json
-  detailsColumns: [provider, speed, cost]
-  valueColumn: id
+  label: Theme
+  description: Color theme for the interface
+  validation:
+    options: [light, dark, auto]
+  ui:
+    component: radio
 ```
 Result: Appears in TUI, validates input, saves to config.yaml
 

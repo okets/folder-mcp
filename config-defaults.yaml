@@ -1,0 +1,23 @@
+# Default Configuration
+# 
+# This file contains default settings for folder-mcp.
+# Users can override these settings in config.yaml
+
+# User Interface Theme Configuration
+theme: "auto"  # Options: light, dark, auto
+
+# Development and debugging
+development:
+  enabled: false
+  hotReload: false
+  debugOutput: false
+
+# Basic operational settings  
+performance:
+  batchSize: 32
+  maxConcurrentOperations: 10
+
+# Logging settings
+logging:
+  level: "info"
+  format: "text"
