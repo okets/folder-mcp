@@ -59,34 +59,37 @@ describe('Configuration Interfaces', () => {
 
     it('should define proper ConfigSchema structure', () => {
       const testSchema: ConfigSchema = {
-        ui: {
-          label: 'User Interface',
-          description: 'Visual appearance settings',
-          icon: '🎨',
-          order: 1,
-          items: {
-            theme: {
-              type: 'select',
-              label: 'Theme',
-              description: 'Color theme',
-              validation: { options: ['light', 'dark', 'auto'] }
+        version: '1.0.0',
+        groups: {
+          ui: {
+            label: 'User Interface',
+            description: 'Visual appearance settings',
+            icon: '🎨',
+            order: 1,
+            items: {
+              theme: {
+                type: 'select',
+                label: 'Theme',
+                description: 'Color theme',
+                validation: { options: ['light', 'dark', 'auto'] }
+              }
             }
           }
         }
       };
 
-      expect(testSchema.ui?.label).toBe('User Interface');
-      expect(testSchema.ui?.items?.theme?.type).toBe('select');
-      expect(testSchema.ui?.items?.theme?.validation?.options).toContain('dark');
+      expect(testSchema.groups?.ui?.label).toBe('User Interface');
+      expect(testSchema.groups?.ui?.items?.theme?.type).toBe('select');
+      expect(testSchema.groups?.ui?.items?.theme?.validation?.options).toContain('dark');
     });
   });
 
   describe('ISchemaValidator interface', () => {
     it('should define proper validation methods', () => {
       const mockValidator: ISchemaValidator = {
-        validateValue: async (value: any, schema: ConfigItem) => ({ valid: true }),
-        validateConfig: async (config: any, schema: ConfigSchema) => ({ valid: true }),
-        validateByPath: async (value: any, path: string) => ({ valid: true })
+        validateValue: async (path: string, value: any, schema?: ConfigSchema) => ({ valid: true }),
+        validateConfig: async (config: any, schema?: ConfigSchema) => ({ valid: true }),
+        validateByPath: async (config: any, path: string) => ({ valid: true })
       };
 
       expect(typeof mockValidator.validateValue).toBe('function');

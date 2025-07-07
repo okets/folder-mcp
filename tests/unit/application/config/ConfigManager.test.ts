@@ -129,7 +129,17 @@ class MockYamlParser implements IYamlParser {
 }
 
 class MockSchemaValidator implements ISchemaValidator {
-  async validateValue(): Promise<any> {
+  async validateValue(path: string, value: any): Promise<any> {
+    // Simple theme validation for tests
+    if (path === 'theme') {
+      const validThemes = ['light', 'dark', 'auto'];
+      if (!validThemes.includes(value)) {
+        return {
+          valid: false,
+          error: `Invalid theme: ${value}. Must be one of: ${validThemes.join(', ')}`
+        };
+      }
+    }
     return { valid: true };
   }
 
@@ -137,18 +147,23 @@ class MockSchemaValidator implements ISchemaValidator {
     return { valid: true };
   }
 
-  async validateByPath(value: any, path: string): Promise<any> {
-    // Simple theme validation for tests
-    if (path === 'theme') {
-      const validThemes = ['light', 'dark', 'auto'];
-      if (!validThemes.includes(value)) {
-        return {
-          valid: false,
-          errors: [{ path, message: `Invalid theme: ${value}. Must be one of: ${validThemes.join(', ')}` }]
-        };
+  async validateByPath(config: any, path: string): Promise<any> {
+    const value = this.getValueByPath(config, path);
+    return this.validateValue(path, value);
+  }
+
+  private getValueByPath(obj: any, path: string): any {
+    const parts = path.split('.');
+    let current = obj;
+    
+    for (const part of parts) {
+      if (current === null || current === undefined) {
+        return undefined;
       }
+      current = current[part];
     }
-    return { valid: true };
+    
+    return current;
   }
 }
 

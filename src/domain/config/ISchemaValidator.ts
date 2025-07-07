@@ -4,8 +4,11 @@
  * Validates configuration values against schema definitions.
  */
 
-import { ConfigItem, ConfigSchema } from './IConfigSchema.js';
+import { ConfigItem, ConfigSchema, ISchemaLoader } from './IConfigSchema.js';
 import { ValidationResult } from './IConfigManager.js';
+
+export { ValidationResult } from './IConfigManager.js';
+export { ISchemaLoader } from './IConfigSchema.js';
 
 /**
  * Validates configuration values against schema rules
@@ -13,10 +16,11 @@ import { ValidationResult } from './IConfigManager.js';
 export interface ISchemaValidator {
   /**
    * Validate a single value against its schema item
+   * @param path - Configuration path (e.g., 'theme')
    * @param value - Value to validate
-   * @param schema - Schema item to validate against
+   * @param schema - Optional schema to use
    */
-  validateValue(value: any, schema: ConfigItem): Promise<ValidationResult>;
+  validateValue(path: string, value: any, schema?: ConfigSchema): Promise<ValidationResult>;
   
   /**
    * Validate an entire configuration object against the schema
@@ -27,10 +31,10 @@ export interface ISchemaValidator {
   
   /**
    * Validate a configuration value by path
-   * @param value - Value to validate
+   * @param config - Configuration object
    * @param path - Configuration path (e.g., 'ui.theme')
    */
-  validateByPath(value: any, path: string): Promise<ValidationResult>;
+  validateByPath(config: any, path: string): Promise<ValidationResult>;
 }
 
 /**

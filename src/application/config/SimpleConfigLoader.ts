@@ -16,19 +16,7 @@ import { createConsoleLogger } from '../../infrastructure/logging/logger.js';
 
 const logger = createConsoleLogger('info');
 
-// Simple mock implementations for immediate use
-class MockSchemaValidator {
-  async validateValue() { return { valid: true }; }
-  async validateConfig() { return { valid: true }; }
-  async validateByPath() { return { valid: true }; }
-}
-
-class MockSchemaLoader {
-  async loadSchema() { return {}; }
-  async getItemSchema(): Promise<any> { return undefined; }
-  isLoaded() { return true; }
-  async reload() {}
-}
+import { SimpleSchemaValidator, SimpleThemeSchemaLoader } from './SimpleSchemaValidator.js';
 
 export interface SimpleConfig {
   // System constants from JSON
@@ -119,8 +107,8 @@ export async function loadSimpleConfiguration(folderPath?: string, cliOverrides:
   // 2. Load user preferences from YAML
   const fileWriter = new NodeFileWriter();
   const yamlParser = new YamlParser();
-  const validator = new MockSchemaValidator();
-  const schemaLoader = new MockSchemaLoader();
+  const schemaLoader = new SimpleThemeSchemaLoader();
+  const validator = new SimpleSchemaValidator(schemaLoader);
   
   const userConfigManager = new ConfigManager(
     fileSystem,

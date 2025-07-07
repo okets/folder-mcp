@@ -9,9 +9,11 @@ export interface ValidationRules {
   max?: number;
   pattern?: string;
   options?: string[];
+  enum?: string[];  // For enum validation
   minLength?: number;
   maxLength?: number;
   custom?: string;
+  errorMessage?: string;  // Custom error message
 }
 
 export interface UIHints {
@@ -19,6 +21,8 @@ export interface UIHints {
   placeholder?: string;
   helpText?: string;
   columns?: string[];
+  label?: string;
+  options?: Array<{ value: string; label: string; description?: string }>;
   destructive?: {
     level: 'warning' | 'critical';
     message: string;
@@ -39,7 +43,8 @@ export interface Conditions {
  * Individual configuration item definition
  */
 export interface ConfigItem {
-  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect' | 'path' | 'array';
+  name?: string;  // Item name for easy reference
+  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect' | 'path' | 'array' | 'enum';
   label: string;
   description: string;
   required?: boolean;
@@ -55,6 +60,7 @@ export interface ConfigItem {
  * Configuration group (section) containing related items
  */
 export interface ConfigGroup {
+  name?: string;  // Group name for easy reference
   label: string;
   description: string;
   icon?: string;
@@ -66,7 +72,8 @@ export interface ConfigGroup {
  * Complete configuration schema
  */
 export interface ConfigSchema {
-  [groupName: string]: ConfigGroup;
+  version?: string;
+  groups?: { [groupName: string]: ConfigGroup };
 }
 
 /**

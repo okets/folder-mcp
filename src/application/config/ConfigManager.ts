@@ -90,7 +90,23 @@ export class ConfigManager implements IConfigManager {
 
   async validate(path: string, value: any): Promise<ValidationResult> {
     try {
-      return await this.schemaValidator.validateByPath(value, path);
+      // Call validateValue with path and value
+      const result = await this.schemaValidator.validateValue(path, value);
+      
+      // Convert simple result to ValidationResult with errors array
+      if (result.valid) {
+        return { valid: true };
+      } else {
+        // Cast to access error property from SimpleValidationResult
+        const simpleResult = result as any;
+        return {
+          valid: false,
+          errors: [{
+            path,
+            message: simpleResult.error || 'Validation failed'
+          }]
+        };
+      }
     } catch (error) {
       // If no schema validation available, just return valid
       return { valid: true };
@@ -121,8 +137,11 @@ export class ConfigManager implements IConfigManager {
     const yamlContent = await this.yamlParser.stringify(this.userConfig);
     
     // Ensure directory exists
-    const configDir = this.userConfigPath.substring(0, this.userConfigPath.lastIndexOf('/'));
-    await this.fileWriter.ensureDir(configDir);
+    const lastSlashIndex = this.userConfigPath.lastIndexOf('/');
+    if (lastSlashIndex > 0) {
+      const configDir = this.userConfigPath.substring(0, lastSlashIndex);
+      await this.fileWriter.ensureDir(configDir);
+    }
     
     await this.fileWriter.writeFile(this.userConfigPath, yamlContent);
   }
