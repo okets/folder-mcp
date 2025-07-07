@@ -44,26 +44,33 @@ export async function main(): Promise<void> {
   let devModeManager: DevModeManager | null = null;
   
   try {
-    debug('Starting MCP server in multi-folder mode');
+    debug('Starting MCP server with DEAD SIMPLE configuration');
     
-    // Load configuration from config file
-    const { resolveConfig } = await import('./config/resolver.js');
-    const config = resolveConfig(process.cwd(), {});
-    
-    // Validate that folders are configured
-    if (!config.folders || !config.folders.list || config.folders.list.length === 0) {
-      debug('Error: No folders configured');
-      debug('Please configure folders in your configuration file (folder-mcp.yaml)');
-      debug('Run: folder-mcp migrate --sample > folder-mcp.yaml');
+    // Get folder path from command line argument
+    const folderPath = process.argv[2];
+    if (!folderPath) {
+      debug('Error: No folder path provided');
+      debug('Usage: node mcp-server.js <folder-path>');
       process.exit(1);
     }
     
-    debug(`Found ${config.folders.list.length} configured folders`);
+    // Load configuration using DEAD SIMPLE approach
+    const { loadSimpleConfiguration, convertToResolvedConfig } = await import('./application/config/SimpleConfigLoader.js');
+    const simpleConfig = await loadSimpleConfiguration(folderPath);
+    
+    debug(`Configuration loaded successfully`);
+    debug(`System config keys: ${Object.keys(simpleConfig.system || {}).join(', ')}`);
+    debug(`User config keys: ${Object.keys(simpleConfig.user || {}).join(', ')}`);
+    debug(`Folders configured: ${simpleConfig.folders.length}`);
+    
+    // Convert to ResolvedConfig format for DI compatibility
+    const config = convertToResolvedConfig(simpleConfig);
     
     debug('Setting up dependency injection...');
     
     const container = setupDependencyInjection({
       config,
+      folderPath,
       logLevel: 'info' as const
     });
 
