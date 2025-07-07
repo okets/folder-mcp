@@ -11,6 +11,7 @@ import { SERVICE_TOKENS, MODULE_TOKENS, ILoggingService } from './interfaces.js'
 import { ResolvedConfig } from '../config/schema.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
+import { integrateConfigurationServices } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
 import { 
@@ -135,6 +136,9 @@ export function setupDependencyInjection(options: {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
     return new ConfigurationService(loggingService);
   });
+
+  // Register new configuration system
+  integrateConfigurationServices(container);
 
   container.registerSingleton('CLIConfigurationOverrideService' as any, () => {
     // Stub service for CLI configuration overrides

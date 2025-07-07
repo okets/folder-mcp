@@ -4,11 +4,9 @@ import { render } from 'ink';
 import { AppFullscreen } from './AppFullscreen';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
 import { DIProvider, setupDIContainer } from './di/index';
-import { ConfigManager } from '../../application/config/ConfigManager';
-import { NodeFileSystem } from '../../infrastructure/filesystem/node-filesystem';
-import { NodeFileWriter } from '../../infrastructure/filesystem/NodeFileWriter';
-import { YamlParser } from '../../infrastructure/parsers/YamlParser';
-import { SimpleSchemaValidator, SimpleThemeSchemaLoader } from '../../application/config/SimpleSchemaValidator';
+import { setupDependencyInjection } from '../../di/setup';
+import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
+import { IConfigManager } from '../../domain/config/IConfigManager';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -24,8 +22,9 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
 
 // Let Ink handle screen management for better terminal compatibility
 
-// Setup DI container
-const container = setupDIContainer();
+// Setup DI containers
+const tuiContainer = setupDIContainer(); // TUI-specific container
+let mainContainer: any; // Main app container
 
 // Check if raw mode is supported
 const isRawModeSupported = process.stdin.setRawMode !== undefined;
@@ -42,35 +41,21 @@ if (!isRawModeSupported) {
 // Start the TUI with configuration support
 async function startTUI() {
     try {
-        // Try to load configuration
-        const fileSystem = new NodeFileSystem();
-        const fileWriter = new NodeFileWriter();
-        const yamlParser = new YamlParser();
-        const schemaLoader = new SimpleThemeSchemaLoader();
-        const validator = new SimpleSchemaValidator(schemaLoader);
+        // Setup main DI container with configuration services
+        mainContainer = setupDependencyInjection({
+            logLevel: 'error' // Quiet for TUI
+        });
         
-        const configManager = new ConfigManager(
-            fileSystem,
-            fileWriter,
-            yamlParser,
-            validator,
-            schemaLoader,
-            'config-defaults.yaml',
-            'config.yaml'
-        );
+        // Get ConfigManager from DI and ensure it's loaded
+        const configInitializer = await mainContainer.resolveAsync('CONFIG_INITIALIZER' as any) as IConfigManager;
         
-        // Try to load config, but don't fail if it doesn't exist
-        try {
-            await configManager.load();
-            console.error('[TUI] Configuration loaded, theme:', configManager.get('theme') || 'auto');
-        } catch (error) {
-            console.error('[TUI] No configuration found, using defaults');
-        }
+        // Configuration is now loaded
+        console.error('[TUI] Configuration loaded, theme:', configInitializer.get('theme') || 'auto');
         
         // Render with configuration support
         const app = render(
-            <DIProvider container={container}>
-                <ConfigurationThemeProvider configManager={configManager}>
+            <DIProvider container={tuiContainer}>
+                <ConfigurationThemeProvider configManager={configInitializer}>
                     <AppFullscreen {...(screenName ? { screenName } : {})} />
                 </ConfigurationThemeProvider>
             </DIProvider>,
@@ -85,7 +70,7 @@ async function startTUI() {
         
         // Fallback to non-configured app
         const app = render(
-            <DIProvider container={container}>
+            <DIProvider container={tuiContainer}>
                 <AppFullscreen {...(screenName ? { screenName } : {})} />
             </DIProvider>,
             {
