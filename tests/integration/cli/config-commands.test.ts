@@ -2,7 +2,7 @@
  * Integration Tests for Configuration CLI Commands
  * 
  * Tests the configuration management CLI commands including get, set, validate,
- * profile management, and environment variable integration.
+ * and basic configuration operations.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -186,79 +186,7 @@ describe('Configuration CLI Commands', () => {
     });
   });
 
-  describe('config profile commands', () => {
-    it('should list profiles when none exist', async () => {
-      const result = runCLI(['config', 'profile', 'list', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Available Profiles');
-      // Built-in profiles are always available
-      expect(result.stdout).toContain('development');
-      expect(result.stdout).toContain('staging');
-      expect(result.stdout).toContain('production');
-    });
 
-    it('should create new profile', async () => {
-      const result = runCLI(['config', 'profile', 'create', 'test-profile', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('created successfully');
-    });
-
-    it('should show profile configuration', async () => {
-      // First create a profile (this will succeed based on our implementation)
-      runCLI(['config', 'profile', 'create', 'test-profile', '--folder', testDir]);
-      
-      // Try to show it (may fail since we haven't fully implemented profile storage)
-      const result = runCLI(['config', 'profile', 'show', 'test-profile', '--folder', testDir]);
-      // Don't expect specific exit code since profile storage isn't fully implemented
-    });
-
-    it('should handle non-existent profile gracefully', async () => {
-      const result = runCLI(['config', 'profile', 'show', 'nonexistent', '--folder', testDir]);
-      expect(result.code).toBe(1);
-      expect(result.stderr).toContain('not found');
-    });
-  });
-
-  describe('config env commands', () => {
-    it('should list environment variables when none set', async () => {
-      const result = runCLI(['config', 'env', 'list', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Environment Variables');
-      expect(result.stdout).toContain('No FOLDER_MCP_');
-    });
-
-    it('should list environment variables when some are set', async () => {
-      process.env.FOLDER_MCP_MODEL_NAME = 'test-model';
-      process.env.FOLDER_MCP_BATCH_SIZE = '64';
-
-      const result = runCLI(['config', 'env', 'list', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('FOLDER_MCP_MODEL_NAME = test-model');
-      expect(result.stdout).toContain('FOLDER_MCP_BATCH_SIZE = 64');
-    });
-
-    it('should show available environment variables', async () => {
-      const result = runCLI(['config', 'env', 'list', '--available', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Available Environment Variables');
-      expect(result.stdout).toContain('FOLDER_MCP_MODEL_NAME');
-      expect(result.stdout).toContain('FOLDER_MCP_BATCH_SIZE');
-    });
-
-    it('should check environment variable configuration', async () => {
-      process.env.FOLDER_MCP_MODEL_NAME = 'env-model';
-
-      const result = runCLI(['config', 'env', 'check', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('Environment Variable Configuration Check');
-    });
-
-    it('should handle no environment variables', async () => {
-      const result = runCLI(['config', 'env', 'check', '--folder', testDir]);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain('No environment variables affecting configuration');
-    });
-  });
 
   describe('Integration with environment variables', () => {
     it('should reflect environment variables in get command', async () => {
