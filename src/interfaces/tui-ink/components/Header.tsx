@@ -6,7 +6,11 @@ import { useTerminalSize } from '../hooks/useTerminalSize';
 import { AnimationContainer } from './core/AnimationContainer';
 import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+    themeName?: string;
+}
+
+export const Header: React.FC<HeaderProps> = ({ themeName }) => {
     const di = useDI();
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
@@ -93,12 +97,13 @@ export const Header: React.FC = () => {
         // Full bordered layout with resolution in border - maximize dash area
         const innerWidth = columns - 2; // -2 for corner characters
         const resolutionSpace = ` ${resolution} `;
+        const themeSpace = themeName ? ` [${themeName}] ` : '';
         
         // Calculate how much space we can fill with dashes
-        // Total: ╭ + dashes + space + resolution + space + ╮
-        const maxDashArea = innerWidth - resolutionSpace.length;
+        // Total: ╭ + dashes + theme + space + resolution + space + ╮
+        const maxDashArea = innerWidth - resolutionSpace.length - themeSpace.length;
         
-        const topBorder = `╭${'─'.repeat(maxDashArea)}${resolutionSpace}╮`;
+        const topBorder = `╭${'─'.repeat(Math.max(0, maxDashArea))}${themeSpace}${resolutionSpace}╮`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
         // Calculate padding for the split text format

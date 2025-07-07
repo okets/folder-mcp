@@ -3,7 +3,8 @@ import { Box, Text, useInput } from 'ink';
 import { themes, ThemeName, useTheme } from './contexts/ThemeContext';
 import { ThemedMainPanel, ThemedSecondaryPanel } from './components/core/ThemedPanel';
 import { useResponsiveLayout } from './hooks/useResponsiveLayout';
-import { useNavigationContext } from './contexts/NavigationContext';
+import { NavigationProvider, useNavigationContext } from './contexts/NavigationContext';
+import { AnimationProvider } from './contexts/AnimationContext';
 import { configItems } from './models/sampleData';
 import { statusItems } from './models/sampleData';
 
@@ -122,5 +123,15 @@ const ThemedAppContent: React.FC = () => {
  */
 export const AppThemed: React.FC = () => {
     // Theme is now provided by parent ConfigurationThemeProvider
-    return <ThemedAppContent />;
+    return (
+        <AnimationProvider>
+            <NavigationProvider 
+                isBlocked={false} 
+                configItemCount={configItems.length} 
+                statusItemCount={statusItems.length}
+            >
+                <ThemedAppContent />
+            </NavigationProvider>
+        </AnimationProvider>
+    );
 };

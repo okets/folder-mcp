@@ -1,18 +1,1 @@
-# User Configuration
-#
-# This file overrides settings from config-defaults.yaml
-# Any setting not specified here will use the default value
-
-# UI Theme Configuration
-theme: "dark"  # Options: light, dark, auto
-
-# Development Features (optional overrides)
-development:
-  enabled: true
-  hotReload: true
-  debugOutput: false
-
-# Performance Settings (optional overrides)  
-performance:
-  batchSize: 64
-  maxConcurrentOperations: 8
+theme: light

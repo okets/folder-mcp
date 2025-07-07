@@ -128,7 +128,7 @@ interface ThemeContextValue {
     setTheme: (name: ThemeName) => void | Promise<void>;
 }
 
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ 
     children: ReactNode;
