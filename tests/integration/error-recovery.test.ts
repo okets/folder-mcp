@@ -23,7 +23,7 @@ describe('Error Recovery and Resilience', () => {
 
   beforeEach(async () => {
     tempDir = await TestUtils.createTempDir('error-recovery-test-');
-    container = await setupDependencyInjection();
+    container = setupDependencyInjection({ folderPath: tempDir });
     monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
     indexingWorkflow = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
   });

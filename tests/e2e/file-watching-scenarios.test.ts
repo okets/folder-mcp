@@ -25,7 +25,7 @@ describe('Real-World E2E File Watching Scenarios', () => {
 
   beforeEach(async () => {
     tempDir = await TestUtils.createTempDir('e2e-file-watching-');
-    container = await setupDependencyInjection();
+    container = setupDependencyInjection({ folderPath: tempDir });
     monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
     indexingWorkflow = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as IndexingWorkflow;
   });

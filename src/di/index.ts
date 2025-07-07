@@ -58,5 +58,5 @@ export {
 /**
  * Re-export common types for convenience
  */
-export type { ResolvedConfig } from '../config/resolver.js';
+export type { ResolvedConfig } from '../config/schema.js';
 export type { RuntimeConfig } from '../config/schema.js';

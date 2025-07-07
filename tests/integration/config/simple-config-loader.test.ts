@@ -51,7 +51,7 @@ describe('Simple Configuration Loader', () => {
       
       // Should merge system constants with user preferences
       expect(resolvedConfig.batchSize).toBe(64); // User override from config.yaml
-      expect(resolvedConfig.modelName).toBe('all-minilm'); // System default
+      expect(resolvedConfig.modelName).toBe('nomic-embed-text'); // System constant from JSON
       expect(resolvedConfig.fileExtensions).toBeDefined(); // System constants
       
       // Should have source tracking
@@ -102,7 +102,7 @@ describe('Simple Configuration Loader', () => {
       expect(resolved.maxConcurrentOperations).toBe(8); // User: 8, System: 14
       
       // System constants remain unchanged
-      expect(resolved.modelName).toBe('all-minilm'); // System constant
+      expect(resolved.modelName).toBe('nomic-embed-text'); // System constant from JSON
       expect(resolved.fileExtensions.length).toBeGreaterThan(0); // System constants
     });
   });

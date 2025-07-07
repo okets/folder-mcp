@@ -43,7 +43,7 @@ describe('MCP Server Multi-Folder Startup Integration', () => {
     
     // Setup real dependency injection container with multi-folder config
     container = setupDependencyInjection({
-      config,
+      folderPath: tempDir1,
       logLevel: 'error'
     });
     

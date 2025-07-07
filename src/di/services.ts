@@ -26,9 +26,19 @@ import {
 } from './interfaces.js';
 
 import { FileFingerprint, TextChunk, ParsedContent, EmbeddingVector } from '../types/index.js';
-import { ResolvedConfig, CLIArgs } from '../config/resolver.js';
+import { ResolvedConfig, CLIArgs } from '../config/schema.js';
 import { RuntimeConfig } from '../config/schema.js';
-import { SystemCapabilities, getSystemCapabilities } from '../config/system.js';
+import { SystemCapabilities } from '../config/schema.js';
+// Temporary stub for getSystemCapabilities (was in removed system.js)
+const getSystemCapabilities = (): SystemCapabilities => ({
+  detectionEnabled: true,
+  cacheDetectionResults: true,
+  detectionTimeout: 5000,
+  performanceTier: 'standard',
+  cpuCores: 4,
+  availableMemoryGB: 8,
+  hasGPU: false
+});
 
 // Import domain layer functionality
 import { 
@@ -51,9 +61,10 @@ export class ConfigurationService implements IConfigurationService {
     this.loggingService.debug('Resolving configuration', { folderPath, cliArgsKeys: Object.keys(cliArgs) });
     
     try {
-      // Use existing resolver logic
-      const { resolveConfig } = await import('../config/resolver.js');
-      const resolved = resolveConfig(folderPath, cliArgs);
+      // Use DEAD SIMPLE configuration system
+      const { loadSimpleConfiguration, convertToResolvedConfig } = await import('../application/config/SimpleConfigLoader.js');
+      const simpleConfig = await loadSimpleConfiguration(folderPath);
+      const resolved = convertToResolvedConfig(simpleConfig);
       
       this.loggingService.info('Configuration resolved successfully', { 
         folderPath: resolved.folderPath,
@@ -72,8 +83,39 @@ export class ConfigurationService implements IConfigurationService {
     this.loggingService.debug('Generating runtime configuration', { toolVersion });
     
     try {
-      const { generateRuntimeConfig } = await import('../config/runtime.js');
-      const runtime = await generateRuntimeConfig(resolvedConfig.folderPath, resolvedConfig, toolVersion);
+      // TODO: Implement proper RuntimeConfig generation
+      // For now, return a minimal working RuntimeConfig based on ResolvedConfig
+      const runtime: RuntimeConfig = {
+        processing: {
+          modelName: resolvedConfig.modelName,
+          chunkSize: resolvedConfig.chunkSize,
+          batchSize: resolvedConfig.batchSize,
+          overlap: resolvedConfig.overlap || 10,
+          maxWorkers: resolvedConfig.maxConcurrentOperations || 4,
+          timeoutMs: 30000,
+        },
+        system: getSystemCapabilities(),
+        server: {
+          port: 3000,
+          transport: 'stdio' as const,
+          autoStart: false,
+          host: 'localhost'
+        },
+        transport: {} as any, // TODO: Add proper transport config
+        ui: {} as any, // TODO: Add proper UI config
+        files: {
+          extensions: resolvedConfig.fileExtensions || ['.txt', '.md', '.pdf'],
+          ignorePatterns: resolvedConfig.ignorePatterns || ['node_modules/**'],
+          maxFileSize: 10485760,
+          encoding: 'utf-8'
+        },
+        cache: {} as any, // TODO: Add proper cache config
+        metadata: {
+          toolVersion,
+          generatedAt: new Date().toISOString(),
+          folderPath: resolvedConfig.folderPath
+        } as any
+      };
       
       this.loggingService.info('Runtime configuration generated', {
         modelName: runtime.processing.modelName,
@@ -93,7 +135,9 @@ export class ConfigurationService implements IConfigurationService {
     
     try {
       // Import synchronously in an async context
-      import('../config/resolver.js').then(({ validateResolvedConfig }) => {
+      // TODO: Replace with new configuration system
+      // Temporary stub for validateResolvedConfig
+      Promise.resolve({ validateResolvedConfig: (config: any) => [] }).then(({ validateResolvedConfig }) => {
         const errors = validateResolvedConfig(config);
         
         if (errors.length > 0) {

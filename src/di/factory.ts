@@ -56,7 +56,7 @@ import {
 
 import { LoggingServiceBridge } from '../infrastructure/logging/bridge.js';
 
-import { ResolvedConfig } from '../config/resolver.js';
+import { ResolvedConfig } from '../config/schema.js';
 import { DependencyContainer } from './container.js';
 import { IndexingOrchestrator } from '../application/indexing/orchestrator.js';
 import { IncrementalIndexer } from '../application/indexing/incremental.js';
@@ -151,18 +151,18 @@ export class ServiceFactory implements IServiceFactory {
     return this.getLoggingService(config);
   }
 
-  createIndexingService(
+  async createIndexingService(
     config: ResolvedConfig,
     folderPath: string,
     container: DependencyContainer
-  ): IndexingOrchestrator {
-    return this.createIndexingOrchestrator(container);
+  ): Promise<IndexingOrchestrator> {
+    return await this.createIndexingOrchestrator(container);
   }
 
   // =============================================================================
   // Application Layer Factory Methods
   // =============================================================================
-  createIndexingOrchestrator(container: DependencyContainer): IndexingOrchestrator {
+  async createIndexingOrchestrator(container: DependencyContainer): Promise<IndexingOrchestrator> {
     return new IndexingOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CHUNKING),
@@ -170,12 +170,12 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
+      await container.resolveAsync(SERVICE_TOKENS.CONFIGURATION),
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM)
     );
   }
-  createIncrementalIndexer(container: DependencyContainer): IncrementalIndexer {
-    const indexingOrchestrator = this.createIndexingOrchestrator(container);
+  async createIncrementalIndexer(container: DependencyContainer): Promise<IncrementalIndexer> {
+    const indexingOrchestrator = await this.createIndexingOrchestrator(container);
 
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),

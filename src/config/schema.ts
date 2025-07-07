@@ -2,7 +2,16 @@
 // This file defines all configuration interfaces, validation rules, and defaults
 // to eliminate duplication across the configuration system
 
-import { SystemCapabilities } from './system.js';
+// Simplified SystemCapabilities type (moved inline after removing system.ts)
+interface SystemCapabilities {
+  detectionEnabled?: boolean;
+  cacheDetectionResults?: boolean;
+  detectionTimeout?: number;
+  performanceTier?: string;
+  cpuCores?: number;
+  availableMemoryGB?: number;
+  hasGPU?: boolean;
+}
 import { DaemonConfig } from './schema/daemon.js';
 import { FoldersConfig } from './schema/folders.js';
 
@@ -657,7 +666,7 @@ export const DEFAULT_VALUES = {
   }
 };
 // Re-export types for backward compatibility
-export type { SystemCapabilities } from './system.js';
+export type { SystemCapabilities };
 
 /**
  * Default value functions for different configuration sections

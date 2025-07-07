@@ -1,6 +1,6 @@
 {
   "model": {
-    "name": "all-minilm",
+    "name": "nomic-embed-text",
     "batchSize": 32,
     "chunkSize": 1000,
     "overlap": 10,
@@ -143,7 +143,7 @@
       ],
       "embeddings": {
         "backend": "auto",
-        "model": "all-minilm"
+        "model": "nomic-embed-text"
       },
       "performance": {
         "batchSize": 32,

@@ -6,9 +6,9 @@
  */
 
 import { FileFingerprint, TextChunk, ParsedContent, EmbeddingVector } from '../types/index.js';
-import { ResolvedConfig } from '../config/resolver.js';
+import { ResolvedConfig } from '../config/schema.js';
 import { RuntimeConfig } from '../config/schema.js';
-import { SystemCapabilities } from '../config/system.js';
+import { SystemCapabilities } from '../config/schema.js';
 
 // =============================================================================
 // Core Service Interfaces

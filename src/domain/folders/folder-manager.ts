@@ -103,7 +103,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     await this.validateFolder(folder);
     
     // Get current folders config
-    const foldersConfig = this.configManager.get<FoldersConfig>('folders') || DEFAULT_FOLDERS_CONFIG;
+    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     
     // Add to the list
     const updatedConfig: FoldersConfig = {
@@ -131,12 +131,12 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     }
     
     // Get current folders config
-    const foldersConfig = this.configManager.get<FoldersConfig>('folders') || DEFAULT_FOLDERS_CONFIG;
+    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     
     // Remove from the list
     const updatedConfig: FoldersConfig = {
       ...foldersConfig,
-      list: (foldersConfig.list || []).filter(f => 
+      list: (foldersConfig.list || []).filter((f: FolderConfig) => 
         !this.pathResolver.isSamePath(this.pathResolver.resolve(f.path), folder.resolvedPath) &&
         f.name !== folder.name
       )
@@ -159,10 +159,10 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     }
     
     // Get current folders config
-    const foldersConfig = this.configManager.get<FoldersConfig>('folders') || DEFAULT_FOLDERS_CONFIG;
+    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     
     // Find and update the folder in the list
-    const updatedList = (foldersConfig.list || []).map(folder => {
+    const updatedList = (foldersConfig.list || []).map((folder: FolderConfig) => {
       const folderPath = this.pathResolver.resolve(folder.path);
       if (this.pathResolver.isSamePath(folderPath, existingFolder.resolvedPath) || folder.name === existingFolder.name) {
         const updatedFolder = { ...folder, ...updates };
@@ -268,7 +268,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
   }
 
   private async refreshFromConfig(): Promise<void> {
-    const foldersConfig = this.configManager.get<FoldersConfig>('folders') || DEFAULT_FOLDERS_CONFIG;
+    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     const foldersList = foldersConfig.list || [];
     
     // Clear existing folders
@@ -397,7 +397,7 @@ export class FolderValidator implements IFolderValidator {
     }
     
     // Check uniqueness
-    const foldersConfig = this.configManager.get<FoldersConfig>('folders') || DEFAULT_FOLDERS_CONFIG;
+    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     const existingFolders = foldersConfig.list || [];
     
     for (const folder of existingFolders) {

@@ -18,7 +18,7 @@ describe('Async Dependency Injection Resolution', () => {
 
   beforeEach(async () => {
     tempDir = await TestUtils.createTempDir('async-di-test-');
-    container = await setupDependencyInjection();
+    container = setupDependencyInjection({ folderPath: tempDir });
   });
 
   afterEach(async () => {

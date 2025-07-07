@@ -28,17 +28,17 @@ import { DEFAULT_DAEMON_CONFIG } from '../../config/schema/daemon.js';
 /**
  * Register daemon services in the DI container
  */
-export function registerDaemonServices(
+export async function registerDaemonServices(
   container: DependencyContainer, 
   folderPath: string,
   options: { logLevel?: 'debug' | 'info' | 'warn' | 'error' } = {}
-): void {
+): Promise<void> {
   
   // Get logger for daemon services
   const logger = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
 
   // Get daemon configuration from resolved config
-  const config = resolveConfig(folderPath);
+  const config = await resolveConfig(folderPath);
   const daemonConfig = config.daemon || DEFAULT_DAEMON_CONFIG;
 
   // Only register daemon services if daemon is enabled
@@ -155,7 +155,7 @@ export function registerDaemonServices(
 /**
  * Check if daemon services are enabled
  */
-export function isDaemonEnabled(folderPath: string): boolean {
-  const config = resolveConfig(folderPath);
+export async function isDaemonEnabled(folderPath: string): Promise<boolean> {
+  const config = await resolveConfig(folderPath);
   return config.daemon?.enabled || DEFAULT_DAEMON_CONFIG.enabled;
 }

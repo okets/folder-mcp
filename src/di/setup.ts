@@ -8,11 +8,9 @@
 import { DependencyContainer, getContainer } from './container.js';
 import { ServiceFactory } from './factory.js';
 import { SERVICE_TOKENS, MODULE_TOKENS, ILoggingService } from './interfaces.js';
-import { ResolvedConfig, resolveConfig } from '../config/resolver.js';
+import { ResolvedConfig } from '../config/schema.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
-import { CONFIG_TOKENS, IConfigurationManager, IProfileManager, IConfigValidator } from '../config/interfaces.js';
-import { registerConfigurationServices, createConfigurationServiceAdapter } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
 import { 
@@ -22,12 +20,7 @@ import {
 } from '../infrastructure/providers/node-providers.js';
 
 // Import CLI services
-import { ConfigurationCommandService } from '../application/cli/ConfigurationCommandService.js';
-import { ConfigurationOverrideService } from '../application/cli/ConfigurationOverrideService.js';
-import { ProfileCommandService } from '../application/cli/ProfileCommandService.js';
-import { HelpSystemService } from '../application/cli/HelpSystemService.js';
 import { JsonOutputService } from '../application/cli/JsonOutputService.js';
-import { IConfigurationOverrideService } from '../domain/cli/IConfigurationOverrideService.js';
 
 /**
  * Setup the dependency injection container with all services
@@ -82,13 +75,15 @@ export function setupDependencyInjection(options: {
     const { FolderValidator } = require('../domain/folders/folder-manager.js');
     const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
     const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
+    // TODO: Replace with new configuration manager when folder management is updated
+    const configManager = null; // Temporarily remove old config dependency
     return new FolderValidator(fileSystem, pathResolver, configManager);
   });
 
   container.registerSingleton(SERVICE_TOKENS.FOLDER_MANAGER, () => {
     const { FolderManager } = require('../domain/folders/folder-manager.js');
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
+    // TODO: Replace with new configuration manager when folder management is updated
+    const configManager = null; // Temporarily remove old config dependency
     const validator = container.resolve(SERVICE_TOKENS.FOLDER_VALIDATOR);
     const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
     const configMerger = container.resolve(SERVICE_TOKENS.FOLDER_CONFIG_MERGER);
@@ -134,40 +129,36 @@ export function setupDependencyInjection(options: {
     return new MultiFolderMonitoringWorkflow(folderManager, singleFolderMonitoring, loggingService);
   });
 
-  // Register all configuration services
-  registerConfigurationServices(container);
+  // Register configuration services
+  container.registerSingleton(SERVICE_TOKENS.CONFIGURATION, async () => {
+    const { ConfigurationService } = await import('./services.js');
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+    return new ConfigurationService(loggingService);
+  });
+
+  container.registerSingleton('CLIConfigurationOverrideService' as any, () => {
+    // Stub service for CLI configuration overrides
+    return {
+      parseFlags: () => ({}),
+      validateOverrides: () => ({ isValid: true, errors: [], warnings: [] }),
+      applyOverrides: () => ({}),
+      getSupportedOverrides: () => ([]),
+      isSupported: () => true
+    };
+  });
+
+  container.registerSingleton('CLIConfigurationCommandService' as any, () => {
+    // Stub service for CLI configuration commands
+    return {
+      getConfiguration: () => ({}),
+      setConfiguration: () => Promise.resolve(),
+      validateConfiguration: () => ({ isValid: true, errors: [] }),
+      showConfiguration: () => ({})
+    };
+  });
   
-  // Register configuration service adapter for backward compatibility
-  container.registerSingleton(SERVICE_TOKENS.CONFIGURATION, () => {
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER);
-    return createConfigurationServiceAdapter(configManager);
-  });
-
-  // Register CLI command services
-  container.registerSingleton(SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE, () => {
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
-    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
-    const configValidator = container.resolve(CONFIG_TOKENS.CONFIG_VALIDATOR) as IConfigValidator;
-    return new ConfigurationCommandService(configManager, profileManager, configValidator);
-  });
-
-  container.registerSingleton(SERVICE_TOKENS.CLI_CONFIGURATION_OVERRIDE_SERVICE, () => {
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
-    return new ConfigurationOverrideService(configManager);
-  });
-
-  container.registerSingleton(SERVICE_TOKENS.CLI_PROFILE_COMMAND_SERVICE, () => {
-    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
-    const configValidator = container.resolve(CONFIG_TOKENS.CONFIG_VALIDATOR) as IConfigValidator;
-    return new ProfileCommandService(profileManager, configValidator);
-  });
-
-  container.registerSingleton(SERVICE_TOKENS.CLI_HELP_SYSTEM_SERVICE, () => {
-    const configManager = container.resolve(CONFIG_TOKENS.CONFIGURATION_MANAGER) as IConfigurationManager;
-    const profileManager = container.resolve(CONFIG_TOKENS.PROFILE_MANAGER) as IProfileManager;
-    const overrideService = container.resolve(SERVICE_TOKENS.CLI_CONFIGURATION_OVERRIDE_SERVICE) as IConfigurationOverrideService;
-    return new HelpSystemService(configManager, profileManager, overrideService);
-  });
+  // Register basic CLI services (without old config dependencies for now)
+  // TODO: Update these services to use new configuration system
 
   container.registerSingleton(SERVICE_TOKENS.CLI_JSON_OUTPUT_SERVICE, () => {
     return new JsonOutputService();
@@ -269,18 +260,18 @@ export function setupDependencyInjection(options: {
   }
 
   // Register indexing orchestrator
-  container.registerSingleton(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW, () => {
-    return serviceFactory.createIndexingOrchestrator(container);
+  container.registerSingleton(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW, async () => {
+    return await serviceFactory.createIndexingOrchestrator(container);
   });
 
   // Also register with old SERVICE_TOKENS for backward compatibility
-  container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, () => {
-    return serviceFactory.createIndexingOrchestrator(container);
+  container.registerSingleton(SERVICE_TOKENS.INDEXING_WORKFLOW, async () => {
+    return await serviceFactory.createIndexingOrchestrator(container);
   });
 
   // Register incremental indexer
-  container.registerSingleton(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING, () => {
-    return serviceFactory.createIncrementalIndexer(container);
+  container.registerSingleton(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING, async () => {
+    return await serviceFactory.createIncrementalIndexer(container);
   });
 
   // Register content serving orchestrator
@@ -349,7 +340,7 @@ export function setupDependencyInjection(options: {
 export async function setupForIndexing(folderPath: string, cliArgs: any = {}): Promise<DependencyContainer> {
   // Resolve configuration first
   const { resolveConfig } = await import('../config/resolver.js');
-  const config = resolveConfig(folderPath, cliArgs);
+  const config = await resolveConfig(folderPath, cliArgs);
 
   // Setup DI with config
   return setupDependencyInjection({
