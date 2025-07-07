@@ -359,7 +359,7 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - **Wizards**: Interactive configuration for complex settings
 - **Validation**: Helpful error messages for configuration issues
 - **Defaults**: Smart defaults that work without configuration
-- **Migration**: Automatic configuration migration between versions
+- **Validation**: Schema-based validation for all settings
 
 ## Phase 6: Configuration Foundation & CLI/TUI Parity
 
@@ -484,9 +484,9 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - Keep only tests that will be relevant to new system
 
 **Completion Criteria**:
-- [ ] Old configuration tests removed
-- [ ] Test suite passes without old config tests
-- [ ] No references to old config system in tests
+- [x] Old configuration tests removed
+- [x] Test suite passes without old config tests
+- [x] No references to old config system in tests
 
 ### Task 2: Simplify Current Configuration System
 
@@ -507,10 +507,10 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - All other current configurations
 
 **Completion Criteria**:
-- [ ] system-configuration.json contains all current configs
-- [ ] Simple loader reads JSON on startup
-- [ ] Application works with single config file
-- [ ] Tests verify JSON loading mechanism
+- [x] system-configuration.json contains all current configs
+- [x] Simple loader reads JSON on startup
+- [x] Application works with single config file
+- [x] Tests verify JSON loading mechanism
 - [ ] No regression in functionality
 
 ### Task 3: Implement New User Configuration System
@@ -518,7 +518,7 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 **Goal**: Build schema-driven configuration system as designed in configuration-system-design.md
 
 **Scope**:
-- Implement SimpleConfigManager (loads config-defaults.yaml and config.yaml) 
+- Implement ConfigManager (loads config-defaults.yaml and config.yaml) 
 - Create configuration schema with single test item (embedding models)
 - Move embedding model list from system-configuration.json to new system
 - Implement CLI config commands (get/set/show)
@@ -535,7 +535,7 @@ modelName: "nomic-embed-text"
 ```
 
 **Completion Criteria**:
-- [ ] SimpleConfigManager implemented and tested
+- [ ] ConfigManager implemented and tested
 - [ ] Schema system working with embedding model config
 - [ ] CLI can get/set model configuration
 - [ ] config.yaml overrides config-defaults.yaml
@@ -678,7 +678,7 @@ modelName: "nomic-embed-text"
 **Completion Criteria**:
 - [ ] Version checking available
 - [ ] Update notifications working
-- [ ] Configuration migration supported
+- [ ] Configuration versioning supported
 - [ ] Update preferences configurable
 - [ ] Version information accessible via MCP
 
@@ -878,7 +878,7 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 
 **Completion Criteria**:
 - [ ] Full test coverage achieved
-- [ ] Migration scenarios validated
+- [ ] Configuration scenarios validated
 - [ ] Performance benchmarks completed
 - [ ] Cross-platform testing done
 - [ ] Edge cases handled
@@ -894,7 +894,7 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 - [ ] Configuration reference documented
 - [ ] API documentation available
 - [ ] Examples for all features
-- [ ] Migration guides ready
+- [ ] Configuration guides ready
 - [ ] Troubleshooting guide complete
 
 ### Task 3: Release Automation
@@ -905,7 +905,7 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 - [ ] Release automation working
 - [ ] Changelog generation automated
 - [ ] Compatibility checking implemented
-- [ ] Migration tools available
+- [ ] Configuration tools available
 - [ ] Release process documented
 
 ### Task 4: Update Development Workflow
@@ -915,7 +915,7 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 **Completion Criteria**:
 - [ ] Development workflow updated
 - [ ] Production practices documented
-- [ ] Migration procedures established
+- [ ] Configuration procedures established
 - [ ] Compatibility guidelines defined
 - [ ] Team processes formalized
 

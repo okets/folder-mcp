@@ -144,7 +144,7 @@ folders:
     enabled: true
 ```
 
-### 4. Configuration Manager (`SimpleConfigManager.ts`)
+### 4. Configuration Manager (`ConfigManager.ts`)
 
 Minimal implementation that:
 - Loads both YAML files
@@ -154,7 +154,7 @@ Minimal implementation that:
 - NO validation logic (that's the schema's job)
 
 ```typescript
-class SimpleConfigManager {
+class ConfigManager {
   private defaults: any = {};
   private userConfig: any = {};
   private merged: any = {};
@@ -542,7 +542,7 @@ outputPath: {
 
 1. Define configuration schema for all user settings
 2. Create config-defaults.yaml with sensible defaults
-3. Implement SimpleConfigManager (loads, merges, watches)
+3. Implement ConfigManager (loads, merges, watches)
 4. Build ConfigurationItemFactory (schema → UI components)
 5. Create validation system using schema rules
 6. Update CLI commands to use schema validation

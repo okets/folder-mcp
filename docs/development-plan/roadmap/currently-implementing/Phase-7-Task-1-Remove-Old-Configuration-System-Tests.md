@@ -198,7 +198,7 @@ find tests -name "*config*.test.ts" | wc -l
 # Expected: Should match our list count
 
 # Check for any missed references
-grep -r "ConfigManager" tests/ --include="*.test.ts" | grep -v "SimpleConfigManager"
+grep -r "ConfigManager" tests/ --include="*.test.ts" | grep -v "ConfigManager"
 # Expected: All results should be in our removal list
 ```
 
@@ -267,7 +267,7 @@ Not applicable - this is test removal only.
 ```bash
 # Verify no system config references remain
 grep -r "system.*config" tests/ --include="*.test.ts"
-# Expected: No results (or only SimpleConfigManager references)
+# Expected: No results (or only ConfigManager references)
 
 # Verify no profile references remain
 grep -r "profile" tests/ --include="*.test.ts"
@@ -457,7 +457,7 @@ Not applicable - this is documentation only.
    ## Remaining Configuration Tests
    
    ### Tests Kept for New System:
-   1. Basic config loading (will adapt to SimpleConfigManager)
+   1. Basic config loading (will adapt to ConfigManager)
    2. Config validation (will use schema validation)
    3. Simple get/set operations
    4. CLI commands: get, set, validate

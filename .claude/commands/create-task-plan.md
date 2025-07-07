@@ -362,7 +362,7 @@ grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
 
 #### Integration
 - **Code Updates**: How will the feature access configuration?
-- **User Config**: Via SimpleConfigManager and schema validation
+- **User Config**: Via ConfigManager and schema validation
 - **System Config**: Direct JSON loading at startup
 
 ### Implementation Details

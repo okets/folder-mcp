@@ -1,0 +1,174 @@
+{
+  "model": {
+    "name": "all-minilm",
+    "batchSize": 32,
+    "chunkSize": 1000,
+    "overlap": 10,
+    "maxWorkers": 4,
+    "timeoutMs": 30000,
+    "maxConcurrentOperations": 14,
+    "embeddingDimensions": 384,
+    "provider": "sentence-transformers"
+  },
+  "fileProcessing": {
+    "extensions": [
+      ".txt", ".md", ".mdx",
+      ".pdf", ".doc", ".docx",
+      ".xls", ".xlsx", ".csv",
+      ".ppt", ".pptx",
+      ".json", ".yaml", ".yml",
+      ".log"
+    ],
+    "ignorePatterns": [
+      "node_modules/**",
+      ".git/**",
+      "*.tmp",
+      "*.swp",
+      "*.bak",
+      "~*",
+      ".DS_Store",
+      "Thumbs.db",
+      "dist/**",
+      "build/**",
+      "coverage/**"
+    ],
+    "maxFileSize": 10485760,
+    "encoding": "utf-8",
+    "debounceDelay": 1000
+  },
+  "server": {
+    "port": 3000,
+    "transport": "stdio",
+    "autoStart": false,
+    "host": "localhost"
+  },
+  "daemon": {
+    "enabled": false,
+    "port": 3001,
+    "pidFile": "~/.folder-mcp/daemon.pid",
+    "healthCheck": {
+      "enabled": true,
+      "interval": 30000,
+      "timeout": 5000,
+      "retries": 3
+    },
+    "autoRestart": {
+      "enabled": true,
+      "maxRetries": 5,
+      "delay": 1000,
+      "exponentialBackoff": true,
+      "maxDelay": 30000
+    },
+    "performance": {
+      "monitoring": true,
+      "metricsInterval": 60000,
+      "logLevel": "info",
+      "memoryTracking": true,
+      "cpuTracking": true,
+      "diskTracking": false
+    },
+    "shutdownTimeout": 10000,
+    "shutdownSignal": "SIGTERM",
+    "reloadSignal": "SIGHUP"
+  },
+  "ui": {
+    "fullScreen": true,
+    "verboseLogging": false,
+    "showProgress": true,
+    "theme": "auto",
+    "logLevel": "normal"
+  },
+  "transport": {
+    "enabled": true,
+    "activeTransports": ["local"],
+    "selection": {
+      "strategy": "prefer-local",
+      "fallback": true,
+      "healthCheckInterval": 5000
+    },
+    "local": {
+      "enabled": true,
+      "socketPath": "~/.folder-mcp/socket",
+      "permissions": 384,
+      "timeout": 5000,
+      "retryAttempts": 3
+    },
+    "remote": {
+      "enabled": false,
+      "host": "localhost",
+      "port": 3002,
+      "enableTLS": false,
+      "timeout": 10000,
+      "retryAttempts": 3
+    },
+    "http": {
+      "enabled": false,
+      "host": "localhost",
+      "port": 3003,
+      "basePath": "/api",
+      "enableHTTPS": false,
+      "corsEnabled": true,
+      "timeout": 30000,
+      "retryAttempts": 3
+    },
+    "security": {
+      "apiKeyEnabled": false,
+      "keyRotationDays": 30,
+      "requireAuthForRemote": true,
+      "requireAuthForHttp": true
+    }
+  },
+  "cache": {
+    "enabled": true,
+    "maxSize": 1073741824,
+    "cleanupInterval": 3600000,
+    "compressionEnabled": true,
+    "directory": "~/.folder-mcp/cache",
+    "ttl": 86400000
+  },
+  "development": {
+    "enableDebugOutput": false,
+    "mockOllamaApi": false,
+    "skipGpuDetection": false,
+    "developmentMode": false,
+    "hotReload": false,
+    "verboseErrors": false
+  },
+  "folders": {
+    "defaults": {
+      "exclude": [
+        "node_modules/**",
+        ".git/**",
+        "*.tmp"
+      ],
+      "embeddings": {
+        "backend": "auto",
+        "model": "all-minilm"
+      },
+      "performance": {
+        "batchSize": 32,
+        "maxConcurrency": 5
+      },
+      "watchForChanges": true,
+      "recursive": true
+    },
+    "list": []
+  },
+  "systemCapabilities": {
+    "detectionEnabled": true,
+    "cacheDetectionResults": true,
+    "detectionTimeout": 5000
+  },
+  "profiles": {
+    "enabled": false,
+    "defaultProfile": "default",
+    "autoSwitch": false
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "createdAt": "2025-07-07T00:00:00.000Z",
+    "updatedAt": "2025-07-07T00:00:00.000Z",
+    "configFormat": "transitional-json",
+    "description": "Transitional system configuration containing all settings"
+  }
+}

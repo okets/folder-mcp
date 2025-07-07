@@ -151,201 +151,250 @@ Not applicable for this task - this is transitional system only.
 
 ## 🔧 **Implementation Assignments**
 
-### Assignment 1: Analyze Current Configuration Usage
+### Assignment 1: Analyze Current Configuration Usage ✅ COMPLETED
 **Goal**: Map all configuration values currently in use
 **Estimated Time**: 1 hour
+**Actual Time**: 0.3 hours
+**Completion Date**: 2025-07-07
 
 #### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
 Analysis only - no new services created.
 
 #### Sub-tasks:
-1. [ ] **1.1 Find all configuration access points**
+1. [x] **1.1 Find all configuration access points**
    ```bash
    # Search for configuration usage
    grep -r "config\." src/ --include="*.ts" | grep -v "test"
+   # Found: 34 files using config.* pattern
+   
    grep -r "getConfig\|configuration" src/ --include="*.ts"
+   # Found: 17 files using configuration manager
    
    # Find DI token usage
    grep -r "CONFIG_TOKENS" src/ --include="*.ts"
+   # Found usage in DI setup and services
    ```
    
-2. [ ] **1.2 Document current configuration structure**
+2. [x] **1.2 Document current configuration structure**
    ```markdown
    ## Current Configuration Values:
-   ### Model Settings
-   - modelName: string (default: "all-minilm-l6-v2")
-   - batchSize: number (default: 32)
-   - embeddingDimensions: number
+   ### Model Settings (ProcessingConfig)
+   - modelName: string (default: "all-minilm" or smart: "nomic-embed-text")
+   - batchSize: number (default: 32, smart: 16-64 based on memory)
+   - chunkSize: number (default: 1000, smart: 500-2000 based on tier)
+   - overlap: number (default: 10% of chunk size)
+   - maxWorkers: number
+   - timeoutMs: number
+   - maxConcurrentOperations: number (default: 14, smart: 4-20 based on CPU)
    
-   ### File Processing
-   - fileExtensions: string[]
-   - ignorePatterns: string[]
+   ### File Processing (FileConfig)
+   - extensions: string[] (default: ['.txt', '.md', '.pdf', '.docx', etc.])
+   - ignorePatterns: string[] (default: ['node_modules/**', '.git/**', etc.])
    - maxFileSize: number
+   - encoding: string
    
-   ### Performance
-   - cacheTTL: number
-   - maxConcurrency: number
+   ### Server Settings (ServerConfig)
+   - port: number
+   - transport: 'stdio' | 'http'
+   - autoStart: boolean
+   - host: string
    
-   ### Development
-   - enableDebugOutput: boolean
-   - developmentMode: boolean
+   ### Daemon Configuration (DaemonConfig)
+   - enabled: boolean (default: false)
+   - port?: number
+   - pidFile?: string
+   - healthCheck: { enabled, interval: 30s, timeout: 5s, retries: 3 }
+   - autoRestart: { enabled, maxRetries: 5, delay: 1s, exponentialBackoff }
+   - performance: { monitoring, metricsInterval: 60s, logLevel, tracking }
+   - shutdownTimeout: 10s
+   - shutdownSignal: 'SIGTERM'
+   - reloadSignal: 'SIGHUP'
+   
+   ### UI/UX Settings (UIConfig)
+   - fullScreen: boolean
+   - verboseLogging: boolean
+   - showProgress: boolean
+   - theme: 'light' | 'dark' | 'auto'
+   - logLevel: 'quiet' | 'normal' | 'verbose'
+   
+   ### Transport Configuration (TransportConfig)
+   - enabled: boolean
+   - activeTransports: array
+   - selection strategy
+   - local/remote/http settings
+   - security settings
+   
+   ### Cache Configuration (CacheConfig)
+   - enabled: boolean
+   - maxSize: number
+   - cleanupInterval: number
+   - compressionEnabled: boolean
+   
+   ### Development Settings
+   - enableDebugOutput: boolean (default: false)
+   - mockOllamaApi: boolean (default: false)
+   - skipGpuDetection: boolean (default: false)
+   - developmentMode: boolean (from env: ENABLE_ENHANCED_MCP_FEATURES)
+   
+   ### Folders Configuration
+   - defaults: { exclude, embeddings, performance }
+   - list: Array of folder configs with path, name, enabled, settings
    ```
    
-3. [ ] **1.3 Identify configuration dependencies**
+3. [x] **1.3 Identify configuration dependencies**
    ```typescript
-   // Document which services depend on configuration
-   // - FolderManager: needs file patterns
-   // - EmbeddingService: needs model settings
-   // - FileProcessor: needs extensions and limits
+   // Services that depend on configuration:
+   // - OllamaEmbeddingService: uses model settings (modelName, batchSize)
+   // - FolderManager: uses file patterns (extensions, ignorePatterns)
+   // - DaemonService: uses daemon config (all daemon settings)
+   // - ConfigurationManager: orchestrates all config sources
+   // - SmartDefaultsGenerator: generates defaults based on system capabilities
+   // - CacheStorage: uses cache settings
+   // - Logger: uses logLevel settings
+   // - MCP Server: uses server config
+   // - CLI Commands: use various configs for display/behavior
    ```
 
 #### **✅ VALIDATION CHECKLIST**:
 ```bash
 # Verify we found all config usage
 grep -r "ConfigurationManager" src/ | wc -l
-# Expected: Should match our documented count
+# Result: 17 files use ConfigurationManager
 
 # Check for environment variable usage
 grep -r "process\.env\.FOLDER_MCP" src/
-# Expected: Document any remaining env var usage
+# Result: Found env var expansion in config system
+# Also found: ENABLE_ENHANCED_MCP_FEATURES for dev mode
 ```
 
 #### **Implementation Notes**:
-- Focus on actual usage, not test code
-- Note any dynamic configuration needs
-- Identify configuration that changes at runtime
+- Configuration system is highly complex with 6 sources
+- Smart defaults system adapts to system capabilities
+- Multiple config interfaces for different layers
+- Heavy use of DI for configuration distribution
+- Daemon config is comprehensive with health/restart/perf
 
 #### **Completion Criteria**:
-- [ ] All configuration values documented
-- [ ] All consuming services identified
-- [ ] Default values captured
-- [ ] No configuration usage missed
+- [x] All configuration values documented
+- [x] All consuming services identified
+- [x] Default values captured
+- [x] No configuration usage missed
 
-**📝 UPDATE AFTER COMPLETION**:
-```markdown
-### Assignment 1: Analyze Current Configuration Usage ✅ COMPLETED
-**Completion Date**: [YYYY-MM-DD]
-**Actual Time**: [X hours]
-**Key Discoveries**: [What was learned during implementation]
-```
+**📝 Key Discoveries**:
+- **Configuration Complexity**: The system has grown to include 8+ major config sections
+- **Smart Defaults**: Sophisticated system that detects CPU, memory, GPU to set optimal values
+- **Three-tier Performance**: Low/Medium/High tiers adjust batch sizes, concurrency, chunk sizes
+- **Comprehensive Daemon Config**: Full process management with health checks, auto-restart, monitoring
+- **Transport Flexibility**: Multiple transport options (stdio, local socket, remote, HTTP)
+- **Development Flags**: Both config-based and env var-based development modes
 
 ---
 
-### Assignment 2: Create system-configuration.json
+### Assignment 2: Create system-configuration.json ✅ COMPLETED
 **Goal**: Create single JSON file with all current configurations
 **Estimated Time**: 1.5 hours
+**Actual Time**: 0.2 hours
+**Completion Date**: 2025-07-07
 
 #### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
 Not applicable - creating data file only.
 
 #### Sub-tasks:
-1. [ ] **2.1 Create comprehensive JSON structure**
+1. [x] **2.1 Create comprehensive JSON structure**
    ```json
-   // system-configuration.json
+   // system-configuration.json created with all sections:
    {
-     "model": {
-       "name": "all-minilm-l6-v2",
-       "batchSize": 32,
-       "dimensions": 384,
-       "provider": "sentence-transformers"
-     },
-     "fileProcessing": {
-       "extensions": [".txt", ".md", ".pdf", ".docx"],
-       "ignorePatterns": ["node_modules/**", ".git/**"],
-       "maxFileSize": 10485760,
-       "chunkSize": 500,
-       "chunkOverlap": 50
-     },
-     "performance": {
-       "cacheTTL": 3600,
-       "maxConcurrency": 4,
-       "indexBatchSize": 100
-     },
-     "development": {
-       "enableDebugOutput": false,
-       "verboseLogging": false,
-       "hotReload": false
-     },
-     "folders": {
-       "defaultSettings": {
-         "watchForChanges": true,
-         "recursive": true
-       }
-     }
+     "model": { /* Processing configuration */ },
+     "fileProcessing": { /* File handling settings */ },
+     "server": { /* Server configuration */ },
+     "daemon": { /* Complete daemon config with health/restart/perf */ },
+     "ui": { /* UI/UX preferences */ },
+     "transport": { /* Transport layer config */ },
+     "cache": { /* Cache settings */ },
+     "development": { /* Dev flags */ },
+     "folders": { /* Folder defaults and list */ },
+     "systemCapabilities": { /* System detection */ },
+     "profiles": { /* Profile system (disabled) */ },
+     "metadata": { /* File metadata */ }
    }
    ```
    
-2. [ ] **2.2 Include ALL configuration values**
+2. [x] **2.2 Include ALL configuration values**
    ```bash
-   # Verify all values from Assignment 1 are included
-   # Cross-reference with documented configuration
-   # Add any missing values with sensible defaults
+   # Included all 12 major configuration sections
+   # Added sensible defaults based on existing code
+   # Preserved smart defaults logic (will be removed later)
+   # Added metadata section for versioning
    ```
    
-3. [ ] **2.3 Place file in correct location**
-   ```typescript
-   // Determine location strategy:
-   // Option 1: Project root (for development)
-   // Option 2: ~/.folder-mcp/system-configuration.json (for production)
-   // Option 3: Both with fallback logic
+3. [x] **2.3 Place file in correct location**
+   ```bash
+   # Created in both locations:
+   # 1. Project root: /Users/hanan/Projects/folder-mcp/system-configuration.json
+   # 2. User directory: ~/.folder-mcp/system-configuration.json
+   # SimpleJsonConfigLoader will use ~/.folder-mcp/ location
    ```
 
 #### **✅ VALIDATION CHECKLIST**:
 ```bash
 # Validate JSON syntax
 npx jsonlint system-configuration.json
-# Expected: Valid JSON
+# Result: Valid JSON (fixed octal notation issue)
 
 # Check all required fields present
 node -e "const c = require('./system-configuration.json'); console.log(Object.keys(c))"
-# Expected: Shows all top-level keys
+# Result: Shows all 12 top-level keys
 ```
 
 #### **Completion Criteria**:
-- [ ] JSON file created with all configurations
-- [ ] Valid JSON syntax
-- [ ] All values from analysis included
-- [ ] Sensible defaults for all values
+- [x] JSON file created with all configurations
+- [x] Valid JSON syntax
+- [x] All values from analysis included
+- [x] Sensible defaults for all values
 
-**📝 UPDATE AFTER COMPLETION**:
-```markdown
-### Assignment 2: Create system-configuration.json ✅ COMPLETED
-**Completion Date**: [YYYY-MM-DD]
-**Actual Time**: [X hours]
-**Key Discoveries**: [What was learned during implementation]
-```
+**📝 Key Discoveries**:
+- **Comprehensive Config**: Created 12 major sections covering all discovered configs
+- **Octal Notation**: JSON doesn't support octal (0o600), had to use decimal (384)
+- **Flat Structure**: Kept relatively flat structure for easy JSON.parse()
+- **Metadata Section**: Added for versioning and tracking
+- **Both Locations**: Placed in project root and ~/.folder-mcp/ for flexibility
 
 ---
 
-### Assignment 3: Implement Simple JSON Config Loader
+### Assignment 3: Implement System JSON Config Loader ✅ COMPLETED
 **Goal**: Create minimal configuration loader that reads JSON file
 **Estimated Time**: 2 hours
+**Actual Time**: 0.3 hours
+**Completion Date**: 2025-07-07
 
 #### **🚨 MANDATORY DI PATTERN FOR THIS ASSIGNMENT**:
-1. **Interface First**: Define `ISimpleConfigLoader` in domain layer
+1. **Interface First**: Define `ISystemConfigLoader` in domain layer
 2. **No Implementation Logic**: Interface must be pure contract
 3. **Constructor Injection**: All dependencies injected
 4. **Zero Direct Instantiation**: No `new` calls except in DI container
 
 #### Sub-tasks:
-1. [ ] **3.1 Define interface in domain layer**
+1. [x] **3.1 Define interface in domain layer**
    ```typescript
-   // domain/config/ISimpleConfigLoader.ts
-   export interface ISimpleConfigLoader {
+   // domain/config/ISystemConfigLoader.ts
+   export interface ISystemConfigLoader {
      load(): Promise<any>;
      get(path: string): any;
      getAll(): any;
+     isLoaded(): boolean;
+     reload(): Promise<any>;
    }
    ```
    
-2. [ ] **3.2 Implement in application layer**
+2. [x] **3.2 Implement in application layer**
    ```typescript
-   // application/config/SimpleJsonConfigLoader.ts
-   import { ISimpleConfigLoader } from '../../domain/config/ISimpleConfigLoader';
+   // application/config/SystemJsonConfigLoader.ts
+   import { ISystemConfigLoader } from '../../domain/config/ISystemConfigLoader';
    import { IFileSystem } from '../../domain/infrastructure/IFileSystem';
    
-   export class SimpleJsonConfigLoader implements ISimpleConfigLoader {
+   export class SystemJsonConfigLoader implements ISystemConfigLoader {
      private config: any = null;
+     private loaded: boolean = false;
      
      constructor(
        private readonly fileSystem: IFileSystem,
@@ -355,84 +404,94 @@ node -e "const c = require('./system-configuration.json'); console.log(Object.ke
      async load(): Promise<any> {
        const content = await this.fileSystem.readFile(this.configPath);
        this.config = JSON.parse(content);
+       this.loaded = true;
        return this.config;
      }
      
      get(path: string): any {
-       if (!this.config) {
+       if (!this.loaded) {
          throw new Error('Configuration not loaded');
        }
        return this.getByPath(this.config, path);
      }
      
      getAll(): any {
-       if (!this.config) {
+       if (!this.loaded) {
          throw new Error('Configuration not loaded');
        }
-       return { ...this.config };
+       return JSON.parse(JSON.stringify(this.config)); // Deep copy
+     }
+     
+     isLoaded(): boolean {
+       return this.loaded;
+     }
+     
+     async reload(): Promise<any> {
+       this.loaded = false;
+       this.config = null;
+       return this.load();
      }
      
      private getByPath(obj: any, path: string): any {
-       return path.split('.').reduce((curr, key) => curr?.[key], obj);
+       // Supports dot notation and array[index] syntax
+       const keys = path.split('.');
+       let current = obj;
+       
+       for (const key of keys) {
+         const arrayMatch = key.match(/^(\w+)\[(\d+)\]$/);
+         if (arrayMatch) {
+           const [, prop, index] = arrayMatch;
+           current = current?.[prop]?.[parseInt(index, 10)];
+         } else {
+           current = current?.[key];
+         }
+       }
+       
+       return current;
      }
    }
    ```
    
-3. [ ] **3.3 Write comprehensive tests**
+3. [x] **3.3 Write comprehensive tests**
    ```typescript
-   // tests/unit/application/config/SimpleJsonConfigLoader.test.ts
-   describe('SimpleJsonConfigLoader', () => {
-     it('should load JSON configuration', async () => {
-       const mockFs = {
-         readFile: vi.fn().mockResolvedValue('{"test": "value"}')
-       };
-       const loader = new SimpleJsonConfigLoader(mockFs, 'config.json');
-       
-       await loader.load();
-       expect(loader.get('test')).toBe('value');
-     });
-     
-     it('should handle nested paths', async () => {
-       const mockFs = {
-         readFile: vi.fn().mockResolvedValue('{"a": {"b": {"c": "deep"}}}')
-       };
-       const loader = new SimpleJsonConfigLoader(mockFs, 'config.json');
-       
-       await loader.load();
-       expect(loader.get('a.b.c')).toBe('deep');
-     });
-   });
+   // tests/unit/application/config/SystemJsonConfigLoader.test.ts
+   // Comprehensive test suite with 20 tests covering:
+   // - Load functionality (success, errors, invalid JSON)
+   // - Get operations (simple, nested, arrays, non-existent)
+   // - GetAll with deep copy protection
+   // - isLoaded state tracking
+   // - Reload functionality
+   // - Edge cases (empty config, null values, special characters)
    ```
 
 #### **✅ VALIDATION CHECKLIST**:
 ```bash
 # Check interface in domain layer
-ls domain/config/ISimpleConfigLoader.ts
-# Expected: File exists
+ls domain/config/ISystemConfigLoader.ts
+# Result: File exists ✓
 
 # Check implementation uses DI
-grep "constructor(" application/config/SimpleJsonConfigLoader.ts
-# Expected: Shows injected dependencies
+grep "constructor(" application/config/SystemJsonConfigLoader.ts
+# Result: Shows injected dependencies ✓
 
 # Run tests
-npm test -- tests/unit/application/config/SimpleJsonConfigLoader.test.ts
-# Expected: All tests pass
+npm test -- tests/unit/application/config/SystemJsonConfigLoader.test.ts
+# Result: All 20 tests pass ✓
 ```
 
 #### **Completion Criteria**:
-- [ ] Interface defined in domain layer
-- [ ] Implementation in application layer
-- [ ] All dependencies injected
-- [ ] Comprehensive tests pass
-- [ ] No direct file system access
+- [x] Interface defined in domain layer
+- [x] Implementation in application layer
+- [x] All dependencies injected
+- [x] Comprehensive tests pass
+- [x] No direct file system access
 
-**📝 UPDATE AFTER COMPLETION**:
-```markdown
-### Assignment 3: Implement Simple JSON Config Loader ✅ COMPLETED
-**Completion Date**: [YYYY-MM-DD]
-**Actual Time**: [X hours]
-**Key Discoveries**: [What was learned during implementation]
-```
+**📝 Key Discoveries**:
+- **Naming**: Changed from "Simple" to "System" for clarity
+- **Deep Copy**: Used JSON.parse(JSON.stringify()) for deep copy
+- **Array Support**: Added support for array[index] notation
+- **State Tracking**: Added isLoaded() and reload() methods
+- **Edge Cases**: Handled null values, special characters in keys
 
 ---
 
@@ -447,17 +506,17 @@ npm test -- tests/unit/application/config/SimpleJsonConfigLoader.test.ts
 4. **Lifecycle Management**: Singleton pattern for config
 
 #### Sub-tasks:
-1. [ ] **4.1 Register SimpleJsonConfigLoader in DI**
+1. [ ] **4.1 Register SystemJsonConfigLoader in DI**
    ```typescript
    // di/setup.ts
-   import { SimpleJsonConfigLoader } from '../application/config/SimpleJsonConfigLoader';
+   import { SystemJsonConfigLoader } from '../application/config/SystemJsonConfigLoader';
    
    // Replace old ConfigurationManager registration
    container.registerSingleton(CONFIG_TOKENS.CONFIG_MANAGER, () => {
      const fileSystem = container.resolve<IFileSystem>(INFRASTRUCTURE_TOKENS.FILE_SYSTEM);
      const configPath = path.join(process.env.HOME || '', '.folder-mcp', 'system-configuration.json');
      
-     const loader = new SimpleJsonConfigLoader(fileSystem, configPath);
+     const loader = new SystemJsonConfigLoader(fileSystem, configPath);
      // Load synchronously during DI setup
      loader.load().catch(err => {
        console.error('Failed to load configuration:', err);
@@ -471,7 +530,7 @@ npm test -- tests/unit/application/config/SimpleJsonConfigLoader.test.ts
 2. [ ] **4.2 Update configuration factory if needed**
    ```typescript
    // di/factories/configurationFactory.ts
-   // Update to use SimpleJsonConfigLoader interface
+   // Update to use SystemJsonConfigLoader interface
    // Ensure backward compatibility
    ```
    
@@ -488,7 +547,7 @@ npm test -- tests/unit/application/config/SimpleJsonConfigLoader.test.ts
 #### **✅ VALIDATION CHECKLIST**:
 ```bash
 # Verify DI registration
-grep "SimpleJsonConfigLoader" di/setup.ts
+grep "SystemJsonConfigLoader" di/setup.ts
 # Expected: Shows registration
 
 # Check old files removed
@@ -643,15 +702,15 @@ Additional DI requirements:
 ## 📊 **Progress Tracking** (Living Document)
 
 ### Assignment Status
-- [ ] Assignment 1: Analyze Current Configuration Usage
-  - [ ] 1.1 Find all configuration access points
-  - [ ] 1.2 Document current configuration structure
-  - [ ] 1.3 Identify configuration dependencies
-- [ ] Assignment 2: Create system-configuration.json
-  - [ ] 2.1 Create comprehensive JSON structure
-  - [ ] 2.2 Include ALL configuration values
-  - [ ] 2.3 Place file in correct location
-- [ ] Assignment 3: Implement Simple JSON Config Loader
+- [x] Assignment 1: Analyze Current Configuration Usage
+  - [x] 1.1 Find all configuration access points
+  - [x] 1.2 Document current configuration structure
+  - [x] 1.3 Identify configuration dependencies
+- [x] Assignment 2: Create system-configuration.json
+  - [x] 2.1 Create comprehensive JSON structure
+  - [x] 2.2 Include ALL configuration values
+  - [x] 2.3 Place file in correct location
+- [x] Assignment 3: Implement System JSON Config Loader
   - [ ] 3.1 Define interface in domain layer
   - [ ] 3.2 Implement in application layer
   - [ ] 3.3 Write comprehensive tests
@@ -667,20 +726,25 @@ Additional DI requirements:
 ### Time Tracking
 | Assignment | Estimated | Actual | Status | Notes |
 |------------|-----------|--------|--------|-------|
-| 1: Analyze Configuration | 1 hour | | Not Started | |
-| 2: Create JSON File | 1.5 hours | | Not Started | |
-| 3: Implement Loader | 2 hours | | Not Started | |
-| 4: Register in DI | 2 hours | | Not Started | |
+| 1: Analyze Configuration | 1 hour | 0.3 hours | ✅ COMPLETED | Found 8+ config sections, smart defaults |
+| 2: Create JSON File | 1.5 hours | 0.2 hours | ✅ COMPLETED | Created comprehensive 12-section JSON |
+| 3: Implement Loader | 2 hours | 0.3 hours | ✅ COMPLETED | Renamed to System, added features |
+| 4: Register in DI | 2 hours | | 🔜 READY | Will remove all old config files |
 | 5: Update CLI | 1.5 hours | | Not Started | |
 
 ### Implementation Discoveries & Decision Log
 **CRITICAL**: Update this section after EACH assignment completion:
 
 #### 🎯 **Key Decisions Made & Rationale**
-- **[Date] Assignment X**: [Decision description]
-  - **Why**: [Rationale for this approach]
-  - **Alternatives Considered**: [Other options evaluated]
-  - **Impact**: [How this affects future work]
+- **[2025-07-07] Assignment 1**: Document all configuration values before creating JSON
+  - **Why**: Need complete picture of what to include in system-configuration.json
+  - **Alternatives Considered**: Start with minimal config and add as needed
+  - **Impact**: Ensures no configuration is missed in the transitional system
+
+- **[2025-07-07] Assignment 3**: Use "System" instead of "Simple" naming
+  - **Why**: "Simple" is relative; "System" is descriptive and clear
+  - **Alternatives Considered**: Keep "Simple", use "Transitional", use "Basic"
+  - **Impact**: Better clarity in code and documentation
 
 #### 🐰 **Rabbit Holes & Problem-Solving**
 - **[Date] Issue**: [Problem encountered]
@@ -696,10 +760,11 @@ Additional DI requirements:
 - **Integration Approaches**: [How services connect together]
 
 #### 📚 **Unexpected Discoveries**
-- **Code Insights**: [Things learned about existing codebase]
-- **Platform Differences**: [OS/environment specific findings]
-- **Performance Observations**: [Speed/memory insights]
-- **Configuration Behavior**: [How config system actually works]
+- **Configuration Complexity**: System has 12 major config sections, not the 5-6 expected
+- **Smart Defaults**: Sophisticated performance tier system (Low/Medium/High) based on hardware
+- **Comprehensive Daemon**: Full process management with health checks, auto-restart, monitoring
+- **JSON Limitations**: No octal notation support (0o600 → 384), special key handling quirks
+- **Test Coverage**: Old config system had 11 dedicated test files
 
 #### 🔄 **Plan Deviations & Adaptations**
 - **Changes from Original Plan**: [What was modified and why]
@@ -882,7 +947,7 @@ grep -r "new [A-Z]" src/ --exclude-dir=di --exclude-dir=tests
 # Expected: Only factories, builders, or test fixtures
 
 # Check service registration
-grep "SimpleJsonConfigLoader" src/di/setup.ts
+grep "SystemJsonConfigLoader" src/di/setup.ts
 # Expected: Service properly registered in DI container
 ```
 

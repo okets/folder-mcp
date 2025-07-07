@@ -65,12 +65,12 @@ Advanced features all configurable:
 Documentation must reflect new system:
 - **Task 1**: Test new configuration system
 - **Task 2**: Document schema-driven approach
-- **Task 3**: Release automation for config migration
+- **Task 3**: Release automation for config updates
 
 **Key Changes**:
 - Remove all references to old system
 - Document schema patterns
-- Migration guides for users
+- Configuration guides for users
 
 ## Implementation Strategy
 
