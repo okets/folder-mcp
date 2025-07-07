@@ -37,6 +37,12 @@ export interface SimpleConfig {
   user: any;
   // Runtime parameters
   folders: string[];
+  // CLI overrides
+  cliOverrides: any;
+  // Flag to track if user config file exists
+  userConfigExists: boolean;
+  // Raw user config data (not merged with defaults)
+  rawUserConfig: any;
 }
 
 /**
@@ -45,7 +51,7 @@ export interface SimpleConfig {
 export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
   const folderPath = simpleConfig.folders[0] || process.cwd();
   
-  // Create a ResolvedConfig-compatible object using system constants + user preferences
+  // Create a ResolvedConfig-compatible object using system constants + user preferences + CLI overrides
   const resolvedConfig = {
     folderPath,
     
@@ -79,6 +85,9 @@ export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
       skipGpuDetection: simpleConfig.system.development?.skipGpuDetection || false
     },
     
+    // Theme configuration with CLI override support (highest priority)
+    theme: simpleConfig.cliOverrides.theme || simpleConfig.user.theme || 'auto',
+    
     // Source tracking (dummy values for compatibility)
     sources: {
       chunkSize: 'system',
@@ -88,7 +97,8 @@ export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
       maxConcurrentOperations: simpleConfig.user.performance?.maxConcurrentOperations ? 'user' : 'system',
       fileExtensions: 'system',
       ignorePatterns: 'system',
-      debounceDelay: 'system'
+      debounceDelay: 'system',
+      theme: simpleConfig.cliOverrides.theme ? 'cli' : (simpleConfig.rawUserConfig.theme ? 'user' : 'default')
     }
   };
   
@@ -98,7 +108,7 @@ export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
 /**
  * Load configuration using DEAD SIMPLE approach
  */
-export async function loadSimpleConfiguration(folderPath?: string): Promise<SimpleConfig> {
+export async function loadSimpleConfiguration(folderPath?: string, cliOverrides: any = {}): Promise<SimpleConfig> {
   logger.debug('Loading DEAD SIMPLE configuration');
   
   // 1. Load system constants from JSON
@@ -122,10 +132,20 @@ export async function loadSimpleConfiguration(folderPath?: string): Promise<Simp
     'config.yaml'
   );
   
+  let userConfigExists = false;
+  let userConfigData = {};
   try {
     await userConfigManager.load();
+    userConfigExists = true;
+    
+    // Get the raw user config data (not merged)
+    const userConfigContent = await fileSystem.readFile('config.yaml');
+    userConfigData = await yamlParser.parse(userConfigContent);
+    
     logger.debug('User configuration loaded successfully');
   } catch (error) {
+    userConfigExists = false;
+    userConfigData = {};
     logger.warn('User configuration not found, using defaults only');
   }
   
@@ -141,7 +161,10 @@ export async function loadSimpleConfiguration(folderPath?: string): Promise<Simp
   const config: SimpleConfig = {
     system: systemConfig,
     user: userConfigManager.getAll(),
-    folders
+    folders,
+    cliOverrides,
+    userConfigExists,
+    rawUserConfig: userConfigData
   };
   
   logger.debug('Configuration loaded successfully', {

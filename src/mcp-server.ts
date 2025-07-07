@@ -20,6 +20,7 @@ import type { IndexingWorkflow } from './application/indexing/index.js';
 import type { MonitoringWorkflow } from './application/monitoring/index.js';
 import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js';
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
+import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -46,17 +47,46 @@ export async function main(): Promise<void> {
   try {
     debug('Starting MCP server with DEAD SIMPLE configuration');
     
-    // Get folder path from command line argument
-    const folderPath = process.argv[2];
+    // Parse command line arguments
+    const parseResult = CliArgumentParser.parse(process.argv);
+    
+    if (parseResult.showHelp) {
+      debug(CliArgumentParser.getHelpText());
+      process.exit(0);
+    }
+    
+    if (parseResult.errors.length > 0) {
+      parseResult.errors.forEach(error => debug(`Error: ${error}`));
+      debug('\n' + CliArgumentParser.getHelpText());
+      process.exit(1);
+    }
+    
+    const validationErrors = CliArgumentParser.validate(parseResult.args);
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => debug(`Error: ${error}`));
+      debug('\n' + CliArgumentParser.getHelpText());
+      process.exit(1);
+    }
+    
+    const { folderPath, theme } = parseResult.args;
+    
+    // Ensure folderPath is defined (validation should have caught this)
     if (!folderPath) {
-      debug('Error: No folder path provided');
-      debug('Usage: node mcp-server.js <folder-path>');
+      debug('Error: folderPath is undefined after validation');
       process.exit(1);
     }
     
     // Load configuration using DEAD SIMPLE approach
     const { loadSimpleConfiguration, convertToResolvedConfig } = await import('./application/config/SimpleConfigLoader.js');
-    const simpleConfig = await loadSimpleConfiguration(folderPath);
+    
+    // Create CLI overrides object
+    const cliOverrides: any = {};
+    if (theme) {
+      cliOverrides.theme = theme;
+      debug(`CLI theme override: ${theme}`);
+    }
+    
+    const simpleConfig = await loadSimpleConfiguration(folderPath, cliOverrides);
     
     debug(`Configuration loaded successfully`);
     debug(`System config keys: ${Object.keys(simpleConfig.system || {}).join(', ')}`);
