@@ -5,12 +5,13 @@
   "type": "module",
   "main": "dist/mcp-server.js",
   "bin": {
-    "folder-mcp": "dist/src/interfaces/cli/index.js"
+    "folder-mcp": "dist/src/interfaces/cli/folder-mcp.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
+    "config": "tsx src/interfaces/cli/folder-mcp.ts config",
     "tuidemo": "tsx src/interfaces/tui-ink-demo/index.tsx",
     "tui": "tsx src/interfaces/tui-ink/index.tsx",
     "tui:config": "tsx src/interfaces/tui-ink/index.tsx --screen=Configuration",
@@ -65,6 +66,7 @@
     "@types/xlsx": "^0.0.35",
     "@types/xml2js": "^0.4.14",
     "@xenova/transformers": "^2.17.2",
+    "chalk": "^5.4.1",
     "chokidar": "^4.0.3",
     "commander": "^14.0.0",
     "faiss-node": "^0.5.1",
