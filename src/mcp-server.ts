@@ -77,7 +77,7 @@ export async function main(): Promise<void> {
     }
     
     // Load configuration using DEAD SIMPLE approach
-    const { loadSimpleConfiguration, convertToResolvedConfig } = await import('./application/config/SimpleConfigLoader.js');
+    const { loadHybridConfiguration, convertToResolvedConfig } = await import('./application/config/HybridConfigLoader.js');
     
     // Create CLI overrides object
     const cliOverrides: any = {};
@@ -86,7 +86,7 @@ export async function main(): Promise<void> {
       debug(`CLI theme override: ${theme}`);
     }
     
-    const simpleConfig = await loadSimpleConfiguration(folderPath, cliOverrides);
+    const simpleConfig = await loadHybridConfiguration(folderPath, cliOverrides);
     
     debug(`Configuration loaded successfully`);
     debug(`System config keys: ${Object.keys(simpleConfig.system || {}).join(', ')}`);

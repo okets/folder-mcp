@@ -62,9 +62,9 @@ export class ConfigurationService implements IConfigurationService {
     
     try {
       // Use DEAD SIMPLE configuration system
-      const { loadSimpleConfiguration, convertToResolvedConfig } = await import('../application/config/SimpleConfigLoader.js');
-      const simpleConfig = await loadSimpleConfiguration(folderPath);
-      const resolved = convertToResolvedConfig(simpleConfig);
+      const { loadHybridConfiguration, convertToResolvedConfig } = await import('../application/config/HybridConfigLoader.js');
+      const hybridConfig = await loadHybridConfiguration(folderPath);
+      const resolved = convertToResolvedConfig(hybridConfig);
       
       this.loggingService.info('Configuration resolved successfully', { 
         folderPath: resolved.folderPath,

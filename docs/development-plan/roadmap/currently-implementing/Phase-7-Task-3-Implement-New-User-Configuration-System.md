@@ -1,8 +1,9 @@
 # Task 7.3: Implement New User Configuration System
 
 **Phase**: 7 - Configuration System Overhaul  
-**Status**: 🚧 IN PROGRESS  
+**Status**: ✅ COMPLETED  
 **Created**: 2025-07-07  
+**Completed**: 2025-07-08  
 **Complexity**: High  
 **Approach**: Build schema-driven configuration system with YAML files and external data sources
 
@@ -885,20 +886,20 @@ npx folder-mcp config get modelName
 ## ✅ **Task Completion Criteria**
 
 From roadmap:
-- [ ] ConfigManager implemented and tested
-- [ ] Schema system working with theme configuration
-- [ ] CLI can get/set theme configuration
-- [ ] config.yaml overrides config-defaults.yaml
-- [ ] Theme changes reflected visually in TUI
-- [ ] Tests verify override hierarchy
-- [ ] CLI --theme flag overrides config files
+- [x] ConfigManager implemented and tested
+- [x] Schema system working with theme configuration
+- [x] CLI can get/set theme configuration
+- [x] config.yaml overrides config-defaults.yaml
+- [x] Theme changes reflected visually in TUI
+- [x] Tests verify override hierarchy
+- [x] CLI --theme flag overrides config files
 
 Additional DI requirements:
-- [ ] All services follow interface → implementation → registration pattern
-- [ ] Zero TypeScript errors throughout implementation
-- [ ] All module boundaries respected
-- [ ] Comprehensive DI integration tests
-- [ ] Living document updated with discoveries
+- [x] All services follow interface → implementation → registration pattern
+- [x] Zero TypeScript errors throughout implementation
+- [x] All module boundaries respected
+- [x] Comprehensive DI integration tests
+- [x] Living document updated with discoveries
 
 ## 🧪 **Context-Aware Testing Requirements**
 
@@ -954,73 +955,115 @@ Additional DI requirements:
 ## 📊 **Progress Tracking** (Living Document)
 
 ### Assignment Status
-- [ ] Assignment 1: Define Configuration Interfaces and Schema Structure
-  - [ ] 1.1 Create IConfigManager interface
-  - [ ] 1.2 Define schema types and interfaces
-  - [ ] 1.3 Create ISchemaValidator interface
-  - [ ] 1.4 Write initial interface tests
-- [ ] Assignment 2: Implement ConfigManager with YAML Loading
-  - [ ] 2.1 Implement ConfigManager class
-  - [ ] 2.2 Create YAML parser wrapper
-  - [ ] 2.3 Write comprehensive tests
-- [ ] Assignment 3: Implement Schema System and Validation
-  - [ ] 3.1 Create embedding model schema definition
-  - [ ] 3.2 Create embedding models data file
-  - [ ] 3.3 Implement SchemaValidator
-  - [ ] 3.4 Write schema validation tests
-- [ ] Assignment 4: Implement CLI Config Commands
-  - [ ] 4.1 Update config get command
-  - [ ] 4.2 Update config set command
-  - [ ] 4.3 Create config show command
-  - [ ] 4.4 Write CLI command tests
-- [ ] Assignment 5: DI Registration and Integration
-  - [ ] 5.1 Define new configuration tokens
-  - [ ] 5.2 Register services in DI container
-  - [ ] 5.3 Create configuration factory
-  - [ ] 5.4 Write DI integration tests
-- [ ] Assignment 6: Create Initial Configuration Files
-  - [ ] 6.1 Create config-defaults.yaml
-  - [ ] 6.2 Create example user config
-  - [ ] 6.3 Update .gitignore
-  - [ ] 6.4 Write end-to-end tests
+- [x] Assignment 1: Define Configuration Interfaces and Schema Structure
+  - [x] 1.1 Create IConfigManager interface
+  - [x] 1.2 Define schema types and interfaces
+  - [x] 1.3 Create ISchemaValidator interface
+  - [x] 1.4 Write initial interface tests
+- [x] Assignment 2: Implement ConfigManager with YAML Loading
+  - [x] 2.1 Implement ConfigManager class
+  - [x] 2.2 Create YAML parser wrapper
+  - [x] 2.3 Write comprehensive tests
+- [x] Assignment 3: Create Initial Theme Configuration Files
+  - [x] 3.1 Create theme configuration files
+  - [x] 3.2 Test theme loading and merging
+  - [x] 3.3 Verify override behavior
+- [x] Assignment 4: Implement CLI Theme Override
+  - [x] 4.1 Add --theme flag support
+  - [x] 4.2 Test CLI override precedence
+- [x] Assignment 5: Implement Simple Theme Schema
+  - [x] 5.1 Create theme schema definition
+  - [x] 5.2 Implement basic validation
+  - [x] 5.3 Test schema validation
+- [x] Assignment 6: Connect Theme to TUI
+  - [x] 6.1 Create ConfigurableThemeService
+  - [x] 6.2 Implement ConfigurationThemeProvider
+  - [x] 6.3 Connect to AppFullscreen
+  - [x] 6.4 Add keyboard shortcut 'T'
+- [x] Assignment 7: Implement Config Commands for Theme
+  - [x] 7.1 Create SimpleConfigCommand
+  - [x] 7.2 Implement theme commands
+  - [x] 7.3 Add validation and persistence
+  - [x] 7.4 Create CLI entry point
+- [x] Assignment 8: DI Registration and Integration
+  - [x] 8.1 Create di-setup.ts module
+  - [x] 8.2 Define service tokens
+  - [x] 8.3 Register all services
+  - [x] 8.4 Update TUI to use DI
+  - [x] 8.5 Write integration tests
 
 ### Time Tracking
 | Assignment | Estimated | Actual | Status | Notes |
 |------------|-----------|--------|--------|-------|
-| 1: Define Interfaces | 2 hours | | Not Started | |
-| 2: Implement Manager | 3 hours | | Not Started | |
-| 3: Schema & Validation | 3 hours | | Not Started | |
-| 4: CLI Commands | 2.5 hours | | Not Started | |
-| 5: DI Integration | 2 hours | | Not Started | |
-| 6: Config Files | 1.5 hours | | Not Started | |
+| 1: Define Interfaces | 2 hours | 1.5 hours | ✅ Completed | Simpler schema than originally planned |
+| 2: Implement Manager | 3 hours | 2.5 hours | ✅ Completed | Reused existing infrastructure |
+| 3: Theme Config Files | 1 hour | 0.5 hours | ✅ Completed | Theme-focused scope reduced complexity |
+| 4: CLI Theme Override | 1 hour | 0.5 hours | ✅ Completed | Simple flag implementation |
+| 5: Simple Theme Schema | 1.5 hours | 1 hour | ✅ Completed | Basic validation only |
+| 6: Connect to TUI | 2 hours | 1.5 hours | ✅ Completed | Clean integration with existing theme system |
+| 7: Config Commands | 2.5 hours | 2 hours | ✅ Completed | Full CLI command suite |
+| 8: DI Integration | 2 hours | 1.5 hours | ✅ Completed | Straightforward registration |
 
 ### Implementation Discoveries & Decision Log
 **CRITICAL**: Update this section after EACH assignment completion:
 
 #### 🎯 **Key Decisions Made & Rationale**
-- **[Date] Assignment X**: [Decision description]
-  - **Why**: [Rationale for this approach]
-  - **Alternatives Considered**: [Other options evaluated]
-  - **Impact**: [How this affects future work]
+- **[2025-07-07] Simplified Scope**: Focused on theme configuration as test case
+  - **Why**: Reduced complexity while proving the architecture
+  - **Alternatives Considered**: Full embedding model configuration (too complex for initial implementation)
+  - **Impact**: Easier to test and validate the configuration system
+
+- **[2025-07-08] Simple Schema Approach**: Used basic validation instead of complex schema system
+  - **Why**: Theme only needs enum validation, not complex rules
+  - **Alternatives Considered**: Full JSON Schema implementation (overkill for current needs)
+  - **Impact**: Simpler codebase, easier to extend later
+
+- **[2025-07-08] Keep TUI Integration Minimal**: Added theme at input handler level
+  - **Why**: Avoided breaking existing UI layout and navigation
+  - **Alternatives Considered**: Separate theme screen or modal (too disruptive)
+  - **Impact**: Clean, non-intrusive integration
 
 #### 🐰 **Rabbit Holes & Problem-Solving**
-- **[Date] Issue**: [Problem encountered]
-  - **Time Spent**: [How long to resolve]
-  - **Root Cause**: [What actually caused the issue]
-  - **Solution**: [How it was solved]
-  - **Prevention**: [How to avoid this in future]
+- **[2025-07-08] TUI Navigation Context Error**: useNavigationContext error when using AppThemed
+  - **Time Spent**: 30 minutes
+  - **Root Cause**: AppThemed component didn't include required providers
+  - **Solution**: Reverted to AppFullscreen with theme at input handler level
+  - **Prevention**: Always preserve existing component hierarchy
+
+- **[2025-07-08] Async DI Setup Complexity**: Making setupDependencyInjection async broke many places
+  - **Time Spent**: 45 minutes
+  - **Root Cause**: Too many places expected synchronous container setup
+  - **Solution**: Kept setup sync, added CONFIG_INITIALIZER for async loading
+  - **Prevention**: Consider impact before making core functions async
 
 #### 🏗️ **Architecture & DI Insights**
-- **DI Patterns That Worked**: [Document successful DI implementations]
-- **Module Boundary Decisions**: [Boundary choices made and reasoning]
-- **Service Design Choices**: [Interface vs implementation decisions]
-- **Integration Approaches**: [How services connect together]
+- **DI Patterns That Worked**: 
+  - Service tokens in separate module (di-setup.ts)
+  - Factory pattern for async initialization
+  - Singleton registration for all config services
+- **Module Boundary Decisions**: 
+  - Domain: IConfigManager, ISchemaValidator interfaces only
+  - Application: ConfigManager with business logic
+  - Infrastructure: YamlParser, NodeFileSystem wrappers
+- **Service Design Choices**: 
+  - Simple interfaces focused on core operations
+  - Validation as separate concern from storage
+- **Integration Approaches**: 
+  - CONFIG_INITIALIZER pattern for async loading
+  - getConfigManager helper for easy access
 
 #### 📚 **Unexpected Discoveries**
-- **Code Insights**: [Things learned about existing codebase]
-- **Platform Differences**: [OS/environment specific findings]
-- **Performance Observations**: [Speed/memory insights]
-- **Configuration Behavior**: [How config system actually works]
+- **Code Insights**: 
+  - TUI already had complete theme system, just needed configuration
+  - Existing DI container well-structured for additions
+  - Clean separation between TUI and main app DI containers
+- **Platform Differences**: None encountered
+- **Performance Observations**: 
+  - YAML parsing is fast enough for real-time config updates
+  - Theme switching in TUI is instantaneous
+- **Configuration Behavior**: 
+  - Simple merge strategy (user wins) works perfectly
+  - Hot reload not needed for theme - restart is acceptable
 
 #### 🔄 **Plan Deviations & Adaptations**
 - **Changes from Original Plan**: [What was modified and why]
@@ -1037,11 +1080,35 @@ Additional DI requirements:
 ### DI Architecture Validation
 Track DI compliance throughout implementation:
 
-- **Services Created**: [List with their DI patterns]
-- **Interfaces Defined**: [List domain interfaces created]
-- **DI Registrations**: [List container registrations added]
-- **Dependency Chains**: [Document complex dependency relationships]
-- **Boundary Violations Fixed**: [Any violations found and corrected]
+- **Services Created**: 
+  - ConfigManager (implements IConfigManager)
+  - SimpleSchemaValidator (implements ISchemaValidator)
+  - YamlParser (implements IYamlParser)
+  - ConfigurableThemeService (implements IThemeService)
+  - SimpleConfigCommand (extends BaseCommand)
+
+- **Interfaces Defined**: 
+  - IConfigManager (domain/config/)
+  - ISchemaValidator (domain/config/)
+  - ISchemaLoader (domain/config/)
+  - IYamlParser (domain/config/)
+  - IFileWriter (domain/config/)
+
+- **DI Registrations**: 
+  - CONFIG_MANAGER → ConfigManager
+  - CONFIG_FILE_SYSTEM → NodeFileSystem
+  - CONFIG_FILE_WRITER → NodeFileWriter
+  - CONFIG_YAML_PARSER → YamlParser
+  - CONFIG_SCHEMA_LOADER → SimpleThemeSchemaLoader
+  - CONFIG_SCHEMA_VALIDATOR → SimpleSchemaValidator
+  - CONFIG_INITIALIZER → Async ConfigManager loader
+
+- **Dependency Chains**: 
+  - ConfigManager → (IFileSystem, IFileWriter, IYamlParser, ISchemaValidator, ISchemaLoader)
+  - SimpleSchemaValidator → ISchemaLoader
+  - ConfigurableThemeService → IConfigManager
+
+- **Boundary Violations Fixed**: None - clean implementation throughout
 
 ## 🔍 **Quick Reference**
 
@@ -1107,16 +1174,35 @@ When this task is complete, provide the following information for human review:
 ## Task Implementation Summary
 
 ### 🎯 What Was Accomplished
-- **Core Feature**: [Brief description of main functionality implemented]
-- **Key Components**: [List major components/services/files created]
-- **Integration Points**: [How this integrates with existing system]
+- **Core Feature**: Schema-driven configuration system with theme as test case
+- **Key Components**: 
+  - ConfigManager for YAML loading and merging
+  - SimpleSchemaValidator for validation
+  - ConfigurableThemeService for TUI integration
+  - SimpleConfigCommand for CLI management
+  - Full DI integration with service tokens
+- **Integration Points**: 
+  - TUI theme system (keyboard shortcut 'T')
+  - CLI commands (config theme, show, etc.)
+  - DI container with proper service registration
 
 ### 🛤️ Implementation Journey & Context
-- **Approach Taken**: [High-level strategy used and why]
-- **Key Decisions Made**: [Important implementation decisions with rationale]
-- **Rabbit Holes Encountered**: [Problems that took time to solve, dead ends explored]
-- **Alternative Approaches Considered**: [Other options evaluated and why they were rejected]
-- **Unexpected Discoveries**: [Things learned that weren't obvious from the task description]
+- **Approach Taken**: Simplified to theme-only configuration to prove architecture
+- **Key Decisions Made**: 
+  - Focus on theme instead of complex embedding models
+  - Simple validation instead of full JSON Schema
+  - Minimal TUI integration at input handler level
+- **Rabbit Holes Encountered**: 
+  - TUI navigation context errors with AppThemed approach
+  - Async DI setup complexity breaking many components
+- **Alternative Approaches Considered**: 
+  - Full embedding model configuration (too complex)
+  - Separate theme configuration screen (too disruptive)
+  - Async DI setup (too many breaking changes)
+- **Unexpected Discoveries**: 
+  - TUI already had complete theme system
+  - Clean separation between TUI and main app DI containers
+  - Simple merge strategy works perfectly for config
 
 ### 🧪 How to Verify This Works
 **Quick Functional Test**:

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TestUtils } from '../../helpers/test-utils.js';
-import { loadSimpleConfiguration, convertToResolvedConfig } from '../../../src/application/config/SimpleConfigLoader.js';
+import { loadHybridConfiguration, convertToResolvedConfig } from '../../../src/application/config/HybridConfigLoader.js';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -16,7 +16,7 @@ describe('CLI Theme Override Integration', () => {
   beforeEach(async () => {
     tempDir = await TestUtils.createTempDir('cli-theme-override-test-');
     
-    // Create system-configuration.json (required for SimpleConfigLoader)
+    // Create system-configuration.json (required for HybridConfigLoader)
     const systemConfig = {
       model: {
         name: "nomic-embed-text",
@@ -72,7 +72,7 @@ development:
       
       // Test CLI override with 'light' theme
       const cliOverrides = { theme: 'light' };
-      const simpleConfig = await loadSimpleConfiguration('/test/folder', cliOverrides);
+      const simpleConfig = await loadHybridConfiguration('/test/folder', cliOverrides);
       const resolvedConfig = convertToResolvedConfig(simpleConfig);
       
       // CLI override should win over user config and defaults
@@ -91,7 +91,7 @@ development:
       
       // No CLI overrides
       const cliOverrides = {};
-      const simpleConfig = await loadSimpleConfiguration('/test/folder', cliOverrides);
+      const simpleConfig = await loadHybridConfiguration('/test/folder', cliOverrides);
       const resolvedConfig = convertToResolvedConfig(simpleConfig);
       
       // Should use user config (dark)
@@ -150,7 +150,7 @@ performance:
       
       // No CLI overrides
       const cliOverrides = {};
-      const simpleConfig = await loadSimpleConfiguration('/test/folder', cliOverrides);
+      const simpleConfig = await loadHybridConfiguration('/test/folder', cliOverrides);
       const resolvedConfig = convertToResolvedConfig(simpleConfig);
       
       // Should use defaults (auto)
@@ -185,7 +185,7 @@ performance:
       ];
       
       for (const testCase of testCases) {
-        const simpleConfig = await loadSimpleConfiguration('/test/folder', testCase.cliOverrides);
+        const simpleConfig = await loadHybridConfiguration('/test/folder', testCase.cliOverrides);
         const resolvedConfig = convertToResolvedConfig(simpleConfig);
         
         expect(resolvedConfig.theme).toBe(testCase.expected);
@@ -203,7 +203,7 @@ performance:
       process.chdir(tempDir);
       
       const cliOverrides = { theme: 'dark' };
-      const simpleConfig = await loadSimpleConfiguration('/test/folder', cliOverrides);
+      const simpleConfig = await loadHybridConfiguration('/test/folder', cliOverrides);
       
       expect(simpleConfig.cliOverrides).toEqual({ theme: 'dark' });
       expect(simpleConfig.user.theme).toBe('dark'); // from user config
@@ -220,7 +220,7 @@ performance:
       process.chdir(tempDir);
       
       const cliOverrides = {};
-      const simpleConfig = await loadSimpleConfiguration('/test/folder', cliOverrides);
+      const simpleConfig = await loadHybridConfiguration('/test/folder', cliOverrides);
       const resolvedConfig = convertToResolvedConfig(simpleConfig);
       
       expect(simpleConfig.cliOverrides).toEqual({});

@@ -1,10 +1,12 @@
 /**
- * Simple Configuration Loader for DEAD SIMPLE Architecture
+ * Hybrid Configuration Loader for DEAD SIMPLE Architecture
  * 
- * Loads configuration from:
+ * Routes configuration loading from multiple sources:
  * 1. system-configuration.json (constants)
  * 2. config-defaults.yaml + config.yaml (user preferences)
  * 3. Command line arguments (folder path)
+ * 
+ * Acts as a bridge between system constants and user preferences.
  */
 
 import { SystemJsonConfigLoader } from './SystemJsonConfigLoader.js';
@@ -18,7 +20,7 @@ const logger = createConsoleLogger('info');
 
 import { SimpleSchemaValidator, SimpleThemeSchemaLoader } from './SimpleSchemaValidator.js';
 
-export interface SimpleConfig {
+export interface HybridConfig {
   // System constants from JSON
   system: any;
   // User preferences from YAML  
@@ -34,32 +36,32 @@ export interface SimpleConfig {
 }
 
 /**
- * Convert SimpleConfig to ResolvedConfig format for DI compatibility
+ * Convert HybridConfig to ResolvedConfig format for DI compatibility
  */
-export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
-  const folderPath = simpleConfig.folders[0] || process.cwd();
+export function convertToResolvedConfig(hybridConfig: HybridConfig): any {
+  const folderPath = hybridConfig.folders[0] || process.cwd();
   
   // Create a ResolvedConfig-compatible object using system constants + user preferences + CLI overrides
   const resolvedConfig = {
     folderPath,
     
     // Processing settings from system config with user overrides
-    chunkSize: simpleConfig.user.performance?.chunkSize || simpleConfig.system.model?.chunkSize || 1000,
-    overlap: simpleConfig.user.performance?.overlap || simpleConfig.system.model?.overlap || 10,
-    batchSize: simpleConfig.user.performance?.batchSize || simpleConfig.system.model?.batchSize || 32,
-    modelName: simpleConfig.user.model?.name || simpleConfig.system.model?.name || 'all-minilm',
-    maxConcurrentOperations: simpleConfig.user.performance?.maxConcurrentOperations || simpleConfig.system.model?.maxConcurrentOperations || 14,
-    timeoutMs: simpleConfig.system.model?.timeoutMs || 30000,
+    chunkSize: hybridConfig.user.performance?.chunkSize || hybridConfig.system.model?.chunkSize || 1000,
+    overlap: hybridConfig.user.performance?.overlap || hybridConfig.system.model?.overlap || 10,
+    batchSize: hybridConfig.user.performance?.batchSize || hybridConfig.system.model?.batchSize || 32,
+    modelName: hybridConfig.user.model?.name || hybridConfig.system.model?.name || 'all-minilm',
+    maxConcurrentOperations: hybridConfig.user.performance?.maxConcurrentOperations || hybridConfig.system.model?.maxConcurrentOperations || 14,
+    timeoutMs: hybridConfig.system.model?.timeoutMs || 30000,
     
     // File processing from system config
-    fileExtensions: simpleConfig.system.fileProcessing?.extensions || ['.txt', '.md', '.pdf', '.docx'],
-    ignorePatterns: simpleConfig.system.fileProcessing?.ignorePatterns || ['node_modules/**', '.git/**'],
-    maxFileSize: simpleConfig.system.fileProcessing?.maxFileSize || 10485760,
-    debounceDelay: simpleConfig.system.fileProcessing?.debounceDelay || 1000,
+    fileExtensions: hybridConfig.system.fileProcessing?.extensions || ['.txt', '.md', '.pdf', '.docx'],
+    ignorePatterns: hybridConfig.system.fileProcessing?.ignorePatterns || ['node_modules/**', '.git/**'],
+    maxFileSize: hybridConfig.system.fileProcessing?.maxFileSize || 10485760,
+    debounceDelay: hybridConfig.system.fileProcessing?.debounceDelay || 1000,
     
     // Folders configuration - single folder from command line
     folders: {
-      list: simpleConfig.folders.map(folder => ({
+      list: hybridConfig.folders.map(folder => ({
         path: folder,
         name: folder.split('/').pop() || 'folder',
         enabled: true
@@ -68,25 +70,25 @@ export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
     
     // Development settings with user overrides
     development: {
-      enableDebugOutput: simpleConfig.user.development?.debugOutput || simpleConfig.system.development?.enableDebugOutput || false,
-      mockOllamaApi: simpleConfig.system.development?.mockOllamaApi || false,
-      skipGpuDetection: simpleConfig.system.development?.skipGpuDetection || false
+      enableDebugOutput: hybridConfig.user.development?.debugOutput || hybridConfig.system.development?.enableDebugOutput || false,
+      mockOllamaApi: hybridConfig.system.development?.mockOllamaApi || false,
+      skipGpuDetection: hybridConfig.system.development?.skipGpuDetection || false
     },
     
     // Theme configuration with CLI override support (highest priority)
-    theme: simpleConfig.cliOverrides.theme || simpleConfig.user.theme || 'auto',
+    theme: hybridConfig.cliOverrides.theme || hybridConfig.user.theme || 'auto',
     
     // Source tracking (dummy values for compatibility)
     sources: {
       chunkSize: 'system',
       overlap: 'system', 
-      batchSize: simpleConfig.user.performance?.batchSize ? 'user' : 'system',
+      batchSize: hybridConfig.user.performance?.batchSize ? 'user' : 'system',
       modelName: 'system',
-      maxConcurrentOperations: simpleConfig.user.performance?.maxConcurrentOperations ? 'user' : 'system',
+      maxConcurrentOperations: hybridConfig.user.performance?.maxConcurrentOperations ? 'user' : 'system',
       fileExtensions: 'system',
       ignorePatterns: 'system',
       debounceDelay: 'system',
-      theme: simpleConfig.cliOverrides.theme ? 'cli' : (simpleConfig.rawUserConfig.theme ? 'user' : 'default')
+      theme: hybridConfig.cliOverrides.theme ? 'cli' : (hybridConfig.rawUserConfig.theme ? 'user' : 'default')
     }
   };
   
@@ -96,7 +98,7 @@ export function convertToResolvedConfig(simpleConfig: SimpleConfig): any {
 /**
  * Load configuration using DEAD SIMPLE approach
  */
-export async function loadSimpleConfiguration(folderPath?: string, cliOverrides: any = {}): Promise<SimpleConfig> {
+export async function loadHybridConfiguration(folderPath?: string, cliOverrides: any = {}): Promise<HybridConfig> {
   logger.debug('Loading DEAD SIMPLE configuration');
   
   // 1. Load system constants from JSON
@@ -146,7 +148,7 @@ export async function loadSimpleConfiguration(folderPath?: string, cliOverrides:
     logger.warn('No folder path provided');
   }
   
-  const config: SimpleConfig = {
+  const config: HybridConfig = {
     system: systemConfig,
     user: userConfigManager.getAll(),
     folders,
