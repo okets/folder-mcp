@@ -333,15 +333,7 @@ export function createStatusPanelItems(): IListItem[] {
             ]
         ),
         
-        // File pickers
-        new FilePickerListItem(
-            '📁',
-            'Project Folder',
-            os.homedir(),
-            false,
-            'folder',
-            (path) => console.log('Folder selected:', path)
-        ),
+        // File pickers (Project Folder moved to MainPanel)
         
         new FilePickerListItem(
             '📄',
@@ -778,7 +770,18 @@ export function createStatusPanelItems(): IListItem[] {
     ];
 }
 
-// Empty array for MainPanel (no longer used)
+// Single file picker for MainPanel
 export function createConfigurationPanelItems(): IListItem[] {
-    return [];
+    const picker = new FilePickerListItem(
+        '📁',
+        'Project Folder',
+        os.homedir(),
+        false,
+        'folder',
+        (path) => console.log('Folder selected:', path)
+    );
+    
+    // Don't auto-expand - let user navigate to it manually
+    
+    return [picker];
 }

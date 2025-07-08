@@ -1,26 +1,28 @@
-import React, { useCallback, useState, useContext } from 'react';
+import React, { useCallback, useState, useContext, memo } from 'react';
 import { Box, Text, useApp, Key } from 'ink';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
 import { LayoutContainer } from './components/LayoutContainer';
-import { MainPanel } from './components/MainPanel';
-import { SecondaryPanel } from './components/SecondaryPanel';
+import { GenericListPanel } from './components/GenericListPanel';
+import { useNavigationContext } from './contexts/NavigationContext';
 import { useTerminalSize } from './hooks/useTerminalSize';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain';
 import { useDI } from './di/DIContext';
 import { ServiceTokens } from './di/tokens';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
-import { createStatusPanelItems } from './models/mixedSampleData';
+import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
 import { ThemeContext, themes, ThemeName } from './contexts/ThemeContext';
 
 // Get item counts once at module level to ensure consistency
 const STATUS_ITEMS = createStatusPanelItems();
 const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
+const CONFIG_ITEMS = createConfigurationPanelItems();
+const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 
-interface AppContentProps {}
+interface AppContentInnerProps {}
 
-const AppContent: React.FC<AppContentProps> = () => {
+const AppContentInner: React.FC<AppContentInnerProps> = () => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const di = useDI();
@@ -28,6 +30,8 @@ const AppContent: React.FC<AppContentProps> = () => {
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     const { toggleAnimations, animationsPaused } = useAnimationContext();
+    const navigation = useNavigationContext();
+    
     
     // Try to use theme context if available
     const themeContext = useContext(ThemeContext);
@@ -85,21 +89,49 @@ const AppContent: React.FC<AppContentProps> = () => {
     }
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={0} statusItemCount={STATUS_ITEM_COUNT}>
-            <Box flexDirection="column" height={rows} width={columns}>
-                <Header {...(hasTheme && themeContext ? { themeName: themeContext.themeName } : {})} />
-                
-                <LayoutContainer
-                    availableHeight={availableHeight}
-                    availableWidth={columns}
-                    narrowBreakpoint={100}
-                >
-                    <MainPanel onEditModeChange={setIsNodeInEditMode} />
-                    <SecondaryPanel />
-                </LayoutContainer>
-                
-                <StatusBar />
-            </Box>
+        <Box flexDirection="column" height={rows} width={columns}>
+            <Header {...(hasTheme && themeContext ? { themeName: themeContext.themeName } : {})} />
+            
+            <LayoutContainer
+                availableHeight={availableHeight}
+                availableWidth={columns}
+                narrowBreakpoint={100}
+            >
+                <GenericListPanel
+                    title="Main"
+                    subtitle="Configuration"
+                    items={CONFIG_ITEMS}
+                    selectedIndex={navigation.mainSelectedIndex}
+                    isFocused={navigation.isMainFocused}
+                    elementId="main-panel"
+                    parentId="navigation"
+                    priority={50}
+                />
+                <GenericListPanel
+                    title="System Status"
+                    subtitle="Current state"
+                    items={STATUS_ITEMS}
+                    selectedIndex={navigation.statusSelectedIndex}
+                    isFocused={navigation.isStatusFocused}
+                    elementId="status-panel"
+                    parentId="navigation"
+                    priority={50}
+                />
+            </LayoutContainer>
+            
+            <StatusBar />
+        </Box>
+    );
+};
+
+interface AppContentProps {}
+
+const AppContent: React.FC<AppContentProps> = () => {
+    const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
+    
+    return (
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={CONFIG_ITEM_COUNT} statusItemCount={STATUS_ITEM_COUNT}>
+            <AppContentInner />
         </NavigationProvider>
     );
 };

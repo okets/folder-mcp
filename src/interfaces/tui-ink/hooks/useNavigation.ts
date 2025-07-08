@@ -88,7 +88,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             { key: 'Tab', description: 'Switch Panel' },
             { key: '↑↓', description: 'Navigate' }
         ] : [],
-        priority: 10  // Lower priority than active elements
+        priority: -1  // Very low priority - panels should handle their own navigation
     });
 
     return {

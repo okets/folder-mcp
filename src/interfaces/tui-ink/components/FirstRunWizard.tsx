@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Text, useInput, useApp } from 'ink';
+import { Box, Text, useApp, useInput, Key } from 'ink';
 import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
@@ -8,10 +8,34 @@ interface FirstRunWizardProps {
     onComplete: (config: any) => void;
 }
 
+// Helper function to get default folder path
+function getDefaultFolderPath(): string {
+    // Check if dev flag is on
+    const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true' || 
+                  process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true';
+    
+    if (isDev) {
+        // Use tests/fixtures/test-knowledge-base as default in dev mode
+        return join(process.cwd(), 'tests', 'fixtures', 'test-knowledge-base');
+    }
+    
+    // Check for CLI -f parameter (would be passed via process.argv)
+    const fIndex = process.argv.indexOf('-f');
+    if (fIndex !== -1 && fIndex + 1 < process.argv.length) {
+        const folderFromCli = process.argv[fIndex + 1];
+        if (folderFromCli) {
+            return folderFromCli;
+        }
+    }
+    
+    // Default to current working directory
+    return process.cwd();
+}
+
 export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     const { exit } = useApp();
     const [step, setStep] = useState(1);
-    const [folderPath, setFolderPath] = useState(join(homedir(), 'Documents'));
+    const [folderPath, setFolderPath] = useState(getDefaultFolderPath());
     const [isComplete, setIsComplete] = useState(false);
     
     const frameColor = '#4c1589';
@@ -19,39 +43,43 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) =>
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
     
+    // Create data for GenericListPanel with a working folder selector
+    const createWizardItems = (): IListItem[] => {
+        // Use a much simpler approach - just return an array with a working render function
+        return [{
+            render: (maxWidth: number, maxLines: number) => {
+                return React.createElement(Text, null, `📁 Current folder: ${folderPath} (Press Enter to select)`);
+            },
+            getRequiredLines: () => 1,
+            onEnter: () => {
+                setStep(2);
+            },
+            icon: '📁',
+            isActive: true,
+            isControllingInput: false,
+            selfConstrained: true as const
+        }];
+    };
+    
+    // Handle input directly with useInput hook
     useInput((input, key) => {
         if (key.escape) {
             exit();
             return;
         }
         
-        if (key.return) {
-            handleNext();
+        if (key.return && step === 1) {
+            // Select current folder and go to step 2
+            setStep(2);
             return;
         }
         
-        if (step === 1) {
-            // Handle folder path input
-            if (key.backspace) {
-                setFolderPath(prev => prev.slice(0, -1));
-            } else if (input && input.length > 0) {
-                setFolderPath(prev => prev + input);
-            }
-        }
-    });
-    
-    const handleNext = () => {
-        if (step === 1) {
-            // Validate folder path
-            if (!folderPath.trim()) {
-                return;
-            }
-            setStep(2);
-        } else if (step === 2) {
+        if (key.return && step === 2) {
             // Complete setup
             completeSetup();
+            return;
         }
-    };
+    });
     
     const completeSetup = () => {
         setIsComplete(true);
@@ -148,22 +176,11 @@ export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) =>
                     </Box>
                     
                     <Box marginBottom={1}>
-                        <Text color={textColor}>📁 Folder path:</Text>
+                        <Text color={textColor}>📁 Current folder: {folderPath}</Text>
                     </Box>
                     
                     <Box marginBottom={1}>
-                        <Text color={frameColor}>[</Text>
-                        <Text color={textColor}>{folderPath}</Text>
-                        <Text color={frameColor}>]</Text>
-                        <Text color={highlightColor}>_</Text>
-                    </Box>
-                    
-                    <Box marginBottom={1}>
-                        <Text color={textColor} dimColor>Type your folder path and press Enter</Text>
-                    </Box>
-                    
-                    <Box marginBottom={1}>
-                        <Text color={textColor} dimColor>Press Escape to exit</Text>
+                        <Text color={textColor} dimColor>Press Enter to select this folder, or Escape to exit</Text>
                     </Box>
                 </Box>
             )}

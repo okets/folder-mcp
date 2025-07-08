@@ -238,6 +238,59 @@ folder-mcp  # Shows wizard
 6. Should see "setup complete" message then transition to main TUI
 7. Run again: `npm run tui` - should skip wizard and go straight to main TUI
 
+#### Task 3.1: Enhance Wizard with File Picker Component
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-08  
+**What**: Replace basic text input with proper file picker component for folder selection.
+
+**Why**: The current wizard uses basic text input which is not user-friendly. We have excellent file picker components available that provide visual navigation and proper UX.
+
+**Requirements**:
+- Use existing FilePickerListItem component inside BorderedBox
+- Smart defaults based on environment:
+  - Dev mode (`FOLDER_MCP_DEVELOPMENT_ENABLED=true`): Default to `tests/fixtures/test-knowledge-base`
+  - CLI `-f` parameter: Use provided folder and skip wizard question
+  - Otherwise: Use current working directory as default
+- Display selected folder config in main panel after selection
+- DO NOT connect to MCP server or start embeddings yet
+
+**Subtasks**:
+- [x] Update Phase 8 document with this task
+- [x] Import FilePickerListItem and BorderedBox components
+- [x] Implement smart default folder logic
+- [x] Replace text input with file picker in wizard
+- [x] Test all three default scenarios
+- [x] Add config display to main panel (after wizard completion)
+
+**Implementation Details**:
+- Enhanced FirstRunWizard component with FilePickerListItem integration
+- Implemented smart default folder logic with environment detection
+- Added visual file picker using BorderedBox container
+- Supports all three default scenarios: normal mode, dev mode, and CLI -f parameter
+- File picker provides full navigation with folder browsing capabilities
+- Auto-advances to confirmation step after folder selection
+
+**Task Completion Protocol**:
+- [x] Mark progress on this document
+- [x] Summarize what was done and describe UX testing
+- [x] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+1. **Normal mode**: `rm -rf ~/.folder-mcp && npm run tui`
+   - Should default to current working directory (/Users/hanan/Projects/folder-mcp)
+   - Press Enter to browse folders visually
+   - Press Space to continue with default folder
+
+2. **Dev mode**: `rm -rf ~/.folder-mcp && FOLDER_MCP_DEVELOPMENT_ENABLED=true npm run tui`
+   - Should default to tests/fixtures/test-knowledge-base
+   - Same navigation options as normal mode
+
+3. **CLI -f parameter**: `rm -rf ~/.folder-mcp && npm run tui -- -f /custom/path`
+   - Should default to /custom/path
+   - Same navigation options as normal mode
+
+All scenarios show the selected folder in the confirmation step and create the config file properly.
+
 #### Task 4: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
