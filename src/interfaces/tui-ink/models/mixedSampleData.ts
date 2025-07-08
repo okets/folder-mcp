@@ -7,249 +7,11 @@ import { validators } from '../utils/validators';
 import { ValidationRules } from '../models/validation';
 import * as os from 'os';
 
-// Mixed items for StatusPanel (now showing both logs and configs)
+// Combined items for SecondaryPanel - all demo/test items
 export function createStatusPanelItems(): IListItem[] {
     return [
-        // ProgressBar test items - Step 7.1
-        new LogItem(
-            '⋯',
-            'ProgressBar: Basic 0%',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing basic ProgressBar component',
-                'Value: 0%',
-                'Should show "⠋ 0%" (spinner + space + 0%)'
-            ],
-            0
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: Basic 50%',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing basic ProgressBar component',
-                'Value: 50%',
-                'Should show "⠋50%" (spinner + 50%)'
-            ],
-            50
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: Basic 100%',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing basic ProgressBar component',
-                'Value: 100%',
-                'Should show green "✓   " (no spinner)'
-            ],
-            100
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: Indeterminate',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing basic ProgressBar component',
-                'Value: undefined (indeterminate)',
-                'Should show "⠋   " (spinner + 3 spaces)'
-            ],
-            undefined
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: Low (5%)',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing single digit percentage',
-                'Value: 5%',
-                'Should show "⠋ 5%" (spinner + space + 5%)'
-            ],
-            5
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: High (95%)',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing high percentage',
-                'Value: 95%',
-                'Should show "⠋95%" (no padding)'
-            ],
-            95
-        ),
-        new LogItem(
-            '⋯',
-            'ProgressBar: Error state',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing error state',
-                'Value: -1 (error)',
-                'Should show red "✗ERR" (error indicator)'
-            ],
-            -1
-        ),
-        // Long mode progress test
-        new LogItem(
-            '⋯',
-            'Long Progress Test',
-            '⋯',
-            false,
-            false,
-            [
-                'Testing long mode progress bar',
-                'This would show full bar in wide panels',
-                'Format: [spinner][bar][percentage]'
-            ],
-            75
-        ),
-        // Components we're actually building
-        new LogItem(
-            '○',
-            'LogItem (existing)',
-            '✓',
-            false,
-            false,
-            [
-                'This is an existing LogItem component',
-                'It supports expandable details',
-                'Read-only display'
-            ]
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Port',
-            '8080',
-            false,
-            false,
-            'Port 1-65535',
-            undefined,
-            undefined,
-            (newValue) => console.log('Port changed to:', newValue),
-            [validators.number(1, 65535)]
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Email',
-            'user@example.com',
-            false,
-            false,
-            'Email validation',
-            undefined,
-            undefined,
-            (newValue) => console.log('Email changed to:', newValue),
-            [validators.email]
-        ),
-        new ConfigurationListItem(
-            '·',
-            'TextInput (password)',
-            'MyPass123!',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Password changed to:', newValue),
-            [validators.password],
-            true  // isPassword
-        ),
-        // SelectionListItem components
-        new SelectionListItem(
-            '■',
-            'SelectionList (log level)',
-            [
-                { value: 'debug', label: 'Debug' },
-                { value: 'info', label: 'Info' },
-                { value: 'warn', label: 'Warning' },
-                { value: 'error', label: 'Error' }
-            ],
-            ['info'],
-            false,
-            'radio',
-            'horizontal',
-            (newValues) => console.log('Log level changed to:', newValues),
-            1,
-            1
-        ),
-        new SelectionListItem(
-            '■',
-            'SelectionList (decision)',
-            [
-                { value: 'approve', label: 'Approve' },
-                { value: 'decline', label: 'Decline' }
-            ],
-            ['approve'],
-            false,
-            'radio',
-            'horizontal',
-            (newValues) => console.log('Decision changed to:', newValues)
-        ),
-        new FilePickerListItem(
-            '📂',
-            'Select File',
-            process.cwd(),
-            false,
-            'file',
-            (path) => console.log('File selected:', path),
-            ['*.ts', '*.tsx', '*.js', '*.jsx'] // Filter for code files
-        ),
+        // ===== CONFIGURATION ITEMS (from MainPanel) =====
         
-        // Test cases with invalid default values
-        new ConfigurationListItem(
-            '·',
-            'Invalid Email',
-            'not-an-email',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Invalid email changed to:', newValue),
-            [validators.email]
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Port (out of range)',
-            '99999',
-            false,
-            false,
-            'Port 1024-65535',
-            undefined,
-            undefined,
-            (newValue) => console.log('Invalid port changed to:', newValue),
-            [validators.number(1024, 65535)]
-        ),
-        new ConfigurationListItem(
-            '·',
-            'Invalid IP',
-            '192.168.1.999',
-            false,
-            false,
-            undefined,
-            undefined,
-            undefined,
-            (newValue) => console.log('Invalid IP changed to:', newValue),
-            [validators.ipv4]
-        )
-    ];
-}
-
-// Mixed items for ConfigurationPanel (now showing configs with inline help/status)
-export function createConfigurationPanelItems(): IListItem[] {
-    return [
         // Test SelectionListItem with detailed view (Task 8)
         new SelectionListItem(
             '■',
@@ -461,16 +223,14 @@ export function createConfigurationPanelItems(): IListItem[] {
             'radio',
             'vertical',
             (newValues) => console.log('AI Model selected:', newValues),
-            undefined,  // No min selections
-            undefined,  // No max selections  
-            false,      // Don't auto-switch layout
-            true,       // showDetails - enable detailed view
-            ['provider', 'speed', 'cost', 'quality'] // Column order with all details
+            undefined,
+            undefined,
+            false,
+            true,
+            ['provider', 'speed', 'cost', 'quality']
         ),
         
-        // Test cases for destructive confirmations at the top
-        
-        // 1. Text input with destructive flag and existing value
+        // Destructive confirmation test items
         new ConfigurationListItem(
             '·',
             'Embedding Model',
@@ -499,7 +259,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             }
         ),
         
-        // 2. Empty text input with destructive flag (should not trigger confirmation)
         new ConfigurationListItem(
             '·',
             'API Key',
@@ -522,7 +281,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             }
         ),
         
-        // 3. Text input with validation error and destructive flag (should not trigger confirmation)
         new ConfigurationListItem(
             '·',
             'Email (with error)',
@@ -545,7 +303,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             }
         ),
         
-        // 4. Password field with validation warning and destructive flag
         new ConfigurationListItem(
             '·',
             'Admin Password',
@@ -557,8 +314,8 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
             [validators.password],
-            true,  // isPassword
-            undefined, // placeholder
+            true,
+            undefined,
             {
                 level: 'critical',
                 title: 'Password Change',
@@ -570,14 +327,13 @@ export function createConfigurationPanelItems(): IListItem[] {
                 confirmText: 'Change Password',
                 cancelText: 'Keep Current'
             },
-            // Add validation rules for smart placeholder generation
             [
                 ValidationRules.minLength(8, 'Password must be at least 8 characters'),
                 ValidationRules.customRegex(/.*\d.*/, undefined, 'Password must contain at least one number')
             ]
         ),
         
-        // 5. File picker with destructive flag
+        // File pickers
         new FilePickerListItem(
             '📁',
             'Project Folder',
@@ -585,9 +341,8 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             'folder',
             (path) => console.log('Folder selected:', path)
-            // TODO: Add destructive config support to FilePickerListItem
         ),
-        // File picker to test file mode (second position)
+        
         new FilePickerListItem(
             '📄',
             'Select Config File',
@@ -598,7 +353,6 @@ export function createConfigurationPanelItems(): IListItem[] {
             ['*.json', '*.yaml', '*.yml', '*.toml']
         ),
         
-        // Test case: File picker with non-existent file
         new FilePickerListItem(
             '📄',
             'Missing File',
@@ -607,7 +361,8 @@ export function createConfigurationPanelItems(): IListItem[] {
             'file',
             (path) => console.log('Missing file selected:', path)
         ),
-        // Current TextInput features being tested
+        
+        // Current TextInput features
         new LogItem(
             '○',
             'LogItem (existing component)',
@@ -616,6 +371,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             ['LogItem is our existing read-only component', 'Used as reference for new components']
         ),
+        
         new ConfigurationListItem(
             '·',
             'TextInput (no validation)',
@@ -630,6 +386,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             'Enter some text...'
         ),
+        
         new ConfigurationListItem(
             '·',
             'CPU Threads',
@@ -642,6 +399,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Threads changed to:', newValue),
             [validators.number(1, 32)]
         ),
+        
         new ConfigurationListItem(
             '·',
             'TextInput (email)',
@@ -656,6 +414,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             false,
             'user@example.com'
         ),
+        
         new ConfigurationListItem(
             '·',
             'TextInput (IPv4)',
@@ -668,6 +427,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('IP changed to:', newValue),
             [validators.ipv4]
         ),
+        
         new ConfigurationListItem(
             '·',
             'TextInput (regex: [A-Z]{3})',
@@ -680,6 +440,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Pattern changed to:', newValue),
             [validators.regex(/^[A-Z]{3}$/, 'Must be exactly 3 uppercase letters')]
         ),
+        
         new ConfigurationListItem(
             '·',
             'Password',
@@ -691,10 +452,11 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Password changed to:', newValue),
             [validators.password],
-            true,  // isPassword
+            true,
             'Enter password'
         ),
-        // SelectionListItem components (Task 2 - Completed)
+        
+        // SelectionListItem components
         new SelectionListItem(
             '■',
             'SelectionList (theme)',
@@ -709,6 +471,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             'vertical',
             (newValues) => console.log('Theme changed to:', newValues)
         ),
+        
         new SelectionListItem(
             '■',
             'SelectionList (features)',
@@ -723,11 +486,11 @@ export function createConfigurationPanelItems(): IListItem[] {
             'checkbox',
             'vertical',
             (newValues) => console.log('Features changed to:', newValues),
-            1,  // Minimum 1 selection
-            3   // Maximum 3 selections
+            1,
+            3
         ),
         
-        // More test cases with invalid values
+        // Invalid value test cases
         new ConfigurationListItem(
             '·',
             'Weak Password',
@@ -739,8 +502,9 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Weak password changed to:', newValue),
             [validators.passwordWithStrength],
-            true  // isPassword
+            true
         ),
+        
         new ConfigurationListItem(
             '·',
             'Invalid Pattern',
@@ -753,6 +517,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Pattern changed to:', newValue),
             [validators.regex(/^[A-Z]{3}$/, 'Must be exactly 3 uppercase letters')]
         ),
+        
         new ConfigurationListItem(
             '·',
             'Too Short',
@@ -764,6 +529,256 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Short text changed to:', newValue),
             [validators.minLength(5)]
+        ),
+        
+        // ===== STATUS/PROGRESS ITEMS (original SecondaryPanel content) =====
+        
+        // ProgressBar test items
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 0%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 0%',
+                'Should show "⠋ 0%" (spinner + space + 0%)'
+            ],
+            0
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 50%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 50%',
+                'Should show "⠋50%" (spinner + 50%)'
+            ],
+            50
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Basic 100%',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: 100%',
+                'Should show green "✓   " (no spinner)'
+            ],
+            100
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Indeterminate',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing basic ProgressBar component',
+                'Value: undefined (indeterminate)',
+                'Should show "⠋   " (spinner + 3 spaces)'
+            ],
+            undefined
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Low (5%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing single digit percentage',
+                'Value: 5%',
+                'Should show "⠋ 5%" (spinner + space + 5%)'
+            ],
+            5
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: High (95%)',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing high percentage',
+                'Value: 95%',
+                'Should show "⠋95%" (no padding)'
+            ],
+            95
+        ),
+        new LogItem(
+            '⋯',
+            'ProgressBar: Error state',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing error state',
+                'Value: -1 (error)',
+                'Should show red "✗ERR" (error indicator)'
+            ],
+            -1
+        ),
+        new LogItem(
+            '⋯',
+            'Long Progress Test',
+            '⋯',
+            false,
+            false,
+            [
+                'Testing long mode progress bar',
+                'This would show full bar in wide panels',
+                'Format: [spinner][bar][percentage]'
+            ],
+            75
+        ),
+        
+        // Components test status
+        new LogItem(
+            '○',
+            'LogItem (existing)',
+            '✓',
+            false,
+            false,
+            [
+                'This is an existing LogItem component',
+                'It supports expandable details',
+                'Read-only display'
+            ]
+        ),
+        
+        new ConfigurationListItem(
+            '·',
+            'Port',
+            '8080',
+            false,
+            false,
+            'Port 1-65535',
+            undefined,
+            undefined,
+            (newValue) => console.log('Port changed to:', newValue),
+            [validators.number(1, 65535)]
+        ),
+        
+        new ConfigurationListItem(
+            '·',
+            'Email',
+            'user@example.com',
+            false,
+            false,
+            'Email validation',
+            undefined,
+            undefined,
+            (newValue) => console.log('Email changed to:', newValue),
+            [validators.email]
+        ),
+        
+        new ConfigurationListItem(
+            '·',
+            'TextInput (password)',
+            'MyPass123!',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Password changed to:', newValue),
+            [validators.password],
+            true
+        ),
+        
+        // SelectionListItem components
+        new SelectionListItem(
+            '■',
+            'SelectionList (log level)',
+            [
+                { value: 'debug', label: 'Debug' },
+                { value: 'info', label: 'Info' },
+                { value: 'warn', label: 'Warning' },
+                { value: 'error', label: 'Error' }
+            ],
+            ['info'],
+            false,
+            'radio',
+            'horizontal',
+            (newValues) => console.log('Log level changed to:', newValues),
+            1,
+            1
+        ),
+        
+        new SelectionListItem(
+            '■',
+            'SelectionList (decision)',
+            [
+                { value: 'approve', label: 'Approve' },
+                { value: 'decline', label: 'Decline' }
+            ],
+            ['approve'],
+            false,
+            'radio',
+            'horizontal',
+            (newValues) => console.log('Decision changed to:', newValues)
+        ),
+        
+        new FilePickerListItem(
+            '📂',
+            'Select File',
+            process.cwd(),
+            false,
+            'file',
+            (path) => console.log('File selected:', path),
+            ['*.ts', '*.tsx', '*.js', '*.jsx']
+        ),
+        
+        // Invalid default value test cases
+        new ConfigurationListItem(
+            '·',
+            'Invalid Email',
+            'not-an-email',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid email changed to:', newValue),
+            [validators.email]
+        ),
+        
+        new ConfigurationListItem(
+            '·',
+            'Port (out of range)',
+            '99999',
+            false,
+            false,
+            'Port 1024-65535',
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid port changed to:', newValue),
+            [validators.number(1024, 65535)]
+        ),
+        
+        new ConfigurationListItem(
+            '·',
+            'Invalid IP',
+            '192.168.1.999',
+            false,
+            false,
+            undefined,
+            undefined,
+            undefined,
+            (newValue) => console.log('Invalid IP changed to:', newValue),
+            [validators.ipv4]
         )
     ];
+}
+
+// Empty array for MainPanel (no longer used)
+export function createConfigurationPanelItems(): IListItem[] {
+    return [];
 }

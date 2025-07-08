@@ -11,20 +11,16 @@ import { useDI } from './di/DIContext';
 import { ServiceTokens } from './di/tokens';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
-import { createConfigurationPanelItems, createStatusPanelItems } from './models/mixedSampleData';
+import { createStatusPanelItems } from './models/mixedSampleData';
 import { ThemeContext, themes, ThemeName } from './contexts/ThemeContext';
 
 // Get item counts once at module level to ensure consistency
-const CONFIG_ITEMS = createConfigurationPanelItems();
 const STATUS_ITEMS = createStatusPanelItems();
-const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 
-interface AppContentProps {
-    screenName?: string;
-}
+interface AppContentProps {}
 
-const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
+const AppContent: React.FC<AppContentProps> = () => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const di = useDI();
@@ -89,7 +85,7 @@ const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
     }
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={CONFIG_ITEM_COUNT} statusItemCount={STATUS_ITEM_COUNT}>
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={0} statusItemCount={STATUS_ITEM_COUNT}>
             <Box flexDirection="column" height={rows} width={columns}>
                 <Header {...(hasTheme && themeContext ? { themeName: themeContext.themeName } : {})} />
                 
@@ -98,7 +94,7 @@ const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
                     availableWidth={columns}
                     narrowBreakpoint={100}
                 >
-                    <MainPanel onEditModeChange={setIsNodeInEditMode} {...(screenName ? { screenName } : {})} />
+                    <MainPanel onEditModeChange={setIsNodeInEditMode} />
                     <SecondaryPanel />
                 </LayoutContainer>
                 
@@ -108,14 +104,12 @@ const AppContent: React.FC<AppContentProps> = ({ screenName }) => {
     );
 };
 
-interface AppFullscreenProps {
-    screenName?: string;
-}
+interface AppFullscreenProps {}
 
-export const AppFullscreen: React.FC<AppFullscreenProps> = ({ screenName }) => {
+export const AppFullscreen: React.FC<AppFullscreenProps> = () => {
     return (
         <AnimationProvider>
-            <AppContent {...(screenName ? { screenName } : {})} />
+            <AppContent />
         </AnimationProvider>
     );
 };

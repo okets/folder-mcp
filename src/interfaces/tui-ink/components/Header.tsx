@@ -3,8 +3,6 @@ import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 import { useTerminalSize } from '../hooks/useTerminalSize';
-import { AnimationContainer } from './core/AnimationContainer';
-import { BRAILLE_SPINNER, ANIMATION_TIMINGS } from '../utils/animations';
 
 interface HeaderProps {
     themeName?: string;
@@ -40,28 +38,16 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> </Text>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={ANIMATION_TIMINGS.FAST}
-                        color={colors.accent}
-                    />
                     <Text color={frameColor}>{separator}</Text>
                     <Text color={frameColor}>{resolution}</Text>
                 </Box>
             );
-        } else if (availableWidth >= (appName.length + 2)) {
+        } else if (availableWidth >= appName.length) {
             // Just app name with spinner, no resolution
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> </Text>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={ANIMATION_TIMINGS.FAST}
-                        color={colors.accent}
-                    />
                 </Box>
             );
         } else if (availableWidth >= appName.length) {
@@ -110,8 +96,7 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
         // Let's count actual rendered width:
         // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
         // "folder-mcp" = 10 chars
-        // " " + spinner = 2 chars
-        const textLength = 5 + 10 + 2; // Total: 17 chars (not including closing │)
+        const textLength = 5 + 10; // Total: 15 chars (not including closing │)
         const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
@@ -120,12 +105,6 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> </Text>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={ANIMATION_TIMINGS.FAST}
-                        color={colors.accent}
-                    />
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -142,8 +121,7 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
         // Let's count actual rendered width:
         // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
         // "folder-mcp" = 10 chars
-        // " " + spinner = 2 chars
-        const textLength = 5 + 10 + 2; // Total: 17 chars (not including closing │)
+        const textLength = 5 + 10; // Total: 15 chars (not including closing │)
         const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
         
         return (
@@ -152,12 +130,6 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> </Text>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={ANIMATION_TIMINGS.FAST}
-                        color={colors.accent}
-                    />
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -173,12 +145,6 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={colors.accent}> </Text>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={ANIMATION_TIMINGS.FAST}
-                        color={colors.accent}
-                    />
                 </Box>
             );
         } else if (appName.length <= availableForText) {

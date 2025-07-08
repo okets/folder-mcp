@@ -8,10 +8,7 @@ import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-const screenArg = args.find(arg => arg.startsWith('--screen='));
-const screenName = screenArg ? screenArg.split('=')[1] : undefined;
+// No command line arguments needed for unified TUI
 
 // Check if we're in a proper TTY environment
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -56,7 +53,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configInitializer}>
-                    <AppFullscreen {...(screenName ? { screenName } : {})} />
+                    <AppFullscreen />
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
@@ -71,7 +68,7 @@ async function startTUI() {
         // Fallback to non-configured app
         const app = render(
             <DIProvider container={tuiContainer}>
-                <AppFullscreen {...(screenName ? { screenName } : {})} />
+                <AppFullscreen />
             </DIProvider>,
             {
                 exitOnCtrlC: true
