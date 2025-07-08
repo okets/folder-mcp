@@ -8,6 +8,82 @@
 
 Create a unified application flow that combines the GUI, daemon control, and all existing components into a cohesive, production-ready application.
 
+## 🌟 **The Vision: Complete User Journey**
+
+### **1. Simple Installation**
+```bash
+npm install -g folder-mcp
+```
+One command installs everything globally - the `folder-mcp` command becomes available system-wide.
+
+### **2. Intelligent First Run**
+When a new user runs `folder-mcp` for the first time:
+```
+$ folder-mcp
+
+Welcome to folder-mcp! 🎉
+Let's set up your knowledge base.
+
+Step 1: Choose a folder to index
+> 📁 ~/Documents/MyProject
+
+Step 2: Select embedding model
+> 🤖 Auto-detect (recommended)
+  ○ Transformers.js (offline, fast)
+  ○ Ollama (high quality, requires Ollama)
+
+Step 3: Content language
+> 🌍 English (auto-detected)
+
+Step 4: Auto-start on system boot?
+> ◉ Yes (recommended)
+  ○ No
+
+[Start Indexing] [Advanced Options]
+```
+
+The wizard intelligently:
+- Detects available models (Ollama, GPU capabilities)
+- Analyzes folder content to suggest language
+- Configures auto-start within the app
+- Uses smart defaults for everything
+
+### **3. Daily Use - Visual Interface**
+On subsequent runs, users see the full TUI:
+```
+$ folder-mcp
+
+╭─────────────────────────────────────────────── folder-mcp ──╮
+│ 📁 Status: Connected to daemon (PID: 12345)                │
+╰──────────────────────────────────────────────────────────────╯
+
+Indexed Folders:
+→ ~/Documents/MyProject    15,234 files • 2.3GB • English
+  ~/Work/ClientDocs         8,456 files • 1.1GB • Mixed
+
+[a]dd folder  [r]emove  [s]earch  [q]uit
+```
+
+### **4. Power User Mode**
+Advanced users can bypass the TUI entirely:
+```bash
+# Add current directory with auto-detection
+folder-mcp --headless
+
+# Add specific folder
+folder-mcp --headless -f ~/Documents
+
+# Full control
+folder-mcp add ~/Work --model ollama:codellama --language en
+```
+
+### **Key Principles**
+- **Zero Configuration**: Smart defaults for everything
+- **Progressive Disclosure**: Simple for beginners, powerful for experts  
+- **Offline First**: Works without internet via Transformers.js
+- **Intelligent Defaults**: Auto-detect models, languages, and settings
+- **Seamless Experience**: From installation to daily use
+
 ### **Core Goals**
 - **Unified Entry Point**: Single `folder-mcp` command that intelligently routes to appropriate interface
 - **Seamless Integration**: All components work together as one cohesive system
@@ -90,62 +166,226 @@ This phase uses an exploratory approach where tasks are discovered and documente
 
 **Result**: Users now have one command (`npm run tui`) that launches the full interface, with navigation handled within the application rather than through different commands.
 
-#### Task 2: Visual TUI as Default Interface
-**Status**: 🎯 Ready for Implementation  
+#### Task 2: Create Daemon Architecture (Framework First)
+**Status**: ⏳ Ready to Start  
 **Discovered**: 2025-07-08  
-**What**: Make TUI the default interface when users run `folder-mcp`, with service status displayed in the header line.
+**What**: Create minimal daemon + TUI architecture without changing existing functionality.
 
-**Why**: Users should get immediate visual feedback when running `folder-mcp`. The TUI loads instantly while background services start, showing progress in the header.
+**Why**: We need the framework in place before adding features. Starting with minimal changes ensures we don't break existing functionality while establishing the foundation for all future features.
 
-**Core Requirements:**
-1. **Immediate TUI Launch**: `folder-mcp` shows TUI instantly
-2. **Background Service Startup**: MCP server and other services start after TUI loads
-3. **Status in Header**: Add "status: Starting services..." then "status: Ready" after the folder name
-4. **Headless Bypass**: `folder-mcp --headless` skips TUI entirely
+**Design Reference**: [Unified Application Architecture](../../../design/unified-app-architecture.md)
 
-**Implementation Flow:**
+**Subtasks**:
+- [ ] Create `src/daemon/index.ts` entry point
+- [ ] Move MCP server logic to daemon process
+- [ ] Implement basic PID file management (`~/.folder-mcp/daemon.pid`)
+- [ ] Add `folder-mcp --daemon` command to start daemon
+- [ ] Add basic HTTP server to daemon (port 9876) with `/health` endpoint
+- [ ] Modify TUI to detect running daemon via PID file
+- [ ] Show connection status in TUI header
+- [ ] Keep all existing MCP functionality unchanged
+
+**Success Criteria**:
 ```bash
-folder-mcp
-→ TUI renders immediately with "📁 folder-mcp    status: Starting services..."
-→ Background: MCP server starts  
-→ Header updates to "📁 folder-mcp    status: Ready"
+# Terminal 1
+folder-mcp --daemon  # Starts daemon in background
+ps aux | grep folder-mcp  # Shows running daemon process
 
-folder-mcp --headless  
-→ No TUI, runs current behavior directly
+# Terminal 2
+npm run tui  # Shows "Connected to daemon (PID: 12345)" in header
 ```
 
-**Visual Design:**
+#### Task 3: Minimal First-Run Wizard
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Simple wizard that uses existing functionality to onboard new users.
+
+**Why**: Users need guidance on first run, but we'll keep it minimal initially - just folder selection and use existing Ollama model.
+
+**Subtasks**:
+- [ ] Detect if `~/.folder-mcp/config.json` exists
+- [ ] Show simple wizard screen: "Welcome! Select a folder to index"
+- [ ] Use folder selection dialog (can reuse existing components)
+- [ ] Create config with selected folder and current defaults
+- [ ] Start indexing with existing Ollama integration
+- [ ] Transition to main TUI after setup
+
+**Success Criteria**:
+```bash
+rm -rf ~/.folder-mcp
+folder-mcp  # Shows wizard
+# Select folder → Indexes with Ollama → Shows TUI
 ```
-╭─────────────────────────────────────────────── [default]  68w39h ╮
-│ 📁 folder-mcp    status: Starting services...                   │
-╰──────────────────────────────────────────────────────────────────╯
 
-→ becomes →
+#### Task 4: Implement Transformers.js Embeddings
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Add offline embeddings with Transformers.js including proper mean pooling.
 
-╭─────────────────────────────────────────────── [default]  68w39h ╮
-│ 📁 folder-mcp    status: Ready                                   │
-╰──────────────────────────────────────────────────────────────────╯
+**Why**: Critical gap - we have no offline embeddings and no mean pooling implementation. This enables true offline operation.
+
+**Technical Details**: See [Embedding Pipeline Architecture](../../../design/unified-app-architecture.md#embedding-pipeline-architecture)
+
+**Subtasks**:
+- [ ] Create `src/infrastructure/embeddings/transformers-embedding-service.ts`
+- [ ] Implement mean pooling following the architecture document
+- [ ] Add model download management
+- [ ] Create fallback chain: try Transformers → fall back to Ollama
+- [ ] Update wizard to show both embedding options
+- [ ] Test with `all-MiniLM-L6-v2` model
+
+**Success Criteria**:
+```bash
+# Disconnect from internet
+folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
+# Should successfully index offline
 ```
 
-**Technical Approach:**
-- Modify main entry point to parse `--headless` flag
-- Default: Launch TUI immediately, then start services
-- Add status text component in header after "📁 folder-mcp"
-- `--headless`: Run existing CLI/server logic directly
+#### Task 5: Basic CLI Command Structure
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Implement core CLI commands that communicate with the daemon.
 
-**Subtasks:**
-- [ ] Create unified entry point with `--headless` detection
-- [ ] Launch TUI immediately on default path
-- [ ] Add "status: Starting services..." text in header
-- [ ] Start background services after TUI initialization  
-- [ ] Update status text to "status: Ready"
-- [ ] Preserve existing headless functionality
+**Why**: Power users need CLI access, and the wizard needs these commands to work under the hood.
 
-### Final Task (Predefined):
-- **Update Roadmap Document**: 
-  1. Document Phase 8 summary in `docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md`
-  2. Update future phases if we've completed their work in Phase 8
-  3. Adjust upcoming phase instructions based on Phase 8 practices
+**Subtasks**:
+- [ ] Extend `src/interfaces/cli/folder-mcp.ts` with new commands
+- [ ] `folder-mcp add <folder> [options]` - sends request to daemon
+- [ ] `folder-mcp list` - queries daemon for indexed folders
+- [ ] `folder-mcp status` - shows daemon status and stats
+- [ ] `folder-mcp remove <folder>` - removes folder from index
+- [ ] All commands communicate via HTTP to daemon
+
+**Success Criteria**:
+```bash
+folder-mcp add ~/Documents --model transformers
+folder-mcp list  # Shows: ~/Documents (indexed)
+folder-mcp status  # Shows: Daemon running (PID: 12345), 1 folder indexed
+```
+
+#### Task 6: Enhanced Process Management
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Robust daemon lifecycle management with auto-start and recovery.
+
+**Why**: Production systems need reliable process management, including handling crashes and stale PIDs.
+
+**Subtasks**:
+- [ ] Implement proper PID file locking (prevent multiple daemons)
+- [ ] Auto-start daemon when any command needs it
+- [ ] Detect and clean up stale PID files
+- [ ] Add `folder-mcp stop` and `folder-mcp restart` commands
+- [ ] Implement graceful shutdown on SIGTERM
+- [ ] Add daemon crash recovery in TUI
+
+**Success Criteria**:
+```bash
+folder-mcp stop  # Gracefully stops daemon
+folder-mcp add ~/test  # Auto-starts daemon, then adds folder
+kill -9 $(cat ~/.folder-mcp/daemon.pid)  # Simulate crash
+folder-mcp status  # Detects crashed daemon, cleans up PID file
+```
+
+#### Task 7: Multi-Agent Connection Management
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Add HTTP transport for MCP and implement Agents Connection screen.
+
+**Why**: Users want to use multiple AI agents (Claude Desktop, VSCode, etc) but stdio only supports one connection.
+
+**Technical Details**: See [Agent Connection Management](../../../design/unified-app-architecture.md#agent-connection-management)
+
+**Subtasks**:
+- [ ] Add HTTP MCP endpoint to daemon (`/mcp`)
+- [ ] Track active connections (stdio vs HTTP)
+- [ ] Create Agents Connection screen in TUI
+- [ ] Implement primary agent selection (gets stdio)
+- [ ] Auto-configure agent JSON files
+- [ ] Generate auth tokens for HTTP connections
+- [ ] Handle stdio conflicts gracefully
+
+**Success Criteria**:
+- Select Claude Desktop as primary in TUI
+- Claude Desktop config auto-updates to use stdio
+- VSCode config auto-updates to use HTTP
+- Both agents can connect simultaneously
+
+#### Task 8: Enhanced Setup Wizard
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Full wizard experience with system detection and smart defaults.
+
+**Why**: First impressions matter - the wizard should detect available options and guide users to the best setup.
+
+**Subtasks**:
+- [ ] System assessment (GPU, memory, Ollama availability)
+- [ ] Model selection with recommendations
+- [ ] Show download progress for Transformers.js models
+- [ ] Language detection from system locale
+- [ ] Auto-start configuration option
+- [ ] Test setup before proceeding
+
+**Success Criteria**:
+- Wizard detects Ollama if installed
+- Recommends best model based on system
+- Shows progress during model download
+- Completes with working setup
+
+#### Task 9: System Integration (Auto-start)
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Operating system integration for auto-start on boot.
+
+**Why**: Production deployments need the daemon to start automatically.
+
+**Subtasks**:
+- [ ] macOS: Create launchd plist generator
+- [ ] Linux: Create systemd service generator  
+- [ ] Windows: Registry entry for startup
+- [ ] `folder-mcp config set autoStart true/false`
+- [ ] Show auto-start status in TUI
+
+**Success Criteria**:
+```bash
+folder-mcp config set autoStart true
+# Restart computer
+ps aux | grep folder-mcp  # Daemon already running
+```
+
+#### Task 10: Multi-Folder Support
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-08  
+**What**: Support multiple indexed folders with isolation.
+
+**Why**: Users have knowledge in different folders and want to search across them or keep them separate.
+
+**Subtasks**:
+- [ ] Modify storage to support folder isolation
+- [ ] Per-folder configuration (model, language)
+- [ ] Update all screens to show multiple folders
+- [ ] Cross-folder search with source attribution
+- [ ] Folder management UI in TUI
+
+**Success Criteria**:
+```bash
+folder-mcp add ~/Documents --model transformers
+folder-mcp add ~/Code --model ollama:codellama  
+folder-mcp search "function"  # Searches both, shows which folder each result is from
+```
+
+### Final Task: Complete Documentation and Release Prep
+**Status**: ⏳ Waiting  
+**What**: Update all documentation and prepare for release.
+
+**Subtasks**:
+- [ ] Update main README with new architecture
+- [ ] Create user guide for all features
+- [ ] Document configuration options
+- [ ] API reference for HTTP endpoints
+- [ ] Troubleshooting guide
+- [ ] Update roadmap document with Phase 8 summary
+- [ ] Run through pre-release checklist from design document
+
 
 ## 📊 **Progress Tracking**
 
@@ -153,11 +393,21 @@ folder-mcp --headless
 | Task # | Task Description | Discovered Date | Status | Notes |
 |--------|------------------|-----------------|--------|-------|
 | 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
-| 2 | Visual TUI as Default Interface | 2025-07-08 | 🎯 | TUI-first with --headless option |
-| Final | Update Roadmap Document | 2025-07-08 | ⏳ | Predefined |
+| 2 | Create Daemon Architecture | 2025-07-08 | ⏳ | Framework first - minimal changes |
+| 3 | Minimal First-Run Wizard | 2025-07-08 | ⏳ | Simple folder selection |
+| 4 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
+| 5 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
+| 6 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
+| 7 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
+| 8 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
+| 9 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
+| 10 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
+| Final | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
 
 ### **Key Discoveries**
 - **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.
+
+- **Unified Architecture Plan**: Initial attempts at Task 2 revealed the need for a comprehensive design. We created a detailed architecture document and broke down the implementation into smaller, manageable tasks that build on each other linearly. This UX-led approach ensures we can verify success at each step.
 
 ## 🎨 **TUI Visual Guidelines**
 
