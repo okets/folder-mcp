@@ -4,14 +4,11 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
+import { SelectionListItem } from './core/SelectionListItem';
 import { GenericListPanel } from './GenericListPanel';
-import { StatusBar } from './StatusBar';
-import { NavigationProvider } from '../contexts/NavigationContext';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useFocusChain, useRootInput } from '../hooks/useFocusChain';
-import { useDI } from '../di/DIContext';
-import { ServiceTokens } from '../di/tokens';
 
 interface FirstRunWizardProps {
     onComplete: (config: any) => void;
@@ -46,6 +43,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     const { columns, rows } = useTerminalSize();
     const [step, setStep] = useState(1);
     const [folderPath, setFolderPath] = useState(getDefaultFolderPath());
+    const [selectedModel, setSelectedModel] = useState('ollama:nomic-embed-text');
+    const [selectedLanguage, setSelectedLanguage] = useState('auto');
     const [isComplete, setIsComplete] = useState(false);
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
@@ -54,10 +53,14 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
     
+    // Panel dimensions
+    const PANEL_HEIGHT = 9;
+    const PANEL_WIDTH = Math.min(60, columns - 4);
+    
     // Set up root input handler
     useRootInput();
     
-    // Create FilePickerListItem for folder selection
+    // Create configuration items for each step
     const folderPicker = new FilePickerListItem(
         '📁',
         'Project Folder',
@@ -66,24 +69,82 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         'folder', // mode - folder only
         (path) => {
             setFolderPath(path);
-            setStep(2); // Auto-advance to step 2 when folder is selected
+            setStep(2); // Auto-advance to next step
         }
     );
     
-    // Enable the folder picker to control input
-    if (step === 1) {
+    const modelSelector = new SelectionListItem(
+        '🤖',
+        'Embedding Model',
+        [
+            { value: 'ollama:nomic-embed-text', label: 'Ollama: nomic-embed-text (Recommended)' },
+            { value: 'ollama:mxbai-embed-large', label: 'Ollama: mxbai-embed-large' },
+            { value: 'openai:text-embedding-ada-002', label: 'OpenAI: text-embedding-ada-002' },
+            { value: 'custom', label: 'Custom endpoint...' }
+        ],
+        [selectedModel], // selectedValues as array
+        true, // isActive
+        'radio', // mode
+        'vertical', // layout
+        (values) => {
+            if (values.length > 0) {
+                setSelectedModel(values[0]);
+                setStep(3); // Auto-advance to next step
+            }
+        }
+    );
+    
+    const languageSelector = new SelectionListItem(
+        '🌍',
+        'Language',
+        [
+            { value: 'auto', label: 'Auto-detect' },
+            { value: 'en', label: 'English' },
+            { value: 'es', label: 'Spanish' },
+            { value: 'fr', label: 'French' },
+            { value: 'de', label: 'German' },
+            { value: 'other', label: 'Other...' }
+        ],
+        [selectedLanguage], // selectedValues as array
+        true, // isActive
+        'radio', // mode
+        'vertical', // layout
+        (values) => {
+            if (values.length > 0) {
+                setSelectedLanguage(values[0]);
+                setStep(4); // Auto-advance to confirmation
+            }
+        }
+    );
+    
+    // Initialize the first item on mount
+    useEffect(() => {
         folderPicker.onEnter();
-    }
+    }, []);
+    
+    // Enable the appropriate item to control input based on current step
+    useEffect(() => {
+        if (step === 2) {
+            modelSelector.onEnter();
+        } else if (step === 3) {
+            languageSelector.onEnter();
+        }
+    }, [step]);
     
     // Handle wizard-level input using focus chain
     const handleWizardInput = useCallback((input: string, key: Key): boolean => {
         if (key.escape) {
-            exit();
+            // Go back to previous step, or exit if on first step
+            if (step === 1) {
+                exit();
+            } else {
+                setStep(step - 1);
+            }
             return true;
         }
         
-        // Handle step 2 confirmation
-        if (step === 2 && key.return) {
+        // Handle confirmation step
+        if (step === 4 && key.return) {
             completeSetup();
             return true;
         }
@@ -92,17 +153,33 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     }, [step, exit]);
     
     // Register wizard input handler with focus chain
+    const getKeyBindings = () => {
+        if (step === 4) {
+            return [
+                { key: 'Enter', description: 'Confirm' },
+                { key: 'Esc', description: 'Back' }
+            ];
+        } else if (step > 1) {
+            return [
+                { key: '↑↓', description: 'Navigate' },
+                { key: 'Enter', description: 'Select' },
+                { key: 'Esc', description: 'Back' }
+            ];
+        } else {
+            return [
+                { key: '↑↓', description: 'Navigate' },
+                { key: 'Enter', description: 'Select' },
+                { key: 'Esc', description: 'Exit' }
+            ];
+        }
+    };
+    
     useFocusChain({
         elementId: 'wizard',
         parentId: 'root',
         isActive: true,
         onInput: handleWizardInput,
-        keyBindings: step === 2 ? [
-            { key: 'Enter', description: 'Confirm' },
-            { key: 'Escape', description: 'Exit' }
-        ] : [
-            { key: 'Escape', description: 'Exit' }
-        ],
+        keyBindings: getKeyBindings(),
         priority: -10 // Low priority so panel can handle input first
     });
     
@@ -114,12 +191,12 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
             folders: [{
                 path: folderPath,
                 name: folderPath.split('/').pop() || 'Folder',
-                model: 'ollama:nomic-embed-text',
-                language: 'en',
+                model: selectedModel,
+                language: selectedLanguage,
                 enabled: true
             }],
             embedding: {
-                model: 'ollama:nomic-embed-text',
+                model: selectedModel,
                 batchSize: 32
             },
             server: {
@@ -175,82 +252,109 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         );
     }
     
+    // Create a frameless status bar
+    const StatusHints: React.FC = () => {
+        const hints = getKeyBindings().map(kb => `${kb.key} ${kb.description}`).join('  ');
+        return (
+            <Box paddingLeft={1}>
+                <Text color={textColor} dimColor>{hints}</Text>
+            </Box>
+        );
+    };
+    
     return (
-        <Box flexDirection="column" width="100%" height="100%">
-            {/* Header */}
-            <Box padding={1} borderStyle="round" borderColor={frameColor}>
-                <Text color={frameColor}>📁 </Text>
-                <Text color={logoTextColor} bold>folder-mcp</Text>
-                <Text color={frameColor}> - First Run Setup</Text>
-            </Box>
+        <Box flexDirection="column" paddingTop={2} paddingLeft={2} height="100%">
+            {/* Step 1: Folder Selection */}
+            {step === 1 && (
+                <Box flexDirection="column" width={PANEL_WIDTH}>
+                    <GenericListPanel
+                        title="Select Project Folder"
+                        items={[folderPicker]}
+                        selectedIndex={0}
+                        isFocused={true}
+                        elementId="wizard-folder-picker"
+                        parentId="wizard"
+                        priority={50}
+                        height={PANEL_HEIGHT}
+                        width={PANEL_WIDTH}
+                    />
+                    <StatusHints />
+                </Box>
+            )}
             
-            {/* Main Content */}
-            <Box flexGrow={1} flexDirection="column" padding={1}>
-                {/* Welcome message */}
-                <Box marginBottom={2}>
-                    <Text color={highlightColor}>🎉 Welcome to folder-mcp!</Text>
+            {/* Step 2: Model Selection */}
+            {step === 2 && (
+                <Box flexDirection="column" width={PANEL_WIDTH}>
+                    <GenericListPanel
+                        title="Choose Embedding Model"
+                        items={[modelSelector]}
+                        selectedIndex={0}
+                        isFocused={true}
+                        elementId="wizard-model-selector"
+                        parentId="wizard"
+                        priority={50}
+                        height={PANEL_HEIGHT}
+                        width={PANEL_WIDTH}
+                    />
+                    <StatusHints />
                 </Box>
-                
-                <Box marginBottom={1}>
-                    <Text color={textColor}>Let's set up your first knowledge base.</Text>
+            )}
+            
+            {/* Step 3: Language Selection */}
+            {step === 3 && (
+                <Box flexDirection="column" width={PANEL_WIDTH}>
+                    <GenericListPanel
+                        title="Set Language"
+                        items={[languageSelector]}
+                        selectedIndex={0}
+                        isFocused={true}
+                        elementId="wizard-language-selector"
+                        parentId="wizard"
+                        priority={50}
+                        height={PANEL_HEIGHT}
+                        width={PANEL_WIDTH}
+                    />
+                    <StatusHints />
                 </Box>
-                
-                {/* Step 1: Folder Selection */}
-                {step === 1 && (
-                    <Box flexDirection="column">
-                        <Box marginBottom={1}>
-                            <Text color={highlightColor}>Step 1: Choose a folder to index</Text>
+            )}
+            
+            {/* Step 4: Confirmation */}
+            {step === 4 && (
+                <Box flexDirection="column" width={PANEL_WIDTH}>
+                    <Box 
+                        borderStyle="round" 
+                        borderColor={frameColor}
+                        height={PANEL_HEIGHT}
+                        width={PANEL_WIDTH}
+                        padding={1}
+                        flexDirection="column"
+                    >
+                        <Text color={highlightColor} bold>✅ Ready to create configuration:</Text>
+                        <Box marginTop={1} flexDirection="column">
+                            <Text color={textColor}>📁 Folder: {folderPath.split('/').pop()}</Text>
+                            <Text color={textColor} dimColor>   {folderPath}</Text>
+                            <Text color={textColor}>🤖 Model: {
+                                selectedModel === 'ollama:nomic-embed-text' ? 'Ollama: nomic-embed-text' :
+                                selectedModel === 'ollama:mxbai-embed-large' ? 'Ollama: mxbai-embed-large' :
+                                selectedModel === 'openai:text-embedding-ada-002' ? 'OpenAI: text-embedding-ada-002' :
+                                'Custom endpoint'
+                            }</Text>
+                            <Text color={textColor}>🌍 Language: {
+                                selectedLanguage === 'auto' ? 'Auto-detect' :
+                                selectedLanguage === 'en' ? 'English' :
+                                selectedLanguage === 'es' ? 'Spanish' :
+                                selectedLanguage === 'fr' ? 'French' :
+                                selectedLanguage === 'de' ? 'German' :
+                                'Other'
+                            }</Text>
                         </Box>
-                        
-                        <Box flexGrow={1}>
-                            <GenericListPanel
-                                title="Select Folder"
-                                subtitle="Navigate and press Enter to confirm"
-                                items={[folderPicker]}
-                                selectedIndex={0}
-                                isFocused={true}
-                                elementId="wizard-folder-picker"
-                                parentId="wizard"
-                                priority={50}
-                                height={Math.min(20, rows - 10)}
-                                width={Math.min(100, columns - 4)}
-                            />
+                        <Box marginTop={1}>
+                            <Text color={highlightColor}>Press Enter to save and start indexing</Text>
                         </Box>
                     </Box>
-                )}
-                
-                {/* Step 2: Confirmation */}
-                {step === 2 && (
-                    <Box flexDirection="column">
-                        <Box marginBottom={1}>
-                            <Text color={highlightColor}>Step 2: Confirm setup</Text>
-                        </Box>
-                        
-                        <Box marginBottom={1}>
-                            <Text color={textColor}>📁 Folder: {folderPath}</Text>
-                        </Box>
-                        
-                        <Box marginBottom={1}>
-                            <Text color={textColor}>🤖 Model: Ollama (nomic-embed-text)</Text>
-                        </Box>
-                        
-                        <Box marginBottom={1}>
-                            <Text color={textColor}>🌍 Language: English (auto-detected)</Text>
-                        </Box>
-                        
-                        <Box marginBottom={1}>
-                            <Text color={textColor}>🚀 Auto-start: Yes</Text>
-                        </Box>
-                        
-                        <Box marginTop={2}>
-                            <Text color={highlightColor}>Ready to start indexing!</Text>
-                        </Box>
-                    </Box>
-                )}
-            </Box>
-            
-            {/* Status Bar */}
-            <StatusBar />
+                    <StatusHints />
+                </Box>
+            )}
         </Box>
     );
 };
@@ -258,9 +362,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
 export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     return (
         <AnimationProvider>
-            <NavigationProvider configItemCount={1} statusItemCount={0}>
-                <WizardContent onComplete={onComplete} />
-            </NavigationProvider>
+            <WizardContent onComplete={onComplete} />
         </AnimationProvider>
     );
 };
