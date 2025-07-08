@@ -1,21 +1,86 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 import { useTerminalSize } from '../hooks/useTerminalSize';
+import { homedir } from 'os';
+import { join } from 'path';
+import { existsSync, readFileSync } from 'fs';
 
 interface HeaderProps {
     themeName?: string;
+    status?: string; // Allow external status override
 }
 
-export const Header: React.FC<HeaderProps> = ({ themeName }) => {
+interface DaemonStatus {
+    running: boolean;
+    pid?: number;
+}
+
+export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
     const di = useDI();
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
     const { columns, rows } = useTerminalSize();
     
+    const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
+    
+    // Check daemon status every 2 seconds
+    useEffect(() => {
+        const checkDaemon = () => {
+            const configDir = join(homedir(), '.folder-mcp');
+            const pidFile = join(configDir, 'daemon.pid');
+            
+            if (!existsSync(pidFile)) {
+                setDaemonStatus({ running: false });
+                return;
+            }
+            
+            try {
+                const pidStr = readFileSync(pidFile, 'utf8').trim();
+                const pid = parseInt(pidStr, 10);
+                
+                if (isNaN(pid)) {
+                    setDaemonStatus({ running: false });
+                    return;
+                }
+                
+                // Check if process is actually running
+                try {
+                    process.kill(pid, 0); // Doesn't actually kill, just checks if process exists
+                    setDaemonStatus({ running: true, pid });
+                } catch {
+                    setDaemonStatus({ running: false });
+                }
+            } catch (error) {
+                setDaemonStatus({ running: false });
+            }
+        };
+        
+        // Check immediately
+        checkDaemon();
+        
+        // Then check every 2 seconds
+        const interval = setInterval(checkDaemon, 2000);
+        
+        return () => clearInterval(interval);
+    }, []);
+    
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
+    
+    // Determine status text
+    let statusText = '';
+    if (status) {
+        statusText = status;
+    } else if (daemonStatus.running) {
+        statusText = `Connected to daemon (PID: ${daemonStatus.pid})`;
+    } else {
+        statusText = 'Daemon not running';
+    }
+    
+    // Full display: "📁 folder-mcp    status: Connected to daemon (PID: 12345)"
+    const fullStatusText = `    status: ${statusText}`;
     
     // Custom logo colors
     const frameColor = '#4c1589'; // rgb(76, 21, 137) - dark purple for frame and resolution
@@ -31,9 +96,21 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
         // Handle narrow terminals in low resolution mode
         const availableWidth = columns - 1; // -1 for safety margin
         
+        // Try to fit: "📁 folder-mcp    status: Connected to daemon (PID: 12345)"
+        const fullDisplayText = `📁 folder-mcp${fullStatusText}`;
+        
         // Build display text based on available width
-        if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
-            // Full display with resolution and spinner
+        if (availableWidth >= fullDisplayText.length) {
+            // Full display with status
+            return (
+                <Box marginTop={1}>
+                    <Text color={frameColor}>📁 </Text>
+                    <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={frameColor}>{fullStatusText}</Text>
+                </Box>
+            );
+        } else if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
+            // Fall back to resolution display
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
@@ -48,15 +125,6 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                </Box>
-            );
-        } else if (availableWidth >= appName.length) {
-            // Just app name, no spinner or resolution
-            return (
-                <Box marginTop={1}>
-                    <Text color={frameColor}>
-                        📁 <Text color={logoTextColor} bold>folder-mcp</Text>
-                    </Text>
                 </Box>
             );
         } else {
@@ -92,12 +160,11 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
         const topBorder = `╭${'─'.repeat(Math.max(0, maxDashArea))}${themeSpace}${resolutionSpace}╮`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
-        // Calculate padding for the split text format
-        // Let's count actual rendered width:
-        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
-        // "folder-mcp" = 10 chars
-        const textLength = 5 + 10; // Total: 15 chars (not including closing │)
-        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
+        // Calculate padding for the content with status
+        // Content: "│ 📁 folder-mcp    status: Connected to daemon (PID: 12345)                │"
+        const contentText = `📁 folder-mcp${fullStatusText}`;
+        const contentLength = 2 + contentText.length; // "│ " + content
+        const remainingSpace = Math.max(0, innerWidth - contentLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -105,6 +172,7 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={frameColor}>{fullStatusText}</Text>
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -117,12 +185,10 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
         const topBorder = `╭${'─'.repeat(innerWidth)}╮`;
         const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
         
-        // Calculate padding for the split text format
-        // Let's count actual rendered width:
-        // "│ 📁 " = 5 chars (│=1, space=1, emoji=2, space=1)
-        // "folder-mcp" = 10 chars
-        const textLength = 5 + 10; // Total: 15 chars (not including closing │)
-        const remainingSpace = Math.max(0, innerWidth - textLength + 1); // +1 adjustment for proper alignment
+        // Calculate padding for the content with status
+        const contentText = `📁 folder-mcp${fullStatusText}`;
+        const contentLength = 2 + contentText.length; // "│ " + content
+        const remainingSpace = Math.max(0, innerWidth - contentLength + 1); // +1 adjustment for proper alignment
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -130,6 +196,7 @@ export const Header: React.FC<HeaderProps> = ({ themeName }) => {
                 <Box>
                     <Text color={frameColor}>│ 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
+                    <Text color={frameColor}>{fullStatusText}</Text>
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>

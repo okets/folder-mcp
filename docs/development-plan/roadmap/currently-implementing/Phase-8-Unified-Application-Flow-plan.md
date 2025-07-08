@@ -167,7 +167,7 @@ This phase uses an exploratory approach where tasks are discovered and documente
 **Result**: Users now have one command (`npm run tui`) that launches the full interface, with navigation handled within the application rather than through different commands.
 
 #### Task 2: Create Daemon Architecture (Framework First)
-**Status**: ⏳ Ready to Start  
+**Status**: ✅ Completed  
 **Discovered**: 2025-07-08  
 **What**: Create minimal daemon + TUI architecture without changing existing functionality.
 
@@ -196,7 +196,7 @@ npm run tui  # Shows "Connected to daemon (PID: 12345)" in header
 ```
 
 #### Task 3: Minimal First-Run Wizard
-**Status**: ⏳ Waiting  
+**Status**: ⏳ Ready to Start  
 **Discovered**: 2025-07-08  
 **What**: Simple wizard that uses existing functionality to onboard new users.
 
@@ -393,7 +393,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | Task # | Task Description | Discovered Date | Status | Notes |
 |--------|------------------|-----------------|--------|-------|
 | 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
-| 2 | Create Daemon Architecture | 2025-07-08 | ⏳ | Framework first - minimal changes |
+| 2 | Create Daemon Architecture | 2025-07-08 | ✅ | Framework first - minimal changes |
 | 3 | Minimal First-Run Wizard | 2025-07-08 | ⏳ | Simple folder selection |
 | 4 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
 | 5 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
