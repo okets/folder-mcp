@@ -73,15 +73,18 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         }
     );
     
+    // Create model options array
+    const modelOptions = [
+        { value: 'ollama:nomic-embed-text', label: 'Ollama: nomic-embed-text (Recommended)' },
+        { value: 'ollama:mxbai-embed-large', label: 'Ollama: mxbai-embed-large' },
+        { value: 'openai:text-embedding-ada-002', label: 'OpenAI: text-embedding-ada-002' },
+        { value: 'custom', label: 'Custom endpoint...' }
+    ];
+    
     const modelSelector = new SelectionListItem(
         '🤖',
         'Embedding Model',
-        [
-            { value: 'ollama:nomic-embed-text', label: 'Ollama: nomic-embed-text (Recommended)' },
-            { value: 'ollama:mxbai-embed-large', label: 'Ollama: mxbai-embed-large' },
-            { value: 'openai:text-embedding-ada-002', label: 'OpenAI: text-embedding-ada-002' },
-            { value: 'custom', label: 'Custom endpoint...' }
-        ],
+        modelOptions,
         [selectedModel], // selectedValues as array
         true, // isActive
         'radio', // mode
@@ -94,17 +97,20 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         }
     );
     
+    // Create language options array
+    const languageOptions = [
+        { value: 'auto', label: 'Auto-detect' },
+        { value: 'en', label: 'English' },
+        { value: 'es', label: 'Spanish' },
+        { value: 'fr', label: 'French' },
+        { value: 'de', label: 'German' },
+        { value: 'other', label: 'Other...' }
+    ];
+    
     const languageSelector = new SelectionListItem(
         '🌍',
         'Language',
-        [
-            { value: 'auto', label: 'Auto-detect' },
-            { value: 'en', label: 'English' },
-            { value: 'es', label: 'Spanish' },
-            { value: 'fr', label: 'French' },
-            { value: 'de', label: 'German' },
-            { value: 'other', label: 'Other...' }
-        ],
+        languageOptions,
         [selectedLanguage], // selectedValues as array
         true, // isActive
         'radio', // mode
@@ -124,7 +130,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     
     // Enable the appropriate item to control input based on current step
     useEffect(() => {
-        if (step === 2) {
+        if (step === 1) {
+            folderPicker.onEnter();
+        } else if (step === 2) {
             modelSelector.onEnter();
         } else if (step === 3) {
             languageSelector.onEnter();
@@ -262,63 +270,153 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         );
     };
     
+    // Create items for completed steps (read-only versions)
+    const createReadOnlyFolderPicker = () => {
+        const picker = new FilePickerListItem(
+            '📁',
+            'Project Folder',
+            folderPath,
+            false, // not active
+            'folder',
+            undefined // no callback
+        );
+        picker.onEnter(); // Show in expanded state
+        return picker;
+    };
+    
+    const createReadOnlyModelSelector = () => {
+        const selector = new SelectionListItem(
+            '🤖',
+            'Embedding Model',
+            modelOptions,
+            [selectedModel],
+            false, // not active
+            'radio',
+            'vertical',
+            undefined // no callback
+        );
+        selector.onEnter(); // Show in expanded state
+        return selector;
+    };
+    
+    const createReadOnlyLanguageSelector = () => {
+        const selector = new SelectionListItem(
+            '🌍',
+            'Language',
+            languageOptions,
+            [selectedLanguage],
+            false, // not active
+            'radio',
+            'vertical',
+            undefined // no callback
+        );
+        selector.onEnter(); // Show in expanded state
+        return selector;
+    };
+    
     return (
         <Box flexDirection="column" paddingTop={2} paddingLeft={2} height="100%">
-            {/* Step 1: Folder Selection */}
-            {step === 1 && (
-                <Box flexDirection="column" width={PANEL_WIDTH}>
+            {/* Step 1: Always show folder panel */}
+            <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 1 ? 1 : 0}>
+                {step === 1 ? (
+                    <>
+                        <GenericListPanel
+                            title="Select Project Folder"
+                            items={[folderPicker]}
+                            selectedIndex={0}
+                            isFocused={true}
+                            elementId="wizard-folder-picker"
+                            parentId="wizard"
+                            priority={50}
+                            height={PANEL_HEIGHT}
+                            width={PANEL_WIDTH}
+                        />
+                        <StatusHints />
+                    </>
+                ) : (
                     <GenericListPanel
-                        title="Select Project Folder"
-                        items={[folderPicker]}
+                        title="✓ Project Folder"
+                        items={[createReadOnlyFolderPicker()]}
                         selectedIndex={0}
-                        isFocused={true}
-                        elementId="wizard-folder-picker"
+                        isFocused={false}
+                        elementId="wizard-folder-picker-readonly"
                         parentId="wizard"
-                        priority={50}
+                        priority={-1}
                         height={PANEL_HEIGHT}
                         width={PANEL_WIDTH}
                     />
-                    <StatusHints />
+                )}
+            </Box>
+            
+            {/* Step 2: Show model panel when on step 2+ */}
+            {step >= 2 && (
+                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 2 ? 1 : 0}>
+                    {step === 2 ? (
+                        <>
+                            <GenericListPanel
+                                title="Choose Embedding Model"
+                                items={[modelSelector]}
+                                selectedIndex={0}
+                                isFocused={true}
+                                elementId="wizard-model-selector"
+                                parentId="wizard"
+                                priority={50}
+                                height={PANEL_HEIGHT}
+                                width={PANEL_WIDTH}
+                            />
+                            <StatusHints />
+                        </>
+                    ) : (
+                        <GenericListPanel
+                            title="✓ Embedding Model"
+                            items={[createReadOnlyModelSelector()]}
+                            selectedIndex={0}
+                            isFocused={false}
+                            elementId="wizard-model-selector-readonly"
+                            parentId="wizard"
+                            priority={-1}
+                            height={PANEL_HEIGHT}
+                            width={PANEL_WIDTH}
+                        />
+                    )}
                 </Box>
             )}
             
-            {/* Step 2: Model Selection */}
-            {step === 2 && (
-                <Box flexDirection="column" width={PANEL_WIDTH}>
-                    <GenericListPanel
-                        title="Choose Embedding Model"
-                        items={[modelSelector]}
-                        selectedIndex={0}
-                        isFocused={true}
-                        elementId="wizard-model-selector"
-                        parentId="wizard"
-                        priority={50}
-                        height={PANEL_HEIGHT}
-                        width={PANEL_WIDTH}
-                    />
-                    <StatusHints />
+            {/* Step 3: Show language panel when on step 3+ */}
+            {step >= 3 && (
+                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 3 ? 1 : 0}>
+                    {step === 3 ? (
+                        <>
+                            <GenericListPanel
+                                title="Set Language"
+                                items={[languageSelector]}
+                                selectedIndex={0}
+                                isFocused={true}
+                                elementId="wizard-language-selector"
+                                parentId="wizard"
+                                priority={50}
+                                height={PANEL_HEIGHT}
+                                width={PANEL_WIDTH}
+                            />
+                            <StatusHints />
+                        </>
+                    ) : (
+                        <GenericListPanel
+                            title="✓ Language"
+                            items={[createReadOnlyLanguageSelector()]}
+                            selectedIndex={0}
+                            isFocused={false}
+                            elementId="wizard-language-selector-readonly"
+                            parentId="wizard"
+                            priority={-1}
+                            height={PANEL_HEIGHT}
+                            width={PANEL_WIDTH}
+                        />
+                    )}
                 </Box>
             )}
             
-            {/* Step 3: Language Selection */}
-            {step === 3 && (
-                <Box flexDirection="column" width={PANEL_WIDTH}>
-                    <GenericListPanel
-                        title="Set Language"
-                        items={[languageSelector]}
-                        selectedIndex={0}
-                        isFocused={true}
-                        elementId="wizard-language-selector"
-                        parentId="wizard"
-                        priority={50}
-                        height={PANEL_HEIGHT}
-                        width={PANEL_WIDTH}
-                    />
-                    <StatusHints />
-                </Box>
-            )}
-            
-            {/* Step 4: Confirmation */}
+            {/* Step 4: Show confirmation panel */}
             {step === 4 && (
                 <Box flexDirection="column" width={PANEL_WIDTH}>
                     <Box 
