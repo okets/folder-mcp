@@ -60,18 +60,23 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     // Set up root input handler
     useRootInput();
     
-    // Create configuration items for each step
-    const folderPicker = new FilePickerListItem(
-        '📁',
-        'Project Folder',
-        folderPath,
-        true, // isActive
-        'folder', // mode - folder only
-        (path) => {
-            setFolderPath(path);
-            setStep(2); // Auto-advance to next step
-        }
-    );
+    // Create configuration items for each step using useMemo to ensure stability
+    const folderPicker = React.useMemo(() => {
+        const picker = new FilePickerListItem(
+            '📁',
+            'Project Folder',
+            folderPath,
+            true, // isActive
+            'folder', // mode - folder only
+            (path) => {
+                setFolderPath(path);
+                setStep(2); // Auto-advance to next step
+            }
+        );
+        // Start in open mode
+        picker.onEnter();
+        return picker;
+    }, []); // Empty deps since we handle path updates internally
     
     // Create model options array
     const modelOptions = [
@@ -123,16 +128,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         }
     );
     
-    // Initialize the first item on mount
-    useEffect(() => {
-        folderPicker.onEnter();
-    }, []);
     
     // Enable the appropriate item to control input based on current step
     useEffect(() => {
-        if (step === 1) {
-            folderPicker.onEnter();
-        } else if (step === 2) {
+        if (step === 2) {
             modelSelector.onEnter();
         } else if (step === 3) {
             languageSelector.onEnter();
