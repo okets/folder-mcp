@@ -196,19 +196,26 @@ npm run tui  # Shows "Connected to daemon (PID: 12345)" in header
 ```
 
 #### Task 3: Minimal First-Run Wizard
-**Status**: ⏳ Ready to Start  
+**Status**: ✅ Completed  
 **Discovered**: 2025-07-08  
 **What**: Simple wizard that uses existing functionality to onboard new users.
 
 **Why**: Users need guidance on first run, but we'll keep it minimal initially - just folder selection and use existing Ollama model.
 
 **Subtasks**:
-- [ ] Detect if `~/.folder-mcp/config.json` exists
-- [ ] Show simple wizard screen: "Welcome! Select a folder to index"
-- [ ] Use folder selection dialog (can reuse existing components)
-- [ ] Create config with selected folder and current defaults
-- [ ] Start indexing with existing Ollama integration
-- [ ] Transition to main TUI after setup
+- [x] Detect if `~/.folder-mcp/config.json` exists
+- [x] Show simple wizard screen: "Welcome! Select a folder to index"
+- [x] Use folder selection dialog (can reuse existing components)
+- [x] Create config with selected folder and current defaults
+- [x] Start indexing with existing Ollama integration
+- [x] Transition to main TUI after setup
+
+**Implementation Details**:
+- Created `FirstRunWizard` component with 2-step setup process
+- Added config detection logic in main TUI entry point
+- Implemented folder path input with real-time editing
+- Added visual feedback for wizard completion
+- Created config file creation with proper error handling
 
 **Success Criteria**:
 ```bash
@@ -216,6 +223,20 @@ rm -rf ~/.folder-mcp
 folder-mcp  # Shows wizard
 # Select folder → Indexes with Ollama → Shows TUI
 ```
+
+**Task Completion Protocol**:
+- [x] Mark progress on this document
+- [x] Summarize what was done and describe UX testing
+- [x] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+1. Remove existing config: `rm -rf ~/.folder-mcp`
+2. Run TUI: `npm run tui`
+3. Should see first-run wizard with folder selection
+4. Type folder path and press Enter
+5. Should see confirmation screen, press Enter again
+6. Should see "setup complete" message then transition to main TUI
+7. Run again: `npm run tui` - should skip wizard and go straight to main TUI
 
 #### Task 4: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
@@ -241,6 +262,14 @@ folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
 # Should successfully index offline
 ```
 
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 #### Task 5: Basic CLI Command Structure
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
@@ -262,6 +291,14 @@ folder-mcp add ~/Documents --model transformers
 folder-mcp list  # Shows: ~/Documents (indexed)
 folder-mcp status  # Shows: Daemon running (PID: 12345), 1 folder indexed
 ```
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
 
 #### Task 6: Enhanced Process Management
 **Status**: ⏳ Waiting  
@@ -285,6 +322,14 @@ folder-mcp add ~/test  # Auto-starts daemon, then adds folder
 kill -9 $(cat ~/.folder-mcp/daemon.pid)  # Simulate crash
 folder-mcp status  # Detects crashed daemon, cleans up PID file
 ```
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
 
 #### Task 7: Multi-Agent Connection Management
 **Status**: ⏳ Waiting  
@@ -310,6 +355,14 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - VSCode config auto-updates to use HTTP
 - Both agents can connect simultaneously
 
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 #### Task 8: Enhanced Setup Wizard
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
@@ -330,6 +383,14 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - Recommends best model based on system
 - Shows progress during model download
 - Completes with working setup
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
 
 #### Task 9: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
@@ -352,6 +413,14 @@ folder-mcp config set autoStart true
 ps aux | grep folder-mcp  # Daemon already running
 ```
 
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 #### Task 10: Multi-Folder Support
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
@@ -373,6 +442,14 @@ folder-mcp add ~/Code --model ollama:codellama
 folder-mcp search "function"  # Searches both, shows which folder each result is from
 ```
 
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 ### Final Task: Complete Documentation and Release Prep
 **Status**: ⏳ Waiting  
 **What**: Update all documentation and prepare for release.
@@ -386,6 +463,21 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 - [ ] Update roadmap document with Phase 8 summary
 - [ ] Run through pre-release checklist from design document
 
+**Success Criteria**:
+- All documentation is complete and accurate
+- User guide covers all features with examples
+- API reference is comprehensive
+- Troubleshooting guide addresses common issues
+- Roadmap is updated with Phase 8 completion
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 
 ## 📊 **Progress Tracking**
 
@@ -394,7 +486,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 |--------|------------------|-----------------|--------|-------|
 | 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
 | 2 | Create Daemon Architecture | 2025-07-08 | ✅ | Framework first - minimal changes |
-| 3 | Minimal First-Run Wizard | 2025-07-08 | ⏳ | Simple folder selection |
+| 3 | Minimal First-Run Wizard | 2025-07-08 | ✅ | Simple folder selection |
 | 4 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
 | 5 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
 | 6 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
