@@ -90,6 +90,57 @@ This phase uses an exploratory approach where tasks are discovered and documente
 
 **Result**: Users now have one command (`npm run tui`) that launches the full interface, with navigation handled within the application rather than through different commands.
 
+#### Task 2: Visual TUI as Default Interface
+**Status**: 🎯 Ready for Implementation  
+**Discovered**: 2025-07-08  
+**What**: Make TUI the default interface when users run `folder-mcp`, with service status displayed in the header line.
+
+**Why**: Users should get immediate visual feedback when running `folder-mcp`. The TUI loads instantly while background services start, showing progress in the header.
+
+**Core Requirements:**
+1. **Immediate TUI Launch**: `folder-mcp` shows TUI instantly
+2. **Background Service Startup**: MCP server and other services start after TUI loads
+3. **Status in Header**: Add "status: Starting services..." then "status: Ready" after the folder name
+4. **Headless Bypass**: `folder-mcp --headless` skips TUI entirely
+
+**Implementation Flow:**
+```bash
+folder-mcp
+→ TUI renders immediately with "📁 folder-mcp    status: Starting services..."
+→ Background: MCP server starts  
+→ Header updates to "📁 folder-mcp    status: Ready"
+
+folder-mcp --headless  
+→ No TUI, runs current behavior directly
+```
+
+**Visual Design:**
+```
+╭─────────────────────────────────────────────── [default]  68w39h ╮
+│ 📁 folder-mcp    status: Starting services...                   │
+╰──────────────────────────────────────────────────────────────────╯
+
+→ becomes →
+
+╭─────────────────────────────────────────────── [default]  68w39h ╮
+│ 📁 folder-mcp    status: Ready                                   │
+╰──────────────────────────────────────────────────────────────────╯
+```
+
+**Technical Approach:**
+- Modify main entry point to parse `--headless` flag
+- Default: Launch TUI immediately, then start services
+- Add status text component in header after "📁 folder-mcp"
+- `--headless`: Run existing CLI/server logic directly
+
+**Subtasks:**
+- [ ] Create unified entry point with `--headless` detection
+- [ ] Launch TUI immediately on default path
+- [ ] Add "status: Starting services..." text in header
+- [ ] Start background services after TUI initialization  
+- [ ] Update status text to "status: Ready"
+- [ ] Preserve existing headless functionality
+
 ### Final Task (Predefined):
 - **Update Roadmap Document**: 
   1. Document Phase 8 summary in `docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md`
@@ -102,6 +153,7 @@ This phase uses an exploratory approach where tasks are discovered and documente
 | Task # | Task Description | Discovered Date | Status | Notes |
 |--------|------------------|-----------------|--------|-------|
 | 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
+| 2 | Visual TUI as Default Interface | 2025-07-08 | 🎯 | TUI-first with --headless option |
 | Final | Update Roadmap Document | 2025-07-08 | ⏳ | Predefined |
 
 ### **Key Discoveries**
