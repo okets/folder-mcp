@@ -62,12 +62,33 @@ This phase uses an exploratory approach where tasks are discovered and documente
 - No shortcuts that break clean architecture
 - Domain/Application/Infrastructure/Interface separation
 
+### 5. **COMMIT ONLY WHEN INSTRUCTED**
+- During Phase 8, only commit when explicitly told to
+- Work can accumulate across multiple tasks
+- User will indicate when to create commits
+- This allows for more flexible experimentation
+
 ## 📋 **Dynamic Task List**
 
 *Tasks will be added here as they are discovered during implementation*
 
 ### Discovered Tasks:
-<!-- Tasks will be documented here as they emerge -->
+
+#### Task 1: Simplify TUI Entry Point
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-08  
+**What**: Create a single, unified TUI entry point instead of multiple screen-specific commands.
+
+**Why**: The TUI had evolved to have separate commands for each screen (config, status, folders, wizard), creating confusion about where to start. A unified entry point provides a clear starting place for users.
+
+**Subtasks**:
+- [x] Remove multiple TUI commands from package.json
+- [x] Remove command-line argument parsing for screen selection
+- [x] Move existing content from MainPanel to SecondaryPanel
+- [x] Prepare MainPanel for new unified interface
+- [x] Remove header animation (test code cleanup)
+
+**Result**: Users now have one command (`npm run tui`) that launches the full interface, with navigation handled within the application rather than through different commands.
 
 ### Final Task (Predefined):
 - **Update Roadmap Document**: 
@@ -80,11 +101,119 @@ This phase uses an exploratory approach where tasks are discovered and documente
 ### **Discovered Tasks Log**
 | Task # | Task Description | Discovered Date | Status | Notes |
 |--------|------------------|-----------------|--------|-------|
-| - | *Tasks will be logged as discovered* | - | - | - |
+| 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
 | Final | Update Roadmap Document | 2025-07-08 | ⏳ | Predefined |
 
 ### **Key Discoveries**
-*Document important findings, decisions, and pivots as they occur*
+- **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.
+
+## 🎨 **TUI Visual Guidelines**
+
+*This section captures visual debugging learnings to prevent future rendering issues. TUI bugs are difficult to debug remotely, so these guidelines help maintain visual consistency.*
+
+### **BorderedBox Component - Do's and Don'ts**
+
+**✅ DO:**
+- Pass simple content directly as children (Text, SelfConstrainedWrapper)
+- Let BorderedBox handle all layout and border rendering internally
+- Use proper focus state with `navigation.isMainFocused`/`navigation.isStatusFocused`
+- Keep content simple and let the component manage positioning
+
+**❌ DON'T:**
+- Wrap content in complex Box layouts with height/width constraints
+- Use `flexDirection`, `alignItems`, `justifyContent` inside BorderedBox children
+- Override BorderedBox's internal layout system
+- Add your own height calculations that conflict with the component's logic
+- Use Box components for simple text concatenation (causes text wrapping)
+
+**Example - Correct Usage:**
+```tsx
+<BorderedBox title="Main" focused={navigation.isMainFocused}>
+    <Text>Simple content here</Text>
+</BorderedBox>
+```
+
+**Example - Incorrect Usage:**
+```tsx
+<BorderedBox title="Main" focused={navigation.isMainFocused}>
+    <Box flexDirection="column" alignItems="center" height={actualHeight - 4}>
+        <Text>Content wrapped in complex layout</Text>
+    </Box>
+</BorderedBox>
+```
+
+### **TUI Visual Bug Debugging Method**
+
+**Human-Agent Collaborative Process for TUI visual issues:**
+
+**Why This Method Works**: Claude cannot run TUI applications directly but can analyze debug output character-by-character. This creates an effective collaborative debugging flow.
+
+**Step-by-Step Process:**
+
+1. **Agent adds comprehensive logging** - Character counts, available space, exact calculations with descriptive labels
+2. **Agent builds the code** - `npm run build` to compile TypeScript changes
+3. **Human runs TUI with stderr capture**: `npm run tui 2>debug.log`
+4. **Human shares debug.log contents** - Agent analyzes character-level discrepancies
+5. **Agent identifies root cause** - Using precise character math and layout calculations  
+6. **Agent implements fix** - Based on debug log analysis
+7. **Iterate steps 2-6** until visual behavior matches expectations
+8. **Agent removes debug logs** - Clean up when bug is resolved
+
+**Key Principles:**
+- **Terminal is a 2D character matrix** - Every character position matters in responsive TUI
+- **Character-level precision** - Debug logs must show exact character counts at each step
+- **Human verification** - Agent cannot see visual output, relies on human feedback and debug logs
+- **Systematic approach** - Follow width flow from terminal → panel → component → text rendering
+
+### **Detailed TUI Debugging Implementation**
+
+**Character-Level Logging Strategy:**
+```typescript
+// Example logging pattern for width flow debugging
+console.error(`\n=== COMPONENT WIDTH CALCULATION ===`);
+console.error(`Terminal columns: ${columns}`);
+console.error(`Panel width: ${width} || ${columns - 2} = ${panelWidth}`);
+console.error(`borderOverhead: ${borderOverhead}`);
+console.error(`itemMaxWidth: ${panelWidth} - ${borderOverhead} = ${itemMaxWidth}`);
+console.error(`This itemMaxWidth will be passed to LogItem.render()`);
+console.error(`=== END COMPONENT WIDTH ===\n`);
+```
+
+**Truncation Logic Debugging:**
+```typescript
+// Example logging for truncation analysis
+if (targetText.includes('debug-trigger')) {
+    console.error(`\n--- TRUNCATION CALCULATION ---`);
+    console.error(`maxWidth: ${maxWidth} chars`);
+    console.error(`iconLength: ${iconLength} chars (icon:"${icon}" + space)`);
+    console.error(`BUFFER: ${BUFFER} chars`);
+    console.error(`availableForText: ${maxWidth} - ${iconLength} - ${BUFFER} = ${availableForText} chars`);
+    console.error(`textLength: ${text.length} chars`);
+    console.error(`Need truncation? ${text.length} > ${availableForText} = ${text.length > availableForText}`);
+    console.error(`FINAL RENDER TEXT: "${finalText}" (${finalText.length} chars)`);
+    console.error(`=== END TRUNCATION ===\n`);
+}
+```
+
+**Debug Flow Coverage:**
+1. **Width Flow**: Terminal → Panel → BorderedBox → ListItem
+2. **Content Flow**: Text input → Truncation logic → Final render
+3. **Character Counting**: Exact chars at each step
+4. **Validation**: Expected vs actual behavior
+
+**Usage:**
+```bash
+npm run tui 2>debug.log
+# Analyze debug.log for character-level discrepancies
+# Iterate until visual behavior matches calculations
+```
+
+### **Visual Bug Solutions Log**
+- **Task 1.1**: MainPanel borders breaking + text cutting → ✅ **FIXED** by removing complex Box wrapper inside BorderedBox, using simple Text child instead
+- **Task 1.2**: LogItem text wrapping outside borders → ✅ **FIXED** by adding truncation logic to same-color rendering path that was bypassing text length checks
+- **Task 1.3**: ProgressBar text truncation too aggressive → ✅ **FIXED** by reducing buffer from 3 chars to 1 char for better space utilization
+
+**Methodology Success**: The human-agent collaborative debugging process using `npm run tui 2>debug.log` proved highly effective for character-level TUI bug analysis. All visual issues were resolved through systematic debug log analysis.
 
 ### **Integration Points**
 *Track which components were connected and how*

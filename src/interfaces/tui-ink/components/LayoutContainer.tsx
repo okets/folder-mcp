@@ -44,7 +44,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             const FRAME_ONLY_HEIGHT = 2; // Just borders touching (top + bottom)
             const activeHeight = availableHeight - FRAME_ONLY_HEIGHT;
             
-            if (navigation.isConfigFocused) {
+            if (navigation.isMainFocused) {
                 heights = [activeHeight, FRAME_ONLY_HEIGHT];
             } else {
                 heights = [FRAME_ONLY_HEIGHT, activeHeight];
@@ -55,7 +55,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             const activeHeight = availableHeight - MINIMIZED_HEIGHT;
             
             // Determine which panel is active
-            if (navigation.isConfigFocused) {
+            if (navigation.isMainFocused) {
                 heights = [activeHeight, MINIMIZED_HEIGHT];
             } else {
                 heights = [MINIMIZED_HEIGHT, activeHeight];
@@ -83,14 +83,14 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     
                     // Check if this panel is minimized in low resolution mode (but not extremely low)
                     const isMinimized = isLowVerticalResolution && !isExtremelyLowVerticalResolution && panelCount === 2 && (
-                        (index === 0 && !navigation.isConfigFocused) ||
-                        (index === 1 && navigation.isConfigFocused)
+                        (index === 0 && !navigation.isMainFocused) ||
+                        (index === 1 && navigation.isMainFocused)
                     );
                     
                     // Check if this panel should show frame only (extremely low resolution, inactive panel)
                     const isFrameOnly = isExtremelyLowVerticalResolution && panelCount === 2 && (
-                        (index === 0 && !navigation.isConfigFocused) ||
-                        (index === 1 && navigation.isConfigFocused)
+                        (index === 0 && !navigation.isMainFocused) ||
+                        (index === 1 && navigation.isMainFocused)
                     );
                     
                     const layoutKey = `layout-narrow-${index}`;

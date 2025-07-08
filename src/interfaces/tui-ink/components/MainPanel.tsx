@@ -25,7 +25,7 @@ export const MainPanel: React.FC<{
     const { isInFocusChain } = useFocusChain({
         elementId: 'main-panel',
         parentId: 'navigation',
-        isActive: navigation.isConfigFocused,
+        isActive: navigation.isMainFocused,
         keyBindings: [],
         priority: 50
     });
@@ -64,16 +64,13 @@ export const MainPanel: React.FC<{
     return (
         <BorderedBox
             title="Main"
-            subtitle="Ready for new content"
-            focused={navigation.isConfigFocused}
+            focused={navigation.isMainFocused}
             width={panelWidth}
             height={actualHeight}
             showScrollbar={false}
             scrollbarElements={[]}
         >
-            <Box flexDirection="column" alignItems="center" justifyContent="center" height={actualHeight - 4}>
-                <Text color={theme.colors.textSecondary}>Main panel is ready for new content</Text>
-            </Box>
+            <Text color={theme.colors.textSecondary}>Ready for new content</Text>
         </BorderedBox>
     );
 };

@@ -85,7 +85,7 @@ export const DemoExpandablePanel: React.FC = () => {
                     width={columns - 2}
                     height={rows - 2}
                     items={demoItems as any}
-                    selectedIndex={navigation.configSelectedIndex}
+                    selectedIndex={navigation.mainSelectedIndex}
                     // Only supported props passed
                 />
             </Box>

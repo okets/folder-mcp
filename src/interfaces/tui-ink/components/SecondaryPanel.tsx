@@ -37,9 +37,18 @@ export const SecondaryPanel: React.FC<{ width?: number; height?: number; isMinim
     
     // Calculate content width for items
     const panelWidth = width || columns - 2;
-    // BorderedBox subtracts 4 for borders/padding, plus 1 for scrollbar space
-    const borderOverhead = 5;
+    // BorderedBox subtracts 4 for borders/padding, plus 1 for scrollbar space, plus aggressive buffer
+    const borderOverhead = 6; // Increased buffer - we control layout, not Ink
     const itemMaxWidth = panelWidth - borderOverhead;
+    
+    // TUI CHARACTER DEBUGGING - WIDTH FLOW FROM PANEL TO ITEMS
+    console.error(`\n=== SECONDARYPANEL WIDTH CALCULATION ===`);
+    console.error(`Terminal columns: ${columns}`);
+    console.error(`Panel width: ${width} || ${columns - 2} = ${panelWidth}`);
+    console.error(`borderOverhead: ${borderOverhead}`);
+    console.error(`itemMaxWidth: ${panelWidth} - ${borderOverhead} = ${itemMaxWidth}`);
+    console.error(`This itemMaxWidth will be passed to LogItem.render()`);
+    console.error(`=== END PANEL WIDTH ===\n`);
     
     // Update item states based on selection
     mixedItems.forEach((item, index) => {
