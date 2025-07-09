@@ -197,21 +197,26 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         // Otherwise handle navigation
         if (key.return && selectedItem?.onEnter) {
             selectedItem.onEnter();
+            // Trigger update to show cursor change (▶ → ■)
+            setUpdateTrigger(prev => prev + 1);
             return true;
         } else if (key.rightArrow && selectedItem) {
             // Right arrow expands (if item supports it)
             if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
                 selectedItem.onExpand();
+                setUpdateTrigger(prev => prev + 1); // Force re-render after expand
                 return true;
             } else if (selectedItem.onEnter) {
                 // Fallback to onEnter for items that don't have onExpand
                 selectedItem.onEnter();
+                setUpdateTrigger(prev => prev + 1);
                 return true;
             }
         } else if ((key.leftArrow || key.escape) && selectedItem) {
             // Left arrow or ESC collapses (if item supports it)
             if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
                 selectedItem.onCollapse();
+                setUpdateTrigger(prev => prev + 1); // Force re-render after collapse
                 return true;
             }
         }
@@ -332,6 +337,35 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                             // Update item state without mutation - items check this internally
                             if (listItem && typeof listItem === 'object' && 'isActive' in listItem) {
                                 (listItem as any).isActive = isSelected;
+                            }
+                            
+                            // Built-in cursor management for panel-level navigation
+                            if (listItem && typeof listItem === 'object' && 'icon' in listItem) {
+                                // Store original icon if not already stored
+                                if (!(listItem as any)._originalIcon) {
+                                    (listItem as any)._originalIcon = (listItem as any).icon;
+                                }
+                                
+                                const previousIcon = (listItem as any).icon;
+                                
+                                if (isSelected && isFocused) {
+                                    // Check if item is controlling input
+                                    if ((listItem as any).isControllingInput) {
+                                        // Item is active/controlling - show ■
+                                        (listItem as any).icon = '■';
+                                    } else {
+                                        // Item is selected but panel is active - show ▶
+                                        (listItem as any).icon = '▶';
+                                    }
+                                } else {
+                                    // Unselected - restore original icon
+                                    (listItem as any).icon = (listItem as any)._originalIcon;
+                                }
+                                
+                                // Force re-render if icon changed
+                                if (previousIcon !== (listItem as any).icon) {
+                                    setUpdateTrigger(prev => prev + 1);
+                                }
                             }
                             
                             // Pass the actual remaining lines so item can make responsive decisions

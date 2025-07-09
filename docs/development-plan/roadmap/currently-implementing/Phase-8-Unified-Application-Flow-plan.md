@@ -337,7 +337,7 @@ All scenarios show the selected folder in the confirmation step and create the c
 - [x] **Enhanced Wizard Flow**: Skip answered questions, show CLI parameters in read-only LogItems
 - [x] **Error Handling**: Invalid -d paths show error LogItem then folder picker with defaults
 - [x] **Priority Logic Implementation**: CLI -d (validated) → Dev flag → Current directory
-- [ ] **Navigation Cursor System**: Implement active cursor management (`▶`, `■`, `·`) similar to demo TUI for better UX
+- [x] **Navigation Cursor System**: Implement active cursor management (`▶`, `■`, `·`) similar to demo TUI for better UX
 
 **Technical Implementation**:
 - Update `src/interfaces/cli/folder-mcp.ts` to add `-d` flag
@@ -345,6 +345,12 @@ All scenarios show the selected folder in the confirmation step and create the c
 - Update `src/interfaces/tui-ink/components/FirstRunWizard.tsx` to use LogItems for CLI feedback
 - Clean up `src/config/dev-mode.ts` and 7 other files with legacy flag
 - Add folder validation utilities
+- **Navigation Cursor System**: Move cursor management from external components to GenericListPanel.tsx as built-in feature:
+  - Add cursor logic in item processing loop (around line 333)
+  - Set `'▶'` for expandable items, `'■'` for interactive items, `'·'` for default
+  - Preserve validation icons (`√`, `✗`) for unselected items
+  - Remove external cursor management from AppFullscreen.tsx (lines 119-140, 147-156)
+  - Ensure single Enter key activation instead of two right arrows
 
 **Success Criteria**:
 ```bash
@@ -617,6 +623,63 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
+#### Task 13: Implement Centralized Focus Management System
+**Status**: ⏳ Waiting  
+**Priority**: Low (will be bumped up if focus issues persist)
+**Discovered**: 2025-07-09  
+**What**: Create a proper centralized focus management system for the TUI.
+
+**Why**: Current system conflates focus, selection, active state, and keyboard control. This causes tight coupling between visual indicators (cursor) and keyboard handling. A centralized system would provide clean separation of concerns.
+
+**Problem Analysis**:
+- Focus state is scattered across components
+- Keyboard handling and visual state are tightly coupled
+- No clear hierarchy of focus (app → panel → item)
+- Active vs selected vs controlling states are conflated
+
+**Proposed Architecture**:
+- **Hierarchical Focus System**: All ancestors of active element are "focused"
+- **Single Active Element**: Only one element handles keyboard input at any time
+- **Clear State Separation**:
+  - `focused`: Which panel/component has focus ancestry
+  - `selected`: Which item in a list is highlighted
+  - `active`: Which element currently handles keyboard input
+  - `controlling`: Whether an item has taken over input from its panel
+- **Visual Indicators**:
+  - `▶` = Selected item (panel is active)
+  - `■` = Active/controlling item (item handles input)
+  - Border highlight = Focused panel
+
+**Subtasks**:
+- [ ] Design centralized FocusManager service
+- [ ] Implement focus hierarchy tracking
+- [ ] Create keyboard input routing system
+- [ ] Separate visual state from input handling
+- [ ] Migrate existing components to use FocusManager
+- [ ] Update all panels and items to new system
+- [ ] Test complex focus scenarios (nested items, modal dialogs)
+
+**Success Criteria**:
+- Single source of truth for focus state
+- Clean separation between visual and input concerns
+- Consistent keyboard handling across all components
+- Easy to reason about focus flow
+- No more conflated state management
+
+**Technical Notes**:
+- Build on Option 2 implementation (current cursor system)
+- Consider using React Context for focus state
+- May need custom hooks for focus management
+- Ensure backward compatibility during migration
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
 
 ## 📊 **Progress Tracking**
 
@@ -637,6 +700,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 10 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
 | 11 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
 | 12 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
+| 13 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
 
 ### **Key Discoveries**
 - **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.

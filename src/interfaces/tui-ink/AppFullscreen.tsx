@@ -72,7 +72,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 folderIcon,
                 'Project Folder',
                 folderPath,
-                navigation.mainSelectedIndex === 0 && navigation.isMainFocused, // active if selected
+                false, // GenericListPanel will handle active state
                 'folder', // folder mode
                 (newPath) => {
                     // TODO: Handle folder path changes in main app
@@ -86,7 +86,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 '√',
                 'Embedding Model',
                 config.folders[0].model || config.embedding?.model || 'ollama:nomic-embed-text',
-                navigation.mainSelectedIndex === 1 && navigation.isMainFocused, // active if selected
+                false, // GenericListPanel will handle active state
                 false, // not expanded
                 undefined, // no edit value
                 undefined, // no cursor position
@@ -102,7 +102,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 '√',
                 'Language',
                 config.folders[0].language || 'auto',
-                navigation.mainSelectedIndex === 2 && navigation.isMainFocused, // active if selected
+                false, // GenericListPanel will handle active state
                 false, // not expanded
                 undefined, // no edit value
                 undefined, // no cursor position
@@ -115,49 +115,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             
             const configItems = [folderPicker, modelConfig, languageConfig];
             
-            // Apply active cursor management similar to demo TUI
-            configItems.forEach((item, index) => {
-                const isSelected = navigation.isMainFocused && navigation.mainSelectedIndex === index;
-                if (isSelected) {
-                    // Check if it's expandable/interactive
-                    if (item instanceof FilePickerListItem) {
-                        (item as any).icon = '▶'; // Arrow for expandable file picker
-                    } else if (item instanceof ConfigurationListItem) {
-                        // Check if it has edit capability (for future enhancement)
-                        (item as any).icon = '■'; // Rectangle for non-expandable config items
-                    } else {
-                        (item as any).icon = '▶'; // Default arrow for other expandable items
-                    }
-                } else {
-                    // Unselected items get the appropriate unselected icon
-                    if (item instanceof FilePickerListItem) {
-                        (item as any).icon = folderIcon; // Keep validation icon (√ or ✗)
-                    } else {
-                        (item as any).icon = '·'; // Dot for unselected items
-                    }
-                }
-                (item as any).isActive = isSelected;
-            });
-            
             return configItems;
         } else {
             // Fallback to sample data when no config available
             const sampleItems = [...CONFIG_ITEMS]; // Clone to avoid mutations
             
-            // Apply cursor management to sample items too
-            sampleItems.forEach((item, index) => {
-                const isSelected = navigation.isMainFocused && navigation.mainSelectedIndex === index;
-                if (isSelected) {
-                    (item as any).icon = '▶'; // Arrow for selected items
-                } else {
-                    (item as any).icon = '·'; // Dot for unselected items
-                }
-                (item as any).isActive = isSelected;
-            });
-            
             return sampleItems;
         }
-    }, [config, navigation.mainSelectedIndex, navigation.isMainFocused]);
+    }, [config]); // Remove navigation dependencies - GenericListPanel handles active state
     
     // Try to use theme context if available
     const themeContext = useContext(ThemeContext);
