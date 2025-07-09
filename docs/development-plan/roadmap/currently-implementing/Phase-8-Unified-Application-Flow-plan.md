@@ -318,7 +318,7 @@ All scenarios show the selected folder in the confirmation step and create the c
 **Testing**: The wizard now handles rapid navigation without crashes, properly checking for valid values before proceeding to the next step.
 
 #### Task 4: Fix Configuration System Unity
-**Status**: ⏳ In Progress  
+**Status**: ✅ Completed  
 **Discovered**: 2025-07-09  
 **What**: Unify the wizard and main app configuration systems to use the same storage mechanism.
 
@@ -330,10 +330,17 @@ All scenarios show the selected folder in the confirmation step and create the c
 - **No persistence**: Wizard configuration never reaches main app's config system
 
 **Subtasks**:
-- [ ] **Connect wizard to unified config system**: Make wizard save to the same location main app reads from
-- [ ] **Update config file location**: Configure main app to read from `~/.folder-mcp/config.yaml` instead of `config.yaml`
-- [ ] **Test configuration persistence**: Verify wizard config survives across runs
-- [ ] **Remove duplicate config logic**: Clean up separate JSON config mechanism
+- [x] **Connect wizard to unified config system**: Make wizard save to the same location main app reads from
+- [x] **Update config file location**: Configure main app to read from `~/.folder-mcp/config.yaml` instead of `config.yaml`
+- [x] **Test configuration persistence**: Verify wizard config survives across runs
+- [x] **Remove duplicate config logic**: Clean up separate JSON config mechanism
+
+**Implementation Summary**:
+- Updated wizard to use unified ConfigManager with `~/.folder-mcp/config.yaml`
+- Connected main app to read from same unified configuration system
+- Replaced manual JSON config creation with proper ConfigManager integration
+- Fixed config passing through component hierarchy
+- All validation and config access now goes through single source of truth
 
 **Success Criteria**:
 ```bash
@@ -345,9 +352,82 @@ folder-mcp  # Shows same folder and config from wizard, no sample data
 ```
 
 **Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
+- [x] Mark progress on this document
+- [x] Summarize what was done and describe UX testing
+- [x] Wait for confirmation before commit
+
+#### Task 4.1: Create ValidationRegistry as Single Source of Truth
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-09  
+**What**: Create centralized validation registry that serves as single source of truth for all configuration validation rules.
+
+**Why**: Validation logic was scattered across TUI, CLI, and config files with potential inconsistencies. ValidationRegistry centralizes all validation rules to ensure consistency.
+
+**Key Components**:
+- **ValidationRegistry**: Central registry with all validation rules
+- **Path-based validation**: Rules registered by configuration path (e.g., 'user.email', 'server.port')
+- **TUI integration**: Direct integration with existing TUI validators
+- **CLI integration**: Same validation rules apply to CLI configuration setting
+
+**Implementation Details**:
+- Created `src/config/ValidationRegistry.ts` with comprehensive validation rules
+- Fixed email validation bug: Updated regex from `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` to `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`
+- Integrated with existing TUI validators via `getTuiValidators()` method
+- Added support for array paths (e.g., `folders.list[].path`)
+- Comprehensive test coverage with failing-then-passing test approach
+
+**Validation Rules Centralized**:
+- Theme validation (auto, light, dark)
+- Folder path validation (must exist)
+- Embedding model validation (supported models)
+- Batch size validation (1-1000)
+- Server port validation (1000-65535)
+- Server host validation (IP or localhost)
+- Email validation (strict regex)
+
+**Task Completion Protocol**:
+- [x] Mark progress on this document
+- [x] Create ValidationRegistry implementation
+- [x] Fix email validation bug
+- [x] Test validation with failing then passing tests
+- [x] Wait for confirmation before commit
+
+#### Task 4.2: Expand ConfigurationComponent as Unified Interface
+**Status**: 🚧 In Progress  
+**Discovered**: 2025-07-09  
+**What**: Expand ConfigurationComponent to become the single source of truth for both validation AND configuration access.
+
+**Why**: ValidationRegistry solved validation centralization, but configuration ACCESS is still scattered across TUI, CLI, wizard, and other systems. ConfigurationComponent needs to become the unified interface.
+
+**Current State Analysis**:
+- ValidationRegistry ✅ provides centralized validation
+- ConfigurationComponent ✅ uses ValidationRegistry for validation
+- Multiple systems still access config through different mechanisms ❌
+- Need unified interface for both validation AND configuration access
+
+**Architecture Plan**:
+```
+ConfigurationComponent (Unified Interface)
+├── ValidationRegistry (validation rules)
+├── ConfigManager (storage mechanism)
+├── DI Container (dependency injection)
+└── Unified API (get/set/validate all in one place)
+```
+
+**Subtasks**:
+- [ ] **Expand ConfigurationComponent API**: Add comprehensive get/set methods for all config paths
+- [ ] **Create type-safe interfaces**: Define TypeScript interfaces for all configuration sections
+- [ ] **Add bulk operations**: Support for getting/setting multiple config values at once
+- [ ] **Integrate with DI system**: Make ConfigurationComponent available through dependency injection
+- [ ] **Create configuration observers**: Allow components to watch for configuration changes
+- [ ] **Add configuration defaults**: Centralized default values for all configuration paths
+
+**Success Criteria**:
+- All TUI components access config through ConfigurationComponent
+- All CLI commands access config through ConfigurationComponent  
+- All wizard steps access config through ConfigurationComponent
+- No direct ConfigManager access outside of ConfigurationComponent
+- Single source of truth for both validation and configuration access
 
 #### Task 5: Integrate -d Parameter with Unified Config System
 **Status**: ⏳ Waiting  
