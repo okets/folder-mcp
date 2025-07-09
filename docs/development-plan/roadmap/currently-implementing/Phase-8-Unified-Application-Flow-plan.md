@@ -104,11 +104,30 @@ folder-mcp add ~/Work --model ollama:codellama --language en
 ### **Dynamic Task Discovery**
 This phase uses an exploratory approach where tasks are discovered and documented as we progress through the integration work. Each task will be added to this document as it's identified, creating a living record of the unification process.
 
-### **Core Philosophy**
-- **Integration First**: Connect what exists before adding new features
-- **User Journey**: Follow the user's path to discover pain points
-- **Iterative Refinement**: Quick iterations with continuous improvement
-- **Document as We Go**: Capture decisions and discoveries in real-time
+### **Core Philosophy: Bottom-Up Incremental Development**
+
+**Our Proven Approach:**
+1. **Start with Simple User Flows**: Begin with one concrete user need (e.g., "set a folder")
+2. **Implement Across All Interfaces**: Build the same flow in wizard, CLI, and TUI
+3. **Let Needs Emerge Naturally**: This reveals shared requirements and patterns
+4. **Build Reusable Components**: Create properly designed solutions (e.g., GenericListPanel, ValidationRegistry)
+5. **Unify When Patterns Are Clear**: Only after frontend patterns solidify, carefully bridge to backend
+
+**What We've Built So Far:**
+- ✅ **Solid MCP Proof of Concept**: Working server with embeddings and tested endpoints
+- ✅ **Robust TUI Framework**: Responsive, modern terminal UX with reusable components
+- ✅ **Unified Configuration Frontend**: Single source of truth for validation and config access
+
+**Why This Works:**
+- **No Premature Abstraction**: We don't guess what we'll need - we build what users actually do
+- **Natural Component Discovery**: Real use cases reveal the right abstractions
+- **Stable Foundation**: Each layer is solid before building the next
+- **Safe Progress**: Small steps mean we can always verify things work
+
+**Current State:**
+- Frontend configuration is unified (wizard → CLI → TUI all use ConfigurationComponent)
+- Backend still uses HybridConfigLoader (and that's OK for now!)
+- Next: Build more user flows to understand backend integration needs
 
 ## 🚨 **PHASE 8 WORKING RULES**
 
@@ -479,53 +498,65 @@ ConfigurationComponent (Unified Interface)
 
 **Critical Discovery**: Frontend configuration is now fully unified, but **backend services still use HybridConfigLoader**. This creates a disconnect where user configuration doesn't affect backend functionality.
 
-#### Task 4.7: Connect Backend Services to Unified Configuration System
-**Status**: ⏳ Waiting  
+#### Task 4.7: Complete Folder Configuration Flow from All Directions
+**Status**: 🚧 In Progress  
 **Discovered**: 2025-07-09  
-**Priority**: 🔥 **CRITICAL - BLOCKS ALL BACKEND FUNCTIONALITY**
-**What**: Bridge the gap between frontend ConfigurationComponent and backend services that still use HybridConfigLoader.
+**What**: Complete the folder configuration flow from all entry points, including proper -d parameter integration with read-only wizard display.
 
-**Why**: **CRITICAL GAP DISCOVERED** - The unified configuration system only affects the frontend. Backend services (MCP server, indexing, embedding, search) still use the old HybridConfigLoader system and are completely unaware of user configuration changes made through the TUI wizard or CLI.
+**Why**: Folder configuration is the critical foundation for everything else. By perfecting this one flow across all interfaces (wizard, CLI, TUI), we establish patterns for all other configuration items. The TUI is fundamentally about configuration management - get this right and everything else follows.
 
-**Problem Analysis**:
-- ❌ **Frontend**: TUI wizard → ConfigurationComponent → `~/.folder-mcp/config.yaml`
-- ❌ **Backend**: MCP server → HybridConfigLoader → `system-configuration.json` + `config-defaults.yaml` + `config.yaml`
-- ❌ **No Bridge**: Configuration changes don't reach backend services
-- ❌ **Broken UX**: User settings don't affect actual functionality (indexing, search, embedding)
-
-**Architecture Plan**:
-```
-Frontend (✅ Unified)          Backend (❌ Detached)
-TUI Wizard                     MCP Server
-CLI Commands        →  Bridge  → Indexing Services  
-Theme Service          Needed   Embedding Services
-ConfigurationComponent         Search Services
-```
-
-**Subtasks**:
-- [ ] **Remove HybridConfigLoader**: Delete the legacy configuration system entirely
-- [ ] **Update MCP Server**: Make MCP server use ConfigurationComponent via DI
-- [ ] **Update Domain Services**: Connect all backend services to unified configuration
-- [ ] **Bridge Configuration Flow**: Ensure frontend config changes reach backend services
-- [ ] **Test End-to-End**: Verify wizard settings actually affect backend behavior
-- [ ] **Clean Up Legacy**: Remove all references to old configuration system
+**Implementation Plan**:
+1. **CLI -d Parameter Integration**:
+   - [ ] Validate folder path when provided via -d flag
+   - [ ] Pass validated folder to wizard as pre-configured value
+   - [ ] Display folder as read-only LogItem in wizard
+   - [ ] Skip folder selection step, proceed to other config options
+   
+2. **Wizard Enhancement**:
+   - [ ] Show pre-configured values as read-only LogItems at top
+   - [ ] Skip questions that have been answered via CLI
+   - [ ] Maintain visual consistency with interactive steps
+   
+3. **TUI Folder Configuration Panel**:
+   - [ ] Create dedicated folder configuration panel in main TUI
+   - [ ] Show current folder with edit capability
+   - [ ] Integrate FilePickerListItem for folder changes
+   - [ ] Real-time validation with ConfigurationComponent
+   
+4. **Edge Cases & Robustness**:
+   - [ ] Handle non-existent folders gracefully
+   - [ ] Handle permission denied scenarios
+   - [ ] Handle folder deletion after configuration
+   - [ ] Proper error messages and recovery flows
 
 **Success Criteria**:
 ```bash
-# User configures embedding model in TUI wizard
-rm -rf ~/.folder-mcp
-folder-mcp  # Wizard: select folder + model "nomic-embed-text"
+# CLI pre-configuration works
+folder-mcp -d /valid/folder    # Wizard shows folder as read-only, skips that step
 
-# Backend services respect the configuration
-folder-mcp status  # Shows: Using model "nomic-embed-text" (configured via wizard)
+# All three interfaces can configure the same folder
+folder-mcp                      # Configure via wizard
+folder-mcp config set folder    # Configure via CLI  
+# Configure via TUI main panel
+
+# Edge cases handled gracefully
+folder-mcp -d /deleted/folder   # Shows error, offers folder picker
 ```
 
-**Dependencies**: This task BLOCKS all backend functionality. Tasks 5+ (Transformers.js, CLI commands, daemon) will not work properly until this is resolved.
+**Next User Flow** (Task 4.8):
+After perfecting single folder configuration, the natural next step is **Multi-Folder Configuration**:
+- Add/remove multiple folders
+- Handle deleted folders gracefully  
+- Folder-specific settings (different models per folder)
+- Conflict resolution between folders
+- This creates the solid ground needed for backend integration
 
 **Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Verify end-to-end configuration flow works
-- [ ] Wait for confirmation before commit
+- [ ] Implement -d parameter integration with wizard
+- [ ] Enhance wizard for pre-configured values
+- [ ] Create TUI folder configuration panel
+- [ ] Test all edge cases thoroughly
+- [ ] Document patterns discovered
 
 #### Task 5: Integrate -d Parameter with Unified Config System
 **Status**: ⏳ Waiting  
@@ -907,18 +938,18 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 4.4 | Replace CLI Configuration Access | 2025-07-09 | ✅ | All CLI commands use ConfigurationComponent |
 | 4.5 | Replace Wizard Configuration Access | 2025-07-09 | ✅ | Wizard uses ConfigurationComponent |
 | 4.6 | Eliminate Direct ConfigManager Access | 2025-07-09 | ✅ | Only ConfigurationComponent uses ConfigManager |
-| 4.7 | Connect Backend to Unified Config | 2025-07-09 | ⏳ | 🔥 **CRITICAL** - Remove HybridConfigLoader |
-| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | **BLOCKED** - CLI folder addition enhancement |
-| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | **BLOCKED** - Skip CLI-answered questions |
+| 4.7 | Complete Folder Configuration Flow | 2025-07-09 | 🚧 | Perfect folder config across wizard/CLI/TUI |
+| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition enhancement |
+| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions |
 | 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
-| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | **BLOCKED** - Offline embeddings with mean pooling |
-| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | **BLOCKED** - add, list, status, remove |
-| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | **BLOCKED** - Auto-start, crash recovery |
-| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | **BLOCKED** - stdio + HTTP support |
-| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | **BLOCKED** - System detection, smart defaults |
-| 13 | System Integration | 2025-07-08 | ⏳ | **BLOCKED** - Auto-start on boot |
-| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | **BLOCKED** - Isolated folder management |
-| 15 | Documentation & Release | 2025-07-08 | ⏳ | **BLOCKED** - Complete docs and checklist |
+| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
+| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
+| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
+| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
+| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
+| 13 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
+| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
+| 15 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
 | 16 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
 
 ### **Key Discoveries**
@@ -1060,6 +1091,48 @@ While tasks are dynamic, documentation is critical:
 - Problems and solutions recorded for future reference
 - Final roadmap update consolidates all learnings
 
+## 🌉 **Backend Integration Philosophy**
+
+### When to Bridge Frontend and Backend
+
+**Current Reality**: 
+- Frontend is unified (ConfigurationComponent)
+- Backend uses HybridConfigLoader
+- **This separation is intentional and good!**
+
+**When NOT to integrate backend**:
+- ❌ When you discover a gap (like we did with Task 4.7)
+- ❌ When it seems "critical" or "blocking"
+- ❌ When you haven't built enough user flows
+- ❌ When the frontend patterns aren't fully proven
+
+**When TO integrate backend**:
+- ✅ After implementing 5-7 complete user flows
+- ✅ When patterns are crystal clear and repeated
+- ✅ When you understand exactly what the backend needs
+- ✅ When you can bridge without breaking anything
+
+**Why This Works**:
+1. **Frontend First**: Users interact with frontend - get that right first
+2. **Pattern Discovery**: Multiple user flows reveal the right abstractions
+3. **Safe Integration**: When patterns are proven, backend integration is obvious
+4. **No Guessing**: We don't guess what backend needs - we KNOW from frontend
+
+**The HybridConfigLoader Question**:
+Task 4.7 originally wanted to remove HybridConfigLoader immediately. This would have:
+- Broken existing functionality
+- Required guessing at backend needs
+- Created instability in working code
+- Violated our incremental approach
+
+Instead, HybridConfigLoader will be replaced naturally when:
+- We have 5+ working user flows
+- The frontend patterns are battle-tested
+- We know exactly how backend should connect
+- We can do it safely without breaking anything
+
+**Next Steps**: Build more user flows! Each one teaches us what the backend integration should look like.
+
 ## ✅ **Phase Validation**
 
 ### Continuous Validation
@@ -1087,6 +1160,34 @@ While tasks are dynamic, documentation is critical:
 
 ### Future Considerations
 *Note items for future phases*
+
+## 🔮 **Future Tasks (After Pattern Maturity)**
+
+These tasks will be addressed after we have 5-7 working user flows and clear patterns:
+
+### Backend Configuration Bridge
+**Status**: 📅 Future  
+**What**: Replace HybridConfigLoader with ConfigurationComponent in backend services.
+
+**When This Becomes Ready**:
+- After implementing folder status, indexing control, search, and multi-folder flows
+- When we understand exactly how backend needs configuration
+- When we can map every HybridConfigLoader usage to a ConfigurationComponent pattern
+- When we have comprehensive tests for all user flows
+
+**Why Wait**:
+- Frontend patterns need to be proven first
+- We need to understand real usage patterns
+- Backend integration should be obvious, not forced
+- Zero risk of breaking working functionality
+
+**Implementation Plan** (when ready):
+1. Map all HybridConfigLoader usage patterns
+2. Create compatibility layer first
+3. Migrate services one by one
+4. Maintain backward compatibility
+5. Remove HybridConfigLoader only after all services migrated
+6. Comprehensive end-to-end testing
 
 ---
 
