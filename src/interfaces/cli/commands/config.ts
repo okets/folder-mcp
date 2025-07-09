@@ -502,7 +502,7 @@ export class ConfigCommand extends BaseCommand {
     console.log('=========================');
     
     const envVars = Object.keys(process.env)
-      .filter(key => key.startsWith('FOLDER_MCP_') || key === 'ENABLE_ENHANCED_MCP_FEATURES')
+      .filter(key => key.startsWith('FOLDER_MCP_'))
       .sort();
 
     if (envVars.length === 0) {
@@ -525,7 +525,7 @@ export class ConfigCommand extends BaseCommand {
         'FOLDER_MCP_FILE_EXTENSIONS - Set supported file extensions (JSON array)',
         'FOLDER_MCP_IGNORE_PATTERNS - Set ignore patterns (JSON array)',
         'FOLDER_MCP_DEVELOPMENT_ENABLED - Enable development mode',
-        'ENABLE_ENHANCED_MCP_FEATURES - Legacy: Enable enhanced features'
+        'FOLDER_MCP_DEVELOPMENT_ENABLED - Enable development mode (replaces legacy ENABLE_ENHANCED_MCP_FEATURES)'
       ];
       
       for (const desc of available) {

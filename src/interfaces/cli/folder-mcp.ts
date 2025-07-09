@@ -27,7 +27,8 @@ program
   .version('1.0.0')
   .option('--daemon', 'Start daemon only (no TUI)')
   .option('--headless', 'Skip TUI, run headless (future)')
-  .option('--port <port>', 'Daemon port (default: 9876)', parseInt);
+  .option('--port <port>', 'Daemon port (default: 9876)', parseInt)
+  .option('-d, --dir <path>', 'Folder to index (passed to TUI)');
 
 // Add the config command
 program.addCommand(createSimpleConfigCommand());
@@ -138,7 +139,12 @@ async function startTUI(options: any): Promise<void> {
   }
   
   // Start TUI
-  const tuiProcess = spawn('node', [tuiPath], {
+  const args = [tuiPath];
+  if (options.dir) {
+    args.push('-d', options.dir);
+  }
+  
+  const tuiProcess = spawn('node', args, {
     stdio: 'inherit',
     cwd: process.cwd()
   });

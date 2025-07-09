@@ -129,7 +129,7 @@ The project uses a comprehensive hierarchical configuration system with multiple
 - `FOLDER_MCP_MODEL_NAME` - Embedding model name
 - `FOLDER_MCP_BATCH_SIZE` - Processing batch size
 - `FOLDER_MCP_DEVELOPMENT_ENABLED` - Enable development mode
-- `ENABLE_ENHANCED_MCP_FEATURES` - Legacy development mode (still supported)
+- `FOLDER_MCP_DEVELOPMENT_ENABLED` - Enable development mode
 
 **Configuration Management:**
 ```bash
@@ -210,7 +210,7 @@ See `docs/configuration.md` for complete configuration documentation.
 
 ## Development Mode Features
 
-Enable with `FOLDER_MCP_DEVELOPMENT_ENABLED=true` or legacy `ENABLE_ENHANCED_MCP_FEATURES=true`:
+Enable with `FOLDER_MCP_DEVELOPMENT_ENABLED=true`:
 - Hot reload on file changes
 - Enhanced debugging output
 - Real-time file system monitoring

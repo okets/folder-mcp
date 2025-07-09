@@ -4,7 +4,7 @@
       "command": "node",
       "args": ["dist/index.js", "c:\\ThinkingHomes\\folder-mcp\\test-content"],
       "env": {
-        "ENABLE_ENHANCED_MCP_FEATURES": "true"
+        "FOLDER_MCP_DEVELOPMENT_ENABLED": "true"
       },
       "dev": {
         "watch": ["dist/**/*.js"],

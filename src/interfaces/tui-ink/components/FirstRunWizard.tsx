@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { LogItem, LogEntry } from './core/items/LogItem';
 import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
@@ -12,37 +13,56 @@ import { useFocusChain, useRootInput } from '../hooks/useFocusChain';
 
 interface FirstRunWizardProps {
     onComplete: (config: any) => void;
+    cliDir?: string | null | undefined;
 }
 
-// Helper function to get default folder path
-function getDefaultFolderPath(): string {
-    // Check if dev flag is on
-    const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true' || 
-                  process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true';
-    
-    if (isDev) {
-        // Use tests/fixtures/test-knowledge-base as default in dev mode
-        return join(process.cwd(), 'tests', 'fixtures', 'test-knowledge-base');
-    }
-    
-    // Check for CLI -f parameter (would be passed via process.argv)
-    const fIndex = process.argv.indexOf('-f');
-    if (fIndex !== -1 && fIndex + 1 < process.argv.length) {
-        const folderFromCli = process.argv[fIndex + 1];
-        if (folderFromCli) {
-            return folderFromCli;
+// Helper function to get default folder path with validation
+function getDefaultFolderPath(cliDir?: string | null | undefined): { path: string; error?: string } {
+    // Priority 1: CLI -d parameter (if provided and valid)
+    if (cliDir) {
+        if (existsSync(cliDir)) {
+            const stat = require('fs').statSync(cliDir);
+            if (stat.isDirectory()) {
+                return { path: cliDir };
+            } else {
+                return { 
+                    path: process.cwd(), 
+                    error: `CLI path "${cliDir}" exists but is not a directory` 
+                };
+            }
+        } else {
+            return { 
+                path: process.cwd(), 
+                error: `CLI path "${cliDir}" does not exist` 
+            };
         }
     }
     
-    // Default to current working directory
-    return process.cwd();
+    // Priority 2: Dev flag
+    const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
+    if (isDev) {
+        // Use tests/fixtures/test-knowledge-base as default in dev mode
+        return { path: join(process.cwd(), 'tests', 'fixtures', 'test-knowledge-base') };
+    }
+    
+    // Priority 3: Current working directory
+    return { path: process.cwd() };
 }
 
-const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
+const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const [step, setStep] = useState(1);
-    const [folderPath, setFolderPath] = useState(getDefaultFolderPath());
+    const folderResult = getDefaultFolderPath(cliDir);
+    const [folderPath, setFolderPath] = useState(folderResult.path);
+    const [folderError, setFolderError] = useState(folderResult.error || null);
+    
+    // DEBUG: Log initial folder path
+    console.error(`[WIZARD-DEBUG] Initial folder setup:`);
+    console.error(`[WIZARD-DEBUG] - cliDir: ${cliDir}`);
+    console.error(`[WIZARD-DEBUG] - folderResult.path: ${folderResult.path}`);
+    console.error(`[WIZARD-DEBUG] - folderResult.error: ${folderResult.error}`);
+    console.error(`[WIZARD-DEBUG] - folderPath state: ${folderPath}`);
     const [selectedModel, setSelectedModel] = useState('ollama:nomic-embed-text');
     const [selectedLanguage, setSelectedLanguage] = useState('auto');
     const [isComplete, setIsComplete] = useState(false);
@@ -52,6 +72,49 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     const logoTextColor = '#a65ff6';
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
+    
+    // Create CLI feedback log entries
+    const createCliLogEntries = (): LogEntry[] => {
+        const logs: LogEntry[] = [];
+        
+        // Add CLI directory parameter log
+        if (cliDir) {
+            if (folderError) {
+                logs.push({
+                    id: 'cli-dir-error',
+                    timestamp: new Date(),
+                    level: 'error',
+                    message: `CLI -d parameter: ${folderError}`,
+                    details: `Provided path: ${cliDir}\nFalling back to folder picker with default: ${folderPath}`,
+                    source: 'CLI'
+                });
+            } else {
+                logs.push({
+                    id: 'cli-dir-success',
+                    timestamp: new Date(),
+                    level: 'info',
+                    message: `CLI -d parameter: Using folder "${cliDir}"`,
+                    details: `Directory validated and will be used for indexing`,
+                    source: 'CLI'
+                });
+            }
+        }
+        
+        // Add development mode log
+        const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
+        if (isDev) {
+            logs.push({
+                id: 'dev-mode',
+                timestamp: new Date(),
+                level: 'info',
+                message: 'Development mode enabled',
+                details: 'FOLDER_MCP_DEVELOPMENT_ENABLED=true detected',
+                source: 'Environment'
+            });
+        }
+        
+        return logs;
+    };
     
     // Panel dimensions
     const PANEL_HEIGHT = 9;
@@ -69,7 +132,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
             true, // isActive
             'folder', // mode - folder only
             (path) => {
+                console.error(`[WIZARD-DEBUG] User selected new folder path: ${path}`);
+                console.error(`[WIZARD-DEBUG] Previous folderPath: ${folderPath}`);
                 setFolderPath(path);
+                console.error(`[WIZARD-DEBUG] setFolderPath called, advancing to step 2`);
                 setStep(2); // Auto-advance to next step
             }
         );
@@ -191,6 +257,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     });
     
     const completeSetup = () => {
+        console.error(`[WIZARD-DEBUG] completeSetup called with folderPath: ${folderPath}`);
+        console.error(`[WIZARD-DEBUG] selectedModel: ${selectedModel}`);
+        console.error(`[WIZARD-DEBUG] selectedLanguage: ${selectedLanguage}`);
+        
         setIsComplete(true);
         
         // Create basic config
@@ -221,9 +291,13 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
             mkdirSync(configDir, { recursive: true });
             
             const configPath = join(configDir, 'config.json');
-            writeFileSync(configPath, JSON.stringify(config, null, 2));
+            const configJson = JSON.stringify(config, null, 2);
+            console.error(`[WIZARD-DEBUG] Writing config to: ${configPath}`);
+            console.error(`[WIZARD-DEBUG] Config content: ${configJson}`);
+            writeFileSync(configPath, configJson);
             
             setTimeout(() => {
+                console.error(`[WIZARD-DEBUG] Calling onComplete with config containing folder: ${config.folders[0]?.path}`);
                 onComplete(config);
             }, 1000);
         } catch (error) {
@@ -313,8 +387,32 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         return selector;
     };
     
+    const cliLogs = createCliLogEntries();
+    
     return (
         <Box flexDirection="column" paddingTop={2} paddingLeft={2} height="100%">
+            {/* CLI Feedback Panel - Show if there are CLI parameters */}
+            {cliLogs.length > 0 && (
+                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={1}>
+                    <Box
+                        borderStyle="round"
+                        borderColor={frameColor}
+                        width={PANEL_WIDTH}
+                        padding={1}
+                        flexDirection="column"
+                    >
+                        <Text color={highlightColor} bold>CLI Parameters</Text>
+                        {cliLogs.map((log, index) => (
+                            <Box key={log.id} marginTop={index > 0 ? 1 : 0}>
+                                <Text color={log.level === 'error' ? '#ff6b6b' : '#10b981'}>
+                                    {log.level === 'error' ? '✗' : '✓'} {log.message}
+                                </Text>
+                            </Box>
+                        ))}
+                    </Box>
+                </Box>
+            )}
+            
             {/* Step 1: Always show folder panel */}
             <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 1 ? 1 : 0}>
                 {step === 1 ? (
@@ -456,10 +554,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
     );
 };
 
-export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
+export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) => {
     return (
         <AnimationProvider>
-            <WizardContent onComplete={onComplete} />
+            <WizardContent onComplete={onComplete} cliDir={cliDir} />
         </AnimationProvider>
     );
 };

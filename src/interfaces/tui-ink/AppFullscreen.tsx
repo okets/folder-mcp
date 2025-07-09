@@ -13,6 +13,10 @@ import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
 import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
 import { ThemeContext, themes, ThemeName } from './contexts/ThemeContext';
+import { IListItem } from './components/core/IListItem';
+import { FilePickerListItem } from './components/core/FilePickerListItem';
+import { ConfigurationListItem } from './components/core/ConfigurationListItem';
+import { existsSync, statSync } from 'fs';
 
 // Get item counts once at module level to ensure consistency
 const STATUS_ITEMS = createStatusPanelItems();
@@ -20,9 +24,13 @@ const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 const CONFIG_ITEMS = createConfigurationPanelItems();
 const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 
-interface AppContentInnerProps {}
+interface AppContentInnerProps {
+    config?: any;
+}
 
-const AppContentInner: React.FC<AppContentInnerProps> = () => {
+const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
+    // Main app now displays actual config from wizard
+    
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const di = useDI();
@@ -32,6 +40,124 @@ const AppContentInner: React.FC<AppContentInnerProps> = () => {
     const { toggleAnimations, animationsPaused } = useAnimationContext();
     const navigation = useNavigationContext();
     
+    // Navigation state connected to config items with active cursor management
+    
+    
+    // Create config items from actual config or fall back to sample data
+    const configItems = React.useMemo(() => {
+        if (config?.folders?.[0]) {
+            // Validate folder exists and is accessible
+            const folderPath = config.folders[0].path;
+            let folderIcon = '√';
+            let folderValid = true;
+            
+            try {
+                if (!existsSync(folderPath)) {
+                    folderIcon = '✗';
+                    folderValid = false;
+                } else {
+                    const stat = statSync(folderPath);
+                    if (!stat.isDirectory()) {
+                        folderIcon = '✗';
+                        folderValid = false;
+                    }
+                }
+            } catch (error) {
+                folderIcon = '✗';
+                folderValid = false;
+            }
+            
+            // Create a FilePickerListItem showing the actual configured folder
+            const folderPicker = new FilePickerListItem(
+                folderIcon,
+                'Project Folder',
+                folderPath,
+                navigation.mainSelectedIndex === 0 && navigation.isMainFocused, // active if selected
+                'folder', // folder mode
+                (newPath) => {
+                    // TODO: Handle folder path changes in main app
+                    console.log('User wants to change folder to:', newPath);
+                    // This would need to update the config and trigger re-indexing
+                }
+            );
+            
+            // Create ConfigurationListItem for model
+            const modelConfig = new ConfigurationListItem(
+                '√',
+                'Embedding Model',
+                config.folders[0].model || config.embedding?.model || 'ollama:nomic-embed-text',
+                navigation.mainSelectedIndex === 1 && navigation.isMainFocused, // active if selected
+                false, // not expanded
+                undefined, // no edit value
+                undefined, // no cursor position
+                undefined, // no cursor visible
+                (newModel) => {
+                    // TODO: Handle model changes
+                    console.log('User wants to change model to:', newModel);
+                }
+            );
+            
+            // Create ConfigurationListItem for language
+            const languageConfig = new ConfigurationListItem(
+                '√',
+                'Language',
+                config.folders[0].language || 'auto',
+                navigation.mainSelectedIndex === 2 && navigation.isMainFocused, // active if selected
+                false, // not expanded
+                undefined, // no edit value
+                undefined, // no cursor position
+                undefined, // no cursor visible
+                (newLanguage) => {
+                    // TODO: Handle language changes
+                    console.log('User wants to change language to:', newLanguage);
+                }
+            );
+            
+            const configItems = [folderPicker, modelConfig, languageConfig];
+            
+            // Apply active cursor management similar to demo TUI
+            configItems.forEach((item, index) => {
+                const isSelected = navigation.isMainFocused && navigation.mainSelectedIndex === index;
+                if (isSelected) {
+                    // Check if it's expandable/interactive
+                    if (item instanceof FilePickerListItem) {
+                        (item as any).icon = '▶'; // Arrow for expandable file picker
+                    } else if (item instanceof ConfigurationListItem) {
+                        // Check if it has edit capability (for future enhancement)
+                        (item as any).icon = '■'; // Rectangle for non-expandable config items
+                    } else {
+                        (item as any).icon = '▶'; // Default arrow for other expandable items
+                    }
+                } else {
+                    // Unselected items get the appropriate unselected icon
+                    if (item instanceof FilePickerListItem) {
+                        (item as any).icon = folderIcon; // Keep validation icon (√ or ✗)
+                    } else {
+                        (item as any).icon = '·'; // Dot for unselected items
+                    }
+                }
+                (item as any).isActive = isSelected;
+            });
+            
+            return configItems;
+        } else {
+            // Fallback to sample data when no config available
+            const sampleItems = [...CONFIG_ITEMS]; // Clone to avoid mutations
+            
+            // Apply cursor management to sample items too
+            sampleItems.forEach((item, index) => {
+                const isSelected = navigation.isMainFocused && navigation.mainSelectedIndex === index;
+                if (isSelected) {
+                    (item as any).icon = '▶'; // Arrow for selected items
+                } else {
+                    (item as any).icon = '·'; // Dot for unselected items
+                }
+                (item as any).isActive = isSelected;
+            });
+            
+            return sampleItems;
+        }
+    }, [config, navigation.mainSelectedIndex, navigation.isMainFocused]);
     
     // Try to use theme context if available
     const themeContext = useContext(ThemeContext);
@@ -100,7 +226,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = () => {
                 <GenericListPanel
                     title="Main"
                     subtitle="Configuration"
-                    items={CONFIG_ITEMS}
+                    items={configItems}
                     selectedIndex={navigation.mainSelectedIndex}
                     isFocused={navigation.isMainFocused}
                     elementId="main-panel"
@@ -124,24 +250,31 @@ const AppContentInner: React.FC<AppContentInnerProps> = () => {
     );
 };
 
-interface AppContentProps {}
+interface AppContentProps {
+    config?: any;
+}
 
-const AppContent: React.FC<AppContentProps> = () => {
+const AppContent: React.FC<AppContentProps> = ({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     
+    // Calculate actual config item count
+    const actualConfigItemCount = config?.folders?.[0] ? 3 : CONFIG_ITEM_COUNT; // folder + model + language
+    
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={CONFIG_ITEM_COUNT} statusItemCount={STATUS_ITEM_COUNT}>
-            <AppContentInner />
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={actualConfigItemCount} statusItemCount={STATUS_ITEM_COUNT}>
+            <AppContentInner config={config} />
         </NavigationProvider>
     );
 };
 
-interface AppFullscreenProps {}
+interface AppFullscreenProps {
+    config?: any;
+}
 
-export const AppFullscreen: React.FC<AppFullscreenProps> = () => {
+export const AppFullscreen: React.FC<AppFullscreenProps> = ({ config }) => {
     return (
         <AnimationProvider>
-            <AppContent />
+            <AppContent config={config} />
         </AnimationProvider>
     );
 };

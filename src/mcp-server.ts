@@ -344,7 +344,7 @@ export async function main(): Promise<void> {
     // Initialize development mode (after server is connected)
     debug('Initializing development mode...');
     try {
-      const enableEnhancedFeatures = process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true';
+      const enableEnhancedFeatures = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
       if (enableEnhancedFeatures) {
         const { DEFAULT_ENHANCED_MCP_CONFIG } = await import('./config/enhanced-mcp.js');
         const restartCallback = () => {

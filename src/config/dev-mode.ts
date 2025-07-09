@@ -2,7 +2,7 @@
  * Development Mode Features
  * 
  * Implements hot reload and development-time features for enhanced MCP server development.
- * These features are only active when ENABLE_ENHANCED_MCP_FEATURES=true.
+ * These features are only active when FOLDER_MCP_DEVELOPMENT_ENABLED=true.
  */
 
 import { watch } from 'chokidar';
@@ -152,6 +152,6 @@ export function getDebugConfig(config: EnhancedMCPConfig): any {
  * Check if development mode features should be enabled
  */
 export function shouldEnableDevMode(): boolean {
-  return process.env.ENABLE_ENHANCED_MCP_FEATURES === 'true' || 
+  return process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true' || 
          process.env.NODE_ENV === 'development';
 }

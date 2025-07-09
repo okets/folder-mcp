@@ -55,7 +55,7 @@
  * ✅ Client Agnostic: Any MCP client can implement these extensions
  * ⚠️  Experimental: These features may change as MCP specification evolves
  * 
- * To enable: Set ENABLE_ENHANCED_MCP_FEATURES=true environment variable
+ * To enable: Set FOLDER_MCP_DEVELOPMENT_ENABLED=true environment variable
  * To disable: Simply don't set the environment variable (standard MCP only)
  */
 
@@ -169,12 +169,12 @@ export interface ToolSetConfig {
  * ============================================================================
  * 
  * 🎯 Standard MCP Usage (Most Common):
- * - Don't set ENABLE_ENHANCED_MCP_FEATURES environment variable
+ * - Don't set FOLDER_MCP_DEVELOPMENT_ENABLED environment variable
  * - Server operates in pure MCP compatibility mode
  * - All clients work normally with standard MCP tools
  * 
  * 🚀 Enhanced Experience (Advanced Clients):
- * - Set ENABLE_ENHANCED_MCP_FEATURES=true
+ * - Set FOLDER_MCP_DEVELOPMENT_ENABLED=true
  * - Clients that support these features get enhanced UX
  * - Clients that don't support them ignore the extensions safely
  * 
@@ -372,14 +372,14 @@ export function formatToolSetsForClients(config: EnhancedMCPConfig = DEFAULT_ENH
  * 
  * ## Basic MCP Server (Standard Compatibility)
  * ```typescript
- * // Don't set ENABLE_ENHANCED_MCP_FEATURES environment variable
+ * // Don't set FOLDER_MCP_DEVELOPMENT_ENABLED environment variable
  * // Server operates in standard MCP mode - works with all clients
  * const server = new MCPServer(options, logger, null);
  * ```
  * 
  * ## Enhanced MCP Server (Advanced Features)
  * ```typescript
- * // Set ENABLE_ENHANCED_MCP_FEATURES=true environment variable
+ * // Set FOLDER_MCP_DEVELOPMENT_ENABLED=true environment variable
  * import { DEFAULT_ENHANCED_MCP_CONFIG } from './enhanced-mcp.js';
  * const server = new MCPServer(options, logger, DEFAULT_ENHANCED_MCP_CONFIG);
  * ```
@@ -431,7 +431,7 @@ export function formatToolSetsForClients(config: EnhancedMCPConfig = DEFAULT_ENH
  * 📋 Testing Support:
  * - Use VSCode 1.101+ with MCP extension to test enhanced features
  * - Use other MCP clients to verify graceful degradation
- * - Set ENABLE_ENHANCED_MCP_FEATURES=true to activate these features
+ * - Set FOLDER_MCP_DEVELOPMENT_ENABLED=true to activate these features
  * 
  * ============================================================================
  */

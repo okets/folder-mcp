@@ -12,7 +12,10 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync } from 'fs';
 
-// No command line arguments needed for unified TUI
+// Parse command line arguments
+const args = process.argv.slice(2);
+const dirIndex = args.indexOf('-d');
+const cliDir = dirIndex !== -1 && dirIndex + 1 < args.length ? args[dirIndex + 1] : null;
 
 // Check if we're in a proper TTY environment
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -40,28 +43,38 @@ if (!isRawModeSupported) {
 }
 
 // Main app component that decides between wizard and main app
-const MainApp: React.FC = () => {
+const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) => {
     const [showWizard, setShowWizard] = useState(true);
     const [config, setConfig] = useState<any>(null);
     
-    // Check if config exists
+    // Check if config exists and whether to show wizard
     React.useEffect(() => {
         const configPath = join(homedir(), '.folder-mcp', 'config.json');
-        if (existsSync(configPath)) {
+        const configExists = existsSync(configPath);
+        
+        // Always show wizard if CLI -d parameter is provided (allows override)
+        if (cliDir) {
+            setShowWizard(true);
+        } else if (configExists) {
             setShowWizard(false);
         }
-    }, []);
+        // else: showWizard remains true (default state for first run)
+    }, [cliDir]);
     
     const handleWizardComplete = (newConfig: any) => {
+        console.error(`[MAIN-DEBUG] handleWizardComplete called with config:`);
+        console.error(`[MAIN-DEBUG] - folders[0].path: ${newConfig.folders[0]?.path}`);
+        console.error(`[MAIN-DEBUG] - folders[0].name: ${newConfig.folders[0]?.name}`);
         setConfig(newConfig);
         setShowWizard(false);
+        console.error(`[MAIN-DEBUG] Wizard complete, transitioning to main app`);
     };
     
     if (showWizard) {
-        return <FirstRunWizard onComplete={handleWizardComplete} />;
+        return <FirstRunWizard onComplete={handleWizardComplete} cliDir={cliDir} />;
     }
     
-    return <AppFullscreen />;
+    return <AppFullscreen config={config} />;
 };
 
 // Start the TUI with configuration support
@@ -82,7 +95,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configInitializer}>
-                    <MainApp />
+                    <MainApp cliDir={cliDir} />
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
@@ -97,7 +110,7 @@ async function startTUI() {
         // Fallback to wizard/main app without config
         const app = render(
             <DIProvider container={tuiContainer}>
-                <MainApp />
+                <MainApp cliDir={cliDir} />
             </DIProvider>,
             {
                 exitOnCtrlC: true
