@@ -291,6 +291,32 @@ folder-mcp  # Shows wizard
 
 All scenarios show the selected folder in the confirmation step and create the config file properly.
 
+#### Task 3.2: Fix Wizard Stability Issues
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-08  
+**What**: Fix undefined value handling in wizard step navigation.
+
+**Why**: The wizard was crashing when navigating between steps due to undefined values in the selection arrays.
+
+**Issue**: When using GenericListPanel with radio mode, the selected values array could contain undefined values, causing the wizard to crash when trying to auto-advance to the next step.
+
+**Subtasks**:
+- [x] Add defensive checks for undefined values in model selection
+- [x] Add defensive checks for undefined values in language selection
+- [x] Test wizard stability with rapid navigation
+
+**Implementation Details**:
+- Added `values[0] !== undefined` checks before using selected values
+- Prevents crashes when quickly navigating through wizard steps
+- Ensures stable operation even with rapid keyboard input
+
+**Task Completion Protocol**:
+- [x] Mark progress on this document
+- [x] Summarize what was done
+- [x] Wait for confirmation before commit
+
+**Testing**: The wizard now handles rapid navigation without crashes, properly checking for valid values before proceeding to the next step.
+
 #### Task 4: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
@@ -540,6 +566,8 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 1 | Simplify TUI Entry Point | 2025-07-08 | ✅ | Single command instead of multiple screens |
 | 2 | Create Daemon Architecture | 2025-07-08 | ✅ | Framework first - minimal changes |
 | 3 | Minimal First-Run Wizard | 2025-07-08 | ✅ | Simple folder selection |
+| 3.1 | Enhance Wizard with File Picker | 2025-07-08 | ✅ | Visual folder navigation |
+| 3.2 | Fix Wizard Stability Issues | 2025-07-08 | ✅ | Handle undefined values in navigation |
 | 4 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
 | 5 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
 | 6 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |

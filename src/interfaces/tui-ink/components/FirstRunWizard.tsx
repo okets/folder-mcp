@@ -95,7 +95,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         'radio', // mode
         'vertical', // layout
         (values) => {
-            if (values.length > 0) {
+            if (values.length > 0 && values[0] !== undefined) {
                 setSelectedModel(values[0]);
                 setStep(3); // Auto-advance to next step
             }
@@ -121,7 +121,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete }) => {
         'radio', // mode
         'vertical', // layout
         (values) => {
-            if (values.length > 0) {
+            if (values.length > 0 && values[0] !== undefined) {
                 setSelectedLanguage(values[0]);
                 setStep(4); // Auto-advance to confirmation
             }
