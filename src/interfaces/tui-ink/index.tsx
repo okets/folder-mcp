@@ -8,6 +8,7 @@ import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
+import { getContainer } from '../../di/container';
 import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync } from 'fs';
@@ -49,16 +50,77 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
     
     // Check if config exists and whether to show wizard
     React.useEffect(() => {
-        const configPath = join(homedir(), '.folder-mcp', 'config.json');
-        const configExists = existsSync(configPath);
+        const checkConfigAndLoadIfExists = async () => {
+            const configPath = join(homedir(), '.folder-mcp', 'config.yaml');
+            const configExists = existsSync(configPath);
+            
+            console.error(`\n=== MAIN APP CONFIG CHECK ===`);
+            console.error(`Config path: ${configPath}`);
+            console.error(`Config exists: ${configExists}`);
+            console.error(`CLI dir parameter: ${cliDir}`);
+            
+            // Always show wizard if CLI -d parameter is provided (allows override)
+            if (cliDir) {
+                console.error(`CLI -d parameter provided, showing wizard`);
+                setShowWizard(true);
+            } else if (configExists) {
+                try {
+                    console.error(`Config file exists, loading from unified system...`);
+                    // Load config from unified system
+                    const container = getContainer();
+                    const configManager = container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
+                    console.error(`Config manager resolved successfully`);
+                    await configManager.load();
+                    console.error(`Config manager loaded successfully`);
+                    
+                    // Get folders configuration
+                    const foldersList = await configManager.get('folders.list');
+                    const embeddingModel = await configManager.get('folders.defaults.embeddings.model');
+                    const theme = await configManager.get('theme');
+                    
+                    console.error(`\n=== CONFIG VALUES RETRIEVED ===`);
+                    console.error(`folders.list:`, foldersList);
+                    console.error(`embedding model:`, embeddingModel);
+                    console.error(`theme:`, theme);
+                    
+                    // Create config object for backward compatibility
+                    const loadedConfig = {
+                        folders: foldersList || [],
+                        embedding: {
+                            model: embeddingModel || 'nomic-embed-text',
+                            batchSize: 32
+                        },
+                        server: {
+                            port: 9876,
+                            host: '127.0.0.1'
+                        },
+                        ui: {
+                            theme: theme || 'auto'
+                        }
+                    };
+                    
+                    console.error(`\n=== MAIN APP CONFIG LOADED ===`);
+                    console.error(`Config object:`, loadedConfig);
+                    console.error(`Switching to main app (no wizard)`);
+                    console.error(`=== END MAIN APP CONFIG ===\n`);
+                    
+                    setConfig(loadedConfig);
+                    setShowWizard(false);
+                } catch (error) {
+                    console.error(`\n=== MAIN APP CONFIG ERROR ===`);
+                    console.error('Failed to load config from unified system:', error);
+                    console.error(`Error details:`, error);
+                    console.error(`Falling back to wizard`);
+                    console.error(`=== END ERROR ===\n`);
+                    setShowWizard(true);
+                }
+            } else {
+                console.error(`No config file found, showing wizard for first run`);
+                console.error(`=== END MAIN APP CONFIG CHECK ===\n`);
+            }
+        };
         
-        // Always show wizard if CLI -d parameter is provided (allows override)
-        if (cliDir) {
-            setShowWizard(true);
-        } else if (configExists) {
-            setShowWizard(false);
-        }
-        // else: showWizard remains true (default state for first run)
+        checkConfigAndLoadIfExists();
     }, [cliDir]);
     
     const handleWizardComplete = (newConfig: any) => {

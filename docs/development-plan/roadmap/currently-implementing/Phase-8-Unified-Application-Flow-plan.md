@@ -317,8 +317,85 @@ All scenarios show the selected folder in the confirmation step and create the c
 
 **Testing**: The wizard now handles rapid navigation without crashes, properly checking for valid values before proceeding to the next step.
 
-#### Task 4: CLI Cleanup and Folder Selection Flow
+#### Task 4: Fix Configuration System Unity
+**Status**: ⏳ In Progress  
+**Discovered**: 2025-07-09  
+**What**: Unify the wizard and main app configuration systems to use the same storage mechanism.
+
+**Why**: Currently wizard saves to `~/.folder-mcp/config.json` but main app reads from `config.yaml`. This creates a broken UX where first-run configuration is lost on subsequent runs.
+
+**Problem Analysis**:
+- **Two separate config systems**: Wizard uses JSON at `~/.folder-mcp/config.json`, main app uses YAML at `config.yaml`
+- **Data flow broken**: First run passes config object directly, second run falls back to sample data
+- **No persistence**: Wizard configuration never reaches main app's config system
+
+**Subtasks**:
+- [ ] **Connect wizard to unified config system**: Make wizard save to the same location main app reads from
+- [ ] **Update config file location**: Configure main app to read from `~/.folder-mcp/config.yaml` instead of `config.yaml`
+- [ ] **Test configuration persistence**: Verify wizard config survives across runs
+- [ ] **Remove duplicate config logic**: Clean up separate JSON config mechanism
+
+**Success Criteria**:
+```bash
+# First run - wizard saves config
+rm -rf ~/.folder-mcp && folder-mcp  # Select folder in wizard
+
+# Second run - main app reads saved config
+folder-mcp  # Shows same folder and config from wizard, no sample data
+```
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+#### Task 5: Integrate -d Parameter with Unified Config System
 **Status**: ⏳ Waiting  
+**Discovered**: 2025-07-09  
+**What**: Properly integrate `-d` parameter with the unified configuration system for seamless folder addition.
+
+**Why**: The `-d` parameter should "add a folder to MCP" and integrate with the wizard flow by answering the first question and showing CLI parameters as read-only LogItems.
+
+**Dependencies**: Requires Task 4 (unified config system) to be completed first.
+
+**Subtasks**:
+- [ ] **Update CLI parsing**: Integrate `-d` parameter with unified config system
+- [ ] **Add folder validation**: Validate CLI-provided folder paths with proper error handling
+- [ ] **CLI parameter storage**: Store CLI-provided folder in unified config
+- [ ] **Visual feedback**: Show CLI parameters as LogItems at top of wizard
+
+**Success Criteria**:
+```bash
+# Valid folder - skip wizard question
+folder-mcp -d /valid/path  # Shows "✓ Folder: /valid/path (from CLI)" in LogItem
+
+# Invalid folder - show error then picker
+folder-mcp -d /invalid/path  # Shows "✗ Invalid path: /invalid/path" + folder picker
+```
+
+#### Task 6: Enhanced Wizard Flow with CLI Integration
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-09  
+**What**: Enhance wizard to skip CLI-answered questions and show CLI parameters in read-only mode.
+
+**Why**: Questions answered by CLI parameters should appear as read-only LogItems and be skipped in the wizard flow.
+
+**Dependencies**: Requires Task 5 (CLI integration) to be completed first.
+
+**Subtasks**:
+- [ ] **Add LogItems section**: Show CLI parameters at top of wizard in read-only mode
+- [ ] **Skip answered questions**: Skip wizard questions that have been answered by CLI
+- [ ] **Validation display**: Show validation status (✓ valid, ✗ invalid) for CLI parameters
+- [ ] **Seamless flow**: User only sees unanswered questions in wizard
+
+**Success Criteria**:
+- CLI parameters appear as LogItems at top of wizard
+- Answered questions are skipped
+- Validation errors are clearly displayed
+- User only interacts with unanswered questions
+
+#### Task 7: Complete CLI Cleanup and Folder Selection Flow
+**Status**: ✅ Completed  
 **Discovered**: 2025-07-09  
 **What**: Clean up legacy CLI parameters and implement robust folder selection flow with validation.
 
@@ -368,12 +445,12 @@ folder-mcp  # Picker defaults to current directory
 ```
 
 **Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
+- [x] Mark progress on this document
+- [x] Summarize what was done and describe UX testing
+- [x] Wait for confirmation before commit
 
 **UX Testing Instructions**:
-[To be filled when task is completed]
+[Completed - cursor system implemented and working]
 
 #### Task 5: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
@@ -691,16 +768,19 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 3 | Minimal First-Run Wizard | 2025-07-08 | ✅ | Simple folder selection |
 | 3.1 | Enhance Wizard with File Picker | 2025-07-08 | ✅ | Visual folder navigation |
 | 3.2 | Fix Wizard Stability Issues | 2025-07-08 | ✅ | Handle undefined values in navigation |
-| 4 | CLI Cleanup and Folder Selection Flow | 2025-07-09 | ⏳ | Clean CLI params, add -d flag with validation |
-| 5 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
-| 6 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
-| 7 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
-| 8 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
-| 9 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
-| 10 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
-| 11 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
-| 12 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
-| 13 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
+| 4 | Fix Configuration System Unity | 2025-07-09 | ⏳ | Unify wizard and main app config systems |
+| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition with unified config |
+| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions, show LogItems |
+| 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
+| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
+| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
+| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
+| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
+| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
+| 13 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
+| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
+| 15 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
+| 16 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
 
 ### **Key Discoveries**
 - **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.

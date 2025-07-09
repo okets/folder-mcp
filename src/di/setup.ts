@@ -11,7 +11,8 @@ import { SERVICE_TOKENS, MODULE_TOKENS, ILoggingService } from './interfaces.js'
 import { ResolvedConfig } from '../config/schema.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
-import { integrateConfigurationServices } from '../config/di-setup.js';
+import { homedir } from 'os';
+import { integrateConfigurationServices, registerConfigurationServices } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
 import { 
@@ -137,8 +138,12 @@ export function setupDependencyInjection(options: {
     return new ConfigurationService(loggingService);
   });
 
-  // Register new configuration system
-  integrateConfigurationServices(container);
+  // Register new configuration system with correct paths
+  const configPath = join(homedir(), '.folder-mcp', 'config.yaml');
+  registerConfigurationServices(container, {
+    defaultsPath: 'config-defaults.yaml',
+    userConfigPath: configPath
+  });
 
   container.registerSingleton('CLIConfigurationOverrideService' as any, () => {
     // Stub service for CLI configuration overrides

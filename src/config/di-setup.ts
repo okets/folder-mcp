@@ -15,6 +15,7 @@ import { IFileSystem } from '../domain/files/interfaces.js';
 import { IFileWriter } from '../domain/config/IFileWriter.js';
 import { IYamlParser } from '../domain/config/ISchemaValidator.js';
 import { ISchemaLoader, ISchemaValidator } from '../domain/config/ISchemaValidator.js';
+import { ConfigurationComponent } from './ConfigurationComponent.js';
 
 /**
  * Service tokens for the new configuration system
@@ -26,6 +27,7 @@ export const CONFIG_SERVICE_TOKENS = {
   CONFIG_YAML_PARSER: Symbol('ConfigYamlParser'),
   CONFIG_SCHEMA_LOADER: Symbol('ConfigSchemaLoader'),
   CONFIG_SCHEMA_VALIDATOR: Symbol('ConfigSchemaValidator'),
+  CONFIGURATION_COMPONENT: Symbol('ConfigurationComponent'),
 } as const;
 
 /**
@@ -89,6 +91,12 @@ export function registerConfigurationServices(
     // before using it, but we can't do async in the factory
     return configManager;
   });
+  
+  // Register ConfigurationComponent with validation
+  container.registerSingleton(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT, () => {
+    const configManager = container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
+    return new ConfigurationComponent(configManager);
+  });
 }
 
 /**
@@ -96,6 +104,13 @@ export function registerConfigurationServices(
  */
 export function getConfigManager(container: DependencyContainer): IConfigManager {
   return container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
+}
+
+/**
+ * Helper function to get ConfigurationComponent from the container
+ */
+export function getConfigurationComponent(container: DependencyContainer): ConfigurationComponent {
+  return container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
 }
 
 /**

@@ -9,6 +9,8 @@ import { BaseCommand } from './base-command.js';
 import { SERVICE_TOKENS } from '../../../di/interfaces.js';
 import { IConfigurationCommandService } from '../../../domain/cli/IConfigurationCommandService.js';
 import { IProfileCommandService } from '../../../domain/cli/IProfileCommandService.js';
+import { getConfigurationComponent } from '../../../config/di-setup.js';
+import { getContainer } from '../../../di/container.js';
 import * as yaml from 'yaml';
 
 export class ConfigCommand extends BaseCommand {
@@ -157,17 +159,17 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeGet(path: string | undefined, options: any): Promise<void> {
     try {
-      const configService = this.resolveService<IConfigurationCommandService>(
-        options.folder, 
-        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
-      );
-
-      const result = await configService.getConfig(path, {
-        json: options.json,
-        source: options.source,
-        all: options.all,
-        profile: options.profile
-      });
+      // Use the new ConfigurationComponent
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      
+      let result: any;
+      if (path) {
+        result = await configComponent.get(path);
+      } else {
+        // Get entire configuration
+        result = await configComponent.get('');
+      }
 
       // Handle JSON output directly if requested
       if (options.json) {
@@ -180,15 +182,10 @@ export class ConfigCommand extends BaseCommand {
       }
 
       // Handle human-readable output
-      if (options.source) {
-        console.log(`Value: ${JSON.stringify(result.value)}`);
-        console.log(`Source: ${result.source || 'not found'}`);
+      if (typeof result === 'object') {
+        console.log(yaml.stringify(result));
       } else {
-        if (typeof result.value === 'object') {
-          console.log(yaml.stringify(result.value));
-        } else {
-          console.log(result.value);
-        }
+        console.log(result);
       }
     } catch (error) {
       console.error('❌ Failed to get configuration:', error instanceof Error ? error.message : String(error));
@@ -198,20 +195,34 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeSet(path: string, value: string, options: any): Promise<void> {
     try {
-      const configService = this.resolveService<IConfigurationCommandService>(
-        options.folder, 
-        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
-      );
-
-      const result = await configService.setConfig(path, value, {
-        type: options.type,
-        profile: options.profile
-      });
-
-      console.log(`✅ Set ${result.path} = ${JSON.stringify(result.value)}`);
-      if (result.previousValue !== undefined) {
-        console.log(`   Previous: ${JSON.stringify(result.previousValue)}`);
+      // Use the new ConfigurationComponent with TUI validation
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      
+      // Get current value for comparison
+      const previousValue = await configComponent.get(path);
+      
+      // Parse value based on type
+      let parsedValue: any = value;
+      if (options.type === 'number') {
+        parsedValue = Number(value);
+        if (isNaN(parsedValue)) {
+          throw new Error(`Invalid number: ${value}`);
+        }
+      } else if (options.type === 'boolean') {
+        parsedValue = value.toLowerCase() === 'true';
+      } else if (options.type === 'json') {
+        parsedValue = JSON.parse(value);
       }
+      
+      // Set with validation (will throw if invalid)
+      await configComponent.set(path, parsedValue);
+
+      console.log(`✅ Set ${path} = ${JSON.stringify(parsedValue)}`);
+      if (previousValue !== undefined) {
+        console.log(`   Previous: ${JSON.stringify(previousValue)}`);
+      }
+      console.log(`   ✓ Validated using TUI validation rules`);
       
     } catch (error) {
       console.error('❌ Failed to set configuration:', error instanceof Error ? error.message : String(error));
@@ -221,40 +232,28 @@ export class ConfigCommand extends BaseCommand {
 
   private async executeValidate(file: string | undefined, options: any): Promise<void> {
     try {
-      const configService = this.resolveService<IConfigurationCommandService>(
-        options.folder, 
-        SERVICE_TOKENS.CLI_CONFIGURATION_COMMAND_SERVICE
-      );
+      // Use the new ConfigurationComponent with TUI validation
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      
+      const result = await configComponent.validateAll();
 
-      const result = await configService.validateConfig({
-        file,
-        profile: options.profile,
-        verbose: options.verbose,
-        fix: options.fix
-      });
-
-      if (result.valid) {
+      if (result.isValid) {
         console.log('✅ Configuration is valid');
         if (options.verbose) {
-          console.log(`📋 Validated configuration`);
-          if (result.file) {
-            console.log(`   File: ${result.file}`);
+          console.log(`📋 Validated configuration using TUI validation rules`);
+          if (file) {
+            console.log(`   File: ${file}`);
           }
-          if (result.profile) {
-            console.log(`   Profile: ${result.profile}`);
+          if (options.profile) {
+            console.log(`   Profile: ${options.profile}`);
           }
         }
       } else {
         console.error('❌ Configuration validation failed:');
         
-        if (result.results) {
-          for (const issue of result.results) {
-            const icon = issue.severity === 'error' ? '❌' : '⚠️';
-            console.error(`${icon} ${issue.field}: ${issue.message}`);
-            if (issue.suggestion && options.verbose) {
-              console.error(`   💡 Suggestion: ${issue.suggestion}`);
-            }
-          }
+        for (const issue of result.errors) {
+          console.error(`❌ ${issue.path}: ${issue.error}`);
         }
 
         if (options.fix) {

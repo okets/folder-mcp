@@ -1,0 +1,4 @@
+folders:
+  list[0]:
+    path: /nonexistent/path
+theme: dark

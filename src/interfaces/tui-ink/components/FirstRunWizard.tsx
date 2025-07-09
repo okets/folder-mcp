@@ -10,6 +10,10 @@ import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useFocusChain, useRootInput } from '../hooks/useFocusChain';
+import { getContainer } from '../../../di/container';
+import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup';
+import { IConfigManager } from '../../../domain/config/IConfigManager';
+import { FolderConfig } from '../../../config/schema/folders';
 
 interface FirstRunWizardProps {
     onComplete: (config: any) => void;
@@ -263,46 +267,86 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
         
         setIsComplete(true);
         
-        // Create basic config
-        const config = {
-            folders: [{
-                path: folderPath,
-                name: folderPath.split('/').pop() || 'Folder',
-                model: selectedModel,
-                language: selectedLanguage,
-                enabled: true
-            }],
-            embedding: {
-                model: selectedModel,
-                batchSize: 32
-            },
-            server: {
-                port: 9876,
-                host: '127.0.0.1'
-            },
-            ui: {
-                theme: 'auto'
+        // Create config using unified system
+        const saveConfigToUnifiedSystem = async () => {
+            try {
+                console.error(`\n=== WIZARD CONFIG SAVE START ===`);
+                console.error(`Folder path: "${folderPath}"`);
+                console.error(`Selected model: "${selectedModel}"`);
+                console.error(`Selected language: "${selectedLanguage}"`);
+                
+                // Get config manager from main DI container
+                const container = getContainer();
+                const configManager = container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
+                console.error(`Config manager resolved successfully`);
+                
+                // Load existing config first
+                await configManager.load();
+                console.error(`Config manager loaded successfully`);
+                
+                // Create folder config following the schema
+                const folderConfig: FolderConfig = {
+                    path: folderPath,
+                    name: folderPath.split('/').pop() || 'Folder',
+                    enabled: true,
+                    embeddings: {
+                        backend: 'ollama',
+                        model: selectedModel
+                    }
+                };
+                
+                // Set folders configuration
+                console.error(`Setting folders.list with config:`, folderConfig);
+                await configManager.set('folders.list', [folderConfig]);
+                console.error(`folders.list set successfully`);
+                
+                // Set default embedding model
+                console.error(`Setting defaults - model: "${selectedModel}", backend: "ollama"`);
+                await configManager.set('folders.defaults.embeddings.model', selectedModel);
+                await configManager.set('folders.defaults.embeddings.backend', 'ollama');
+                console.error(`Embedding defaults set successfully`);
+                
+                // Set theme
+                await configManager.set('theme', 'auto');
+                console.error(`Theme set successfully`);
+                
+                // Create config object for backward compatibility
+                const config = {
+                    folders: [{
+                        path: folderPath,
+                        name: folderConfig.name,
+                        model: selectedModel,
+                        language: selectedLanguage,
+                        enabled: true
+                    }],
+                    embedding: {
+                        model: selectedModel,
+                        batchSize: 32
+                    },
+                    server: {
+                        port: 9876,
+                        host: '127.0.0.1'
+                    },
+                    ui: {
+                        theme: 'auto'
+                    }
+                };
+                
+                console.error(`\n=== CONFIG FILE SHOULD BE CREATED ===`);
+                console.error(`Expected location: ~/.folder-mcp/config.yaml`);
+                console.error(`Config object for backward compatibility:`, config);
+                console.error(`=== WIZARD CONFIG SAVE COMPLETE ===\n`);
+                onComplete(config);
+            } catch (error) {
+                console.error(`\n=== WIZARD CONFIG SAVE ERROR ===`);
+                console.error('Failed to save config to unified system:', error);
+                console.error(`Error details:`, error);
+                console.error(`=== END ERROR ===\n`);
             }
         };
         
-        // Save config
-        try {
-            const configDir = join(homedir(), '.folder-mcp');
-            mkdirSync(configDir, { recursive: true });
-            
-            const configPath = join(configDir, 'config.json');
-            const configJson = JSON.stringify(config, null, 2);
-            console.error(`[WIZARD-DEBUG] Writing config to: ${configPath}`);
-            console.error(`[WIZARD-DEBUG] Config content: ${configJson}`);
-            writeFileSync(configPath, configJson);
-            
-            setTimeout(() => {
-                console.error(`[WIZARD-DEBUG] Calling onComplete with config containing folder: ${config.folders[0]?.path}`);
-                onComplete(config);
-            }, 1000);
-        } catch (error) {
-            console.error('Failed to save config:', error);
-        }
+        // Execute the save operation
+        saveConfigToUnifiedSystem();
     };
     
     if (isComplete) {
