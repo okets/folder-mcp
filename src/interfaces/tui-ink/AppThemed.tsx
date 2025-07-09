@@ -111,7 +111,7 @@ const ThemedAppContent: React.FC = () => {
                     <ThemeSwitcher />
                 </Box>
                 <Text color={theme.colors.textMuted}>
-                    Layout: {layout} | Active: {navigation.isConfigFocused ? 'Config' : 'Status'}
+                    Layout: {layout} | Active: {navigation.isMainFocused ? 'Main' : 'Status'}
                 </Text>
             </Box>
         </Box>

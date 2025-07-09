@@ -89,14 +89,16 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     // Create side border with optional scrollbar
     const createSideBorder = (content: React.ReactNode, scrollbarChar: string = ' ', key?: string) => {
         return (
-            <Box key={key}>
+            <Box key={key} width={width} flexWrap="nowrap" flexDirection="row">
                 <Text color={borderColor}>{border.vertical} </Text>
-                <Box width={contentWidth}>
+                <Box width={contentWidth} flexGrow={0} flexShrink={0}>
                     <ConstrainedContent width={contentWidth}>
                         {content}
                     </ConstrainedContent>
                 </Box>
-                <Text color={borderColor}> {scrollbarChar}{border.vertical}</Text>
+                <Box flexShrink={0}>
+                    <Text color={borderColor}> {scrollbarChar}{border.vertical}</Text>
+                </Box>
             </Box>
         );
     };
@@ -105,7 +107,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     
     return (
         <LayoutConstraintProvider constraints={childConstraints}>
-            <Box flexDirection="column" height={height} width={width}>
+            <Box flexDirection="column" height={height} width={width} flexWrap="nowrap" overflow="hidden">
                 {/* Top border with embedded title */}
                 <Text color={borderColor}>{createTopBorder()}</Text>
                 

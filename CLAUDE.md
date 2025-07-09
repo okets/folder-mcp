@@ -21,6 +21,29 @@ npm run dev            # Build and run development server
 npm start              # Run production server
 ```
 
+**TUI Interface:**
+```bash
+npm run tui            # Launch unified TUI interface (main entry point)
+npm run tuidemo        # Run TUI demo/testing interface
+```
+
+**CLI Commands:**
+```bash
+folder-mcp             # Launch TUI by default (future: detect daemon)
+folder-mcp --daemon    # Start daemon only (no TUI)
+folder-mcp --headless  # Skip TUI, run headless (future)
+folder-mcp config      # Configuration management subcommands
+```
+
+**Configuration CLI:**
+```bash
+folder-mcp config get <key>              # Get configuration value
+folder-mcp config set <key> <value>      # Set configuration value
+folder-mcp config show [--sources]       # Show configuration (with sources)
+folder-mcp config validate               # Validate configuration
+folder-mcp config env list               # List environment variables
+```
+
 **Testing:**
 ```bash
 npm test               # Run all tests with Vitest
@@ -67,6 +90,8 @@ This is a **Model Context Protocol (MCP) server** that provides semantic file sy
 **Interface Layer (`src/interfaces/`):**
 - **MCP Server** (`interfaces/mcp/`): Main entry point implementing MCP protocol
 - **CLI Interface** (`interfaces/cli/`): Command-line tools and utilities
+- **TUI Interface** (`interfaces/tui-ink/`): Visual terminal interface built with React/Ink
+- **TUI Demo** (`interfaces/tui-ink-demo/`): Component showcase and testing interface
 
 ### Dependency Injection System
 
@@ -121,6 +146,15 @@ folder-mcp config env list               # List environment variables
 - `src/config/di-setup.ts` - Dependency injection setup for configuration services
 - `src/interfaces/cli/commands/config.ts` - CLI configuration management commands
 
+**Default Configuration Values:**
+- Cache directory: `~/.cache/folder-mcp`
+- Max cache size: `10GB`
+- Cleanup interval: 24 hours
+- Chunk size: 1000
+- Chunk overlap: 200
+- Batch size: 32
+- Model: `nomic-embed-text` (Ollama)
+
 See `docs/configuration.md` for complete configuration documentation.
 
 ## MCP Protocol Implementation
@@ -148,6 +182,19 @@ See `docs/configuration.md` for complete configuration documentation.
 2. Content chunking (`domain/content/chunking.ts`)
 3. Embedding generation (Ollama integration)
 4. Vector storage (FAISS-based)
+
+**Ollama Integration:**
+- API URL: `http://127.0.0.1:11434`
+- GPU acceleration for embedding models
+- Multiple model support (nomic-embed-text, mxbai-embed-large, etc.)
+
+**Security Features:**
+- Directory traversal attack prevention
+- Automatic exclusion of sensitive directories:
+  - `**/node_modules/**`
+  - `**/.git/**`
+  - `**/.folder-mcp/**`
+- Permission error handling with graceful degradation
 
 ## Testing Strategy
 
@@ -277,3 +324,122 @@ Discrepancy: Expected X but seeing Y
 - Test edge cases (top, bottom, middle)
 - Verify visually that the fix matches the screenshot
 - Use descriptive variable names in test scripts
+
+## Phase 8: Unified Application Flow
+
+**CURRENT PHASE - IN PROGRESS**
+
+Phase 8 is focused on creating a unified application experience that combines all components into a cohesive system. Key aspects:
+
+### Vision & Goals
+- **Unified Entry Point**: Single `folder-mcp` command that intelligently routes to appropriate interface
+- **First-Run Wizard**: Smart setup flow for new users with folder selection, model detection, and configuration
+- **Visual TUI as Default**: Launch TUI by default, with options for daemon-only or headless modes
+- **Daemon Architecture**: Background service that persists between TUI sessions (future)
+- **Zero Configuration**: Smart defaults with auto-detection of models, languages, and optimal settings
+
+### Phase 8 Working Rules
+1. **DELETE, DON'T MIGRATE** - Replace old functionality completely, no migration needed
+2. **ZERO TECHNICAL DEBT** - No mocks, stubs, or TODOs - implement properly or not at all
+3. **ALL TESTS MUST PASS** - Fix failing tests or delete irrelevant ones
+4. **MAINTAIN ARCHITECTURE** - Respect clean architecture boundaries
+5. **COMMIT ONLY WHEN INSTRUCTED** - Work accumulates until explicitly told to commit
+
+### Completed Tasks
+- **Task 1**: Simplified TUI entry point - single `npm run tui` command
+- **Task 2**: Visual TUI as default interface documentation
+- **Task 3**: Minimal first-run wizard with folder picker
+
+### Current Implementation
+- **First-Run Wizard**: Located in `src/interfaces/tui-ink/components/FirstRunWizard.tsx`
+- **Unified TUI Entry**: Single entry point at `src/interfaces/tui-ink/index.tsx`
+- **CLI Entry Point**: `src/interfaces/cli/folder-mcp.ts` with future daemon support
+- **Generic Components**: Reusable `GenericListPanel` for consistent list behavior
+
+### TUI Architecture
+- **Focus Management**: Tab navigation between panels with proper focus states
+- **Keyboard Handling**: Consistent shortcuts across all panels (arrows, enter, escape)
+- **Visual Consistency**: Rounded borders, proper scrollbars, and focus indicators
+- **Component Reuse**: Generic components for lists, panels, and navigation
+
+### Key Files
+- Phase 8 Plan: `docs/development-plan/roadmap/currently-implementing/Phase-8-Unified-Application-Flow-plan.md`
+- Unified Architecture Design: `docs/design/unified-app-architecture.md`
+- TUI Components: `src/interfaces/tui-ink/components/`
+- CLI Commands: `src/interfaces/cli/commands/`
+
+## TUI Component Guide
+
+### Core Components
+- **AppFullscreen**: Main application container that manages the full TUI experience
+- **GenericListPanel**: Reusable list component with scrolling, selection, and keyboard navigation
+- **BorderedBox**: Container with rounded borders and optional focus states
+- **NavigationBar**: Tab-based navigation between different panels
+- **FirstRunWizard**: Initial setup wizard for new users with folder selection
+
+### TUI Panels
+- **MainPanel**: Primary content area (currently shows wizard or main interface)
+- **SecondaryPanel**: Configuration and settings interface
+- **StatusPanel**: System status and information display
+
+### Component Patterns
+- All list components should extend or use `GenericListPanel` for consistency
+- Focus management uses `hasFocus` prop with visual border changes
+- Keyboard shortcuts are standardized: arrows for navigation, enter to select, escape to go back
+- Scrollbars use consistent characters: ▲ (top), ┃ (middle), ▼ (bottom)
+
+### Testing TUI Components
+```bash
+npm run tui        # Run the main TUI application
+npm run tuidemo    # Run component demos and tests
+```
+
+### TUI Development Tips
+- Always test in a real terminal, not VS Code's integrated terminal
+- Use `console.error()` for debugging (stdout is reserved for Ink rendering)
+- Test with different terminal sizes to ensure responsive behavior
+- Verify keyboard navigation works smoothly between all interactive elements
+
+### Human-Agent TUI Debugging Methodology
+
+**Problem**: Claude Code cannot run TUI applications directly due to non-interactive terminal limitations.
+
+**Solution**: Human-agent collaborative debugging process:
+
+1. **Agent adds comprehensive logging** - Character counts, available space, exact calculations with descriptive labels
+2. **Agent builds the code** - `npm run build` to compile TypeScript changes
+3. **Human runs TUI with stderr capture**: `npm run tui 2>debug.log`
+4. **Human confirms completion** - Simple "done" or "please check" message
+5. **Agent reads debug.log** - Analyzes character-level discrepancies from the log file
+6. **Agent identifies root cause** - Using precise character math and layout calculations  
+7. **Agent implements fix** - Based on debug log analysis
+8. **Iterate steps 2-7** until human confirms the bug is resolved
+9. **Agent removes debug logs** - Clean up only after human confirms fix is complete
+
+**Human Feedback During Iteration:**
+- **Issue persists**: "Still the same" - Agent continues with current approach
+- **New issues**: Human describes new problems, may provide:
+  - Verbal description of visual issues
+  - ASCII screenshots of terminal output
+  - Image screenshots showing the problem
+  - Suggested solutions or observations
+- **Resolution**: Human explicitly confirms "bug is resolved" or "looks good now"
+
+**Key Principles:**
+- **Terminal is a 2D character matrix** - Every character position matters in responsive TUI
+- **Character-level precision** - Debug logs must show exact character counts at each step
+- **Human verification required** - Agent never decides bug is solved without human confirmation
+- **Systematic approach** - Follow width flow from terminal → panel → component → text rendering
+- **Wait for human approval** - Only remove debug logs after human confirms the fix works
+
+**Example Debug Log Pattern:**
+```typescript
+console.error(`\\n=== COMPONENT WIDTH CALCULATION ===`);
+console.error(`Terminal columns: ${columns}`);
+console.error(`Panel width: ${width} || ${columns - 2} = ${panelWidth}`);
+console.error(`borderOverhead: ${borderOverhead}`);
+console.error(`itemMaxWidth: ${panelWidth} - ${borderOverhead} = ${itemMaxWidth}`);
+console.error(`=== END COMPONENT WIDTH ===\\n`);
+```
+
+This methodology has proven highly effective for resolving TUI visual bugs through systematic character-level analysis.

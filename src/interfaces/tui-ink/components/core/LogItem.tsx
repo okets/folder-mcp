@@ -72,6 +72,7 @@ export class LogItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        
         if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
@@ -257,8 +258,9 @@ export class LogItem implements IListItem {
     }
     
     private buildSegments(maxWidth: number): Segment[] {
-        const BUFFER = 2; // Prevent exact width match
+        const BUFFER = 1; // Small buffer for ellipsis and safety
         const safeWidth = maxWidth - BUFFER;
+        
         
         // Calculate space allocation
         const iconWidth = this.icon.length + 1; // icon + space
@@ -289,6 +291,7 @@ export class LogItem implements IListItem {
     }
     
     private renderSegments(segments: Segment[], maxWidth: number): ReactElement {
+        
         const iconSegment = segments[0];
         const textSegment = segments[1];
         
@@ -299,9 +302,25 @@ export class LogItem implements IListItem {
         
         // If both have the same color, render as single Text to avoid issues
         if (iconSegment.color === textSegment.color && this.progress === undefined) {
+            // APPLY TRUNCATION EVEN IN SAME-COLOR PATH
+            const iconLength = iconSegment.text.length + 1; // icon + space
+            const BUFFER = 1; // Small buffer for ellipsis and safety
+            const availableForText = maxWidth - iconLength - BUFFER;
+            
+            let displayText = textSegment.text;
+            if (textSegment.text.length > availableForText) {
+                if (availableForText <= 3) {
+                    displayText = '…';
+                } else {
+                    displayText = textSegment.text.slice(0, availableForText - 1) + '…';
+                }
+            }
+            
+            const finalText = iconSegment.text + ' ' + displayText;
+            
             return (
                 <Text {...textColorProp(iconSegment.color)}>
-                    {iconSegment.text} {textSegment.text}
+                    {finalText}
                 </Text>
             );
         }
@@ -313,7 +332,7 @@ export class LogItem implements IListItem {
             
             // Calculate available space for text
             const iconLength = iconSegment.text.length + 1; // icon + space
-            const BUFFER = 2; // Safety buffer
+            const BUFFER = 1; // Small buffer for ellipsis and safety
             
             if (!hasProgress) {
                 // No progress bar, use all available space
@@ -329,12 +348,13 @@ export class LogItem implements IListItem {
                     }
                 }
                 
+                // Combine all text into a single string to prevent any wrapping
+                const fullText = iconSegment.text + ' ' + displayText;
+                
                 return (
-                    <Box>
-                        <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
-                        <Text> </Text>
-                        <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
-                    </Box>
+                    <Text {...textColorProp(iconSegment.color || textSegment.color)}>
+                        {fullText}
+                    </Text>
                 );
             }
             
@@ -343,6 +363,7 @@ export class LogItem implements IListItem {
             // Long: 1 spinner + 10 bar + 1 space + 3-4 percentage = 15-16
             const progressWidth = progressMode === 'short' ? 5 : 16; // Account for consistent spacing
             const availableForText = maxWidth - iconLength - progressWidth - BUFFER;
+            
             
             // Truncate text if needed
             let displayText = textSegment.text;
@@ -356,11 +377,11 @@ export class LogItem implements IListItem {
             
             return (
                 <Box justifyContent="space-between" width="100%">
-                    <Box>
+                    <Text>
                         <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
                         <Text> </Text>
                         <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
-                    </Box>
+                    </Text>
                     <ProgressBar 
                         mode={progressMode}
                         width={15}  // Not used in long mode since bar is fixed at 10

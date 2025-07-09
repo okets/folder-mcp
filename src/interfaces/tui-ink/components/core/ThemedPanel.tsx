@@ -1,6 +1,7 @@
 import React from 'react';
-import { MainPanel } from '../MainPanel';
-import { SecondaryPanel } from '../SecondaryPanel';
+import { GenericListPanel } from '../GenericListPanel';
+import { createConfigurationPanelItems, createStatusPanelItems } from '../../models/mixedSampleData';
+import { useNavigationContext } from '../../contexts/NavigationContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { buildProps } from '../../utils/conditionalProps';
 
@@ -14,9 +15,23 @@ export const ThemedMainPanel: React.FC<{
     height?: number;
 }> = ({ width, height }) => {
     const { theme } = useTheme();
+    const navigation = useNavigationContext();
+    const configItems = createConfigurationPanelItems();
     
-    // MainPanel already uses theme context internally
-    return <MainPanel {...buildProps({ width, height })} />;
+    return (
+        <GenericListPanel
+            title="Main"
+            subtitle="Configuration"
+            items={configItems}
+            selectedIndex={navigation.mainSelectedIndex}
+            isFocused={navigation.isMainFocused}
+            width={width}
+            height={height}
+            elementId="main-panel"
+            parentId="navigation"
+            priority={50}
+        />
+    );
 };
 
 export const ThemedSecondaryPanel: React.FC<{
@@ -24,7 +39,21 @@ export const ThemedSecondaryPanel: React.FC<{
     height?: number;
 }> = ({ width, height }) => {
     const { theme } = useTheme();
+    const navigation = useNavigationContext();
+    const statusItems = createStatusPanelItems();
     
-    // SecondaryPanel already uses theme context internally
-    return <SecondaryPanel {...buildProps({ width, height })} />;
+    return (
+        <GenericListPanel
+            title="System Status"
+            subtitle="Current state"
+            items={statusItems}
+            selectedIndex={navigation.statusSelectedIndex}
+            isFocused={navigation.isStatusFocused}
+            width={width}
+            height={height}
+            elementId="status-panel"
+            parentId="navigation"
+            priority={50}
+        />
+    );
 };

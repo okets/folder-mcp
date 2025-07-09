@@ -4,11 +4,11 @@ import { useFocusChain } from './useFocusChain';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 
-export type ContainerType = 'config' | 'status';
+export type ContainerType = 'main' | 'status';
 
 interface NavigationState {
     activeContainer: ContainerType;
-    configSelectedIndex: number;
+    mainSelectedIndex: number;
     statusSelectedIndex: number;
 }
 
@@ -21,8 +21,8 @@ interface UseNavigationOptions {
 export const useNavigation = (options: UseNavigationOptions = {}) => {
     const { isBlocked = false, configItemCount = 20, statusItemCount = 20 } = options;
     const [state, setState] = useState<NavigationState>({
-        activeContainer: 'config',
-        configSelectedIndex: 0,
+        activeContainer: 'main',
+        mainSelectedIndex: 0,
         statusSelectedIndex: 0
     });
     const di = useDI();
@@ -31,14 +31,14 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         if (isBlocked) return;
         setState(prev => ({
             ...prev,
-            activeContainer: prev.activeContainer === 'config' ? 'status' : 'config'
+            activeContainer: prev.activeContainer === 'main' ? 'status' : 'main'
         }));
     }, [isBlocked]);
 
     const navigateUp = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
-            const key = prev.activeContainer === 'config' ? 'configSelectedIndex' : 'statusSelectedIndex';
+            const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
             return {
                 ...prev,
                 [key]: Math.max(0, prev[key] - 1)
@@ -49,8 +49,8 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
     const navigateDown = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
-            const key = prev.activeContainer === 'config' ? 'configSelectedIndex' : 'statusSelectedIndex';
-            const maxItems = prev.activeContainer === 'config' ? configItemCount : statusItemCount;
+            const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
+            const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
             const currentIndex = prev[key];
             const newIndex = Math.min(maxItems - 1, currentIndex + 1);
             return {
@@ -88,7 +88,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             { key: 'Tab', description: 'Switch Panel' },
             { key: '↑↓', description: 'Navigate' }
         ] : [],
-        priority: 10  // Lower priority than active elements
+        priority: -1  // Very low priority - panels should handle their own navigation
     });
 
     return {
@@ -96,7 +96,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         switchContainer,
         navigateUp,
         navigateDown,
-        isConfigFocused: state.activeContainer === 'config',
+        isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
     };
 };

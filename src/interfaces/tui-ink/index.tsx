@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-import React from 'react';
+import React, { useState } from 'react';
 import { render } from 'ink';
 import { AppFullscreen } from './AppFullscreen';
+import { FirstRunWizard } from './components/FirstRunWizard';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
 import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
+import { join } from 'path';
+import { homedir } from 'os';
+import { existsSync } from 'fs';
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-const screenArg = args.find(arg => arg.startsWith('--screen='));
-const screenName = screenArg ? screenArg.split('=')[1] : undefined;
+// No command line arguments needed for unified TUI
 
 // Check if we're in a proper TTY environment
 if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -38,6 +39,31 @@ if (!isRawModeSupported) {
     process.exit(1);
 }
 
+// Main app component that decides between wizard and main app
+const MainApp: React.FC = () => {
+    const [showWizard, setShowWizard] = useState(true);
+    const [config, setConfig] = useState<any>(null);
+    
+    // Check if config exists
+    React.useEffect(() => {
+        const configPath = join(homedir(), '.folder-mcp', 'config.json');
+        if (existsSync(configPath)) {
+            setShowWizard(false);
+        }
+    }, []);
+    
+    const handleWizardComplete = (newConfig: any) => {
+        setConfig(newConfig);
+        setShowWizard(false);
+    };
+    
+    if (showWizard) {
+        return <FirstRunWizard onComplete={handleWizardComplete} />;
+    }
+    
+    return <AppFullscreen />;
+};
+
 // Start the TUI with configuration support
 async function startTUI() {
     try {
@@ -56,7 +82,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configInitializer}>
-                    <AppFullscreen {...(screenName ? { screenName } : {})} />
+                    <MainApp />
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
@@ -66,12 +92,12 @@ async function startTUI() {
         
         return app;
     } catch (error) {
-        console.error('[TUI] Failed to initialize with config, falling back to default');
+        console.error('[TUI] Failed to initialize with config, falling back to wizard');
         
-        // Fallback to non-configured app
+        // Fallback to wizard/main app without config
         const app = render(
             <DIProvider container={tuiContainer}>
-                <AppFullscreen {...(screenName ? { screenName } : {})} />
+                <MainApp />
             </DIProvider>,
             {
                 exitOnCtrlC: true
