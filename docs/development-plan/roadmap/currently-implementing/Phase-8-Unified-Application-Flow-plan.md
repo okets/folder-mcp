@@ -317,12 +317,65 @@ All scenarios show the selected folder in the confirmation step and create the c
 
 **Testing**: The wizard now handles rapid navigation without crashes, properly checking for valid values before proceeding to the next step.
 
-#### Task 4: Implement Transformers.js Embeddings
+#### Task 4: CLI Cleanup and Folder Selection Flow
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-09  
+**What**: Clean up legacy CLI parameters and implement robust folder selection flow with validation.
+
+**Why**: Need clean CLI system and proper folder addition flow before embeddings. Current system has accumulated legacy parameters and the folder selection needs proper CLI integration.
+
+**Problem Analysis**:
+- Legacy flag `ENABLE_ENHANCED_MCP_FEATURES` exists in 8 files and needs cleanup
+- `-d` flag is manually parsed in wizard via `process.argv` instead of proper CLI integration
+- No validation of CLI-provided folder paths
+- No visual feedback for CLI parameters in wizard
+
+**Subtasks**:
+- [ ] **CLI Cleanup**: Replace all `ENABLE_ENHANCED_MCP_FEATURES` references with `FOLDER_MCP_DEVELOPMENT_ENABLED`
+- [ ] **Add -d Flag to Commander.js**: Implement `-d, --dir <path>` option with proper parsing
+- [ ] **Path Validation**: Check folder exists, is directory, is readable - show errors gracefully
+- [ ] **Enhanced Wizard Flow**: Skip answered questions, show CLI parameters in read-only LogItems
+- [ ] **Error Handling**: Invalid -d paths show error LogItem then folder picker with defaults
+- [ ] **Priority Logic Implementation**: CLI -d (validated) → Dev flag → Current directory
+
+**Technical Implementation**:
+- Update `src/interfaces/cli/folder-mcp.ts` to add `-d` flag
+- Update `src/interfaces/tui-ink/index.tsx` to accept folder parameter
+- Update `src/interfaces/tui-ink/components/FirstRunWizard.tsx` to use LogItems for CLI feedback
+- Clean up `src/config/dev-mode.ts` and 7 other files with legacy flag
+- Add folder validation utilities
+
+**Success Criteria**:
+```bash
+# Valid folder - skip wizard question
+folder-mcp -d /valid/path  # Shows "✓ Folder: /valid/path (from CLI)" in LogItem
+
+# Invalid folder - show error then picker
+folder-mcp -d /invalid/path  # Shows "✗ Invalid path: /invalid/path" + folder picker
+
+# Normal flow with dev flag
+FOLDER_MCP_DEVELOPMENT_ENABLED=true folder-mcp  # Picker defaults to test fixtures
+
+# Normal flow
+folder-mcp  # Picker defaults to current directory
+```
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Summarize what was done and describe UX testing
+- [ ] Wait for confirmation before commit
+
+**UX Testing Instructions**:
+[To be filled when task is completed]
+
+#### Task 5: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Add offline embeddings with Transformers.js including proper mean pooling.
 
-**Why**: Critical gap - we have no offline embeddings and no mean pooling implementation. This enables true offline operation.
+**Why**: With folder selection flow complete (Task 4), we need offline embeddings for true offline operation. Critical gap - we have no offline embeddings and no mean pooling implementation.
+
+**Dependencies**: Builds on Task 4's completed folder selection and CLI integration.
 
 **Technical Details**: See [Embedding Pipeline Architecture](../../../design/unified-app-architecture.md#embedding-pipeline-architecture)
 
@@ -349,12 +402,14 @@ folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 5: Basic CLI Command Structure
+#### Task 6: Basic CLI Command Structure
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Implement core CLI commands that communicate with the daemon.
 
-**Why**: Power users need CLI access, and the wizard needs these commands to work under the hood.
+**Why**: With clean CLI structure established (Task 4), we can now add power user commands. These commands work under the hood for the wizard and provide direct CLI access.
+
+**Dependencies**: Builds on Task 4's clean CLI structure and established `-d` flag pattern.
 
 **Subtasks**:
 - [ ] Extend `src/interfaces/cli/folder-mcp.ts` with new commands
@@ -379,7 +434,7 @@ folder-mcp status  # Shows: Daemon running (PID: 12345), 1 folder indexed
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 6: Enhanced Process Management
+#### Task 7: Enhanced Process Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Robust daemon lifecycle management with auto-start and recovery.
@@ -410,7 +465,7 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 7: Multi-Agent Connection Management
+#### Task 8: Multi-Agent Connection Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Add HTTP transport for MCP and implement Agents Connection screen.
@@ -442,12 +497,14 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 8: Enhanced Setup Wizard
+#### Task 9: Enhanced Setup Wizard
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Full wizard experience with system detection and smart defaults.
 
-**Why**: First impressions matter - the wizard should detect available options and guide users to the best setup.
+**Why**: With folder selection complete (Task 4), we can enhance the wizard with advanced features. First impressions matter - the wizard should detect available options and guide users to the best setup.
+
+**Dependencies**: Builds on Task 4's folder selection flow and Task 5's Transformers.js implementation.
 
 **Subtasks**:
 - [ ] System assessment (GPU, memory, Ollama availability)
@@ -471,7 +528,7 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 9: System Integration (Auto-start)
+#### Task 10: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Operating system integration for auto-start on boot.
@@ -500,12 +557,14 @@ ps aux | grep folder-mcp  # Daemon already running
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-#### Task 10: Multi-Folder Support
+#### Task 11: Multi-Folder Support
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **What**: Support multiple indexed folders with isolation.
 
-**Why**: Users have knowledge in different folders and want to search across them or keep them separate.
+**Why**: With single folder flow established (Task 4), we can extend to multiple folders. Users have knowledge in different folders and want to search across them or keep them separate.
+
+**Dependencies**: Builds on Task 4's folder selection flow and Task 6's CLI command structure.
 
 **Subtasks**:
 - [ ] Modify storage to support folder isolation
@@ -529,7 +588,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 **UX Testing Instructions**:
 [To be filled when task is completed]
 
-### Final Task: Complete Documentation and Release Prep
+#### Task 12: Complete Documentation and Release Prep
 **Status**: ⏳ Waiting  
 **What**: Update all documentation and prepare for release.
 
@@ -568,14 +627,15 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 3 | Minimal First-Run Wizard | 2025-07-08 | ✅ | Simple folder selection |
 | 3.1 | Enhance Wizard with File Picker | 2025-07-08 | ✅ | Visual folder navigation |
 | 3.2 | Fix Wizard Stability Issues | 2025-07-08 | ✅ | Handle undefined values in navigation |
-| 4 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
-| 5 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
-| 6 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
-| 7 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
-| 8 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
-| 9 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
-| 10 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
-| Final | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
+| 4 | CLI Cleanup and Folder Selection Flow | 2025-07-09 | ⏳ | Clean CLI params, add -d flag with validation |
+| 5 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
+| 6 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
+| 7 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
+| 8 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
+| 9 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
+| 10 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
+| 11 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
+| 12 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
 
 ### **Key Discoveries**
 - **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.
