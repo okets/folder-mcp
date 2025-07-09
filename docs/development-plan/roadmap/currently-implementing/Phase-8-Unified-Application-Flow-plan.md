@@ -331,12 +331,13 @@ All scenarios show the selected folder in the confirmation step and create the c
 - No visual feedback for CLI parameters in wizard
 
 **Subtasks**:
-- [ ] **CLI Cleanup**: Replace all `ENABLE_ENHANCED_MCP_FEATURES` references with `FOLDER_MCP_DEVELOPMENT_ENABLED`
-- [ ] **Add -d Flag to Commander.js**: Implement `-d, --dir <path>` option with proper parsing
-- [ ] **Path Validation**: Check folder exists, is directory, is readable - show errors gracefully
-- [ ] **Enhanced Wizard Flow**: Skip answered questions, show CLI parameters in read-only LogItems
-- [ ] **Error Handling**: Invalid -d paths show error LogItem then folder picker with defaults
-- [ ] **Priority Logic Implementation**: CLI -d (validated) → Dev flag → Current directory
+- [x] **CLI Cleanup**: Replace all `ENABLE_ENHANCED_MCP_FEATURES` references with `FOLDER_MCP_DEVELOPMENT_ENABLED`
+- [x] **Add -d Flag to Commander.js**: Implement `-d, --dir <path>` option with proper parsing
+- [x] **Path Validation**: Check folder exists, is directory, is readable - show errors gracefully
+- [x] **Enhanced Wizard Flow**: Skip answered questions, show CLI parameters in read-only LogItems
+- [x] **Error Handling**: Invalid -d paths show error LogItem then folder picker with defaults
+- [x] **Priority Logic Implementation**: CLI -d (validated) → Dev flag → Current directory
+- [ ] **Navigation Cursor System**: Implement active cursor management (`▶`, `■`, `·`) similar to demo TUI for better UX
 
 **Technical Implementation**:
 - Update `src/interfaces/cli/folder-mcp.ts` to add `-d` flag
