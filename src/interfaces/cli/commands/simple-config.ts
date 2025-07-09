@@ -6,17 +6,15 @@
  */
 
 import { Command } from 'commander';
-import { ConfigManager } from '../../../application/config/ConfigManager.js';
-import { NodeFileSystem } from '../../../infrastructure/filesystem/node-filesystem.js';
-import { NodeFileWriter } from '../../../infrastructure/filesystem/NodeFileWriter.js';
-import { YamlParser } from '../../../infrastructure/parsers/YamlParser.js';
-import { SimpleSchemaValidator, SimpleThemeSchemaLoader } from '../../../application/config/SimpleSchemaValidator.js';
+import { ConfigurationComponent } from '../../../config/ConfigurationComponent.js';
+import { getContainer } from '../../../di/container.js';
+import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup.js';
 import chalk from 'chalk';
 import * as yaml from 'yaml';
 
 export class SimpleConfigCommand {
   private command: Command;
-  private configManager?: ConfigManager;
+  private configurationComponent?: ConfigurationComponent;
 
   constructor() {
     this.command = new Command('config');
@@ -95,38 +93,25 @@ export class SimpleConfigCommand {
       });
   }
 
-  private async initConfigManager(): Promise<ConfigManager> {
-    if (!this.configManager) {
-      const fileSystem = new NodeFileSystem();
-      const fileWriter = new NodeFileWriter();
-      const yamlParser = new YamlParser();
-      const schemaLoader = new SimpleThemeSchemaLoader();
-      const validator = new SimpleSchemaValidator(schemaLoader);
-      
-      this.configManager = new ConfigManager(
-        fileSystem,
-        fileWriter,
-        yamlParser,
-        validator,
-        schemaLoader,
-        'config-defaults.yaml',
-        'config.yaml'
-      );
+  private async initConfigurationComponent(): Promise<ConfigurationComponent> {
+    if (!this.configurationComponent) {
+      const container = getContainer();
+      this.configurationComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
       
       try {
-        await this.configManager.load();
+        await this.configurationComponent.load();
       } catch (error) {
         console.warn(chalk.yellow('⚠️  No configuration files found, using defaults'));
       }
     }
     
-    return this.configManager;
+    return this.configurationComponent;
   }
 
   private async executeGet(key: string): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
-      const value = configManager.get(key);
+      const configComponent = await this.initConfigurationComponent();
+      const value = await configComponent.get(key);
       
       if (value === undefined) {
         console.log(chalk.yellow(`Configuration key '${key}' not found`));
@@ -141,7 +126,7 @@ export class SimpleConfigCommand {
 
   private async executeSet(key: string, value: string): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
+      const configComponent = await this.initConfigurationComponent();
       
       // Parse value if it looks like JSON
       let parsedValue: any = value;
@@ -150,7 +135,7 @@ export class SimpleConfigCommand {
       else if (/^\d+$/.test(value)) parsedValue = parseInt(value, 10);
       else if (/^\d+\.\d+$/.test(value)) parsedValue = parseFloat(value);
       
-      await configManager.set(key, parsedValue);
+      await configComponent.set(key, parsedValue);
       console.log(chalk.green('✅'), `Set ${key} = ${parsedValue}`);
     } catch (error) {
       console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
@@ -160,8 +145,8 @@ export class SimpleConfigCommand {
 
   private async executeShow(options?: { json?: boolean }): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
-      const config = configManager.getAll();
+      const configComponent = await this.initConfigurationComponent();
+      const config = await configComponent.getAll();
       
       if (options?.json) {
         console.log(JSON.stringify(config, null, 2));
@@ -169,7 +154,7 @@ export class SimpleConfigCommand {
         console.log(chalk.bold('\n📋 Current Configuration:'));
         console.log(chalk.gray('========================\n'));
         console.log(yaml.stringify(config));
-        console.log(chalk.gray('\nConfiguration file: config.yaml'));
+        console.log(chalk.gray(`\nConfiguration file: ${configComponent.getConfigFilePath()}`));
       }
     } catch (error) {
       console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
@@ -179,8 +164,8 @@ export class SimpleConfigCommand {
 
   private async executeGetTheme(): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
-      const theme = configManager.get('theme') || 'auto';
+      const configComponent = await this.initConfigurationComponent();
+      const theme = await configComponent.get('theme') || 'auto';
       
       console.log(chalk.bold('Current theme:'), theme);
       console.log(chalk.gray('\nAvailable themes: light, dark, auto'));
@@ -192,17 +177,10 @@ export class SimpleConfigCommand {
 
   private async executeSetTheme(theme: string): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
+      const configComponent = await this.initConfigurationComponent();
       
-      // Validate theme
-      const validThemes = ['light', 'dark', 'auto'];
-      if (!validThemes.includes(theme)) {
-        console.error(chalk.red('❌ Invalid theme:'), theme);
-        console.log(chalk.gray('Available themes: light, dark, auto'));
-        process.exit(1);
-      }
-      
-      await configManager.set('theme', theme);
+      // ConfigurationComponent will handle validation via ValidationRegistry
+      await configComponent.set('theme', theme);
       console.log(chalk.green('✅'), `Theme set to: ${theme}`);
       console.log(chalk.gray('\nRestart the TUI to see the new theme'));
     } catch (error) {
@@ -220,8 +198,8 @@ export class SimpleConfigCommand {
     console.log('• ' + chalk.bold('auto') + ' - Use system default theme\n');
     
     try {
-      const configManager = await this.initConfigManager();
-      const currentTheme = configManager.get('theme') || 'auto';
+      const configComponent = await this.initConfigurationComponent();
+      const currentTheme = await configComponent.get('theme') || 'auto';
       console.log(chalk.gray('Current theme:'), chalk.cyan(currentTheme));
     } catch {
       // Ignore errors when getting current theme
@@ -230,34 +208,20 @@ export class SimpleConfigCommand {
 
   private async executeValidate(): Promise<void> {
     try {
-      const configManager = await this.initConfigManager();
-      const config = configManager.getAll();
+      const configComponent = await this.initConfigurationComponent();
       
       console.log(chalk.bold('\n🔍 Validating Configuration...'));
       
-      let hasErrors = false;
+      // Use ConfigurationComponent's built-in validation
+      const validationResult = await configComponent.validateAll();
       
-      // Validate each config value
-      for (const [key, value] of Object.entries(config)) {
-        const result = await configManager.validate(key, value);
-        
-        if (result.valid) {
-          console.log(chalk.green('✓'), `${key}: ${value}`);
-        } else {
-          hasErrors = true;
-          console.log(chalk.red('✗'), `${key}: ${value}`);
-          if (result.errors) {
-            for (const error of result.errors) {
-              console.log(chalk.red('  →'), error.message);
-            }
-          }
-        }
-      }
-      
-      if (!hasErrors) {
-        console.log(chalk.green('\n✅ Configuration is valid!'));
+      if (validationResult.isValid) {
+        console.log(chalk.green('✅ Configuration is valid!'));
       } else {
-        console.log(chalk.red('\n❌ Configuration has errors'));
+        console.log(chalk.red('❌ Configuration has errors:'));
+        for (const error of validationResult.errors) {
+          console.log(chalk.red(`  • ${error.path}: ${error.error}`));
+        }
         process.exit(1);
       }
     } catch (error) {
@@ -274,19 +238,12 @@ export class SimpleConfigCommand {
         return;
       }
       
-      // Simply remove the config.yaml file to reset to defaults
-      const fs = await import('fs/promises');
-      try {
-        await fs.unlink('config.yaml');
-        console.log(chalk.green('✅'), 'Configuration reset to defaults');
-        console.log(chalk.gray('A new config.yaml will be created when you change settings'));
-      } catch (error: any) {
-        if (error.code === 'ENOENT') {
-          console.log(chalk.yellow('Configuration is already at defaults'));
-        } else {
-          throw error;
-        }
-      }
+      const configComponent = await this.initConfigurationComponent();
+      
+      // Use ConfigurationComponent's built-in reset method
+      await configComponent.reset();
+      console.log(chalk.green('✅'), 'Configuration reset to defaults');
+      console.log(chalk.gray('A new config.yaml will be created when you change settings'));
     } catch (error) {
       console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       process.exit(1);

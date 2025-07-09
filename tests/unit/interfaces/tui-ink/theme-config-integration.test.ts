@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ConfigurableThemeService } from '../../../../src/interfaces/tui-ink/services/ConfigurableThemeService';
+import { ConfigurationComponent } from '../../../../src/config/ConfigurationComponent';
 import { IConfigManager } from '../../../../src/domain/config/IConfigManager';
 
 // Mock config manager
@@ -44,21 +45,29 @@ class MockConfigManager implements IConfigManager {
 
 describe('ConfigurableThemeService', () => {
     let mockConfigManager: MockConfigManager;
+    let configurationComponent: ConfigurationComponent;
     let themeService: ConfigurableThemeService;
     
     beforeEach(() => {
         mockConfigManager = new MockConfigManager();
-        themeService = new ConfigurableThemeService(mockConfigManager);
+        configurationComponent = new ConfigurationComponent(mockConfigManager);
+        themeService = new ConfigurableThemeService(configurationComponent);
     });
     
-    it('should load initial theme from configuration', () => {
+    it('should load initial theme from configuration', async () => {
+        // Give the service a moment to initialize async
+        await new Promise(resolve => setTimeout(resolve, 10));
+        
         const themeName = themeService.getThemeName();
         expect(themeName).toBe('dark');
     });
     
-    it('should handle auto theme setting', () => {
-        mockConfigManager.set('theme', 'auto');
-        themeService = new ConfigurableThemeService(mockConfigManager);
+    it('should handle auto theme setting', async () => {
+        await configurationComponent.set('theme', 'auto');
+        themeService = new ConfigurableThemeService(configurationComponent);
+        
+        // Give the service a moment to initialize async
+        await new Promise(resolve => setTimeout(resolve, 10));
         
         const themeName = themeService.getThemeName();
         expect(themeName).toBe('default'); // auto resolves to default
@@ -88,17 +97,17 @@ describe('ConfigurableThemeService', () => {
         await themeService.setTheme('light');
         
         expect(themeService.getThemeName()).toBe('light');
-        expect(mockConfigManager.get('theme')).toBe('light');
+        expect(await configurationComponent.get('theme')).toBe('light');
     });
     
     it('should reload theme from configuration', async () => {
-        // Change config directly
-        await mockConfigManager.set('theme', 'minimal');
+        // Change config directly (using a valid theme)
+        await configurationComponent.set('theme', 'light');
         
         // Reload theme from config
         await themeService.reloadFromConfig();
         
-        // For now, minimal maps to default since we only support light/dark/default
-        expect(themeService.getThemeName()).toBe('default');
+        // Should have the new theme
+        expect(themeService.getThemeName()).toBe('light');
     });
 });

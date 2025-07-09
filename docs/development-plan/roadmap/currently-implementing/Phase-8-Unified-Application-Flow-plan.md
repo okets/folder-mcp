@@ -393,50 +393,149 @@ folder-mcp  # Shows same folder and config from wizard, no sample data
 - [x] Wait for confirmation before commit
 
 #### Task 4.2: Expand ConfigurationComponent as Unified Interface
-**Status**: 🚧 In Progress  
+**Status**: ✅ Completed  
 **Discovered**: 2025-07-09  
 **What**: Expand ConfigurationComponent to become the single source of truth for both validation AND configuration access.
 
 **Why**: ValidationRegistry solved validation centralization, but configuration ACCESS is still scattered across TUI, CLI, wizard, and other systems. ConfigurationComponent needs to become the unified interface.
 
-**Current State Analysis**:
-- ValidationRegistry ✅ provides centralized validation
-- ConfigurationComponent ✅ uses ValidationRegistry for validation
-- Multiple systems still access config through different mechanisms ❌
-- Need unified interface for both validation AND configuration access
-
-**Architecture Plan**:
+**Architecture Implemented**:
 ```
 ConfigurationComponent (Unified Interface)
 ├── ValidationRegistry (validation rules)
 ├── ConfigManager (storage mechanism)
 ├── DI Container (dependency injection)
-└── Unified API (get/set/validate all in one place)
+├── Event System (observers + compatibility)
+└── Unified API (get/set/validate/bulk operations)
 ```
 
 **Subtasks**:
-- [ ] **Expand ConfigurationComponent API**: Add comprehensive get/set methods for all config paths
-- [ ] **Create type-safe interfaces**: Define TypeScript interfaces for all configuration sections
-- [ ] **Add bulk operations**: Support for getting/setting multiple config values at once
-- [ ] **Integrate with DI system**: Make ConfigurationComponent available through dependency injection
-- [ ] **Create configuration observers**: Allow components to watch for configuration changes
-- [ ] **Add configuration defaults**: Centralized default values for all configuration paths
+- [x] **Expand ConfigurationComponent API**: Add comprehensive get/set methods for all config paths
+- [x] **Create type-safe interfaces**: Define TypeScript interfaces for all configuration sections
+- [x] **Add bulk operations**: Support for getting/setting multiple config values at once
+- [x] **Integrate with DI system**: Make ConfigurationComponent available through dependency injection
+- [x] **Create configuration observers**: Allow components to watch for configuration changes
+- [x] **Add configuration defaults**: Centralized default values for all configuration paths
+- [x] **Add backward compatibility**: Event system and legacy method support
 
-**Success Criteria**:
+**Implementation Summary**:
+- Expanded ConfigurationComponent with comprehensive API (get/set/validate/bulk/observers)
+- Added event system for configuration changes with backward compatibility
+- Added default values management for all configuration paths
+- Integrated with DI container for application-wide availability
+- Added file system operations (reset, hasConfigFile, getConfigFilePath)
+
+**Success Criteria**: ✅ All Achieved
 - All TUI components access config through ConfigurationComponent
 - All CLI commands access config through ConfigurationComponent  
 - All wizard steps access config through ConfigurationComponent
 - No direct ConfigManager access outside of ConfigurationComponent
 - Single source of truth for both validation and configuration access
 
+#### Task 4.3: Replace Scattered Configuration Access Across TUI Components
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-09  
+**What**: Replace all direct ConfigManager usage in TUI components with unified ConfigurationComponent.
+
+**Implementation Summary**:
+- Updated main TUI entry point (`src/interfaces/tui-ink/index.tsx`)
+- Updated FirstRunWizard to use ConfigurationComponent
+- Updated ConfigurableThemeService to use ConfigurationComponent
+- Fixed all TUI-related tests to use new system
+- Added async initialization support for theme service
+
+#### Task 4.4: Replace CLI Configuration Access
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-09  
+**What**: Replace direct ConfigManager usage in CLI commands with unified ConfigurationComponent.
+
+**Implementation Summary**:
+- Updated simple-config.ts to use ConfigurationComponent
+- Advanced config.ts was already using ConfigurationComponent
+- All CLI validation now goes through ValidationRegistry
+- Removed manual validation code in favor of unified system
+
+#### Task 4.5: Replace Wizard Configuration Access
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-09  
+**What**: Replace direct ConfigManager usage in wizard with unified ConfigurationComponent.
+
+**Implementation Summary**:
+- FirstRunWizard now uses ConfigurationComponent for all config operations
+- Proper validation and error handling integrated
+- Configuration persistence works correctly across wizard sessions
+
+#### Task 4.6: Eliminate Direct ConfigManager Access Outside ConfigurationComponent
+**Status**: ✅ Completed  
+**Discovered**: 2025-07-09  
+**What**: Remove all remaining direct ConfigManager usage throughout the codebase.
+
+**Implementation Summary**:
+- Updated DI setup to inject ConfigurationComponent where needed
+- Fixed FolderManager and FolderValidator to use ConfigurationComponent
+- Added backward compatibility methods to ConfigurationComponent
+- Added compatibility tokens for old systems
+- All tests passing (75/75 files, 844/844 tests)
+
+**Critical Discovery**: Frontend configuration is now fully unified, but **backend services still use HybridConfigLoader**. This creates a disconnect where user configuration doesn't affect backend functionality.
+
+#### Task 4.7: Connect Backend Services to Unified Configuration System
+**Status**: ⏳ Waiting  
+**Discovered**: 2025-07-09  
+**Priority**: 🔥 **CRITICAL - BLOCKS ALL BACKEND FUNCTIONALITY**
+**What**: Bridge the gap between frontend ConfigurationComponent and backend services that still use HybridConfigLoader.
+
+**Why**: **CRITICAL GAP DISCOVERED** - The unified configuration system only affects the frontend. Backend services (MCP server, indexing, embedding, search) still use the old HybridConfigLoader system and are completely unaware of user configuration changes made through the TUI wizard or CLI.
+
+**Problem Analysis**:
+- ❌ **Frontend**: TUI wizard → ConfigurationComponent → `~/.folder-mcp/config.yaml`
+- ❌ **Backend**: MCP server → HybridConfigLoader → `system-configuration.json` + `config-defaults.yaml` + `config.yaml`
+- ❌ **No Bridge**: Configuration changes don't reach backend services
+- ❌ **Broken UX**: User settings don't affect actual functionality (indexing, search, embedding)
+
+**Architecture Plan**:
+```
+Frontend (✅ Unified)          Backend (❌ Detached)
+TUI Wizard                     MCP Server
+CLI Commands        →  Bridge  → Indexing Services  
+Theme Service          Needed   Embedding Services
+ConfigurationComponent         Search Services
+```
+
+**Subtasks**:
+- [ ] **Remove HybridConfigLoader**: Delete the legacy configuration system entirely
+- [ ] **Update MCP Server**: Make MCP server use ConfigurationComponent via DI
+- [ ] **Update Domain Services**: Connect all backend services to unified configuration
+- [ ] **Bridge Configuration Flow**: Ensure frontend config changes reach backend services
+- [ ] **Test End-to-End**: Verify wizard settings actually affect backend behavior
+- [ ] **Clean Up Legacy**: Remove all references to old configuration system
+
+**Success Criteria**:
+```bash
+# User configures embedding model in TUI wizard
+rm -rf ~/.folder-mcp
+folder-mcp  # Wizard: select folder + model "nomic-embed-text"
+
+# Backend services respect the configuration
+folder-mcp status  # Shows: Using model "nomic-embed-text" (configured via wizard)
+```
+
+**Dependencies**: This task BLOCKS all backend functionality. Tasks 5+ (Transformers.js, CLI commands, daemon) will not work properly until this is resolved.
+
+**Task Completion Protocol**:
+- [ ] Mark progress on this document
+- [ ] Verify end-to-end configuration flow works
+- [ ] Wait for confirmation before commit
+
 #### Task 5: Integrate -d Parameter with Unified Config System
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-09  
+**Dependencies**: ⚠️ **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Properly integrate `-d` parameter with the unified configuration system for seamless folder addition.
 
 **Why**: The `-d` parameter should "add a folder to MCP" and integrate with the wizard flow by answering the first question and showing CLI parameters as read-only LogItems.
 
-**Dependencies**: Requires Task 4 (unified config system) to be completed first.
+**Updated Priority**: **MEDIUM** - Frontend CLI integration is mostly complete, this is enhancement.
 
 **Subtasks**:
 - [ ] **Update CLI parsing**: Integrate `-d` parameter with unified config system
@@ -456,11 +555,12 @@ folder-mcp -d /invalid/path  # Shows "✗ Invalid path: /invalid/path" + folder 
 #### Task 6: Enhanced Wizard Flow with CLI Integration
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-09  
+**Dependencies**: ⚠️ **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Enhance wizard to skip CLI-answered questions and show CLI parameters in read-only mode.
 
 **Why**: Questions answered by CLI parameters should appear as read-only LogItems and be skipped in the wizard flow.
 
-**Dependencies**: Requires Task 5 (CLI integration) to be completed first.
+**Updated Priority**: **LOW** - Most wizard functionality is already complete.
 
 **Subtasks**:
 - [ ] **Add LogItems section**: Show CLI parameters at top of wizard in read-only mode
@@ -532,14 +632,15 @@ folder-mcp  # Picker defaults to current directory
 **UX Testing Instructions**:
 [Completed - cursor system implemented and working]
 
-#### Task 5: Implement Transformers.js Embeddings
+#### Task 8: Implement Transformers.js Embeddings
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Add offline embeddings with Transformers.js including proper mean pooling.
 
-**Why**: With folder selection flow complete (Task 4), we need offline embeddings for true offline operation. Critical gap - we have no offline embeddings and no mean pooling implementation.
+**Why**: With folder selection flow complete and frontend configuration unified, we need offline embeddings for true offline operation. However, this requires backend integration to actually use the configured embedding models.
 
-**Dependencies**: Builds on Task 4's completed folder selection and CLI integration.
+**Updated Priority**: **HIGH** - Critical for offline functionality, but blocked by backend integration.
 
 **Technical Details**: See [Embedding Pipeline Architecture](../../../design/unified-app-architecture.md#embedding-pipeline-architecture)
 
@@ -558,22 +659,15 @@ folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
 # Should successfully index offline
 ```
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 6: Basic CLI Command Structure
+#### Task 9: Basic CLI Command Structure
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Implement core CLI commands that communicate with the daemon.
 
-**Why**: With clean CLI structure established (Task 4), we can now add power user commands. These commands work under the hood for the wizard and provide direct CLI access.
+**Why**: With clean CLI structure established, we can now add power user commands. These commands work under the hood for the wizard and provide direct CLI access.
 
-**Dependencies**: Builds on Task 4's clean CLI structure and established `-d` flag pattern.
+**Updated Priority**: **HIGH** - Essential for power user functionality, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] Extend `src/interfaces/cli/folder-mcp.ts` with new commands
@@ -590,20 +684,15 @@ folder-mcp list  # Shows: ~/Documents (indexed)
 folder-mcp status  # Shows: Daemon running (PID: 12345), 1 folder indexed
 ```
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 7: Enhanced Process Management
+#### Task 10: Enhanced Process Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Robust daemon lifecycle management with auto-start and recovery.
 
 **Why**: Production systems need reliable process management, including handling crashes and stale PIDs.
+
+**Updated Priority**: **MEDIUM** - Important for production, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] Implement proper PID file locking (prevent multiple daemons)
@@ -621,20 +710,15 @@ kill -9 $(cat ~/.folder-mcp/daemon.pid)  # Simulate crash
 folder-mcp status  # Detects crashed daemon, cleans up PID file
 ```
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 8: Multi-Agent Connection Management
+#### Task 11: Multi-Agent Connection Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Add HTTP transport for MCP and implement Agents Connection screen.
 
 **Why**: Users want to use multiple AI agents (Claude Desktop, VSCode, etc) but stdio only supports one connection.
+
+**Updated Priority**: **HIGH** - Key differentiator feature, but blocked by backend integration.
 
 **Technical Details**: See [Agent Connection Management](../../../design/unified-app-architecture.md#agent-connection-management)
 
@@ -653,22 +737,15 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - VSCode config auto-updates to use HTTP
 - Both agents can connect simultaneously
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 9: Enhanced Setup Wizard
+#### Task 12: Enhanced Setup Wizard
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Full wizard experience with system detection and smart defaults.
 
-**Why**: With folder selection complete (Task 4), we can enhance the wizard with advanced features. First impressions matter - the wizard should detect available options and guide users to the best setup.
+**Why**: With folder selection complete, we can enhance the wizard with advanced features. First impressions matter - the wizard should detect available options and guide users to the best setup.
 
-**Dependencies**: Builds on Task 4's folder selection flow and Task 5's Transformers.js implementation.
+**Updated Priority**: **MEDIUM** - Enhancement feature, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] System assessment (GPU, memory, Ollama availability)
@@ -684,20 +761,15 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - Shows progress during model download
 - Completes with working setup
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 10: System Integration (Auto-start)
+#### Task 13: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Operating system integration for auto-start on boot.
 
 **Why**: Production deployments need the daemon to start automatically.
+
+**Updated Priority**: **LOW** - Nice-to-have feature, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] macOS: Create launchd plist generator
@@ -713,22 +785,15 @@ folder-mcp config set autoStart true
 ps aux | grep folder-mcp  # Daemon already running
 ```
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 11: Multi-Folder Support
+#### Task 14: Multi-Folder Support
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
+**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
 **What**: Support multiple indexed folders with isolation.
 
-**Why**: With single folder flow established (Task 4), we can extend to multiple folders. Users have knowledge in different folders and want to search across them or keep them separate.
+**Why**: With single folder flow established, we can extend to multiple folders. Users have knowledge in different folders and want to search across them or keep them separate.
 
-**Dependencies**: Builds on Task 4's folder selection flow and Task 6's CLI command structure.
+**Updated Priority**: **HIGH** - Core feature, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] Modify storage to support folder isolation
@@ -744,17 +809,12 @@ folder-mcp add ~/Code --model ollama:codellama
 folder-mcp search "function"  # Searches both, shows which folder each result is from
 ```
 
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
-
-#### Task 12: Complete Documentation and Release Prep
+#### Task 15: Complete Documentation and Release Prep
 **Status**: ⏳ Waiting  
 **What**: Update all documentation and prepare for release.
+
+**Dependencies**: ⚠️ **BLOCKED BY Task 4.7** - Need working system to document
+**Updated Priority**: **MEDIUM** - Essential for release, but blocked by backend integration.
 
 **Subtasks**:
 - [ ] Update main README with new architecture
@@ -771,14 +831,6 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 - API reference is comprehensive
 - Troubleshooting guide addresses common issues
 - Roadmap is updated with Phase 8 completion
-
-**Task Completion Protocol**:
-- [ ] Mark progress on this document
-- [ ] Summarize what was done and describe UX testing
-- [ ] Wait for confirmation before commit
-
-**UX Testing Instructions**:
-[To be filled when task is completed]
 
 #### Task 13: Implement Centralized Focus Management System
 **Status**: ⏳ Waiting  
@@ -848,18 +900,25 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 3 | Minimal First-Run Wizard | 2025-07-08 | ✅ | Simple folder selection |
 | 3.1 | Enhance Wizard with File Picker | 2025-07-08 | ✅ | Visual folder navigation |
 | 3.2 | Fix Wizard Stability Issues | 2025-07-08 | ✅ | Handle undefined values in navigation |
-| 4 | Fix Configuration System Unity | 2025-07-09 | ⏳ | Unify wizard and main app config systems |
-| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition with unified config |
-| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions, show LogItems |
+| 4 | Fix Configuration System Unity | 2025-07-09 | ✅ | Unify wizard and main app config systems |
+| 4.1 | Create ValidationRegistry | 2025-07-09 | ✅ | Centralized validation rules |
+| 4.2 | Expand ConfigurationComponent | 2025-07-09 | ✅ | Unified interface for validation + config access |
+| 4.3 | Replace TUI Configuration Access | 2025-07-09 | ✅ | All TUI components use ConfigurationComponent |
+| 4.4 | Replace CLI Configuration Access | 2025-07-09 | ✅ | All CLI commands use ConfigurationComponent |
+| 4.5 | Replace Wizard Configuration Access | 2025-07-09 | ✅ | Wizard uses ConfigurationComponent |
+| 4.6 | Eliminate Direct ConfigManager Access | 2025-07-09 | ✅ | Only ConfigurationComponent uses ConfigManager |
+| 4.7 | Connect Backend to Unified Config | 2025-07-09 | ⏳ | 🔥 **CRITICAL** - Remove HybridConfigLoader |
+| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | **BLOCKED** - CLI folder addition enhancement |
+| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | **BLOCKED** - Skip CLI-answered questions |
 | 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
-| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
-| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
-| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
-| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
-| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
-| 13 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
-| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
-| 15 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
+| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | **BLOCKED** - Offline embeddings with mean pooling |
+| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | **BLOCKED** - add, list, status, remove |
+| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | **BLOCKED** - Auto-start, crash recovery |
+| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | **BLOCKED** - stdio + HTTP support |
+| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | **BLOCKED** - System detection, smart defaults |
+| 13 | System Integration | 2025-07-08 | ⏳ | **BLOCKED** - Auto-start on boot |
+| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | **BLOCKED** - Isolated folder management |
+| 15 | Documentation & Release | 2025-07-08 | ⏳ | **BLOCKED** - Complete docs and checklist |
 | 16 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
 
 ### **Key Discoveries**

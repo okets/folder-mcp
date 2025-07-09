@@ -7,6 +7,7 @@
 import { IThemeService } from './interfaces';
 import { ThemeColors, ThemeSymbols, BorderStyle } from '../models/types';
 import { IConfigManager } from '../../../domain/config/IConfigManager';
+import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
 import { theme as defaultTheme } from '../utils/theme';
 import { themes, ThemeName } from '../contexts/ThemeContext';
 
@@ -20,20 +21,36 @@ export class ConfigurableThemeService implements IThemeService {
     private themeName: ThemeName;
     
     constructor(
-        private readonly configManager: IConfigManager
+        private readonly configurationComponent: ConfigurationComponent
     ) {
-        // Load initial theme from configuration
-        const configuredTheme = this.getConfiguredTheme();
-        this.themeName = this.resolveThemeName(configuredTheme);
+        // Initialize with default theme - will be updated async
+        this.themeName = 'default';
         this.currentTheme = this.loadTheme(this.themeName);
+        
+        // Load theme from configuration asynchronously
+        this.initializeTheme();
+    }
+    
+    /**
+     * Initialize theme from configuration (async)
+     */
+    private async initializeTheme(): Promise<void> {
+        try {
+            const configuredTheme = await this.getConfiguredTheme();
+            this.themeName = this.resolveThemeName(configuredTheme);
+            this.currentTheme = this.loadTheme(this.themeName);
+        } catch (error) {
+            console.error('Failed to initialize theme from configuration:', error);
+            // Keep default theme
+        }
     }
     
     /**
      * Get theme name from configuration
      */
-    private getConfiguredTheme(): string {
+    private async getConfiguredTheme(): Promise<string> {
         try {
-            return this.configManager.get('theme') || 'auto';
+            return await this.configurationComponent.get('theme') || 'auto';
         } catch {
             return 'auto';
         }
@@ -117,7 +134,7 @@ export class ConfigurableThemeService implements IThemeService {
         
         // Save to configuration
         try {
-            await this.configManager.set('theme', themeName === 'default' ? 'auto' : themeName);
+            await this.configurationComponent.set('theme', themeName === 'default' ? 'auto' : themeName);
         } catch (error) {
             // Log error but don't throw - theme change should still work
             console.error('Failed to save theme preference:', error);
@@ -128,7 +145,7 @@ export class ConfigurableThemeService implements IThemeService {
      * Reload theme from configuration
      */
     async reloadFromConfig(): Promise<void> {
-        const configuredTheme = this.getConfiguredTheme();
+        const configuredTheme = await this.getConfiguredTheme();
         this.themeName = this.resolveThemeName(configuredTheme);
         this.currentTheme = this.loadTheme(this.themeName);
     }

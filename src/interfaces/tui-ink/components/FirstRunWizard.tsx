@@ -13,6 +13,7 @@ import { useFocusChain, useRootInput } from '../hooks/useFocusChain';
 import { getContainer } from '../../../di/container';
 import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup';
 import { IConfigManager } from '../../../domain/config/IConfigManager';
+import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
 import { FolderConfig } from '../../../config/schema/folders';
 
 interface FirstRunWizardProps {
@@ -275,14 +276,14 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                 console.error(`Selected model: "${selectedModel}"`);
                 console.error(`Selected language: "${selectedLanguage}"`);
                 
-                // Get config manager from main DI container
+                // Get ConfigurationComponent from main DI container
                 const container = getContainer();
-                const configManager = container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
-                console.error(`Config manager resolved successfully`);
+                const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                console.error(`ConfigurationComponent resolved successfully`);
                 
                 // Load existing config first
-                await configManager.load();
-                console.error(`Config manager loaded successfully`);
+                await configComponent.load();
+                console.error(`ConfigurationComponent loaded successfully`);
                 
                 // Create folder config following the schema
                 const folderConfig: FolderConfig = {
@@ -295,19 +296,19 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                     }
                 };
                 
-                // Set folders configuration
+                // Set folders configuration using ConfigurationComponent
                 console.error(`Setting folders.list with config:`, folderConfig);
-                await configManager.set('folders.list', [folderConfig]);
+                await configComponent.set('folders.list', [folderConfig]);
                 console.error(`folders.list set successfully`);
                 
                 // Set default embedding model
                 console.error(`Setting defaults - model: "${selectedModel}", backend: "ollama"`);
-                await configManager.set('folders.defaults.embeddings.model', selectedModel);
-                await configManager.set('folders.defaults.embeddings.backend', 'ollama');
+                await configComponent.set('folders.defaults.embeddings.model', selectedModel);
+                await configComponent.set('folders.defaults.embeddings.backend', 'ollama');
                 console.error(`Embedding defaults set successfully`);
                 
                 // Set theme
-                await configManager.set('theme', 'auto');
+                await configComponent.set('theme', 'auto');
                 console.error(`Theme set successfully`);
                 
                 // Create config object for backward compatibility

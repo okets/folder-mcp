@@ -2,3 +2,5 @@ folders:
   list[0]:
     path: /nonexistent/path
 theme: dark
+user:
+  email: definitely-not-an-email

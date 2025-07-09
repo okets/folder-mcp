@@ -5,6 +5,7 @@ import { SelectionListItem } from '../components/core/SelectionListItem';
 import { FilePickerListItem } from '../components/core/FilePickerListItem';
 import { validators } from '../utils/validators';
 import { ValidationRules } from '../models/validation';
+import { ValidationRegistry } from '../../../config/ValidationRegistry';
 import * as os from 'os';
 
 // Combined items for SecondaryPanel - all demo/test items
@@ -291,7 +292,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Email changed to:', newValue),
-            [validators.email],
+            ValidationRegistry.getTuiValidators('user.email'),
             false,
             'user@example.com',
             {
@@ -402,7 +403,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Email changed to:', newValue),
-            [validators.email],
+            ValidationRegistry.getTuiValidators('user.email'),
             false,
             'user@example.com'
         ),
@@ -417,7 +418,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('IP changed to:', newValue),
-            [validators.ipv4]
+            ValidationRegistry.getTuiValidators('server.host')
         ),
         
         new ConfigurationListItem(
@@ -655,7 +656,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Port changed to:', newValue),
-            [validators.number(1, 65535)]
+            ValidationRegistry.getTuiValidators('server.port')
         ),
         
         new ConfigurationListItem(
@@ -668,7 +669,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Email changed to:', newValue),
-            [validators.email]
+            ValidationRegistry.getTuiValidators('user.email')
         ),
         
         new ConfigurationListItem(
@@ -739,7 +740,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Invalid email changed to:', newValue),
-            [validators.email]
+            ValidationRegistry.getTuiValidators('user.email')
         ),
         
         new ConfigurationListItem(
@@ -765,7 +766,7 @@ export function createStatusPanelItems(): IListItem[] {
             undefined,
             undefined,
             (newValue) => console.log('Invalid IP changed to:', newValue),
-            [validators.ipv4]
+            ValidationRegistry.getTuiValidators('server.host')
         )
     ];
 }

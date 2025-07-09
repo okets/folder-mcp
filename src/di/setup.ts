@@ -12,7 +12,7 @@ import { ResolvedConfig } from '../config/schema.js';
 import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
 import { homedir } from 'os';
-import { integrateConfigurationServices, registerConfigurationServices } from '../config/di-setup.js';
+import { integrateConfigurationServices, registerConfigurationServices, CONFIG_SERVICE_TOKENS } from '../config/di-setup.js';
 
 // Import domain infrastructure providers
 import { 
@@ -77,20 +77,20 @@ export function setupDependencyInjection(options: {
     const { FolderValidator } = require('../domain/folders/folder-manager.js');
     const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
     const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
-    // TODO: Replace with new configuration manager when folder management is updated
-    const configManager = null; // Temporarily remove old config dependency
-    return new FolderValidator(fileSystem, pathResolver, configManager);
+    // Use ConfigurationComponent as the unified configuration interface
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+    return new FolderValidator(fileSystem, pathResolver, configurationComponent);
   });
 
   container.registerSingleton(SERVICE_TOKENS.FOLDER_MANAGER, () => {
     const { FolderManager } = require('../domain/folders/folder-manager.js');
-    // TODO: Replace with new configuration manager when folder management is updated
-    const configManager = null; // Temporarily remove old config dependency
+    // Use ConfigurationComponent as the unified configuration interface
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
     const validator = container.resolve(SERVICE_TOKENS.FOLDER_VALIDATOR);
     const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
     const configMerger = container.resolve(SERVICE_TOKENS.FOLDER_CONFIG_MERGER);
     const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
-    return new FolderManager(configManager, validator, pathResolver, configMerger, fileSystem);
+    return new FolderManager(configurationComponent, validator, pathResolver, configMerger, fileSystem);
   });
 
   // Register storage factory
@@ -144,6 +144,9 @@ export function setupDependencyInjection(options: {
     defaultsPath: 'config-defaults.yaml',
     userConfigPath: configPath
   });
+
+  // Integrate configuration services with compatibility tokens
+  integrateConfigurationServices(container);
 
   container.registerSingleton('CLIConfigurationOverrideService' as any, () => {
     // Stub service for CLI configuration overrides

@@ -4,7 +4,8 @@ export const validators = {
         if (!value || value.trim() === '') {
             return { isValid: false, error: 'Email is required' };
         }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        // More strict email regex that prevents invalid characters
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         const isValid = emailRegex.test(value);
         return isValid 
             ? { isValid: true }

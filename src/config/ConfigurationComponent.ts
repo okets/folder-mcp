@@ -1,177 +1,112 @@
 /**
- * Simple Configuration Component
+ * Unified Configuration Component
  * 
- * Provides a unified interface for configuration management with validation.
- * Reuses existing TUI validation infrastructure to ensure consistency.
+ * Single source of truth for both validation AND configuration access.
+ * Uses ValidationRegistry for validation and ConfigManager for storage.
+ * All configuration access should go through this component.
  */
 
 import { IConfigManager } from '../domain/config/IConfigManager';
-import { validators } from '../interfaces/tui-ink/utils/validators';
-import { ValidationService } from '../interfaces/tui-ink/services/ValidationService';
-import { IValidationRule } from '../interfaces/tui-ink/models/configuration';
+import { ValidationRegistry, ValidationResult } from './ValidationRegistry';
 import { existsSync } from 'fs';
+import { unlinkSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 
-export interface ValidationResult {
-    isValid: boolean;
-    error?: string;
-    warning?: string;
-    info?: string;
+// Re-export ValidationResult for backwards compatibility
+export type { ValidationResult };
+
+/**
+ * Configuration change observer interface
+ */
+export interface ConfigurationObserver {
+    onConfigurationChanged(path: string, value: any): void;
+}
+
+/**
+ * Configuration change event interface (for backward compatibility)
+ */
+export interface ConfigurationChangeEvent {
+    key: string;
+    value: any;
+    previousValue: any;
+}
+
+/**
+ * Bulk configuration operations interface
+ */
+export interface BulkConfigurationResult {
+    success: boolean;
+    errors: Array<{ path: string; error: string }>;
 }
 
 export class ConfigurationComponent {
-    private validationService: ValidationService;
-    private validationRules: Map<string, IValidationRule<any>[]> = new Map();
+    private observers: ConfigurationObserver[] = [];
+    private eventListeners: Map<string, Function[]> = new Map();
+    private defaults: Map<string, any> = new Map();
     
     constructor(private configManager: IConfigManager) {
-        this.validationService = new ValidationService();
-        this.setupValidationRules();
-    }
-    
-    private setupValidationRules(): void {
-        // Folder path validation
-        const folderPathRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    if (!value || value.trim() === '') {
-                        return false;
-                    }
-                    return existsSync(value);
-                },
-                message: 'Folder path must exist'
-            }
-        ];
-        
-        // Embedding model validation
-        const embeddingModelRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    if (!value || value.trim() === '') {
-                        return false;
-                    }
-                    // List of supported models
-                    const supportedModels = [
-                        'nomic-embed-text',
-                        'mxbai-embed-large',
-                        'all-minilm',
-                        'sentence-transformers'
-                    ];
-                    return supportedModels.includes(value);
-                },
-                message: 'Must be a supported embedding model'
-            }
-        ];
-        
-        // Batch size validation (reuse TUI number validator)
-        const batchSizeRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    const result = validators.number(1, 1000)(value);
-                    return result.isValid;
-                },
-                message: 'Batch size must be between 1 and 1000'
-            }
-        ];
-        
-        // Port validation (reuse TUI number validator)
-        const portRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    const result = validators.number(1000, 65535)(value);
-                    return result.isValid;
-                },
-                message: 'Port must be between 1000 and 65535'
-            }
-        ];
-        
-        // Host validation (reuse TUI ipv4 validator)
-        const hostRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    // Allow localhost or IP addresses
-                    if (value === 'localhost' || value === '127.0.0.1') {
-                        return true;
-                    }
-                    const result = validators.ipv4(value);
-                    return result.isValid;
-                },
-                message: 'Must be a valid IP address or localhost'
-            }
-        ];
-        
-        // Theme validation
-        const themeRules: IValidationRule<string>[] = [
-            {
-                validate: (value: string) => {
-                    const validThemes = ['auto', 'light', 'dark'];
-                    return validThemes.includes(value);
-                },
-                message: 'Theme must be auto, light, or dark'
-            }
-        ];
-        
-        // Register validation rules
-        this.validationRules.set('folders.list[].path', folderPathRules);
-        this.validationRules.set('folders.defaults.embeddings.model', embeddingModelRules);
-        this.validationRules.set('folders.defaults.embeddings.batchSize', batchSizeRules);
-        this.validationRules.set('server.port', portRules);
-        this.validationRules.set('server.host', hostRules);
-        this.validationRules.set('theme', themeRules);
+        this.initializeDefaults();
     }
     
     /**
-     * Validate a configuration value using the same rules as TUI
+     * Initialize default configuration values
+     */
+    private initializeDefaults(): void {
+        // Core application defaults
+        this.defaults.set('theme', 'auto');
+        this.defaults.set('folders.defaults.embeddings.model', 'nomic-embed-text');
+        this.defaults.set('folders.defaults.embeddings.batchSize', 32);
+        this.defaults.set('server.port', 3000);
+        this.defaults.set('server.host', 'localhost');
+        this.defaults.set('user.email', '');
+        
+        // Cache settings
+        this.defaults.set('cache.directory', join(homedir(), '.cache', 'folder-mcp'));
+        this.defaults.set('cache.maxSizeGB', 10);
+        this.defaults.set('cache.cleanupIntervalHours', 24);
+        
+        // Processing settings
+        this.defaults.set('processing.chunkSize', 1000);
+        this.defaults.set('processing.chunkOverlap', 200);
+        
+        // Development settings
+        this.defaults.set('development.enabled', false);
+        this.defaults.set('development.logLevel', 'info');
+    }
+    
+    /**
+     * Get default value for a configuration path
+     */
+    getDefault(path: string): any {
+        return this.defaults.get(path);
+    }
+    
+    /**
+     * Set default value for a configuration path
+     */
+    setDefault(path: string, value: any): void {
+        this.defaults.set(path, value);
+    }
+    
+    /**
+     * Validate a configuration value using ValidationRegistry
      */
     async validate(path: string, value: any): Promise<ValidationResult> {
-        // Handle array paths (e.g., folders.list[0].path)
-        const normalizedPath = this.normalizeArrayPath(path);
-        const rules = this.validationRules.get(normalizedPath);
-        
-        if (!rules) {
-            // No validation rules for this path - it's valid
-            return { isValid: true };
-        }
-        
         // Convert value to string for validation (same as TUI)
         const stringValue = String(value);
         
-        // For TUI validators, get the error message directly from the validator
-        if (normalizedPath === 'folders.defaults.embeddings.batchSize') {
-            const tuiResult = validators.number(1, 1000)(stringValue);
-            return tuiResult.isValid ? { isValid: true } : { isValid: false, error: tuiResult.error || 'Invalid batch size' };
-        }
-        
-        if (normalizedPath === 'server.port') {
-            const tuiResult = validators.number(1000, 65535)(stringValue);
-            return tuiResult.isValid ? { isValid: true } : { isValid: false, error: tuiResult.error || 'Invalid port' };
-        }
-        
-        if (normalizedPath === 'server.host') {
-            // Special handling for host validation
-            if (stringValue === 'localhost' || stringValue === '127.0.0.1') {
-                return { isValid: true };
-            }
-            const tuiResult = validators.ipv4(stringValue);
-            return tuiResult.isValid ? { isValid: true } : { isValid: false, error: tuiResult.error || 'Invalid host' };
-        }
-        
-        // Use the same validation service as TUI for other rules
-        const result = this.validationService.validate(stringValue, rules);
-        
-        if (result.isValid) {
-            return { isValid: true };
-        } else {
-            return { 
-                isValid: false, 
-                error: result.errors[0] || 'Validation failed' // Return first error, same as TUI
-            };
-        }
+        // Use ValidationRegistry for consistent validation
+        return ValidationRegistry.validateValue(path, stringValue);
     }
     
     /**
      * Set configuration value with validation
      */
     async set(path: string, value: any): Promise<void> {
+        // Get previous value for event
+        const previousValue = await this.get(path);
+        
         // Validate first
         const validationResult = await this.validate(path, value);
         if (!validationResult.isValid) {
@@ -180,64 +115,248 @@ export class ConfigurationComponent {
         
         // Set the value
         await this.configManager.set(path, value);
+        
+        // Notify observers
+        this.notifyObservers(path, value);
+        
+        // Emit change event for backward compatibility
+        this.emit('configChanged', { key: path, value, previousValue });
     }
     
     /**
-     * Get configuration value
+     * Get configuration value with fallback to defaults
      */
     async get(path: string): Promise<any> {
+        const value = await this.configManager.get(path);
+        
+        // Return value if it exists, otherwise return default
+        if (value !== undefined) {
+            return value;
+        }
+        
+        return this.getDefault(path);
+    }
+    
+    /**
+     * Get configuration value without fallback to defaults
+     */
+    async getRaw(path: string): Promise<any> {
         return await this.configManager.get(path);
+    }
+    
+    /**
+     * Check if configuration path exists
+     */
+    async exists(path: string): Promise<boolean> {
+        const value = await this.configManager.get(path);
+        return value !== undefined;
+    }
+    
+    /**
+     * Get all configuration
+     */
+    async getAll(): Promise<any> {
+        return await this.configManager.get('');
+    }
+    
+    /**
+     * Set multiple configuration values at once
+     */
+    async setBulk(values: Record<string, any>): Promise<BulkConfigurationResult> {
+        const errors: Array<{ path: string; error: string }> = [];
+        
+        // Validate all values first
+        for (const [path, value] of Object.entries(values)) {
+            const validationResult = await this.validate(path, value);
+            if (!validationResult.isValid) {
+                errors.push({ path, error: validationResult.error || 'Invalid value' });
+            }
+        }
+        
+        // If any validation failed, return errors without setting anything
+        if (errors.length > 0) {
+            return { success: false, errors };
+        }
+        
+        // Set all values
+        for (const [path, value] of Object.entries(values)) {
+            await this.configManager.set(path, value);
+            this.notifyObservers(path, value);
+        }
+        
+        return { success: true, errors: [] };
+    }
+    
+    /**
+     * Get multiple configuration values at once
+     */
+    async getBulk(paths: string[]): Promise<Record<string, any>> {
+        const result: Record<string, any> = {};
+        
+        for (const path of paths) {
+            result[path] = await this.get(path);
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Load configuration from file
+     */
+    async load(): Promise<void> {
+        await this.configManager.load();
+    }
+    
+    /**
+     * Reload configuration from files
+     */
+    async reload(): Promise<void> {
+        await this.configManager.reload();
     }
     
     /**
      * Validate entire configuration
      */
     async validateAll(): Promise<{ isValid: boolean; errors: Array<{ path: string; error: string }> }> {
-        const errors: Array<{ path: string; error: string }> = [];
-        
         // Get all configuration
-        const config = await this.configManager.get('');
+        const config = await this.getAll();
         
-        // Validate each configured path
-        for (const [rulePath] of this.validationRules) {
-            const value = await this.configManager.get(rulePath);
-            if (value !== undefined) {
-                const result = await this.validate(rulePath, value);
-                if (!result.isValid && result.error) {
-                    errors.push({ path: rulePath, error: result.error });
-                }
-            }
-        }
-        
-        // Special case: validate folder paths in arrays
-        try {
-            const folders = await this.configManager.get('folders.list');
-            if (Array.isArray(folders)) {
-                for (let i = 0; i < folders.length; i++) {
-                    const folder = folders[i];
-                    if (folder && folder.path) {
-                        const result = await this.validate(`folders.list[${i}].path`, folder.path);
-                        if (!result.isValid && result.error) {
-                            errors.push({ path: `folders.list[${i}].path`, error: result.error });
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            // Ignore if folders.list doesn't exist
-        }
-        
-        return {
-            isValid: errors.length === 0,
-            errors
-        };
+        // Use ValidationRegistry to validate all registered paths
+        return ValidationRegistry.validateAll(config);
     }
     
     /**
-     * Normalize array paths for rule matching
-     * e.g., folders.list[0].path -> folders.list[].path
+     * Reset configuration to defaults
      */
-    private normalizeArrayPath(path: string): string {
-        return path.replace(/\[\d+\]/g, '[]');
+    async reset(): Promise<void> {
+        // Delete the configuration file
+        const configPath = join(homedir(), '.folder-mcp', 'config.yaml');
+        if (existsSync(configPath)) {
+            unlinkSync(configPath);
+        }
+        
+        // Reload to get clean state
+        await this.load();
+        
+        // Notify observers of reset
+        for (const path of this.defaults.keys()) {
+            this.notifyObservers(path, this.getDefault(path));
+        }
+    }
+    
+    /**
+     * Check if configuration file exists
+     */
+    hasConfigFile(): boolean {
+        const configPath = join(homedir(), '.folder-mcp', 'config.yaml');
+        return existsSync(configPath);
+    }
+    
+    /**
+     * Get configuration file path
+     */
+    getConfigFilePath(): string {
+        return join(homedir(), '.folder-mcp', 'config.yaml');
+    }
+    
+    /**
+     * Add configuration change observer
+     */
+    addObserver(observer: ConfigurationObserver): void {
+        this.observers.push(observer);
+    }
+    
+    /**
+     * Remove configuration change observer
+     */
+    removeObserver(observer: ConfigurationObserver): void {
+        const index = this.observers.indexOf(observer);
+        if (index !== -1) {
+            this.observers.splice(index, 1);
+        }
+    }
+    
+    /**
+     * Notify observers of configuration changes
+     */
+    private notifyObservers(path: string, value: any): void {
+        for (const observer of this.observers) {
+            try {
+                observer.onConfigurationChanged(path, value);
+            } catch (error) {
+                console.error('Error notifying configuration observer:', error);
+            }
+        }
+    }
+    
+    /**
+     * Get TUI validators for a configuration path
+     */
+    getTuiValidators(path: string): Array<(value: string) => { isValid: boolean; error?: string; warning?: string; info?: string }> {
+        return ValidationRegistry.getTuiValidators(path);
+    }
+    
+    /**
+     * Get all registered validation paths
+     */
+    getValidationPaths(): string[] {
+        return ValidationRegistry.getRegisteredPaths();
+    }
+    
+    /**
+     * Add event listener (for backward compatibility with IConfigurationManager)
+     */
+    on(event: string, callback: Function): void {
+        if (!this.eventListeners.has(event)) {
+            this.eventListeners.set(event, []);
+        }
+        this.eventListeners.get(event)!.push(callback);
+    }
+    
+    /**
+     * Remove event listener
+     */
+    off(event: string, callback: Function): void {
+        const listeners = this.eventListeners.get(event);
+        if (listeners) {
+            const index = listeners.indexOf(callback);
+            if (index !== -1) {
+                listeners.splice(index, 1);
+            }
+        }
+    }
+    
+    /**
+     * Emit event to all listeners
+     */
+    private emit(event: string, data: any): void {
+        const listeners = this.eventListeners.get(event);
+        if (listeners) {
+            for (const listener of listeners) {
+                try {
+                    listener(data);
+                } catch (error) {
+                    console.error('Error in configuration event listener:', error);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get configuration (for backward compatibility with IConfigurationManager)
+     */
+    getConfig(): any {
+        return this.configManager.getAll();
+    }
+    
+    /**
+     * Get configuration sources (for backward compatibility with IConfigurationManager)
+     */
+    getSources(): any {
+        // Return a basic sources object
+        return {
+            file: this.getConfigFilePath(),
+            defaults: 'built-in'
+        };
     }
 }

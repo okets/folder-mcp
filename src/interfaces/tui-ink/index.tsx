@@ -8,6 +8,7 @@ import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
+import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 import { getContainer } from '../../di/container';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -51,11 +52,12 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
     // Check if config exists and whether to show wizard
     React.useEffect(() => {
         const checkConfigAndLoadIfExists = async () => {
-            const configPath = join(homedir(), '.folder-mcp', 'config.yaml');
-            const configExists = existsSync(configPath);
+            const container = getContainer();
+            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+            const configExists = configComponent.hasConfigFile();
             
             console.error(`\n=== MAIN APP CONFIG CHECK ===`);
-            console.error(`Config path: ${configPath}`);
+            console.error(`Config path: ${configComponent.getConfigFilePath()}`);
             console.error(`Config exists: ${configExists}`);
             console.error(`CLI dir parameter: ${cliDir}`);
             
@@ -66,17 +68,15 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
             } else if (configExists) {
                 try {
                     console.error(`Config file exists, loading from unified system...`);
-                    // Load config from unified system
-                    const container = getContainer();
-                    const configManager = container.resolve<IConfigManager>(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);
-                    console.error(`Config manager resolved successfully`);
-                    await configManager.load();
-                    console.error(`Config manager loaded successfully`);
+                    // Load config from unified ConfigurationComponent
+                    console.error(`ConfigurationComponent resolved successfully`);
+                    await configComponent.load();
+                    console.error(`ConfigurationComponent loaded successfully`);
                     
-                    // Get folders configuration
-                    const foldersList = await configManager.get('folders.list');
-                    const embeddingModel = await configManager.get('folders.defaults.embeddings.model');
-                    const theme = await configManager.get('theme');
+                    // Get folders configuration with fallback to defaults
+                    const foldersList = await configComponent.get('folders.list');
+                    const embeddingModel = await configComponent.get('folders.defaults.embeddings.model');
+                    const theme = await configComponent.get('theme');
                     
                     console.error(`\n=== CONFIG VALUES RETRIEVED ===`);
                     console.error(`folders.list:`, foldersList);
