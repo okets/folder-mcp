@@ -204,55 +204,55 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     // Language step removed - now goes directly from model to confirmation
     
     
-    // Enable the appropriate item to control input based on current step
-    useEffect(() => {
-        if (step === 2) {
-            modelSelector.onEnter();
-        }
-        // Step 3 is now confirmation (no input needed)
-    }, [step]);
     
     // Handle wizard-level input using focus chain
     const handleWizardInput = useCallback((input: string, key: Key): boolean => {
+        // Handle up/down navigation between questions
+        if (key.upArrow && step > 1) {
+            setStep(step - 1);
+            return true;
+        }
+        
+        if (key.downArrow && step < 3) {
+            setStep(step + 1);
+            return true;
+        }
+        
         if (key.escape) {
             // Go back to previous step, or exit if on first step
-            if (step === 1 || (hasValidCliFolder && step === 2)) {
+            if (step === 1) {
                 exit();
-            } else if (!hasValidCliFolder || step > 2) {
+            } else {
                 setStep(step - 1);
             }
             return true;
         }
         
-        // Handle confirmation step (now step 3)
-        if (step === 3 && key.return) {
-            completeSetup();
-            return true;
-        }
-        
         return false;
-    }, [step, exit, hasValidCliFolder]);
+    }, [step, exit]);
     
     // Register wizard input handler with focus chain
     const getKeyBindings = () => {
-        if (step === 3) {
-            return [
-                { key: 'Enter', description: 'Confirm' },
-                { key: 'Esc', description: 'Back' }
-            ];
-        } else if (step > 1) {
-            return [
-                { key: '↑↓', description: 'Navigate' },
-                { key: 'Enter', description: 'Select' },
-                { key: 'Esc', description: 'Back' }
-            ];
-        } else {
-            return [
-                { key: '↑↓', description: 'Navigate' },
-                { key: 'Enter', description: 'Select' },
-                { key: 'Esc', description: 'Exit' }
-            ];
+        const bindings = [
+            { key: 'Enter', description: 'Select/Edit' }
+        ];
+        
+        // Add navigation keys if not on first/last question
+        if (step > 1) {
+            bindings.unshift({ key: '↑', description: 'Previous Question' });
         }
+        if (step < 3) {
+            bindings.unshift({ key: '↓', description: 'Next Question' });
+        }
+        
+        // Add escape
+        if (step === 1) {
+            bindings.push({ key: 'Esc', description: 'Exit' });
+        } else {
+            bindings.push({ key: 'Esc', description: 'Previous Question' });
+        }
+        
+        return bindings;
     };
     
     useFocusChain({
@@ -362,98 +362,92 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         );
     }
     
-    
-    // Create items for completed steps (read-only versions)
-    const createReadOnlyFolderPicker = () => {
-        const picker = new FilePickerListItem(
-            '✓',
-            'Which folder would you like to index?',
-            folderPath,
-            false, // not active
-            'folder',
-            undefined // no callback
-        );
-        // Don't call onEnter() - keep it collapsed
-        return picker;
+
+    // Helper function to get question status
+    const getQuestionStatus = (questionType: 'folder' | 'model' | 'confirmation') => {
+        switch (questionType) {
+            case 'folder':
+                if (!folderPath || folderResult.error) return { icon: '✗', color: '#EF4444' }; // red for invalid
+                if (folderPath) return { icon: '✓', color: '#10B981' }; // green for completed
+                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                
+            case 'model':
+                if (modelError) return { icon: '✗', color: '#EF4444' }; // red for invalid
+                if (selectedModel && supportedModels.includes(selectedModel)) return { icon: '✓', color: '#10B981' }; // green for completed
+                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                
+            case 'confirmation':
+                // Confirmation is always unanswered until the final action
+                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                
+            default:
+                return { icon: '?', color: '#F59E0B' };
+        }
     };
-    
-    const createReadOnlyModelSelector = () => {
-        const selector = new SelectionListItem(
-            '✓',
-            'What embedding model would you like to use?',
+
+    // Create items for all questions (always show all)
+    const getAllItems = () => {
+        const items = [];
+        
+        // Step 1: Folder selection - always show
+        const folderStatus = getQuestionStatus('folder');
+        const folderPickerItem = new FilePickerListItem(
+            '·',
+            `${folderStatus.icon} Which folder would you like to index?`,
+            folderPath,
+            step === 1, // active when it's the current step
+            'folder',
+            (path) => {
+                setFolderPath(path);
+                setStep(2); // Auto-advance to next step
+            }
+        );
+        
+        items.push(folderPickerItem);
+        
+        // Step 2: Model selection - always show  
+        const modelStatus = getQuestionStatus('model');
+        const modelSelectorItem = new SelectionListItem(
+            '·',
+            `${modelStatus.icon} What embedding model would you like to use?`,
             modelOptions,
             [selectedModel],
-            false, // not active
+            step === 2, // active when it's the current step
             'radio',
             'vertical',
-            undefined // no callback
+            (values) => {
+                if (values.length > 0 && values[0] !== undefined) {
+                    setSelectedModel(values[0]);
+                    setStep(3); // Auto-advance to confirmation
+                }
+            }
         );
-        // Don't call onEnter() - keep it collapsed
-        return selector;
-    };
-    
-    // Language selector removed
-    
-    // Create confirmation selector for final step
-    const createConfirmationSelector = () => {
-        const options = [
-            { value: 'confirm', label: '✓ Confirm' }, // green checkmark
-            { value: 'deny', label: '✗ Cancel' }       // red x
-        ];
-        const selector = new SelectionListItem(
-            '?',
-            'Confirm Adding Embeddings for this folder',
-            options,
-            ['confirm'], // default to "Confirm"
-            true, // isActive
-            'radio', // single selection
-            'horizontal', // horizontal layout
+        
+        items.push(modelSelectorItem);
+        
+        // Step 3: Confirmation - always show
+        const confirmationStatus = getQuestionStatus('confirmation');
+        const confirmationSelectorItem = new SelectionListItem(
+            '·',
+            `${confirmationStatus.icon} Confirm Adding Embeddings for this folder`,
+            [
+                { value: 'confirm', label: '✓ Confirm' },
+                { value: 'deny', label: '✗ Cancel' }
+            ],
+            ['confirm'],
+            step === 3, // active when it's the current step
+            'radio',
+            'horizontal',
             (selectedValues: string[]) => {
                 if (selectedValues[0] === 'confirm') {
-                    // User confirmed - proceed
                     completeSetup();
                 } else {
-                    // User denied - exit
                     exit();
                 }
             }
         );
-        return selector;
-    };
-
-    // Collect all items for the single panel
-    const getAllItems = () => {
-        const items = [];
         
-        // Step 1: Folder selection
-        if (step >= 1) {
-            if (step === 1) {
-                // Ensure folder picker is expanded for current step
-                folderPicker.onEnter();
-                items.push(folderPicker); // Active folder picker
-            } else {
-                items.push(createReadOnlyFolderPicker()); // Collapsed folder picker
-            }
-        }
-        
-        // Step 2: Model selection  
-        if (step >= 2) {
-            if (step === 2) {
-                // Ensure model selector is expanded for current step
-                modelSelector.onEnter();
-                items.push(modelSelector); // Active model selector
-            } else if (step > 2) {
-                items.push(createReadOnlyModelSelector()); // Collapsed model selector
-            }
-        }
-        
-        // Step 3: Confirmation
-        if (step >= 3) {
-            const confirmationSelector = createConfirmationSelector();
-            // Ensure confirmation is expanded for current step
-            confirmationSelector.onEnter();
-            items.push(confirmationSelector); // Active confirmation
-        }
+        items.push(confirmationSelectorItem);
         
         return items;
     };
@@ -464,13 +458,13 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 title="folder-mcp · Add Folder Wizard"
                 subtitle="Let's configure your knowledge base"
                 items={getAllItems()}
-                selectedIndex={getAllItems().length - 1} // Focus on last (current) item
+                selectedIndex={step - 1} // Focus on current step (0-indexed)
                 isFocused={true}
                 elementId="wizard-main"
                 parentId="wizard"
                 priority={50}
                 // No height specified - use dynamic sizing
-                width={Math.min(Math.floor(columns * 0.8), 120)}
+                width={Math.min(Math.floor(columns * 0.95), 120)}
             />
         </Box>
     );

@@ -439,8 +439,8 @@ export class SelectionListItem implements IListItem {
             
             // Build the full text without nested components to avoid wrapping
             const fullText = truncated 
-                ? `${this.icon} ${label}: [${value}…]`
-                : `${this.icon} ${label}: [${value}]`;
+                ? `${this.icon} ${label} [${value}…]`
+                : `${this.icon} ${label} [${value}]`;
             
             // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
             // Use conservative width calculation to prevent wrapping but preserve space for UI elements
@@ -448,12 +448,12 @@ export class SelectionListItem implements IListItem {
             if (getVisualWidth(fullText) >= conservativeWidth) {
                 // Force truncation to prevent wrapping
                 const safeLength = maxWidth - 5; // Leave room for "…]" and safety buffer
-                const labelAndIconLength = getVisualWidth(this.icon) + 1 + getVisualWidth(label) + 2; // "icon label: "
+                const labelAndIconLength = getVisualWidth(this.icon) + 1 + getVisualWidth(label) + 1; // "icon label "
                 const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
                 const truncatedValue = displayValues.slice(0, Math.max(0, remainingSpace));
                 
                 // Build single text string to prevent wrapping at component boundaries
-                const forcedTruncatedText = `${this.icon} ${label}: [${truncatedValue}…]`;
+                const forcedTruncatedText = `${this.icon} ${label} [${truncatedValue}…]`;
                 
                 return (
                     <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -463,7 +463,7 @@ export class SelectionListItem implements IListItem {
             }
                 
             // Build single text string to prevent wrapping at component boundaries
-            const normalText = `${this.icon} ${label}: [${value}${truncated ? '…' : ''}]`;
+            const normalText = `${this.icon} ${label} [${value}${truncated ? '…' : ''}]`;
             
             return (
                 <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -503,7 +503,7 @@ export class SelectionListItem implements IListItem {
         
         // Check if everything fits without truncation
         // Need to leave 1 char buffer to prevent wrapping when text exactly matches width
-        const fullTextLength = getVisualWidth(this.label) + 2 + getVisualWidth(displayValues) + 2; // "Label: [value]"
+        const fullTextLength = getVisualWidth(this.label) + 1 + getVisualWidth(displayValues) + 2; // "Label [value]"
         if (fullTextLength < availableWidth - 1) { // -1 for safety buffer
             return { label: this.label, value: displayValues, truncated: false };
         }
@@ -514,7 +514,7 @@ export class SelectionListItem implements IListItem {
         }
         
         // Calculate components
-        const labelAndSeparatorLength = getVisualWidth(this.label) + 2; // "Label: "
+        const labelAndSeparatorLength = getVisualWidth(this.label) + 1; // "Label "
         const bracketsLength = 2; // "[]"
         const ellipsisLength = 1; // "…"
         
@@ -539,7 +539,7 @@ export class SelectionListItem implements IListItem {
         
         // Second priority: truncate label to make room for "[…]"
         const minBracketContent = 3; // "[…]"
-        const minLabelSpace = availableWidth - minBracketContent - 2 - 1; // -2 for ": ", -1 for safety
+        const minLabelSpace = availableWidth - minBracketContent - 1 - 1; // -1 for " ", -1 for safety
         if (minLabelSpace > 0) {
             const truncatedLabel = getVisualWidth(this.label) > minLabelSpace 
                 ? this.label.slice(0, minLabelSpace - ellipsisLength) + '…'

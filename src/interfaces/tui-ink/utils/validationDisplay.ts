@@ -129,7 +129,7 @@ export function formatCollapsedValidation(
     
     // Start with the original label and progressively truncate if needed
     let workingLabel = label;
-    let baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
+    let baseWidth = getVisualWidth(`${icon} ${workingLabel} [`);
     const suffixWidth = 1; // for ']'
     const minBracketContent = 1; // Minimum space for "[…]"
     
@@ -142,14 +142,14 @@ export function formatCollapsedValidation(
         workingLabel = workingLabel.length > 3 
             ? workingLabel.substring(0, workingLabel.length - 4) + '…'
             : workingLabel.substring(0, 1) + '…';
-        baseWidth = getVisualWidth(`${icon} ${workingLabel}: [`);
+        baseWidth = getVisualWidth(`${icon} ${workingLabel} [`);
         availableWidth = effectiveMaxWidth - baseWidth - suffixWidth;
     }
     
     // If still no room, ensure we show at least "[…]"
     if (availableWidth <= 0) {
         // If we have validation, still try to show the icon even in extreme cases
-        if (validation && validationIconSpace <= maxWidth - getVisualWidth(`${icon} …: []`)) {
+        if (validation && validationIconSpace <= maxWidth - getVisualWidth(`${icon} … []`)) {
             return {
                 displayValue: '',
                 validationDisplay: ` ${validation.icon || getValidationIcon(validation.state)}`,

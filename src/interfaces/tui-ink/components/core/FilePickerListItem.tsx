@@ -712,7 +712,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     <Transform transform={output => output}>
                         <Text {...textColorProp(notification ? 'red' : (this.isActive ? theme.colors.accent : undefined))}>■ </Text>
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                            {displayContent}: 
+                            {displayContent} 
                         </Text>
                         {showEnterHint && (
                             <>
@@ -852,7 +852,7 @@ export class FilePickerListItem extends ValidatedListItem {
                                 {this.icon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{formatted.truncatedLabel || this.label}: [</Text>
+                                {' '}{formatted.truncatedLabel || this.label} [</Text>
                             <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {formatted.displayValue}
                             </Text>
@@ -872,7 +872,7 @@ export class FilePickerListItem extends ValidatedListItem {
                 const validationColor = getValidationColor(this._validationMessage.state);
                 
                 // Calculate the actual space needed for the complete line with validation
-                const currentText = `${this.icon} ${label}: [${value}] ${validationIcon}`;
+                const currentText = `${this.icon} ${label} [${value}] ${validationIcon}`;
                 
                 let finalLabel = label;
                 let finalValue = value;
@@ -881,7 +881,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     // We need to truncate more to fit the validation icon
                     const iconPrefixWidth = getVisualWidth(`${this.icon} `);
                     const validationSuffixWidth = getVisualWidth(` ${validationIcon}`);
-                    const bracketsWidth = getVisualWidth(`: []`);
+                    const bracketsWidth = getVisualWidth(` []`);
                     const availableForLabelAndValue = maxWidth - iconPrefixWidth - bracketsWidth - validationSuffixWidth;
                     
                     if (availableForLabelAndValue >= 4) {
@@ -905,7 +905,7 @@ export class FilePickerListItem extends ValidatedListItem {
                                 {this.icon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{finalLabel}: [
+                                {' '}{finalLabel} [
                             </Text>
                             <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {finalValue}
@@ -938,7 +938,7 @@ export class FilePickerListItem extends ValidatedListItem {
                                 {this.icon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{formatted.truncatedLabel || this.label}: [</Text>
+                                {' '}{formatted.truncatedLabel || this.label} [</Text>
                             <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
                                 {formatted.displayValue}
                             </Text>

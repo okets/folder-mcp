@@ -42,7 +42,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     parentId,
     priority = 50
 }) => {
-    const { columns } = useTerminalSize();
+    const { columns, rows } = useTerminalSize();
     
     // Local state for force updates when items change internally
     const [updateTrigger, setUpdateTrigger] = useState(0);
@@ -62,7 +62,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
         maxLines = Math.max(1, actualHeight - boxOverhead);
     } else {
-        // Dynamic height mode - calculate based on content
+        // Dynamic height mode - calculate based on content but respect terminal limits
         // First pass: calculate total content lines needed
         let totalRequiredLines = 0;
         
@@ -74,12 +74,29 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             totalRequiredLines += itemLines;
         }
         
-        // Set maxLines to show all content (no scrolling in dynamic mode)
-        maxLines = Math.max(1, totalRequiredLines);
+        // Calculate box overhead correctly based on BorderedBox implementation
+        const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
+        const idealHeight = totalRequiredLines + boxOverhead;
         
-        // Calculate box height: content + borders + subtitle
-        const boxOverhead = 3; // 2 for borders + 1 for subtitle
-        actualHeight = maxLines + boxOverhead;
+        // Respect terminal height - leave space for shell, prompt, etc.
+        // For very small terminals, use most of the space; for larger ones, leave more breathing room
+        let breathingRoom;
+        if (rows <= 15) {
+            breathingRoom = Math.max(2, Math.floor(rows * 0.2)); // Use 80% of very small terminals
+        } else {
+            breathingRoom = Math.min(10, Math.floor(rows * 0.3)); // Leave up to 30% on larger terminals, max 10 rows
+        }
+        const maxTerminalHeight = Math.max(5, rows - breathingRoom); // Minimum 5 rows for usability
+        
+        if (idealHeight <= maxTerminalHeight) {
+            // Content fits in terminal - show all without scrolling
+            maxLines = Math.max(1, totalRequiredLines);
+            actualHeight = idealHeight;
+        } else {
+            // Content too large - use scrolling
+            actualHeight = maxTerminalHeight;
+            maxLines = Math.max(1, actualHeight - boxOverhead);
+        }
     }
     
     
