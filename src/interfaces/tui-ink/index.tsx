@@ -52,6 +52,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     const [showWizard, setShowWizard] = useState(true);
     const [showAutoCompletion, setShowAutoCompletion] = useState(false);
     const [config, setConfig] = useState<any>(null);
+    const [hasValidationError, setHasValidationError] = useState(false);
     
     // Check config and implement the exact flow described
     React.useEffect(() => {
@@ -69,9 +70,16 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
                 const validationResult = await validateCliParams(cliDir ?? null, cliModel ?? null, configComponent);
                 
                 if (!validationResult.valid) {
-                    // 2.2.1.1) validation fails: exit with proper error message
-                    console.error(`❌ ${validationResult.error}`);
-                    process.exit(1);
+                    // 2.2.1.1) validation fails: show error message and prevent wizard
+                    console.error(`\x1b[31m✗\x1b[0m ${validationResult.error}`);
+                    console.error('');
+                    console.error('Please check your parameters and try again.');
+                    console.error('\x1b[38;5;208mTip: if you run folder-mcp without parameters, a setup wizard will appear.\x1b[0m');
+                    setHasValidationError(true);
+                    setShowWizard(false);
+                    setShowAutoCompletion(false);
+                    // Exit after a brief delay to ensure error is displayed
+                    setTimeout(() => process.exit(1), 100);
                     return;
                 }
                 
@@ -102,7 +110,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
             if (dir) {
                 const pathValidation = await configComponent.validate('folders.list[].path', dir);
                 if (!pathValidation.valid) {
-                    return { valid: false, error: `Invalid folder path "${dir}": ${pathValidation.errors?.[0]?.message}` };
+                    return { valid: false, error: `Invalid folder path "\x1b[31m${dir}\x1b[0m": ${pathValidation.errors?.[0]?.message}` };
                 }
             }
             
@@ -110,7 +118,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
             if (model) {
                 const modelValidation = await configComponent.validate('folders.list[].model', model);
                 if (!modelValidation.valid) {
-                    return { valid: false, error: `Invalid model "${model}": ${modelValidation.errors?.[0]?.message}` };
+                    return { valid: false, error: `Invalid model "\x1b[31m${model}\x1b[0m": ${modelValidation.errors?.[0]?.message}` };
                 }
             }
             
@@ -203,6 +211,11 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
                 onReject={handleAutoCompletionReject}
             />
         );
+    }
+    
+    if (hasValidationError) {
+        // Show nothing (error already printed to console), just wait for exit
+        return null;
     }
     
     if (showWizard) {

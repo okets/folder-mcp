@@ -474,6 +474,56 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         return items;
     }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleConfirmationChange, supportedModels, modelError, folderResult.error]); // Include validation dependencies
 
+    // Show error screen if there are critical errors
+    const hasCriticalError = folderResult.error || (cliModel && modelError);
+    
+    if (hasCriticalError) {
+        return (
+            <Box flexDirection="column" height="100%" padding={1}>
+                <Box marginBottom={1}>
+                    <Text color="#EF4444" bold>✗</Text>
+                    <Text color="#F3F4F6" bold> Configuration Error</Text>
+                </Box>
+                
+                {folderResult.error && (
+                    <>
+                        <Box marginBottom={1}>
+                            <Text color="#F3F4F6">Invalid folder path specified:</Text>
+                        </Box>
+                        
+                        <Box marginBottom={1}>
+                            <Text color="#EF4444">"{cliDir}"</Text>
+                        </Box>
+                        
+                        <Box marginBottom={1}>
+                            <Text color="#F59E0B">{folderResult.error}</Text>
+                        </Box>
+                    </>
+                )}
+                
+                {cliModel && modelError && (
+                    <>
+                        <Box marginBottom={1}>
+                            <Text color="#F3F4F6">Invalid model specified:</Text>
+                        </Box>
+                        
+                        <Box marginBottom={1}>
+                            <Text color="#EF4444">"{cliModel}"</Text>
+                        </Box>
+                        
+                        <Box marginBottom={1}>
+                            <Text color="#F59E0B">{modelError}</Text>
+                        </Box>
+                    </>
+                )}
+                
+                <Box marginBottom={1}>
+                    <Text color="#F3F4F6">Please check your parameters and try again.</Text>
+                </Box>
+            </Box>
+        );
+    }
+
     return (
         <Box flexDirection="column" height="100%">
             <GenericListPanel
