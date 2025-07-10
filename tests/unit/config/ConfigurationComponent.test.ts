@@ -7,13 +7,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConfigurationComponent } from '../../../src/config/ConfigurationComponent';
 import { IConfigManager } from '../../../src/domain/config/IConfigManager';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 
 // Mock fs module
 vi.mock('fs', () => ({
-    existsSync: vi.fn()
+    existsSync: vi.fn(),
+    statSync: vi.fn()
 }));
+
 
 // Mock config manager
 const mockConfigManager: IConfigManager = {
@@ -30,10 +32,12 @@ const mockConfigManager: IConfigManager = {
 describe('ConfigurationComponent', () => {
     let configComponent: ConfigurationComponent;
     let mockFs: any;
+    let mockStatSync: any;
 
     beforeEach(() => {
         vi.clearAllMocks();
         mockFs = vi.mocked(existsSync);
+        mockStatSync = vi.mocked(statSync);
         configComponent = new ConfigurationComponent(mockConfigManager);
     });
 
@@ -43,8 +47,8 @@ describe('ConfigurationComponent', () => {
             
             for (const theme of validThemes) {
                 const result = await configComponent.validate('theme', theme);
-                expect(result.isValid).toBe(true);
-                expect(result.error).toBeUndefined();
+                expect(result.valid).toBe(true);
+                expect(result.errors).toBeUndefined();
             }
         });
 
@@ -53,8 +57,8 @@ describe('ConfigurationComponent', () => {
             
             for (const theme of invalidThemes) {
                 const result = await configComponent.validate('theme', theme);
-                expect(result.isValid).toBe(false);
-                expect(result.error).toBe('Theme must be auto, light, or dark');
+                expect(result.valid).toBe(false);
+                expect(result.errors?.[0]?.message).toBe('Theme must be auto, light, or dark');
             }
         });
     });
@@ -62,10 +66,11 @@ describe('ConfigurationComponent', () => {
     describe('Folder path validation', () => {
         it('should accept existing folder paths', async () => {
             mockFs.mockReturnValue(true);
+            mockStatSync.mockReturnValue({ isDirectory: () => true });
             
             const result = await configComponent.validate('folders.list[0].path', '/existing/path');
-            expect(result.isValid).toBe(true);
-            expect(result.error).toBeUndefined();
+            expect(result.valid).toBe(true);
+            expect(result.errors).toBeUndefined();
             expect(mockFs).toHaveBeenCalledWith('/existing/path');
         });
 
@@ -73,20 +78,29 @@ describe('ConfigurationComponent', () => {
             mockFs.mockReturnValue(false);
             
             const result = await configComponent.validate('folders.list[0].path', '/nonexistent/path');
-            expect(result.isValid).toBe(false);
-            expect(result.error).toBe('Folder path must exist');
+            expect(result.valid).toBe(false);
+            expect(result.errors?.[0]?.message).toBe('Folder does not exist');
             expect(mockFs).toHaveBeenCalledWith('/nonexistent/path');
+        });
+        
+        it('should reject file paths instead of directories', async () => {
+            mockFs.mockReturnValue(true);
+            mockStatSync.mockReturnValue({ isDirectory: () => false });
+            
+            const result = await configComponent.validate('folders.list[0].path', '/path/to/file.txt');
+            expect(result.valid).toBe(false);
+            expect(result.errors?.[0]?.message).toBe('Path is not a directory');
         });
 
         it('should reject empty folder paths', async () => {
             const result = await configComponent.validate('folders.list[0].path', '');
-            expect(result.isValid).toBe(false);
-            expect(result.error).toBe('Folder path must exist');
-            expect(mockFs).not.toHaveBeenCalled();
+            expect(result.valid).toBe(false);
+            expect(result.errors?.[0]?.message).toBe('Folder path must be a string');
         });
 
         it('should normalize array paths for validation', async () => {
             mockFs.mockReturnValue(true);
+            mockStatSync.mockReturnValue({ isDirectory: () => true });
             
             // Test different array indices use same validation rules
             const paths = [
@@ -97,7 +111,7 @@ describe('ConfigurationComponent', () => {
             
             for (const path of paths) {
                 const result = await configComponent.validate(path, '/existing/path');
-                expect(result.isValid).toBe(true);
+                expect(result.valid).toBe(true);
             }
         });
     });
@@ -113,8 +127,8 @@ describe('ConfigurationComponent', () => {
             
             for (const model of supportedModels) {
                 const result = await configComponent.validate('folders.defaults.embeddings.model', model);
-                expect(result.isValid).toBe(true);
-                expect(result.error).toBeUndefined();
+                expect(result.valid).toBe(true);
+                expect(result.errors).toBeUndefined();
             }
         });
 
@@ -123,8 +137,8 @@ describe('ConfigurationComponent', () => {
             
             for (const model of unsupportedModels) {
                 const result = await configComponent.validate('folders.defaults.embeddings.model', model);
-                expect(result.isValid).toBe(false);
-                expect(result.error).toBe('Must be a supported embedding model');
+                expect(result.valid).toBe(false);
+                expect(result.errors?.[0]?.message).toBe('Must be a supported embedding model');
             }
         });
     });
@@ -135,8 +149,8 @@ describe('ConfigurationComponent', () => {
             
             for (const size of validSizes) {
                 const result = await configComponent.validate('folders.defaults.embeddings.batchSize', size);
-                expect(result.isValid).toBe(true);
-                expect(result.error).toBeUndefined();
+                expect(result.valid).toBe(true);
+                expect(result.errors).toBeUndefined();
             }
         });
 
@@ -152,15 +166,15 @@ describe('ConfigurationComponent', () => {
             
             for (const testCase of testCases) {
                 const result = await configComponent.validate('folders.defaults.embeddings.batchSize', testCase.value);
-                expect(result.isValid).toBe(false);
-                expect(result.error).toBe(testCase.expectedError);
+                expect(result.valid).toBe(false);
+                expect(result.errors?.[0]?.message).toBe(testCase.expectedError);
             }
         });
         
         it('should accept decimal batch sizes', async () => {
             // Note: The TUI validator accepts decimals, though they may not be practical
             const result = await configComponent.validate('folders.defaults.embeddings.batchSize', '32.5');
-            expect(result.isValid).toBe(true);
+            expect(result.valid).toBe(true);
         });
     });
 
@@ -170,8 +184,8 @@ describe('ConfigurationComponent', () => {
             
             for (const port of validPorts) {
                 const result = await configComponent.validate('server.port', port);
-                expect(result.isValid).toBe(true);
-                expect(result.error).toBeUndefined();
+                expect(result.valid).toBe(true);
+                expect(result.errors).toBeUndefined();
             }
         });
 
@@ -187,15 +201,15 @@ describe('ConfigurationComponent', () => {
             
             for (const testCase of testCases) {
                 const result = await configComponent.validate('server.port', testCase.value);
-                expect(result.isValid).toBe(false);
-                expect(result.error).toBe(testCase.expectedError);
+                expect(result.valid).toBe(false);
+                expect(result.errors?.[0]?.message).toBe(testCase.expectedError);
             }
         });
         
         it('should accept decimal ports', async () => {
             // Note: The TUI validator accepts decimals, though they may not be practical
             const result = await configComponent.validate('server.port', '8080.5');
-            expect(result.isValid).toBe(true);
+            expect(result.valid).toBe(true);
         });
     });
 
@@ -205,8 +219,8 @@ describe('ConfigurationComponent', () => {
             
             for (const host of validHosts) {
                 const result = await configComponent.validate('server.host', host);
-                expect(result.isValid).toBe(true);
-                expect(result.error).toBeUndefined();
+                expect(result.valid).toBe(true);
+                expect(result.errors).toBeUndefined();
             }
         });
 
@@ -220,8 +234,8 @@ describe('ConfigurationComponent', () => {
             
             for (const testCase of testCases) {
                 const result = await configComponent.validate('server.host', testCase.value);
-                expect(result.isValid).toBe(false);
-                expect(result.error).toBe(testCase.expectedError);
+                expect(result.valid).toBe(false);
+                expect(result.errors?.[0]?.message).toBe(testCase.expectedError);
             }
         });
     });
@@ -266,6 +280,7 @@ describe('ConfigurationComponent', () => {
             });
             
             mockFs.mockReturnValue(true); // /test exists
+            mockStatSync.mockReturnValue({ isDirectory: () => true });
             
             const result = await configComponent.validateAll();
             expect(result.isValid).toBe(true);
@@ -286,15 +301,15 @@ describe('ConfigurationComponent', () => {
             expect(result.isValid).toBe(false);
             expect(result.errors).toHaveLength(2);
             expect(result.errors[0]).toEqual({ path: 'theme', error: 'Theme must be auto, light, or dark' });
-            expect(result.errors[1]).toEqual({ path: 'folders.list[].path', error: 'Folder path must exist' });
+            expect(result.errors[1]).toEqual({ path: 'folders.list[].path', error: 'Folder does not exist' });
         });
     });
 
     describe('No validation rules', () => {
         it('should accept values for paths without validation rules', async () => {
             const result = await configComponent.validate('some.unknown.path', 'any-value');
-            expect(result.isValid).toBe(true);
-            expect(result.error).toBeUndefined();
+            expect(result.valid).toBe(true);
+            expect(result.errors).toBeUndefined();
         });
     });
 });

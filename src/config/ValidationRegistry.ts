@@ -6,7 +6,7 @@
  */
 
 import { validators } from '../interfaces/tui-ink/utils/validators.js';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 
 export interface ValidationResult {
     isValid: boolean;
@@ -41,9 +41,35 @@ export class ValidationRegistry {
         this.registerRule('folders.list[].path', {
             validate: (value: string) => {
                 if (!value || value.trim() === '') return false;
-                return existsSync(value);
+                if (!existsSync(value)) return false;
+                
+                // Check if it's a directory
+                try {
+                    const stat = statSync(value);
+                    return stat.isDirectory();
+                } catch (error) {
+                    return false;
+                }
             },
-            message: 'Folder path must exist'
+            message: 'Folder path must exist and be a directory',
+            getTuiResult: (value: string) => {
+                if (!value || value.trim() === '') {
+                    return { isValid: false, error: 'Folder path must be a string' };
+                }
+                if (!existsSync(value)) {
+                    return { isValid: false, error: 'Folder does not exist' };
+                }
+                
+                try {
+                    const stat = statSync(value);
+                    if (!stat.isDirectory()) {
+                        return { isValid: false, error: 'Path is not a directory' };
+                    }
+                    return { isValid: true };
+                } catch (error) {
+                    return { isValid: false, error: 'Unable to access path' };
+                }
+            }
         });
 
         // Embedding model validation

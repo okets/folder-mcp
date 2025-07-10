@@ -57,10 +57,13 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
 const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
-    const [step, setStep] = useState(1);
     const folderResult = getDefaultFolderPath(cliDir);
     const [folderPath, setFolderPath] = useState(folderResult.path);
     const [folderError, setFolderError] = useState(folderResult.error || null);
+    
+    // If valid folder provided via CLI, skip folder selection step
+    const hasValidCliFolder = cliDir && !folderResult.error;
+    const [step, setStep] = useState(hasValidCliFolder ? 2 : 1);
     
     // DEBUG: Log initial folder path
     console.error(`[WIZARD-DEBUG] Initial folder setup:`);
@@ -213,9 +216,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     const handleWizardInput = useCallback((input: string, key: Key): boolean => {
         if (key.escape) {
             // Go back to previous step, or exit if on first step
-            if (step === 1) {
+            if (step === 1 || (hasValidCliFolder && step === 2)) {
                 exit();
-            } else {
+            } else if (!hasValidCliFolder || step > 2) {
                 setStep(step - 1);
             }
             return true;
@@ -228,7 +231,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
         }
         
         return false;
-    }, [step, exit]);
+    }, [step, exit, hasValidCliFolder]);
     
     // Register wizard input handler with focus chain
     const getKeyBindings = () => {

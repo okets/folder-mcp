@@ -6,8 +6,8 @@
  * All configuration access should go through this component.
  */
 
-import { IConfigManager } from '../domain/config/IConfigManager';
-import { ValidationRegistry, ValidationResult } from './ValidationRegistry';
+import { IConfigManager, ValidationResult } from '../domain/config/IConfigManager';
+import { ValidationRegistry } from './ValidationRegistry';
 import { existsSync } from 'fs';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
@@ -97,7 +97,20 @@ export class ConfigurationComponent {
         const stringValue = String(value);
         
         // Use ValidationRegistry for consistent validation
-        return ValidationRegistry.validateValue(path, stringValue);
+        const registryResult = ValidationRegistry.validateValue(path, stringValue);
+        
+        // Convert ValidationRegistry result to IConfigManager ValidationResult format
+        if (registryResult.isValid) {
+            return { valid: true };
+        } else {
+            return {
+                valid: false,
+                errors: [{
+                    path,
+                    message: registryResult.error || 'Validation failed'
+                }]
+            };
+        }
     }
     
     /**
@@ -109,8 +122,9 @@ export class ConfigurationComponent {
         
         // Validate first
         const validationResult = await this.validate(path, value);
-        if (!validationResult.isValid) {
-            throw new Error(`Invalid value for ${path}: ${validationResult.error}`);
+        if (!validationResult.valid) {
+            const errorMsg = validationResult.errors?.[0]?.message || 'Validation failed';
+            throw new Error(`Invalid value for ${path}: ${errorMsg}`);
         }
         
         // Set the value
@@ -168,8 +182,9 @@ export class ConfigurationComponent {
         // Validate all values first
         for (const [path, value] of Object.entries(values)) {
             const validationResult = await this.validate(path, value);
-            if (!validationResult.isValid) {
-                errors.push({ path, error: validationResult.error || 'Invalid value' });
+            if (!validationResult.valid) {
+                const errorMsg = validationResult.errors?.[0]?.message || 'Invalid value';
+                errors.push({ path, error: errorMsg });
             }
         }
         
