@@ -469,7 +469,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 elementId="wizard-main"
                 parentId="wizard"
                 priority={50}
-                height={Math.max(rows - 8, 15)} // Give plenty of space, minimum 15 rows
+                // No height specified - use dynamic sizing
                 width={Math.min(Math.floor(columns * 0.8), 120)}
             />
         </Box>

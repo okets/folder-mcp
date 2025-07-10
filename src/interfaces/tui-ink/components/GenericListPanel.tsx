@@ -47,15 +47,40 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     // Local state for force updates when items change internally
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
-    // Calculate visible count based on height
-    const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
-    const actualHeight = height || 20;
-    const maxLines = Math.max(1, actualHeight - boxOverhead);
-    
-    // Calculate content width for items
+    // Calculate content width for items  
     const panelWidth = width || columns - 2;
     const borderOverhead = 6; // Increased buffer - we control layout, not Ink
     const itemMaxWidth = panelWidth - borderOverhead;
+    
+    // Calculate dynamic height based on content if no height specified
+    let actualHeight: number;
+    let maxLines: number;
+    
+    if (height) {
+        // Fixed height mode
+        actualHeight = height;
+        const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
+        maxLines = Math.max(1, actualHeight - boxOverhead);
+    } else {
+        // Dynamic height mode - calculate based on content
+        // First pass: calculate total content lines needed
+        let totalRequiredLines = 0;
+        
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (!item) continue;
+            
+            const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
+            totalRequiredLines += itemLines;
+        }
+        
+        // Set maxLines to show all content (no scrolling in dynamic mode)
+        maxLines = Math.max(1, totalRequiredLines);
+        
+        // Calculate box height: content + borders + subtitle
+        const boxOverhead = 3; // 2 for borders + 1 for subtitle
+        actualHeight = maxLines + boxOverhead;
+    }
     
     
     // Don't mutate items during render - this causes re-renders
