@@ -5,7 +5,6 @@ import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync, statSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
-import { LogItem, LogEntry } from './core/items/LogItem';
 import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
@@ -60,7 +59,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const { columns, rows } = useTerminalSize();
     const folderResult = getDefaultFolderPath(cliDir);
     const [folderPath, setFolderPath] = useState(folderResult.path);
-    const [folderError, setFolderError] = useState(folderResult.error || null);
+    const [, setFolderError] = useState(folderResult.error || null);
     
     // Setup model and navigation logic
     const [supportedModels, setSupportedModels] = useState<string[]>([]);
@@ -96,71 +95,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
     
-    // Create CLI feedback log entries
-    const createCliLogEntries = (): LogEntry[] => {
-        const logs: LogEntry[] = [];
-        
-        // Add CLI directory parameter log
-        if (cliDir) {
-            if (folderError) {
-                logs.push({
-                    id: 'cli-dir-error',
-                    timestamp: new Date(),
-                    level: 'error',
-                    message: `CLI -d parameter: ${folderError}`,
-                    details: `Provided path: ${cliDir}\nFalling back to folder picker with default: ${folderPath}`,
-                    source: 'CLI'
-                });
-            } else {
-                logs.push({
-                    id: 'cli-dir-success',
-                    timestamp: new Date(),
-                    level: 'info',
-                    message: `CLI -d parameter: Using folder "${cliDir}"`,
-                    details: `Directory validated and will be used for indexing`,
-                    source: 'CLI'
-                });
-            }
-        }
-        
-        // Add CLI model parameter log
-        if (cliModel) {
-            if (modelError) {
-                logs.push({
-                    id: 'cli-model-error',
-                    timestamp: new Date(),
-                    level: 'error',
-                    message: `CLI -m parameter: ${modelError}`,
-                    details: `Provided model: ${cliModel}\nFalling back to model picker with default: ${selectedModel}`,
-                    source: 'CLI'
-                });
-            } else {
-                logs.push({
-                    id: 'cli-model-success',
-                    timestamp: new Date(),
-                    level: 'info',
-                    message: `CLI -m parameter: Using model "${cliModel}"`,
-                    details: `Model validated and will be used for embeddings`,
-                    source: 'CLI'
-                });
-            }
-        }
-        
-        // Add development mode log
-        const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
-        if (isDev) {
-            logs.push({
-                id: 'dev-mode',
-                timestamp: new Date(),
-                level: 'info',
-                message: 'Development mode enabled',
-                details: 'FOLDER_MCP_DEVELOPMENT_ENABLED=true detected',
-                source: 'Environment'
-            });
-        }
-        
-        return logs;
-    };
     
     // Panel dimensions
     const PANEL_HEIGHT = 9;
@@ -213,8 +147,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     // Create configuration items for each step using useMemo to ensure stability
     const folderPicker = React.useMemo(() => {
         const picker = new FilePickerListItem(
-            '📁',
-            'Project Folder',
+            '?',
+            'Which folder would you like to index?',
             folderPath,
             true, // isActive
             'folder', // mode - folder only
@@ -223,8 +157,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 setStep(2); // Auto-advance to next step
             }
         );
-        // Start in open mode
-        picker.onEnter();
+        // Expansion handled in getAllItems() based on current step
         return picker;
     }, []); // Empty deps since we handle path updates internally
     
@@ -252,8 +185,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         }
         
         return new SelectionListItem(
-            '🤖',
-            'Embedding Model',
+            '?',
+            'What embedding model would you like to use?',
             modelOptions,
             [selectedModel], // selectedValues as array
             true, // isActive
@@ -429,34 +362,25 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         );
     }
     
-    // Create a frameless status bar
-    const StatusHints: React.FC = () => {
-        const hints = getKeyBindings().map(kb => `${kb.key} ${kb.description}`).join('  ');
-        return (
-            <Box paddingLeft={1}>
-                <Text color={textColor} dimColor>{hints}</Text>
-            </Box>
-        );
-    };
     
     // Create items for completed steps (read-only versions)
     const createReadOnlyFolderPicker = () => {
         const picker = new FilePickerListItem(
-            '📁',
-            'Project Folder',
+            '✓',
+            `Which folder would you like to index? ${folderPath}`,
             folderPath,
             false, // not active
             'folder',
             undefined // no callback
         );
-        picker.onEnter(); // Show in expanded state
+        // Don't call onEnter() - keep it collapsed
         return picker;
     };
     
     const createReadOnlyModelSelector = () => {
         const selector = new SelectionListItem(
-            '🤖',
-            'Embedding Model',
+            '✓',
+            `What embedding model would you like to use? ${selectedModel}`,
             modelOptions,
             [selectedModel],
             false, // not active
@@ -464,129 +388,90 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             'vertical',
             undefined // no callback
         );
-        selector.onEnter(); // Show in expanded state
+        // Don't call onEnter() - keep it collapsed
         return selector;
     };
     
     // Language selector removed
     
-    const cliLogs = createCliLogEntries();
-    
+    // Create confirmation selector for final step
+    const createConfirmationSelector = () => {
+        const options = [
+            { value: 'confirm', label: 'Confirm' },
+            { value: 'deny', label: 'Deny' }
+        ];
+        const selector = new SelectionListItem(
+            '?',
+            'Confirm Adding Embeddings for this folder',
+            options,
+            ['confirm'], // default to "Confirm"
+            true, // isActive
+            'radio', // single selection
+            'horizontal', // horizontal layout
+            (selectedValues: string[]) => {
+                if (selectedValues[0] === 'confirm') {
+                    // User confirmed - proceed
+                    completeSetup();
+                } else {
+                    // User denied - exit
+                    exit();
+                }
+            }
+        );
+        return selector;
+    };
+
+    // Collect all items for the single panel
+    const getAllItems = () => {
+        const items = [];
+        
+        // Step 1: Folder selection
+        if (step >= 1) {
+            if (step === 1) {
+                // Ensure folder picker is expanded for current step
+                folderPicker.onEnter();
+                items.push(folderPicker); // Active folder picker
+            } else {
+                items.push(createReadOnlyFolderPicker()); // Collapsed folder picker
+            }
+        }
+        
+        // Step 2: Model selection  
+        if (step >= 2) {
+            if (step === 2) {
+                // Ensure model selector is expanded for current step
+                modelSelector.onEnter();
+                items.push(modelSelector); // Active model selector
+            } else if (step > 2) {
+                items.push(createReadOnlyModelSelector()); // Collapsed model selector
+            }
+        }
+        
+        // Step 3: Confirmation
+        if (step >= 3) {
+            const confirmationSelector = createConfirmationSelector();
+            // Ensure confirmation is expanded for current step
+            confirmationSelector.onEnter();
+            items.push(confirmationSelector); // Active confirmation
+        }
+        
+        return items;
+    };
+
     return (
-        <Box flexDirection="column" paddingTop={2} paddingLeft={2} height="100%">
-            {/* CLI Feedback Panel - Show if there are CLI parameters */}
-            {cliLogs.length > 0 && (
-                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={1}>
-                    <Box
-                        borderStyle="round"
-                        borderColor={frameColor}
-                        width={PANEL_WIDTH}
-                        padding={1}
-                        flexDirection="column"
-                    >
-                        <Text color={highlightColor} bold>CLI Parameters</Text>
-                        {cliLogs.map((log, index) => (
-                            <Box key={log.id} marginTop={index > 0 ? 1 : 0}>
-                                <Text color={log.level === 'error' ? '#ff6b6b' : '#10b981'}>
-                                    {log.level === 'error' ? '✗' : '✓'} {log.message}
-                                </Text>
-                            </Box>
-                        ))}
-                    </Box>
-                </Box>
-            )}
-            
-            {/* Step 1: Always show folder panel */}
-            <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 1 ? 1 : 0}>
-                {step === 1 ? (
-                    <>
-                        <GenericListPanel
-                            title="Select Project Folder"
-                            items={[folderPicker]}
-                            selectedIndex={0}
-                            isFocused={true}
-                            elementId="wizard-folder-picker"
-                            parentId="wizard"
-                            priority={50}
-                            height={PANEL_HEIGHT}
-                            width={PANEL_WIDTH}
-                        />
-                        <StatusHints />
-                    </>
-                ) : (
-                    <GenericListPanel
-                        title="✓ Project Folder"
-                        items={[createReadOnlyFolderPicker()]}
-                        selectedIndex={0}
-                        isFocused={false}
-                        elementId="wizard-folder-picker-readonly"
-                        parentId="wizard"
-                        priority={-1}
-                        height={PANEL_HEIGHT}
-                        width={PANEL_WIDTH}
-                    />
-                )}
-            </Box>
-            
-            {/* Step 2: Show model panel when on step 2+ */}
-            {step >= 2 && (
-                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 2 ? 1 : 0}>
-                    {step === 2 ? (
-                        <>
-                            <GenericListPanel
-                                title="Choose Embedding Model"
-                                items={[modelSelector]}
-                                selectedIndex={0}
-                                isFocused={true}
-                                elementId="wizard-model-selector"
-                                parentId="wizard"
-                                priority={50}
-                                height={PANEL_HEIGHT}
-                                width={PANEL_WIDTH}
-                            />
-                            <StatusHints />
-                        </>
-                    ) : (
-                        <GenericListPanel
-                            title="✓ Embedding Model"
-                            items={[createReadOnlyModelSelector()]}
-                            selectedIndex={0}
-                            isFocused={false}
-                            elementId="wizard-model-selector-readonly"
-                            parentId="wizard"
-                            priority={-1}
-                            height={PANEL_HEIGHT}
-                            width={PANEL_WIDTH}
-                        />
-                    )}
-                </Box>
-            )}
-            
-            {/* Step 3: Show confirmation (language step removed) */}
-            
-            {/* Step 3: Show confirmation panel */}
-            {step === 3 && (
-                <Box flexDirection="column" width={PANEL_WIDTH}>
-                    <Box 
-                        borderStyle="round" 
-                        borderColor={frameColor}
-                        height={PANEL_HEIGHT}
-                        width={PANEL_WIDTH}
-                        padding={1}
-                        flexDirection="column"
-                    >
-                        <Text color={highlightColor} bold>✅ Ready to create configuration:</Text>
-                        <Box marginTop={1} flexDirection="column">
-                            <Text color={textColor}>📁 Path: {folderPath}</Text>
-                            <Text color={textColor}>🤖 Model: {selectedModel}</Text>
-                        </Box>
-                        <Box marginTop={1}>
-                            <Text color={highlightColor}>Press Enter to save and start indexing</Text>
-                        </Box>
-                    </Box>
-                    <StatusHints />
-                </Box>
-            )}
+        <Box flexDirection="column" height="100%">
+            <GenericListPanel
+                title="folder-mcp setup"
+                subtitle="Let's configure your knowledge base"
+                items={getAllItems()}
+                selectedIndex={getAllItems().length - 1} // Focus on last (current) item
+                isFocused={true}
+                elementId="wizard-main"
+                parentId="wizard"
+                priority={50}
+                height={Math.max(rows - 8, 15)} // Give plenty of space, minimum 15 rows
+                width={Math.min(Math.floor(columns * 0.8), 120)}
+            />
         </Box>
     );
 };

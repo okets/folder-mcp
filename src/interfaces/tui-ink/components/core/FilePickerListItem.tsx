@@ -131,12 +131,14 @@ export class FilePickerListItem extends ValidatedListItem {
     onEnter(): void {
         // Enter expanded mode
         this._isControllingInput = true;
-        this._focusedIndex = 0;
         this._hasNavigated = false;
         
-        // Load directory contents synchronously on first render
-        // Note: This is intentionally synchronous to avoid the empty state
+        // Load directory first to populate items
         this.loadDirectoryContentsSync();
+        
+        // Set focus to "Confirm Selection" item if it exists
+        const confirmIndex = this._items.findIndex(item => item.isConfirmAction);
+        this._focusedIndex = confirmIndex !== -1 ? confirmIndex : 0;
     }
     
     onExit(): void {

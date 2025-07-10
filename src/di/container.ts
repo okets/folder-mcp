@@ -34,7 +34,7 @@ export class DependencyContainer implements IDependencyContainer {
    */
   register<T>(token: string | symbol, instance: T): void {
     if (this.services.has(token)) {
-      console.warn(`⚠️ Service already registered for token: ${String(token)}. Overwriting.`);
+      // Suppress DI warnings in production
     }
     
     this.services.set(token, {
@@ -48,7 +48,7 @@ export class DependencyContainer implements IDependencyContainer {
    */
   registerFactory<T>(token: string | symbol, factory: () => T): void {
     if (this.services.has(token)) {
-      console.warn(`⚠️ Service already registered for token: ${String(token)}. Overwriting.`);
+      // Suppress DI warnings in production
     }
     
     this.services.set(token, {
@@ -62,7 +62,7 @@ export class DependencyContainer implements IDependencyContainer {
    */
   registerSingleton<T>(token: string | symbol, factory: () => T): void {
     if (this.services.has(token)) {
-      console.warn(`⚠️ Service already registered for token: ${String(token)}. Overwriting.`);
+      // Suppress DI warnings in production
     }
     
     this.services.set(token, {

@@ -1,4 +1,0 @@
-folders:
-  list:
-    - model: ollama:nomic-embed-text
-      path: /Users/hanan/Projects/folder-mcp
