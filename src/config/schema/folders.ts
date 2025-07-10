@@ -12,17 +12,8 @@
 export interface FolderConfig {
   /** Folder path (supports ~ expansion) */
   path: string;
-  /** Human-readable folder name for identification */
-  name: string;
-  /** Enable/disable this folder */
-  enabled?: boolean;
-  /** Folder-specific embedding configuration */
-  embeddings?: {
-    /** Embedding backend for this folder */
-    backend?: 'ollama' | 'direct' | 'auto';
-    /** Model name for this folder */
-    model?: string;
-  };
+  /** Model name for this folder */
+  model: string;
   /** Folder-specific exclude patterns */
   exclude?: string[];
   /** Folder-specific performance settings */
@@ -100,16 +91,12 @@ export const DEFAULT_FOLDERS_CONFIG: FoldersConfig = {
 export interface FolderConfigValidation {
   /** Valid embedding backends */
   validBackends: string[];
-  /** Maximum folder name length */
-  maxNameLength: number;
   /** Maximum number of folders */
   maxFolders: number;
   /** Maximum batch size per folder */
   maxBatchSize: number;
   /** Maximum concurrency per folder */
   maxConcurrency: number;
-  /** Required folder name pattern */
-  namePattern: RegExp;
   /** Forbidden folder paths */
   forbiddenPaths: string[];
 }
@@ -119,11 +106,9 @@ export interface FolderConfigValidation {
  */
 export const DEFAULT_FOLDER_VALIDATION: FolderConfigValidation = {
   validBackends: ['ollama', 'direct', 'auto'],
-  maxNameLength: 50,
   maxFolders: 20,        // Reasonable limit to prevent resource exhaustion
   maxBatchSize: 128,     // Prevent memory issues
   maxConcurrency: 16,    // Prevent too many concurrent operations
-  namePattern: /^[a-zA-Z0-9\s\-_\.]+$/, // Alphanumeric, spaces, hyphens, underscores, dots
   forbiddenPaths: [
     '/',           // Root directory
     '/etc',        // System directories
@@ -164,16 +149,13 @@ export const DEFAULT_MERGE_STRATEGY: FolderMergeStrategy = {
 /**
  * Resolved folder configuration after applying defaults and validation
  */
-export interface ResolvedFolderConfig extends Required<Omit<FolderConfig, 'enabled'>> {
-  enabled: boolean;
+export interface ResolvedFolderConfig extends Required<FolderConfig> {
   /** Resolved absolute path */
   resolvedPath: string;
   /** Source of each setting for debugging */
   sources: {
     path: 'config' | 'default';
-    name: 'config' | 'default';
-    enabled: 'config' | 'default';
-    embeddings: 'config' | 'default' | 'merged';
+    model: 'config' | 'default';
     exclude: 'config' | 'default' | 'merged';
     performance: 'config' | 'default' | 'merged';
   };

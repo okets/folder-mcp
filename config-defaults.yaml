@@ -6,18 +6,13 @@
 # User Interface Theme Configuration
 theme: "auto"  # Options: light, dark, auto
 
-# Development and debugging
+# Folder defaults
+folders:
+  defaults:
+    embeddings:
+      model: nomic-embed-text
+      batchSize: 32
+
+# Development settings
 development:
   enabled: false
-  hotReload: false
-  debugOutput: false
-
-# Basic operational settings  
-performance:
-  batchSize: 32
-  maxConcurrentOperations: 10
-
-# Logging settings
-logging:
-  level: "info"
-  format: "text"

@@ -36,38 +36,38 @@ export interface IMultiFolderStorageProvider {
    * Search across all folders or a specific folder
    * @param query Search query vector
    * @param topK Number of results to return
-   * @param folderName Optional folder name to search in
+   * @param folderPath Optional folder path to search in
    * @returns Search results with folder attribution
    */
-  search(query: EmbeddingVector, topK: number, folderName?: string): Promise<MultiFolderSearchResult[]>;
+  search(query: EmbeddingVector, topK: number, folderPath?: string): Promise<MultiFolderSearchResult[]>;
 
   /**
    * Search by text across all folders or a specific folder
    * @param queryText Search query text
    * @param topK Number of results to return
-   * @param folderName Optional folder name to search in
+   * @param folderPath Optional folder path to search in
    * @returns Search results with folder attribution
    */
-  searchByText(queryText: string, topK: number, folderName?: string): Promise<MultiFolderSearchResult[]>;
+  searchByText(queryText: string, topK: number, folderPath?: string): Promise<MultiFolderSearchResult[]>;
 
   /**
    * Build index for a specific folder
-   * @param folderName Folder name
+   * @param folderPath Folder path
    * @param embeddings Embedding vectors
    * @param metadata Document metadata
    */
-  buildFolderIndex(folderName: string, embeddings: EmbeddingVector[], metadata: any[]): Promise<void>;
+  buildFolderIndex(folderPath: string, embeddings: EmbeddingVector[], metadata: any[]): Promise<void>;
 
   /**
    * Get folder-specific storage service
-   * @param folderName Folder name
+   * @param folderPath Folder path
    * @returns Vector search service for the folder
    */
-  getFolderStorage(folderName: string): IVectorSearchService | undefined;
+  getFolderStorage(folderPath: string): IVectorSearchService | undefined;
 
   /**
    * Get all folder storage services
-   * @returns Map of folder names to storage services
+   * @returns Map of folder paths to storage services
    */
   getAllFolderStorages(): Map<string, IVectorSearchService>;
 
@@ -79,9 +79,9 @@ export interface IMultiFolderStorageProvider {
 
   /**
    * Remove storage for a folder
-   * @param folderName Folder name
+   * @param folderPath Folder path
    */
-  removeFolderStorage(folderName: string): Promise<void>;
+  removeFolderStorage(folderPath: string): Promise<void>;
 
   /**
    * Get storage statistics for all folders
@@ -145,11 +145,15 @@ export class StorageFactory implements IStorageFactory {
     private loggingService: ILoggingService
   ) {}
 
+  private getFolderName(folderPath: string): string {
+    return folderPath.split('/').pop() || folderPath;
+  }
+
   createStorage(folder: ResolvedFolderConfig): IVectorSearchService {
     // Create folder-specific cache directory
     const folderCacheDir = join(folder.resolvedPath, '.folder-mcp', 'storage');
     
-    this.loggingService.debug(`Creating storage for folder: ${folder.name} at ${folderCacheDir}`);
+    this.loggingService.debug(`Creating storage for folder: ${this.getFolderName(folder.path)} at ${folderCacheDir}`);
     
     // Create the vector search service for this folder
     const storage = this.createVectorSearchService(folderCacheDir);
@@ -162,8 +166,12 @@ export class StorageFactory implements IStorageFactory {
  * Multi-folder storage provider implementation
  */
 export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
-  private folderStorages: Map<string, IVectorSearchService> = new Map();
-  private folderConfigs: Map<string, ResolvedFolderConfig> = new Map();
+  private folderStorages: Map<string, IVectorSearchService> = new Map(); // folderPath -> storage
+  private folderConfigs: Map<string, ResolvedFolderConfig> = new Map(); // folderPath -> config
+
+  private getFolderName(folderPath: string): string {
+    return folderPath.split('/').pop() || folderPath;
+  }
 
   constructor(
     private folderManager: IFolderManager,
@@ -185,17 +193,17 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     this.loggingService.info(`Initialized storage for ${folders.length} folders`);
   }
 
-  async search(query: EmbeddingVector, topK: number, folderName?: string): Promise<MultiFolderSearchResult[]> {
-    if (folderName) {
+  async search(query: EmbeddingVector, topK: number, folderPath?: string): Promise<MultiFolderSearchResult[]> {
+    if (folderPath) {
       // Search in specific folder
-      return this.searchInFolder(folderName, query, topK);
+      return this.searchInFolder(folderPath, query, topK);
     }
     
     // Search across all folders
     return this.searchAllFolders(query, topK);
   }
 
-  async searchByText(queryText: string, topK: number, folderName?: string): Promise<MultiFolderSearchResult[]> {
+  async searchByText(queryText: string, topK: number, folderPath?: string): Promise<MultiFolderSearchResult[]> {
     // Note: This method would need to be implemented with an embedding service
     // to convert the text query to a vector first, then use the search method
     // For now, we'll return an empty array until embedding service integration
@@ -203,21 +211,21 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     return [];
   }
 
-  async buildFolderIndex(folderName: string, embeddings: EmbeddingVector[], metadata: any[]): Promise<void> {
-    const storage = this.folderStorages.get(folderName);
+  async buildFolderIndex(folderPath: string, embeddings: EmbeddingVector[], metadata: any[]): Promise<void> {
+    const storage = this.folderStorages.get(folderPath);
     if (!storage) {
-      throw new Error(`No storage found for folder: ${folderName}`);
+      throw new Error(`No storage found for folder: ${folderPath}`);
     }
     
-    this.loggingService.info(`Building index for folder: ${folderName} with ${embeddings.length} embeddings`);
+    this.loggingService.info(`Building index for folder: ${folderPath} with ${embeddings.length} embeddings`);
     
     await storage.buildIndex(embeddings, metadata);
     
-    this.loggingService.info(`Index built for folder: ${folderName}`);
+    this.loggingService.info(`Index built for folder: ${folderPath}`);
   }
 
-  getFolderStorage(folderName: string): IVectorSearchService | undefined {
-    return this.folderStorages.get(folderName);
+  getFolderStorage(folderPath: string): IVectorSearchService | undefined {
+    return this.folderStorages.get(folderPath);
   }
 
   getAllFolderStorages(): Map<string, IVectorSearchService> {
@@ -225,26 +233,26 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
   }
 
   async addFolderStorage(folder: ResolvedFolderConfig): Promise<void> {
-    this.loggingService.debug(`Adding storage for folder: ${folder.name}`);
+    this.loggingService.debug(`Adding storage for folder: ${folder.path}`);
     
     // Create storage service for this folder
     const storage = this.storageFactory.createStorage(folder);
     
     // Store the mapping
-    this.folderStorages.set(folder.name, storage);
-    this.folderConfigs.set(folder.name, folder);
+    this.folderStorages.set(folder.path, storage);
+    this.folderConfigs.set(folder.path, folder);
     
-    this.loggingService.debug(`Storage added for folder: ${folder.name}`);
+    this.loggingService.debug(`Storage added for folder: ${folder.path}`);
   }
 
-  async removeFolderStorage(folderName: string): Promise<void> {
-    this.loggingService.debug(`Removing storage for folder: ${folderName}`);
+  async removeFolderStorage(folderPath: string): Promise<void> {
+    this.loggingService.debug(`Removing storage for folder: ${folderPath}`);
     
     // Remove from mappings
-    this.folderStorages.delete(folderName);
-    this.folderConfigs.delete(folderName);
+    this.folderStorages.delete(folderPath);
+    this.folderConfigs.delete(folderPath);
     
-    this.loggingService.debug(`Storage removed for folder: ${folderName}`);
+    this.loggingService.debug(`Storage removed for folder: ${folderPath}`);
   }
 
   async getStorageStats(): Promise<MultiFolderStorageStats> {
@@ -253,18 +261,18 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     let totalEmbeddings = 0;
     const errors: string[] = [];
 
-    for (const [folderName, storage] of this.folderStorages) {
+    for (const [folderPath, storage] of this.folderStorages) {
       try {
-        const folder = this.folderConfigs.get(folderName);
+        const folder = this.folderConfigs.get(folderPath);
         if (!folder) {
-          errors.push(`Missing folder configuration for: ${folderName}`);
+          errors.push(`Missing folder configuration for: ${folderPath}`);
           continue;
         }
 
         // Get stats from storage (would need to extend IVectorSearchService interface)
         // For now, provide basic stats
         const stats: FolderStorageStats = {
-          folderName,
+          folderName: this.getFolderName(folderPath),
           folderPath: folder.resolvedPath,
           documentCount: 0, // Would be populated by actual storage
           embeddingCount: 0 // Would be populated by actual storage
@@ -274,7 +282,7 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
         totalDocuments += stats.documentCount;
         totalEmbeddings += stats.embeddingCount;
       } catch (error) {
-        errors.push(`Error getting stats for folder ${folderName}: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(`Error getting stats for folder ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -292,12 +300,12 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     return stats;
   }
 
-  private async searchInFolder(folderName: string, query: EmbeddingVector, topK: number): Promise<MultiFolderSearchResult[]> {
-    const storage = this.folderStorages.get(folderName);
-    const folder = this.folderConfigs.get(folderName);
+  private async searchInFolder(folderPath: string, query: EmbeddingVector, topK: number): Promise<MultiFolderSearchResult[]> {
+    const storage = this.folderStorages.get(folderPath);
+    const folder = this.folderConfigs.get(folderPath);
     
     if (!storage || !folder) {
-      throw new Error(`Folder not found: ${folderName}`);
+      throw new Error(`Folder not found: ${folderPath}`);
     }
 
     const results = await storage.search(query, topK);
@@ -305,7 +313,7 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     // Add folder attribution to results
     return results.map((result: any) => ({
       ...result,
-      folderName,
+      folderName: this.getFolderName(folderPath),
       folderPath: folder.resolvedPath
     }));
   }
@@ -315,9 +323,9 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     const allResults: MultiFolderSearchResult[] = [];
     
     // Search each folder
-    for (const [folderName, storage] of this.folderStorages) {
+    for (const [folderPath, storage] of this.folderStorages) {
       try {
-        const folder = this.folderConfigs.get(folderName);
+        const folder = this.folderConfigs.get(folderPath);
         if (!folder) continue;
 
         const results = await storage.search(query, topK);
@@ -325,13 +333,13 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
         // Add folder attribution and add to all results
         const attributedResults = results.map((result: any) => ({
           ...result,
-          folderName,
+          folderName: this.getFolderName(folderPath),
           folderPath: folder.resolvedPath
         }));
         
         allResults.push(...attributedResults);
       } catch (error) {
-        this.loggingService.warn(`Error searching folder ${folderName}: ${error instanceof Error ? error.message : String(error)}`);
+        this.loggingService.warn(`Error searching folder ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     

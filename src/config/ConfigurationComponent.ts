@@ -374,4 +374,140 @@ export class ConfigurationComponent {
             defaults: 'built-in'
         };
     }
+    
+    /**
+     * Folder array management methods
+     */
+    
+    /**
+     * Get all configured folders
+     */
+    async getFolders(): Promise<Array<{ path: string; model: string }>> {
+        const folders = await this.get('folders.list');
+        if (!folders || !Array.isArray(folders)) return [];
+        
+        // Handle both old (embeddings.model) and new (direct model) structure
+        return folders.map(folder => ({
+            path: folder.path,
+            model: folder.model || folder.embeddings?.model || 'nomic-embed-text'
+        }));
+    }
+    
+    /**
+     * Add a new folder configuration or update existing one
+     */
+    async addFolder(path: string, model: string): Promise<void> {
+        // Validate path and model
+        const pathValidation = await this.validate('folders.list[].path', path);
+        const modelValidation = await this.validate('folders.list[].model', model);
+        
+        if (!pathValidation.valid) {
+            throw new Error(`Invalid folder path: ${pathValidation.errors?.[0]?.message}`);
+        }
+        
+        if (!modelValidation.valid) {
+            throw new Error(`Invalid model: ${modelValidation.errors?.[0]?.message}`);
+        }
+        
+        // Get current folders in raw format
+        const existingFolders = await this.get('folders.list') || [];
+        const existingIndex = existingFolders.findIndex((f: any) => f.path === path);
+        
+        if (existingIndex !== -1) {
+            // Update existing folder - use simplified structure
+            const updatedFolders = [...existingFolders];
+            updatedFolders[existingIndex] = {
+                path,
+                model
+            };
+            await this.set('folders.list', updatedFolders);
+        } else {
+            // Create new folder config - use simplified structure
+            const newFolder = {
+                path,
+                model
+            };
+            
+            // Add to the list
+            const updatedFolders = [...existingFolders, newFolder];
+            await this.set('folders.list', updatedFolders);
+        }
+    }
+    
+    /**
+     * Remove a folder configuration
+     */
+    async removeFolder(path: string): Promise<void> {
+        const existingFolders = await this.get('folders.list') || [];
+        const updatedFolders = existingFolders.filter((f: any) => f.path !== path);
+        
+        if (updatedFolders.length === existingFolders.length) {
+            throw new Error(`Folder ${path} not found in configuration`);
+        }
+        
+        await this.set('folders.list', updatedFolders);
+    }
+    
+    /**
+     * Update a folder's model
+     */
+    async updateFolderModel(path: string, model: string): Promise<void> {
+        // Validate model
+        const modelValidation = await this.validate('folders.list[].model', model);
+        if (!modelValidation.valid) {
+            throw new Error(`Invalid model: ${modelValidation.errors?.[0]?.message}`);
+        }
+        
+        const existingFolders = await this.get('folders.list') || [];
+        const folderIndex = existingFolders.findIndex((f: any) => f.path === path);
+        
+        if (folderIndex === -1) {
+            throw new Error(`Folder ${path} not found in configuration`);
+        }
+        
+        // Update the model directly in the simplified structure
+        const updatedFolders = [...existingFolders];
+        updatedFolders[folderIndex].model = model;
+        
+        await this.set('folders.list', updatedFolders);
+    }
+    
+    /**
+     * Get a folder's configuration
+     */
+    async getFolder(path: string): Promise<{ path: string; model: string } | null> {
+        const folders = await this.getFolders();
+        return folders.find(f => f.path === path) || null;
+    }
+    
+    /**
+     * Check if a folder is configured
+     */
+    async hasFolderConfigured(path: string): Promise<boolean> {
+        const folder = await this.getFolder(path);
+        return folder !== null;
+    }
+    
+    /**
+     * Get the default model for new folders
+     */
+    async getDefaultModel(): Promise<string> {
+        return await this.get('folders.defaults.embeddings.model');
+    }
+    
+    /**
+     * Get supported models list
+     */
+    getSupportedModels(): string[] {
+        return [
+            'nomic-embed-text',
+            'mxbai-embed-large',
+            'all-minilm',
+            'sentence-transformers',
+            'ollama:nomic-embed-text',
+            'ollama:mxbai-embed-large',
+            'ollama:all-minilm',
+            'transformers:all-MiniLM-L6-v2'
+        ];
+    }
 }

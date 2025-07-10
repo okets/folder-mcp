@@ -72,7 +72,7 @@ export class ValidationRegistry {
             }
         });
 
-        // Embedding model validation
+        // Embedding model validation (default)
         this.registerRule('folders.defaults.embeddings.model', {
             validate: (value: string) => {
                 if (!value || value.trim() === '') return false;
@@ -89,6 +89,48 @@ export class ValidationRegistry {
                 return supportedModels.includes(value);
             },
             message: 'Must be a supported embedding model'
+        });
+
+        // Embedding model validation (per folder)
+        this.registerRule('folders.list[].model', {
+            validate: (value: string) => {
+                if (!value || value.trim() === '') return false;
+                const supportedModels = [
+                    'nomic-embed-text',
+                    'mxbai-embed-large',
+                    'all-minilm',
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
+                ];
+                return supportedModels.includes(value);
+            },
+            message: 'Must be a supported embedding model',
+            getTuiResult: (value: string) => {
+                if (!value || value.trim() === '') {
+                    return { isValid: false, error: 'Model name is required' };
+                }
+                const supportedModels = [
+                    'nomic-embed-text',
+                    'mxbai-embed-large',
+                    'all-minilm',
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
+                ];
+                if (!supportedModels.includes(value)) {
+                    return { 
+                        isValid: false, 
+                        error: `Unsupported model: ${value}`,
+                        info: `Supported models: ${supportedModels.join(', ')}`
+                    };
+                }
+                return { isValid: true };
+            }
         });
 
         // Batch size validation (reuse TUI validator)

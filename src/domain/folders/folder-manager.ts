@@ -51,7 +51,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
 
   async getFolders(): Promise<ResolvedFolderConfig[]> {
     await this.refreshFromConfig();
-    return Array.from(this.folders.values()).filter(folder => folder.enabled);
+    return Array.from(this.folders.values()); // Remove enabled filter since field doesn't exist
   }
 
   async getFolderByPath(path: string): Promise<ResolvedFolderConfig | undefined> {
@@ -67,10 +67,12 @@ export class FolderManager extends EventEmitter implements IFolderManager {
   }
 
   async getFolderByName(name: string): Promise<ResolvedFolderConfig | undefined> {
+    // Deprecated: Use getFolderByPath instead. Names are generated from paths.
     await this.refreshFromConfig();
     
     for (const folder of this.folders.values()) {
-      if (folder.name === name) {
+      const folderName = folder.path.split('/').pop() || folder.path;
+      if (folderName === name) {
         return folder;
       }
     }
@@ -84,8 +86,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     // Validate path exists and is accessible
     await this.validator.validatePath(folder.path);
     
-    // Validate name is unique
-    await this.validator.validateName(folder.name, folder.path);
+    // Name validation no longer needed as names are generated from paths
     
     // Validate safety (not a system folder)
     await this.validator.validateSafety(folder.path);
@@ -137,8 +138,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     const updatedConfig: FoldersConfig = {
       ...foldersConfig,
       list: (foldersConfig.list || []).filter((f: FolderConfig) => 
-        !this.pathResolver.isSamePath(this.pathResolver.resolve(f.path), folder.resolvedPath) &&
-        f.name !== folder.name
+        !this.pathResolver.isSamePath(this.pathResolver.resolve(f.path), folder.resolvedPath)
       )
     };
     
@@ -164,11 +164,11 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     // Find and update the folder in the list
     const updatedList = (foldersConfig.list || []).map((folder: FolderConfig) => {
       const folderPath = this.pathResolver.resolve(folder.path);
-      if (this.pathResolver.isSamePath(folderPath, existingFolder.resolvedPath) || folder.name === existingFolder.name) {
+      if (this.pathResolver.isSamePath(folderPath, existingFolder.resolvedPath)) {
         const updatedFolder = { ...folder, ...updates };
         
-        // Validate the updated folder if path or name changed
-        if (updates.path || updates.name) {
+        // Validate the updated folder if path changed
+        if (updates.path) {
           // Note: We'll validate in the next refresh cycle rather than async here
           // to avoid complex async map operations
         }
@@ -192,7 +192,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     // Get the updated resolved folder for the event
     const resolvedFolder = updates.path 
       ? await this.getFolderByPath(updates.path) 
-      : await this.getFolderByName(updates.name || existingFolder.name);
+      : await this.getFolderByPath(existingFolder.path);
     
     if (resolvedFolder) {
       this.emit('folderUpdated', resolvedFolder);
@@ -226,7 +226,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     
     for (const folder of folders) {
       try {
-        const status = await this.getFolderStatus(folder.name);
+        const status = await this.getFolderStatus(folder.path);
         folderStatuses.push(status);
         
         if (status.documentCount) {
@@ -245,7 +245,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
           systemErrors.push(...status.errors);
         }
       } catch (error) {
-        systemErrors.push(`Error getting status for folder ${folder.name}: ${error instanceof Error ? error.message : String(error)}`);
+        systemErrors.push(`Error getting status for folder ${folder.path}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     
@@ -386,32 +386,9 @@ export class FolderValidator implements IFolderValidator {
   }
 
   async validateName(name: string, excludePath?: string): Promise<void> {
-    // Check name format
-    const namePattern = /^[a-zA-Z0-9\s\-_\.]+$/;
-    if (!namePattern.test(name)) {
-      throw new FolderValidationError(`Folder name contains invalid characters. Use only letters, numbers, spaces, hyphens, underscores, and dots: ${name}`);
-    }
-    
-    if (name.length > 50) {
-      throw new FolderValidationError(`Folder name too long (max 50 characters): ${name}`);
-    }
-    
-    // Check uniqueness
-    const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
-    const existingFolders = foldersConfig.list || [];
-    
-    for (const folder of existingFolders) {
-      if (folder.name === name) {
-        // If excludePath is provided, skip validation for that path
-        if (excludePath && this.pathResolver.isSamePath(
-          this.pathResolver.resolve(folder.path), 
-          this.pathResolver.resolve(excludePath)
-        )) {
-          continue;
-        }
-        throw new FolderValidationError(`Folder name already exists: ${name}`);
-      }
-    }
+    // Name validation is deprecated since names are generated from paths
+    // This method is kept for backward compatibility but does nothing
+    return;
   }
 
   async validateConfiguration(folder: FolderConfig): Promise<void> {
@@ -420,13 +397,8 @@ export class FolderValidator implements IFolderValidator {
       throw new FolderValidationError('Folder path is required');
     }
     
-    if (!folder.name) {
-      throw new FolderValidationError('Folder name is required');
-    }
-    
-    // Validate embedding backend if specified
-    if (folder.embeddings?.backend && !['ollama', 'direct', 'auto'].includes(folder.embeddings.backend)) {
-      throw new FolderValidationError(`Invalid embedding backend: ${folder.embeddings.backend}`);
+    if (!folder.model) {
+      throw new FolderValidationError('Folder model is required');
     }
     
     // Validate performance settings
@@ -542,25 +514,21 @@ export class FolderConfigMerger implements IFolderConfigMerger {
       DEFAULT_MERGE_STRATEGY.excludeMode
     );
     
-    // Merge embeddings settings
-    const embeddings = this.mergeEmbeddings(folder.embeddings, mergedDefaults.embeddings);
-    
     // Merge performance settings
     const performance = this.mergePerformance(folder.performance, mergedDefaults.performance);
     
+    // Use folder.model directly, fallback to defaults if needed
+    const model = folder.model || mergedDefaults.embeddings?.model || 'nomic-embed-text';
+    
     return {
       path: folder.path,
-      name: folder.name,
-      enabled: folder.enabled !== undefined ? folder.enabled : true,
-      embeddings,
+      model,
       exclude: excludes,
       performance,
       resolvedPath,
       sources: {
         path: 'config',
-        name: 'config',
-        enabled: folder.enabled !== undefined ? 'config' : 'default',
-        embeddings: folder.embeddings ? (mergedDefaults.embeddings ? 'merged' : 'config') : 'default',
+        model: folder.model ? 'config' : 'default',
         exclude: folder.exclude ? (mergedDefaults.exclude ? 'merged' : 'config') : 'default',
         performance: folder.performance ? (mergedDefaults.performance ? 'merged' : 'config') : 'default'
       }
@@ -597,9 +565,10 @@ export class FolderConfigMerger implements IFolderConfigMerger {
   }
 
   mergeEmbeddings(folderEmb?: any, defaultEmb?: any): any {
+    // Deprecated: embeddings field removed from FolderConfig
     return {
-      backend: folderEmb?.backend || defaultEmb?.backend || 'auto',
-      model: folderEmb?.model || defaultEmb?.model
+      backend: defaultEmb?.backend || 'auto',
+      model: defaultEmb?.model
     };
   }
 }

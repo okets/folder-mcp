@@ -31,7 +31,7 @@ export interface IMultiFolderMonitoringWorkflow {
   /**
    * Start monitoring a specific folder
    */
-  startMonitoringFolder(folderName: string, options?: MultiFolderWatchingOptions): Promise<FolderWatchingResult>;
+  startMonitoringFolder(folderPath: string, options?: MultiFolderWatchingOptions): Promise<FolderWatchingResult>;
 
   /**
    * Stop monitoring all folders
@@ -41,7 +41,7 @@ export interface IMultiFolderMonitoringWorkflow {
   /**
    * Stop monitoring a specific folder
    */
-  stopMonitoringFolder(folderName: string): Promise<void>;
+  stopMonitoringFolder(folderPath: string): Promise<void>;
 
   /**
    * Get monitoring status for all folders
@@ -51,7 +51,7 @@ export interface IMultiFolderMonitoringWorkflow {
   /**
    * Get monitoring status for a specific folder
    */
-  getFolderStatus(folderName: string): Promise<FolderWatchingStatus>;
+  getFolderStatus(folderPath: string): Promise<FolderWatchingStatus>;
 
   /**
    * Handle configuration changes (add/remove folders)
@@ -79,9 +79,9 @@ export interface MultiFolderWatchingOptions {
   maxConcurrentWatchers?: number;
   /** Whether to continue on folder errors */
   continueOnError?: boolean;
-  /** Folders to include (if not specified, includes all) */
+  /** Folder paths to include (if not specified, includes all) */
   includeFolders?: string[];
-  /** Folders to exclude */
+  /** Folder paths to exclude */
   excludeFolders?: string[];
   /** Enable event aggregation across folders */
   enableEventAggregation?: boolean;
@@ -313,8 +313,12 @@ export interface HealthRecommendation {
  * Multi-folder monitoring workflow implementation
  */
 export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWorkflow {
-  private folderWatchers: Map<string, string> = new Map(); // folderName -> watchId
+  private folderWatchers: Map<string, string> = new Map(); // folderPath -> watchId
   private folderStatuses: Map<string, FolderWatchingStatus> = new Map();
+
+  private getFolderName(folderPath: string): string {
+    return folderPath.split('/').pop() || folderPath;
+  }
   private eventAggregator: FileEventAggregator;
   private healthMonitor: FolderHealthMonitor;
 
@@ -336,7 +340,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
     const foldersToMonitor = this.filterFolders(allFolders, options);
 
     this.loggingService.info(`Monitoring ${foldersToMonitor.length} folders`, {
-      folderNames: foldersToMonitor.map(f => f.name)
+      folderPaths: foldersToMonitor.map(f => f.path)
     });
 
     // Initialize status tracking
@@ -370,7 +374,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
             }
           } else {
             const errorResult: FolderWatchingResult = {
-              folderName: folder.name,
+              folderName: this.getFolderName(folder.path),
               folderPath: folder.resolvedPath,
               success: false,
               error: result.reason instanceof Error ? result.reason.message : String(result.reason),
@@ -379,7 +383,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
             folderResults.push(errorResult);
             
             if (!options.continueOnError) {
-              systemErrors.push(`Failed to start monitoring folder ${folder.name}: ${errorResult.error}`);
+              systemErrors.push(`Failed to start monitoring folder ${this.getFolderName(folder.path)}: ${errorResult.error}`);
             }
           }
         });
@@ -415,13 +419,13 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
     return result;
   }
 
-  async startMonitoringFolder(folderName: string, options: MultiFolderWatchingOptions = {}): Promise<FolderWatchingResult> {
-    const folder = await this.folderManager.getFolderByName(folderName);
+  async startMonitoringFolder(folderPath: string, options: MultiFolderWatchingOptions = {}): Promise<FolderWatchingResult> {
+    const folder = await this.folderManager.getFolderByPath(folderPath);
     if (!folder) {
-      throw new Error(`Folder not found: ${folderName}`);
+      throw new Error(`Folder not found: ${folderPath}`);
     }
 
-    this.loggingService.info(`Starting monitoring for folder: ${folderName}`);
+    this.loggingService.info(`Starting monitoring for folder: ${folderPath}`);
 
     return this.startSingleFolderMonitoring(folder, options.baseOptions || {});
   }
@@ -429,9 +433,9 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
   async stopMonitoringAllFolders(): Promise<void> {
     this.loggingService.info('Stopping all folder monitoring');
 
-    const stopPromises = Array.from(this.folderWatchers.keys()).map(folderName =>
-      this.stopMonitoringFolder(folderName).catch(error => {
-        this.loggingService.warn(`Failed to stop monitoring for folder ${folderName}`, error);
+    const stopPromises = Array.from(this.folderWatchers.keys()).map(folderPath =>
+      this.stopMonitoringFolder(folderPath).catch(error => {
+        this.loggingService.warn(`Failed to stop monitoring for folder ${folderPath}`, error);
       })
     );
 
@@ -443,18 +447,18 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
     this.loggingService.info('All folder monitoring stopped');
   }
 
-  async stopMonitoringFolder(folderName: string): Promise<void> {
-    this.loggingService.info(`Stopping monitoring for folder: ${folderName}`);
+  async stopMonitoringFolder(folderPath: string): Promise<void> {
+    this.loggingService.info(`Stopping monitoring for folder: ${folderPath}`);
 
-    const status = this.folderStatuses.get(folderName);
+    const status = this.folderStatuses.get(folderPath);
     if (status?.status?.folderPath) {
       await this.singleFolderMonitoring.stopFileWatching(status.status.folderPath);
     }
 
-    this.folderWatchers.delete(folderName);
-    this.folderStatuses.delete(folderName);
+    this.folderWatchers.delete(folderPath);
+    this.folderStatuses.delete(folderPath);
 
-    this.loggingService.info(`Stopped monitoring for folder: ${folderName}`);
+    this.loggingService.info(`Stopped monitoring for folder: ${folderPath}`);
   }
 
   async getAllFoldersStatus(): Promise<MultiFolderWatchingStatus> {
@@ -477,10 +481,10 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
     };
   }
 
-  async getFolderStatus(folderName: string): Promise<FolderWatchingStatus> {
-    const status = this.folderStatuses.get(folderName);
+  async getFolderStatus(folderPath: string): Promise<FolderWatchingStatus> {
+    const status = this.folderStatuses.get(folderPath);
     if (!status) {
-      throw new Error(`No status found for folder: ${folderName}`);
+      throw new Error(`No status found for folder: ${folderPath}`);
     }
     return status;
   }
@@ -490,25 +494,25 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
 
     // Get updated folder list
     const currentFolders = await this.folderManager.getFolders();
-    const currentFolderNames = new Set(currentFolders.map(f => f.name));
-    const monitoredFolderNames = new Set(this.folderWatchers.keys());
+    const currentFolderPaths = new Set(currentFolders.map(f => f.path));
+    const monitoredFolderPaths = new Set(this.folderWatchers.keys());
 
     // Stop monitoring removed folders
-    for (const folderName of monitoredFolderNames) {
-      if (!currentFolderNames.has(folderName)) {
-        await this.stopMonitoringFolder(folderName);
-        this.loggingService.info(`Stopped monitoring removed folder: ${folderName}`);
+    for (const folderPath of monitoredFolderPaths) {
+      if (!currentFolderPaths.has(folderPath)) {
+        await this.stopMonitoringFolder(folderPath);
+        this.loggingService.info(`Stopped monitoring removed folder: ${folderPath}`);
       }
     }
 
     // Start monitoring new folders
     for (const folder of currentFolders) {
-      if (!monitoredFolderNames.has(folder.name)) {
+      if (!monitoredFolderPaths.has(folder.path)) {
         try {
           await this.startSingleFolderMonitoring(folder, {});
-          this.loggingService.info(`Started monitoring new folder: ${folder.name}`);
+          this.loggingService.info(`Started monitoring new folder: ${folder.path}`);
         } catch (error) {
-          this.loggingService.warn(`Failed to start monitoring new folder ${folder.name}`, error);
+          this.loggingService.warn(`Failed to start monitoring new folder ${folder.path}`, error);
         }
       }
     }
@@ -523,7 +527,8 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
   }
 
   private async startSingleFolderMonitoring(folder: ResolvedFolderConfig, baseOptions: WatchingOptions): Promise<FolderWatchingResult> {
-    const folderName = folder.name;
+    const folderPath = folder.path;
+    const folderName = this.getFolderName(folderPath);
 
     try {
       // Create folder-specific options
@@ -536,16 +541,16 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
       const result = await this.singleFolderMonitoring.startFileWatching(folder.resolvedPath, folderOptions);
 
       // Store watcher mapping
-      this.folderWatchers.set(folderName, result.watchId);
+      this.folderWatchers.set(folderPath, result.watchId);
 
       // Update status
-      this.updateFolderStatus(folderName, {
+      this.updateFolderStatus(folderPath, {
         isActive: result.success,
         settings,
         health: result.success ? 'healthy' : 'critical'
       });
 
-      this.loggingService.info(`Started monitoring folder: ${folderName}`, {
+      this.loggingService.info(`Started monitoring folder: ${folderPath}`, {
         watchId: result.watchId,
         success: result.success
       });
@@ -567,13 +572,13 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Update status
-      this.updateFolderStatus(folderName, {
+      this.updateFolderStatus(folderPath, {
         isActive: false,
         settings: this.createFolderSettings(folder, baseOptions),
         health: 'critical'
       });
 
-      this.loggingService.error(`Failed to start monitoring folder: ${folderName}`, error instanceof Error ? error : new Error(String(error)));
+      this.loggingService.error(`Failed to start monitoring folder: ${folderPath}`, error instanceof Error ? error : new Error(String(error)));
 
       return {
         folderName,
@@ -586,14 +591,14 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
   }
 
   private filterFolders(folders: ResolvedFolderConfig[], options: MultiFolderWatchingOptions): ResolvedFolderConfig[] {
-    let filtered = folders.filter(folder => folder.enabled);
+    let filtered = folders; // Remove enabled filter since field doesn't exist
 
     if (options.includeFolders && options.includeFolders.length > 0) {
-      filtered = filtered.filter(folder => options.includeFolders!.includes(folder.name));
+      filtered = filtered.filter(folder => options.includeFolders!.includes(folder.path));
     }
 
     if (options.excludeFolders && options.excludeFolders.length > 0) {
-      filtered = filtered.filter(folder => !options.excludeFolders!.includes(folder.name));
+      filtered = filtered.filter(folder => !options.excludeFolders!.includes(folder.path));
     }
 
     return filtered;
@@ -605,21 +610,21 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
 
     for (const folder of folders) {
       const status: FolderWatchingStatus = {
-        folderName: folder.name,
+        folderName: this.getFolderName(folder.path),
         folderPath: folder.resolvedPath,
         isActive: false,
         settings: this.createFolderSettings(folder, {}),
         health: 'unknown'
       };
 
-      this.folderStatuses.set(folder.name, status);
+      this.folderStatuses.set(folder.path, status);
     }
   }
 
-  private updateFolderStatus(folderName: string, updates: Partial<FolderWatchingStatus>): void {
-    const current = this.folderStatuses.get(folderName);
+  private updateFolderStatus(folderPath: string, updates: Partial<FolderWatchingStatus>): void {
+    const current = this.folderStatuses.get(folderPath);
     if (current) {
-      this.folderStatuses.set(folderName, { ...current, ...updates });
+      this.folderStatuses.set(folderPath, { ...current, ...updates });
     }
   }
 
@@ -629,7 +634,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
       excludePatterns: [...(baseOptions.excludePatterns || []), ...folder.exclude],
       debounceMs: baseOptions.debounceMs || 1000,
       enableBatchProcessing: baseOptions.enableBatchProcessing || true,
-      batchSize: folder.performance.batchSize || baseOptions.batchSize || 10,
+      batchSize: folder.performance?.batchSize || baseOptions.batchSize || 10,
       batchTimeoutMs: baseOptions.batchTimeoutMs || 5000
     };
   }
@@ -640,7 +645,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
       excludePatterns: [...(baseOptions.excludePatterns || []), ...folder.exclude],
       debounceMs: baseOptions.debounceMs || 1000,
       enableBatchProcessing: baseOptions.enableBatchProcessing || true,
-      batchSize: folder.performance.batchSize || baseOptions.batchSize || 10,
+      batchSize: folder.performance?.batchSize || baseOptions.batchSize || 10,
       batchTimeoutMs: baseOptions.batchTimeoutMs || 5000
     };
   }

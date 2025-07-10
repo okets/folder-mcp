@@ -446,19 +446,21 @@ describe('MCP Endpoints - User Story Tests', () => {
         expect(response).toMatchObject({
           data: {
             folders: expect.arrayContaining([
-              "Finance",
-              "Sales", 
-              "Marketing",
-              "Legal",
-              "Engineering"
+              expect.stringContaining("Finance"),
+              expect.stringContaining("Sales"), 
+              expect.stringContaining("Marketing"),
+              expect.stringContaining("Legal"),
+              expect.stringContaining("Engineering")
             ])
           }
         });
       });
 
       test('Step 2: List documents in specific folder', async () => {
+        // Get the Finance folder path dynamically from test environment
+        const financeFolderPath = path.join(testEnv.folderPath, 'Finance');
         const response = await endpoints.listDocuments({
-          folder: "Finance"
+          folder: financeFolderPath
         });
 
         expect(response.status.code).toBe('success');
@@ -985,19 +987,20 @@ function createMockServices(testEnv: any) {
   const testKnowledgeBasePath = testEnv.folderPath;
   const mockFolderManager: any = {
     getFolders: async () => [
-      { name: 'Finance', path: path.join(testKnowledgeBasePath, 'Finance'), enabled: true },
-      { name: 'Sales', path: path.join(testKnowledgeBasePath, 'Sales'), enabled: true },
-      { name: 'Marketing', path: path.join(testKnowledgeBasePath, 'Marketing'), enabled: true },
-      { name: 'Legal', path: path.join(testKnowledgeBasePath, 'Legal'), enabled: true },
-      { name: 'Engineering', path: path.join(testKnowledgeBasePath, 'Engineering'), enabled: true }
+      { path: path.join(testKnowledgeBasePath, 'Finance'), model: 'ollama:nomic-embed-text' },
+      { path: path.join(testKnowledgeBasePath, 'Sales'), model: 'ollama:nomic-embed-text' },
+      { path: path.join(testKnowledgeBasePath, 'Marketing'), model: 'ollama:nomic-embed-text' },
+      { path: path.join(testKnowledgeBasePath, 'Legal'), model: 'ollama:nomic-embed-text' },
+      { path: path.join(testKnowledgeBasePath, 'Engineering'), model: 'ollama:nomic-embed-text' }
     ],
     getFolderByPath: async (folderPath: string) => {
       const folders = await mockFolderManager.getFolders();
       return folders.find((f: any) => f.path === folderPath) || null;
     },
     getFolderByName: async (name: string) => {
+      // For backward compatibility, match by folder name extracted from path
       const folders = await mockFolderManager.getFolders();
-      const folder = folders.find((f: any) => f.name === name);
+      const folder = folders.find((f: any) => f.path.endsWith(`/${name}`) || f.path.endsWith(`\\${name}`));
       if (folder) {
         return {
           ...folder,

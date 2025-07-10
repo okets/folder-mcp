@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Text, useApp, useInput, Key } from 'ink';
 import { join } from 'path';
 import { homedir } from 'os';
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, writeFileSync, mkdirSync, statSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
 import { LogItem, LogEntry } from './core/items/LogItem';
@@ -19,6 +19,7 @@ import { FolderConfig } from '../../../config/schema/folders';
 interface FirstRunWizardProps {
     onComplete: (config: any) => void;
     cliDir?: string | null | undefined;
+    cliModel?: string | null | undefined;
 }
 
 // Helper function to get default folder path with validation
@@ -26,7 +27,7 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
     // Priority 1: CLI -d parameter (if provided and valid)
     if (cliDir) {
         if (existsSync(cliDir)) {
-            const stat = require('fs').statSync(cliDir);
+            const stat = statSync(cliDir);
             if (stat.isDirectory()) {
                 return { path: cliDir };
             } else {
@@ -54,19 +55,39 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
     return { path: process.cwd() };
 }
 
-const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) => {
+const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
     const folderResult = getDefaultFolderPath(cliDir);
     const [folderPath, setFolderPath] = useState(folderResult.path);
     const [folderError, setFolderError] = useState(folderResult.error || null);
     
+    // Setup model and navigation logic
+    const [supportedModels, setSupportedModels] = useState<string[]>([]);
+    const [modelError, setModelError] = useState<string | null>(null);
+    
+    // Get default model or validate CLI model
+    const getInitialModel = (): string => {
+        if (cliModel) {
+            // Will validate later against supported models
+            return cliModel;
+        }
+        return 'nomic-embed-text'; // Default
+    };
+    
+    const [selectedModel, setSelectedModel] = useState(getInitialModel());
+    
     // If valid folder provided via CLI, skip folder selection step
     const hasValidCliFolder = cliDir && !folderResult.error;
-    const [step, setStep] = useState(hasValidCliFolder ? 2 : 1);
+    // If valid model provided via CLI, and folder is valid, skip to confirmation
+    const hasValidCliModel = cliModel && !modelError;
+    const initialStep = (() => {
+        if (hasValidCliFolder && hasValidCliModel) return 3; // Go to confirmation
+        if (hasValidCliFolder) return 2; // Go to model selection
+        return 1; // Start with folder selection
+    })();
     
-    const [selectedModel, setSelectedModel] = useState('ollama:nomic-embed-text');
-    const [selectedLanguage, setSelectedLanguage] = useState('auto');
+    const [step, setStep] = useState(initialStep);
     const [isComplete, setIsComplete] = useState(false);
     const [updateTrigger, setUpdateTrigger] = useState(0);
     
@@ -102,6 +123,29 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
             }
         }
         
+        // Add CLI model parameter log
+        if (cliModel) {
+            if (modelError) {
+                logs.push({
+                    id: 'cli-model-error',
+                    timestamp: new Date(),
+                    level: 'error',
+                    message: `CLI -m parameter: ${modelError}`,
+                    details: `Provided model: ${cliModel}\nFalling back to model picker with default: ${selectedModel}`,
+                    source: 'CLI'
+                });
+            } else {
+                logs.push({
+                    id: 'cli-model-success',
+                    timestamp: new Date(),
+                    level: 'info',
+                    message: `CLI -m parameter: Using model "${cliModel}"`,
+                    details: `Model validated and will be used for embeddings`,
+                    source: 'CLI'
+                });
+            }
+        }
+        
         // Add development mode log
         const isDev = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
         if (isDev) {
@@ -121,6 +165,47 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     // Panel dimensions
     const PANEL_HEIGHT = 9;
     const PANEL_WIDTH = Math.min(60, columns - 4);
+    
+    // Load supported models and validate CLI model
+    useEffect(() => {
+        const loadSupportedModels = async () => {
+            try {
+                const container = getContainer();
+                const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                const models = configComponent.getSupportedModels();
+                setSupportedModels(models);
+                
+                // Validate CLI model if provided
+                if (cliModel) {
+                    if (!models.includes(cliModel)) {
+                        setModelError(`Unsupported model: ${cliModel}. Supported models: ${models.join(', ')}`);
+                        setSelectedModel('nomic-embed-text'); // Reset to default
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load supported models:', error);
+                // Fallback to hardcoded list
+                const fallbackModels = [
+                    'nomic-embed-text',
+                    'mxbai-embed-large',
+                    'all-minilm',
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
+                ];
+                setSupportedModels(fallbackModels);
+                
+                if (cliModel && !fallbackModels.includes(cliModel)) {
+                    setModelError(`Unsupported model: ${cliModel}. Supported models: ${fallbackModels.join(', ')}`);
+                    setSelectedModel('nomic-embed-text');
+                }
+            }
+        };
+        
+        loadSupportedModels();
+    }, [cliModel]);
     
     // Set up root input handler
     useRootInput();
@@ -143,64 +228,55 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
         return picker;
     }, []); // Empty deps since we handle path updates internally
     
-    // Create model options array
-    const modelOptions = [
-        { value: 'ollama:nomic-embed-text', label: 'Ollama: nomic-embed-text (Recommended)' },
-        { value: 'ollama:mxbai-embed-large', label: 'Ollama: mxbai-embed-large' },
-        { value: 'openai:text-embedding-ada-002', label: 'OpenAI: text-embedding-ada-002' },
-        { value: 'custom', label: 'Custom endpoint...' }
-    ];
+    // Create model options array from supported models
+    const modelOptions = React.useMemo(() => {
+        return supportedModels.map(model => ({
+            value: model,
+            label: model === 'nomic-embed-text' ? `${model} (Recommended)` : model
+        }));
+    }, [supportedModels]);
     
-    const modelSelector = new SelectionListItem(
-        '🤖',
-        'Embedding Model',
-        modelOptions,
-        [selectedModel], // selectedValues as array
-        true, // isActive
-        'radio', // mode
-        'vertical', // layout
-        (values) => {
-            if (values.length > 0 && values[0] !== undefined) {
-                setSelectedModel(values[0]);
-                setStep(3); // Auto-advance to next step
-            }
+    const modelSelector = React.useMemo(() => {
+        if (modelOptions.length === 0) {
+            // Return a placeholder until models are loaded
+            return new SelectionListItem(
+                '🤖',
+                'Loading models...',
+                [{ value: 'loading', label: 'Loading supported models...' }],
+                ['loading'],
+                false,
+                'radio',
+                'vertical',
+                () => {}
+            );
         }
-    );
-    
-    // Create language options array
-    const languageOptions = [
-        { value: 'auto', label: 'Auto-detect' },
-        { value: 'en', label: 'English' },
-        { value: 'es', label: 'Spanish' },
-        { value: 'fr', label: 'French' },
-        { value: 'de', label: 'German' },
-        { value: 'other', label: 'Other...' }
-    ];
-    
-    const languageSelector = new SelectionListItem(
-        '🌍',
-        'Language',
-        languageOptions,
-        [selectedLanguage], // selectedValues as array
-        true, // isActive
-        'radio', // mode
-        'vertical', // layout
-        (values) => {
-            if (values.length > 0 && values[0] !== undefined) {
-                setSelectedLanguage(values[0]);
-                setStep(4); // Auto-advance to confirmation
+        
+        return new SelectionListItem(
+            '🤖',
+            'Embedding Model',
+            modelOptions,
+            [selectedModel], // selectedValues as array
+            true, // isActive
+            'radio', // mode
+            'vertical', // layout
+            (values) => {
+                if (values.length > 0 && values[0] !== undefined) {
+                    setSelectedModel(values[0]);
+                    setStep(3); // Auto-advance to confirmation
+                }
             }
-        }
-    );
+        );
+    }, [modelOptions, selectedModel]);
+    
+    // Language step removed - now goes directly from model to confirmation
     
     
     // Enable the appropriate item to control input based on current step
     useEffect(() => {
         if (step === 2) {
             modelSelector.onEnter();
-        } else if (step === 3) {
-            languageSelector.onEnter();
         }
+        // Step 3 is now confirmation (no input needed)
     }, [step]);
     
     // Handle wizard-level input using focus chain
@@ -215,8 +291,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
             return true;
         }
         
-        // Handle confirmation step
-        if (step === 4 && key.return) {
+        // Handle confirmation step (now step 3)
+        if (step === 3 && key.return) {
             completeSetup();
             return true;
         }
@@ -226,7 +302,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     
     // Register wizard input handler with focus chain
     const getKeyBindings = () => {
-        if (step === 4) {
+        if (step === 3) {
             return [
                 { key: 'Enter', description: 'Confirm' },
                 { key: 'Esc', description: 'Back' }
@@ -265,7 +341,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                 console.error(`\n=== WIZARD CONFIG SAVE START ===`);
                 console.error(`Folder path: "${folderPath}"`);
                 console.error(`Selected model: "${selectedModel}"`);
-                console.error(`Selected language: "${selectedLanguage}"`);
                 
                 // Get ConfigurationComponent from main DI container
                 const container = getContainer();
@@ -276,27 +351,15 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                 await configComponent.load();
                 console.error(`ConfigurationComponent loaded successfully`);
                 
-                // Create folder config following the schema
-                const folderConfig: FolderConfig = {
-                    path: folderPath,
-                    name: folderPath.split('/').pop() || 'Folder',
-                    enabled: true,
-                    embeddings: {
-                        backend: 'ollama',
-                        model: selectedModel
-                    }
-                };
+                // Add folder using ConfigurationComponent
+                console.error(`Adding folder with path: "${folderPath}", model: "${selectedModel}"`);
+                await configComponent.addFolder(folderPath, selectedModel);
+                console.error(`Folder added successfully`);
                 
-                // Set folders configuration using ConfigurationComponent
-                console.error(`Setting folders.list with config:`, folderConfig);
-                await configComponent.set('folders.list', [folderConfig]);
-                console.error(`folders.list set successfully`);
-                
-                // Set default embedding model
-                console.error(`Setting defaults - model: "${selectedModel}", backend: "ollama"`);
+                // Set default embedding model (only model, no backend needed)
+                console.error(`Setting default model: "${selectedModel}"`);
                 await configComponent.set('folders.defaults.embeddings.model', selectedModel);
-                await configComponent.set('folders.defaults.embeddings.backend', 'ollama');
-                console.error(`Embedding defaults set successfully`);
+                console.error(`Default model set successfully`);
                 
                 // Set theme
                 await configComponent.set('theme', 'auto');
@@ -306,10 +369,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                 const config = {
                     folders: [{
                         path: folderPath,
-                        name: folderConfig.name,
-                        model: selectedModel,
-                        language: selectedLanguage,
-                        enabled: true
+                        model: selectedModel
                     }],
                     embedding: {
                         model: selectedModel,
@@ -408,20 +468,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
         return selector;
     };
     
-    const createReadOnlyLanguageSelector = () => {
-        const selector = new SelectionListItem(
-            '🌍',
-            'Language',
-            languageOptions,
-            [selectedLanguage],
-            false, // not active
-            'radio',
-            'vertical',
-            undefined // no callback
-        );
-        selector.onEnter(); // Show in expanded state
-        return selector;
-    };
+    // Language selector removed
     
     const cliLogs = createCliLogEntries();
     
@@ -515,42 +562,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                 </Box>
             )}
             
-            {/* Step 3: Show language panel when on step 3+ */}
-            {step >= 3 && (
-                <Box flexDirection="column" width={PANEL_WIDTH} marginBottom={step > 3 ? 1 : 0}>
-                    {step === 3 ? (
-                        <>
-                            <GenericListPanel
-                                title="Set Language"
-                                items={[languageSelector]}
-                                selectedIndex={0}
-                                isFocused={true}
-                                elementId="wizard-language-selector"
-                                parentId="wizard"
-                                priority={50}
-                                height={PANEL_HEIGHT}
-                                width={PANEL_WIDTH}
-                            />
-                            <StatusHints />
-                        </>
-                    ) : (
-                        <GenericListPanel
-                            title="✓ Language"
-                            items={[createReadOnlyLanguageSelector()]}
-                            selectedIndex={0}
-                            isFocused={false}
-                            elementId="wizard-language-selector-readonly"
-                            parentId="wizard"
-                            priority={-1}
-                            height={PANEL_HEIGHT}
-                            width={PANEL_WIDTH}
-                        />
-                    )}
-                </Box>
-            )}
+            {/* Step 3: Show confirmation (language step removed) */}
             
-            {/* Step 4: Show confirmation panel */}
-            {step === 4 && (
+            {/* Step 3: Show confirmation panel */}
+            {step === 3 && (
                 <Box flexDirection="column" width={PANEL_WIDTH}>
                     <Box 
                         borderStyle="round" 
@@ -562,22 +577,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
                     >
                         <Text color={highlightColor} bold>✅ Ready to create configuration:</Text>
                         <Box marginTop={1} flexDirection="column">
-                            <Text color={textColor}>📁 Folder: {folderPath.split('/').pop()}</Text>
-                            <Text color={textColor} dimColor>   {folderPath}</Text>
-                            <Text color={textColor}>🤖 Model: {
-                                selectedModel === 'ollama:nomic-embed-text' ? 'Ollama: nomic-embed-text' :
-                                selectedModel === 'ollama:mxbai-embed-large' ? 'Ollama: mxbai-embed-large' :
-                                selectedModel === 'openai:text-embedding-ada-002' ? 'OpenAI: text-embedding-ada-002' :
-                                'Custom endpoint'
-                            }</Text>
-                            <Text color={textColor}>🌍 Language: {
-                                selectedLanguage === 'auto' ? 'Auto-detect' :
-                                selectedLanguage === 'en' ? 'English' :
-                                selectedLanguage === 'es' ? 'Spanish' :
-                                selectedLanguage === 'fr' ? 'French' :
-                                selectedLanguage === 'de' ? 'German' :
-                                'Other'
-                            }</Text>
+                            <Text color={textColor}>📁 Path: {folderPath}</Text>
+                            <Text color={textColor}>🤖 Model: {selectedModel}</Text>
                         </Box>
                         <Box marginTop={1}>
                             <Text color={highlightColor}>Press Enter to save and start indexing</Text>
@@ -590,10 +591,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     );
 };
 
-export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) => {
+export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
     return (
         <AnimationProvider>
-            <WizardContent onComplete={onComplete} cliDir={cliDir} />
+            <WizardContent onComplete={onComplete} cliDir={cliDir} cliModel={cliModel} />
         </AnimationProvider>
     );
 };

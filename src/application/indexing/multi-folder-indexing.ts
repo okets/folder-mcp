@@ -29,9 +29,9 @@ export interface IMultiFolderIndexingWorkflow {
   indexAllFolders(options?: MultiFolderIndexingOptions): Promise<MultiFolderIndexingResult>;
 
   /**
-   * Index a specific folder by name
+   * Index a specific folder by path
    */
-  indexFolder(folderName: string, options?: MultiFolderIndexingOptions): Promise<FolderIndexingResult>;
+  indexFolder(folderPath: string, options?: MultiFolderIndexingOptions): Promise<FolderIndexingResult>;
 
   /**
    * Get indexing status for all folders
@@ -41,7 +41,7 @@ export interface IMultiFolderIndexingWorkflow {
   /**
    * Get indexing status for a specific folder
    */
-  getFolderStatus(folderName: string): Promise<FolderIndexingStatus>;
+  getFolderStatus(folderPath: string): Promise<FolderIndexingStatus>;
 
   /**
    * Cancel indexing for all folders
@@ -51,7 +51,7 @@ export interface IMultiFolderIndexingWorkflow {
   /**
    * Cancel indexing for a specific folder
    */
-  cancelFolderIndexing(folderName: string): Promise<void>;
+  cancelFolderIndexing(folderPath: string): Promise<void>;
 }
 
 /**
@@ -64,9 +64,9 @@ export interface MultiFolderIndexingOptions {
   maxConcurrentFolders?: number;
   /** Whether to continue on folder errors */
   continueOnError?: boolean;
-  /** Folders to include (if not specified, includes all) */
+  /** Folder paths to include (if not specified, includes all) */
   includeFolders?: string[];
-  /** Folders to exclude */
+  /** Folder paths to exclude */
   excludeFolders?: string[];
 }
 
@@ -187,6 +187,10 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
   private folderStatuses: Map<string, FolderIndexingStatus> = new Map();
   private cancellationTokens: Map<string, boolean> = new Map();
 
+  private getFolderName(folderPath: string): string {
+    return folderPath.split('/').pop() || folderPath;
+  }
+
   constructor(
     private folderManager: IFolderManager,
     private storageProvider: IMultiFolderStorageProvider,
@@ -203,7 +207,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     const foldersToIndex = this.filterFolders(allFolders, options);
 
     this.loggingService.info(`Indexing ${foldersToIndex.length} folders`, {
-      folderNames: foldersToIndex.map(f => f.name)
+      folderPaths: foldersToIndex.map(f => f.path)
     });
 
     // Initialize status tracking
@@ -232,7 +236,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
             folderResults.push(result.value);
           } else {
             const errorResult: FolderIndexingResult = {
-              folderName: folder.name,
+              folderName: this.getFolderName(folder.path),
               folderPath: folder.resolvedPath,
               success: false,
               error: result.reason instanceof Error ? result.reason.message : String(result.reason),
@@ -242,7 +246,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
             folderResults.push(errorResult);
             
             if (!options.continueOnError) {
-              systemErrors.push(`Failed to index folder ${folder.name}: ${errorResult.error}`);
+              systemErrors.push(`Failed to index folder ${this.getFolderName(folder.path)}: ${errorResult.error}`);
             }
           }
         });
@@ -279,13 +283,13 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     return result;
   }
 
-  async indexFolder(folderName: string, options: MultiFolderIndexingOptions = {}): Promise<FolderIndexingResult> {
-    const folder = await this.folderManager.getFolderByName(folderName);
+  async indexFolder(folderPath: string, options: MultiFolderIndexingOptions = {}): Promise<FolderIndexingResult> {
+    const folder = await this.folderManager.getFolderByPath(folderPath);
     if (!folder) {
-      throw new Error(`Folder not found: ${folderName}`);
+      throw new Error(`Folder not found: ${folderPath}`);
     }
 
-    this.loggingService.info(`Starting indexing for folder: ${folderName}`);
+    this.loggingService.info(`Starting indexing for folder: ${folderPath}`);
 
     return this.indexSingleFolder(folder, options.baseOptions || {});
   }
@@ -327,10 +331,10 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     return status;
   }
 
-  async getFolderStatus(folderName: string): Promise<FolderIndexingStatus> {
-    const status = this.folderStatuses.get(folderName);
+  async getFolderStatus(folderPath: string): Promise<FolderIndexingStatus> {
+    const status = this.folderStatuses.get(folderPath);
     if (!status) {
-      throw new Error(`No status found for folder: ${folderName}`);
+      throw new Error(`No status found for folder: ${folderPath}`);
     }
     return status;
   }
@@ -343,18 +347,19 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     }
   }
 
-  async cancelFolderIndexing(folderName: string): Promise<void> {
-    this.loggingService.info(`Cancelling indexing for folder: ${folderName}`);
-    this.cancellationTokens.set(folderName, true);
+  async cancelFolderIndexing(folderPath: string): Promise<void> {
+    this.loggingService.info(`Cancelling indexing for folder: ${folderPath}`);
+    this.cancellationTokens.set(folderPath, true);
   }
 
   private async indexSingleFolder(folder: ResolvedFolderConfig, baseOptions: IndexingOptions): Promise<FolderIndexingResult> {
     const startTime = Date.now();
-    const folderName = folder.name;
+    const folderPath = folder.path;
+    const folderName = this.getFolderName(folderPath);
 
     // Check for cancellation
-    if (this.cancellationTokens.get(folderName)) {
-      throw new Error(`Indexing cancelled for folder: ${folderName}`);
+    if (this.cancellationTokens.get(folderPath)) {
+      throw new Error(`Indexing cancelled for folder: ${folderPath}`);
     }
 
     // Create folder-specific options
@@ -362,7 +367,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     const settings = this.createFolderSettings(folder);
 
     // Update status
-    this.updateFolderStatus(folderName, {
+    this.updateFolderStatus(folderPath, {
       isIndexing: true,
       startedAt: new Date(),
       settings
@@ -381,7 +386,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
       const processingTime = Date.now() - startTime;
 
       // Update status
-      this.updateFolderStatus(folderName, {
+      this.updateFolderStatus(folderPath, {
         isIndexing: false,
         progress: {
           totalFiles: result.filesProcessed,
@@ -411,7 +416,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Update status
-      this.updateFolderStatus(folderName, {
+      this.updateFolderStatus(folderPath, {
         isIndexing: false,
         errors: [{
           filePath: folder.resolvedPath,
@@ -436,14 +441,14 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
   }
 
   private filterFolders(folders: ResolvedFolderConfig[], options: MultiFolderIndexingOptions): ResolvedFolderConfig[] {
-    let filtered = folders.filter(folder => folder.enabled);
+    let filtered = folders; // Remove enabled filter since field doesn't exist
 
     if (options.includeFolders && options.includeFolders.length > 0) {
-      filtered = filtered.filter(folder => options.includeFolders!.includes(folder.name));
+      filtered = filtered.filter(folder => options.includeFolders!.includes(folder.path));
     }
 
     if (options.excludeFolders && options.excludeFolders.length > 0) {
-      filtered = filtered.filter(folder => !options.excludeFolders!.includes(folder.name));
+      filtered = filtered.filter(folder => !options.excludeFolders!.includes(folder.path));
     }
 
     return filtered;
@@ -455,7 +460,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
     for (const folder of folders) {
       const status: FolderIndexingStatus = {
-        folderName: folder.name,
+        folderName: this.getFolderName(folder.path),
         folderPath: folder.resolvedPath,
         isIndexing: false,
         progress: {
@@ -469,15 +474,15 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
         errors: []
       };
 
-      this.folderStatuses.set(folder.name, status);
-      this.cancellationTokens.set(folder.name, false);
+      this.folderStatuses.set(folder.path, status);
+      this.cancellationTokens.set(folder.path, false);
     }
   }
 
-  private updateFolderStatus(folderName: string, updates: Partial<FolderIndexingStatus>): void {
-    const current = this.folderStatuses.get(folderName);
+  private updateFolderStatus(folderPath: string, updates: Partial<FolderIndexingStatus>): void {
+    const current = this.folderStatuses.get(folderPath);
     if (current) {
-      this.folderStatuses.set(folderName, { ...current, ...updates });
+      this.folderStatuses.set(folderPath, { ...current, ...updates });
     }
   }
 
@@ -487,12 +492,12 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
       excludePatterns: [...(baseOptions.excludePatterns || []), ...folder.exclude]
     };
     
-    const embeddingModel = folder.embeddings.model || baseOptions.embeddingModel;
+    const embeddingModel = folder.model || baseOptions.embeddingModel;
     if (embeddingModel) {
       options.embeddingModel = embeddingModel;
     }
     
-    const batchSize = folder.performance.batchSize || baseOptions.batchSize;
+    const batchSize = folder.performance?.batchSize || baseOptions.batchSize;
     if (batchSize) {
       options.batchSize = batchSize;
     }
@@ -502,19 +507,19 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
   private createFolderSettings(folder: ResolvedFolderConfig): FolderIndexingSettings {
     const settings: FolderIndexingSettings = {
-      embeddingBackend: folder.embeddings.backend || 'auto', // Fallback to 'auto' if undefined
+      embeddingBackend: 'auto', // Default to auto since embeddings.backend doesn't exist
       excludePatterns: folder.exclude
     };
     
-    if (folder.embeddings.model) {
-      settings.model = folder.embeddings.model;
+    if (folder.model) {
+      settings.model = folder.model;
     }
     
-    if (folder.performance.batchSize) {
+    if (folder.performance?.batchSize) {
       settings.batchSize = folder.performance.batchSize;
     }
     
-    if (folder.performance.maxConcurrency) {
+    if (folder.performance?.maxConcurrency) {
       settings.maxConcurrency = folder.performance.maxConcurrency;
     }
     

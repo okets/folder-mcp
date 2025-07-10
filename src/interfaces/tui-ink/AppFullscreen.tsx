@@ -16,7 +16,11 @@ import { ThemeContext, themes, ThemeName } from './contexts/ThemeContext';
 import { IListItem } from './components/core/IListItem';
 import { FilePickerListItem } from './components/core/FilePickerListItem';
 import { ConfigurationListItem } from './components/core/ConfigurationListItem';
+import { SelectionListItem } from './components/core/SelectionListItem';
 import { existsSync, statSync } from 'fs';
+import { getContainer } from '../../di/container';
+import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
+import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 
 // Get item counts once at module level to ensure consistency
 const STATUS_ITEMS = createStatusPanelItems();
@@ -32,6 +36,44 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
+    
+    // State to hold current folders from ConfigurationComponent
+    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
+    
+    // Load folders from ConfigurationComponent
+    const loadFolders = React.useCallback(async () => {
+        try {
+            const container = getContainer();
+            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+            const folders = await configComponent.getFolders();
+            setCurrentFolders(folders);
+        } catch (error) {
+            console.error('Failed to load folders:', error);
+            setCurrentFolders([]);
+        }
+    }, []);
+    
+    // Load folders on mount and when config changes
+    React.useEffect(() => {
+        loadFolders();
+    }, [loadFolders, config]);
+    
+    // Handle model changes - save to configuration
+    const handleModelChange = React.useCallback(async (folderPath: string, newModel: string) => {
+        try {
+            console.error(`Updating model for folder "${folderPath}" to "${newModel}"`);
+            const container = getContainer();
+            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+            
+            await configComponent.updateFolderModel(folderPath, newModel);
+            console.error(`Model updated successfully for folder "${folderPath}"`);
+            
+            // Refresh the folders to show the updated model
+            await loadFolders();
+        } catch (error) {
+            console.error(`Failed to update model for folder "${folderPath}":`, error);
+        }
+    }, [loadFolders]);
     const { columns, rows } = useTerminalSize();
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
@@ -43,86 +85,93 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     // Navigation state connected to config items with active cursor management
     
     
-    // Create config items from actual config or fall back to sample data
+    // Create config items from current folders or fall back to sample data
     const configItems = React.useMemo(() => {
-        if (config?.folders?.[0]) {
-            // Validate folder exists and is accessible
-            const folderPath = config.folders[0].path;
-            let folderIcon = '√';
-            let folderValid = true;
+        if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
+            const items: IListItem[] = [];
             
-            try {
-                if (!existsSync(folderPath)) {
-                    folderIcon = '✗';
-                    folderValid = false;
-                } else {
-                    const stat = statSync(folderPath);
-                    if (!stat.isDirectory()) {
+            // Add each configured folder
+            currentFolders.forEach((folder, index) => {
+                // Validate folder exists and is accessible
+                const folderPath = folder.path;
+                let folderIcon = '√';
+                let folderValid = true;
+                
+                try {
+                    if (!existsSync(folderPath)) {
                         folderIcon = '✗';
                         folderValid = false;
+                    } else {
+                        const stat = statSync(folderPath);
+                        if (!stat.isDirectory()) {
+                            folderIcon = '✗';
+                            folderValid = false;
+                        }
                     }
+                } catch (error) {
+                    folderIcon = '✗';
+                    folderValid = false;
                 }
-            } catch (error) {
-                folderIcon = '✗';
-                folderValid = false;
-            }
+                
+                // Create a FilePickerListItem for each folder
+                const folderPicker = new FilePickerListItem(
+                    folderIcon,
+                    `Folder ${index + 1}: ${folderPath.split('/').pop() || folderPath}`,
+                    folderPath,
+                    false, // GenericListPanel will handle active state
+                    'folder', // folder mode
+                    (newPath) => {
+                        // TODO: Handle folder path changes in main app
+                        console.log(`User wants to change folder ${index + 1} to:`, newPath);
+                        // This would need to update the config and trigger re-indexing
+                    }
+                );
+                
+                // Create SelectionListItem for this folder's model
+                const supportedModels = [
+                    'nomic-embed-text',
+                    'mxbai-embed-large', 
+                    'all-minilm',
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
+                ];
+                
+                const modelOptions = supportedModels.map(model => ({
+                    value: model,
+                    label: model === 'nomic-embed-text' ? `${model} (Recommended)` : model
+                }));
+                
+                const currentModel = folder.model || 'nomic-embed-text';
+                const modelConfig = new SelectionListItem(
+                    '√',
+                    `Model ${index + 1}`,
+                    modelOptions,
+                    [currentModel], // selectedValues as array
+                    false, // GenericListPanel will handle active state
+                    'radio', // mode
+                    'vertical', // layout
+                    (newValues) => {
+                        if (newValues.length > 0 && folder.path && newValues[0]) {
+                            // Handle model changes - save to configuration
+                            handleModelChange(folder.path, newValues[0]);
+                        }
+                    }
+                );
+                
+                items.push(folderPicker, modelConfig);
+            });
             
-            // Create a FilePickerListItem showing the actual configured folder
-            const folderPicker = new FilePickerListItem(
-                folderIcon,
-                'Project Folder',
-                folderPath,
-                false, // GenericListPanel will handle active state
-                'folder', // folder mode
-                (newPath) => {
-                    // TODO: Handle folder path changes in main app
-                    console.log('User wants to change folder to:', newPath);
-                    // This would need to update the config and trigger re-indexing
-                }
-            );
-            
-            // Create ConfigurationListItem for model
-            const modelConfig = new ConfigurationListItem(
-                '√',
-                'Embedding Model',
-                config.folders[0].model || config.embedding?.model || 'ollama:nomic-embed-text',
-                false, // GenericListPanel will handle active state
-                false, // not expanded
-                undefined, // no edit value
-                undefined, // no cursor position
-                undefined, // no cursor visible
-                (newModel) => {
-                    // TODO: Handle model changes
-                    console.log('User wants to change model to:', newModel);
-                }
-            );
-            
-            // Create ConfigurationListItem for language
-            const languageConfig = new ConfigurationListItem(
-                '√',
-                'Language',
-                config.folders[0].language || 'auto',
-                false, // GenericListPanel will handle active state
-                false, // not expanded
-                undefined, // no edit value
-                undefined, // no cursor position
-                undefined, // no cursor visible
-                (newLanguage) => {
-                    // TODO: Handle language changes
-                    console.log('User wants to change language to:', newLanguage);
-                }
-            );
-            
-            const configItems = [folderPicker, modelConfig, languageConfig];
-            
-            return configItems;
+            return items;
         } else {
             // Fallback to sample data when no config available
             const sampleItems = [...CONFIG_ITEMS]; // Clone to avoid mutations
             
             return sampleItems;
         }
-    }, [config]); // Remove navigation dependencies - GenericListPanel handles active state
+    }, [currentFolders, handleModelChange]); // Use currentFolders instead of config
     
     // Try to use theme context if available
     const themeContext = useContext(ThemeContext);
@@ -221,9 +270,33 @@ interface AppContentProps {
 
 const AppContent: React.FC<AppContentProps> = ({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
+    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
-    // Calculate actual config item count
-    const actualConfigItemCount = config?.folders?.[0] ? 3 : CONFIG_ITEM_COUNT; // folder + model + language
+    // Load folders for count calculation
+    React.useEffect(() => {
+        const loadFoldersForCount = async () => {
+            try {
+                const container = getContainer();
+                const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                const folders = await configComponent.getFolders();
+                setCurrentFolders(folders);
+            } catch (error) {
+                console.error('Failed to load folders for count:', error);
+                setCurrentFolders([]);
+            }
+        };
+        loadFoldersForCount();
+    }, [config]);
+    
+    // Calculate actual config item count dynamically
+    const actualConfigItemCount = (() => {
+        if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
+            // Each folder contributes 2 items: folder picker + model selector
+            return currentFolders.length * 2;
+        } else {
+            return CONFIG_ITEM_COUNT; // Fallback to sample data count
+        }
+    })();
     
     return (
         <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={actualConfigItemCount} statusItemCount={STATUS_ITEM_COUNT}>

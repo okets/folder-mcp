@@ -441,7 +441,7 @@ export class MCPEndpoints implements IMCPEndpoints {
       // Use multi-folder configuration
       this.logger.debug('Using folder manager for folder list');
       const configuredFolders = await this.folderManager.getFolders();
-      const folders = configuredFolders.map((folder: any) => folder.name);
+      const folders = configuredFolders.map((folder: any) => folder.path);
 
       return {
         data: {
@@ -469,18 +469,18 @@ export class MCPEndpoints implements IMCPEndpoints {
     try {
       this.logger.debug('MCP ListDocuments endpoint called', request);
 
-      // Handle both 'folder' and 'folderPath' for compatibility
-      const folderName = (request as any).folder || (request as any).folderPath || '';
+      // Handle both 'folder' and 'folderPath' for compatibility  
+      const folderPath = (request as any).folder || (request as any).folderPath || '';
       
       // Use folder manager to resolve folder path
-      this.logger.debug('Using folder manager to resolve folder path:', folderName);
-      const folder = await this.folderManager.getFolderByName(folderName);
+      this.logger.debug('Using folder manager to resolve folder path:', folderPath);
+      const folder = await this.folderManager.getFolderByPath(folderPath);
       if (!folder) {
-        throw new Error(`Folder '${folderName}' not found in configuration`);
+        throw new Error(`Folder '${folderPath}' not found in configuration`);
       }
-      const folderPath = folder.resolvedPath;
+      const resolvedPath = folder.resolvedPath;
       
-      const files = await this.listFiles(folderPath);
+      const files = await this.listFiles(resolvedPath);
       const maxTokens = request.max_tokens || 4000;
       
       const documents = [];

@@ -197,6 +197,7 @@ This phase uses an exploratory approach where tasks are discovered and documente
 **Subtasks**:
 - [ ] Create `src/daemon/index.ts` entry point
 - [ ] Move MCP server logic to daemon process
+- [ ] Update MCP endpoints to use folder paths instead of names for identification
 - [ ] Implement basic PID file management (`~/.folder-mcp/daemon.pid`)
 - [ ] Add `folder-mcp --daemon` command to start daemon
 - [ ] Add basic HTTP server to daemon (port 9876) with `/health` endpoint
@@ -559,7 +560,7 @@ npm run build  # Build succeeds with no errors
 - [x] Mark progress on this document
 
 #### Task 4.8: Multi-Folder Configuration
-**Status**: 🚧 IN PROGRESS  
+**Status**: ✅ IMPLEMENTATION COMPLETE - READY FOR TESTING  
 **Discovered**: 2025-07-10  
 **What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
 
@@ -614,12 +615,20 @@ Configured Folders:
 ```
 
 **Implementation Subtasks**:
-- [ ] **CLI Parameter Handling**: Add `-m, --model <model>` flag with validation
-- [ ] **Model Validation**: Add model validation rules to ValidationRegistry 
-- [ ] **Configuration Integration**: Extend ConfigurationComponent with folder array methods
-- [ ] **TUI Wizard Updates**: Add model selection using existing SingleChoice component
-- [ ] **Main App Display**: Show folders using existing ConfigurationItem components
-- [ ] **Auto-completion Logic**: Implement smart parameter completion with confirmation prompts
+- [x] **CLI Parameter Handling**: Add `-m, --model <model>` flag with validation
+- [x] **Model Validation**: Add model validation rules to ValidationRegistry 
+- [x] **Configuration Integration**: Extend ConfigurationComponent with folder array methods
+- [x] **TUI Wizard Updates**: Add model selection using existing SingleChoice component
+- [ ] **Main App Display**: Show folders using existing ConfigurationItem components (deferred)
+- [x] **Auto-completion Logic**: Implement smart parameter completion with confirmation prompts
+
+**Implementation Summary**:
+1. **CLI Parameters**: Extended `folder-mcp.ts` to support `-m, --model <model>` flag alongside existing `-d, --dir <path>` flag
+2. **Model Validation**: Added comprehensive model validation to ValidationRegistry with 8 supported models including ollama pattern
+3. **Configuration Management**: Extended ConfigurationComponent with full folder array CRUD operations following proper schema
+4. **Auto-completion Handler**: Created new AutoCompletionHandler component with confirmation prompts for partial parameters
+5. **TUI Integration**: Updated TUI entry point and FirstRunWizard to handle model parameters and auto-completion flow
+6. **Schema Compliance**: All configuration follows proper FolderConfig schema with embeddings.model structure
 
 **Files to Modify**:
 1. `src/interfaces/cli/folder-mcp.ts` - Add -m flag and decision tree logic

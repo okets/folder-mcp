@@ -94,7 +94,7 @@ export interface SearchRequest {
   mode: 'semantic' | 'regex';
   scope: 'documents' | 'chunks';
   filters?: {
-    folder?: string;
+    folder?: string;  // Now accepts folder path instead of name
     fileType?: string;
   };
   max_tokens?: number;
