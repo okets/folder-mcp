@@ -552,19 +552,280 @@ npm test  # 867/867 tests passing
 npm run build  # Build succeeds with no errors
 ```
 
-**Next User Flow** (Task 4.8):
-After perfecting single folder configuration, the natural next step is **Multi-Folder Configuration**:
-- Add/remove multiple folders
-- Handle deleted folders gracefully  
-- Folder-specific settings (different models per folder)
-- Conflict resolution between folders
-- This creates the solid ground needed for backend integration
-
 **Task Completion Protocol**:
 - [x] Implement -d parameter integration with wizard using TDD
 - [x] Fix all build and test failures
 - [x] Document implementation approach
 - [x] Mark progress on this document
+
+#### Task 4.8: Multi-Folder Configuration
+**Status**: 🚧 IN PROGRESS  
+**Discovered**: 2025-07-10  
+**What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
+
+**Why**: After perfecting single folder configuration, users need to manage multiple folders with different models. This creates the foundation for folder isolation and proper embedding model selection per content type.
+
+## Multi-Folder Application Flow
+
+```
+1. User runs folder-mcp
+2. With CLI params?
+   ├─ No → First run? → Wizard : Main App
+   └─ Yes → Validate params
+       ├─ Validation fails → Exit with error (daemon keeps running)
+       └─ Validation passes → Both params?
+           ├─ Both -d and -m → Add folder, show Main App
+           └─ Only one param → Auto-complete + confirmation → Add folder, show Main App
+```
+
+**Auto-completion Logic**:
+- If only `-d` provided: Use default model (e.g., `nomic-embed-text`)
+- If only `-m` provided: Use current working directory as path
+
+**Configuration Storage**:
+Store folders as simple array in `config.yaml`:
+```yaml
+folders:
+  list:
+    - path: "/Users/hanan/Documents"
+      model: "nomic-embed-text"
+    - path: "/Users/hanan/Projects" 
+      model: "codebert-base"
+```
+
+**Model Options** (3-5 supported + ollama pattern):
+- `nomic-embed-text` (default)
+- `all-mpnet-base-v2` (general purpose)
+- `all-MiniLM-L6-v2` (lightweight)
+- `codebert-base` (code-specific)
+- `mxbai-embed-large` (high quality)
+- `ollama:*` pattern for power users
+
+**Main App Display**:
+Show configured folders using existing ConfigurationItem components:
+```
+Configured Folders:
+┌─────────────────────────────────────┐
+│ folder 1 path: /Users/hanan/Documents │
+│ folder 1 model: nomic-embed-text      │
+│ folder 2 path: /Users/hanan/Projects  │ 
+│ folder 2 model: codebert-base         │
+└─────────────────────────────────────┘
+```
+
+**Implementation Subtasks**:
+- [ ] **CLI Parameter Handling**: Add `-m, --model <model>` flag with validation
+- [ ] **Model Validation**: Add model validation rules to ValidationRegistry 
+- [ ] **Configuration Integration**: Extend ConfigurationComponent with folder array methods
+- [ ] **TUI Wizard Updates**: Add model selection using existing SingleChoice component
+- [ ] **Main App Display**: Show folders using existing ConfigurationItem components
+- [ ] **Auto-completion Logic**: Implement smart parameter completion with confirmation prompts
+
+**Files to Modify**:
+1. `src/interfaces/cli/folder-mcp.ts` - Add -m flag and decision tree logic
+2. `src/config/ValidationRegistry.ts` - Add folder path + model validation rules
+3. `src/config/ConfigurationComponent.ts` - Add folder array management methods
+4. `src/interfaces/tui-ink/components/FirstRunWizard.tsx` - Add model selection
+5. Main app component - Display folders using ConfigurationItem
+
+**Success Criteria**:
+```bash
+# Both parameters - direct add
+folder-mcp -d ~/Documents -m nomic-embed-text
+
+# Single parameter - auto-complete with confirmation
+folder-mcp -d ~/Documents  # Prompts: "Use default model 'nomic-embed-text'? (Y/n)"
+folder-mcp -m codebert-base  # Prompts: "Add current directory? (Y/n)"
+
+# Validation errors
+folder-mcp -d /nonexistent  # Error: Directory does not exist
+folder-mcp -m invalid-model  # Error: Model not supported
+
+# TUI shows configured folders
+folder-mcp  # Displays folder list with paths and models
+```
+
+## Human QA Testing Process
+
+### Pre-Testing Setup
+```bash
+# Clean slate for testing
+rm -rf ~/.folder-mcp
+npm run build
+```
+
+### Test Scenario 1: First Run Without Parameters
+**Expected Flow**: Wizard → Folder selection → Model selection → Main App
+
+**Test Steps**:
+1. Run `folder-mcp` (no parameters)
+2. Should show first-run wizard
+3. Select a folder using file picker
+4. Select a model from list (5 options + ollama pattern)
+5. Should create config.yaml with folder/model pair
+6. Should show main app with configured folder displayed
+
+**Validation Points**:
+- [ ] Wizard appears on first run
+- [ ] Folder picker works correctly
+- [ ] Model selection shows all 5 models + ollama option
+- [ ] Config file created at `~/.folder-mcp/config.yaml`
+- [ ] Main app shows folder with correct path and model
+- [ ] Second run skips wizard and goes to main app
+
+### Test Scenario 2: Both CLI Parameters
+**Expected Flow**: Validate → Add folder → Main App
+
+**Test Steps**:
+1. Run `folder-mcp -d ~/Documents -m nomic-embed-text`
+2. Should validate both parameters
+3. Should add folder to config immediately
+4. Should show main app with folder displayed
+
+**Validation Points**:
+- [ ] No wizard shown
+- [ ] Folder added to config.yaml
+- [ ] Main app shows correct folder and model
+- [ ] No confirmation prompts (user knows what they're doing)
+
+### Test Scenario 3: Single Parameter - Folder Only
+**Expected Flow**: Validate → Auto-complete → Confirm → Add folder → Main App
+
+**Test Steps**:
+1. Run `folder-mcp -d ~/Projects`
+2. Should validate folder exists
+3. Should prompt: "Use default model 'nomic-embed-text'? (Y/n)"
+4. Confirm with 'Y'
+5. Should add folder with default model
+6. Should show main app
+
+**Validation Points**:
+- [ ] Folder validation works
+- [ ] Auto-completion prompt appears
+- [ ] Confirmation saves to config
+- [ ] Main app shows folder with default model
+
+### Test Scenario 4: Single Parameter - Model Only  
+**Expected Flow**: Validate → Auto-complete → Confirm → Add folder → Main App
+
+**Test Steps**:
+1. Run `folder-mcp -m codebert-base` from ~/Projects directory
+2. Should validate model is supported
+3. Should prompt: "Add current directory '~/Projects' with model 'codebert-base'? (Y/n)"
+4. Confirm with 'Y'
+5. Should add current directory with specified model
+
+**Validation Points**:
+- [ ] Model validation works
+- [ ] Current directory detected correctly
+- [ ] Confirmation prompt shows both path and model
+- [ ] Config updated correctly
+
+### Test Scenario 5: Validation Errors
+**Expected Flow**: Show error → Exit CLI → Daemon continues running
+
+**Test Steps**:
+1. Run `folder-mcp -d /nonexistent/path`
+2. Should show error: "Directory does not exist"
+3. CLI should exit with error code
+4. Daemon should continue running (if started)
+
+**Test Steps for Model Error**:
+1. Run `folder-mcp -m invalid-model-name`
+2. Should show error: "Model not supported. Supported models: [list]"
+3. CLI should exit with error code
+
+**Validation Points**:
+- [ ] Clear, helpful error messages
+- [ ] CLI exits with proper error code
+- [ ] Daemon isolation (doesn't crash daemon)
+- [ ] Error messages suggest valid alternatives
+
+### Test Scenario 6: Multiple Folders
+**Expected Flow**: Add multiple folders → Display in main app
+
+**Test Steps**:
+1. Run `folder-mcp -d ~/Documents -m nomic-embed-text`
+2. Run `folder-mcp -d ~/Projects -m codebert-base`
+3. Run `folder-mcp` (no params)
+4. Should show main app with both folders listed
+
+**Validation Points**:
+- [ ] Multiple folders stored in config.yaml
+- [ ] Each folder has correct model
+- [ ] Main app displays all folders
+- [ ] No conflicts between folders
+
+### Test Scenario 7: Ollama Model Pattern
+**Expected Flow**: Validate ollama pattern → Add folder → Main App
+
+**Test Steps**:
+1. Run `folder-mcp -d ~/Code -m ollama:codellama`
+2. Should validate ollama pattern (starts with "ollama:")
+3. Should add folder with ollama model
+4. Should show in main app
+
+**Validation Points**:
+- [ ] Ollama pattern validation works
+- [ ] Model stored correctly as "ollama:codellama"
+- [ ] Main app displays ollama model properly
+
+### Test Scenario 8: Deleted Folder Handling
+**Expected Flow**: Detect missing folder → Show warning → Continue gracefully
+
+**Test Steps**:
+1. Add folder: `folder-mcp -d ~/temp-test -m nomic-embed-text`
+2. Delete folder: `rm -rf ~/temp-test`
+3. Run `folder-mcp`
+4. Should detect missing folder gracefully
+
+**Validation Points**:
+- [ ] Missing folder detected
+- [ ] Warning message shown (not crash)
+- [ ] Other folders still work
+- [ ] Option to remove missing folder from config
+
+### Test Scenario 9: Deleted Ollama Model
+**Expected Flow**: Detect missing model → Show warning → Continue gracefully
+
+**Test Steps**:
+1. Add folder: `folder-mcp -d ~/test -m ollama:nonexistent-model`
+2. Run `folder-mcp`
+3. Should detect that ollama model doesn't exist
+4. Should show warning but continue
+
+**Validation Points**:
+- [ ] Missing ollama model detected
+- [ ] Warning message shown
+- [ ] Application doesn't crash
+- [ ] Other folders with valid models still work
+- [ ] Option to fix or remove problematic folder
+
+### Test Scenario 10: Configuration Persistence
+**Expected Flow**: Config survives app restarts
+
+**Test Steps**:
+1. Add multiple folders through various methods
+2. Close application
+3. Run `folder-mcp` again
+4. Should show same configuration
+
+**Validation Points**:
+- [ ] Config file persists between runs
+- [ ] All folders displayed correctly
+- [ ] No data loss
+- [ ] Configuration integrity maintained
+
+**Task Completion Protocol**:
+- [ ] Implement all CLI parameter handling
+- [ ] Add model validation to ValidationRegistry
+- [ ] Extend ConfigurationComponent for folder arrays
+- [ ] Update FirstRunWizard with model selection
+- [ ] Create main app folder display
+- [ ] Complete all 10 QA test scenarios
+- [ ] Fix any bugs discovered during testing
+- [ ] Mark progress on this document
+- [ ] Wait for confirmation before commit
 
 #### Task 5: Integrate -d Parameter with Unified Config System
 **Status**: ⏳ Waiting  

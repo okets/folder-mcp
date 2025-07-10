@@ -65,12 +65,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     const hasValidCliFolder = cliDir && !folderResult.error;
     const [step, setStep] = useState(hasValidCliFolder ? 2 : 1);
     
-    // DEBUG: Log initial folder path
-    console.error(`[WIZARD-DEBUG] Initial folder setup:`);
-    console.error(`[WIZARD-DEBUG] - cliDir: ${cliDir}`);
-    console.error(`[WIZARD-DEBUG] - folderResult.path: ${folderResult.path}`);
-    console.error(`[WIZARD-DEBUG] - folderResult.error: ${folderResult.error}`);
-    console.error(`[WIZARD-DEBUG] - folderPath state: ${folderPath}`);
     const [selectedModel, setSelectedModel] = useState('ollama:nomic-embed-text');
     const [selectedLanguage, setSelectedLanguage] = useState('auto');
     const [isComplete, setIsComplete] = useState(false);
@@ -140,10 +134,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
             true, // isActive
             'folder', // mode - folder only
             (path) => {
-                console.error(`[WIZARD-DEBUG] User selected new folder path: ${path}`);
-                console.error(`[WIZARD-DEBUG] Previous folderPath: ${folderPath}`);
                 setFolderPath(path);
-                console.error(`[WIZARD-DEBUG] setFolderPath called, advancing to step 2`);
                 setStep(2); // Auto-advance to next step
             }
         );
@@ -265,9 +256,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir }) =>
     });
     
     const completeSetup = () => {
-        console.error(`[WIZARD-DEBUG] completeSetup called with folderPath: ${folderPath}`);
-        console.error(`[WIZARD-DEBUG] selectedModel: ${selectedModel}`);
-        console.error(`[WIZARD-DEBUG] selectedLanguage: ${selectedLanguage}`);
         
         setIsComplete(true);
         

@@ -1,6 +1,17 @@
 folders:
+  defaults:
+    embeddings:
+      backend: ollama
+      model: ollama:nomic-embed-text
+  list:
+    - embeddings:
+        backend: ollama
+        model: ollama:nomic-embed-text
+      enabled: true
+      name: Folder
+      path: /
   list[0]:
     path: /nonexistent/path
-theme: dark
+theme: auto
 user:
   email: definitely-not-an-email

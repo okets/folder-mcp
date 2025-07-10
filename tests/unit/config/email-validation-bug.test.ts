@@ -42,9 +42,10 @@ describe('Email Validation Bug Test', () => {
         const result = await configComponent.validate('user.email', invalidEmail);
         
         // This should be false, but currently the TUI validator returns true
-        expect(result.isValid).toBe(false);
-        expect(result.error).toBeDefined();
-        expect(result.error).toMatch(/invalid.*email/i);
+        expect(result.valid).toBe(false);
+        expect(result.errors).toBeDefined();
+        expect(result.errors).toHaveLength(1);
+        expect(result.errors?.[0]?.message).toMatch(/invalid.*email/i);
     });
 
     it('should ACCEPT valid email addresses', async () => {
@@ -56,8 +57,8 @@ describe('Email Validation Bug Test', () => {
         
         for (const email of validEmails) {
             const result = await configComponent.validate('user.email', email);
-            expect(result.isValid).toBe(true);
-            expect(result.error).toBeUndefined();
+            expect(result.valid).toBe(true);
+            expect(result.errors).toBeUndefined();
         }
     });
 

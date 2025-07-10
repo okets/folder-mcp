@@ -56,32 +56,18 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
             const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
             const configExists = configComponent.hasConfigFile();
             
-            console.error(`\n=== MAIN APP CONFIG CHECK ===`);
-            console.error(`Config path: ${configComponent.getConfigFilePath()}`);
-            console.error(`Config exists: ${configExists}`);
-            console.error(`CLI dir parameter: ${cliDir}`);
-            
             // Always show wizard if CLI -d parameter is provided (allows override)
             if (cliDir) {
-                console.error(`CLI -d parameter provided, showing wizard`);
                 setShowWizard(true);
             } else if (configExists) {
                 try {
-                    console.error(`Config file exists, loading from unified system...`);
                     // Load config from unified ConfigurationComponent
-                    console.error(`ConfigurationComponent resolved successfully`);
                     await configComponent.load();
-                    console.error(`ConfigurationComponent loaded successfully`);
                     
                     // Get folders configuration with fallback to defaults
                     const foldersList = await configComponent.get('folders.list');
                     const embeddingModel = await configComponent.get('folders.defaults.embeddings.model');
                     const theme = await configComponent.get('theme');
-                    
-                    console.error(`\n=== CONFIG VALUES RETRIEVED ===`);
-                    console.error(`folders.list:`, foldersList);
-                    console.error(`embedding model:`, embeddingModel);
-                    console.error(`theme:`, theme);
                     
                     // Create config object for backward compatibility
                     const loadedConfig = {
@@ -99,24 +85,13 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
                         }
                     };
                     
-                    console.error(`\n=== MAIN APP CONFIG LOADED ===`);
-                    console.error(`Config object:`, loadedConfig);
-                    console.error(`Switching to main app (no wizard)`);
-                    console.error(`=== END MAIN APP CONFIG ===\n`);
-                    
                     setConfig(loadedConfig);
                     setShowWizard(false);
                 } catch (error) {
-                    console.error(`\n=== MAIN APP CONFIG ERROR ===`);
-                    console.error('Failed to load config from unified system:', error);
-                    console.error(`Error details:`, error);
-                    console.error(`Falling back to wizard`);
-                    console.error(`=== END ERROR ===\n`);
                     setShowWizard(true);
                 }
             } else {
-                console.error(`No config file found, showing wizard for first run`);
-                console.error(`=== END MAIN APP CONFIG CHECK ===\n`);
+                setShowWizard(true);
             }
         };
         
@@ -124,12 +99,8 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined }> = ({ cliDir }) =
     }, [cliDir]);
     
     const handleWizardComplete = (newConfig: any) => {
-        console.error(`[MAIN-DEBUG] handleWizardComplete called with config:`);
-        console.error(`[MAIN-DEBUG] - folders[0].path: ${newConfig.folders[0]?.path}`);
-        console.error(`[MAIN-DEBUG] - folders[0].name: ${newConfig.folders[0]?.name}`);
         setConfig(newConfig);
         setShowWizard(false);
-        console.error(`[MAIN-DEBUG] Wizard complete, transitioning to main app`);
     };
     
     if (showWizard) {
@@ -151,7 +122,6 @@ async function startTUI() {
         const configInitializer = await mainContainer.resolveAsync('CONFIG_INITIALIZER' as any) as IConfigManager;
         
         // Configuration is now loaded
-        console.error('[TUI] Configuration loaded, theme:', configInitializer.get('theme') || 'auto');
         
         // Render with configuration support
         const app = render(
@@ -167,7 +137,6 @@ async function startTUI() {
         
         return app;
     } catch (error) {
-        console.error('[TUI] Failed to initialize with config, falling back to wizard');
         
         // Fallback to wizard/main app without config
         const app = render(
@@ -204,6 +173,5 @@ startTUI().then(instance => {
 }).then(() => {
     // Let terminal handle cleanup naturally
 }).catch(error => {
-    console.error('[TUI] Fatal error:', error);
     process.exit(1);
 });

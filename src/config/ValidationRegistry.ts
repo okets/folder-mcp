@@ -80,7 +80,11 @@ export class ValidationRegistry {
                     'nomic-embed-text',
                     'mxbai-embed-large',
                     'all-minilm',
-                    'sentence-transformers'
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
                 ];
                 return supportedModels.includes(value);
             },
