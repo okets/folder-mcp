@@ -615,11 +615,7 @@ export class FilePickerListItem extends ValidatedListItem {
             // Expanded view
             const elements: ReactElement[] = [];
             
-            // Header with mode and error notification
-            const fullModeText = this.mode === 'folder' ? 'folder mode' : 
-                            this.mode === 'file' ? 'file mode' : 
-                            'file/folder mode';
-            
+            // Header with error notification
             // Parse error for notification
             let notification = '';
             if (this._error) {
@@ -639,7 +635,7 @@ export class FilePickerListItem extends ValidatedListItem {
             // Truncate the entire header line as one unit
             const prefix = '■ ';
             const suffix = ': ';
-            const fullContent = `${this.label} (${fullModeText})`;
+            const fullContent = this.label;
             let displayContent = fullContent;
             
             // Check if we need to truncate

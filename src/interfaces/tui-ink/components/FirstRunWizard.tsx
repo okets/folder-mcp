@@ -367,7 +367,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const createReadOnlyFolderPicker = () => {
         const picker = new FilePickerListItem(
             '✓',
-            `Which folder would you like to index? ${folderPath}`,
+            'Which folder would you like to index?',
             folderPath,
             false, // not active
             'folder',
@@ -380,7 +380,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const createReadOnlyModelSelector = () => {
         const selector = new SelectionListItem(
             '✓',
-            `What embedding model would you like to use? ${selectedModel}`,
+            'What embedding model would you like to use?',
             modelOptions,
             [selectedModel],
             false, // not active
@@ -397,8 +397,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     // Create confirmation selector for final step
     const createConfirmationSelector = () => {
         const options = [
-            { value: 'confirm', label: 'Confirm' },
-            { value: 'deny', label: 'Deny' }
+            { value: 'confirm', label: '✓ Confirm' }, // green checkmark
+            { value: 'deny', label: '✗ Cancel' }       // red x
         ];
         const selector = new SelectionListItem(
             '?',
@@ -461,7 +461,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     return (
         <Box flexDirection="column" height="100%">
             <GenericListPanel
-                title="folder-mcp setup"
+                title="folder-mcp · Add Folder Wizard"
                 subtitle="Let's configure your knowledge base"
                 items={getAllItems()}
                 selectedIndex={getAllItems().length - 1} // Focus on last (current) item

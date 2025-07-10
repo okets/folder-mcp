@@ -508,7 +508,8 @@ export const FilePickerBody = ({
         // Only show confirm selection if we're showing the bottom of the list
         const isShowingBottom = !showScrollDown || (endRow === itemsPerColumn);
         
-        if (isShowingBottom || isConfirmFocused) {
+        // Always show confirm selection - it should be fixed at bottom
+        if (true) {
             // Calculate available width for confirm text
             // "└─▶ ✓ " = 7 chars when focused, "└─  ✓ " = 7 chars when not focused
             const prefixWidth = 7;
