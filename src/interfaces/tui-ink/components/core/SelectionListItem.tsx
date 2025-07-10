@@ -23,6 +23,7 @@ export class SelectionListItem implements IListItem {
     private _focusedIndex: number = 0;
     private onValueChange?: (newValues: string[]) => void;
     private _validationError: string | null = null;
+    public _validationMessage: any = null; // For external validation messages
     
     // Track working state while editing
     private _workingSelectedValues: string[] = [];
@@ -437,37 +438,31 @@ export class SelectionListItem implements IListItem {
             const displayValues = this.getDisplayValues();
             const { label, value, truncated } = this.formatCollapsedParts(maxWidth, displayValues);
             
-            // Build the full text without nested components to avoid wrapping
-            const fullText = truncated 
-                ? `${this.icon} ${label} [${value}…]`
-                : `${this.icon} ${label} [${value}]`;
-            
-            // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
-            // Use conservative width calculation to prevent wrapping but preserve space for UI elements
-            const conservativeWidth = maxWidth - 1;
-            if (getVisualWidth(fullText) >= conservativeWidth) {
-                // Force truncation to prevent wrapping
-                const safeLength = maxWidth - 5; // Leave room for "…]" and safety buffer
-                const labelAndIconLength = getVisualWidth(this.icon) + 1 + getVisualWidth(label) + 1; // "icon label "
-                const remainingSpace = safeLength - labelAndIconLength - 2; // -2 for "[]"
-                const truncatedValue = displayValues.slice(0, Math.max(0, remainingSpace));
-                
-                // Build single text string to prevent wrapping at component boundaries
-                const forcedTruncatedText = `${this.icon} ${label} [${truncatedValue}…]`;
-                
-                return (
-                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                        {forcedTruncatedText}
+            // Build with separate components to allow value coloring and optional validation
+            const elements = [
+                <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                    {this.icon} {label} [
+                </Text>,
+                <Text key="value" {...textColorProp(theme.colors.configValuesColor)}>
+                    {value}{truncated ? '…' : ''}
+                </Text>,
+                <Text key="bracket" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                    ]
+                </Text>
+            ];
+
+            // Add validation checkmark if present (wizard feature)
+            if (this._validationMessage && this._validationMessage.state === 'valid') {
+                elements.push(
+                    <Text key="validation" {...textColorProp(theme.colors.successGreen)}>
+                        {' '}✓
                     </Text>
                 );
             }
-                
-            // Build single text string to prevent wrapping at component boundaries
-            const normalText = `${this.icon} ${label} [${value}${truncated ? '…' : ''}]`;
-            
+
             return (
-                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                    {normalText}
+                <Text>
+                    {elements}
                 </Text>
             );
         }

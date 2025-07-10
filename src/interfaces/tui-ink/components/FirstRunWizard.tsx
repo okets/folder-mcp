@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync, statSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { ValidationState, createValidationMessage } from '../validation/ValidationState';
 import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
@@ -363,73 +364,100 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     }
     
 
-    // Helper function to get question status
-    const getQuestionStatus = (questionType: 'folder' | 'model' | 'confirmation') => {
+    // Helper function to create validation message for success states
+    const getValidationForQuestion = (questionType: 'folder' | 'model' | 'confirmation') => {
         switch (questionType) {
             case 'folder':
-                if (!folderPath || folderResult.error) return { icon: '✗', color: '#EF4444' }; // red for invalid
-                if (folderPath) return { icon: '✓', color: '#10B981' }; // green for completed
-                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                if (folderPath && !folderResult.error) {
+                    return createValidationMessage(ValidationState.Valid, '', '✓');
+                }
+                return null; // No validation message for incomplete/invalid states
                 
             case 'model':
-                if (modelError) return { icon: '✗', color: '#EF4444' }; // red for invalid
-                if (selectedModel && supportedModels.includes(selectedModel)) return { icon: '✓', color: '#10B981' }; // green for completed
-                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                if (selectedModel && supportedModels.includes(selectedModel) && !modelError) {
+                    return createValidationMessage(ValidationState.Valid, '', '✓');
+                }
+                return null; // No validation message for incomplete/invalid states
                 
             case 'confirmation':
-                // Confirmation is always unanswered until the final action
-                return { icon: '?', color: '#F59E0B' }; // orange for unanswered
+                // Confirmation doesn't need validation icons
+                return null;
                 
             default:
-                return { icon: '?', color: '#F59E0B' };
+                return null;
         }
     };
 
-    // Create items for all questions (always show all)
-    const getAllItems = () => {
+    // Stable callback functions
+    const handleFolderChange = React.useCallback((path: string) => {
+        setFolderPath(path);
+        setStep(2); // Auto-advance to next step
+    }, []);
+    
+    const handleModelChange = React.useCallback((values: string[]) => {
+        if (values.length > 0 && values[0] !== undefined) {
+            setSelectedModel(values[0]);
+            setStep(3); // Auto-advance to confirmation
+        }
+    }, []);
+    
+    const handleConfirmationChange = React.useCallback((selectedValues: string[]) => {
+        if (selectedValues[0] === 'confirm') {
+            completeSetup();
+        } else {
+            exit();
+        }
+    }, [exit]);
+
+    // Create stable items using useMemo to prevent recreation on every render
+    const allItems = React.useMemo(() => {
         const items = [];
         
+        // Get validation states
+        const folderValidation = getValidationForQuestion('folder');
+        const modelValidation = getValidationForQuestion('model');
+        
+        
         // Step 1: Folder selection - always show
-        const folderStatus = getQuestionStatus('folder');
         const folderPickerItem = new FilePickerListItem(
             '·',
-            `${folderStatus.icon} Which folder would you like to index?`,
+            'Which folder would you like to index?',
             folderPath,
             step === 1, // active when it's the current step
             'folder',
-            (path) => {
-                setFolderPath(path);
-                setStep(2); // Auto-advance to next step
-            }
+            handleFolderChange
         );
+        
+        // Set validation message immediately during creation
+        if (folderValidation) {
+            (folderPickerItem as any)._externalValidationMessage = folderValidation;
+        }
         
         items.push(folderPickerItem);
         
         // Step 2: Model selection - always show  
-        const modelStatus = getQuestionStatus('model');
         const modelSelectorItem = new SelectionListItem(
             '·',
-            `${modelStatus.icon} What embedding model would you like to use?`,
+            'What embedding model would you like to use?',
             modelOptions,
             [selectedModel],
             step === 2, // active when it's the current step
             'radio',
             'vertical',
-            (values) => {
-                if (values.length > 0 && values[0] !== undefined) {
-                    setSelectedModel(values[0]);
-                    setStep(3); // Auto-advance to confirmation
-                }
-            }
+            handleModelChange
         );
+        
+        // Set validation message immediately during creation
+        if (modelValidation) {
+            (modelSelectorItem as any)._validationMessage = modelValidation;
+        }
         
         items.push(modelSelectorItem);
         
         // Step 3: Confirmation - always show
-        const confirmationStatus = getQuestionStatus('confirmation');
         const confirmationSelectorItem = new SelectionListItem(
             '·',
-            `${confirmationStatus.icon} Confirm Adding Embeddings for this folder`,
+            'Confirm Adding Embeddings for this folder',
             [
                 { value: 'confirm', label: '✓ Confirm' },
                 { value: 'deny', label: '✗ Cancel' }
@@ -438,26 +466,20 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             step === 3, // active when it's the current step
             'radio',
             'horizontal',
-            (selectedValues: string[]) => {
-                if (selectedValues[0] === 'confirm') {
-                    completeSetup();
-                } else {
-                    exit();
-                }
-            }
+            handleConfirmationChange
         );
         
         items.push(confirmationSelectorItem);
         
         return items;
-    };
+    }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleConfirmationChange, supportedModels, modelError, folderResult.error]); // Include validation dependencies
 
     return (
         <Box flexDirection="column" height="100%">
             <GenericListPanel
                 title="folder-mcp · Add Folder Wizard"
                 subtitle="Let's configure your knowledge base"
-                items={getAllItems()}
+                items={allItems}
                 selectedIndex={step - 1} // Focus on current step (0-indexed)
                 isFocused={true}
                 elementId="wizard-main"

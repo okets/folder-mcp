@@ -38,6 +38,7 @@ export class FilePickerListItem extends ValidatedListItem {
     private _hasNavigated: boolean = false;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
+    public _externalValidationMessage: any = null; // For external validation messages (wizard feature)
     
     constructor(
         public icon: string,
@@ -931,18 +932,35 @@ export class FilePickerListItem extends ValidatedListItem {
                     this.isActive
                 );
                 
+                // Build with separate components to allow value coloring and optional validation
+                const elements = [
+                    <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
+                        {this.icon}
+                    </Text>,
+                    <Text key="label" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                        {' '}{formatted.truncatedLabel || this.label} [
+                    </Text>,
+                    <Text key="value" {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
+                        {formatted.displayValue}
+                    </Text>,
+                    <Text key="bracket" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                        ]
+                    </Text>
+                ];
+
+                // Add validation checkmark if present (wizard feature)
+                if (this._externalValidationMessage && this._externalValidationMessage.state === 'valid') {
+                    elements.push(
+                        <Text key="validation" {...textColorProp(theme.colors.successGreen)}>
+                            {' '}✓
+                        </Text>
+                    );
+                }
+
                 return (
                     <Text>
                         <Transform transform={output => output}>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
-                                {this.icon}
-                            </Text>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{formatted.truncatedLabel || this.label} [</Text>
-                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
-                                {formatted.displayValue}
-                            </Text>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>]</Text>
+                            {elements}
                         </Transform>
                     </Text>
                 );
