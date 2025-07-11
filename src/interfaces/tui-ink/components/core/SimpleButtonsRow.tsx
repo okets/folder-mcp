@@ -3,6 +3,14 @@ import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem';
 import { theme } from '../../utils/theme';
 
+// Global terminal size state - updated by parent components
+let globalTerminalRows = 30; // Default safe value for normal resolution
+
+// Function to update global terminal size from parent components
+export function updateGlobalTerminalSize(rows: number): void {
+    globalTerminalRows = rows;
+}
+
 export interface ButtonConfig {
     name: string;           
     borderColor: string;    
@@ -24,11 +32,9 @@ export class SimpleButtonsRow implements IListItem {
         private onButtonActivate?: (buttonConfig: ButtonConfig, buttonIndex: number) => void
     ) {
         this._isActive = isActive;
-        console.error(`[SimpleButtonsRow] CONSTRUCTOR - isActive: ${this._isActive}`);
         // If the row is created as active, immediately enter control mode
         // This ensures buttons are immediately interactive
         if (this._isActive) {
-            console.error(`[SimpleButtonsRow] CONSTRUCTOR - setting _isControllingInput = true`);
             this._isControllingInput = true;
             this._focusedButtonIndex = 0;
         }
@@ -39,30 +45,23 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     set isActive(value: boolean) {
-        console.error(`[SimpleButtonsRow] isActive setter - OLD: ${this._isActive}, NEW: ${value}`);
         const wasActive = this._isActive;
         this._isActive = value;
         
         // If becoming active for the first time, auto-enter control mode
         if (!wasActive && value) {
-            console.error(`[SimpleButtonsRow] isActive setter - becoming active, setting _isControllingInput = true`);
             this._isControllingInput = true;
             this._focusedButtonIndex = 0;
         }
         // If staying active but not controlling input (zombie state), re-enter control mode
         else if (wasActive && value && !this._isControllingInput) {
-            console.error(`[SimpleButtonsRow] isActive setter - staying active but not controlling input, re-entering control mode`);
             this._isControllingInput = true;
             this._focusedButtonIndex = 0;
         }
     }
     
     get isControllingInput(): boolean {
-        const result = this._isControllingInput;
-        if (result) {
-            console.error(`[SimpleButtonsRow] isControllingInput getter called - returning: ${result}, _focusedButtonIndex=${this._focusedButtonIndex}`);
-        }
-        return result;
+        return this._isControllingInput;
     }
     
     /**
@@ -171,160 +170,125 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        // Check if we're in low resolution mode 
-        const isLowRes = maxLines !== undefined && maxLines < 4;
+        // Use global terminal size for responsive decision, like StatusBar does
+        const globalLowResolution = globalTerminalRows < 25;
         
-        // Show focus when controlling input OR when row is active AND we want immediate button focus
+        // Only minimize when we literally cannot fit the 3-line bordered mode
+        const cannotFitBorderedMode = maxLines !== undefined && maxLines < 3;
+        
+        
         const focusedButton = this._isControllingInput ? this._focusedButtonIndex : -1;
         
-        if (isLowRes) {
+        if (globalLowResolution || cannotFitBorderedMode) {
             return this.renderLowResolution(maxWidth, focusedButton);
         }
         
-        // Return array of elements like LogItem does
-        const elements: ReactElement[] = [];
+        return this.renderRegularMode(maxWidth, focusedButton);
+    }
+    
+    /**
+     * Render regular mode with bordered boxes:
+     * ╔─────────╗  ╭──────────╮
+     * │ √Accept │  │ ✗ Decline│
+     * ╚─────────╝  ╰──────────╯
+     */
+    private renderRegularMode(maxWidth: number, focusedButtonIndex: number): ReactElement[] {
+        // Calculate available width for buttons
+        const spacingBetweenButtons = 1;
+        const totalSpacing = (this.buttons.length - 1) * spacingBetweenButtons;
+        const availableWidth = maxWidth - totalSpacing - 4; // Extra margin for safety
+        const maxButtonWidth = Math.floor(availableWidth / this.buttons.length);
         
-        // Create button row
-        const buttonBoxes: ReactElement[] = [];
-        for (let i = 0; i < this.buttons.length; i++) {
-            const button = this.buttons[i];
-            if (!button) continue;
-            
-            const isFocused = i === focusedButton;
-            
-            // Strip ANSI codes to get clean text
-            const cleanText = button.text.replace(/\x1b\[[0-9;]*m/g, '');
-            
-            // Fixed width of 11 chars total (9 content + 2 borders)
-            const maxContentWidth = 9;
-            let displayText = cleanText;
-            
-            // If text is too long, truncate it
-            if (displayText.length > maxContentWidth) {
-                displayText = displayText.substring(0, maxContentWidth - 1) + '…';
-            }
-            
-            // Calculate padding
-            const paddingWidth = Math.max(maxContentWidth - displayText.length, 0);
-            const leftPad = Math.floor(paddingWidth / 2);
-            const rightPad = Math.ceil(paddingWidth / 2);
-            
-            // Build button lines
-            const cornerColor = isFocused ? '#2f70d8' : button.borderColor;
-            const sideColor = button.borderColor;
-            const topCorners = isFocused ? ['╔', '╗'] : ['╭', '╮'];
-            const bottomCorners = isFocused ? ['╚', '╝'] : ['╰', '╯'];
-            
-            buttonBoxes.push(
-                <Box key={button.name} flexDirection="column" marginRight={1}>
-                    <Text>
-                        <Text color={cornerColor}>{topCorners[0]}</Text>
-                        <Text color={sideColor}>─────────</Text>
-                        <Text color={cornerColor}>{topCorners[1]}</Text>
-                    </Text>
-                    <Text>
-                        <Text color={sideColor}>│</Text>
-                        {' '.repeat(leftPad) + displayText + ' '.repeat(rightPad)}
-                        <Text color={sideColor}>│</Text>
-                    </Text>
-                    <Text>
-                        <Text color={cornerColor}>{bottomCorners[0]}</Text>
-                        <Text color={sideColor}>─────────</Text>
-                        <Text color={cornerColor}>{bottomCorners[1]}</Text>
-                    </Text>
-                </Box>
-            );
-        }
-        
-        // Render buttons as 3 separate Text lines (like LogItem does)
-        // Line 1: Top borders
         const topLine: ReactElement[] = [];
-        
-        for (let i = 0; i < this.buttons.length; i++) {
-            const button = this.buttons[i];
-            if (!button) continue;
-            const isFocused = i === focusedButton;
-            // Always use blue corners when focused, whether controlling or just active
-            const cornerColor = isFocused ? '#2f70d8' : button.borderColor;
-            const sideColor = button.borderColor;
-            const topCorners = isFocused ? ['╔', '╗'] : ['╭', '╮'];
-            
-            topLine.push(
-                <Text key={`top-${i}`}>
-                    <Text color={cornerColor}>{topCorners[0]}</Text>
-                    <Text color={sideColor}>─────────</Text>
-                    <Text color={cornerColor}>{topCorners[1]}</Text>
-                    {i < this.buttons.length - 1 ? ' ' : ''}
-                </Text>
-            );
-        }
-        
-        // Just push the topLine array directly
-        elements.push(
-            <Box key="topline" justifyContent="center" width="100%">
-                {topLine}
-            </Box>
-        );
-        
-        // Line 2: Content
         const middleLine: ReactElement[] = [];
-        
-        for (let i = 0; i < this.buttons.length; i++) {
-            const button = this.buttons[i];
-            if (!button) continue;
-            const cleanText = button.text.replace(/\x1b\[[0-9;]*m/g, '');
-            const maxContentWidth = 9;
-            let displayText = cleanText;
-            
-            if (displayText.length > maxContentWidth) {
-                displayText = displayText.substring(0, maxContentWidth - 1) + '…';
-            }
-            
-            const paddingWidth = Math.max(maxContentWidth - displayText.length, 0);
-            const leftPad = Math.floor(paddingWidth / 2);
-            const rightPad = Math.ceil(paddingWidth / 2);
-            
-            middleLine.push(
-                <Text key={`mid-${i}`}>
-                    <Text color={button.borderColor}>│</Text>
-                    <Text>{' '.repeat(leftPad)}</Text>
-                    <Text>{button.text}</Text>
-                    <Text>{' '.repeat(rightPad)}</Text>
-                    <Text color={button.borderColor}>│</Text>
-                    {i < this.buttons.length - 1 ? ' ' : ''}
-                </Text>
-            );
-        }
-        
-        elements.push(
-            <Box key="middleline" justifyContent="center" width="100%">
-                {middleLine}
-            </Box>
-        );
-        
-        // Line 3: Bottom borders
         const bottomLine: ReactElement[] = [];
         
         for (let i = 0; i < this.buttons.length; i++) {
             const button = this.buttons[i];
             if (!button) continue;
-            const isFocused = i === focusedButton;
-            const cornerColor = isFocused ? '#2f70d8' : button.borderColor;
+            
+            const isFocused = i === focusedButtonIndex;
+            
+            // Calculate text width and truncation
+            const cleanText = button.text.replace(/\x1b\[[0-9;]*m/g, '');
+            const textWidth = cleanText.length;
+            const idealButtonWidth = textWidth + 2; // 1 space padding on each side
+            const buttonWidth = Math.max(6, Math.min(idealButtonWidth, maxButtonWidth));
+            const maxTextWidth = buttonWidth - 2; // Account for padding spaces
+            
+            let displayText = button.text; // Preserve ANSI for unfocused
+            let cleanDisplayText = cleanText;
+            
+            if (cleanText.length > maxTextWidth) {
+                const truncated = cleanText.substring(0, maxTextWidth - 1) + '…';
+                displayText = truncated; // For unfocused (lose ANSI)
+                cleanDisplayText = truncated; // For focused
+            }
+            
+            // Use fixed 1-space padding like the original ButtonsRow
+            const visualTextWidth = cleanDisplayText.length;
+            const contentWidth = visualTextWidth + 2; // Add padding spaces
+            const borderLineWidth = contentWidth; // Border line should match content
+            
+            // Create border elements
+            const cornerColor = isFocused ? theme.colors.accent : button.borderColor;
             const sideColor = button.borderColor;
+            const topCorners = isFocused ? ['╔', '╗'] : ['╭', '╮'];
             const bottomCorners = isFocused ? ['╚', '╝'] : ['╰', '╯'];
             
+            // Top border line
+            topLine.push(
+                <Text key={`top-${i}`}>
+                    <Text color={cornerColor}>{topCorners[0]}</Text>
+                    <Text color={sideColor}>{'─'.repeat(borderLineWidth)}</Text>
+                    <Text color={cornerColor}>{topCorners[1]}</Text>
+                    {i < this.buttons.length - 1 ? ' ' : ''}
+                </Text>
+            );
+            
+            // Middle content line with fixed 1-space padding
+            middleLine.push(
+                <Text key={`mid-${i}`}>
+                    <Text color={sideColor}>│</Text>
+                    <Text> </Text>
+                    {isFocused ? (
+                        // Focused: strip ANSI, use border color
+                        <Text color={button.borderColor} bold>{cleanDisplayText}</Text>
+                    ) : (
+                        // Unfocused: preserve ANSI colors
+                        <Text bold>{displayText}</Text>
+                    )}
+                    <Text> </Text>
+                    <Text color={sideColor}>│</Text>
+                    {i < this.buttons.length - 1 ? ' ' : ''}
+                </Text>
+            );
+            
+            // Bottom border line
             bottomLine.push(
                 <Text key={`bot-${i}`}>
                     <Text color={cornerColor}>{bottomCorners[0]}</Text>
-                    <Text color={sideColor}>─────────</Text>
+                    <Text color={sideColor}>{'─'.repeat(borderLineWidth)}</Text>
                     <Text color={cornerColor}>{bottomCorners[1]}</Text>
                     {i < this.buttons.length - 1 ? ' ' : ''}
                 </Text>
             );
         }
         
+        // Return the 3-line bordered layout as a single consistent structure
+        const elements: ReactElement[] = [];
         elements.push(
-            <Box key="bottomline" justifyContent="center" width="100%">
+            <Box key="topline" width="100%">
+                {topLine}
+            </Box>
+        );
+        elements.push(
+            <Box key="middleline" width="100%">
+                {middleLine}
+            </Box>
+        );
+        elements.push(
+            <Box key="bottomline" width="100%">
                 {bottomLine}
             </Box>
         );
@@ -333,28 +297,24 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
-        // Use maxHeight to determine layout mode 
-        const isLowRes = maxHeight !== undefined && maxHeight < 6;
+        // Use the same logic as render() to determine which mode we'll use
+        const globalLowResolution = globalTerminalRows < 25;
+        const cannotFitBorderedMode = maxHeight !== undefined && maxHeight < 3;
         
-        // Low resolution mode: 1 line
-        if (isLowRes) {
-            return 1;
+        if (globalLowResolution || cannotFitBorderedMode) {
+            return 1; // Minimized mode: single line
         }
         
-        // Regular mode: 3 lines (top border, content, bottom border)
-        return 3;
+        return 3; // Bordered mode: 3 lines
     }
     
     onEnter(): void {
-        console.error(`[SimpleButtonsRow] onEnter called - BEFORE: _isControllingInput=${this._isControllingInput}`);
         // Enter control mode immediately - this is what the list expects
         this._isControllingInput = true;
         this._focusedButtonIndex = 0;
-        console.error(`[SimpleButtonsRow] onEnter called - AFTER: _isControllingInput=${this._isControllingInput}`);
     }
     
     onExit(): void {
-        console.error(`[SimpleButtonsRow] onExit called`);
         this._isControllingInput = false;
     }
     
@@ -388,12 +348,8 @@ export class SimpleButtonsRow implements IListItem {
         }
         
         if (key.upArrow || key.downArrow) {
-            console.error(`[SimpleButtonsRow] ${key.upArrow ? 'UP' : 'DOWN'} arrow pressed - exiting control mode`);
-            console.error(`[SimpleButtonsRow] BEFORE exit - _isControllingInput: ${this._isControllingInput}, _focusedButtonIndex: ${this._focusedButtonIndex}`);
             this._isControllingInput = false;
             this._focusedButtonIndex = 0; // Reset to first button for next time
-            console.error(`[SimpleButtonsRow] AFTER exit - _isControllingInput: ${this._isControllingInput}, _focusedButtonIndex: ${this._focusedButtonIndex}`);
-            console.error(`[SimpleButtonsRow] Returning false to let parent handle navigation`);
             return false; // Let parent handle list navigation
         }
         
@@ -401,17 +357,14 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     onSelect(): void {
-        console.error(`[SimpleButtonsRow] onSelect called - BEFORE: _focusedButtonIndex=${this._focusedButtonIndex}, _isControllingInput=${this._isControllingInput}`);
         // Reset focus to first button and automatically enter control mode
         // This ensures immediate button focus when navigating to the row
         // This also handles the case where navigation was blocked and we need to re-enter control mode
         this._focusedButtonIndex = 0;
         this._isControllingInput = true;
-        console.error(`[SimpleButtonsRow] onSelect called - AFTER: _focusedButtonIndex=${this._focusedButtonIndex}, _isControllingInput=${this._isControllingInput}`);
     }
     
     onDeselect(): void {
-        console.error(`[SimpleButtonsRow] onDeselect called`);
         this._isControllingInput = false;
     }
 }

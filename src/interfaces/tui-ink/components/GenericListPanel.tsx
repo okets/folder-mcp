@@ -10,6 +10,7 @@ import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper';
 import { ProgressModeProvider } from '../contexts/ProgressModeContext';
 import { textColorProp, buildProps } from '../utils/conditionalProps';
 import { IListItem } from './core/IListItem';
+import { updateGlobalTerminalSize } from './core/SimpleButtonsRow';
 
 interface GenericListPanelProps {
     title: string;
@@ -43,6 +44,9 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     priority = 50
 }) => {
     const { columns, rows } = useTerminalSize();
+    
+    // Update global terminal size for button components
+    updateGlobalTerminalSize(rows);
     
     // Local state for force updates when items change internally
     const [updateTrigger, setUpdateTrigger] = useState(0);
@@ -98,6 +102,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             maxLines = Math.max(1, actualHeight - boxOverhead);
         }
     }
+    
     
     
     // Don't mutate items during render - this causes re-renders
@@ -412,6 +417,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                             
                             // Pass the actual remaining lines so item can make responsive decisions
                             const itemMaxLines = remainingLines;
+                            
                             
                             // Get rendered elements from list item
                             const itemElements = listItem.render(itemMaxWidth, itemMaxLines);
