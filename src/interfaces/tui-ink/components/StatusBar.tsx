@@ -290,26 +290,31 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
         );
     }
     
-    // Normal resolution mode: with border
+    // Normal resolution mode: with border using theme symbols
+    const innerWidth = statusBarWidth - 2; // -2 for left/right borders
+    const topBorder = `${theme.symbols.border.topLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.topRight}`;
+    const bottomBorder = `${theme.symbols.border.bottomLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.bottomRight}`;
+    
     return (
-        <Box 
-            borderStyle="single" 
-            borderColor={theme.colors.border}
-            paddingX={1}
-            width={statusBarWidth}
-            flexDirection="row"
-            overflow="hidden"
-        >
-            {message ? (
-                <Text color={theme.colors.textMuted} wrap="truncate">{message}</Text>
-            ) : (
-                <StatusBarContent bindings={keyBindings.length > 0 ? keyBindings : [
-                    { key: '→/enter', description: 'Edit' },
-                    { key: 'tab', description: 'Switch Panel' },
-                    { key: '↑↓', description: 'Navigate' },
-                    { key: 'q', description: 'Quit' }
-                ]} availableWidth={availableWidth} />
-            )}
+        <Box flexDirection="column" width={statusBarWidth}>
+            <Text color={theme.colors.border}>{topBorder}</Text>
+            <Box flexDirection="row" overflow="hidden">
+                <Text color={theme.colors.border}>{theme.symbols.border.vertical} </Text>
+                <Box flexGrow={1}>
+                    {message ? (
+                        <Text color={theme.colors.textMuted} wrap="truncate">{message}</Text>
+                    ) : (
+                        <StatusBarContent bindings={keyBindings.length > 0 ? keyBindings : [
+                            { key: '→/enter', description: 'Edit' },
+                            { key: 'tab', description: 'Switch Panel' },
+                            { key: '↑↓', description: 'Navigate' },
+                            { key: 'q', description: 'Quit' }
+                        ]} availableWidth={availableWidth - 4} />
+                    )}
+                </Box>
+                <Text color={theme.colors.border}> {theme.symbols.border.vertical}</Text>
+            </Box>
+            <Text color={theme.colors.border}>{bottomBorder}</Text>
         </Box>
     );
 };

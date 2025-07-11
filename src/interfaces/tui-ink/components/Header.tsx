@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
-import { useDI } from '../di/DIContext';
-import { ServiceTokens } from '../di/tokens';
 import { useTerminalSize } from '../hooks/useTerminalSize';
+import { useTheme } from '../contexts/ThemeContext';
 import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
@@ -18,15 +17,7 @@ interface DaemonStatus {
 }
 
 export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
-    const di = useDI();
-    const themeService = di.resolve(ServiceTokens.ThemeService);
-    const colors = themeService.getColors();
-    
-    // Debug theme service
-    console.error(`\n=== Header DI THEME DEBUG ===`);
-    console.error(`DI ThemeService colors:`, colors);
-    console.error(`Theme name prop:`, themeName);
-    console.error(`=== END Header DI THEME ===\n`);
+    const { theme } = useTheme();
     const { columns, rows } = useTerminalSize();
     
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
@@ -89,8 +80,9 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
     const fullStatusText = `    status: ${statusText}`;
     
     // Use theme colors instead of hardcoded colors
-    const frameColor = colors.border;
-    const logoTextColor = colors.accent;
+    const frameColor = theme.colors.headerBorder;
+    const logoTextColor = theme.colors.titleText;
+    
     
     // Check for low vertical resolution
     const isLowResolution = rows < 25;
@@ -163,8 +155,8 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         // Total: ╭ + dashes + theme + space + resolution + space + ╮
         const maxDashArea = innerWidth - resolutionSpace.length - themeSpace.length;
         
-        const topBorder = `╭${'─'.repeat(Math.max(0, maxDashArea))}${themeSpace}${resolutionSpace}╮`;
-        const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
+        const topBorder = `${theme.symbols.border.topLeft}${theme.symbols.border.horizontal.repeat(Math.max(0, maxDashArea))}${themeSpace}${resolutionSpace}${theme.symbols.border.topRight}`;
+        const bottomBorder = `${theme.symbols.border.bottomLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.bottomRight}`;
         
         // Calculate padding for the content with status
         // Content: "│ 📁 folder-mcp    status: Connected to daemon (PID: 12345)                │"
@@ -176,10 +168,10 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
             <Box flexDirection="column" marginTop={1}>
                 <Text color={frameColor}>{topBorder}</Text>
                 <Box>
-                    <Text color={frameColor}>│ 📁 </Text>
+                    <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                     <Text color={frameColor}>{fullStatusText}</Text>
-                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}{theme.symbols.border.vertical}</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>
@@ -188,8 +180,8 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         // Bordered layout without resolution - expand to fill terminal width
         const innerWidth = columns - 2; // -2 for corner characters
         
-        const topBorder = `╭${'─'.repeat(innerWidth)}╮`;
-        const bottomBorder = `╰${'─'.repeat(innerWidth)}╯`;
+        const topBorder = `${theme.symbols.border.topLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.topRight}`;
+        const bottomBorder = `${theme.symbols.border.bottomLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.bottomRight}`;
         
         // Calculate padding for the content with status
         const contentText = `📁 folder-mcp${fullStatusText}`;
@@ -200,10 +192,10 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
             <Box flexDirection="column" marginTop={1}>
                 <Text color={frameColor}>{topBorder}</Text>
                 <Box>
-                    <Text color={frameColor}>│ 📁 </Text>
+                    <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                     <Text color={frameColor}>{fullStatusText}</Text>
-                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}│</Text>
+                    <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}{theme.symbols.border.vertical}</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
             </Box>

@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { AnimationContainer } from './AnimationContainer';
 import { BRAILLE_SPINNER, createProgressBarFrames, createWaveFrames } from '../../utils/animations';
 import { theme } from '../../utils/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ProgressBarProps {
     /**
@@ -48,6 +49,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     showPercentage = true,
     color
 }) => {
+    const { theme: currentTheme } = useTheme();
     const isError = value === -1;
     const isIndeterminate = value === undefined;
     const percentage = (isIndeterminate || isError) ? 0 : Math.min(100, Math.max(0, Math.round(value)));
@@ -108,7 +110,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             return (
                 <Box>
                     <Text color={theme.colors.dangerRed}>✗</Text>
-                    <Text color={theme.colors.dangerRed}>{'▱'.repeat(barWidth)}</Text>
+                    <Text color={theme.colors.dangerRed}>{(currentTheme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
                     <Text color={theme.colors.dangerRed}> ERR</Text>
                 </Box>
             );
@@ -123,16 +125,19 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                         interval={80}
                         color={theme.colors.warningOrange}
                     />
-                    <Text color={theme.colors.warningOrange}>{'▱'.repeat(barWidth)}</Text>
+                    <Text color={theme.colors.warningOrange}>{(currentTheme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
                     <Text color={theme.colors.warningOrange}> ...</Text>
                 </Box>
             );
         }
         
-        // Determinate progress
+        // Determinate progress - use different characters for minimal theme
         const filledCount = Math.round((percentage / 100) * barWidth);
         const emptyCount = barWidth - filledCount;
-        const progressBar = '▰'.repeat(filledCount) + '▱'.repeat(emptyCount);
+        const isMinimalTheme = currentTheme.name === 'minimal';
+        const filledChar = isMinimalTheme ? '■' : '▰'; // Use small square for minimal, original block for others
+        const emptyChar = isMinimalTheme ? '□' : '▱'; // Use empty square for minimal, original empty for others
+        const progressBar = filledChar.repeat(filledCount) + emptyChar.repeat(emptyCount);
         
         if (percentage === 100) {
             // Complete state

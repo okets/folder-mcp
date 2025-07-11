@@ -12,6 +12,8 @@ export interface Theme {
         textMuted: string;
         border: string;
         borderFocus: string;
+        headerBorder: string;
+        titleText: string;
         background?: string;
     };
     icons: {
@@ -46,9 +48,11 @@ export const defaultTheme: Theme = {
         warning: 'yellow',
         error: 'red',
         text: 'white',
-        textMuted: 'whiteBright', // Bright white for visibility
+        textMuted: 'gray', // Match dark theme style
         border: 'gray',
-        borderFocus: 'cyan'
+        borderFocus: '#578ce0',
+        headerBorder: '#7f0fbf',
+        titleText: '#af87ff'
     },
     icons: {
         active: '▶',
@@ -84,7 +88,9 @@ export const darkOptimizedTheme: Theme = {
         text: 'white',
         textMuted: 'whiteBright', // Bright white for visibility
         border: 'gray',
-        borderFocus: 'cyanBright'
+        borderFocus: 'cyanBright',
+        headerBorder: 'rgb(169, 137, 248)',
+        titleText: '#af87ff'
     },
     icons: defaultTheme.icons,
     symbols: defaultTheme.symbols
@@ -102,7 +108,9 @@ export const lightOptimizedTheme: Theme = {
         text: 'black',
         textMuted: 'blackBright', // Dark but visible on light backgrounds
         border: 'blackBright',
-        borderFocus: 'blueBright'
+        borderFocus: 'blueBright',
+        headerBorder: 'rgb(169, 137, 248)',
+        titleText: '#af87ff'
     },
     icons: defaultTheme.icons,
     symbols: defaultTheme.symbols
@@ -120,7 +128,9 @@ export const minimalTheme: Theme = {
         text: 'white',
         textMuted: 'gray',
         border: 'gray',
-        borderFocus: 'white'
+        borderFocus: 'white',
+        headerBorder: 'gray',
+        titleText: '#af87ff'
     },
     icons: {
         active: '>',
@@ -144,11 +154,74 @@ export const minimalTheme: Theme = {
     }
 };
 
+// Light theme - basic light colors
+export const lightTheme: Theme = {
+    name: 'light',
+    colors: {
+        primary: 'blue',
+        accent: 'blue',
+        success: 'green',
+        warning: 'yellow',
+        error: 'red',
+        text: 'black',
+        textMuted: 'gray',
+        border: 'gray',
+        borderFocus: 'blue',
+        headerBorder: 'rgb(169, 137, 248)',
+        titleText: '#af87ff'
+    },
+    icons: defaultTheme.icons,
+    symbols: defaultTheme.symbols
+};
+
+// Dark theme - basic dark colors
+export const darkTheme: Theme = {
+    name: 'dark',
+    colors: {
+        primary: 'blue',
+        accent: 'cyan',
+        success: 'green',
+        warning: 'yellow',
+        error: 'red',
+        text: 'white',
+        textMuted: 'gray',
+        border: 'gray',
+        borderFocus: 'cyan',
+        headerBorder: 'rgb(169, 137, 248)',
+        titleText: '#af87ff'
+    },
+    icons: defaultTheme.icons,
+    symbols: defaultTheme.symbols
+};
+
+// Auto theme - will be resolved to light or dark based on system preference
+export const autoTheme: Theme = {
+    name: 'auto',
+    colors: {
+        primary: 'blue',
+        accent: 'cyan',
+        success: 'green',
+        warning: 'yellow',
+        error: 'red',
+        text: 'white',
+        textMuted: 'whiteBright',
+        border: 'gray',
+        borderFocus: 'rgb(240, 240, 239)',
+        headerBorder: 'rgb(169, 137, 248)',
+        titleText: '#af87ff'
+    },
+    icons: defaultTheme.icons,
+    symbols: defaultTheme.symbols
+};
+
 // Available themes
 export const themes = {
-    default: defaultTheme,
-    'dark-optimized': darkOptimizedTheme,
+    auto: autoTheme,
+    light: lightTheme,
+    dark: darkTheme,
     'light-optimized': lightOptimizedTheme,
+    'dark-optimized': darkOptimizedTheme,
+    default: defaultTheme,
     minimal: minimalTheme
 } as const;
 
