@@ -177,6 +177,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     const themeContext = useContext(ThemeContext);
     const hasTheme = themeContext !== undefined;
     
+    
     // Set up root input handler
     useRootInput();
     

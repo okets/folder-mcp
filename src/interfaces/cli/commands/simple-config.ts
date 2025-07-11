@@ -57,7 +57,7 @@ export class SimpleConfigCommand {
     // Theme-specific commands
     this.command
       .command('theme [value]')
-      .description('Get or set theme (light, dark, auto)')
+      .description('Get or set theme (light-optimized, dark-optimized, auto)')
       .action((value) => {
         if (value) {
           this.executeSetTheme(value);
@@ -168,7 +168,7 @@ export class SimpleConfigCommand {
       const theme = await configComponent.get('theme') || 'auto';
       
       console.log(chalk.bold('Current theme:'), theme);
-      console.log(chalk.gray('\nAvailable themes: light, dark, auto'));
+      console.log(chalk.gray('\nAvailable themes: light-optimized, dark-optimized, auto'));
     } catch (error) {
       console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -193,8 +193,8 @@ export class SimpleConfigCommand {
     console.log(chalk.bold('\n🎨 Available Themes:'));
     console.log(chalk.gray('===================\n'));
     
-    console.log('• ' + chalk.bold('light') + ' - Light theme with dark text');
-    console.log('• ' + chalk.bold('dark') + ' - Dark theme with bright colors');
+    console.log('• ' + chalk.bold('light-optimized') + ' - Optimized for light terminal backgrounds');
+    console.log('• ' + chalk.bold('dark-optimized') + ' - Optimized for dark terminal backgrounds');
     console.log('• ' + chalk.bold('auto') + ' - Use system default theme\n');
     
     try {

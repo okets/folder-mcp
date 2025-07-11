@@ -94,10 +94,10 @@ describe('ConfigurableThemeService', () => {
     });
     
     it('should save theme changes to configuration', async () => {
-        await themeService.setTheme('light');
+        await themeService.setTheme('light-optimized');
         
-        expect(themeService.getThemeName()).toBe('light');
-        expect(await configurationComponent.get('theme')).toBe('light');
+        expect(themeService.getThemeName()).toBe('light-optimized');
+        expect(await configurationComponent.get('theme')).toBe('light-optimized');
     });
     
     it('should reload theme from configuration', async () => {

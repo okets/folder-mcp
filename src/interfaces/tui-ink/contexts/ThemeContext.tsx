@@ -24,9 +24,19 @@ export interface Theme {
         error: string;
         info: string;
     };
+    symbols: {
+        border: {
+            topLeft: string;
+            topRight: string;
+            bottomLeft: string;
+            bottomRight: string;
+            horizontal: string;
+            vertical: string;
+        };
+    };
 }
 
-// Default theme (matches existing theme.ts)
+// Default theme - works well on dark terminals
 export const defaultTheme: Theme = {
     name: 'default',
     colors: {
@@ -36,7 +46,7 @@ export const defaultTheme: Theme = {
         warning: 'yellow',
         error: 'red',
         text: 'white',
-        textMuted: 'gray',
+        textMuted: 'whiteBright', // Bright white for visibility
         border: 'gray',
         borderFocus: 'cyan'
     },
@@ -49,12 +59,22 @@ export const defaultTheme: Theme = {
         warning: '⚠',
         error: '✗',
         info: 'ℹ'
+    },
+    symbols: {
+        border: {
+            topLeft: '╭',
+            topRight: '╮',
+            bottomLeft: '╰',
+            bottomRight: '╯',
+            horizontal: '─',
+            vertical: '│'
+        }
     }
 };
 
-// Dark theme
-export const darkTheme: Theme = {
-    name: 'dark',
+// Dark-optimized theme - optimized for dark terminals
+export const darkOptimizedTheme: Theme = {
+    name: 'dark-optimized',
     colors: {
         primary: 'blueBright',
         accent: 'cyanBright',
@@ -62,28 +82,30 @@ export const darkTheme: Theme = {
         warning: 'yellowBright',
         error: 'redBright',
         text: 'white',
-        textMuted: 'gray',
+        textMuted: 'whiteBright', // Bright white for visibility
         border: 'gray',
         borderFocus: 'cyanBright'
     },
-    icons: defaultTheme.icons
+    icons: defaultTheme.icons,
+    symbols: defaultTheme.symbols
 };
 
-// Light theme
-export const lightTheme: Theme = {
-    name: 'light',
+// Light-optimized theme - optimized for light terminals
+export const lightOptimizedTheme: Theme = {
+    name: 'light-optimized',
     colors: {
-        primary: 'blue',
-        accent: 'blue',
-        success: 'green',
-        warning: 'yellow',
-        error: 'red',
+        primary: 'blueBright',
+        accent: 'blueBright',
+        success: 'greenBright', 
+        warning: 'yellowBright',
+        error: 'redBright',
         text: 'black',
-        textMuted: 'gray',
-        border: 'gray',
-        borderFocus: 'blue'
+        textMuted: 'blackBright', // Dark but visible on light backgrounds
+        border: 'blackBright',
+        borderFocus: 'blueBright'
     },
-    icons: defaultTheme.icons
+    icons: defaultTheme.icons,
+    symbols: defaultTheme.symbols
 };
 
 // Minimal theme
@@ -109,14 +131,24 @@ export const minimalTheme: Theme = {
         warning: '[!]',
         error: '[X]',
         info: '[i]'
+    },
+    symbols: {
+        border: {
+            topLeft: '+',
+            topRight: '+',
+            bottomLeft: '+',
+            bottomRight: '+',
+            horizontal: '-',
+            vertical: '|'
+        }
     }
 };
 
 // Available themes
 export const themes = {
     default: defaultTheme,
-    dark: darkTheme,
-    light: lightTheme,
+    'dark-optimized': darkOptimizedTheme,
+    'light-optimized': lightOptimizedTheme,
     minimal: minimalTheme
 } as const;
 

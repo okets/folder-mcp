@@ -1,10 +1,10 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { ThemeProvider, ThemeName } from './ThemeContext';
-import { IConfigManager } from '../../../domain/config/IConfigManager';
+import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
 
 interface ConfigurationThemeProviderProps {
     children: ReactNode;
-    configManager: IConfigManager;
+    configManager: ConfigurationComponent;
 }
 
 /**
@@ -22,7 +22,7 @@ export const ConfigurationThemeProvider: React.FC<ConfigurationThemeProviderProp
         // Load initial theme from configuration
         const loadTheme = async () => {
             try {
-                const configuredTheme = configManager.get('theme') || 'auto';
+                const configuredTheme = await configManager.get('theme') || 'auto';
                 const themeName = resolveThemeName(configuredTheme);
                 setInitialTheme(themeName);
             } catch (error) {
@@ -56,7 +56,7 @@ export const ConfigurationThemeProvider: React.FC<ConfigurationThemeProviderProp
 const ThemeProviderWithPersistence: React.FC<{
     children: ReactNode;
     initialTheme: ThemeName;
-    configManager: IConfigManager;
+    configManager: ConfigurationComponent;
 }> = ({ children, initialTheme, configManager }) => {
     // Handle theme persistence
     const handleThemeChange = async (name: ThemeName) => {
@@ -84,12 +84,16 @@ const ThemeProviderWithPersistence: React.FC<{
 function resolveThemeName(configTheme: string): ThemeName {
     switch (configTheme) {
         case 'light':
-            return 'light';
+        case 'light-optimized':
+            return 'light-optimized';
         case 'dark':
-            return 'dark';
+        case 'dark-optimized':
+            return 'dark-optimized';
         case 'auto':
         case 'default':
             return 'default';
+        case 'minimal':
+            return 'minimal';
         default:
             return 'default';
     }

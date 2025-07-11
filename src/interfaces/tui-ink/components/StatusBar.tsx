@@ -4,20 +4,25 @@ import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 import type { IKeyBinding } from '../services/interfaces';
 import { useTerminalSize } from '../hooks/useTerminalSize';
-import type { ThemeColors } from '../models/types';
+import { useTheme } from '../contexts/ThemeContext';
 import { truncateButtons } from '../utils/buttonTruncation';
 
 interface StatusBarContentProps {
     bindings: IKeyBinding[];
     availableWidth: number;
-    colors: ThemeColors;
 }
 
-const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, availableWidth, colors }) => {
+const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, availableWidth }) => {
+    const { theme } = useTheme();
+    const colors = {
+        textPrimary: theme.colors.text,
+        textSecondary: theme.colors.textMuted,
+        border: theme.colors.border
+    };
     if (bindings.length === 0 || availableWidth < 10) {
         return (
             <>
-                <Text color="#D1D5DB" bold>q</Text>
+                <Text color={colors.textPrimary} bold>q</Text>
                 <Text color={colors.textSecondary}>:Exit</Text>
             </>
         );
@@ -55,7 +60,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: '#D1D5DB', bold: true });
+            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
             parts.push({ text: ':' + binding.description, color: colors.textSecondary });
         });
         
@@ -99,7 +104,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                         {formattedBindings.map((binding, index) => (
                             <React.Fragment key={index}>
                                 {index > 0 && ' '}
-                                <Text color="#D1D5DB" bold>{binding.key}</Text>
+                                <Text color={colors.textPrimary} bold>{binding.key}</Text>
                             </React.Fragment>
                         ))}
                     </Text>
@@ -116,7 +121,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                             {keysToShow.map((binding, index) => (
                                 <React.Fragment key={index}>
                                     {index > 0 && ' '}
-                                    <Text color="#D1D5DB" bold>{binding.key}</Text>
+                                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
                                 </React.Fragment>
                             ))}
                         </Text>
@@ -146,7 +151,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: '#D1D5DB', bold: true });
+            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
             parts.push({ text: ':' + (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
         });
         
@@ -217,8 +222,7 @@ interface StatusBarProps {
 
 export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     const di = useDI();
-    const themeService = di.resolve(ServiceTokens.ThemeService);
-    const colors = themeService.getColors();
+    const { theme } = useTheme();
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
     const { columns, rows } = useTerminalSize();
     
@@ -273,14 +277,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
                 overflow="hidden"
             >
                 {message ? (
-                    <Text color={colors.textSecondary} wrap="truncate">{message}</Text>
+                    <Text color={theme.colors.textMuted} wrap="truncate">{message}</Text>
                 ) : (
                     <StatusBarContent bindings={keyBindings.length > 0 ? keyBindings : [
                         { key: '→/enter', description: 'Edit' },
                         { key: 'tab', description: 'Switch Panel' },
                         { key: '↑↓', description: 'Navigate' },
                         { key: 'q', description: 'Quit' }
-                    ]} availableWidth={availableWidth} colors={colors} />
+                    ]} availableWidth={availableWidth} />
                 )}
             </Box>
         );
@@ -290,21 +294,21 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
     return (
         <Box 
             borderStyle="single" 
-            borderColor={colors.border}
+            borderColor={theme.colors.border}
             paddingX={1}
             width={statusBarWidth}
             flexDirection="row"
             overflow="hidden"
         >
             {message ? (
-                <Text color={colors.textSecondary} wrap="truncate">{message}</Text>
+                <Text color={theme.colors.textMuted} wrap="truncate">{message}</Text>
             ) : (
                 <StatusBarContent bindings={keyBindings.length > 0 ? keyBindings : [
                     { key: '→/enter', description: 'Edit' },
                     { key: 'tab', description: 'Switch Panel' },
                     { key: '↑↓', description: 'Navigate' },
                     { key: 'q', description: 'Quit' }
-                ]} availableWidth={availableWidth} colors={colors} />
+                ]} availableWidth={availableWidth} />
             )}
         </Box>
     );

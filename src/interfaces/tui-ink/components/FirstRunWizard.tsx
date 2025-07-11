@@ -371,9 +371,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 await configComponent.set('folders.defaults.embeddings.model', selectedModel);
                 console.error(`Default model set successfully`);
                 
-                // Set theme
-                await configComponent.set('theme', 'auto');
-                console.error(`Theme set successfully`);
                 
                 // Create config object for backward compatibility
                 const config = {
@@ -388,9 +385,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                     server: {
                         port: 9876,
                         host: '127.0.0.1'
-                    },
-                    ui: {
-                        theme: 'auto'
                     }
                 };
                 

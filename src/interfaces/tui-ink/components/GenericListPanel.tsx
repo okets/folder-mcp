@@ -1,9 +1,9 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, memo, useContext } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox';
 import { LogItem } from './core/LogItem';
 import { calculateScrollbar } from './core/ScrollbarCalculator';
-import { theme } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useFocusChain } from '../hooks/useFocusChain';
 import { SelfConstrainedWrapper } from './core/SelfConstrainedWrapper';
@@ -47,6 +47,9 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     
     // Update global terminal size for button components
     updateGlobalTerminalSize(rows);
+    
+    // Get dynamic theme colors
+    const { theme } = useTheme();
     
     // Local state for force updates when items change internally
     const [updateTrigger, setUpdateTrigger] = useState(0);

@@ -69,9 +69,13 @@ export class ConfigurableThemeService implements IThemeService {
         // Map configuration theme names to TUI theme names
         switch (configTheme) {
             case 'light':
-                return 'light';
+            case 'light-optimized':
+                return 'light-optimized';
             case 'dark':
-                return 'dark';
+            case 'dark-optimized':
+                return 'dark-optimized';
+            case 'minimal':
+                return 'minimal';
             default:
                 return 'default';
         }

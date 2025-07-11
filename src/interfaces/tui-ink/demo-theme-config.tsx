@@ -10,7 +10,8 @@ import React from 'react';
 import { render } from 'ink';
 import { AppConfigured } from './AppConfigured';
 import { DIProvider, setupDIContainer } from './di/index';
-import { ConfigManager } from '../../application/config/ConfigManager';
+// Demo disabled - needs update to use ConfigurationComponent
+// import { ConfigManager } from '../../application/config/ConfigManager';
 import { NodeFileSystem } from '../../infrastructure/filesystem/node-filesystem';
 import { NodeFileWriter } from '../../infrastructure/filesystem/NodeFileWriter';
 import { YamlParser } from '../../infrastructure/parsers/YamlParser';
@@ -47,6 +48,10 @@ theme: dark  # User prefers dark theme
 }
 
 async function main() {
+    console.log('Demo disabled - needs update to use ConfigurationComponent');
+    process.exit(0);
+    
+    /*
     // Check TTY
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
         console.error('Error: This application must be run in an interactive terminal.');
@@ -114,6 +119,7 @@ async function main() {
     
     await app.waitUntilExit();
     cleanup();
+    */
 }
 
 main().catch(error => {

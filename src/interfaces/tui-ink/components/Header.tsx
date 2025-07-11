@@ -21,6 +21,12 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
     const di = useDI();
     const themeService = di.resolve(ServiceTokens.ThemeService);
     const colors = themeService.getColors();
+    
+    // Debug theme service
+    console.error(`\n=== Header DI THEME DEBUG ===`);
+    console.error(`DI ThemeService colors:`, colors);
+    console.error(`Theme name prop:`, themeName);
+    console.error(`=== END Header DI THEME ===\n`);
     const { columns, rows } = useTerminalSize();
     
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
@@ -82,9 +88,9 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
     // Full display: "📁 folder-mcp    status: Connected to daemon (PID: 12345)"
     const fullStatusText = `    status: ${statusText}`;
     
-    // Custom logo colors
-    const frameColor = '#4c1589'; // rgb(76, 21, 137) - dark purple for frame and resolution
-    const logoTextColor = '#a65ff6'; // rgb(166, 95, 246) - light purple for "folder-mcp"
+    // Use theme colors instead of hardcoded colors
+    const frameColor = colors.border;
+    const logoTextColor = colors.accent;
     
     // Check for low vertical resolution
     const isLowResolution = rows < 25;

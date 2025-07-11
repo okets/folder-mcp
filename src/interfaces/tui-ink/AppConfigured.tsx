@@ -1,10 +1,10 @@
 import React from 'react';
 import { AppThemed } from './AppThemed';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
-import { IConfigManager } from '../../domain/config/IConfigManager';
+import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 
 interface AppConfiguredProps {
-    configManager: IConfigManager;
+    configManager: ConfigurationComponent;
     screenName?: string;
 }
 

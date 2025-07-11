@@ -231,15 +231,17 @@ async function startTUI() {
             logLevel: 'error' // Quiet for TUI
         });
         
-        // Get ConfigManager from DI and ensure it's loaded
-        const configInitializer = await mainContainer.resolveAsync('CONFIG_INITIALIZER' as any) as IConfigManager;
+        // Get ConfigurationComponent from DI and ensure it's loaded
+        const container = getContainer();
+        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+        await configComponent.load();
         
         // Configuration is now loaded
         
         // Render with configuration support
         const app = render(
             <DIProvider container={tuiContainer}>
-                <ConfigurationThemeProvider configManager={configInitializer}>
+                <ConfigurationThemeProvider configManager={configComponent}>
                     <MainApp cliDir={cliDir} cliModel={cliModel} />
                 </ConfigurationThemeProvider>
             </DIProvider>,
