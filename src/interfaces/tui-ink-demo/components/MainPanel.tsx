@@ -5,6 +5,7 @@ import { ConfigurationListItem } from './core/ConfigurationListItem';
 import { LogItem } from './core/LogItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { SimpleButtonsRow } from '../../tui-ink/components/core/SimpleButtonsRow';
 import { theme } from '../utils/theme';
 import { createConfigurationPanelItems } from '../models/mixedSampleData';
 import { useNavigationContext } from '../contexts/NavigationContext';
@@ -61,6 +62,7 @@ export const MainPanel: React.FC<{
     
     // Check if any item is in edit mode
     const isAnyItemInEditMode = configListItems.some(item => item.isControllingInput);
+    console.error(`[MainPanel] isAnyItemInEditMode: ${isAnyItemInEditMode}`);
     
     // Use render slots when a node is in edit mode
     const { totalSlots } = useRenderSlots({
@@ -195,9 +197,15 @@ export const MainPanel: React.FC<{
 
         // If item is controlling input, delegate to it
         if (selectedItem.isControllingInput && typeof selectedItem.handleInput === 'function') {
+            console.error(`[MainPanel] Delegating to ${selectedItem.constructor.name}.handleInput`);
             const handled = selectedItem.handleInput(input, key);
+            console.error(`[MainPanel] ${selectedItem.constructor.name}.handleInput returned: ${handled}`);
             setUpdateTrigger(prev => prev + 1);
-            return handled;
+            // If item didn't handle the input (returned false), continue processing below
+            if (handled) {
+                return true;
+            }
+            console.error(`[MainPanel] Item returned false, continuing with panel-level navigation`);
         }
 
         // Otherwise handle entering edit mode or expanding/collapsing
@@ -226,16 +234,30 @@ export const MainPanel: React.FC<{
                 return true;
             }
         }
+        
+        // Handle up/down navigation for list items
+        if (key.upArrow) {
+            console.error(`[MainPanel] UP arrow - moving to previous item`);
+            navigation.navigateUp();
+            return true;
+        } else if (key.downArrow) {
+            console.error(`[MainPanel] DOWN arrow - moving to next item`);
+            navigation.navigateDown();
+            return true;
+        }
+        
         return false;
     }, [configListItems, navigation.configSelectedIndex]);
     
     // Determine key bindings based on selected item and edit mode
     const selectedItem = configListItems[navigation.configSelectedIndex];
+    console.error(`[MainPanel] Calculating key bindings for selectedItem: ${selectedItem?.constructor.name}, isActive: ${selectedItem?.isActive}, isControllingInput: ${selectedItem?.isControllingInput}`);
     const isLogItem = !!selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
     const hasDetails = isLogItem && selectedItem && (selectedItem as any).details;
     const isExpanded = isLogItem && selectedItem && (selectedItem as any)._isExpanded;
     
     let keyBindings: Array<{key: string, description: string}> = [];
+    console.error(`[MainPanel] About to calculate bindings - isAnyItemInEditMode: ${isAnyItemInEditMode}`);
     if (isAnyItemInEditMode) {
         // Check if it's a FilePickerListItem in control
         if (selectedItem instanceof FilePickerListItem && selectedItem.isControllingInput) {
@@ -264,6 +286,14 @@ export const MainPanel: React.FC<{
                     { key: 'Enter', description: 'Save' }
                 ];
             }
+        } else if (selectedItem && selectedItem instanceof SimpleButtonsRow && selectedItem.isControllingInput) {
+            // SimpleButtonsRow - show button navigation and activation
+            console.error(`[MainPanel] Setting SimpleButtonsRow CONTROLLING key bindings`);
+            keyBindings = [
+                { key: '←→', description: 'Select' },
+                { key: 'Space/⏎', description: 'Activate' },
+                { key: '↑↓', description: 'Exit' }
+            ];
         } else {
             // Generic edit mode for text inputs
             keyBindings = [
@@ -287,12 +317,21 @@ export const MainPanel: React.FC<{
     } else if (isLogItem) {
         // LogItem without details - no actions
         keyBindings = [];
+    } else if (selectedItem && selectedItem instanceof SimpleButtonsRow) {
+        // SimpleButtonsRow not in control mode - show enter action
+        console.error(`[MainPanel] Setting SimpleButtonsRow NON-CONTROLLING key bindings`);
+        keyBindings = [
+            { key: '→/Enter', description: 'Enter Buttons' }
+        ];
     } else {
         // For ConfigurationListItem not in edit mode
+        console.error(`[MainPanel] Setting default (Edit) key bindings for ${selectedItem?.constructor.name}`);
         keyBindings = [
             { key: '→/Enter', description: 'Edit' }
         ];
     }
+    
+    console.error(`[MainPanel] Final key bindings: ${JSON.stringify(keyBindings)}`);
     
     // Use focus chain
     const focusChainOptions = {
