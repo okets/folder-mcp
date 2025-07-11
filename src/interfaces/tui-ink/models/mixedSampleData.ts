@@ -804,7 +804,8 @@ export function createStatusPanelItems(): IListItem[] {
                 } else if (button.eventValue === 'cancel-action') {
                     console.log('Cancel button pressed - would cancel the action');
                 }
-            }
+            },
+            'center' // Show centered alignment
         )
     ];
 }

@@ -18,6 +18,8 @@ export interface ButtonConfig {
     eventValue: any;       
 }
 
+export type ButtonAlignment = 'left' | 'center' | 'right';
+
 export class SimpleButtonsRow implements IListItem {
     readonly selfConstrained = true as const;
     private _isControllingInput: boolean = false;
@@ -29,7 +31,8 @@ export class SimpleButtonsRow implements IListItem {
         private label: string,
         private buttons: ButtonConfig[],
         isActive: boolean,
-        private onButtonActivate?: (buttonConfig: ButtonConfig, buttonIndex: number) => void
+        private onButtonActivate?: (buttonConfig: ButtonConfig, buttonIndex: number) => void,
+        private alignment: ButtonAlignment = 'center'
     ) {
         this._isActive = isActive;
         // If the row is created as active, immediately enter control mode
@@ -199,8 +202,23 @@ export class SimpleButtonsRow implements IListItem {
             }
         }
         
+        // Apply alignment
+        let justifyContent: 'flex-start' | 'center' | 'flex-end';
+        switch (this.alignment) {
+            case 'left':
+                justifyContent = 'flex-start';
+                break;
+            case 'right':
+                justifyContent = 'flex-end';
+                break;
+            case 'center':
+            default:
+                justifyContent = 'center';
+                break;
+        }
+        
         return (
-            <Box justifyContent="center" width="100%">
+            <Box justifyContent={justifyContent} width="100%">
                 {elements}
             </Box>
         );
@@ -337,20 +355,35 @@ export class SimpleButtonsRow implements IListItem {
             );
         }
         
+        // Apply alignment to all three lines
+        let justifyContent: 'flex-start' | 'center' | 'flex-end';
+        switch (this.alignment) {
+            case 'left':
+                justifyContent = 'flex-start';
+                break;
+            case 'right':
+                justifyContent = 'flex-end';
+                break;
+            case 'center':
+            default:
+                justifyContent = 'center';
+                break;
+        }
+        
         // Return the 3-line bordered layout as a single consistent structure
         const elements: ReactElement[] = [];
         elements.push(
-            <Box key="topline" width="100%">
+            <Box key="topline" width="100%" justifyContent={justifyContent}>
                 {topLine}
             </Box>
         );
         elements.push(
-            <Box key="middleline" width="100%">
+            <Box key="middleline" width="100%" justifyContent={justifyContent}>
                 {middleLine}
             </Box>
         );
         elements.push(
-            <Box key="bottomline" width="100%">
+            <Box key="bottomline" width="100%" justifyContent={justifyContent}>
                 {bottomLine}
             </Box>
         );
