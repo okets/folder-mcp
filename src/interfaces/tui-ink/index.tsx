@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { render } from 'ink';
 import { AppFullscreen } from './AppFullscreen';
+
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AutoCompletionHandler } from './components/AutoCompletionHandler';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
@@ -11,9 +12,6 @@ import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
 import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 import { getContainer } from '../../di/container';
-import { join } from 'path';
-import { homedir } from 'os';
-import { existsSync } from 'fs';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -202,27 +200,27 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
         setShowWizard(true);
     };
     
-    if (showAutoCompletion) {
-        return (
-            <AutoCompletionHandler 
-                cliDir={cliDir} 
-                cliModel={cliModel}
-                onConfirm={handleAutoCompletionConfirm}
-                onReject={handleAutoCompletionReject}
-            />
-        );
-    }
-    
-    if (hasValidationError) {
-        // Show nothing (error already printed to console), just wait for exit
-        return null;
-    }
-    
-    if (showWizard) {
-        return <FirstRunWizard onComplete={handleWizardComplete} cliDir={cliDir} cliModel={cliModel} />;
-    }
-    
-    return <AppFullscreen config={config} />;
+    // All hooks must be called before any conditional rendering
+    // Render based on state - use conditional JSX, not early returns
+    return (
+        <>
+            {hasValidationError && null}
+            {!hasValidationError && showAutoCompletion && (
+                <AutoCompletionHandler 
+                    cliDir={cliDir} 
+                    cliModel={cliModel}
+                    onConfirm={handleAutoCompletionConfirm}
+                    onReject={handleAutoCompletionReject}
+                />
+            )}
+            {!hasValidationError && !showAutoCompletion && showWizard && (
+                <FirstRunWizard onComplete={handleWizardComplete} cliDir={cliDir} cliModel={cliModel} />
+            )}
+            {!hasValidationError && !showAutoCompletion && !showWizard && (
+                <AppFullscreen config={config} />
+            )}
+        </>
+    );
 };
 
 // Start the TUI with configuration support
@@ -251,7 +249,7 @@ async function startTUI() {
         );
         
         return app;
-    } catch (error) {
+    } catch {
         
         // Fallback to wizard/main app without config
         const app = render(

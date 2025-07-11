@@ -56,15 +56,20 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
 }
 
 const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
+    // CRITICAL: ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL LOGIC
     const { exit } = useApp();
     const { columns, rows } = useTerminalSize();
+    
+    const [supportedModels, setSupportedModels] = useState<string[]>([]);
+    const [modelError, setModelError] = useState<string | null>(null);
+    const [step, setStep] = useState(1); // Will be set correctly after hooks
+    const [isComplete, setIsComplete] = useState(false);
+    const [updateTrigger, setUpdateTrigger] = useState(0);
+    
+    // Calculate initial values AFTER all hooks
     const folderResult = getDefaultFolderPath(cliDir);
     const [folderPath, setFolderPath] = useState(folderResult.path);
     const [, setFolderError] = useState(folderResult.error || null);
-    
-    // Setup model and navigation logic
-    const [supportedModels, setSupportedModels] = useState<string[]>([]);
-    const [modelError, setModelError] = useState<string | null>(null);
     
     // Get default model or validate CLI model
     const getInitialModel = (): string => {
@@ -77,29 +82,20 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     
     const [selectedModel, setSelectedModel] = useState(getInitialModel());
     
-    // If valid folder provided via CLI, skip folder selection step
-    const hasValidCliFolder = cliDir && !folderResult.error;
-    // If valid model provided via CLI, and folder is valid, skip to confirmation
-    const hasValidCliModel = cliModel && !modelError;
-    const initialStep = (() => {
-        if (hasValidCliFolder && hasValidCliModel) return 3; // Go to confirmation
-        if (hasValidCliFolder) return 2; // Go to model selection
-        return 1; // Start with folder selection
-    })();
-    
-    const [step, setStep] = useState(initialStep);
-    const [isComplete, setIsComplete] = useState(false);
-    const [updateTrigger, setUpdateTrigger] = useState(0);
-    
-    const frameColor = '#4c1589';
-    const logoTextColor = '#a65ff6';
-    const highlightColor = '#10b981';
-    const textColor = '#f3f4f6';
-    
-    
-    // Panel dimensions
-    const PANEL_HEIGHT = 9;
-    const PANEL_WIDTH = Math.min(60, columns - 4);
+    // Calculate step after hooks - use useEffect to set correct initial step
+    useEffect(() => {
+        // If valid folder provided via CLI, skip folder selection step
+        const hasValidCliFolder = cliDir && !folderResult.error;
+        // If valid model provided via CLI, and folder is valid, skip to confirmation
+        const hasValidCliModel = cliModel && !modelError;
+        const initialStep = (() => {
+            if (hasValidCliFolder && hasValidCliModel) return 3; // Go to confirmation
+            if (hasValidCliFolder) return 2; // Go to model selection
+            return 1; // Start with folder selection
+        })();
+        
+        setStep(initialStep);
+    }, [cliDir, cliModel, folderResult.error, modelError]);
     
     // Load supported models and validate CLI model
     useEffect(() => {
@@ -144,67 +140,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     
     // Set up root input handler
     useRootInput();
-    
-    // Create configuration items for each step using useMemo to ensure stability
-    const folderPicker = React.useMemo(() => {
-        const picker = new FilePickerListItem(
-            '?',
-            'Which folder would you like to index?',
-            folderPath,
-            true, // isActive
-            'folder', // mode - folder only
-            (path) => {
-                setFolderPath(path);
-                setStep(2); // Auto-advance to next step
-            }
-        );
-        // Expansion handled in getAllItems() based on current step
-        return picker;
-    }, []); // Empty deps since we handle path updates internally
-    
-    // Create model options array from supported models
-    const modelOptions = React.useMemo(() => {
-        return supportedModels.map(model => ({
-            value: model,
-            label: model === 'nomic-embed-text' ? `${model} (Recommended)` : model
-        }));
-    }, [supportedModels]);
-    
-    const modelSelector = React.useMemo(() => {
-        if (modelOptions.length === 0) {
-            // Return a placeholder until models are loaded
-            return new SelectionListItem(
-                '🤖',
-                'Loading models...',
-                [{ value: 'loading', label: 'Loading supported models...' }],
-                ['loading'],
-                false,
-                'radio',
-                'vertical',
-                () => {}
-            );
-        }
-        
-        return new SelectionListItem(
-            '?',
-            'What embedding model would you like to use?',
-            modelOptions,
-            [selectedModel], // selectedValues as array
-            true, // isActive
-            'radio', // mode
-            'vertical', // layout
-            (values) => {
-                if (values.length > 0 && values[0] !== undefined) {
-                    setSelectedModel(values[0]);
-                    setStep(3); // Auto-advance to confirmation
-                }
-            }
-        );
-    }, [modelOptions, selectedModel]);
-    
-    // Language step removed - now goes directly from model to confirmation
-    
-    
     
     // Handle wizard-level input using focus chain
     const handleWizardInput = useCallback((input: string, key: Key): boolean => {
@@ -264,6 +199,130 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         keyBindings: getKeyBindings(),
         priority: -10 // Low priority so panel can handle input first
     });
+    
+    // Stable callback functions
+    const handleFolderChange = React.useCallback((path: string) => {
+        setFolderPath(path);
+        setStep(2); // Auto-advance to next step
+    }, []);
+    
+    const handleModelChange = React.useCallback((values: string[]) => {
+        if (values.length > 0 && values[0] !== undefined) {
+            setSelectedModel(values[0]);
+            setStep(3); // Auto-advance to confirmation
+        }
+    }, []);
+    
+    const handleConfirmationChange = React.useCallback((selectedValues: string[]) => {
+        if (selectedValues[0] === 'confirm') {
+            completeSetup();
+        } else {
+            exit();
+        }
+    }, [exit]);
+    
+    // Create model options array from supported models
+    const modelOptions = React.useMemo(() => {
+        return supportedModels.map(model => ({
+            value: model,
+            label: model === 'nomic-embed-text' ? `${model} (Recommended)` : model
+        }));
+    }, [supportedModels]);
+    
+    // Helper function to create validation message for success states
+    const getValidationForQuestion = (questionType: 'folder' | 'model' | 'confirmation') => {
+        switch (questionType) {
+            case 'folder':
+                if (folderPath && !folderResult.error) {
+                    return createValidationMessage(ValidationState.Valid, '', '✓');
+                }
+                return null; // No validation message for incomplete/invalid states
+                
+            case 'model':
+                if (selectedModel && supportedModels.includes(selectedModel) && !modelError) {
+                    return createValidationMessage(ValidationState.Valid, '', '✓');
+                }
+                return null; // No validation message for incomplete/invalid states
+                
+            case 'confirmation':
+                // Confirmation doesn't need validation icons
+                return null;
+                
+            default:
+                return null;
+        }
+    };
+    
+    // Create stable items using useMemo to prevent recreation on every render
+    const allItems = React.useMemo(() => {
+        const items = [];
+        
+        // Get validation states
+        const folderValidation = getValidationForQuestion('folder');
+        const modelValidation = getValidationForQuestion('model');
+        
+        
+        // Step 1: Folder selection - always show
+        const folderPickerItem = new FilePickerListItem(
+            '·',
+            'Which folder would you like to index?',
+            folderPath,
+            step === 1, // active when it's the current step
+            'folder',
+            handleFolderChange
+        );
+        
+        // Set validation message immediately during creation
+        if (folderValidation) {
+            (folderPickerItem as any)._externalValidationMessage = folderValidation;
+        }
+        
+        items.push(folderPickerItem);
+        
+        // Step 2: Model selection - always show  
+        const modelSelectorItem = new SelectionListItem(
+            '·',
+            'What embedding model would you like to use?',
+            modelOptions,
+            [selectedModel],
+            step === 2, // active when it's the current step
+            'radio',
+            'vertical',
+            handleModelChange
+        );
+        
+        // Set validation message immediately during creation
+        if (modelValidation) {
+            (modelSelectorItem as any)._validationMessage = modelValidation;
+        }
+        
+        items.push(modelSelectorItem);
+        
+        // Step 3: Confirmation - always show
+        const confirmationSelectorItem = new SelectionListItem(
+            '·',
+            'Confirm Adding Embeddings for this folder',
+            [
+                { value: 'confirm', label: '✓ Confirm' },
+                { value: 'deny', label: '✗ Cancel' }
+            ],
+            ['confirm'],
+            step === 3, // active when it's the current step
+            'radio',
+            'horizontal',
+            handleConfirmationChange
+        );
+        
+        items.push(confirmationSelectorItem);
+        
+        return items;
+    }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleConfirmationChange, supportedModels, modelError, folderResult.error]); // Include validation dependencies
+    
+    // Color constants
+    const frameColor = '#4c1589';
+    const logoTextColor = '#a65ff6';
+    const highlightColor = '#10b981';
+    const textColor = '#f3f4f6';
     
     const completeSetup = () => {
         
@@ -362,118 +421,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             </Box>
         );
     }
-    
-
-    // Helper function to create validation message for success states
-    const getValidationForQuestion = (questionType: 'folder' | 'model' | 'confirmation') => {
-        switch (questionType) {
-            case 'folder':
-                if (folderPath && !folderResult.error) {
-                    return createValidationMessage(ValidationState.Valid, '', '✓');
-                }
-                return null; // No validation message for incomplete/invalid states
-                
-            case 'model':
-                if (selectedModel && supportedModels.includes(selectedModel) && !modelError) {
-                    return createValidationMessage(ValidationState.Valid, '', '✓');
-                }
-                return null; // No validation message for incomplete/invalid states
-                
-            case 'confirmation':
-                // Confirmation doesn't need validation icons
-                return null;
-                
-            default:
-                return null;
-        }
-    };
-
-    // Stable callback functions
-    const handleFolderChange = React.useCallback((path: string) => {
-        setFolderPath(path);
-        setStep(2); // Auto-advance to next step
-    }, []);
-    
-    const handleModelChange = React.useCallback((values: string[]) => {
-        if (values.length > 0 && values[0] !== undefined) {
-            setSelectedModel(values[0]);
-            setStep(3); // Auto-advance to confirmation
-        }
-    }, []);
-    
-    const handleConfirmationChange = React.useCallback((selectedValues: string[]) => {
-        if (selectedValues[0] === 'confirm') {
-            completeSetup();
-        } else {
-            exit();
-        }
-    }, [exit]);
-
-    // Create stable items using useMemo to prevent recreation on every render
-    const allItems = React.useMemo(() => {
-        const items = [];
-        
-        // Get validation states
-        const folderValidation = getValidationForQuestion('folder');
-        const modelValidation = getValidationForQuestion('model');
-        
-        
-        // Step 1: Folder selection - always show
-        const folderPickerItem = new FilePickerListItem(
-            '·',
-            'Which folder would you like to index?',
-            folderPath,
-            step === 1, // active when it's the current step
-            'folder',
-            handleFolderChange
-        );
-        
-        // Set validation message immediately during creation
-        if (folderValidation) {
-            (folderPickerItem as any)._externalValidationMessage = folderValidation;
-        }
-        
-        items.push(folderPickerItem);
-        
-        // Step 2: Model selection - always show  
-        const modelSelectorItem = new SelectionListItem(
-            '·',
-            'What embedding model would you like to use?',
-            modelOptions,
-            [selectedModel],
-            step === 2, // active when it's the current step
-            'radio',
-            'vertical',
-            handleModelChange
-        );
-        
-        // Set validation message immediately during creation
-        if (modelValidation) {
-            (modelSelectorItem as any)._validationMessage = modelValidation;
-        }
-        
-        items.push(modelSelectorItem);
-        
-        // Step 3: Confirmation - always show
-        const confirmationSelectorItem = new SelectionListItem(
-            '·',
-            'Confirm Adding Embeddings for this folder',
-            [
-                { value: 'confirm', label: '✓ Confirm' },
-                { value: 'deny', label: '✗ Cancel' }
-            ],
-            ['confirm'],
-            step === 3, // active when it's the current step
-            'radio',
-            'horizontal',
-            handleConfirmationChange
-        );
-        
-        items.push(confirmationSelectorItem);
-        
-        return items;
-    }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleConfirmationChange, supportedModels, modelError, folderResult.error]); // Include validation dependencies
-
     // Show error screen if there are critical errors
     const hasCriticalError = folderResult.error || (cliModel && modelError);
     
@@ -542,7 +489,13 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     );
 };
 
+
 export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
+    console.error(`\n=== FIRST RUN WIZARD ENTRY ===`);
+    console.error(`Props - cliDir: ${cliDir}, cliModel: ${cliModel}`);
+    console.error(`=== END FIRST RUN WIZARD ENTRY ===\n`);
+    
+    // Use the fixed WizardContent with proper hook order
     return (
         <AnimationProvider>
             <WizardContent onComplete={onComplete} cliDir={cliDir} cliModel={cliModel} />
