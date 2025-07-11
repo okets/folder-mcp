@@ -1,6 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem';
+import { theme } from '../../utils/theme';
 
 export interface ButtonConfig {
     name: string;           
@@ -64,10 +65,121 @@ export class SimpleButtonsRow implements IListItem {
         return result;
     }
     
+    /**
+     * Detect if terminal supports modern features like underline
+     */
+    private hasModernTerminalSupport(): boolean {
+        const termProgram = process.env.TERM_PROGRAM;
+        const colorTerm = process.env.COLORTERM;
+        const term = process.env.TERM;
+        
+        // Modern terminal programs that support underline well
+        const modernTerminals = [
+            'iTerm.app',
+            'vscode',
+            'hyper',
+            'wezterm',
+            'alacritty',
+            'kitty'
+        ];
+        
+        // Modern color term indicators
+        const modernColorTerms = ['truecolor', '24bit'];
+        
+        // Modern TERM values
+        const modernTermValues = [
+            'xterm-256color',
+            'screen-256color',
+            'tmux-256color'
+        ];
+        
+        return (
+            (termProgram && modernTerminals.includes(termProgram)) ||
+            (colorTerm && modernColorTerms.includes(colorTerm)) ||
+            (term && modernTermValues.includes(term)) ||
+            process.env.TERM_PROGRAM === 'Apple_Terminal' // macOS Terminal.app
+        );
+    }
+    
+    /**
+     * Render low resolution mode: [ Cancel ] [ Save ]
+     * Focused button is underlined
+     */
+    private renderLowResolution(maxWidth: number, focusedButtonIndex: number): ReactElement {
+        const elements: ReactElement[] = [];
+        
+        // Calculate available space for buttons
+        const spaceBetweenButtons = this.buttons.length > 1 ? (this.buttons.length - 1) : 0;
+        const bracketsPerButton = 2; // [ and ]
+        const totalBrackets = this.buttons.length * bracketsPerButton;
+        const totalSpacing = spaceBetweenButtons;
+        const availableForText = maxWidth - totalBrackets - totalSpacing;
+        const maxTextPerButton = Math.floor(availableForText / this.buttons.length);
+        
+        for (let i = 0; i < this.buttons.length; i++) {
+            const button = this.buttons[i];
+            if (!button) continue;
+            
+            const isFocused = i === focusedButtonIndex;
+            
+            // Calculate truncation based on visual length (without ANSI codes)
+            const cleanTextForMeasurement = button.text.replace(/\x1b\[[0-9;]*m/g, '');
+            let displayText = button.text;
+            let cleanDisplayText = cleanTextForMeasurement;
+            
+            if (cleanTextForMeasurement.length > maxTextPerButton) {
+                // Truncate both versions
+                const truncatedClean = cleanTextForMeasurement.substring(0, maxTextPerButton);
+                displayText = truncatedClean; // For unfocused (lose ANSI)
+                cleanDisplayText = truncatedClean; // For focused
+            }
+            
+            // Create the button text with adaptive focus styling
+            const hasModernSupport = this.hasModernTerminalSupport();
+            const buttonText = (
+                <Text key={button.name} bold>
+                    <Text color={button.borderColor}>[</Text>
+                    {isFocused ? (
+                        hasModernSupport ? (
+                            // Modern terminals: strip ANSI, use border color with underline
+                            <Text underline color={button.borderColor} bold>{cleanDisplayText}</Text>
+                        ) : (
+                            // Older terminals: strip ANSI, use border color with background highlight
+                            <Text backgroundColor={theme.colors.accent} color={button.borderColor} bold>{cleanDisplayText}</Text>
+                        )
+                    ) : (
+                        // Not focused: preserve ANSI colors
+                        <Text bold>{displayText}</Text>
+                    )}
+                    <Text color={button.borderColor}>]</Text>
+                </Text>
+            );
+            
+            elements.push(buttonText);
+            
+            // Add space between buttons
+            if (i < this.buttons.length - 1) {
+                elements.push(<Text key={`space-${i}`}> </Text>);
+            }
+        }
+        
+        return (
+            <Box justifyContent="center" width="100%">
+                {elements}
+            </Box>
+        );
+    }
+    
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Check if we're in low resolution mode 
+        const isLowRes = maxLines !== undefined && maxLines < 4;
+        
         // Show focus when controlling input OR when row is active AND we want immediate button focus
         const focusedButton = this._isControllingInput ? this._focusedButtonIndex : -1;
         
+        if (isLowRes) {
+            return this.renderLowResolution(maxWidth, focusedButton);
+        }
         
         // Return array of elements like LogItem does
         const elements: ReactElement[] = [];
@@ -221,7 +333,16 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
-        return 3; // Just the 3 button lines
+        // Use maxHeight to determine layout mode 
+        const isLowRes = maxHeight !== undefined && maxHeight < 6;
+        
+        // Low resolution mode: 1 line
+        if (isLowRes) {
+            return 1;
+        }
+        
+        // Regular mode: 3 lines (top border, content, bottom border)
+        return 3;
     }
     
     onEnter(): void {

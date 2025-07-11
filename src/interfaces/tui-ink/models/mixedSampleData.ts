@@ -776,33 +776,33 @@ export function createStatusPanelItems(): IListItem[] {
             'Quick Actions',
             [
                 {
-                    name: 'save',
+                    name: 'accept',
                     borderColor: '#10b981', // green
-                    text: 'Save',
-                    eventValue: 'save-config'
+                    text: '√Accept',
+                    eventValue: 'accept-action'
                 },
                 {
-                    name: 'reset',
-                    borderColor: '#f59e0b', // amber 
-                    text: 'Reset',
-                    eventValue: 'reset-config'
-                },
-                {
-                    name: 'exit',
+                    name: 'decline',
                     borderColor: '#ef4444', // red
-                    text: 'Exit',
-                    eventValue: 'exit-app'
+                    text: '\x1b[38;5;208m✗\x1b[0mDecline', // orange ✗ symbol
+                    eventValue: 'decline-action'
+                },
+                {
+                    name: 'cancel',
+                    borderColor: '#6b7280', // gray
+                    text: '-Cancel',
+                    eventValue: 'cancel-action'
                 }
             ],
             false, // isActive will be managed by GenericListPanel
             (button, index) => {
                 console.log(`Button "${button.name}" activated with value:`, button.eventValue);
-                if (button.eventValue === 'exit-app') {
-                    console.log('Exit button pressed - would quit application');
-                } else if (button.eventValue === 'save-config') {
-                    console.log('Save button pressed - would save configuration');
-                } else if (button.eventValue === 'reset-config') {
-                    console.log('Reset button pressed - would reset configuration');
+                if (button.eventValue === 'accept-action') {
+                    console.log('Accept button pressed - would accept the action');
+                } else if (button.eventValue === 'decline-action') {
+                    console.log('Decline button pressed - would decline the action');
+                } else if (button.eventValue === 'cancel-action') {
+                    console.log('Cancel button pressed - would cancel the action');
                 }
             }
         )
