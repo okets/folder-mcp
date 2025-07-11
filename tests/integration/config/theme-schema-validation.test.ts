@@ -69,7 +69,7 @@ performance:
         process.chdir(tempDir);
         
         // Test all valid theme values
-        const validThemes = ['light', 'dark', 'auto'];
+        const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
         
         for (const theme of validThemes) {
           await configManager.set('theme', theme);
@@ -127,7 +127,7 @@ performance:
           expect.fail('Should have thrown validation error');
         } catch (error) {
           expect(error).toBeInstanceOf(Error);
-          expect((error as Error).message).toContain('Theme must be one of: light, dark, auto');
+          expect((error as Error).message).toContain('Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
         }
       } finally {
         process.chdir(originalCwd);
@@ -164,7 +164,7 @@ performance:
       
       const themeItem = schema.groups.appearance.items.theme;
       expect(themeItem.type).toBe('enum');
-      expect(themeItem.validation.enum).toEqual(['light', 'dark', 'auto']);
+      expect(themeItem.validation.enum).toEqual(['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal']);
     });
 
     it('should provide UI hints in schema', async () => {
@@ -173,8 +173,8 @@ performance:
       
       expect(themeItem.ui).toBeDefined();
       expect(themeItem.ui.component).toBe('select');
-      expect(themeItem.ui.options).toHaveLength(3);
-      expect(themeItem.ui.options[0]).toEqual({ value: 'light', label: 'Light Mode' });
+      expect(themeItem.ui.options).toHaveLength(7);
+      expect(themeItem.ui.options[0]).toEqual({ value: 'auto', label: 'Auto (System)' });
     });
   });
 

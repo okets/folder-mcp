@@ -16,17 +16,21 @@ export const themeConfigItem: ConfigItem = {
   description: 'Application color theme preference',
   required: false,
   validation: {
-    enum: ['light', 'dark', 'auto'],
-    errorMessage: 'Theme must be one of: light, dark, auto'
+    enum: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'],
+    errorMessage: 'Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal'
   },
   ui: {
     label: 'Theme',
     component: 'select',
     helpText: 'Choose your preferred color theme',
     options: [
+      { value: 'auto', label: 'Auto (System)' },
       { value: 'light', label: 'Light Mode' },
       { value: 'dark', label: 'Dark Mode' },
-      { value: 'auto', label: 'Auto (System)' }
+      { value: 'light-optimized', label: 'Light Optimized' },
+      { value: 'dark-optimized', label: 'Dark Optimized' },
+      { value: 'default', label: 'Default' },
+      { value: 'minimal', label: 'Minimal' }
     ]
   }
 };

@@ -3,13 +3,13 @@
  * 
  * Supports parsing CLI arguments like:
  * - folder-mcp --theme light /path/to/folder
- * - folder-mcp --theme dark /path/to/folder
+ * - folder-mcp --theme dark-optimized /path/to/folder
  * - folder-mcp --theme auto /path/to/folder
  */
 
 export interface CliArguments {
   folderPath?: string;
-  theme?: 'light' | 'dark' | 'auto';
+  theme?: 'auto' | 'light' | 'dark' | 'light-optimized' | 'dark-optimized' | 'default' | 'minimal';
   help?: boolean;
 }
 
@@ -45,15 +45,16 @@ export class CliArgumentParser {
       } else if (arg === '--theme') {
         i++;
         if (i >= args.length) {
-          result.errors.push('--theme requires a value (light, dark, or auto)');
+          result.errors.push('--theme requires a value (auto, light, dark, light-optimized, dark-optimized, default, or minimal)');
           break;
         }
         
         const themeValue = args[i];
-        if (themeValue === 'light' || themeValue === 'dark' || themeValue === 'auto') {
-          result.args.theme = themeValue;
+        const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'] as const;
+        if (validThemes.includes(themeValue as any)) {
+          result.args.theme = themeValue as typeof validThemes[number];
         } else {
-          result.errors.push(`Invalid theme value: ${themeValue}. Must be one of: light, dark, auto`);
+          result.errors.push(`Invalid theme value: ${themeValue}. Must be one of: auto, light, dark, light-optimized, dark-optimized, default, minimal`);
         }
         i++;
       } else if (arg && arg.startsWith('--')) {
@@ -86,12 +87,12 @@ Arguments:
   <folder-path>     Path to the folder to serve
 
 Options:
-  --theme <theme>   Override theme configuration (light, dark, auto)
+  --theme <theme>   Override theme configuration (auto, light, dark, light-optimized, dark-optimized, default, minimal)
   --help, -h        Show this help message
 
 Examples:
   folder-mcp /path/to/documents
-  folder-mcp --theme dark /path/to/documents  
+  folder-mcp --theme dark-optimized /path/to/documents  
   folder-mcp --theme light /path/to/documents
   folder-mcp --theme auto /path/to/documents
 `.trim();

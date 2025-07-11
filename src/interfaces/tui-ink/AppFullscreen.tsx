@@ -12,7 +12,7 @@ import { ServiceTokens } from './di/tokens';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
 import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
-import { ThemeContext, themes, ThemeName } from './contexts/ThemeContext';
+import { useTheme, themes, ThemeName } from './contexts/ThemeContext';
 import { IListItem } from './components/core/IListItem';
 import { FilePickerListItem } from './components/core/FilePickerListItem';
 import { ConfigurationListItem } from './components/core/ConfigurationListItem';
@@ -173,9 +173,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         }
     }, [currentFolders, handleModelChange]); // Use currentFolders instead of config
     
-    // Try to use theme context if available
-    const themeContext = useContext(ThemeContext);
-    const hasTheme = themeContext !== undefined;
+    // Use theme context - this component now requires a theme provider
+    const themeContext = useTheme();
     
     
     // Set up root input handler
@@ -188,14 +187,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             toggleAnimations();
             return true;
         }
-        // Handle 'T' to cycle themes (if theme context is available)
-        if ((input === 't' || input === 'T') && hasTheme && themeContext) {
+        // Handle 'T' to cycle themes
+        if ((input === 't' || input === 'T') && themeContext) {
             const themeNames = Object.keys(themes) as ThemeName[];
             const currentIndex = themeNames.indexOf(themeContext.themeName);
             const nextIndex = (currentIndex + 1) % themeNames.length;
             const nextTheme = themeNames[nextIndex];
             if (nextTheme) {
-                themeContext.setTheme(nextTheme);
+                themeContext.setTheme(nextTheme).catch(error => {
+                    console.error('Failed to change theme:', error);
+                });
             }
             return true;
         }
@@ -205,7 +206,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             return true;
         }
         return false;
-    }, [exit, toggleAnimations, hasTheme, themeContext]);
+    }, [exit, toggleAnimations, themeContext]);
     
     // Use focus chain for app-level component
     useFocusChain({
@@ -214,7 +215,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         keyBindings: isNodeInEditMode ? [] : [
             { key: 'Q', description: 'Quit' },
             { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' },
-            ...(hasTheme ? [{ key: 'T', description: `Theme (${themeContext?.themeName || 'auto'})` }] : [])
+            { key: 'T', description: `Theme (${themeContext.themeName || 'auto'})` }
         ],
         priority: -100 // Low priority so active elements can override
     });
@@ -231,7 +232,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     
     return (
         <Box flexDirection="column" height={rows} width={columns}>
-            <Header {...(hasTheme && themeContext ? { themeName: themeContext.themeName } : {})} />
+            <Header themeName={themeContext.themeName} />
             
             <LayoutContainer
                 availableHeight={availableHeight}

@@ -17,7 +17,7 @@ describe('SimpleSchemaValidator', () => {
   describe('validateValue', () => {
     describe('theme validation', () => {
       it('should validate valid theme values', async () => {
-        const validThemes = ['light', 'dark', 'auto'];
+        const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
         
         for (const theme of validThemes) {
           const result = await validator.validateValue('theme', theme);
@@ -38,7 +38,7 @@ describe('SimpleSchemaValidator', () => {
 
       it('should provide helpful error message for invalid theme', async () => {
         const result = await validator.validateValue('theme', 'invalid');
-        expect((result as any).error).toContain('Theme must be one of: light, dark, auto');
+        expect((result as any).error).toContain('Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
       });
 
       it('should validate theme with full path', async () => {

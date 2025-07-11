@@ -157,7 +157,7 @@ export type ThemeName = keyof typeof themes;
 interface ThemeContextValue {
     theme: Theme;
     themeName: ThemeName;
-    setTheme: (name: ThemeName) => void | Promise<void>;
+    setTheme: (name: ThemeName) => Promise<void>;
 }
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -170,12 +170,12 @@ export const ThemeProvider: React.FC<{
     const [themeName, setThemeName] = useState<ThemeName>(initialTheme);
     const theme = themes[themeName];
     
-    const setTheme = (name: ThemeName) => {
+    const setTheme = async (name: ThemeName) => {
         if (themes[name]) {
             setThemeName(name);
             // Call the optional callback for persistence
             if (onThemeChange) {
-                onThemeChange(name);
+                await onThemeChange(name);
             }
         }
     };

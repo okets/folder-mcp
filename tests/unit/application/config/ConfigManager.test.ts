@@ -132,7 +132,7 @@ class MockSchemaValidator implements ISchemaValidator {
   async validateValue(path: string, value: any): Promise<any> {
     // Simple theme validation for tests
     if (path === 'theme') {
-      const validThemes = ['light', 'dark', 'auto'];
+      const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
       if (!validThemes.includes(value)) {
         return {
           valid: false,
@@ -179,7 +179,7 @@ class MockSchemaLoader implements ISchemaLoader {
             type: 'select',
             label: 'Theme',
             description: 'Color theme',
-            validation: { options: ['light', 'dark', 'auto'] }
+            validation: { options: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'] }
           }
         }
       }
@@ -190,7 +190,7 @@ class MockSchemaLoader implements ISchemaLoader {
     return {
       type: 'select',
       label: 'Theme',
-      validation: { options: ['light', 'dark', 'auto'] }
+      validation: { options: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'] }
     };
   }
 

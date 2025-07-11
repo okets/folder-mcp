@@ -43,7 +43,7 @@ describe('ConfigurationComponent', () => {
 
     describe('Theme validation', () => {
         it('should accept valid themes', async () => {
-            const validThemes = ['auto', 'light', 'dark'];
+            const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
             
             for (const theme of validThemes) {
                 const result = await configComponent.validate('theme', theme);
@@ -58,7 +58,7 @@ describe('ConfigurationComponent', () => {
             for (const theme of invalidThemes) {
                 const result = await configComponent.validate('theme', theme);
                 expect(result.valid).toBe(false);
-                expect(result.errors?.[0]?.message).toBe('Theme must be auto, light, or dark');
+                expect(result.errors?.[0]?.message).toBe('Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
             }
         });
     });
@@ -255,7 +255,7 @@ describe('ConfigurationComponent', () => {
             
             // Invalid set should throw
             await expect(configComponent.set('theme', 'invalid-theme'))
-                .rejects.toThrow('Invalid value for theme: Theme must be auto, light, or dark');
+                .rejects.toThrow('Invalid value for theme: Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
             
             expect(mockConfigManager.set).not.toHaveBeenCalled();
         });
@@ -300,7 +300,7 @@ describe('ConfigurationComponent', () => {
             const result = await configComponent.validateAll();
             expect(result.isValid).toBe(false);
             expect(result.errors).toHaveLength(2);
-            expect(result.errors[0]).toEqual({ path: 'theme', error: 'Theme must be auto, light, or dark' });
+            expect(result.errors[0]).toEqual({ path: 'theme', error: 'Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal' });
             expect(result.errors[1]).toEqual({ path: 'folders.list[].path', error: 'Folder does not exist' });
         });
     });

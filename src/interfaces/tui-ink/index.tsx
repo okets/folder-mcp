@@ -253,10 +253,16 @@ async function startTUI() {
         return app;
     } catch {
         
-        // Fallback to wizard/main app without config
+        // Fallback to wizard/main app without config - still provide theme context
+        // Get ConfigurationComponent for fallback case
+        const container = getContainer();
+        const fallbackConfigComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+        
         const app = render(
             <DIProvider container={tuiContainer}>
-                <MainApp cliDir={cliDir} cliModel={cliModel} />
+                <ConfigurationThemeProvider configManager={fallbackConfigComponent}>
+                    <MainApp cliDir={cliDir} cliModel={cliModel} />
+                </ConfigurationThemeProvider>
             </DIProvider>,
             {
                 exitOnCtrlC: true

@@ -35,7 +35,7 @@ describe('CliArgumentParser', () => {
     });
 
     it('should handle all valid theme values', () => {
-      const themes = ['light', 'dark', 'auto'];
+      const themes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
       
       themes.forEach(theme => {
         const result = CliArgumentParser.parse(['node', 'script.js', '--theme', theme, '/path/to/folder']);
@@ -62,14 +62,14 @@ describe('CliArgumentParser', () => {
     it('should error on invalid theme value', () => {
       const result = CliArgumentParser.parse(['node', 'script.js', '--theme', 'invalid', '/path/to/folder']);
       
-      expect(result.errors).toContain('Invalid theme value: invalid. Must be one of: light, dark, auto');
+      expect(result.errors).toContain('Invalid theme value: invalid. Must be one of: auto, light, dark, light-optimized, dark-optimized, default, minimal');
       expect(result.args.folderPath).toBe('/path/to/folder');
     });
 
     it('should error when --theme has no value', () => {
       const result = CliArgumentParser.parse(['node', 'script.js', '--theme']);
       
-      expect(result.errors).toContain('--theme requires a value (light, dark, or auto)');
+      expect(result.errors).toContain('--theme requires a value (auto, light, dark, light-optimized, dark-optimized, default, or minimal)');
     });
 
     it('should error on unknown option', () => {

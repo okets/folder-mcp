@@ -33,8 +33,8 @@ export class ValidationRegistry {
 
         // Theme validation
         this.registerRule('theme', {
-            validate: (value: string) => ['auto', 'light', 'dark'].includes(value),
-            message: 'Theme must be auto, light, or dark'
+            validate: (value: string) => ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'].includes(value),
+            message: 'Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal'
         });
 
         // Folder path validation

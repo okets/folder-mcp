@@ -44,7 +44,7 @@ describe('Configuration Interfaces', () => {
         description: 'Color theme for the interface',
         required: false,
         validation: {
-          options: ['light', 'dark', 'auto']
+          options: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal']
         },
         ui: {
           component: 'radio',
@@ -54,7 +54,7 @@ describe('Configuration Interfaces', () => {
 
       expect(themeConfigItem.type).toBe('select');
       expect(themeConfigItem.label).toBe('Theme');
-      expect(themeConfigItem.validation?.options).toEqual(['light', 'dark', 'auto']);
+      expect(themeConfigItem.validation?.options).toEqual(['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal']);
     });
 
     it('should define proper ConfigSchema structure', () => {
@@ -71,7 +71,7 @@ describe('Configuration Interfaces', () => {
                 type: 'select',
                 label: 'Theme',
                 description: 'Color theme',
-                validation: { options: ['light', 'dark', 'auto'] }
+                validation: { options: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'] }
               }
             }
           }
