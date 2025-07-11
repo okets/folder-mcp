@@ -37,6 +37,9 @@ Thumbs.db
 logs/
 *.log
 
+# Configuration files
+config.yaml
+
 # Runtime data
 pids/
 *.pid
