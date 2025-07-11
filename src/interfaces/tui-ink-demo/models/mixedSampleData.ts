@@ -775,19 +775,19 @@ export function createConfigurationPanelItems(): IListItem[] {
                 {
                     name: 'accept',
                     borderColor: '#10B981', // green
-                    text: '✓Accept',
+                    text: '\x1b[32m✓Accept\x1b[0m',
                     eventValue: 'accept'
                 },
                 {
                     name: 'decline',
                     borderColor: '#EF4444', // red
-                    text: '✗ Decline',
+                    text: '\x1b[31m✗ Decline\x1b[0m',
                     eventValue: 'decline'
                 },
                 {
                     name: 'cancel',
                     borderColor: '#F59E0B', // orange
-                    text: '◐ Cancel',
+                    text: '\x1b[33m◐ Cancel\x1b[0m',
                     eventValue: 'cancel'
                 }
             ],

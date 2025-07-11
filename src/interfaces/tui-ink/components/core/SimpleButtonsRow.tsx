@@ -33,9 +33,6 @@ export class SimpleButtonsRow implements IListItem {
         // Return array of elements like LogItem does
         const elements: ReactElement[] = [];
         
-        // Add empty line at top
-        elements.push(<Text key="empty"> </Text>);
-        
         // Create button row
         const buttonBoxes: ReactElement[] = [];
         for (let i = 0; i < this.buttons.length; i++) {
@@ -111,7 +108,7 @@ export class SimpleButtonsRow implements IListItem {
             );
         }
         
-        elements.push(<Box key="topline">{topLine}</Box>);
+        elements.push(<Box key="topline" justifyContent="center">{topLine}</Box>);
         
         // Line 2: Content
         const middleLine: ReactElement[] = [];
@@ -135,14 +132,16 @@ export class SimpleButtonsRow implements IListItem {
             middleLine.push(
                 <Text key={`mid-${i}`}>
                     <Text color={button.borderColor}>│</Text>
-                    {' '.repeat(leftPad) + displayText + ' '.repeat(rightPad)}
+                    <Text>{' '.repeat(leftPad)}</Text>
+                    <Text>{button.text}</Text>
+                    <Text>{' '.repeat(rightPad)}</Text>
                     <Text color={button.borderColor}>│</Text>
                     {i < this.buttons.length - 1 ? ' ' : ''}
                 </Text>
             );
         }
         
-        elements.push(<Box key="middleline">{middleLine}</Box>);
+        elements.push(<Box key="middleline" justifyContent="center">{middleLine}</Box>);
         
         // Line 3: Bottom borders
         const bottomLine: ReactElement[] = [];
@@ -166,13 +165,13 @@ export class SimpleButtonsRow implements IListItem {
             );
         }
         
-        elements.push(<Box key="bottomline">{bottomLine}</Box>);
+        elements.push(<Box key="bottomline" justifyContent="center">{bottomLine}</Box>);
         
         return elements;
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
-        return 4; // 1 empty line + 3 button lines
+        return 3; // Just the 3 button lines
     }
     
     onEnter(): void {
