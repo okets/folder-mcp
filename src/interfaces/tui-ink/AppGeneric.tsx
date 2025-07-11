@@ -34,7 +34,7 @@ export const AppGeneric: React.FC = () => {
             {/* Status bar */}
             <Box height={1} justifyContent="center">
                 <Text color="gray">
-                    Tab to switch panels | ↑↓ to navigate | q to quit
+                    Tab to switch panels | ↑↓ to navigate | esc to quit
                 </Text>
             </Box>
         </Box>

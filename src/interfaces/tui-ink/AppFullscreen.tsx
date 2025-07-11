@@ -200,8 +200,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             }
             return true;
         }
-        // Handle 'q' to quit - always available unless something with higher priority handles it
-        if (input === 'q' || input === 'Q') {
+        // Handle 'esc' to quit - always available unless something with higher priority handles it
+        if (key.escape) {
             exit();
             return true;
         }
@@ -213,7 +213,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: 'Q', description: 'Quit' },
+            { key: 'Esc', description: 'Quit' },
             { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' },
             { key: 'T', description: `Theme (${themeContext.themeName || 'auto'})` }
         ],

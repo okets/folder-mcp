@@ -184,6 +184,12 @@ export class ConfigurationListItem extends ValidatedListItem {
         }
         
         if (key.escape) {
+            // Only consume escape if we're actually controlling input (editing)
+            if (!this._isControllingInput) {
+                // Not editing - let escape bubble up for app exit
+                return false;
+            }
+            
             // Handle confirmation mode
             if (this._showingConfirmation) {
                 // Cancel confirmation and exit completely
