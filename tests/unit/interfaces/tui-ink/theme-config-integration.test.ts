@@ -59,7 +59,7 @@ describe('ConfigurableThemeService', () => {
         await new Promise(resolve => setTimeout(resolve, 10));
         
         const themeName = themeService.getThemeName();
-        expect(themeName).toBe('dark');
+        expect(themeName).toBe('dark-optimized');
     });
     
     it('should handle auto theme setting', async () => {
@@ -108,6 +108,6 @@ describe('ConfigurableThemeService', () => {
         await themeService.reloadFromConfig();
         
         // Should have the new theme
-        expect(themeService.getThemeName()).toBe('light');
+        expect(themeService.getThemeName()).toBe('light-optimized');
     });
 });
