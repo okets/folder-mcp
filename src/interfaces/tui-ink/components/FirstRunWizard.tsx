@@ -5,6 +5,7 @@ import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync, statSync } from 'fs';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { SimpleButtonsRow, ButtonConfig } from './core/SimpleButtonsRow';
 import { ValidationState, createValidationMessage } from '../validation/ValidationState';
 import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
@@ -220,6 +221,14 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             exit();
         }
     }, [exit]);
+
+    const handleButtonPress = React.useCallback((buttonConfig: ButtonConfig, buttonIndex: number) => {
+        if (buttonConfig.eventValue === 'confirm') {
+            completeSetup();
+        } else if (buttonConfig.eventValue === 'cancel') {
+            exit();
+        }
+    }, [exit]);
     
     // Create model options array from supported models
     const modelOptions = React.useMemo(() => {
@@ -299,24 +308,32 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         items.push(modelSelectorItem);
         
         // Step 3: Confirmation - always show
-        const confirmationSelectorItem = new SelectionListItem(
-            '·',
+        const confirmationButtonsRow = new SimpleButtonsRow(
+            '⚡',
             'Confirm Adding Embeddings for this folder',
             [
-                { value: 'confirm', label: '✓ Confirm' },
-                { value: 'deny', label: '✗ Cancel' }
+                {
+                    name: 'confirm',
+                    borderColor: '#10b981', // green
+                    text: '✓ Confirm',
+                    eventValue: 'confirm'
+                },
+                {
+                    name: 'cancel', 
+                    borderColor: '#ef4444', // red
+                    text: '✗ Cancel',
+                    eventValue: 'cancel'
+                }
             ],
-            ['confirm'],
             step === 3, // active when it's the current step
-            'radio',
-            'horizontal',
-            handleConfirmationChange
+            handleButtonPress,
+            'center' // center-aligned buttons
         );
         
-        items.push(confirmationSelectorItem);
+        items.push(confirmationButtonsRow);
         
         return items;
-    }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleConfirmationChange, supportedModels, modelError, folderResult.error]); // Include validation dependencies
+    }, [step, folderPath, selectedModel, modelOptions, handleFolderChange, handleModelChange, handleButtonPress, supportedModels, modelError, folderResult.error]); // Include validation dependencies
     
     // Color constants
     const frameColor = '#4c1589';

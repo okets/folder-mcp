@@ -564,83 +564,84 @@ npm run build  # Build succeeds with no errors
 **Discovered**: 2025-07-10  
 **What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
 
-#### Task 4.8.5: Implement ButtonsRow List Item Component
+#### Task 4.8.5: Implement SimpleButtonsRow List Item Component
 **Status**: ✅ COMPLETED  
 **Discovered**: 2025-07-11  
-**What**: Design and implement a new ButtonsRow list item component that displays an array of interactive buttons with colored borders and ANSI text support.
+**What**: Design and implement a comprehensive button row component with responsive behavior, ANSI color support, and alignment options.
 
-**Why**: Need a reusable component for action buttons in TUI interfaces, with responsive design that adapts between regular mode (bordered boxes) and short vertical mode (compact layout). This will be used for confirmation dialogs, action panels, and other interactive elements.
+**Why**: Need a production-ready component for action buttons in TUI interfaces with sophisticated features for real-world use cases. This replaces preliminary button components with a fully-featured implementation.
 
-**Requirements**:
-- **Always open**: ButtonsRow is never collapsed
-- **Responsive design**: 
-  - Regular mode (≥25 rows): Bordered boxes with colored corners
-  - Low resolution mode (`isLowResolution = rows < 25`): Compact bracket layout
-- **Button properties**: name, border-color, text (with ANSI support), event value
-- **Focus indicators**: Selection blue corners (╔╚╗╝) in regular mode, ▶ arrow in low resolution mode
-- **Colorful text**: Full ANSI escape sequence support in button text
-- **Alignment support**: left, right, center alignment for button row layout
+**Key Features Implemented**:
+- **Responsive Design**: Automatically switches between bordered (3-line) and minimized (1-line) modes based on terminal size and space constraints
+- **Progressive Truncation**: Removes button padding before truncating text to maximize space efficiency
+- **ANSI Color Support**: Full support for ANSI escape codes in button text (e.g., colored icons)
+- **Global Coordination**: Shares terminal size information with other components for consistent responsive behavior
+- **Alignment Options**: Support for left, center, and right alignment of button rows
+- **Smart Focus Management**: Proper keyboard navigation with visual focus indicators
 
-**Design Specifications**:
-```typescript
-interface ButtonConfig {
-  name: string;           // Internal identifier
-  borderColor: string;    // Color for button border
-  text: string;          // Display text (supports ANSI)
-  eventValue: any;       // Value returned when button activated
-}
+**Technical Implementation**:
+- **Component**: `SimpleButtonsRow` implementing `IListItem` interface
+- **File**: `src/interfaces/tui-ink/components/core/SimpleButtonsRow.tsx`
+- **Responsive Logic**: Uses global terminal size (`globalTerminalRows < 25`) and local space constraints (`maxLines < 3`)
+- **Visual Modes**:
+  - **Regular Mode** (≥25 rows, ≥3 lines available): 3-line bordered boxes with colored corners
+  - **Low Resolution Mode** (<25 rows or <3 lines): Single-line bracket layout with underline focus
 
-interface ButtonsRowConfig {
-  buttons: ButtonConfig[];
-  align?: 'left' | 'right' | 'center';  // Row alignment (default: left)
-}
-```
+**Progressive Truncation Algorithm**:
+1. Calculate space needed for all buttons with padding
+2. If any button doesn't fit, remove padding from ALL buttons globally
+3. If text still doesn't fit, truncate text directly (no ellipsis for space efficiency)
+4. ANSI-aware truncation preserves escape sequences while truncating visible characters
+
+**ANSI Color Handling**:
+- **Problem Solved**: ANSI escape codes conflicted with React Ink's bold styling
+- **Solution**: Removed bold styling entirely to avoid conflicts
+- **Result**: Clean rendering of colored symbols (e.g., orange ✗ in Decline button)
+
+**Alignment Implementation**:
+- **Type**: `ButtonAlignment = 'left' | 'center' | 'right'`
+- **Application**: Uses Ink's `justifyContent` property on all layout containers
+- **Consistency**: Applied to both regular mode (all 3 lines) and low resolution mode
 
 **Visual Examples**:
 
-**Regular Mode (rows ≥ 25)**:
+**Regular Mode** (bordered boxes):
 ```
-╔─────────╗  ╭──────────╮
-│ √Accept │  │ ✗ Decline│
-╚─────────╝  ╰──────────╯
+╔─────────╗  ╭──────────╮  ╭────────╮
+│ √Accept │  │ ✗Decline │  │ Cancel │
+╚─────────╝  ╰──────────╯  ╰────────╯
 ```
-- Buttons have colored borders (borderColor property)
-- Selection blue corners (╔╚╗╝) for focused button
-- Unicode box drawing characters for borders
 
-**Low Resolution Mode (isLowResolution = rows < 25)**:
+**Low Resolution Mode** (compact brackets):
 ```
-Focused button:    [▶cancel ] [ Save ]
-Not focused:       [ Cancel ] [ Save ]
+[ √Accept ] [ ✗Decline ] [ Cancel ]
 ```
-- Compact bracket layout saves vertical space
-- ▶ arrow indicates focused button
-- Single line layout
 
 **Implementation Subtasks**:
-- [x] Create ButtonsRow component implementing IListItem directly (action item pattern)
-- [x] Implement responsive layout detection (`isLowResolution = rows < 25`)
-- [x] Add button rendering for both regular mode (bordered boxes) and low resolution mode (compact brackets)
-- [x] Integrate theme colors for selection blue highlighting (theme.colors.accent)
-- [x] Add keyboard navigation: left/right for buttons (circular), up/down for list navigation, enter/space for activation
-- [x] Support ANSI text rendering with Transform wrapper to prevent spacing issues
-- [x] Add alignment support (left/right/center) for button row layout
-- [x] Test component in both visual modes (added to demo configuration panel with ANSI colored buttons)
+- [x] Create responsive switching logic between bordered and minimized modes
+- [x] Implement global terminal size coordination system
+- [x] Add progressive truncation (padding removal before text truncation)
+- [x] Implement ANSI-aware text truncation with escape sequence preservation
+- [x] Remove bold styling to resolve ANSI escape code conflicts
+- [x] Add alignment support (left, center, right) for button row positioning
+- [x] Test with colored ANSI symbols (orange ✗ in sample data)
+- [x] Integrate with existing focus management and keyboard navigation
 
-**Implementation Details**:
-- **File**: `src/interfaces/tui-ink/components/core/ButtonsRow.tsx`
-- **Base Class**: Implements `IListItem` directly (action item pattern, not ValidatedListItem)
-- **Layout Detection**: Uses `useStdout().rows < 25` pattern from existing components
-- **Keyboard Flow**: Always open item with internal button focus management
-  - Item focused → first button focused automatically
-  - Left/Right: Navigate between buttons (circular)
-  - Up/Down: Exit to normal list navigation
-  - Enter/Space: Activate focused button
-- **Visual Modes**:
-  - Regular: Unicode box drawing with colored borders
-  - Low resolution: Compact bracket layout with ▶ focus indicator
-- **Theme Integration**: Uses `theme.colors.accent` for selection highlighting
-- **ANSI Support**: Transform wrapper prevents Ink spacing issues with escape sequences
+**Files Modified**:
+- `src/interfaces/tui-ink/components/core/SimpleButtonsRow.tsx` - Main component implementation
+- `src/interfaces/tui-ink/components/GenericListPanel.tsx` - Global terminal size coordination
+- `src/interfaces/tui-ink/models/mixedSampleData.ts` - Sample data with ANSI colors and center alignment
+
+**Testing Results**:
+- ✅ Responsive behavior works correctly at different terminal sizes
+- ✅ Progressive truncation prioritizes text over margins as requested
+- ✅ ANSI colors (orange ✗ symbol) display correctly without bold conflicts
+- ✅ Alignment options (center demonstrated) work in both visual modes
+- ✅ Keyboard navigation flows properly between buttons and panels
+- ✅ Global terminal size coordination prevents visual inconsistencies
+
+**Task Completion**:
+Component is production-ready and demonstrates all requested features. The implementation provides a solid foundation for button-based interactions throughout the TUI application.
 
 **Why**: After perfecting single folder configuration, users need to manage multiple folders with different models. This creates the foundation for folder isolation and proper embedding model selection per content type.
 
