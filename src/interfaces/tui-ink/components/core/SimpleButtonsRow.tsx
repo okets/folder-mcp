@@ -65,6 +65,43 @@ export class SimpleButtonsRow implements IListItem {
     }
     
     /**
+     * Truncate text with ANSI codes while preserving escape sequences
+     */
+    private truncateAnsiText(text: string, maxVisibleLength: number): string {
+        let result = '';
+        let visibleLength = 0;
+        let i = 0;
+        
+        while (i < text.length && visibleLength < maxVisibleLength) {
+            if (text[i] === '\x1b' && text[i + 1] === '[') {
+                // Found ANSI escape sequence - copy it entirely
+                let escapeEnd = i + 2;
+                while (escapeEnd < text.length && !/[a-zA-Z]/.test(text.charAt(escapeEnd))) {
+                    escapeEnd++;
+                }
+                if (escapeEnd < text.length) {
+                    escapeEnd++; // Include the final letter
+                }
+                
+                result += text.substring(i, escapeEnd);
+                i = escapeEnd;
+            } else {
+                // Regular character
+                result += text[i];
+                visibleLength++;
+                i++;
+            }
+        }
+        
+        // Add reset code if we truncated and there were ANSI codes
+        if (visibleLength === maxVisibleLength && result.includes('\x1b[')) {
+            result += '\x1b[0m';
+        }
+        
+        return result;
+    }
+
+    /**
      * Detect if terminal supports modern features like underline
      */
     private hasModernTerminalSupport(): boolean {
@@ -136,19 +173,19 @@ export class SimpleButtonsRow implements IListItem {
             // Create the button text with adaptive focus styling
             const hasModernSupport = this.hasModernTerminalSupport();
             const buttonText = (
-                <Text key={button.name} bold>
+                <Text key={button.name}>
                     <Text color={button.borderColor}>[</Text>
                     {isFocused ? (
                         hasModernSupport ? (
                             // Modern terminals: strip ANSI, use border color with underline
-                            <Text underline color={button.borderColor} bold>{cleanDisplayText}</Text>
+                            <Text underline color={button.borderColor}>{cleanDisplayText}</Text>
                         ) : (
                             // Older terminals: strip ANSI, use border color with background highlight
-                            <Text backgroundColor={theme.colors.accent} color={button.borderColor} bold>{cleanDisplayText}</Text>
+                            <Text backgroundColor={theme.colors.accent} color={button.borderColor}>{cleanDisplayText}</Text>
                         )
                     ) : (
                         // Not focused: preserve ANSI colors
-                        <Text bold>{displayText}</Text>
+                        <Text>{displayText}</Text>
                     )}
                     <Text color={button.borderColor}>]</Text>
                 </Text>
@@ -199,6 +236,25 @@ export class SimpleButtonsRow implements IListItem {
         const availableWidth = maxWidth - totalSpacing - 4; // Extra margin for safety
         const maxButtonWidth = Math.floor(availableWidth / this.buttons.length);
         
+        // GLOBAL DECISION: Determine padding strategy for ALL buttons
+        // First check if ALL buttons can fit with padding
+        let globalPadding = 1; // Start optimistic
+        let needsPaddingRemoval = false;
+        
+        for (const button of this.buttons) {
+            if (!button) continue;
+            const cleanText = button.text.replace(/\x1b\[[0-9;]*m/g, '');
+            const minWidthNeeded = cleanText.length + 2 + 2; // text + borders + padding
+            if (minWidthNeeded > maxButtonWidth) {
+                needsPaddingRemoval = true;
+                break;
+            }
+        }
+        
+        if (needsPaddingRemoval) {
+            globalPadding = 0; // Remove padding from ALL buttons
+        }
+        
         const topLine: ReactElement[] = [];
         const middleLine: ReactElement[] = [];
         const bottomLine: ReactElement[] = [];
@@ -209,26 +265,32 @@ export class SimpleButtonsRow implements IListItem {
             
             const isFocused = i === focusedButtonIndex;
             
-            // Calculate text width and truncation
             const cleanText = button.text.replace(/\x1b\[[0-9;]*m/g, '');
-            const textWidth = cleanText.length;
-            const idealButtonWidth = textWidth + 2; // 1 space padding on each side
-            const buttonWidth = Math.max(6, Math.min(idealButtonWidth, maxButtonWidth));
-            const maxTextWidth = buttonWidth - 2; // Account for padding spaces
+            const availableTextWidth = Math.max(1, maxButtonWidth - 2 - (globalPadding * 2)); // borders + padding, minimum 1 char
             
+            // Calculate actual text to display
             let displayText = button.text; // Preserve ANSI for unfocused
             let cleanDisplayText = cleanText;
             
-            if (cleanText.length > maxTextWidth) {
-                const truncated = cleanText.substring(0, maxTextWidth - 1) + '…';
-                displayText = truncated; // For unfocused (lose ANSI)
-                cleanDisplayText = truncated; // For focused
+            // If text still doesn't fit even without padding, truncate directly (no ellipsis)
+            if (cleanText.length > availableTextWidth) {
+                const truncateLength = Math.max(1, availableTextWidth); // Always leave at least 1 character
+                cleanDisplayText = cleanText.substring(0, truncateLength);
+                
+                // For ANSI text, we need to be more careful about truncation
+                if (button.text !== cleanText) {
+                    // Text has ANSI codes - find the equivalent position in the original
+                    displayText = this.truncateAnsiText(button.text, truncateLength);
+                } else {
+                    // No ANSI codes - simple truncation
+                    displayText = cleanDisplayText;
+                }
             }
             
-            // Use fixed 1-space padding like the original ButtonsRow
-            const visualTextWidth = cleanDisplayText.length;
-            const contentWidth = visualTextWidth + 2; // Add padding spaces
-            const borderLineWidth = contentWidth; // Border line should match content
+            // Calculate final dimensions
+            const finalTextWidth = cleanDisplayText.length;
+            const contentWidth = finalTextWidth + (globalPadding * 2);
+            const borderLineWidth = contentWidth;
             
             // Create border elements
             const cornerColor = isFocused ? theme.colors.accent : button.borderColor;
@@ -246,19 +308,19 @@ export class SimpleButtonsRow implements IListItem {
                 </Text>
             );
             
-            // Middle content line with fixed 1-space padding
+            // Middle content line with global padding decision
             middleLine.push(
                 <Text key={`mid-${i}`}>
                     <Text color={sideColor}>│</Text>
-                    <Text> </Text>
+                    {globalPadding > 0 && <Text> </Text>}
                     {isFocused ? (
-                        // Focused: strip ANSI, use border color
-                        <Text color={button.borderColor} bold>{cleanDisplayText}</Text>
+                        // Focused: strip ANSI, use clean text with border color
+                        <Text color={button.borderColor}>{cleanDisplayText}</Text>
                     ) : (
                         // Unfocused: preserve ANSI colors
-                        <Text bold>{displayText}</Text>
+                        <Text>{displayText}</Text>
                     )}
-                    <Text> </Text>
+                    {globalPadding > 0 && <Text> </Text>}
                     <Text color={sideColor}>│</Text>
                     {i < this.buttons.length - 1 ? ' ' : ''}
                 </Text>
