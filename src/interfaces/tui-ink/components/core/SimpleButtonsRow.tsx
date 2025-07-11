@@ -48,6 +48,12 @@ export class SimpleButtonsRow implements IListItem {
             this._isControllingInput = true;
             this._focusedButtonIndex = 0;
         }
+        // If staying active but not controlling input (zombie state), re-enter control mode
+        else if (wasActive && value && !this._isControllingInput) {
+            console.error(`[SimpleButtonsRow] isActive setter - staying active but not controlling input, re-entering control mode`);
+            this._isControllingInput = true;
+            this._focusedButtonIndex = 0;
+        }
     }
     
     get isControllingInput(): boolean {
@@ -277,6 +283,7 @@ export class SimpleButtonsRow implements IListItem {
         console.error(`[SimpleButtonsRow] onSelect called - BEFORE: _focusedButtonIndex=${this._focusedButtonIndex}, _isControllingInput=${this._isControllingInput}`);
         // Reset focus to first button and automatically enter control mode
         // This ensures immediate button focus when navigating to the row
+        // This also handles the case where navigation was blocked and we need to re-enter control mode
         this._focusedButtonIndex = 0;
         this._isControllingInput = true;
         console.error(`[SimpleButtonsRow] onSelect called - AFTER: _focusedButtonIndex=${this._focusedButtonIndex}, _isControllingInput=${this._isControllingInput}`);
