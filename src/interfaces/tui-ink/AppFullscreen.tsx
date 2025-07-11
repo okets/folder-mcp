@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useContext, memo } from 'react';
+import React, { useCallback, useState, useContext, memo, useEffect } from 'react';
 import { Box, Text, useApp, Key } from 'ink';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
@@ -39,6 +39,27 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     
     // State to hold current folders from ConfigurationComponent
     const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
+    
+    // Simple countdown state for exit safety
+    const [countdown, setCountdown] = useState<number | null>(null);
+    
+    // Countdown effect
+    useEffect(() => {
+        if (countdown === null || countdown < 0) return;
+        
+        if (countdown === 0) {
+            // Countdown finished - just hide the message, don't exit
+            setCountdown(null);
+            return;
+        }
+        
+        const timer = setTimeout(() => {
+            setCountdown(countdown - 1);
+        }, 1000);
+        
+        return () => clearTimeout(timer);
+    }, [countdown]);
+    
     
     // Load folders from ConfigurationComponent
     const loadFolders = React.useCallback(async () => {
@@ -200,20 +221,28 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             }
             return true;
         }
-        // Handle 'esc' to quit - always available unless something with higher priority handles it
+        // Handle 'esc' to quit - simple countdown safety mechanism
         if (key.escape) {
-            exit();
+            if (countdown !== null) {
+                // Second escape during countdown - exit immediately
+                setCountdown(null);
+                exit();
+                return true;
+            }
+            
+            // First escape - start countdown
+            setCountdown(3);
             return true;
         }
         return false;
-    }, [exit, toggleAnimations, themeContext]);
+    }, [exit, toggleAnimations, themeContext, countdown]);
     
     // Use focus chain for app-level component
     useFocusChain({
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: 'Esc', description: 'Quit' },
+            { key: 'Esc', description: 'Exit' },
             { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' },
             { key: 'T', description: `Theme (${themeContext.themeName || 'auto'})` }
         ],
@@ -230,9 +259,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         console.error(`[AppFullscreen] Terminal: ${columns}x${rows}, Available: ${columns}x${availableHeight}`);
     }
     
+    
+    // Create countdown status for Header
+    const exitCountdownStatus = countdown !== null && countdown >= 0 ? `Press esc again to exit  ${countdown}..` : undefined;
+    
     return (
         <Box flexDirection="column" height={rows} width={columns}>
-            <Header themeName={themeContext.themeName} />
+            <Header themeName={themeContext.themeName} exitAnimationStatus={exitCountdownStatus} />
             
             <LayoutContainer
                 availableHeight={availableHeight}

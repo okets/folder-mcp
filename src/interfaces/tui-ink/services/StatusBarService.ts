@@ -8,7 +8,7 @@ export class StatusBarService implements IStatusBarService {
             { key: '↑↓', description: 'Navigate' },
             { key: '→/enter', description: 'Edit' },
             { key: 'tab', description: 'Switch Panel' },
-            { key: 'esc', description: 'Quit' }
+            { key: 'esc', description: 'Exit' }
         ],
         editing: [
             { key: '←→', description: 'Move cursor' },

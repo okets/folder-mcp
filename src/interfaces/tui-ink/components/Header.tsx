@@ -2,13 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useTheme } from '../contexts/ThemeContext';
+import { AnimationContainer } from './core/AnimationContainer';
+import { EXIT_COUNTDOWN_FRAMES, EXIT_COUNTDOWN_TIMING } from '../utils/animations';
 import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 
+// Blinking dot animation frames - full circle only
+const BLINKING_DOT_FRAMES = ['●', ' '];
+const BLINKING_DOT_TIMING = 500; // 500ms per frame for slow blink
+
 interface HeaderProps {
     themeName?: string;
     status?: string; // Allow external status override
+    exitAnimationStatus?: string | undefined; // Exit countdown animation status (highest priority)
 }
 
 interface DaemonStatus {
@@ -16,7 +23,46 @@ interface DaemonStatus {
     pid?: number;
 }
 
-export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
+// Helper function to render countdown message with proper colors
+const renderCountdownMessage = (message: string, statusTextColor: string) => {
+    // Parse the countdown message: "Press esc again to exit 3.."
+    const countdownMatch = message.match(/^Press (esc) again to exit (\d+\.\.)$/);
+    
+    if (countdownMatch) {
+        const [, escText, countdownText] = countdownMatch;
+        return (
+            <>
+                <AnimationContainer 
+                    frames={BLINKING_DOT_FRAMES} 
+                    interval={BLINKING_DOT_TIMING}
+                    color="#FFA500"
+                />
+                <Text color={statusTextColor}> Press </Text>
+                <Text color="#FFA500" bold>{escText}</Text>
+                <Text color={statusTextColor}> again to exit </Text>
+                <Text color="#FFA500">{countdownText}</Text>
+            </>
+        );
+    }
+    
+    // Fallback for other messages - ensure we use the fallback for countdown messages with proper spacing
+    if (message.includes('Press esc again to exit')) {
+        return (
+            <>
+                <AnimationContainer 
+                    frames={BLINKING_DOT_FRAMES} 
+                    interval={BLINKING_DOT_TIMING}
+                    color="#FFA500"
+                />
+                <Text color={statusTextColor}> {message}</Text>
+            </>
+        );
+    }
+    
+    return <Text color={statusTextColor}>{message}</Text>;
+};
+
+export const Header: React.FC<HeaderProps> = ({ themeName, status, exitAnimationStatus }) => {
     const { theme } = useTheme();
     const { columns, rows } = useTerminalSize();
     
@@ -66,9 +112,14 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
     
-    // Determine status text
+    // Determine status text (priority: exitAnimationStatus > status > daemon status)
     let statusText = '';
-    if (status) {
+    let showExitAnimation = false;
+    
+    if (exitAnimationStatus !== undefined) {
+        statusText = exitAnimationStatus;
+        showExitAnimation = false; // Simple text countdown, no animation
+    } else if (status) {
         statusText = status;
     } else if (daemonStatus.running) {
         statusText = `Connected to daemon (PID: ${daemonStatus.pid})`;
@@ -76,12 +127,13 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         statusText = 'Daemon not running';
     }
     
-    // Full display: "📁 folder-mcp    status: Connected to daemon (PID: 12345)"
-    const fullStatusText = `    status: ${statusText}`;
+    // Full display: "📁 folder-mcp    Connected to daemon (PID: 12345)"
+    const fullStatusText = `    ${statusText}`;
     
     // Use theme colors instead of hardcoded colors
     const frameColor = theme.colors.headerBorder;
     const logoTextColor = theme.colors.titleText;
+    const statusTextColor = theme.colors.text; // Use main text color for status (whitish)
     
     
     // Check for low vertical resolution
@@ -93,18 +145,44 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         
         // Handle narrow terminals in low resolution mode
         const availableWidth = columns - 1; // -1 for safety margin
+        const fixedPrefix = '📁 folder-mcp    '; // 16 characters
+        const availableForStatus = Math.max(0, availableWidth - fixedPrefix.length);
         
-        // Try to fit: "📁 folder-mcp    status: Connected to daemon (PID: 12345)"
-        const fullDisplayText = `📁 folder-mcp${fullStatusText}`;
+        // Truncate status text if needed for low res mode
+        let displayStatusText = statusText;
+        if (exitAnimationStatus) {
+            // For countdown messages, we need extra space for animation dot + safety buffer
+            const maxCountdownLength = availableForStatus - 2; // -2 for animation dot space only
+            if (exitAnimationStatus.length > maxCountdownLength) {
+                displayStatusText = exitAnimationStatus.substring(0, Math.max(0, maxCountdownLength - 1)) + '…';
+            } else {
+                displayStatusText = exitAnimationStatus;
+            }
+        } else {
+            // For regular status, truncate if too long with minimal buffer
+            const maxStatusLength = availableForStatus - 1; // -1 for minimal buffer
+            if (statusText.length > maxStatusLength) {
+                displayStatusText = statusText.substring(0, Math.max(0, maxStatusLength - 1)) + '…';
+            }
+        }
+        
+        const totalLength = fixedPrefix.length + (exitAnimationStatus ? displayStatusText.length + 2 : displayStatusText.length);
         
         // Build display text based on available width
-        if (availableWidth >= fullDisplayText.length) {
-            // Full display with status
+        if (availableWidth >= totalLength) {
+            // Full display with status and optional animation
             return (
                 <Box marginTop={1}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={frameColor}>{fullStatusText}</Text>
+                    {exitAnimationStatus ? (
+                        <>
+                            <Text color={statusTextColor}>    </Text>
+                            {renderCountdownMessage(displayStatusText, statusTextColor)}
+                        </>
+                    ) : (
+                        <Text color={statusTextColor}>    {displayStatusText}</Text>
+                    )}
                 </Box>
             );
         } else if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
@@ -158,11 +236,36 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         const topBorder = `${theme.symbols.border.topLeft}${theme.symbols.border.horizontal.repeat(Math.max(0, maxDashArea))}${themeSpace}${resolutionSpace}${theme.symbols.border.topRight}`;
         const bottomBorder = `${theme.symbols.border.bottomLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.bottomRight}`;
         
-        // Calculate padding for the content with status
-        // Content: "│ 📁 folder-mcp    status: Connected to daemon (PID: 12345)                │"
-        const contentText = `📁 folder-mcp${fullStatusText}`;
-        const contentLength = 2 + contentText.length; // "│ " + content
-        const remainingSpace = Math.max(0, innerWidth - contentLength + 1); // +1 adjustment for proper alignment
+        // Calculate available space for content (accounting for borders and spacing)
+        const fixedContentPrefix = `📁 folder-mcp    `; // 16 characters
+        const availableForStatus = Math.max(0, innerWidth - fixedContentPrefix.length - 2); // -2 for left space and minimal right padding
+        
+        // Truncate status text if needed
+        let displayStatusText = statusText;
+        if (exitAnimationStatus) {
+            // For countdown messages, we need extra space for animation dot + safety buffer
+            const maxCountdownLength = availableForStatus - 2; // -2 for animation dot space only
+            if (exitAnimationStatus.length > maxCountdownLength) {
+                displayStatusText = exitAnimationStatus.substring(0, Math.max(0, maxCountdownLength - 1)) + '…';
+            } else {
+                displayStatusText = exitAnimationStatus;
+            }
+        } else {
+            // For regular status, truncate if too long with minimal buffer
+            const maxStatusLength = availableForStatus - 1; // -1 for minimal buffer
+            if (statusText.length > maxStatusLength) {
+                displayStatusText = statusText.substring(0, Math.max(0, maxStatusLength - 1)) + '…';
+            }
+        }
+        
+        // Calculate remaining space more precisely
+        // innerWidth = total content space between borders
+        // Content: "│ 📁 folder-mcp    " + status + padding + "│"
+        // For countdown: "│ 📁 folder-mcp    ● Press esc again t… + padding + "│"
+        // The animation component already includes the dot and space, so don't double-count
+        const usedSpace = 1 + fixedContentPrefix.length + displayStatusText.length; // left space + prefix + text (animation handled separately)
+        const remainingSpace = Math.max(0, innerWidth - usedSpace);
+        
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -170,7 +273,14 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
                 <Box>
                     <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={frameColor}>{fullStatusText}</Text>
+                    {exitAnimationStatus ? (
+                        <>
+                            <Text color={statusTextColor}>    </Text>
+                            {renderCountdownMessage(displayStatusText, statusTextColor)}
+                        </>
+                    ) : (
+                        <Text color={statusTextColor}>    {displayStatusText}</Text>
+                    )}
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}{theme.symbols.border.vertical}</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>
@@ -183,10 +293,36 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
         const topBorder = `${theme.symbols.border.topLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.topRight}`;
         const bottomBorder = `${theme.symbols.border.bottomLeft}${theme.symbols.border.horizontal.repeat(innerWidth)}${theme.symbols.border.bottomRight}`;
         
-        // Calculate padding for the content with status
-        const contentText = `📁 folder-mcp${fullStatusText}`;
-        const contentLength = 2 + contentText.length; // "│ " + content
-        const remainingSpace = Math.max(0, innerWidth - contentLength + 1); // +1 adjustment for proper alignment
+        // Calculate available space for content (accounting for borders and spacing)
+        const fixedContentPrefix = `📁 folder-mcp    `; // 16 characters
+        const availableForStatus = Math.max(0, innerWidth - fixedContentPrefix.length - 2); // -2 for left space and minimal right padding
+        
+        // Truncate status text if needed
+        let displayStatusText = statusText;
+        if (exitAnimationStatus) {
+            // For countdown messages, we need extra space for animation dot + safety buffer
+            const maxCountdownLength = availableForStatus - 2; // -2 for animation dot space only
+            if (exitAnimationStatus.length > maxCountdownLength) {
+                displayStatusText = exitAnimationStatus.substring(0, Math.max(0, maxCountdownLength - 1)) + '…';
+            } else {
+                displayStatusText = exitAnimationStatus;
+            }
+        } else {
+            // For regular status, truncate if too long with minimal buffer
+            const maxStatusLength = availableForStatus - 1; // -1 for minimal buffer
+            if (statusText.length > maxStatusLength) {
+                displayStatusText = statusText.substring(0, Math.max(0, maxStatusLength - 1)) + '…';
+            }
+        }
+        
+        // Calculate remaining space more precisely
+        // innerWidth = total content space between borders
+        // Content: "│ 📁 folder-mcp    " + status + padding + "│"
+        // For countdown: "│ 📁 folder-mcp    ● Press esc again t… + padding + "│"
+        // The animation component already includes the dot and space, so don't double-count
+        const usedSpace = 1 + fixedContentPrefix.length + displayStatusText.length; // left space + prefix + text (animation handled separately)
+        const remainingSpace = Math.max(0, innerWidth - usedSpace);
+        
         
         return (
             <Box flexDirection="column" marginTop={1}>
@@ -194,7 +330,14 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status }) => {
                 <Box>
                     <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
-                    <Text color={frameColor}>{fullStatusText}</Text>
+                    {exitAnimationStatus ? (
+                        <>
+                            <Text color={statusTextColor}>    </Text>
+                            {renderCountdownMessage(displayStatusText, statusTextColor)}
+                        </>
+                    ) : (
+                        <Text color={statusTextColor}>    {displayStatusText}</Text>
+                    )}
                     <Text color={frameColor}>{' '.repeat(Math.max(0, remainingSpace))}{theme.symbols.border.vertical}</Text>
                 </Box>
                 <Text color={frameColor}>{bottomBorder}</Text>

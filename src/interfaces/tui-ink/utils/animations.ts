@@ -141,3 +141,40 @@ export const DEFAULT_SPINNER = BRAILLE_SPINNER;
  * Default timing for animations
  */
 export const DEFAULT_TIMING = ANIMATION_TIMINGS.FAST;
+
+/**
+ * Exit countdown animation frames - orange pulse with ANSI escape codes
+ * 8 frames, variable width, pulsing red/orange waves around "esc to exit" text
+ * Uses ANSI color codes: \x1b[91m (bright red), \x1b[31m (red), \x1b[2;31m (dim red), \x1b[0m (reset)
+ */
+export const EXIT_COUNTDOWN_FRAMES = [
+    // Frame 0: Single bright wave
+    "\x1b[91m(\x1b[0m esc to exit \x1b[91m)\x1b[0m",
+    
+    // Frame 1: Double wave (dim, bright)
+    "\x1b[31m(\x1b[0m\x1b[91m(\x1b[0m esc to exit \x1b[91m)\x1b[0m\x1b[31m)\x1b[0m",
+    
+    // Frame 2: Triple wave (dim, medium, bright) 
+    "\x1b[2;31m(\x1b[0m\x1b[31m(\x1b[0m\x1b[91m(\x1b[0m esc to exit \x1b[91m)\x1b[0m\x1b[31m)\x1b[0m\x1b[2;31m)\x1b[0m",
+    
+    // Frame 3: Quad wave (all medium intensity)
+    "\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[31m(\x1b[0m\x1b[31m(\x1b[0m esc to exit \x1b[31m)\x1b[0m\x1b[31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m",
+    
+    // Frame 4: Quad wave (fading)
+    "\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[31m(\x1b[0m esc to exit \x1b[31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m",
+    
+    // Frame 5: Quad wave (very dim)
+    "\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m esc to exit \x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m",
+    
+    // Frame 6: Quad wave (barely visible)
+    "\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m esc to exit \x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m",
+    
+    // Frame 7: Same as frame 6 (minimal visibility)
+    "\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m\x1b[2;31m(\x1b[0m esc to exit \x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m\x1b[2;31m)\x1b[0m"
+];
+
+/**
+ * Exit countdown timing - 8 frames over 3 seconds = 375ms per frame
+ * Originally 200ms per frame for a quick pulse, but slowed down for 3-second exit window
+ */
+export const EXIT_COUNTDOWN_TIMING = 375;

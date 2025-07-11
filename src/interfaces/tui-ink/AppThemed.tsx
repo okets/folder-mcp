@@ -106,7 +106,7 @@ const ThemedAppContent: React.FC = () => {
             >
                 <Box justifyContent="space-between">
                     <Text color={theme.colors.textMuted}>
-                        Tab: Switch panels | ↑↓: Navigate | Esc: Quit
+                        Tab: Switch panels | ↑↓: Navigate | Esc: Exit
                     </Text>
                     <ThemeSwitcher />
                 </Box>

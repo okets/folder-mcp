@@ -308,7 +308,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
                             { key: '→/enter', description: 'Edit' },
                             { key: 'tab', description: 'Switch Panel' },
                             { key: '↑↓', description: 'Navigate' },
-                            { key: 'esc', description: 'Quit' }
+                            { key: 'esc', description: 'Exit' }
                         ]} availableWidth={availableWidth - 4} />
                     )}
                 </Box>

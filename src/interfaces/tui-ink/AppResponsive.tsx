@@ -70,7 +70,7 @@ export const AppResponsive: React.FC = () => {
             <Box height={2} flexDirection="column" borderStyle="single" borderColor="gray">
                 <Box justifyContent="space-between" paddingX={1}>
                     <Text color="gray">
-                        Tab: Switch panels | ↑↓: Navigate | Esc: Quit
+                        Tab: Switch panels | ↑↓: Navigate | Esc: Exit
                     </Text>
                     <Text color="gray">
                         Layout: {layout} | {config.showSubtitles ? 'Full' : 'Compact'} mode
