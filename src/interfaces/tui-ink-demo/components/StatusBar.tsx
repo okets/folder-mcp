@@ -26,11 +26,11 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
     // Prepare bindings with formatted keys - do this BEFORE any width calculations
     const formattedBindings = bindings.map(binding => {
         // Convert special keys first (case-insensitive)
-        // Using '↵' for enter key
-        let key = binding.key.replace(/→\/enter/i, '↵').replace(/enter/i, '↵');
+        // Using '⏎' for enter key
+        let key = binding.key.replace(/→\/enter/i, '⏎').replace(/enter/i, '⏎');
         
         // Keep single letters uppercase (like Q), lowercase multi-character keys
-        if (key.length > 1 && !['↑↓', '←→', '↵'].includes(key)) {
+        if (key.length > 1 && !['↑↓', '←→', '⏎'].includes(key)) {
             key = key.toLowerCase();
         } else if (key.length === 1) {
             // Ensure single letters are uppercase

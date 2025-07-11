@@ -25,3 +25,6 @@ export type { SelectionBodyProps } from './SelectionBody';
 
 export { NotificationArea } from './NotificationArea';
 export type { NotificationAreaProps } from './NotificationArea';
+
+export { ButtonsRow } from './ButtonsRow';
+export type { ButtonConfig, ButtonsRowConfig } from './ButtonsRow';
