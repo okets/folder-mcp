@@ -1,8 +1,9 @@
 import React, { ReactElement } from 'react';
-import { Box, Text, Key, useStdout, Transform } from 'ink';
+import { Box, Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
 import { theme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
+import { useTerminalSize } from '../../hooks/useTerminalSize';
 
 export interface ButtonConfig {
     name: string;           // Internal identifier
@@ -37,15 +38,17 @@ export class ButtonsRow implements IListItem {
     /**
      * Check if we're in low resolution mode (isLowResolution pattern from existing components)
      */
-    private isLowResolution(): boolean {
-        const { stdout } = useStdout();
-        const { rows } = stdout;
+    private isLowResolution(rows: number): boolean {
         return rows < 25;
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        const isLowRes = this.isLowResolution();
-        const focusedButton = this.isActive ? this._focusedButtonIndex : -1;
+        // Use maxLines to determine if we're in low resolution mode
+        // This is more stable than useTerminalSize() which causes render loops
+        const isLowRes = maxLines !== undefined && maxLines < 4;
+        
+        // Show focused button when item is active OR when controlling input
+        const focusedButton = (this.isActive || this._isControllingInput) ? this._focusedButtonIndex : -1;
         
         if (isLowRes) {
             return this.renderLowResolution(maxWidth, focusedButton);
@@ -70,7 +73,7 @@ export class ButtonsRow implements IListItem {
             // Apply ANSI text using Transform wrapper to prevent spacing issues
             const buttonText = (
                 <Transform transform={output => output}>
-                    <Text {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                    <Text bold {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
                         [{arrow}{button.text} ]
                     </Text>
                 </Transform>
@@ -96,38 +99,109 @@ export class ButtonsRow implements IListItem {
     private renderRegularMode(maxWidth: number, focusedButtonIndex: number): ReactElement {
         const buttonElements: ReactElement[] = [];
         
+        // Log once per component instance to debug width issue
+        if (this.buttons[0]?.name === 'accept') {
+            console.error(`\n=== BUTTONSROW WIDTH DEBUG ===`);
+            console.error(`maxWidth: ${maxWidth}`);
+            console.error(`buttons count: ${this.buttons.length}`);
+        }
+        
+        // Calculate available width more conservatively
+        const spacingBetweenButtons = 1; // Reduced spacing
+        const totalSpacing = (this.buttons.length - 1) * spacingBetweenButtons;
+        const availableWidth = maxWidth - totalSpacing - 4; // Extra margin for safety
+        const maxButtonWidth = Math.floor(availableWidth / this.buttons.length);
+        
+        if (this.buttons[0]?.name === 'accept') {
+            console.error(`availableWidth: ${availableWidth}, maxButtonWidth: ${maxButtonWidth}`);
+        }
+        
         for (let i = 0; i < this.buttons.length; i++) {
             const button = this.buttons[i];
+            if (!button) continue;
+            
             const isFocused = i === focusedButtonIndex;
             
-            // Calculate button width (text + padding)
+            // Calculate button width with constraints
             const textWidth = this.getVisualTextWidth(button.text);
-            const buttonWidth = textWidth + 2; // 1 space padding on each side
+            const idealButtonWidth = textWidth + 2; // 1 space padding on each side
+            const buttonWidth = Math.max(6, Math.min(idealButtonWidth, maxButtonWidth)); // Min 6, respect max
             
-            // Create border characters with appropriate colors
-            const borderColor = isFocused ? theme.colors.accent : button.borderColor;
-            const topBorder = isFocused ? '╔' + '─'.repeat(buttonWidth) + '╗' : '╭' + '─'.repeat(buttonWidth) + '╮';
-            const bottomBorder = isFocused ? '╚' + '─'.repeat(buttonWidth) + '╝' : '╰' + '─'.repeat(buttonWidth) + '╯';
+            if (this.buttons[0]?.name === 'accept') {
+                console.error(`Button ${i} "${button.name}": text="${button.text}" textWidth=${textWidth} buttonWidth=${buttonWidth}`);
+            }
+            
+            // Keep original ANSI text for display, but ensure border fits visual width
+            let displayText = button.text;
+            const plainText = displayText.replace(/\x1b\[[0-9;]*m/g, '');
+            const maxTextWidth = buttonWidth - 2; // Account for padding spaces
+            
+            if (plainText.length > maxTextWidth) {
+                // If truncation needed, create plain truncated text (lose ANSI for now)
+                const truncated = plainText.substring(0, maxTextWidth - 1) + '…';
+                displayText = truncated;
+            }
+            
+            // Calculate the actual visual width for border
+            const visualTextWidth = this.getVisualTextWidth(displayText);
+            const contentWidth = visualTextWidth + 2; // Add padding spaces
+            const borderLineWidth = contentWidth; // Border line should match content
+            
+            // Create border elements with mixed colors (corners blue, sides original)
+            const cornerColor = isFocused ? theme.colors.accent : button.borderColor;
+            const sideColor = button.borderColor;
+            
+            // The buttonWidth is the INNER content width
+            // Total visual width = buttonWidth + 2 (for the two corners)
+            // But the horizontal lines should be exactly buttonWidth to fit the content
+            
+            if (this.buttons[0]?.name === 'accept' && i === 0) {
+                console.error(`Creating borders: buttonWidth=${buttonWidth}, displayText="${displayText}" (${displayText.length} chars), visualTextWidth=${visualTextWidth}, borderLineWidth=${borderLineWidth}`);
+            }
+            
+            const topBorder = (
+                <Text>
+                    <Text {...textColorProp(cornerColor)}>{isFocused ? '╔' : '╭'}</Text>
+                    <Text {...textColorProp(sideColor)}>{'─'.repeat(borderLineWidth)}</Text>
+                    <Text {...textColorProp(cornerColor)}>{isFocused ? '╗' : '╮'}</Text>
+                </Text>
+            );
+            
+            const middleBorder = (
+                <Text>
+                    <Text {...textColorProp(sideColor)}>│</Text>
+                    <Text> </Text>
+                    <Transform transform={output => output}>
+                        <Text bold {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                            {displayText}
+                        </Text>
+                    </Transform>
+                    <Text> </Text>
+                    <Text {...textColorProp(sideColor)}>│</Text>
+                </Text>
+            );
+            
+            const bottomBorder = (
+                <Text>
+                    <Text {...textColorProp(cornerColor)}>{isFocused ? '╚' : '╰'}</Text>
+                    <Text {...textColorProp(sideColor)}>{'─'.repeat(buttonWidth)}</Text>
+                    <Text {...textColorProp(cornerColor)}>{isFocused ? '╝' : '╯'}</Text>
+                </Text>
+            );
             
             const buttonBox = (
-                <Box key={button.name} flexDirection="column" marginRight={i < this.buttons.length - 1 ? 2 : 0}>
-                    <Text {...textColorProp(borderColor)}>{topBorder}</Text>
-                    <Text>
-                        <Text {...textColorProp(borderColor)}>│</Text>
-                        <Text> </Text>
-                        <Transform transform={output => output}>
-                            <Text {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
-                                {button.text}
-                            </Text>
-                        </Transform>
-                        <Text> </Text>
-                        <Text {...textColorProp(borderColor)}>│</Text>
-                    </Text>
-                    <Text {...textColorProp(borderColor)}>{bottomBorder}</Text>
+                <Box key={button.name} flexDirection="column" marginRight={i < this.buttons.length - 1 ? spacingBetweenButtons : 0}>
+                    {topBorder}
+                    {middleBorder}
+                    {bottomBorder}
                 </Box>
             );
             
             buttonElements.push(buttonBox);
+        }
+        
+        if (this.buttons[0]?.name === 'accept') {
+            console.error(`=== END BUTTONSROW WIDTH DEBUG ===\n`);
         }
         
         return this.wrapWithAlignment(buttonElements, maxWidth);
@@ -167,8 +241,12 @@ export class ButtonsRow implements IListItem {
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
+        // Use maxHeight to determine layout mode instead of useTerminalSize() 
+        // to prevent render loops
+        const isLowRes = maxHeight !== undefined && maxHeight < 6;
+        
         // Low resolution mode: 1 line
-        if (this.isLowResolution()) {
+        if (isLowRes) {
             return 1;
         }
         
@@ -237,6 +315,10 @@ export class ButtonsRow implements IListItem {
     onSelect(): void {
         // Focus on first button when item becomes selected
         this._focusedButtonIndex = 0;
+        // Auto-enter button mode when selected
+        if (this.buttons.length > 0) {
+            this._isControllingInput = true;
+        }
     }
     
     onDeselect(): void {

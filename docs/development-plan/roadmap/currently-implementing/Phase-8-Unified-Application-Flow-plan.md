@@ -564,6 +564,84 @@ npm run build  # Build succeeds with no errors
 **Discovered**: 2025-07-10  
 **What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
 
+#### Task 4.8.5: Implement ButtonsRow List Item Component
+**Status**: ✅ COMPLETED  
+**Discovered**: 2025-07-11  
+**What**: Design and implement a new ButtonsRow list item component that displays an array of interactive buttons with colored borders and ANSI text support.
+
+**Why**: Need a reusable component for action buttons in TUI interfaces, with responsive design that adapts between regular mode (bordered boxes) and short vertical mode (compact layout). This will be used for confirmation dialogs, action panels, and other interactive elements.
+
+**Requirements**:
+- **Always open**: ButtonsRow is never collapsed
+- **Responsive design**: 
+  - Regular mode (≥25 rows): Bordered boxes with colored corners
+  - Low resolution mode (`isLowResolution = rows < 25`): Compact bracket layout
+- **Button properties**: name, border-color, text (with ANSI support), event value
+- **Focus indicators**: Selection blue corners (╔╚╗╝) in regular mode, ▶ arrow in low resolution mode
+- **Colorful text**: Full ANSI escape sequence support in button text
+- **Alignment support**: left, right, center alignment for button row layout
+
+**Design Specifications**:
+```typescript
+interface ButtonConfig {
+  name: string;           // Internal identifier
+  borderColor: string;    // Color for button border
+  text: string;          // Display text (supports ANSI)
+  eventValue: any;       // Value returned when button activated
+}
+
+interface ButtonsRowConfig {
+  buttons: ButtonConfig[];
+  align?: 'left' | 'right' | 'center';  // Row alignment (default: left)
+}
+```
+
+**Visual Examples**:
+
+**Regular Mode (rows ≥ 25)**:
+```
+╔─────────╗  ╭──────────╮
+│ √Accept │  │ ✗ Decline│
+╚─────────╝  ╰──────────╯
+```
+- Buttons have colored borders (borderColor property)
+- Selection blue corners (╔╚╗╝) for focused button
+- Unicode box drawing characters for borders
+
+**Low Resolution Mode (isLowResolution = rows < 25)**:
+```
+Focused button:    [▶cancel ] [ Save ]
+Not focused:       [ Cancel ] [ Save ]
+```
+- Compact bracket layout saves vertical space
+- ▶ arrow indicates focused button
+- Single line layout
+
+**Implementation Subtasks**:
+- [x] Create ButtonsRow component implementing IListItem directly (action item pattern)
+- [x] Implement responsive layout detection (`isLowResolution = rows < 25`)
+- [x] Add button rendering for both regular mode (bordered boxes) and low resolution mode (compact brackets)
+- [x] Integrate theme colors for selection blue highlighting (theme.colors.accent)
+- [x] Add keyboard navigation: left/right for buttons (circular), up/down for list navigation, enter/space for activation
+- [x] Support ANSI text rendering with Transform wrapper to prevent spacing issues
+- [x] Add alignment support (left/right/center) for button row layout
+- [x] Test component in both visual modes (added to demo configuration panel with ANSI colored buttons)
+
+**Implementation Details**:
+- **File**: `src/interfaces/tui-ink/components/core/ButtonsRow.tsx`
+- **Base Class**: Implements `IListItem` directly (action item pattern, not ValidatedListItem)
+- **Layout Detection**: Uses `useStdout().rows < 25` pattern from existing components
+- **Keyboard Flow**: Always open item with internal button focus management
+  - Item focused → first button focused automatically
+  - Left/Right: Navigate between buttons (circular)
+  - Up/Down: Exit to normal list navigation
+  - Enter/Space: Activate focused button
+- **Visual Modes**:
+  - Regular: Unicode box drawing with colored borders
+  - Low resolution: Compact bracket layout with ▶ focus indicator
+- **Theme Integration**: Uses `theme.colors.accent` for selection highlighting
+- **ANSI Support**: Transform wrapper prevents Ink spacing issues with escape sequences
+
 **Why**: After perfecting single folder configuration, users need to manage multiple folders with different models. This creates the foundation for folder isolation and proper embedding model selection per content type.
 
 ## Multi-Folder Application Flow

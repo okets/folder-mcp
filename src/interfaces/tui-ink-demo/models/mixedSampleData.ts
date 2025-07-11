@@ -3,6 +3,7 @@ import { LogItem } from '../components/core/LogItem';
 import { ConfigurationListItem } from '../components/core/ConfigurationListItem';
 import { SelectionListItem } from '../components/core/SelectionListItem';
 import { FilePickerListItem } from '../components/core/FilePickerListItem';
+import { SimpleButtonsRow } from '../../tui-ink/components/core/SimpleButtonsRow';
 import { validators } from '../utils/validators';
 import { ValidationRules } from '../models/validation';
 import * as os from 'os';
@@ -764,6 +765,36 @@ export function createConfigurationPanelItems(): IListItem[] {
             undefined,
             (newValue) => console.log('Short text changed to:', newValue),
             [validators.minLength(5)]
+        ),
+        
+        // ButtonsRow demo - testing action buttons
+        new SimpleButtonsRow(
+            '🔧',
+            'Action Buttons',
+            [
+                {
+                    name: 'accept',
+                    borderColor: '#10B981', // green
+                    text: '✓Accept',
+                    eventValue: 'accept'
+                },
+                {
+                    name: 'decline',
+                    borderColor: '#EF4444', // red
+                    text: '✗ Decline',
+                    eventValue: 'decline'
+                },
+                {
+                    name: 'cancel',
+                    borderColor: '#F59E0B', // orange
+                    text: '◐ Cancel',
+                    eventValue: 'cancel'
+                }
+            ],
+            false, // isActive
+            (buttonConfig, buttonIndex) => {
+                console.log(`Button activated: ${buttonConfig.name} (index: ${buttonIndex}, value: ${buttonConfig.eventValue})`);
+            }
         )
     ];
 }
