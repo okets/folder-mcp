@@ -49,7 +49,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
     });
 
     // Step 1: Try full format with descriptions
-    const fullFormatParts = formattedBindings.map(b => b.key + ':' + b.description);
+    const fullFormatParts = formattedBindings.map(b => b.description + ':' + b.key);
     const fullFormatWidth = fullFormatParts.join(' ').length;
     
     if (fullFormatWidth <= availableWidth - 1) { // -1 for safety buffer
@@ -60,8 +60,8 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
-            parts.push({ text: ':' + binding.description, color: colors.textSecondary });
+            parts.push({ text: binding.description, color: colors.textSecondary });
+            parts.push({ text: ':' + binding.key, color: colors.textPrimary, bold: true });
         });
         
         return (
@@ -77,7 +77,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
         );
     }
     
-    // Step 2: Need to truncate descriptions
+    // Step 2: Need to truncate descriptions  
     // Calculate fixed width (keys + colons + spaces)
     const fixedWidth = formattedBindings.reduce((sum, b) => sum + b.key.length + 1, 0) + // keys + colons
                       (formattedBindings.length - 1); // spaces between
@@ -151,8 +151,8 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             if (index > 0) {
                 parts.push({ text: ' ' });
             }
-            parts.push({ text: binding.key, color: colors.textPrimary, bold: true });
-            parts.push({ text: ':' + (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
+            parts.push({ text: (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
+            parts.push({ text: ':' + binding.key, color: colors.textPrimary, bold: true });
         });
         
         return (
@@ -218,9 +218,10 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
 
 interface StatusBarProps {
     message?: string;
+    countdown?: number | null;
 }
 
-export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
+export const StatusBar: React.FC<StatusBarProps> = ({ message, countdown }) => {
     const di = useDI();
     const { theme } = useTheme();
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
@@ -283,7 +284,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
                         { key: '→/enter', description: 'Edit' },
                         { key: 'tab', description: 'Switch Panel' },
                         { key: '↑↓', description: 'Navigate' },
-                        { key: 'esc', description: 'Quit' }
+                        { key: countdown !== null && countdown !== undefined && countdown >= 0 ? `esc(again ${countdown}…)` : 'esc', description: 'Exit' }
                     ]} availableWidth={availableWidth} />
                 )}
             </Box>
@@ -308,7 +309,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message }) => {
                             { key: '→/enter', description: 'Edit' },
                             { key: 'tab', description: 'Switch Panel' },
                             { key: '↑↓', description: 'Navigate' },
-                            { key: 'esc', description: 'Exit' }
+                            { key: countdown !== null && countdown !== undefined && countdown >= 0 ? `esc(again ${countdown}…)` : 'esc', description: 'Exit' }
                         ]} availableWidth={availableWidth - 4} />
                     )}
                 </Box>

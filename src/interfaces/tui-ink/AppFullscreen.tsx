@@ -242,7 +242,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: 'Esc', description: 'Exit' },
+            { key: countdown !== null && countdown >= 0 ? `Esc(again ${countdown}…)` : 'Esc', description: 'Exit' },
             { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' },
             { key: 'T', description: `Theme (${themeContext.themeName || 'auto'})` }
         ],
@@ -260,12 +260,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     }
     
     
-    // Create countdown status for Header
-    const exitCountdownStatus = countdown !== null && countdown >= 0 ? `Press esc again to exit  ${countdown}..` : undefined;
-    
     return (
         <Box flexDirection="column" height={rows} width={columns}>
-            <Header themeName={themeContext.themeName} exitAnimationStatus={exitCountdownStatus} />
+            <Header themeName={themeContext.themeName} />
             
             <LayoutContainer
                 availableHeight={availableHeight}
@@ -294,7 +291,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 />
             </LayoutContainer>
             
-            <StatusBar />
+            <StatusBar countdown={countdown} />
         </Box>
     );
 };
