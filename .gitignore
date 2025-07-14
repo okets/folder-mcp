@@ -104,3 +104,6 @@ temp/
 
 # Debug screenshots
 _debugScreenshots/
+
+# Claude contextual memory database
+.claude/smarter-claude/
