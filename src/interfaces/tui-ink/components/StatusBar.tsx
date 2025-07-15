@@ -42,9 +42,13 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             key = key.toUpperCase();
         }
         
+        // Check if this is an ESC countdown key
+        const isEscCountdown = key.includes('again') && key.includes('…');
+        
         return {
             key,
-            description: binding.description
+            description: binding.description,
+            isEscCountdown
         };
     });
 
@@ -61,7 +65,11 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                 parts.push({ text: ' ' });
             }
             parts.push({ text: binding.description, color: colors.textSecondary });
-            parts.push({ text: ':' + binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ 
+                text: ':' + binding.key, 
+                color: binding.isEscCountdown ? theme.colors.warning : colors.textPrimary, 
+                bold: true 
+            });
         });
         
         return (
@@ -104,7 +112,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                         {formattedBindings.map((binding, index) => (
                             <React.Fragment key={index}>
                                 {index > 0 && ' '}
-                                <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                                <Text color={binding.isEscCountdown ? theme.colors.warning : colors.textPrimary} bold>{binding.key}</Text>
                             </React.Fragment>
                         ))}
                     </Text>
@@ -121,7 +129,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                             {keysToShow.map((binding, index) => (
                                 <React.Fragment key={index}>
                                     {index > 0 && ' '}
-                                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                                    <Text color={binding.isEscCountdown ? theme.colors.warning : colors.textPrimary} bold>{binding.key}</Text>
                                 </React.Fragment>
                             ))}
                         </Text>
@@ -137,7 +145,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                     {keysToShow.map((binding, index) => (
                         <React.Fragment key={index}>
                             {index > 0 && ' '}
-                            <Text color="#D1D5DB" bold>{binding.key}</Text>
+                            <Text color={binding.isEscCountdown ? theme.colors.warning : "#D1D5DB"} bold>{binding.key}</Text>
                         </React.Fragment>
                     ))}
                 </Text>
@@ -152,7 +160,11 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                 parts.push({ text: ' ' });
             }
             parts.push({ text: (truncatedDescriptions[index]?.label || ''), color: colors.textSecondary });
-            parts.push({ text: ':' + binding.key, color: colors.textPrimary, bold: true });
+            parts.push({ 
+                text: ':' + binding.key, 
+                color: binding.isEscCountdown ? theme.colors.warning : colors.textPrimary, 
+                bold: true 
+            });
         });
         
         return (
@@ -176,7 +188,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                 {formattedBindings.map((binding, index) => (
                     <React.Fragment key={index}>
                         {index > 0 && ' '}
-                        <Text color="#D1D5DB" bold>{binding.key}</Text>
+                        <Text color={binding.isEscCountdown ? theme.colors.warning : "#D1D5DB"} bold>{binding.key}</Text>
                     </React.Fragment>
                 ))}
             </Text>
@@ -193,7 +205,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
                     {keysToShow.map((binding, index) => (
                         <React.Fragment key={index}>
                             {index > 0 && ' '}
-                            <Text color="#D1D5DB" bold>{binding.key}</Text>
+                            <Text color={binding.isEscCountdown ? theme.colors.warning : "#D1D5DB"} bold>{binding.key}</Text>
                         </React.Fragment>
                     ))}
                 </Text>
@@ -209,7 +221,7 @@ const StatusBarContent: React.FC<StatusBarContentProps> = ({ bindings, available
             {keysToShow.map((binding, index) => (
                 <React.Fragment key={index}>
                     {index > 0 && ' '}
-                    <Text color={colors.textPrimary} bold>{binding.key}</Text>
+                    <Text color={binding.isEscCountdown ? theme.colors.warning : colors.textPrimary} bold>{binding.key}</Text>
                 </React.Fragment>
             ))}
         </Text>
