@@ -647,6 +647,55 @@ folder-mcp  # Displays folder list with paths and models
 **Task Completion**:
 Component is production-ready and demonstrates all requested features. The implementation provides a solid foundation for button-based interactions throughout the TUI application.
 
+### Task 8.6: Implement Nested ListItem Visual Component
+**Status**: 📋 PLANNED  
+**Discovered**: 2025-07-15  
+**What**: Create a ListItem that can display other ListItems inside it when expanded, with proper responsive behavior.
+
+**Why**: This is the core visual element architecture needed to enable folder setup wizards and other complex interfaces. Currently GenericListPanel manages flat arrays of IListItem[], but we need a ContainerListItem that can show child ListItems with proper scrolling and input delegation.
+
+**Scope**: Pure visual component architecture task - NOT business logic, model recommendations, or wizard features.
+
+**Key Technical Requirements**:
+- **Collapsed**: Show as single line (e.g., "📁 Add Folder")
+- **Expanded**: Show child ListItems with proper spacing and scrolling
+- **Responsive**: Handle terminal resize and vertical overflow like GenericListPanel
+- **Input Flow**: Route keyboard input to active child item
+
+**Implementation Strategy**:
+1. **Mimic GenericListPanel's scrolling logic** for internal viewport management
+2. **Fixed height strategy** (like FilePickerListItem) to prevent infinite recursion
+3. **Input delegation chain** to route keyboard input through nested structure
+
+**Subtasks**:
+- [x] Research current responsive design architecture
+- [x] Analyze GenericListPanel's scrolling and input delegation
+- [x] Design ContainerListItem interface and behavior
+- [ ] **Create ContainerListItem component** with basic functionality
+- [ ] **Implement internal scrolling logic** mimicking GenericListPanel
+- [ ] **Add input delegation system** for nested keyboard handling
+- [ ] **Test with simple child ListItems** (TextListItem, SelectionListItem)
+- [ ] **Integration test** with main app panel alongside other ListItems
+- [ ] **Stress test** with complex nested scenarios
+
+**Success Criteria**:
+- Shows collapsed/expanded states correctly
+- Handles vertical scrolling when children exceed available space
+- Routes keyboard input to active child ListItem
+- Adapts to terminal resize gracefully
+- Integrates seamlessly with existing GenericListPanel
+- Provides foundation for folder setup wizards and complex interfaces
+
+**Technical Foundation**:
+This creates the visual architecture foundation needed for:
+- Folder setup wizards with multiple steps
+- Complex configuration interfaces
+- Any nested interactive elements in the TUI
+
+**Files to Create**:
+- `src/interfaces/tui-ink/components/core/ContainerListItem.tsx`
+- Test files for nested ListItem behavior
+
 ### Task 7: Complete CLI Cleanup and Folder Selection Flow
 **Status**: ✅ Completed  
 **Discovered**: 2025-07-09  
