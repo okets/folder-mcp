@@ -28,19 +28,35 @@ if (!isRawModeSupported) {
     process.exit(1);
 }
 
+// Windows-specific terminal setup
+if (process.platform === 'win32') {
+    // Enable ANSI escape codes on Windows
+    if (process.stdout.isTTY) {
+        process.stdout.write('\x1b[?25l'); // Hide cursor initially
+        process.stdout.write('\x1b[2J');   // Clear screen
+        process.stdout.write('\x1b[H');    // Move cursor to home
+    }
+}
+
 // Start the Ink TUI in fullscreen mode
 const app = render(
     <DIProvider container={container}>
         <App />
     </DIProvider>,
     {
-        exitOnCtrlC: true  // Allow standard Ctrl+C behavior for better terminal compatibility
+        exitOnCtrlC: true,  // Allow standard Ctrl+C behavior for better terminal compatibility
+        patchConsole: process.platform === 'win32', // Enable console patching on Windows
+        debug: false // Disable Ink debug mode
     }
 );
 
 // Handle graceful exit
 const cleanup = () => {
     app.unmount();
+    // Restore cursor on exit
+    if (process.platform === 'win32' && process.stdout.isTTY) {
+        process.stdout.write('\x1b[?25h'); // Show cursor
+    }
     process.exit(0);
 };
 
