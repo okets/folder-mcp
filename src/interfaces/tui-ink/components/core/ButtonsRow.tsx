@@ -43,16 +43,25 @@ export class ButtonsRow implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        console.error(`\n=== BUTTONSROW RENDER DEBUG ===`);
+        console.error(`maxWidth: ${maxWidth}, maxLines: ${maxLines}`);
+        
         // Use maxLines to determine if we're in low resolution mode
         // This is more stable than useTerminalSize() which causes render loops
-        const isLowRes = maxLines !== undefined && maxLines < 4;
+        // If we get 3+ lines, we can do regular mode (3 lines = top border, content, bottom border)
+        const isLowRes = maxLines !== undefined && maxLines < 3;
+        console.error(`isLowRes calculation: maxLines=${maxLines}, maxLines < 3 = ${isLowRes}`);
         
         // Show focused button when item is active OR when controlling input
         const focusedButton = (this.isActive || this._isControllingInput) ? this._focusedButtonIndex : -1;
         
         if (isLowRes) {
+            console.error(`Rendering LOW RESOLUTION mode`);
+            console.error(`=== END BUTTONSROW RENDER DEBUG ===\n`);
             return this.renderLowResolution(maxWidth, focusedButton);
         } else {
+            console.error(`Rendering REGULAR mode`);
+            console.error(`=== END BUTTONSROW RENDER DEBUG ===\n`);
             return this.renderRegularMode(maxWidth, focusedButton);
         }
     }
@@ -99,22 +108,20 @@ export class ButtonsRow implements IListItem {
     private renderRegularMode(maxWidth: number, focusedButtonIndex: number): ReactElement {
         const buttonElements: ReactElement[] = [];
         
-        // Log once per component instance to debug width issue
-        if (this.buttons[0]?.name === 'accept') {
-            console.error(`\n=== BUTTONSROW WIDTH DEBUG ===`);
-            console.error(`maxWidth: ${maxWidth}`);
-            console.error(`buttons count: ${this.buttons.length}`);
-        }
         
-        // Calculate available width more conservatively
-        const spacingBetweenButtons = 1; // Reduced spacing
+        // Calculate available width accounting for border overhead
+        const spacingBetweenButtons = 1; // Space between buttons
         const totalSpacing = (this.buttons.length - 1) * spacingBetweenButtons;
-        const availableWidth = maxWidth - totalSpacing - 4; // Extra margin for safety
-        const maxButtonWidth = Math.floor(availableWidth / this.buttons.length);
+        const borderOverheadPerButton = 2; // Each button has 2 corner characters (│text│)
+        const totalBorderOverhead = this.buttons.length * borderOverheadPerButton;
+        const availableWidth = maxWidth - totalSpacing - totalBorderOverhead;
+        const maxButtonContentWidth = Math.floor(availableWidth / this.buttons.length);
         
-        if (this.buttons[0]?.name === 'accept') {
-            console.error(`availableWidth: ${availableWidth}, maxButtonWidth: ${maxButtonWidth}`);
-        }
+        console.error(`\n=== BUTTONSROW WIDTH CALCULATION ===`);
+        console.error(`maxWidth: ${maxWidth}`);
+        console.error(`buttons: ${this.buttons.length}, spacing: ${totalSpacing}, borderOverhead: ${totalBorderOverhead}`);
+        console.error(`availableWidth: ${availableWidth}, maxButtonContentWidth: ${maxButtonContentWidth}`);
+        console.error(`=== END WIDTH CALCULATION ===\n`);
         
         for (let i = 0; i < this.buttons.length; i++) {
             const button = this.buttons[i];
@@ -122,19 +129,16 @@ export class ButtonsRow implements IListItem {
             
             const isFocused = i === focusedButtonIndex;
             
-            // Calculate button width with constraints
+            // Calculate button content width with constraints
             const textWidth = this.getVisualTextWidth(button.text);
-            const idealButtonWidth = textWidth + 2; // 1 space padding on each side
-            const buttonWidth = Math.max(6, Math.min(idealButtonWidth, maxButtonWidth)); // Min 6, respect max
+            const idealContentWidth = textWidth + 2; // 1 space padding on each side
+            const buttonContentWidth = Math.max(6, Math.min(idealContentWidth, maxButtonContentWidth)); // Min 6, respect max
             
-            if (this.buttons[0]?.name === 'accept') {
-                console.error(`Button ${i} "${button.name}": text="${button.text}" textWidth=${textWidth} buttonWidth=${buttonWidth}`);
-            }
-            
+                
             // Keep original ANSI text for display, but ensure border fits visual width
             let displayText = button.text;
             const plainText = displayText.replace(/\x1b\[[0-9;]*m/g, '');
-            const maxTextWidth = buttonWidth - 2; // Account for padding spaces
+            const maxTextWidth = buttonContentWidth - 2; // Account for padding spaces
             
             if (plainText.length > maxTextWidth) {
                 // If truncation needed, create plain truncated text (lose ANSI for now)
@@ -145,7 +149,7 @@ export class ButtonsRow implements IListItem {
             // Calculate the actual visual width for border
             const visualTextWidth = this.getVisualTextWidth(displayText);
             const contentWidth = visualTextWidth + 2; // Add padding spaces
-            const borderLineWidth = contentWidth; // Border line should match content
+            const borderLineWidth = buttonContentWidth; // Border line should match allocated content width
             
             // Create border elements with mixed colors (corners blue, sides original)
             const cornerColor = isFocused ? theme.colors.accent : button.borderColor;
@@ -184,7 +188,7 @@ export class ButtonsRow implements IListItem {
             const bottomBorder = (
                 <Text>
                     <Text {...textColorProp(cornerColor)}>{isFocused ? '╚' : '╰'}</Text>
-                    <Text {...textColorProp(sideColor)}>{'─'.repeat(buttonWidth)}</Text>
+                    <Text {...textColorProp(sideColor)}>{'─'.repeat(borderLineWidth)}</Text>
                     <Text {...textColorProp(cornerColor)}>{isFocused ? '╝' : '╯'}</Text>
                 </Text>
             );
@@ -200,11 +204,12 @@ export class ButtonsRow implements IListItem {
             buttonElements.push(buttonBox);
         }
         
-        if (this.buttons[0]?.name === 'accept') {
-            console.error(`=== END BUTTONSROW WIDTH DEBUG ===\n`);
-        }
-        
-        return this.wrapWithAlignment(buttonElements, maxWidth);
+        const result = this.wrapWithAlignment(buttonElements, maxWidth);
+        console.error(`\n=== BUTTONSROW FINAL RESULT ===`);
+        console.error(`wrapWithAlignment returned: ${result}`);
+        console.error(`buttonElements length: ${buttonElements.length}`);
+        console.error(`=== END BUTTONSROW FINAL ===\n`);
+        return result;
     }
     
     /**
@@ -241,16 +246,26 @@ export class ButtonsRow implements IListItem {
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
-        // Use maxHeight to determine layout mode instead of useTerminalSize() 
-        // to prevent render loops
-        const isLowRes = maxHeight !== undefined && maxHeight < 6;
+        console.error(`\n=== BUTTONSROW getRequiredLines DEBUG ===`);
+        console.error(`maxWidth: ${maxWidth}, maxHeight: ${maxHeight}`);
+        
+        // Use same logic as render method for consistency
+        // Note: maxHeight is the available container height, not the lines we'll get
+        // We should always request 3 lines unless the container is very constrained
+        const shouldUseLowRes = maxHeight !== undefined && maxHeight < 6;
+        
+        console.error(`shouldUseLowRes: maxHeight=${maxHeight} < 6 = ${shouldUseLowRes}`);
         
         // Low resolution mode: 1 line
-        if (isLowRes) {
+        if (shouldUseLowRes) {
+            console.error(`Requesting 1 line (low res mode)`);
+            console.error(`=== END BUTTONSROW getRequiredLines DEBUG ===\n`);
             return 1;
         }
         
         // Regular mode: 3 lines (top border, content, bottom border)
+        console.error(`Requesting 3 lines (regular mode)`);
+        console.error(`=== END BUTTONSROW getRequiredLines DEBUG ===\n`);
         return 3;
     }
     

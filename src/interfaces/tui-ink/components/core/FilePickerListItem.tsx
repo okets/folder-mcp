@@ -130,8 +130,11 @@ export class FilePickerListItem extends ValidatedListItem {
     }
     
     onEnter(): void {
+        console.error(`\n=== FILE PICKER ON ENTER ===`);
+        console.error(`Before: isControllingInput = ${this._isControllingInput}`);
         // Enter expanded mode
         this._isControllingInput = true;
+        console.error(`After: isControllingInput = ${this._isControllingInput}`);
         this._hasNavigated = false;
         
         // Load directory first to populate items
@@ -140,6 +143,8 @@ export class FilePickerListItem extends ValidatedListItem {
         // Set focus to "Confirm Selection" item if it exists
         const confirmIndex = this._items.findIndex(item => item.isConfirmAction);
         this._focusedIndex = confirmIndex !== -1 ? confirmIndex : 0;
+        console.error(`File picker taking control of input (loaded ${this._items.length} items)`);
+        console.error(`=== END FILE PICKER ON ENTER ===\n`);
     }
     
     onExit(): void {
@@ -828,11 +833,19 @@ export class FilePickerListItem extends ValidatedListItem {
             return [...elements, ...bodyElements];
         } else {
             // Collapsed view
+            console.error(`\n=== FILEPICKER COLLAPSED RENDER DEBUG ===`);
+            console.error(`maxWidth: ${maxWidth}, maxLines: ${maxLines}`);
+            console.error(`icon: "${this.icon}" (${this.icon.length} chars)`);
+            console.error(`label: "${this.label}" (${this.label.length} chars)`);
+            console.error(`selectedPath: "${this._selectedPath}" (${this._selectedPath.length} chars)`);
+            
             // Ensure validation is up to date
             this.validateValue();
             
             // Use the utility to format with validation - be conservative but preserve validation icons
             const conservativeWidth = maxWidth - 1; // Reduce by 1 to prevent wrapping but keep validation icons
+            console.error(`conservativeWidth: ${conservativeWidth} (maxWidth - 1)`);
+            
             const formatted = formatCollapsedValidation(
                 this.label,
                 this._selectedPath,
@@ -841,6 +854,8 @@ export class FilePickerListItem extends ValidatedListItem {
                 this.icon,
                 this.isActive
             );
+            console.error(`formatted result: ${JSON.stringify(formatted)}`);
+            console.error(`=== END FILEPICKER COLLAPSED RENDER DEBUG ===\n`);
             
             if (formatted.showValidation && this._validationMessage) {
                 // Render with validation message

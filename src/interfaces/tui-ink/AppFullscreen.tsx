@@ -13,10 +13,13 @@ import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
 import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
 import { useTheme, themes, ThemeName } from './contexts/ThemeContext';
+import { theme } from './utils/theme';
 import { IListItem } from './components/core/IListItem';
 import { FilePickerListItem } from './components/core/FilePickerListItem';
 import { ConfigurationListItem } from './components/core/ConfigurationListItem';
 import { SelectionListItem } from './components/core/SelectionListItem';
+import { ContainerListItem } from './components/core/ContainerListItem';
+import { TextListItem } from './components/core/TextListItem';
 import { existsSync, statSync } from 'fs';
 import { getContainer } from '../../di/container';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
@@ -111,6 +114,79 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
             const items: IListItem[] = [];
             
+            // Add "Add Folder" wizard at the top
+            const languageOptions = [
+                { value: 'english', label: 'English' },
+                { value: 'spanish', label: 'Spanish' },
+                { value: 'mixed', label: 'Mixed/Multiple Languages' }
+            ];
+            
+            const contentTypeOptions = [
+                { value: 'documents', label: 'Documents (PDF, Word, etc.)' },
+                { value: 'code', label: 'Code (JavaScript, Python, etc.)' },
+                { value: 'mixed', label: 'Mixed Content' }
+            ];
+            
+            const modelOptions = [
+                { value: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },
+                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (High Quality)' },
+                { value: 'all-minilm', label: 'all-minilm (Lightweight)' },
+                { value: 'codebert-base', label: 'codebert-base (Code-Specific)' }
+            ];
+            
+            const testChildren = [
+                new TextListItem("🎉", "Welcome to Folder Setup! Let's configure a new folder for indexing...", "", false, undefined, 'wrap'),
+                new SelectionListItem(
+                    "·",
+                    "What language is your content?",
+                    languageOptions,
+                    ['english'], // default selection
+                    false, // will be set by container
+                    'radio',
+                    'vertical'
+                ),
+                new SelectionListItem(
+                    "·",
+                    "What type of content?",
+                    contentTypeOptions,
+                    ['documents'], // default selection
+                    false,
+                    'radio',
+                    'vertical'
+                ),
+                new FilePickerListItem(
+                    "·",
+                    "Select folder to index",
+                    process.cwd(), // start in current directory
+                    false,
+                    'folder'
+                ),
+                new SelectionListItem(
+                    "·",
+                    "Choose embedding model",
+                    modelOptions,
+                    ['nomic-embed-text'], // default selection
+                    false,
+                    'radio',
+                    'vertical'
+                ),
+                new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
+                    console.log('Wizard confirmed - saving configuration...');
+                }, 'truncate')
+            ];
+            
+            const containerItem = new ContainerListItem(
+                "📁", 
+                "Add Folder Wizard", 
+                testChildren,
+                false, // isActive
+                (results) => {
+                    console.log('Container completed with results:', results);
+                }
+            );
+            
+            items.push(containerItem);
+            
             // Add each configured folder
             currentFolders.forEach((folder, index) => {
                 // Validate folder exists and is accessible
@@ -189,6 +265,80 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
         } else {
             // Fallback to sample data when no config available
             const sampleItems = [...CONFIG_ITEMS]; // Clone to avoid mutations
+            
+            // Add test ContainerListItem with real wizard questions
+            const languageOptions = [
+                { value: 'english', label: 'English' },
+                { value: 'spanish', label: 'Spanish' },
+                { value: 'mixed', label: 'Mixed/Multiple Languages' }
+            ];
+            
+            const contentTypeOptions = [
+                { value: 'documents', label: 'Documents (PDF, Word, etc.)' },
+                { value: 'code', label: 'Code (JavaScript, Python, etc.)' },
+                { value: 'mixed', label: 'Mixed Content' }
+            ];
+            
+            const modelOptions = [
+                { value: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },
+                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (High Quality)' },
+                { value: 'all-minilm', label: 'all-minilm (Lightweight)' },
+                { value: 'codebert-base', label: 'codebert-base (Code-Specific)' }
+            ];
+            
+            const testChildren = [
+                new TextListItem("🎉", "Welcome to Folder Setup! Let's configure a new folder for indexing...", "", false, undefined, 'wrap'),
+                new SelectionListItem(
+                    "·",
+                    "What language is your content?",
+                    languageOptions,
+                    ['english'], // default selection
+                    false, // will be set by container
+                    'radio',
+                    'vertical'
+                ),
+                new SelectionListItem(
+                    "·",
+                    "What type of content?",
+                    contentTypeOptions,
+                    ['documents'], // default selection
+                    false,
+                    'radio',
+                    'vertical'
+                ),
+                new FilePickerListItem(
+                    "·",
+                    "Select folder to index",
+                    process.cwd(), // start in current directory
+                    false,
+                    'folder'
+                ),
+                new SelectionListItem(
+                    "·",
+                    "Choose embedding model",
+                    modelOptions,
+                    ['nomic-embed-text'], // default selection
+                    false,
+                    'radio',
+                    'vertical'
+                ),
+                new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
+                    console.log('Wizard confirmed - saving configuration...');
+                }, 'truncate')
+            ];
+            
+            const containerItem = new ContainerListItem(
+                "📁", 
+                "Add Folder Wizard", 
+                testChildren,
+                false, // isActive
+                (results) => {
+                    console.log('Container completed with results:', results);
+                }
+            );
+            
+            // Add container item at the beginning
+            sampleItems.unshift(containerItem);
             
             return sampleItems;
         }
