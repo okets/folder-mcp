@@ -502,10 +502,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
 
 
 export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
-    console.error(`\n=== FIRST RUN WIZARD ENTRY ===`);
-    console.error(`Props - cliDir: ${cliDir}, cliModel: ${cliModel}`);
-    console.error(`=== END FIRST RUN WIZARD ENTRY ===\n`);
-    
     // Use the fixed WizardContent with proper hook order
     return (
         <AnimationProvider>

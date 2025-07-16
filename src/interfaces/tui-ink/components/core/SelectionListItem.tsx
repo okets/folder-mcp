@@ -63,15 +63,10 @@ export class SelectionListItem implements IListItem {
     }
     
     onEnter(): void {
-        console.error(`\n=== SELECTION ITEM ON ENTER ===`);
-        console.error(`Before: isControllingInput = ${this._isControllingInput}`);
         // Enter expanded mode
         this._isControllingInput = true;
-        console.error(`After: isControllingInput = ${this._isControllingInput}`);
         this._workingSelectedValues = [...this._selectedValues];
         this._focusedIndex = 0;
-        console.error(`Selection item taking control of input`);
-        console.error(`=== END SELECTION ITEM ON ENTER ===\n`);
         
         // Focus on first selected item if any
         if (this._workingSelectedValues.length > 0) {
