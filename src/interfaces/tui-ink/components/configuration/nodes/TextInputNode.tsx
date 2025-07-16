@@ -42,16 +42,28 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
             const stringValue = String(currentValue);
             setLocalValue(stringValue);
             inputService.setCurrentText(stringValue);
+            // Set status bar to editing mode to hide global shortcuts
+            statusBarService.setContext('editing');
             inputService.setCursorPosition(cursorPosition);
             
             // Update status bar
             statusBarService.setKeyBindings([
                 { key: '←→', description: 'Move cursor' },
                 { key: 'Backspace', description: 'Delete' },
+                { key: 'Tab', description: 'Switch Panel' },
                 { key: 'Esc', description: 'Cancel' },
                 { key: 'Enter', description: 'Save' }
             ]);
+            
+            try {
+                const inputContextService = di.resolve(ServiceTokens.InputContextService);
+                inputContextService.triggerChange();
+            } catch (error) {
+                // Failed to trigger InputContextService change
+            }
         } else {
+            // When collapsed, return to form mode
+            statusBarService.setContext('form');
             // Clear validation error when collapsed
             setValidationError(null);
         }
@@ -59,14 +71,19 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
 
     // Handle keyboard input
     useInput((input, key) => {
-        if (!isExpanded || !isSelected) return;
+        if (!isExpanded || !isSelected) return false;
+
+        // Allow tab to pass through for panel switching
+        if (key.tab) {
+            return false; // Don't consume the tab event, let it bubble up
+        }
 
         if (key.return) {
             // Validate before saving
             const validationResult = configService.validateNode(node.id, localValue);
             if (!validationResult.isValid) {
                 setValidationError(validationResult.errors[0] || 'Validation failed');
-                return;
+                return true;
             }
             
             // Save changes
@@ -78,13 +95,18 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
             } catch (error) {
                 setValidationError(error instanceof Error ? error.message : 'Failed to save');
             }
+            return true;
         } else if (key.escape) {
             // Cancel changes - reset to the current stored value
             setLocalValue(String(currentValue));
             setValidationError(null);
             formNavService.collapseNode();
             statusBarService.setContext('form');
+            return true;
         }
+        
+        // Don't consume other keys - let them be handled by TextInput component
+        return false;
     });
 
     // Handle text changes

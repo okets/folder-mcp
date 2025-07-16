@@ -121,6 +121,9 @@ export interface IStatusBarService {
     // Update status bar based on current context
     setContext(context: 'form' | 'editing' | 'selecting' | 'filtering'): void;
     
+    // Get current context
+    getCurrentContext(): string;
+    
     // Set custom key bindings for current state
     setKeyBindings(bindings: IKeyBinding[]): void;
     
@@ -230,6 +233,9 @@ export interface IInputContextService {
     
     // Add listener for key binding changes (returns cleanup function)
     addChangeListener(listener: () => void): () => void;
+    
+    // Manually trigger change listeners (for external context changes)
+    triggerChange(): void;
 }
 
 // Render Slot Management

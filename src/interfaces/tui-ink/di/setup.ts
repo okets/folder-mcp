@@ -11,6 +11,9 @@ import { FocusChainService } from '../services/FocusChainService';
 import { InputContextService } from '../services/InputContextService';
 import { RenderSlotService } from '../services/RenderSlotService';
 
+// Global reference to the TUI DI container for class components
+let globalTuiContainer: DIContainer | null = null;
+
 export const setupDIContainer = (): DIContainer => {
     const container = new DIContainer();
     
@@ -39,5 +42,18 @@ export const setupDIContainer = (): DIContainer => {
     container.register(ServiceTokens.RenderSlotService, new RenderSlotService());
     container.register(ServiceTokens.LayoutService, new LayoutService());
     
+    // Store global reference for class components
+    globalTuiContainer = container;
+    
     return container;
+};
+
+/**
+ * Get the global TUI DI container for class components that can't use hooks
+ */
+export const getTuiContainer = (): DIContainer => {
+    if (!globalTuiContainer) {
+        throw new Error('TUI DI container not initialized. Make sure setupDIContainer() was called.');
+    }
+    return globalTuiContainer;
 };

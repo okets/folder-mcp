@@ -1,5 +1,7 @@
 import type { Key } from 'ink';
-import type { IInputContextService, IKeyBinding, IFocusChainService } from './interfaces';
+import type { IInputContextService, IKeyBinding, IFocusChainService, IStatusBarService } from './interfaces';
+import { getTuiContainer } from '../di/setup';
+import { ServiceTokens } from '../di/tokens';
 
 export type InputHandler = (input: string, key: Key) => boolean;
 
@@ -151,10 +153,24 @@ export class InputContextService implements IInputContextService {
     }
     
     /**
-     * NEW: Get key bindings respecting focus chain
+     * NEW: Get key bindings respecting focus chain and StatusBar context
      * This is the proper implementation that fixes the architectural issue
      */
     getFocusAwareKeyBindings(): IKeyBinding[] {
+        // Check StatusBarService context first
+        try {
+            const container = getTuiContainer();
+            const statusBarService = container.resolve(ServiceTokens.StatusBarService) as IStatusBarService;
+            const statusContext = statusBarService.getCurrentContext();
+            
+            // If in editing mode, return only editing bindings
+            if (statusContext === 'editing') {
+                return statusBarService.getKeyBindings();
+            }
+        } catch (error) {
+            // StatusBarService not available or not in editing mode, continue with normal logic
+        }
+        
         const focusChain = this.focusChainService.getFocusChain();
         
         // Check for modal state in focus chain
@@ -238,5 +254,12 @@ export class InputContextService implements IInputContextService {
     isModalState(): boolean {
         const focusChain = this.focusChainService.getFocusChain();
         return this.findModalHandlerInChain(focusChain) !== null;
+    }
+    
+    /**
+     * Manually trigger change listeners (for external context changes)
+     */
+    triggerChange(): void {
+        this.notifyChange();
     }
 }

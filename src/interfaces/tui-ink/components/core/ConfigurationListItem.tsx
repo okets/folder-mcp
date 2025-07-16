@@ -12,6 +12,9 @@ import { truncateButtons } from '../../utils/buttonTruncation';
 import { textColorProp } from '../../utils/conditionalProps';
 import type { IValidationRule } from '../../models/configuration';
 import { IDestructiveConfig } from '../../models/configuration';
+import { getTuiContainer } from '../../di/setup';
+import { ServiceTokens } from '../../di/tokens';
+import type { IStatusBarService } from '../../services/interfaces';
 
 export class ConfigurationListItem extends ValidatedListItem {
     readonly selfConstrained = true as const;
@@ -81,6 +84,29 @@ export class ConfigurationListItem extends ValidatedListItem {
         // Enter edit mode
         this._isControllingInput = true;
         
+        // Set StatusBar context to 'editing' to hide global shortcuts
+        try {
+            const container = getTuiContainer();
+            const statusBarService = container.resolve(ServiceTokens.StatusBarService) as IStatusBarService;
+            
+            statusBarService.setContext('editing');
+            
+            // Set editing key bindings
+            statusBarService.setKeyBindings([
+                { key: '←→', description: 'Move cursor' },
+                { key: 'Backspace', description: 'Delete' },
+                { key: 'Tab', description: 'Switch Panel' },
+                { key: 'Esc', description: 'Cancel' },
+                { key: 'Enter', description: 'Save' }
+            ]);
+            
+            // CRITICAL: Trigger InputContextService change listeners to update StatusBar
+            const inputContextService = container.resolve(ServiceTokens.InputContextService);
+            inputContextService.triggerChange();
+        } catch (error) {
+            // StatusBarService not available, continue without context switching
+        }
+        
         // For password fields, start with blank value for security
         // This prevents accidental display of existing passwords
         if (this.isPassword) {
@@ -96,6 +122,21 @@ export class ConfigurationListItem extends ValidatedListItem {
         // Exit edit mode
         this._isControllingInput = false;
         this._showPassword = false; // Reset password visibility
+        
+        // Reset StatusBar context back to 'form'
+        try {
+            const container = getTuiContainer();
+            const statusBarService = container.resolve(ServiceTokens.StatusBarService) as IStatusBarService;
+            
+            statusBarService.setContext('form');
+            
+            // CRITICAL: Trigger InputContextService change listeners to update StatusBar
+            const inputContextService = container.resolve(ServiceTokens.InputContextService);
+            inputContextService.triggerChange();
+        } catch (error) {
+            // StatusBarService not available, continue without context switching
+        }
+        
         // Clear confirmation state
         this._showingConfirmation = false;
         this._pendingValue = '';
@@ -181,6 +222,9 @@ export class ConfigurationListItem extends ValidatedListItem {
                 this._showPassword = !this._showPassword;
                 return true;
             }
+            
+            // For normal text input, allow tab to pass through for panel switching
+            return false; // Don't consume the tab event, let it bubble up
         }
         
         if (key.escape) {

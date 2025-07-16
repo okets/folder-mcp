@@ -254,7 +254,7 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(({ message, countd
                 // Use the new focus-aware method
                 const bindings = inputContextService.getFocusAwareKeyBindings();
                 setKeyBindings(bindings);
-            } catch {
+            } catch (error) {
                 // Service not available
             }
         };
@@ -262,7 +262,7 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(({ message, countd
         // Delay initial update to let components register
         const timer = setTimeout(updateBindings, 100);
         
-        // Listen for key binding changes
+        // Listen for key binding changes from InputContextService
         try {
             const inputContextService = di.resolve(ServiceTokens.InputContextService);
             const cleanup = inputContextService.addChangeListener(updateBindings);
