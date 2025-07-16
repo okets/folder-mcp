@@ -261,6 +261,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 items.push(folderPicker, modelConfig);
             });
             
+            console.error(`\n=== ACTUAL ITEMS ARRAY DEBUG ===`);
+            console.error(`Items array length: ${items.length}`);
+            items.forEach((item, index) => {
+                const itemName = (item as any).title || (item as any).label || 'Unknown';
+                console.error(`  ${index}: ${itemName}`);
+            });
+            console.error(`=== END ACTUAL ITEMS ARRAY ===\n`);
+            
             return items;
         } else {
             // Fallback to sample data when no config available
@@ -474,9 +482,25 @@ const AppContent: React.FC<AppContentProps> = ({ config }) => {
     const actualConfigItemCount = (() => {
         if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
             // Each folder contributes 2 items: folder picker + model selector
-            return currentFolders.length * 2;
+            // Plus 1 for the "Add Folder Wizard" at the top
+            const count = 1 + (currentFolders.length * 2);
+            
+            console.error(`\n=== CONFIG ITEM COUNT DEBUG ===`);
+            console.error(`Current folders: ${currentFolders.length}`);
+            console.error(`Each folder contributes: 2 items (folder picker + model selector)`);
+            console.error(`Add Folder Wizard: 1 item`);
+            console.error(`Total calculated count: ${count}`);
+            console.error(`=== END CONFIG ITEM COUNT ===\n`);
+            
+            return count;
         } else {
-            return CONFIG_ITEM_COUNT; // Fallback to sample data count
+            const count = CONFIG_ITEM_COUNT; // Fallback to sample data count
+            
+            console.error(`\n=== CONFIG ITEM COUNT DEBUG (FALLBACK) ===`);
+            console.error(`Using fallback CONFIG_ITEM_COUNT: ${count}`);
+            console.error(`=== END CONFIG ITEM COUNT ===\n`);
+            
+            return count;
         }
     })();
     

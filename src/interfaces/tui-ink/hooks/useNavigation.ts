@@ -53,6 +53,17 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
             const currentIndex = prev[key];
             const newIndex = Math.min(maxItems - 1, currentIndex + 1);
+            
+            console.error(`\n=== NAVIGATION DOWN DEBUG ===`);
+            console.error(`Container: ${prev.activeContainer}`);
+            console.error(`Current index: ${currentIndex}`);
+            console.error(`Max items: ${maxItems}`);
+            console.error(`New index: ${newIndex}`);
+            console.error(`Key: ${key}`);
+            console.error(`configItemCount: ${configItemCount}`);
+            console.error(`statusItemCount: ${statusItemCount}`);
+            console.error(`=== END NAVIGATION DOWN ===\n`);
+            
             return {
                 ...prev,
                 [key]: newIndex
