@@ -239,27 +239,31 @@ async function startTUI() {
         // Configuration is now loaded
         
         // Render with configuration support
-        console.log('\n=== MAIN INK RENDER CONFIGURATION ===');
-        console.log(`Platform: ${process.platform}`);
-        console.log(`Console patching enabled: ${process.platform === 'win32'}`);
-        console.log(`Debug mode: false`);
-        console.log('Starting main render...');
+        // Additional Windows screen clearing right before render
+        if (process.platform === 'win32') {
+            clearWindowsScreen();
+        }
         
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
-                    <MainApp cliDir={cliDir} cliModel={cliModel} />
+                    <WindowsScreenWrapper>
+                        <MainApp cliDir={cliDir} cliModel={cliModel} />
+                    </WindowsScreenWrapper>
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
                 exitOnCtrlC: true,
                 patchConsole: process.platform === 'win32', // Enable console patching on Windows
-                debug: false // Disable Ink debug mode
+                debug: false, // Disable Ink debug mode
+                // Windows-specific enhancements
+                ...(process.platform === 'win32' && {
+                    experimental: {
+                        clearScreen: true
+                    }
+                })
             }
         );
-        
-        console.log('✓ Main render completed');
-        console.log('=== END MAIN INK RENDER ===\n');
         
         return app;
     } catch {
@@ -269,27 +273,31 @@ async function startTUI() {
         const container = getContainer();
         const fallbackConfigComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
         
-        console.log('\n=== FALLBACK INK RENDER CONFIGURATION ===');
-        console.log(`Platform: ${process.platform}`);
-        console.log(`Console patching enabled: ${process.platform === 'win32'}`);
-        console.log(`Debug mode: false`);
-        console.log('Starting fallback render...');
+        // Additional Windows screen clearing right before fallback render
+        if (process.platform === 'win32') {
+            clearWindowsScreen();
+        }
         
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={fallbackConfigComponent}>
-                    <MainApp cliDir={cliDir} cliModel={cliModel} />
+                    <WindowsScreenWrapper>
+                        <MainApp cliDir={cliDir} cliModel={cliModel} />
+                    </WindowsScreenWrapper>
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
                 exitOnCtrlC: true,
                 patchConsole: process.platform === 'win32', // Enable console patching on Windows
-                debug: false // Disable Ink debug mode
+                debug: false, // Disable Ink debug mode
+                // Windows-specific enhancements
+                ...(process.platform === 'win32' && {
+                    experimental: {
+                        clearScreen: true
+                    }
+                })
             }
         );
-        
-        console.log('✓ Fallback render completed');
-        console.log('=== END FALLBACK INK RENDER ===\n');
         
         return app;
     }
@@ -300,28 +308,164 @@ const setupWindowsTerminal = async () => {
     if (process.platform === 'win32') {
         // Enable ANSI escape codes on Windows
         if (process.stdout.isTTY) {
-            console.log('\n=== WINDOWS TERMINAL SETUP ===');
-            console.log(`Terminal columns: ${process.stdout.columns}`);
-            console.log(`Terminal rows: ${process.stdout.rows}`);
-            console.log('Applying ANSI escape codes...');
-            
-            process.stdout.write('\x1b[?25l'); // Hide cursor initially
-            console.log('✓ Cursor hidden');
-            
-            process.stdout.write('\x1b[2J');   // Clear screen
-            console.log('✓ Screen cleared');
-            
-            process.stdout.write('\x1b[H');    // Move cursor to home
-            console.log('✓ Cursor moved to home');
-            
-            console.log('=== END WINDOWS TERMINAL SETUP ===\n');
-            
-            // Add a 1-second delay to let you see the debug output
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        } else {
-            console.log('Warning: stdout is not a TTY, skipping ANSI setup');
+            try {
+                // First, try to enable Virtual Terminal Processing
+                const vtEnabled = enableWindowsVirtualTerminal();
+                
+                // Enhanced Windows terminal preparation with multiple approaches
+                if (vtEnabled || process.env.WT_SESSION || process.env.TERM_PROGRAM) {
+                    // Use alternate screen buffer approach (like vim/less) - works best in modern terminals
+                    process.stdout.write('\x1b[?1049h'); // Switch to alternate screen buffer
+                    process.stdout.write('\x1b[2J');     // Clear alternate screen
+                    process.stdout.write('\x1b[H');      // Move cursor to home
+                    process.stdout.write('\x1b[?25l');   // Hide cursor
+                } else {
+                    // Fallback for legacy terminals - more aggressive clearing
+                    process.stdout.write('\x1b[?25l');   // Hide cursor first
+                    process.stdout.write('\x1b[2J');     // Clear screen
+                    process.stdout.write('\x1b[H');      // Move cursor to home
+                    process.stdout.write('\x1b[3J');     // Clear scrollback buffer (if supported)
+                }
+                
+                // Register cleanup to restore terminal state on exit
+                const restoreScreen = () => {
+                    if (process.stdout.isTTY) {
+                        process.stdout.write('\x1b[?25h'); // Show cursor
+                        if (vtEnabled || process.env.WT_SESSION || process.env.TERM_PROGRAM) {
+                            process.stdout.write('\x1b[?1049l'); // Switch back to main screen
+                        }
+                    }
+                };
+                
+                // Register cleanup handlers
+                process.on('exit', restoreScreen);
+                process.on('SIGINT', () => {
+                    restoreScreen();
+                    process.exit(0);
+                });
+                process.on('SIGTERM', () => {
+                    restoreScreen();
+                    process.exit(0);
+                });
+                
+            } catch (error) {
+                // Absolute fallback - basic ANSI codes
+                process.stdout.write('\x1b[?25l'); // Hide cursor initially
+                process.stdout.write('\x1b[2J');   // Clear screen
+                process.stdout.write('\x1b[H');    // Move cursor to home
+            }
         }
     }
+};
+
+// Windows Console API helper for virtual terminal processing
+const enableWindowsVirtualTerminal = (): boolean => {
+    if (process.platform !== 'win32') return false;
+    
+    try {
+        // Try to enable Virtual Terminal Processing through Node.js
+        // This works in modern Windows terminals
+        if (process.stdout.isTTY) {
+            const { spawn } = require('child_process');
+            
+            // Use PowerShell to enable virtual terminal processing
+            const enableVT = spawn('powershell.exe', [
+                '-NoProfile', '-NonInteractive', '-Command',
+                `
+                try {
+                    $handle = [System.Console]::OutputEncoding;
+                    [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
+                    Write-Output "VT_ENABLED";
+                } catch {
+                    Write-Output "VT_FAILED";
+                }
+                `
+            ], { 
+                stdio: 'pipe',
+                windowsHide: true
+            });
+            
+            let result = false;
+            enableVT.stdout.on('data', (data: Buffer) => {
+                if (data.toString().trim().includes('VT_ENABLED')) {
+                    result = true;
+                }
+            });
+            
+            // Wait briefly for the command to complete
+            setTimeout(() => enableVT.kill(), 100);
+            return result;
+        }
+    } catch (error) {
+        // Fallback: assume ANSI support is available
+        return true;
+    }
+    
+    return false;
+};
+
+// Enhanced Windows screen clearing utility
+const clearWindowsScreen = (): void => {
+    if (process.platform === 'win32' && process.stdout.isTTY) {
+        try {
+            // Multiple clearing strategies for different Windows terminal types
+            
+            // Strategy 1: Modern Windows Terminal / VSCode Terminal
+            if (process.env.WT_SESSION || process.env.TERM_PROGRAM === 'vscode') {
+                process.stdout.write('\x1b[2J\x1b[H\x1b[3J'); // Clear screen + scrollback
+                return;
+            }
+            
+            // Strategy 2: Windows Terminal with VT support
+            if (process.env.TERM_PROGRAM || process.stdout.columns) {
+                process.stdout.write('\x1b[2J\x1b[H'); // Standard clear
+                return;
+            }
+            
+            // Strategy 3: Legacy Command Prompt / PowerShell
+            process.stdout.write('\x1b[2J'); // Clear screen
+            process.stdout.write('\x1b[H');  // Home cursor
+            
+            // Additional aggressive clearing for stubborn terminals
+            for (let i = 0; i < (process.stdout.rows || 50); i++) {
+                process.stdout.write('\n');
+            }
+            process.stdout.write('\x1b[H'); // Return to home
+            
+        } catch (error) {
+            // Fallback: basic clear
+            process.stdout.write('\x1b[2J\x1b[H');
+        }
+    }
+};
+
+// Windows-specific wrapper component for better screen management
+const WindowsScreenWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    React.useEffect(() => {
+        if (process.platform === 'win32') {
+            // Additional clearing on component mount
+            clearWindowsScreen();
+            
+            // Set up periodic clearing for stubborn terminals (every 100ms for first second)
+            let clearCount = 0;
+            const maxClears = 10;
+            const intervalId = setInterval(() => {
+                if (clearCount < maxClears) {
+                    clearWindowsScreen();
+                    clearCount++;
+                } else {
+                    clearInterval(intervalId);
+                }
+            }, 100);
+            
+            return () => {
+                clearInterval(intervalId);
+            };
+        }
+        return undefined;
+    }, []);
+    
+    return <>{children}</>;
 };
 
 // Start the Ink TUI
@@ -329,24 +473,16 @@ let app: any;
 
 // Handle graceful exit
 const cleanup = () => {
-    console.log('\n=== CLEANUP SEQUENCE ===');
-    console.log(`Platform: ${process.platform}`);
-    console.log(`App exists: ${!!app}`);
-    
     if (app) {
-        console.log('Unmounting app...');
         app.unmount();
-        console.log('✓ App unmounted');
     }
     
-    // Restore cursor on exit
+    // Restore terminal state on exit
     if (process.platform === 'win32' && process.stdout.isTTY) {
-        console.log('Restoring cursor for Windows...');
         process.stdout.write('\x1b[?25h'); // Show cursor
-        console.log('✓ Cursor restored');
+        process.stdout.write('\x1b[?1049l'); // Switch back to main screen
     }
     
-    console.log('=== END CLEANUP ===\n');
     process.exit(0);
 };
 
@@ -357,6 +493,11 @@ process.on('SIGTERM', cleanup);
 async function main() {
     // Setup Windows terminal first
     await setupWindowsTerminal();
+    
+    // Add a brief delay to let terminal setup complete on Windows
+    if (process.platform === 'win32') {
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
     
     const instance = await startTUI();
     app = instance;
