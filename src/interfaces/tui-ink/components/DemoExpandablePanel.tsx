@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box } from 'ink';
 import { ExpandableDataPanel } from './core/ExpandableDataPanel';
-import { TextInputItem } from './core/items/TextInputItem';
-import { LogItem, sampleLogs } from './core/items/LogItem';
+import { TextInputItem } from './core/TextInputItem';
+import { LogItem, sampleLogs } from './core/ReactLogItem';
 import { useNavigation } from '../hooks/useNavigation';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { ThemeProvider } from '../contexts/ThemeContext';
