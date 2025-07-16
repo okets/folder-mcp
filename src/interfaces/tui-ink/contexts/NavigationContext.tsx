@@ -19,12 +19,6 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({
     configItemCount,
     statusItemCount
 }) => {
-    console.error(`\\n=== NAVIGATIONPROVIDER RENDER ===`);
-    console.error(`isBlocked: ${isBlocked}`);
-    console.error(`configItemCount: ${configItemCount}`);
-    console.error(`statusItemCount: ${statusItemCount}`);
-    console.error(`=== END NAVIGATIONPROVIDER RENDER ===\\n`);
-    
     const navigation = useNavigation({ 
         isBlocked, 
         ...buildProps({ configItemCount, statusItemCount })

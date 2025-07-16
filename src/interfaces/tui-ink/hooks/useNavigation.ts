@@ -21,12 +21,6 @@ interface UseNavigationOptions {
 export const useNavigation = (options: UseNavigationOptions = {}) => {
     const { isBlocked = false, configItemCount = 20, statusItemCount = 20 } = options;
     
-    console.error(`\\n=== USENAVIGATION HOOK RENDER ===`);
-    console.error(`isBlocked: ${isBlocked}`);
-    console.error(`configItemCount: ${configItemCount}`);
-    console.error(`statusItemCount: ${statusItemCount}`);
-    console.error(`=== END USENAVIGATION HOOK RENDER ===\\n`);
-    
     const [state, setState] = useState<NavigationState>({
         activeContainer: 'main',
         mainSelectedIndex: 0,
@@ -69,17 +63,8 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             const currentIndex = prev[key];
             const newIndex = Math.min(maxItems - 1, currentIndex + 1);
             
-            console.error(`\\n=== NAVIGATION DOWN ===`);
-            console.error(`Container: ${prev.activeContainer}`);
-            console.error(`Current index: ${currentIndex}`);
-            console.error(`Max items: ${maxItems}`);
-            console.error(`New index: ${newIndex}`);
-            console.error(`Index changed: ${currentIndex !== newIndex}`);
-            console.error(`=== END NAVIGATION DOWN ===\\n`);
-            
             // CRITICAL: Only update state if index actually changes!
             if (currentIndex === newIndex) {
-                console.error(`\\n=== NAVIGATION STATE NOT CHANGED - SKIPPING UPDATE ===\\n`);
                 return prev; // Return the same state object to prevent re-render
             }
             
@@ -92,23 +77,15 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
 
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {
-        console.error(`\\n=== NAVIGATION INPUT ===`);
-        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
-        console.error(`isBlocked: ${isBlocked}`);
-        console.error(`=== END NAVIGATION INPUT ===\\n`);
-        
         if (isBlocked) return false;
         
         if (key.tab || (input === '\t')) {
-            console.error(`TAB pressed - switching container`);
             switchContainer();
             return true;
         } else if (key.upArrow || input === 'k') {
-            console.error(`UP ARROW pressed - navigating up`);
             navigateUp();
             return true;
         } else if (key.downArrow || input === 'j') {
-            console.error(`DOWN ARROW pressed - navigating down`);
             navigateDown();
             return true;
         }
