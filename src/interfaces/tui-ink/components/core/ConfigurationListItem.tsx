@@ -726,7 +726,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             {' '}{finalLabel}: [
                         </Text>
-                        <Text {...textColorProp(theme.colors.configValuesColor)}>
+                        <Text {...textColorProp(this._validationMessage && (this._validationMessage.state === ValidationState.Error || this._validationMessage.state === ValidationState.Warning) ? getValidationColor(this._validationMessage.state) : theme.colors.configValuesColor)}>
                             {finalValue}
                         </Text>
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -773,7 +773,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{label}: [
                             </Text>
-                            <Text {...textColorProp(theme.colors.configValuesColor)}>
+                            <Text {...textColorProp(this._validationMessage && (this._validationMessage.state === ValidationState.Error || this._validationMessage.state === ValidationState.Warning) ? getValidationColor(this._validationMessage.state) : theme.colors.configValuesColor)}>
                                 {truncatedValue}…
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -794,7 +794,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                             {' '}{label}: [
                         </Text>
-                        <Text {...textColorProp(theme.colors.configValuesColor)}>
+                        <Text {...textColorProp(this._validationMessage && (this._validationMessage.state === ValidationState.Error || this._validationMessage.state === ValidationState.Warning) ? getValidationColor(this._validationMessage.state) : theme.colors.configValuesColor)}>
                             {value}{truncated ? '…' : ''}
                         </Text>
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -838,7 +838,7 @@ export class ConfigurationListItem extends ValidatedListItem {
                     <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         {' '}{formatted.truncatedLabel || this.label}: [
                     </Text>
-                    <Text {...textColorProp(theme.colors.configValuesColor)}>
+                    <Text {...textColorProp(this._validationMessage && (this._validationMessage.state === ValidationState.Error || this._validationMessage.state === ValidationState.Warning) ? getValidationColor(this._validationMessage.state) : theme.colors.configValuesColor)}>
                         {formatted.displayValue}
                     </Text>
                     <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
