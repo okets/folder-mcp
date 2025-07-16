@@ -177,12 +177,6 @@ export class ContainerListItem implements IListItem {
                 const usedLines = elements.length - 1; // -1 because we haven't added this child yet
                 const remainingLines = (maxLines || 8) - 1 - usedLines; // -1 for header
                 childMaxLines = Math.max(childMaxLines, remainingLines);
-                console.error(`\n=== DYNAMIC HEIGHT FOR LAST CHILD ===`);
-                console.error(`Child ${childGlobalIndex} (${child.constructor.name}) is last child`);
-                console.error(`Original childMaxLines: ${childPosition ? childPosition.end - childPosition.start : 1}`);
-                console.error(`Container maxLines: ${maxLines}, usedLines: ${usedLines}, remainingLines: ${remainingLines}`);
-                console.error(`Final childMaxLines: ${childMaxLines}`);
-                console.error(`=== END DYNAMIC HEIGHT ===\n`);
             }
             let linePrefix = '│ ';
             
@@ -200,11 +194,6 @@ export class ContainerListItem implements IListItem {
             
             // Special handling for ButtonsRow - it returns a Box that needs to expand vertically
             if (child.constructor.name === 'ButtonsRow') {
-                console.error(`\n=== SPECIAL BUTTONSROW RENDERING ===`);
-                console.error(`ButtonsRow linePrefix: "${linePrefix}"`);
-                console.error(`ButtonsRow element type: ${Array.isArray(childElements) ? 'Array' : 'Single'}`);
-                console.error(`=== END SPECIAL BUTTONSROW ===\n`);
-                
                 // ButtonsRow returns a Box with flexDirection="row" containing 3-line bordered buttons
                 // We need to wrap this in a Box with row layout to add the prefix while preserving height
                 elements.push(

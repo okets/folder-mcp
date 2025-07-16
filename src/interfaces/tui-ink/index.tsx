@@ -408,29 +408,33 @@ const enableWindowsVirtualTerminal = (): boolean => {
 const clearWindowsScreen = (): void => {
     if (process.platform === 'win32' && process.stdout.isTTY) {
         try {
-            // Multiple clearing strategies for different Windows terminal types
+            // More aggressive clearing strategy for Windows
             
             // Strategy 1: Modern Windows Terminal / VSCode Terminal
             if (process.env.WT_SESSION || process.env.TERM_PROGRAM === 'vscode') {
                 process.stdout.write('\x1b[2J\x1b[H\x1b[3J'); // Clear screen + scrollback
+                process.stdout.write('\x1b[2J\x1b[H'); // Double clear for stubborn terminals
                 return;
             }
             
             // Strategy 2: Windows Terminal with VT support
             if (process.env.TERM_PROGRAM || process.stdout.columns) {
                 process.stdout.write('\x1b[2J\x1b[H'); // Standard clear
+                process.stdout.write('\x1b[0J'); // Clear from cursor to end of screen
                 return;
             }
             
-            // Strategy 3: Legacy Command Prompt / PowerShell
+            // Strategy 3: Legacy Command Prompt / PowerShell - Ultra aggressive
             process.stdout.write('\x1b[2J'); // Clear screen
             process.stdout.write('\x1b[H');  // Home cursor
+            process.stdout.write('\x1b[3J'); // Clear scrollback
             
-            // Additional aggressive clearing for stubborn terminals
-            for (let i = 0; i < (process.stdout.rows || 50); i++) {
+            // Additional ultra-aggressive clearing for stubborn terminals
+            for (let i = 0; i < (process.stdout.rows || 50) + 5; i++) {
                 process.stdout.write('\n');
             }
             process.stdout.write('\x1b[H'); // Return to home
+            process.stdout.write('\x1b[2J'); // Final clear
             
         } catch (error) {
             // Fallback: basic clear

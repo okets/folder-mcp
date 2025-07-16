@@ -348,28 +348,18 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         // Create config using unified system
         const saveConfigToUnifiedSystem = async () => {
             try {
-                console.error(`\n=== WIZARD CONFIG SAVE START ===`);
-                console.error(`Folder path: "${folderPath}"`);
-                console.error(`Selected model: "${selectedModel}"`);
-                
                 // Get ConfigurationComponent from main DI container
                 const container = getContainer();
                 const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                console.error(`ConfigurationComponent resolved successfully`);
                 
                 // Load existing config first
                 await configComponent.load();
-                console.error(`ConfigurationComponent loaded successfully`);
                 
                 // Add folder using ConfigurationComponent
-                console.error(`Adding folder with path: "${folderPath}", model: "${selectedModel}"`);
                 await configComponent.addFolder(folderPath, selectedModel);
-                console.error(`Folder added successfully`);
                 
                 // Set default embedding model (only model, no backend needed)
-                console.error(`Setting default model: "${selectedModel}"`);
                 await configComponent.set('folders.defaults.embeddings.model', selectedModel);
-                console.error(`Default model set successfully`);
                 
                 
                 // Create config object for backward compatibility
@@ -388,16 +378,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                     }
                 };
                 
-                console.error(`\n=== CONFIG FILE SHOULD BE CREATED ===`);
-                console.error(`Expected location: ~/.folder-mcp/config.yaml`);
-                console.error(`Config object for backward compatibility:`, config);
-                console.error(`=== WIZARD CONFIG SAVE COMPLETE ===\n`);
                 onComplete(config);
             } catch (error) {
-                console.error(`\n=== WIZARD CONFIG SAVE ERROR ===`);
-                console.error('Failed to save config to unified system:', error);
-                console.error(`Error details:`, error);
-                console.error(`=== END ERROR ===\n`);
+                // Silently handle config save errors during TUI rendering
             }
         };
         

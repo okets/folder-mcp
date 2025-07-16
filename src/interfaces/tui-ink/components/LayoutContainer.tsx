@@ -21,12 +21,6 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
     narrowBreakpoint = 100,
     isMainFocused = true
 }) => {
-    console.error(`\\n=== LAYOUTCONTAINER RENDER ===`);
-    console.error(`availableHeight: ${availableHeight}`);
-    console.error(`availableWidth: ${availableWidth}`);
-    console.error(`isMainFocused: ${isMainFocused}`);
-    console.error(`=== END LAYOUTCONTAINER RENDER ===\\n`);
-    
     const di = useDI();
     const debugService = di.resolve(ServiceTokens.DebugService);
     // Remove navigation context usage to prevent re-renders

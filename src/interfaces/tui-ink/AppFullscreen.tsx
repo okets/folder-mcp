@@ -177,7 +177,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
-                    console.log('Wizard confirmed - saving configuration...');
+                    // Wizard confirmed - saving configuration
                 }, 'truncate')
             ];
             
@@ -187,7 +187,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                 testChildren,
                 false, // isActive
                 (results) => {
-                    console.log('Container completed with results:', results);
+                    // Container completed
                 }
             );
             
@@ -330,7 +330,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
-                    console.log('Wizard confirmed - saving configuration...');
+                    // Wizard confirmed - saving configuration
                 }, 'truncate')
             ];
             
@@ -340,7 +340,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                 testChildren,
                 false, // isActive
                 (results) => {
-                    console.log('Container completed with results:', results);
+                    // Container completed
                 }
             );
             

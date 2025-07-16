@@ -43,25 +43,17 @@ export class ButtonsRow implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        console.error(`\n=== BUTTONSROW RENDER DEBUG ===`);
-        console.error(`maxWidth: ${maxWidth}, maxLines: ${maxLines}`);
-        
         // Use maxLines to determine if we're in low resolution mode
         // This is more stable than useTerminalSize() which causes render loops
         // If we get 3+ lines, we can do regular mode (3 lines = top border, content, bottom border)
         const isLowRes = maxLines !== undefined && maxLines < 3;
-        console.error(`isLowRes calculation: maxLines=${maxLines}, maxLines < 3 = ${isLowRes}`);
         
         // Show focused button when item is active OR when controlling input
         const focusedButton = (this.isActive || this._isControllingInput) ? this._focusedButtonIndex : -1;
         
         if (isLowRes) {
-            console.error(`Rendering LOW RESOLUTION mode`);
-            console.error(`=== END BUTTONSROW RENDER DEBUG ===\n`);
             return this.renderLowResolution(maxWidth, focusedButton);
         } else {
-            console.error(`Rendering REGULAR mode`);
-            console.error(`=== END BUTTONSROW RENDER DEBUG ===\n`);
             return this.renderRegularMode(maxWidth, focusedButton);
         }
     }
@@ -117,12 +109,6 @@ export class ButtonsRow implements IListItem {
         const availableWidth = maxWidth - totalSpacing - totalBorderOverhead;
         const maxButtonContentWidth = Math.floor(availableWidth / this.buttons.length);
         
-        console.error(`\n=== BUTTONSROW WIDTH CALCULATION ===`);
-        console.error(`maxWidth: ${maxWidth}`);
-        console.error(`buttons: ${this.buttons.length}, spacing: ${totalSpacing}, borderOverhead: ${totalBorderOverhead}`);
-        console.error(`availableWidth: ${availableWidth}, maxButtonContentWidth: ${maxButtonContentWidth}`);
-        console.error(`=== END WIDTH CALCULATION ===\n`);
-        
         for (let i = 0; i < this.buttons.length; i++) {
             const button = this.buttons[i];
             if (!button) continue;
@@ -158,10 +144,6 @@ export class ButtonsRow implements IListItem {
             // The buttonWidth is the INNER content width
             // Total visual width = buttonWidth + 2 (for the two corners)
             // But the horizontal lines should be exactly buttonWidth to fit the content
-            
-            if (this.buttons[0]?.name === 'accept' && i === 0) {
-                console.error(`Creating borders: buttonContentWidth=${buttonContentWidth}, displayText="${displayText}" (${displayText.length} chars), visualTextWidth=${visualTextWidth}, borderLineWidth=${borderLineWidth}`);
-            }
             
             const topBorder = (
                 <Text>
@@ -205,10 +187,6 @@ export class ButtonsRow implements IListItem {
         }
         
         const result = this.wrapWithAlignment(buttonElements, maxWidth);
-        console.error(`\n=== BUTTONSROW FINAL RESULT ===`);
-        console.error(`wrapWithAlignment returned: ${result}`);
-        console.error(`buttonElements length: ${buttonElements.length}`);
-        console.error(`=== END BUTTONSROW FINAL ===\n`);
         return result;
     }
     
@@ -246,26 +224,17 @@ export class ButtonsRow implements IListItem {
     }
     
     getRequiredLines(maxWidth: number, maxHeight?: number): number {
-        console.error(`\n=== BUTTONSROW getRequiredLines DEBUG ===`);
-        console.error(`maxWidth: ${maxWidth}, maxHeight: ${maxHeight}`);
-        
         // Use same logic as render method for consistency
         // Note: maxHeight is the available container height, not the lines we'll get
         // We should always request 3 lines unless the container is very constrained
         const shouldUseLowRes = maxHeight !== undefined && maxHeight < 6;
         
-        console.error(`shouldUseLowRes: maxHeight=${maxHeight} < 6 = ${shouldUseLowRes}`);
-        
         // Low resolution mode: 1 line
         if (shouldUseLowRes) {
-            console.error(`Requesting 1 line (low res mode)`);
-            console.error(`=== END BUTTONSROW getRequiredLines DEBUG ===\n`);
             return 1;
         }
         
         // Regular mode: 3 lines (top border, content, bottom border)
-        console.error(`Requesting 3 lines (regular mode)`);
-        console.error(`=== END BUTTONSROW getRequiredLines DEBUG ===\n`);
         return 3;
     }
     
