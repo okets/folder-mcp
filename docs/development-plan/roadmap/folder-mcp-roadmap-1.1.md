@@ -926,6 +926,52 @@ This choice optimizes for LLM consumption patterns while maintaining maximum sim
 - [ ] Compatibility guidelines defined
 - [ ] Team processes formalized
 
+### Task 5: Windows Platform Compatibility Verification
+
+**Goal**: Comprehensive verification that Windows TUI is flicker-free and performs identically to macOS
+
+**Background**: During development, Windows terminal handling required specific fixes to eliminate screen flickering, startup tearing, and exit behavior differences compared to macOS. This task ensures all fixes are working and documented.
+
+**Windows-Specific Fixes Implemented**:
+- [ ] **Debug Logging Removal**: Verify no console.error statements interfere with ANSI escape codes
+  - [ ] TextListItem.tsx clean (20+ debug statements removed)
+  - [ ] ContainerListItem.tsx clean (dynamic height and ButtonsRow debugging removed)
+  - [ ] ButtonsRow.tsx clean (render, width calculation, and getRequiredLines debugging removed)
+  - [ ] AppFullscreen.tsx clean (wizard completion logging removed)
+  
+- [ ] **Windows Terminal Setup**: Verify proper ANSI escape code handling
+  - [ ] Virtual Terminal Processing detection working
+  - [ ] Alternate screen buffer setup (\\x1b[?1049h) functional
+  - [ ] Multiple terminal detection (Windows Terminal, VSCode, PowerShell, Command Prompt)
+  - [ ] Screen clearing utilities working without interference
+  
+- [ ] **Exit Mechanism**: Verify ESC key properly exits on Windows
+  - [ ] Platform-specific exit strategy working (process.exit(0) with terminal cleanup)
+  - [ ] Terminal state restoration on exit (cursor show, alternate screen exit)
+  - [ ] No "Terminate batch job (Y/N)?" prompts
+  - [ ] Clean exit without Ctrl+C requirement
+  
+- [ ] **Startup Experience**: Verify no startup flickering or tearing
+  - [ ] Single terminal initialization without cascading clears
+  - [ ] WindowsScreenWrapper minimal and non-aggressive
+  - [ ] No periodic screen clearing during startup
+  - [ ] Smooth initialization identical to macOS experience
+
+**Test Scenarios**:
+- [ ] **Fresh Startup**: Clean startup on Windows Terminal, PowerShell, Command Prompt, VSCode Terminal
+- [ ] **Add Folder Wizard**: No flickering during wizard navigation and interaction
+- [ ] **ESC Exit**: Single ESC starts countdown, double ESC exits cleanly
+- [ ] **Long-term Usage**: No screen artifacts during extended TUI sessions
+- [ ] **Cross-Platform Parity**: Windows experience matches macOS functionality
+
+**Completion Criteria**:
+- [ ] All Windows-specific fixes verified working
+- [ ] No screen flickering in any Windows terminal environment
+- [ ] ESC key exits cleanly without manual intervention
+- [ ] Startup experience smooth and tear-free
+- [ ] Cross-platform behavior identical
+- [ ] Windows compatibility documentation complete
+
 **Phase 11 Completion Review**:
 - System readiness verification
 - User adoption success metrics
