@@ -239,6 +239,12 @@ async function startTUI() {
         // Configuration is now loaded
         
         // Render with configuration support
+        console.log('\n=== MAIN INK RENDER CONFIGURATION ===');
+        console.log(`Platform: ${process.platform}`);
+        console.log(`Console patching enabled: ${process.platform === 'win32'}`);
+        console.log(`Debug mode: false`);
+        console.log('Starting main render...');
+        
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
@@ -252,6 +258,9 @@ async function startTUI() {
             }
         );
         
+        console.log('✓ Main render completed');
+        console.log('=== END MAIN INK RENDER ===\n');
+        
         return app;
     } catch {
         
@@ -259,6 +268,12 @@ async function startTUI() {
         // Get ConfigurationComponent for fallback case
         const container = getContainer();
         const fallbackConfigComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+        
+        console.log('\n=== FALLBACK INK RENDER CONFIGURATION ===');
+        console.log(`Platform: ${process.platform}`);
+        console.log(`Console patching enabled: ${process.platform === 'win32'}`);
+        console.log(`Debug mode: false`);
+        console.log('Starting fallback render...');
         
         const app = render(
             <DIProvider container={tuiContainer}>
@@ -273,32 +288,65 @@ async function startTUI() {
             }
         );
         
+        console.log('✓ Fallback render completed');
+        console.log('=== END FALLBACK INK RENDER ===\n');
+        
         return app;
     }
 }
 
 // Windows-specific terminal setup
-if (process.platform === 'win32') {
-    // Enable ANSI escape codes on Windows
-    if (process.stdout.isTTY) {
-        process.stdout.write('\x1b[?25l'); // Hide cursor initially
-        process.stdout.write('\x1b[2J');   // Clear screen
-        process.stdout.write('\x1b[H');    // Move cursor to home
+const setupWindowsTerminal = async () => {
+    if (process.platform === 'win32') {
+        // Enable ANSI escape codes on Windows
+        if (process.stdout.isTTY) {
+            console.log('\n=== WINDOWS TERMINAL SETUP ===');
+            console.log(`Terminal columns: ${process.stdout.columns}`);
+            console.log(`Terminal rows: ${process.stdout.rows}`);
+            console.log('Applying ANSI escape codes...');
+            
+            process.stdout.write('\x1b[?25l'); // Hide cursor initially
+            console.log('✓ Cursor hidden');
+            
+            process.stdout.write('\x1b[2J');   // Clear screen
+            console.log('✓ Screen cleared');
+            
+            process.stdout.write('\x1b[H');    // Move cursor to home
+            console.log('✓ Cursor moved to home');
+            
+            console.log('=== END WINDOWS TERMINAL SETUP ===\n');
+            
+            // Add a 1-second delay to let you see the debug output
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+            console.log('Warning: stdout is not a TTY, skipping ANSI setup');
+        }
     }
-}
+};
 
 // Start the Ink TUI
 let app: any;
 
 // Handle graceful exit
 const cleanup = () => {
+    console.log('\n=== CLEANUP SEQUENCE ===');
+    console.log(`Platform: ${process.platform}`);
+    console.log(`App exists: ${!!app}`);
+    
     if (app) {
+        console.log('Unmounting app...');
         app.unmount();
+        console.log('✓ App unmounted');
     }
+    
     // Restore cursor on exit
     if (process.platform === 'win32' && process.stdout.isTTY) {
+        console.log('Restoring cursor for Windows...');
         process.stdout.write('\x1b[?25h'); // Show cursor
+        console.log('✓ Cursor restored');
     }
+    
+    console.log('=== END CLEANUP ===\n');
     process.exit(0);
 };
 
@@ -306,11 +354,19 @@ process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
 
 // Start the app and handle exit
-startTUI().then(instance => {
+async function main() {
+    // Setup Windows terminal first
+    await setupWindowsTerminal();
+    
+    const instance = await startTUI();
     app = instance;
+    
     return instance.waitUntilExit();
-}).then(() => {
+}
+
+main().then(() => {
     // Let terminal handle cleanup naturally
 }).catch(error => {
+    console.log('Error during startup:', error);
     process.exit(1);
 });
