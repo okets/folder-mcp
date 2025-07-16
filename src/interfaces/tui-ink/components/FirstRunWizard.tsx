@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useApp, useInput, Key } from 'ink';
+import { Box, Text, useApp, useInput, Key, Static } from 'ink';
 import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync, writeFileSync, mkdirSync, statSync } from 'fs';

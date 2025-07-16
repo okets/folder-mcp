@@ -247,7 +247,7 @@ async function startTUI() {
             </DIProvider>,
             {
                 exitOnCtrlC: true,
-                patchConsole: false, // Prevent Ink from patching console methods
+                patchConsole: process.platform === 'win32', // Enable console patching on Windows
                 debug: false // Disable Ink debug mode
             }
         );
@@ -268,12 +268,22 @@ async function startTUI() {
             </DIProvider>,
             {
                 exitOnCtrlC: true,
-                patchConsole: false, // Prevent Ink from patching console methods
+                patchConsole: process.platform === 'win32', // Enable console patching on Windows
                 debug: false // Disable Ink debug mode
             }
         );
         
         return app;
+    }
+}
+
+// Windows-specific terminal setup
+if (process.platform === 'win32') {
+    // Enable ANSI escape codes on Windows
+    if (process.stdout.isTTY) {
+        process.stdout.write('\x1b[?25l'); // Hide cursor initially
+        process.stdout.write('\x1b[2J');   // Clear screen
+        process.stdout.write('\x1b[H');    // Move cursor to home
     }
 }
 
@@ -284,6 +294,10 @@ let app: any;
 const cleanup = () => {
     if (app) {
         app.unmount();
+    }
+    // Restore cursor on exit
+    if (process.platform === 'win32' && process.stdout.isTTY) {
+        process.stdout.write('\x1b[?25h'); // Show cursor
     }
     process.exit(0);
 };
