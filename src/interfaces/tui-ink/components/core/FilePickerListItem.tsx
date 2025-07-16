@@ -549,22 +549,40 @@ export class FilePickerListItem extends ValidatedListItem {
                         this._focusedIndex = lastItemInPrevCol;
                     }
                 } else {
-                    // In leftmost column - go to confirm if available
-                    if (hasConfirmItem) {
+                    // In leftmost column - for file mode, always exit like escape
+                    if (this.mode === 'file') {
+                        // Same behavior as escape key
+                        this._selectedPath = this._originalPath;
+                        this._currentPath = this._originalPath;
+                        this.onExit();
+                        return true; // State changed - exiting
+                    } else {
+                        // For folder/both modes, go to confirm if available
+                        if (hasConfirmItem) {
+                            this._previousFocusedIndex = this._focusedIndex;
+                            this._focusedIndex = this._items.length - 1;
+                        } else {
+                            this.onExit();
+                        }
+                    }
+                }
+            } else {
+                // Single column - for file mode, always exit like escape
+                if (this.mode === 'file') {
+                    // Same behavior as escape key
+                    this._selectedPath = this._originalPath;
+                    this._currentPath = this._originalPath;
+                    this.onExit();
+                    return true; // State changed - exiting
+                } else {
+                    // For folder/both modes, go to confirm or exit
+                    if (hasConfirmItem && this._focusedIndex < this._items.length - 1) {
                         this._previousFocusedIndex = this._focusedIndex;
                         this._focusedIndex = this._items.length - 1;
                     } else {
                         this.onExit();
+                        return true; // State changed - exiting
                     }
-                }
-            } else {
-                // Single column - go to confirm or exit
-                if (hasConfirmItem && this._focusedIndex < this._items.length - 1) {
-                    this._previousFocusedIndex = this._focusedIndex;
-                    this._focusedIndex = this._items.length - 1;
-                } else {
-                    this.onExit();
-                    return true; // State changed - exiting
                 }
             }
             const indexChanged = oldIndex !== this._focusedIndex;
