@@ -870,6 +870,7 @@ export class FilePickerListItem extends ValidatedListItem {
             // Ensure validation is up to date
             this.validateValue();
             
+            
             // Use the utility to format with validation - be conservative but preserve validation icons
             const conservativeWidth = maxWidth - 1; // Reduce by 1 to prevent wrapping but keep validation icons
             
@@ -890,7 +891,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     <Text>
                         <Transform transform={output => output}>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
-                                {this.icon}
+                                {this.isActive ? '▶' : this.icon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{formatted.truncatedLabel || this.label} [</Text>
@@ -943,7 +944,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     <Text>
                         <Transform transform={output => output}>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
-                                {this.icon}
+                                {this.isActive ? '▶' : this.icon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{finalLabel} [
@@ -975,7 +976,7 @@ export class FilePickerListItem extends ValidatedListItem {
                 // Build with separate components to allow value coloring and optional validation
                 const elements = [
                     <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : this.getBulletColor(theme.colors.textMuted))}>
-                        {this.icon}
+{this.isActive ? '▶' : this.icon}
                     </Text>,
                     <Text key="label" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         {' '}{formatted.truncatedLabel || this.label} [

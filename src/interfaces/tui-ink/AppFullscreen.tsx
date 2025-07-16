@@ -93,7 +93,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             const folders = await configComponent.getFolders();
             setCurrentFolders(folders);
         } catch (error) {
-            console.error('Failed to load folders:', error);
             setCurrentFolders([]);
         }
     }, []);
@@ -106,17 +105,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Handle model changes - save to configuration
     const handleModelChange = React.useCallback(async (folderPath: string, newModel: string) => {
         try {
-            console.error(`Updating model for folder "${folderPath}" to "${newModel}"`);
             const container = getContainer();
             const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
             
             await configComponent.updateFolderModel(folderPath, newModel);
-            console.error(`Model updated successfully for folder "${folderPath}"`);
             
             // Refresh the folders to show the updated model
             await loadFolders();
         } catch (error) {
-            console.error(`Failed to update model for folder "${folderPath}":`, error);
         }
     }, [loadFolders]);
     
@@ -195,10 +191,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     false,
                     'radio',
                     'vertical'
-                ),
-                new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
-                    // Wizard confirmed - saving configuration
-                }, 'truncate')
+                )
             ];
             
             const containerItem = new ContainerListItem(
@@ -245,7 +238,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'folder', // folder mode
                     (newPath) => {
                         // TODO: Handle folder path changes in main app
-                        console.log(`User wants to change folder ${index + 1} to:`, newPath);
                         // This would need to update the config and trigger re-indexing
                     }
                 );
@@ -348,10 +340,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     false,
                     'radio',
                     'vertical'
-                ),
-                new TextListItem("✓", "Confirm Selection: Press Enter to confirm wizard and save configuration", "", false, () => {
-                    // Wizard confirmed - saving configuration
-                }, 'truncate')
+                )
             ];
             
             const containerItem = new ContainerListItem(
@@ -392,8 +381,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             const nextIndex = (currentIndex + 1) % themeNames.length;
             const nextTheme = themeNames[nextIndex];
             if (nextTheme) {
-                themeContext.setTheme(nextTheme).catch(error => {
-                    console.error('Failed to change theme:', error);
+                themeContext.setTheme(nextTheme).catch(() => {
+                    // Ignore theme change errors
                 });
             }
             return true;
@@ -432,9 +421,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
-    if (process.env.TUI_DEBUG) {
-        console.error(`[AppFullscreen] Terminal: ${columns}x${rows}, Available: ${columns}x${availableHeight}`);
-    }
     
     
     return (
@@ -494,7 +480,6 @@ const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
                 const folders = await configComponent.getFolders();
                 setCurrentFolders(folders);
             } catch (error) {
-                console.error('Failed to load folders for count:', error);
                 setCurrentFolders([]);
             }
         };

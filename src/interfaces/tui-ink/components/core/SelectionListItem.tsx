@@ -202,7 +202,13 @@ export class SelectionListItem implements IListItem {
             }
             return true;
         }
-        return true; // Consume all input when in expanded mode
+        
+        // Allow tab to bubble up for panel navigation
+        if (key.tab) {
+            return false;
+        }
+        
+        return true; // Consume all input when in expanded mode except tab
     }
     
     private toggleSelection(value: string): void {
@@ -439,9 +445,11 @@ export class SelectionListItem implements IListItem {
             const { label, value, truncated } = this.formatCollapsedParts(maxWidth, displayValues);
             
             // Build with separate components to allow value coloring and optional validation
+            // Use cursor arrow when active, otherwise use the normal icon
+            const displayIcon = this.isActive ? '▶' : this.icon;
             const elements = [
                 <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                    {this.icon} {label} [
+                    {displayIcon} {label} [
                 </Text>,
                 <Text key="value" {...textColorProp(theme.colors.configValuesColor)}>
                     {value}{truncated ? '…' : ''}

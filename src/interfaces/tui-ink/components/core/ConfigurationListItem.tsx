@@ -349,13 +349,6 @@ export class ConfigurationListItem extends ValidatedListItem {
                 const totalLines = this._confirmationTotalLines;
                 const maxLines = 8; // Available content lines (maxLines - header - button)
                 
-                // Debug navigation
-                if (process.env.TUI_DEBUG === 'true') {
-                    console.error(`\n=== Navigation Debug ===`);
-                    console.error(`Key: ${key.upArrow ? 'UP' : 'DOWN'}`);
-                    console.error(`Before: cursor=${this._confirmationCursorLine}, scroll=${this._confirmationScrollOffset}`);
-                    console.error(`TotalLines=${totalLines}, maxLines=${maxLines}`);
-                }
                 
                 if (key.upArrow) {
                     if (this._confirmationCursorLine === -1) {
@@ -397,10 +390,6 @@ export class ConfigurationListItem extends ValidatedListItem {
                     }
                 }
                 
-                if (process.env.TUI_DEBUG === 'true') {
-                    console.error(`After: cursor=${this._confirmationCursorLine}, scroll=${this._confirmationScrollOffset}`);
-                    console.error(`=== End Navigation ===\n`);
-                }
                 return true;
             }
             
@@ -795,11 +784,6 @@ export class ConfigurationListItem extends ValidatedListItem {
                     ? `${this.icon} ${label}: [${value}…]`
                     : `${this.icon} ${label}: [${value}]`;
                 
-                // Debug logging for text length analysis
-                if (process.env.TUI_DEBUG === 'true') {
-                    console.error(`[ConfigurationListItem] fullText: "${fullText}"`);
-                    console.error(`[ConfigurationListItem] fullText length: ${getVisualWidth(fullText)}, maxWidth: ${maxWidth}, truncated: ${truncated}`);
-                }
                 
                 // CRITICAL: Ensure text never equals or exceeds maxWidth to prevent wrapping
                 if (getVisualWidth(fullText) >= maxWidth) {

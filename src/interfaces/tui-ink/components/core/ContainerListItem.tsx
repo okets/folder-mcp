@@ -23,6 +23,7 @@ export class ContainerListItem implements IListItem {
     private _childScrollOffset: number = 0;
     private _childLinePositions: Array<{start: number, end: number}> = [];
     private _onComplete: ((results: any) => void) | undefined;
+    private _isConfirmFocused: boolean = false;
     
     constructor(
         public icon: string,
@@ -160,8 +161,9 @@ export class ContainerListItem implements IListItem {
         viewport.visibleChildren.forEach((child, index) => {
             // Set active state
             const childGlobalIndex = this._childItems.indexOf(child);
-            const isChildSelected = childGlobalIndex === this._childSelectedIndex;
+            const isChildSelected = childGlobalIndex === this._childSelectedIndex && !this._isConfirmFocused;
             child.isActive = isChildSelected;
+            
             
             // Determine line prefix with scroll indicators (like FilePickerBody)
             const isFirstVisible = index === 0;
@@ -185,12 +187,15 @@ export class ContainerListItem implements IListItem {
             } else if (viewport.showScrollDown && isLastVisible) {
                 linePrefix = '│▼';
             } else if (isActualLastChild && !viewport.showScrollDown) {
-                // Last child gets the bottom border
-                linePrefix = '└─';
+                // Last child gets continuation border (not bottom border since confirmation will have the bottom border)
+                linePrefix = '│ ';
             }
             
+            
             // Render child with border prefix using Box to avoid nesting issues
-            const childElements = child.render(maxWidth - 3, childMaxLines); // -3 for prefix space
+            // Calculate available width based on actual prefix length
+            const prefixWidth = linePrefix.length;
+            const childElements = child.render(maxWidth - prefixWidth, childMaxLines);
             
             // Special handling for ButtonsRow - it returns a Box that needs to expand vertically
             if (child.constructor.name === 'ButtonsRow') {
@@ -235,6 +240,20 @@ export class ContainerListItem implements IListItem {
             }
         });
         
+        // Add confirmation line (like folder picker)
+        elements.push(
+            <Text key="confirm-action">
+                <Text {...textColorProp(theme.colors.textMuted)}>└─</Text>
+                {this._isConfirmFocused ? (
+                    <Text {...textColorProp(theme.colors.accent)}>▶ </Text>
+                ) : (
+                    <Text>  </Text>
+                )}
+                <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
+                <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}> Confirm Selection</Text>
+            </Text>
+        );
+        
         return elements;
     }
     
@@ -256,6 +275,20 @@ export class ContainerListItem implements IListItem {
         
         // Priority 2: Handle navigation between children
         if (key.upArrow) {
+            if (this._isConfirmFocused) {
+                // Move back from confirmation to last child
+                this._isConfirmFocused = false;
+                this._childSelectedIndex = this._childItems.length - 1;
+                const lastChild = this._childItems[this._childSelectedIndex];
+                if (lastChild) {
+                    lastChild.isActive = true;
+                    if (lastChild.onSelect) {
+                        lastChild.onSelect();
+                    }
+                }
+                return true; // Moved back to last child
+            }
+            
             const oldIndex = this._childSelectedIndex;
             const newIndex = Math.max(0, this._childSelectedIndex - 1);
             
@@ -270,20 +303,42 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.downArrow) {
-            const oldIndex = this._childSelectedIndex;
-            const newIndex = Math.min(this._childItems.length - 1, this._childSelectedIndex + 1);
-            
-            // CRITICAL: Only return true if navigation actually happened
-            // This prevents panel re-renders when user presses down at the last item
-            if (newIndex !== oldIndex) {
-                this.changeChildSelection(oldIndex, newIndex);
-                return true; // Navigation happened - state changed
-            } else {
-                return false; // Already at boundary - no state change, no re-render needed
+            if (this._isConfirmFocused) {
+                // Already on confirmation - can't go further down
+                return true; // CRITICAL: Consume input even when we can't navigate
             }
+            
+            const oldIndex = this._childSelectedIndex;
+            
+            // If we're at the last child, move to confirmation
+            if (this._childSelectedIndex >= this._childItems.length - 1) {
+                // Deselect current child first
+                const currentChild = this._childItems[this._childSelectedIndex];
+                if (currentChild) {
+                    currentChild.isActive = false;
+                    if (currentChild.onDeselect) {
+                        currentChild.onDeselect();
+                    }
+                }
+                this._isConfirmFocused = true;
+                return true; // Moved to confirmation
+            }
+            
+            const newIndex = this._childSelectedIndex + 1;
+            this.changeChildSelection(oldIndex, newIndex);
+            return true; // Navigation happened - state changed
         }
         
         if (key.return) {
+            if (this._isConfirmFocused) {
+                // Confirm action - call onComplete callback and exit
+                if (this._onComplete) {
+                    this._onComplete({}); // Pass results if needed
+                }
+                this.onExit();
+                return true;
+            }
+            
             if (activeChild) {
                 if (activeChild.onEnter) {
                     activeChild.onEnter(); // Child should take control
@@ -292,12 +347,40 @@ export class ContainerListItem implements IListItem {
             }
         }
         
+        if (key.rightArrow) {
+            if (this._isConfirmFocused) {
+                return true; // Consume input when on confirmation, don't let it bubble up
+            }
+            
+            // Right arrow: enter/expand selected subitem (same as Enter)
+            if (activeChild) {
+                if (activeChild.onEnter) {
+                    activeChild.onEnter(); // Child should take control
+                    return true;
+                }
+            }
+            return true; // Consume right arrow even if no child action
+        }
+        
+        if (key.leftArrow) {
+            // Left arrow: close/exit nested list (same as Escape)
+            this.onExit(); // Exit container
+            return true;
+        }
+        
         if (key.escape) {
             this.onExit(); // Exit container
             return true;
         }
         
-        return false;
+        if (key.tab) {
+            // Allow tab to bubble up for panel navigation
+            return false;
+        }
+        
+        // CRITICAL: When container is controlling input, consume ALL input except tab
+        // This prevents GenericListPanel from handling navigation when container is expanded
+        return true;
     }
     
     /**

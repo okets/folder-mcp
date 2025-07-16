@@ -123,7 +123,10 @@ export class TextListItem implements IListItem {
         
         if (this._overflowMode === 'truncate') {
             // Single line with truncation
-            const fullText = `${this.icon} ${this.label}${this.value ? `: ${displayValue}` : ''}`;
+            // Use cursor arrow when active, otherwise use the normal icon
+            const displayIcon = this.isActive ? '▶' : this.icon;
+            const textPart = `${this.label}${this.value ? `: ${displayValue}` : ''}`;
+            const fullText = `${displayIcon} ${textPart}`;
             
             let truncatedText = fullText;
             if (fullText.length > maxWidth) {
@@ -131,11 +134,51 @@ export class TextListItem implements IListItem {
                 truncatedText = fullText.substring(0, cutPoint) + '...';
             }
             
+            // Special handling for checkmark icon to color it green
+            if (this.icon === '✓') {
+                if (this.isActive) {
+                    // When active: ▶✓ (no space between cursor and checkmark)
+                    return (
+                        <Text>
+                            <Transform transform={output => output}>
+                                <Text {...textColorProp(theme.colors.accent)}>
+                                    ▶
+                                </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>
+                                    ✓
+                                </Text>
+                                <Text {...textColorProp(theme.colors.accent)}>
+                                    {' '}{textPart}
+                                </Text>
+                            </Transform>
+                        </Text>
+                    );
+                } else {
+                    // When not active:  ✓ (space before checkmark for alignment)
+                    return (
+                        <Text>
+                            <Transform transform={output => output}>
+                                <Text>
+                                    {' '}
+                                </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>
+                                    ✓
+                                </Text>
+                                <Text>
+                                    {' '}{textPart}
+                                </Text>
+                            </Transform>
+                        </Text>
+                    );
+                }
+            }
+            
+            // For all other icons, use the displayIcon which already handles cursor replacement
             return (
                 <Text>
                     <Transform transform={output => output}>
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                            {truncatedText}
+                            {displayIcon} {textPart}
                         </Text>
                     </Transform>
                 </Text>
@@ -144,7 +187,9 @@ export class TextListItem implements IListItem {
         
         // Wrap mode: create multiple lines
         const elements: ReactElement[] = [];
-        const iconWidth = this.icon.length + 1;
+        // Use cursor arrow when active, otherwise use the normal icon
+        const displayIcon = this.isActive ? '▶' : this.icon;
+        const iconWidth = displayIcon.length + 1;
         let linesUsed = 0;
         
         // First line: icon + start of label
@@ -153,23 +198,58 @@ export class TextListItem implements IListItem {
         const labelLines = this.wrapText(this.label, availableForFirstLine);
         
         if (linesUsed < maxLinesToUse && labelLines.length > 0) {
-            elements.push(
-                <Text key="line-0">
-                    <Transform transform={output => output}>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                            {this.icon}
+            // Special handling for checkmark icon
+            if (this.icon === '✓') {
+                if (this.isActive) {
+                    // When active: ▶✓ (no space between cursor and checkmark)
+                    elements.push(
+                        <Text key="line-0">
+                            <Transform transform={output => output}>
+                                <Text {...textColorProp(theme.colors.accent)}>
+                                    ▶
+                                </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>
+                                    ✓
+                                </Text>
+                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                                    {' '}{labelLines[0]}
+                                </Text>
+                            </Transform>
                         </Text>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                            {' '}{labelLines[0]}
+                    );
+                } else {
+                    // When not active:  ✓ (space before checkmark for alignment)
+                    elements.push(
+                        <Text key="line-0">
+                            <Transform transform={output => output}>
+                                <Text>
+                                    {' '}
+                                </Text>
+                                <Text {...textColorProp(theme.colors.successGreen)}>
+                                    ✓
+                                </Text>
+                                <Text>
+                                    {' '}{labelLines[0]}
+                                </Text>
+                            </Transform>
                         </Text>
-                        {!this.value && labelLines.length === 1 && (
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {/* Complete line */}
+                    );
+                }
+            } else {
+                // Normal icon handling - use displayIcon which already handles cursor replacement
+                elements.push(
+                    <Text key="line-0">
+                        <Transform transform={output => output}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
+                                {displayIcon}
                             </Text>
-                        )}
-                    </Transform>
-                </Text>
-            );
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                                {' '}{labelLines[0]}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+            }
             linesUsed++;
         }
         
