@@ -400,6 +400,71 @@ npm run tuidemo    # Run component demos and tests
 - Test with different terminal sizes to ensure responsive behavior
 - Verify keyboard navigation works smoothly between all interactive elements
 
+## TUI Development Guidelines
+
+### Critical TUI Dos and Don'ts
+
+#### The Golden Rule: State Change Signaling
+In TUI development, **only trigger re-renders when state actually changes**. Terminal UIs physically redraw the screen, unlike web UIs that use virtual DOM diffing.
+
+#### ✅ DO:
+- Return `true` from `handleInput` ONLY when state actually changes
+- Check boundaries before claiming navigation happened
+- Use accurate state change signaling
+- Test visual changes in real terminal before claiming completion
+- Use character-level precision for layout calculations
+- Store old state before modifying to compare for changes
+
+#### ❌ DON'T:
+- Return `true` from input handlers without verifying state changed
+- Trigger re-renders unnecessarily (terminal redraws are expensive)
+- Assume navigation is possible without boundary checks
+- Change visual design patterns without permission
+- Trust calculations without testing actual terminal output
+- Use blanket `return true` at the end of handleInput methods
+
+### The Anti-Pattern That Causes Flickering
+```typescript
+// DON'T DO THIS - causes flickering at boundaries:
+handleInput(input: string, key: Key): boolean {
+    if (key.downArrow) {
+        this.index = Math.min(this.max, this.index + 1);
+        return true; // WRONG! Returns true even when already at max
+    }
+    return true; // WRONG! Consumes all input
+}
+```
+
+### The Correct Pattern
+```typescript
+// DO THIS - prevents flickering:
+handleInput(input: string, key: Key): boolean {
+    if (key.downArrow) {
+        const oldIndex = this.index;
+        const newIndex = Math.min(this.max, this.index + 1);
+        if (newIndex !== oldIndex) {
+            this.index = newIndex;
+            return true; // State actually changed
+        }
+        return false; // Already at boundary, no change
+    }
+    return false; // Don't consume unhandled input
+}
+```
+
+### Why This Matters
+1. **Terminal Rendering**: Unlike web browsers, terminals must physically redraw characters
+2. **Cascade Effect**: `handleInput` returning `true` → `setItemUpdateTrigger` → panel re-render → screen flicker
+3. **User Experience**: Flickering is jarring and makes the app feel unresponsive
+4. **Performance**: Unnecessary re-renders waste CPU and can cause lag
+
+### Key Areas to Check
+- **Navigation boundaries**: First/last item in lists
+- **Container components**: When navigating within nested components
+- **File pickers**: When at root directory or deepest folder
+- **Selection lists**: When at first/last option
+- **Any scrollable content**: When at top/bottom of scroll area
+
 ### Human-Agent TUI Debugging Methodology
 
 **Problem**: Claude Code cannot run TUI applications directly due to non-interactive terminal limitations.

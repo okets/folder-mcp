@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Key } from 'ink';
 import { useFocusChain } from './useFocusChain';
 import { useDI } from '../di/DIContext';
@@ -20,6 +20,13 @@ interface UseNavigationOptions {
 
 export const useNavigation = (options: UseNavigationOptions = {}) => {
     const { isBlocked = false, configItemCount = 20, statusItemCount = 20 } = options;
+    
+    console.error(`\\n=== USENAVIGATION HOOK RENDER ===`);
+    console.error(`isBlocked: ${isBlocked}`);
+    console.error(`configItemCount: ${configItemCount}`);
+    console.error(`statusItemCount: ${statusItemCount}`);
+    console.error(`=== END USENAVIGATION HOOK RENDER ===\\n`);
+    
     const [state, setState] = useState<NavigationState>({
         activeContainer: 'main',
         mainSelectedIndex: 0,
@@ -39,9 +46,17 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         if (isBlocked) return;
         setState(prev => {
             const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
+            const currentIndex = prev[key];
+            const newIndex = Math.max(0, currentIndex - 1);
+            
+            // Only update state if index actually changes
+            if (currentIndex === newIndex) {
+                return prev; // Return the same state object to prevent re-render
+            }
+            
             return {
                 ...prev,
-                [key]: Math.max(0, prev[key] - 1)
+                [key]: newIndex
             };
         });
     }, [isBlocked]);
@@ -54,15 +69,19 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             const currentIndex = prev[key];
             const newIndex = Math.min(maxItems - 1, currentIndex + 1);
             
-            console.error(`\n=== NAVIGATION DOWN DEBUG ===`);
+            console.error(`\\n=== NAVIGATION DOWN ===`);
             console.error(`Container: ${prev.activeContainer}`);
             console.error(`Current index: ${currentIndex}`);
             console.error(`Max items: ${maxItems}`);
             console.error(`New index: ${newIndex}`);
-            console.error(`Key: ${key}`);
-            console.error(`configItemCount: ${configItemCount}`);
-            console.error(`statusItemCount: ${statusItemCount}`);
-            console.error(`=== END NAVIGATION DOWN ===\n`);
+            console.error(`Index changed: ${currentIndex !== newIndex}`);
+            console.error(`=== END NAVIGATION DOWN ===\\n`);
+            
+            // CRITICAL: Only update state if index actually changes!
+            if (currentIndex === newIndex) {
+                console.error(`\\n=== NAVIGATION STATE NOT CHANGED - SKIPPING UPDATE ===\\n`);
+                return prev; // Return the same state object to prevent re-render
+            }
             
             return {
                 ...prev,
@@ -73,15 +92,23 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
 
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {
+        console.error(`\\n=== NAVIGATION INPUT ===`);
+        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
+        console.error(`isBlocked: ${isBlocked}`);
+        console.error(`=== END NAVIGATION INPUT ===\\n`);
+        
         if (isBlocked) return false;
         
         if (key.tab || (input === '\t')) {
+            console.error(`TAB pressed - switching container`);
             switchContainer();
             return true;
         } else if (key.upArrow || input === 'k') {
+            console.error(`UP ARROW pressed - navigating up`);
             navigateUp();
             return true;
         } else if (key.downArrow || input === 'j') {
+            console.error(`DOWN ARROW pressed - navigating down`);
             navigateDown();
             return true;
         }
@@ -102,12 +129,13 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         priority: -1  // Very low priority - panels should handle their own navigation
     });
 
-    return {
+    // Memoize the return value to prevent unnecessary re-renders
+    return React.useMemo(() => ({
         ...state,
         switchContainer,
         navigateUp,
         navigateDown,
         isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
-    };
+    }), [state, switchContainer, navigateUp, navigateDown]);
 };

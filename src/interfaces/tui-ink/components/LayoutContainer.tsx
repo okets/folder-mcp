@@ -4,24 +4,32 @@ import { LayoutConstraintProvider } from '../contexts/LayoutContext';
 import { ILayoutConstraints } from '../models/types';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
-import { useNavigationContext } from '../contexts/NavigationContext';
+// Removed useNavigationContext import to prevent re-renders
 
 interface LayoutContainerProps {
     availableHeight: number;
     availableWidth: number;
     children: React.ReactElement[];
     narrowBreakpoint?: number;
+    isMainFocused?: boolean; // Pass as prop instead of using context
 }
 
-export const LayoutContainer: React.FC<LayoutContainerProps> = ({
+export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
     availableHeight,
     availableWidth,
     children,
-    narrowBreakpoint = 100
+    narrowBreakpoint = 100,
+    isMainFocused = true
 }) => {
+    console.error(`\\n=== LAYOUTCONTAINER RENDER ===`);
+    console.error(`availableHeight: ${availableHeight}`);
+    console.error(`availableWidth: ${availableWidth}`);
+    console.error(`isMainFocused: ${isMainFocused}`);
+    console.error(`=== END LAYOUTCONTAINER RENDER ===\\n`);
+    
     const di = useDI();
     const debugService = di.resolve(ServiceTokens.DebugService);
-    const navigation = useNavigationContext();
+    // Remove navigation context usage to prevent re-renders
     const isNarrow = availableWidth < narrowBreakpoint;
     const isLowVerticalResolution = availableHeight < 20;
     const isExtremelyLowVerticalResolution = availableHeight < 13;
@@ -44,7 +52,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             const FRAME_ONLY_HEIGHT = 2; // Just borders touching (top + bottom)
             const activeHeight = availableHeight - FRAME_ONLY_HEIGHT;
             
-            if (navigation.isMainFocused) {
+            if (isMainFocused) {
                 heights = [activeHeight, FRAME_ONLY_HEIGHT];
             } else {
                 heights = [FRAME_ONLY_HEIGHT, activeHeight];
@@ -55,7 +63,7 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             const activeHeight = availableHeight - MINIMIZED_HEIGHT;
             
             // Determine which panel is active
-            if (navigation.isMainFocused) {
+            if (isMainFocused) {
                 heights = [activeHeight, MINIMIZED_HEIGHT];
             } else {
                 heights = [MINIMIZED_HEIGHT, activeHeight];
@@ -83,14 +91,14 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
                     
                     // Check if this panel is minimized in low resolution mode (but not extremely low)
                     const isMinimized = isLowVerticalResolution && !isExtremelyLowVerticalResolution && panelCount === 2 && (
-                        (index === 0 && !navigation.isMainFocused) ||
-                        (index === 1 && navigation.isMainFocused)
+                        (index === 0 && !isMainFocused) ||
+                        (index === 1 && isMainFocused)
                     );
                     
                     // Check if this panel should show frame only (extremely low resolution, inactive panel)
                     const isFrameOnly = isExtremelyLowVerticalResolution && panelCount === 2 && (
-                        (index === 0 && !navigation.isMainFocused) ||
-                        (index === 1 && navigation.isMainFocused)
+                        (index === 0 && !isMainFocused) ||
+                        (index === 1 && isMainFocused)
                     );
                     
                     const layoutKey = `layout-narrow-${index}`;
@@ -152,4 +160,4 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = ({
             </Box>
         );
     }
-};
+});

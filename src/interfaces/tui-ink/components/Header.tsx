@@ -62,7 +62,7 @@ const renderCountdownMessage = (message: string, statusTextColor: string) => {
     return <Text color={statusTextColor}>{message}</Text>;
 };
 
-export const Header: React.FC<HeaderProps> = ({ themeName, status, exitAnimationStatus }) => {
+export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, exitAnimationStatus }) => {
     const { theme } = useTheme();
     const { columns, rows } = useTerminalSize();
     
@@ -380,4 +380,4 @@ export const Header: React.FC<HeaderProps> = ({ themeName, status, exitAnimation
             );
         }
     }
-};
+});

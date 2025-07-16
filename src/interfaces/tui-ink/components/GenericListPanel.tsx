@@ -43,6 +43,14 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     parentId,
     priority = 50
 }) => {
+    console.error(`\\n=== GENERICLISTPANEL RENDER ===`);
+    console.error(`Panel: ${title}`);
+    console.error(`selectedIndex: ${selectedIndex}`);
+    console.error(`isFocused: ${isFocused}`);
+    console.error(`items.length: ${items.length}`);
+    console.error(`elementId: ${elementId}`);
+    console.error(`renderTime: ${new Date().toISOString()}`);
+    console.error(`=== END GENERICLISTPANEL RENDER ===\\n`);
     const { columns, rows } = useTerminalSize();
     
     // Update global terminal size for button components
@@ -51,8 +59,8 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     // Get dynamic theme colors
     const { theme } = useTheme();
     
-    // Local state for force updates when items change internally
-    const [updateTrigger, setUpdateTrigger] = useState(0);
+    // Selective re-trigger for item state changes that aren't reflected in props
+    const [itemUpdateTrigger, setItemUpdateTrigger] = useState(0);
     
     // Calculate content width for items  
     const panelWidth = width || columns - 2;
@@ -226,6 +234,12 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     
     // Handle input
     const handleInput = useCallback((input: string, key: Key): boolean => {
+        console.error(`\\n=== GENERICLISTPANEL INPUT ===`);
+        console.error(`Panel: ${title}`);
+        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
+        console.error(`Has onInput handler: ${!!onInput}`);
+        console.error(`=== END GENERICLISTPANEL INPUT ===\\n`);
+        
         if (onInput) {
             const handled = onInput(input, key);
             if (handled) {
@@ -237,50 +251,66 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         
         // If an item is controlling input, delegate to it
         if (selectedItem?.isControllingInput && selectedItem.handleInput) {
+            console.error(`\\n=== ITEM INPUT HANDLING ===`);
+            console.error(`Panel: ${title}`);
+            console.error(`Item controlling input: ${selectedItem.isControllingInput}`);
+            console.error(`=== END ITEM INPUT HANDLING ===\\n`);
+            
             const handled = selectedItem.handleInput(input, key);
-            // Always trigger update when item is controlling input
-            // FilePickerListItem needs this to update its display
-            setUpdateTrigger(prev => prev + 1);
+            
+            // CRITICAL TUI PATTERN: Only trigger re-render when item reports state change
+            // The item's handleInput() should return true ONLY when its internal state changed
+            // This prevents unnecessary panel re-renders that cause terminal flickering
+            if (handled) {
+                console.error(`\\n=== ITEM UPDATE TRIGGER ===`);
+                console.error(`Panel: ${title} - Item handled input, triggering update`);
+                console.error(`=== END ITEM UPDATE TRIGGER ===\\n`);
+                setItemUpdateTrigger(prev => prev + 1); // Force re-render to show state change
+            }
             return handled;
         }
         
         // Otherwise handle navigation
         if (key.return && selectedItem?.onEnter) {
             selectedItem.onEnter();
-            // Trigger update to show cursor change (▶ → ■)
-            setUpdateTrigger(prev => prev + 1);
+            // Trigger re-render for items that change internal state (like expanding)
+            setItemUpdateTrigger(prev => prev + 1);
             return true;
         } else if (key.rightArrow && selectedItem) {
             // Right arrow expands (if item supports it)
             if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
                 selectedItem.onExpand();
-                setUpdateTrigger(prev => prev + 1); // Force re-render after expand
+                // Trigger re-render for expansion
+                setItemUpdateTrigger(prev => prev + 1);
                 return true;
             } else if (selectedItem.onEnter) {
                 // Fallback to onEnter for items that don't have onExpand
                 selectedItem.onEnter();
-                setUpdateTrigger(prev => prev + 1);
+                // Trigger re-render for items that change internal state
+                setItemUpdateTrigger(prev => prev + 1);
                 return true;
             }
         } else if (key.leftArrow && selectedItem) {
             // Left arrow collapses (if item supports it)
             if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
                 selectedItem.onCollapse();
-                setUpdateTrigger(prev => prev + 1); // Force re-render after collapse
+                // Trigger re-render for collapse
+                setItemUpdateTrigger(prev => prev + 1);
                 return true;
             }
         } else if (key.escape && selectedItem) {
             // ESC collapses (if item supports it), but if nothing to collapse, let it bubble up for app exit
             if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
                 selectedItem.onCollapse();
-                setUpdateTrigger(prev => prev + 1); // Force re-render after collapse
+                // Trigger re-render for collapse
+                setItemUpdateTrigger(prev => prev + 1);
                 return true;
             }
             // If no collapse action available, let escape bubble up for app exit
             return false;
         }
         return false;
-    }, [items, selectedIndex, onInput]);
+    }, [items, selectedIndex, onInput, setItemUpdateTrigger]);
     
     // Determine key bindings based on selected item
     const selectedItem = items[selectedIndex];
@@ -405,25 +435,22 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                     (listItem as any)._originalIcon = (listItem as any).icon;
                                 }
                                 
-                                const previousIcon = (listItem as any).icon;
-                                
+                                // Calculate what icon should be without mutating during render
+                                let targetIcon = (listItem as any)._originalIcon;
                                 if (isSelected && isFocused) {
                                     // Check if item is controlling input
                                     if ((listItem as any).isControllingInput) {
                                         // Item is active/controlling - show ■
-                                        (listItem as any).icon = '■';
+                                        targetIcon = '■';
                                     } else {
                                         // Item is selected but panel is active - show ▶
-                                        (listItem as any).icon = '▶';
+                                        targetIcon = '▶';
                                     }
-                                } else {
-                                    // Unselected - restore original icon
-                                    (listItem as any).icon = (listItem as any)._originalIcon;
                                 }
                                 
-                                // Force re-render if icon changed
-                                if (previousIcon !== (listItem as any).icon) {
-                                    setUpdateTrigger(prev => prev + 1);
+                                // Only mutate if different to avoid unnecessary re-renders
+                                if ((listItem as any).icon !== targetIcon) {
+                                    (listItem as any).icon = targetIcon;
                                 }
                             }
                             
@@ -467,5 +494,38 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     );
 };
 
-// Export without memoization for now
-export const GenericListPanel = GenericListPanelComponent;
+// Export with memoization to prevent unnecessary re-renders
+// Only re-render when props actually change
+export const GenericListPanel = memo(GenericListPanelComponent, (prevProps, nextProps) => {
+    // Custom comparison function to debug memo failures
+    const propsEqual = (
+        prevProps.title === nextProps.title &&
+        prevProps.subtitle === nextProps.subtitle &&
+        prevProps.selectedIndex === nextProps.selectedIndex &&
+        prevProps.isFocused === nextProps.isFocused &&
+        prevProps.width === nextProps.width &&
+        prevProps.height === nextProps.height &&
+        prevProps.isMinimized === nextProps.isMinimized &&
+        prevProps.isFrameOnly === nextProps.isFrameOnly &&
+        prevProps.elementId === nextProps.elementId &&
+        prevProps.parentId === nextProps.parentId &&
+        prevProps.priority === nextProps.priority &&
+        prevProps.items.length === nextProps.items.length &&
+        prevProps.onInput === nextProps.onInput
+    );
+    
+    if (!propsEqual) {
+        console.error(`\\n=== MEMO COMPARISON FAILED ===`);
+        console.error(`Panel: ${nextProps.title}`);
+        console.error(`title: ${prevProps.title === nextProps.title}`);
+        console.error(`subtitle: ${prevProps.subtitle === nextProps.subtitle}`);
+        console.error(`selectedIndex: ${prevProps.selectedIndex === nextProps.selectedIndex} (${prevProps.selectedIndex} -> ${nextProps.selectedIndex})`);
+        console.error(`isFocused: ${prevProps.isFocused === nextProps.isFocused} (${prevProps.isFocused} -> ${nextProps.isFocused})`);
+        console.error(`items.length: ${prevProps.items.length === nextProps.items.length} (${prevProps.items.length} -> ${nextProps.items.length})`);
+        console.error(`onInput: ${prevProps.onInput === nextProps.onInput}`);
+        console.error(`items array reference: ${prevProps.items === nextProps.items}`);
+        console.error(`=== END MEMO COMPARISON FAILED ===\\n`);
+    }
+    
+    return propsEqual;
+});

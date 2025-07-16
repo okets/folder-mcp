@@ -26,6 +26,7 @@ import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 
 // Get item counts once at module level to ensure consistency
+// Memoize these to prevent recreation on every render
 const STATUS_ITEMS = createStatusPanelItems();
 const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 const CONFIG_ITEMS = createConfigurationPanelItems();
@@ -35,7 +36,11 @@ interface AppContentInnerProps {
     config?: any;
 }
 
-const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
+const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
+    console.error(`\\n=== APPCONTENTINNER RENDER ===`);
+    console.error(`config changed: ${config ? 'has config' : 'no config'}`);
+    console.error(`=== END APPCONTENTINNER RENDER ===\\n`);
+    
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
@@ -98,6 +103,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             console.error(`Failed to update model for folder "${folderPath}":`, error);
         }
     }, [loadFolders]);
+    
+    // Create a stable reference to handleModelChange for useMemo
+    const stableHandleModelChange = React.useRef(handleModelChange);
+    stableHandleModelChange.current = handleModelChange;
     const { columns, rows } = useTerminalSize();
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
@@ -110,6 +119,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
     
     
     // Create config items from current folders or fall back to sample data
+    // Memoize to prevent unnecessary recalculations
     const configItems = React.useMemo(() => {
         if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
             const items: IListItem[] = [];
@@ -253,7 +263,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                     (newValues) => {
                         if (newValues.length > 0 && folder.path && newValues[0]) {
                             // Handle model changes - save to configuration
-                            handleModelChange(folder.path, newValues[0]);
+                            stableHandleModelChange.current(folder.path, newValues[0]);
                         }
                     }
                 );
@@ -261,13 +271,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 items.push(folderPicker, modelConfig);
             });
             
-            console.error(`\n=== ACTUAL ITEMS ARRAY DEBUG ===`);
-            console.error(`Items array length: ${items.length}`);
-            items.forEach((item, index) => {
-                const itemName = (item as any).title || (item as any).label || 'Unknown';
-                console.error(`  ${index}: ${itemName}`);
-            });
-            console.error(`=== END ACTUAL ITEMS ARRAY ===\n`);
             
             return items;
         } else {
@@ -350,7 +353,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             
             return sampleItems;
         }
-    }, [currentFolders, handleModelChange]); // Use currentFolders instead of config
+    }, [currentFolders]); // Remove handleModelChange dependency to prevent recreating items array
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
@@ -426,6 +429,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                 availableHeight={availableHeight}
                 availableWidth={columns}
                 narrowBreakpoint={100}
+                isMainFocused={navigation.isMainFocused}
             >
                 <GenericListPanel
                     title="Main"
@@ -436,6 +440,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
                     elementId="main-panel"
                     parentId="navigation"
                     priority={50}
+                    onInput={(input, key) => {
+                        console.error(`\\n=== MAIN PANEL INPUT ===`);
+                        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
+                        console.error(`=== END MAIN PANEL INPUT ===\\n`);
+                        return false; // Let navigation handle it
+                    }}
                 />
                 <GenericListPanel
                     title="System Status"
@@ -452,13 +462,17 @@ const AppContentInner: React.FC<AppContentInnerProps> = ({ config }) => {
             <StatusBar countdown={countdown} />
         </Box>
     );
-};
+});
 
 interface AppContentProps {
     config?: any;
 }
 
-const AppContent: React.FC<AppContentProps> = ({ config }) => {
+const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
+    console.error(`\\n=== APPCONTENT RENDER ===`);
+    console.error(`config: ${config ? 'has config' : 'no config'}`);
+    console.error(`=== END APPCONTENT RENDER ===\\n`);
+    
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
@@ -485,20 +499,11 @@ const AppContent: React.FC<AppContentProps> = ({ config }) => {
             // Plus 1 for the "Add Folder Wizard" at the top
             const count = 1 + (currentFolders.length * 2);
             
-            console.error(`\n=== CONFIG ITEM COUNT DEBUG ===`);
-            console.error(`Current folders: ${currentFolders.length}`);
-            console.error(`Each folder contributes: 2 items (folder picker + model selector)`);
-            console.error(`Add Folder Wizard: 1 item`);
-            console.error(`Total calculated count: ${count}`);
-            console.error(`=== END CONFIG ITEM COUNT ===\n`);
             
             return count;
         } else {
             const count = CONFIG_ITEM_COUNT; // Fallback to sample data count
             
-            console.error(`\n=== CONFIG ITEM COUNT DEBUG (FALLBACK) ===`);
-            console.error(`Using fallback CONFIG_ITEM_COUNT: ${count}`);
-            console.error(`=== END CONFIG ITEM COUNT ===\n`);
             
             return count;
         }
@@ -509,7 +514,7 @@ const AppContent: React.FC<AppContentProps> = ({ config }) => {
             <AppContentInner config={config} />
         </NavigationProvider>
     );
-};
+});
 
 interface AppFullscreenProps {
     config?: any;

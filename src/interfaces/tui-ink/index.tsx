@@ -246,7 +246,9 @@ async function startTUI() {
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
-                exitOnCtrlC: true
+                exitOnCtrlC: true,
+                patchConsole: false, // Prevent Ink from patching console methods
+                debug: false // Disable Ink debug mode
             }
         );
         
@@ -265,7 +267,9 @@ async function startTUI() {
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
-                exitOnCtrlC: true
+                exitOnCtrlC: true,
+                patchConsole: false, // Prevent Ink from patching console methods
+                debug: false // Disable Ink debug mode
             }
         );
         

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, memo } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
 import { buildProps } from '../utils/conditionalProps';
 
@@ -6,17 +6,25 @@ type NavigationContextType = ReturnType<typeof useNavigation>;
 
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
-export const NavigationProvider: React.FC<{ 
+interface NavigationProviderProps {
     children: ReactNode; 
     isBlocked?: boolean;
     configItemCount?: number;
     statusItemCount?: number;
-}> = ({ 
+}
+
+export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({ 
     children, 
     isBlocked = false,
     configItemCount,
     statusItemCount
 }) => {
+    console.error(`\\n=== NAVIGATIONPROVIDER RENDER ===`);
+    console.error(`isBlocked: ${isBlocked}`);
+    console.error(`configItemCount: ${configItemCount}`);
+    console.error(`statusItemCount: ${statusItemCount}`);
+    console.error(`=== END NAVIGATIONPROVIDER RENDER ===\\n`);
+    
     const navigation = useNavigation({ 
         isBlocked, 
         ...buildProps({ configItemCount, statusItemCount })
@@ -27,7 +35,7 @@ export const NavigationProvider: React.FC<{
             {children}
         </NavigationContext.Provider>
     );
-};
+});
 
 export const useNavigationContext = () => {
     const context = useContext(NavigationContext);

@@ -233,7 +233,7 @@ interface StatusBarProps {
     countdown?: number | null;
 }
 
-export const StatusBar: React.FC<StatusBarProps> = ({ message, countdown }) => {
+export const StatusBar: React.FC<StatusBarProps> = React.memo(({ message, countdown }) => {
     const di = useDI();
     const { theme } = useTheme();
     const [keyBindings, setKeyBindings] = useState<IKeyBinding[]>([]);
@@ -330,4 +330,4 @@ export const StatusBar: React.FC<StatusBarProps> = ({ message, countdown }) => {
             <Text color={theme.colors.border}>{bottomBorder}</Text>
         </Box>
     );
-};
+});

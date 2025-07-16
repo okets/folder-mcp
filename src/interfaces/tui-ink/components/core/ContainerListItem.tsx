@@ -297,21 +297,33 @@ export class ContainerListItem implements IListItem {
         if (key.upArrow) {
             const oldIndex = this._childSelectedIndex;
             const newIndex = Math.max(0, this._childSelectedIndex - 1);
+            
+            // CRITICAL: Only return true if navigation actually happened
+            // This prevents panel re-renders when user presses up at the first item
             if (newIndex !== oldIndex) {
                 this.changeChildSelection(oldIndex, newIndex);
                 console.error(`Up arrow - changed selectedIndex: ${oldIndex} -> ${newIndex}`);
+                return true; // Navigation happened - state changed
+            } else {
+                console.error(`Up arrow - already at first item (index ${oldIndex})`);
+                return false; // Already at boundary - no state change, no re-render needed
             }
-            return true;
         }
         
         if (key.downArrow) {
             const oldIndex = this._childSelectedIndex;
             const newIndex = Math.min(this._childItems.length - 1, this._childSelectedIndex + 1);
+            
+            // CRITICAL: Only return true if navigation actually happened
+            // This prevents panel re-renders when user presses down at the last item
             if (newIndex !== oldIndex) {
                 this.changeChildSelection(oldIndex, newIndex);
                 console.error(`Down arrow - changed selectedIndex: ${oldIndex} -> ${newIndex}`);
+                return true; // Navigation happened - state changed
+            } else {
+                console.error(`Down arrow - already at last item (index ${oldIndex})`);
+                return false; // Already at boundary - no state change, no re-render needed
             }
-            return true;
         }
         
         if (key.return) {
