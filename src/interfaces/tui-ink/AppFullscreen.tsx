@@ -41,6 +41,26 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     
     const { exit } = useApp();
     
+    // Create a robust exit function that works properly on Windows
+    const robustExit = useCallback(() => {
+        if (process.platform === 'win32') {
+            // Windows-specific exit: restore terminal and force exit
+            if (process.stdout.isTTY) {
+                process.stdout.write('\x1b[?25h'); // Show cursor
+                if (process.env.WT_SESSION || process.env.TERM_PROGRAM || process.env.VSCODE_PID) {
+                    process.stdout.write('\x1b[?1049l'); // Switch back to main screen
+                }
+            }
+            // Give a small delay for terminal cleanup, then force exit
+            setTimeout(() => {
+                process.exit(0);
+            }, 50);
+        } else {
+            // macOS/Linux: use Ink's exit which works fine
+            exit();
+        }
+    }, [exit]);
+    
     // State to hold current folders from ConfigurationComponent
     const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
@@ -383,7 +403,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             if (countdown !== null) {
                 // Second escape during countdown - exit immediately
                 setCountdown(null);
-                exit();
+                robustExit();
                 return true;
             }
             
@@ -392,7 +412,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             return true;
         }
         return false;
-    }, [exit, toggleAnimations, themeContext, countdown]);
+    }, [robustExit, toggleAnimations, themeContext, countdown]);
     
     // Use focus chain for app-level component
     useFocusChain({
