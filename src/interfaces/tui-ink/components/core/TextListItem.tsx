@@ -81,6 +81,7 @@ export class TextListItem implements IListItem {
         
         for (let i = 0; i < words.length; i++) {
             const word = words[i];
+            if (!word) continue; // Skip undefined words
             console.error(`\n--- Processing word ${i}: "${word}" ---`);
             console.error(`currentLine before: "${currentLine}" (${currentLine.length} chars)`);
             

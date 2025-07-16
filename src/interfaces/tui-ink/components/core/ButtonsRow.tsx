@@ -160,7 +160,7 @@ export class ButtonsRow implements IListItem {
             // But the horizontal lines should be exactly buttonWidth to fit the content
             
             if (this.buttons[0]?.name === 'accept' && i === 0) {
-                console.error(`Creating borders: buttonWidth=${buttonWidth}, displayText="${displayText}" (${displayText.length} chars), visualTextWidth=${visualTextWidth}, borderLineWidth=${borderLineWidth}`);
+                console.error(`Creating borders: buttonContentWidth=${buttonContentWidth}, displayText="${displayText}" (${displayText.length} chars), visualTextWidth=${visualTextWidth}, borderLineWidth=${borderLineWidth}`);
             }
             
             const topBorder = (
