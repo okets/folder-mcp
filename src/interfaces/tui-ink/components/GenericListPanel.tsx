@@ -43,14 +43,6 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     parentId,
     priority = 50
 }) => {
-    console.error(`\\n=== GENERICLISTPANEL RENDER ===`);
-    console.error(`Panel: ${title}`);
-    console.error(`selectedIndex: ${selectedIndex}`);
-    console.error(`isFocused: ${isFocused}`);
-    console.error(`items.length: ${items.length}`);
-    console.error(`elementId: ${elementId}`);
-    console.error(`renderTime: ${new Date().toISOString()}`);
-    console.error(`=== END GENERICLISTPANEL RENDER ===\\n`);
     const { columns, rows } = useTerminalSize();
     
     // Update global terminal size for button components
@@ -234,12 +226,6 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     
     // Handle input
     const handleInput = useCallback((input: string, key: Key): boolean => {
-        console.error(`\\n=== GENERICLISTPANEL INPUT ===`);
-        console.error(`Panel: ${title}`);
-        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
-        console.error(`Has onInput handler: ${!!onInput}`);
-        console.error(`=== END GENERICLISTPANEL INPUT ===\\n`);
-        
         if (onInput) {
             const handled = onInput(input, key);
             if (handled) {
@@ -251,20 +237,12 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         
         // If an item is controlling input, delegate to it
         if (selectedItem?.isControllingInput && selectedItem.handleInput) {
-            console.error(`\\n=== ITEM INPUT HANDLING ===`);
-            console.error(`Panel: ${title}`);
-            console.error(`Item controlling input: ${selectedItem.isControllingInput}`);
-            console.error(`=== END ITEM INPUT HANDLING ===\\n`);
-            
             const handled = selectedItem.handleInput(input, key);
             
             // CRITICAL TUI PATTERN: Only trigger re-render when item reports state change
             // The item's handleInput() should return true ONLY when its internal state changed
             // This prevents unnecessary panel re-renders that cause terminal flickering
             if (handled) {
-                console.error(`\\n=== ITEM UPDATE TRIGGER ===`);
-                console.error(`Panel: ${title} - Item handled input, triggering update`);
-                console.error(`=== END ITEM UPDATE TRIGGER ===\\n`);
                 setItemUpdateTrigger(prev => prev + 1); // Force re-render to show state change
             }
             return handled;
@@ -514,18 +492,6 @@ export const GenericListPanel = memo(GenericListPanelComponent, (prevProps, next
         prevProps.onInput === nextProps.onInput
     );
     
-    if (!propsEqual) {
-        console.error(`\\n=== MEMO COMPARISON FAILED ===`);
-        console.error(`Panel: ${nextProps.title}`);
-        console.error(`title: ${prevProps.title === nextProps.title}`);
-        console.error(`subtitle: ${prevProps.subtitle === nextProps.subtitle}`);
-        console.error(`selectedIndex: ${prevProps.selectedIndex === nextProps.selectedIndex} (${prevProps.selectedIndex} -> ${nextProps.selectedIndex})`);
-        console.error(`isFocused: ${prevProps.isFocused === nextProps.isFocused} (${prevProps.isFocused} -> ${nextProps.isFocused})`);
-        console.error(`items.length: ${prevProps.items.length === nextProps.items.length} (${prevProps.items.length} -> ${nextProps.items.length})`);
-        console.error(`onInput: ${prevProps.onInput === nextProps.onInput}`);
-        console.error(`items array reference: ${prevProps.items === nextProps.items}`);
-        console.error(`=== END MEMO COMPARISON FAILED ===\\n`);
-    }
     
     return propsEqual;
 });

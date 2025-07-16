@@ -130,11 +130,8 @@ export class FilePickerListItem extends ValidatedListItem {
     }
     
     onEnter(): void {
-        console.error(`\n=== FILE PICKER ON ENTER ===`);
-        console.error(`Before: isControllingInput = ${this._isControllingInput}`);
         // Enter expanded mode
         this._isControllingInput = true;
-        console.error(`After: isControllingInput = ${this._isControllingInput}`);
         this._hasNavigated = false;
         
         // Load directory first to populate items
@@ -143,8 +140,6 @@ export class FilePickerListItem extends ValidatedListItem {
         // Set focus to "Confirm Selection" item if it exists
         const confirmIndex = this._items.findIndex(item => item.isConfirmAction);
         this._focusedIndex = confirmIndex !== -1 ? confirmIndex : 0;
-        console.error(`File picker taking control of input (loaded ${this._items.length} items)`);
-        console.error(`=== END FILE PICKER ON ENTER ===\n`);
     }
     
     onExit(): void {
@@ -371,11 +366,6 @@ export class FilePickerListItem extends ValidatedListItem {
     }
     
     handleInput(input: string, key: Key): boolean {
-        console.error(`\n=== FILE PICKER HANDLE INPUT ===`);
-        console.error(`isControllingInput: ${this._isControllingInput}`);
-        console.error(`key: ${JSON.stringify(key)}`);
-        console.error(`focusedIndex: ${this._focusedIndex}/${this._items.length - 1}`);
-        
         if (!this._isControllingInput) return false;
         
         if (key.escape) {
@@ -383,8 +373,6 @@ export class FilePickerListItem extends ValidatedListItem {
             this._selectedPath = this._originalPath;
             this._currentPath = this._originalPath;
             this.onExit();
-            console.error(`Escape pressed - exiting file picker`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return true;
         } else if (key.return) {
             const selectedItem = this._items[this._focusedIndex];
@@ -396,7 +384,6 @@ export class FilePickerListItem extends ValidatedListItem {
                     this.validateValue(); // Validate the new selection
                     this.onPathChange?.(this._selectedPath);
                     this.onExit();
-                    console.error(`Confirmed selection: ${this._selectedPath}`);
                 } else if (selectedItem.isDirectory) {
                     // Navigate into directory
                     // Normalize and validate the path before navigation
@@ -406,15 +393,11 @@ export class FilePickerListItem extends ValidatedListItem {
                     const lowerPath = targetPath.toLowerCase();
                     const restrictedPaths = ['/etc', '/sys', '/proc', 'c:\\windows', 'c:\\program files'];
                     if (!restrictedPaths.some(restricted => lowerPath.startsWith(restricted))) {
-                        const oldPath = this._currentPath;
                         this._currentPath = targetPath;
                         this._focusedIndex = 0;
                         this._previousFocusedIndex = 0;
                         // Use sync loading for immediate feedback
                         this.loadDirectoryContentsSync();
-                        console.error(`Navigated from ${oldPath} to ${targetPath}`);
-                        console.error(`Directory change triggered update`);
-                        console.error(`=== END FILE PICKER INPUT ===\n`);
                         return true; // Navigation changed state
                     }
                     // Don't update selected path, just navigate
@@ -425,10 +408,8 @@ export class FilePickerListItem extends ValidatedListItem {
                     this.validateValue(); // Validate the new selection
                     this.onPathChange?.(this._selectedPath);
                     this.onExit();
-                    console.error(`Selected file: ${this._selectedPath}`);
                 }
             }
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return true;
         } else if (key.upArrow) {
             const oldIndex = this._focusedIndex;
@@ -480,8 +461,6 @@ export class FilePickerListItem extends ValidatedListItem {
             // CRITICAL: Only return true if navigation actually changed the index
             // This prevents unnecessary panel re-renders when at boundaries
             const indexChanged = oldIndex !== this._focusedIndex;
-            console.error(`Up arrow - index ${oldIndex} -> ${this._focusedIndex}, changed: ${indexChanged}`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return indexChanged;
         } else if (key.downArrow) {
             const oldIndex = this._focusedIndex;
@@ -536,8 +515,6 @@ export class FilePickerListItem extends ValidatedListItem {
             // CRITICAL: Only return true if navigation actually changed the index
             // This prevents unnecessary panel re-renders when at boundaries
             const indexChanged = oldIndex !== this._focusedIndex;
-            console.error(`Down arrow - index ${oldIndex} -> ${this._focusedIndex}, changed: ${indexChanged}`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return indexChanged;
         } else if (key.leftArrow) {
             const oldIndex = this._focusedIndex;
@@ -548,8 +525,6 @@ export class FilePickerListItem extends ValidatedListItem {
             if (this._focusedIndex === this._items.length - 1 && hasConfirmItem) {
                 // On confirm item, another left exits
                 this.onExit();
-                console.error(`Left arrow on confirm - exiting`);
-                console.error(`=== END FILE PICKER INPUT ===\n`);
                 return true; // State changed - exiting
             } else if (this._columnCount > 1 && this._itemsPerColumn > 0 && this._focusedIndex < regularItemsCount) {
                 // Multi-column navigation for regular items
@@ -589,14 +564,10 @@ export class FilePickerListItem extends ValidatedListItem {
                     this._focusedIndex = this._items.length - 1;
                 } else {
                     this.onExit();
-                    console.error(`Left arrow - exiting`);
-                    console.error(`=== END FILE PICKER INPUT ===\n`);
                     return true; // State changed - exiting
                 }
             }
             const indexChanged = oldIndex !== this._focusedIndex;
-            console.error(`Left arrow - index ${oldIndex} -> ${this._focusedIndex}, changed: ${indexChanged}`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return indexChanged;
         } else if (key.rightArrow) {
             const oldIndex = this._focusedIndex;
@@ -632,8 +603,6 @@ export class FilePickerListItem extends ValidatedListItem {
             }
             // In single column mode, right arrow does nothing
             const indexChanged = oldIndex !== this._focusedIndex;
-            console.error(`Right arrow - index ${oldIndex} -> ${this._focusedIndex}, changed: ${indexChanged}`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return indexChanged;
         } else if (input === ' ') {
             // Space key - same as Enter for confirm action
@@ -644,33 +613,22 @@ export class FilePickerListItem extends ValidatedListItem {
                 this._selectedPathValid = true;
                 this.onPathChange?.(this._selectedPath);
                 this.onExit();
-                console.error(`Space - confirmed selection`);
-                console.error(`=== END FILE PICKER INPUT ===\n`);
                 return true;
             }
-            console.error(`Space - no action taken`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return false;
         } else if (input === 'h' || input === 'H') {
             // Toggle hidden files - only if we have a valid directory
             if (!this._error) {
-                const oldShowHidden = this._showHiddenFiles;
                 this._showHiddenFiles = !this._showHiddenFiles;
                 this._focusedIndex = 0; // Reset focus to avoid index out of bounds
                 this.loadDirectoryContentsSync();
-                console.error(`Toggled hidden files: ${oldShowHidden} -> ${this._showHiddenFiles}`);
-                console.error(`=== END FILE PICKER INPUT ===\n`);
                 return true; // State changed
             }
-            console.error(`H key - error state, no toggle`);
-            console.error(`=== END FILE PICKER INPUT ===\n`);
             return false;
         }
         
         // CRITICAL: Default case returns false to avoid consuming unhandled input
         // This allows parent components to handle inputs we don't care about
-        console.error(`Unhandled input: "${input}"`);
-        console.error(`=== END FILE PICKER INPUT ===\n`);
         return false; // Don't consume unhandled input
     }
     
@@ -891,18 +849,11 @@ export class FilePickerListItem extends ValidatedListItem {
             return [...elements, ...bodyElements];
         } else {
             // Collapsed view
-            console.error(`\n=== FILEPICKER COLLAPSED RENDER DEBUG ===`);
-            console.error(`maxWidth: ${maxWidth}, maxLines: ${maxLines}`);
-            console.error(`icon: "${this.icon}" (${this.icon.length} chars)`);
-            console.error(`label: "${this.label}" (${this.label.length} chars)`);
-            console.error(`selectedPath: "${this._selectedPath}" (${this._selectedPath.length} chars)`);
-            
             // Ensure validation is up to date
             this.validateValue();
             
             // Use the utility to format with validation - be conservative but preserve validation icons
             const conservativeWidth = maxWidth - 1; // Reduce by 1 to prevent wrapping but keep validation icons
-            console.error(`conservativeWidth: ${conservativeWidth} (maxWidth - 1)`);
             
             const formatted = formatCollapsedValidation(
                 this.label,
@@ -912,8 +863,6 @@ export class FilePickerListItem extends ValidatedListItem {
                 this.icon,
                 this.isActive
             );
-            console.error(`formatted result: ${JSON.stringify(formatted)}`);
-            console.error(`=== END FILEPICKER COLLAPSED RENDER DEBUG ===\n`);
             
             if (formatted.showValidation && this._validationMessage) {
                 // Render with validation message

@@ -122,16 +122,8 @@ export class ContainerListItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        console.error(`\n=== CONTAINER RENDER ===`);
-        console.error(`isControllingInput: ${this._isControllingInput}`);
-        console.error(`maxWidth: ${maxWidth}, maxLines: ${maxLines}`);
-        console.error(`childItems.length: ${this._childItems.length}`);
-        console.error(`selectedChildIndex: ${this._childSelectedIndex}`);
-        
         if (!this._isControllingInput) {
             // Collapsed view - single line
-            console.error(`Rendering COLLAPSED view`);
-            console.error(`=== END CONTAINER RENDER ===\n`);
             return (
                 <Text>
                     <Transform transform={output => output}>
@@ -145,9 +137,6 @@ export class ContainerListItem implements IListItem {
                 </Text>
             );
         }
-        
-        console.error(`Rendering EXPANDED view`);
-        console.error(`=== END CONTAINER RENDER ===\n`);
         
         // Expanded view - show children
         const elements: ReactElement[] = [];
@@ -264,32 +253,15 @@ export class ContainerListItem implements IListItem {
      * Input delegation system with priority handling
      */
     handleInput(input: string, key: Key): boolean {
-        console.error(`\n=== CONTAINER HANDLE INPUT ===`);
-        console.error(`Container isControllingInput: ${this._isControllingInput}`);
-        console.error(`key object: ${JSON.stringify(key)}`);
-        console.error(`input string: "${input}"`);
-        console.error(`childSelectedIndex: ${this._childSelectedIndex}`);
-        console.error(`childItems.length: ${this._childItems.length}`);
-        
         if (!this._isControllingInput) {
-            console.error(`Container not controlling input - returning false`);
             return false;
         }
         
         const activeChild = this._childItems[this._childSelectedIndex];
-        console.error(`activeChild exists: ${!!activeChild}`);
-        if (activeChild) {
-            console.error(`activeChild type: ${activeChild.constructor.name}`);
-            console.error(`activeChild isControllingInput: ${activeChild.isControllingInput}`);
-            console.error(`activeChild has handleInput: ${!!activeChild.handleInput}`);
-            console.error(`activeChild has onEnter: ${!!activeChild.onEnter}`);
-        }
         
         // Priority 1: If child is controlling input, delegate to it
         if (activeChild?.isControllingInput && activeChild.handleInput) {
-            console.error(`==> Delegating to child handleInput`);
             const childResult = activeChild.handleInput(input, key);
-            console.error(`Child handleInput returned: ${childResult}`);
             return childResult;
         }
         
@@ -302,10 +274,8 @@ export class ContainerListItem implements IListItem {
             // This prevents panel re-renders when user presses up at the first item
             if (newIndex !== oldIndex) {
                 this.changeChildSelection(oldIndex, newIndex);
-                console.error(`Up arrow - changed selectedIndex: ${oldIndex} -> ${newIndex}`);
                 return true; // Navigation happened - state changed
             } else {
-                console.error(`Up arrow - already at first item (index ${oldIndex})`);
                 return false; // Already at boundary - no state change, no re-render needed
             }
         }
@@ -318,39 +288,26 @@ export class ContainerListItem implements IListItem {
             // This prevents panel re-renders when user presses down at the last item
             if (newIndex !== oldIndex) {
                 this.changeChildSelection(oldIndex, newIndex);
-                console.error(`Down arrow - changed selectedIndex: ${oldIndex} -> ${newIndex}`);
                 return true; // Navigation happened - state changed
             } else {
-                console.error(`Down arrow - already at last item (index ${oldIndex})`);
                 return false; // Already at boundary - no state change, no re-render needed
             }
         }
         
         if (key.return) {
-            console.error(`==> Enter key pressed!`);
             if (activeChild) {
-                console.error(`ActiveChild exists - checking onEnter capability`);
                 if (activeChild.onEnter) {
-                    console.error(`==> Calling activeChild.onEnter()`);
                     activeChild.onEnter(); // Child should take control
-                    console.error(`After calling onEnter - activeChild isControllingInput: ${activeChild.isControllingInput}`);
                     return true;
-                } else {
-                    console.error(`ActiveChild has no onEnter method`);
                 }
-            } else {
-                console.error(`No activeChild found for Enter key`);
             }
         }
         
         if (key.escape) {
-            console.error(`==> Escape pressed - exiting container`);
             this.onExit(); // Exit container
             return true;
         }
         
-        console.error(`No input action taken - returning false`);
-        console.error(`=== END CONTAINER INPUT ===\n`);
         return false;
     }
     
@@ -358,16 +315,12 @@ export class ContainerListItem implements IListItem {
      * Enter expanded mode and initialize child states
      */
     onEnter(): void {
-        console.error(`\n=== CONTAINER ON ENTER ===`);
-        console.error(`Before expansion: isControllingInput = ${this._isControllingInput}`);
         this._isControllingInput = true;
-        console.error(`After expansion: isControllingInput = ${this._isControllingInput}`);
         
         // Initialize child selection
         if (this._childSelectedIndex >= this._childItems.length) {
             this._childSelectedIndex = 0;
         }
-        console.error(`childSelectedIndex: ${this._childSelectedIndex} (total children: ${this._childItems.length})`);
         
         // Set initial active states and call onSelect for active child
         this._childItems.forEach((child, index) => {
@@ -378,17 +331,10 @@ export class ContainerListItem implements IListItem {
             // Call onSelect/onDeselect methods if they exist
             if (isNowActive && !wasActive && child.onSelect) {
                 child.onSelect();
-                console.error(`Child ${index} (${child.constructor.name}): isActive ${wasActive} -> ${child.isActive}, called onSelect()`);
             } else if (!isNowActive && wasActive && child.onDeselect) {
                 child.onDeselect();
-                console.error(`Child ${index} (${child.constructor.name}): isActive ${wasActive} -> ${child.isActive}, called onDeselect()`);
-            } else {
-                console.error(`Child ${index} (${child.constructor.name}): isActive ${wasActive} -> ${child.isActive}`);
             }
         });
-        
-        console.error(`Container should now be expanded and controlling input`);
-        console.error(`=== END CONTAINER ON ENTER ===\n`);
     }
     
     /**

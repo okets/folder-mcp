@@ -37,10 +37,6 @@ interface AppContentInnerProps {
 }
 
 const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
-    console.error(`\\n=== APPCONTENTINNER RENDER ===`);
-    console.error(`config changed: ${config ? 'has config' : 'no config'}`);
-    console.error(`=== END APPCONTENTINNER RENDER ===\\n`);
-    
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
@@ -441,9 +437,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     parentId="navigation"
                     priority={50}
                     onInput={(input, key) => {
-                        console.error(`\\n=== MAIN PANEL INPUT ===`);
-                        console.error(`Input: "${input}", Key: ${JSON.stringify(key)}`);
-                        console.error(`=== END MAIN PANEL INPUT ===\\n`);
                         return false; // Let navigation handle it
                     }}
                 />
@@ -469,10 +462,6 @@ interface AppContentProps {
 }
 
 const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
-    console.error(`\\n=== APPCONTENT RENDER ===`);
-    console.error(`config: ${config ? 'has config' : 'no config'}`);
-    console.error(`=== END APPCONTENT RENDER ===\\n`);
-    
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
