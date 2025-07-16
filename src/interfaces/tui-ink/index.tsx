@@ -239,11 +239,6 @@ async function startTUI() {
         // Configuration is now loaded
         
         // Render with configuration support
-        // Additional Windows screen clearing right before render
-        if (process.platform === 'win32') {
-            clearWindowsScreen();
-        }
-        
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
@@ -255,13 +250,7 @@ async function startTUI() {
             {
                 exitOnCtrlC: true,
                 patchConsole: process.platform === 'win32', // Enable console patching on Windows
-                debug: false, // Disable Ink debug mode
-                // Windows-specific enhancements
-                ...(process.platform === 'win32' && {
-                    experimental: {
-                        clearScreen: true
-                    }
-                })
+                debug: false // Disable Ink debug mode
             }
         );
         
@@ -272,11 +261,6 @@ async function startTUI() {
         // Get ConfigurationComponent for fallback case
         const container = getContainer();
         const fallbackConfigComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-        
-        // Additional Windows screen clearing right before fallback render
-        if (process.platform === 'win32') {
-            clearWindowsScreen();
-        }
         
         const app = render(
             <DIProvider container={tuiContainer}>
@@ -289,13 +273,7 @@ async function startTUI() {
             {
                 exitOnCtrlC: true,
                 patchConsole: process.platform === 'win32', // Enable console patching on Windows
-                debug: false, // Disable Ink debug mode
-                // Windows-specific enhancements
-                ...(process.platform === 'win32' && {
-                    experimental: {
-                        clearScreen: true
-                    }
-                })
+                debug: false // Disable Ink debug mode
             }
         );
         
@@ -447,23 +425,20 @@ const clearWindowsScreen = (): void => {
 const WindowsScreenWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     React.useEffect(() => {
         if (process.platform === 'win32') {
-            // Additional clearing on component mount
-            clearWindowsScreen();
-            
-            // Set up periodic clearing for stubborn terminals (every 100ms for first second)
-            let clearCount = 0;
-            const maxClears = 10;
-            const intervalId = setInterval(() => {
-                if (clearCount < maxClears) {
-                    clearWindowsScreen();
-                    clearCount++;
-                } else {
-                    clearInterval(intervalId);
+            // Single, gentle screen preparation on mount only
+            // No periodic clearing to avoid flicker
+            const prepareScreen = () => {
+                if (process.stdout.isTTY) {
+                    // Just ensure cursor is hidden - the initial terminal setup already cleared the screen
+                    process.stdout.write('\x1b[?25l'); // Hide cursor
                 }
-            }, 100);
+            };
+            
+            // Small delay to allow Ink to initialize first
+            const timeoutId = setTimeout(prepareScreen, 10);
             
             return () => {
-                clearInterval(intervalId);
+                clearTimeout(timeoutId);
             };
         }
         return undefined;
