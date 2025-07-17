@@ -19,6 +19,7 @@ export interface ButtonsRowConfig {
 
 export class ButtonsRow implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // ButtonsRow items are interactive and navigable
     private _isControllingInput: boolean = false;
     private _focusedButtonIndex: number = 0;
     

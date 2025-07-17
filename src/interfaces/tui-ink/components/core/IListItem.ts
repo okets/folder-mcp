@@ -62,6 +62,13 @@ export interface IListItem extends ISelfConstrainedItem {
     isActive: boolean;
     
     /**
+     * Whether this item can be navigated to with arrow keys
+     * When false, navigation will skip over this item
+     * Useful for descriptive text items that provide context but shouldn't interrupt navigation flow
+     */
+    isNavigable: boolean;
+    
+    /**
      * Render the list item with the given maximum width
      * @param maxWidth - Maximum width available for the item
      * @param maxLines - Maximum lines available for expanded content (optional)

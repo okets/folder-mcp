@@ -16,6 +16,7 @@ import { textColorProp } from '../../utils/conditionalProps';
  */
 export class ContainerListItem implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // ContainerListItems are interactive and navigable
     
     private _isControllingInput: boolean = false;
     private _childItems: IListItem[] = [];
@@ -276,29 +277,52 @@ export class ContainerListItem implements IListItem {
         // Priority 2: Handle navigation between children
         if (key.upArrow) {
             if (this._isConfirmFocused) {
-                // Move back from confirmation to last child
+                // Move back from confirmation to last navigable child
                 this._isConfirmFocused = false;
-                this._childSelectedIndex = this._childItems.length - 1;
-                const lastChild = this._childItems[this._childSelectedIndex];
-                if (lastChild) {
-                    lastChild.isActive = true;
-                    if (lastChild.onSelect) {
-                        lastChild.onSelect();
+                
+                // Find the last navigable child
+                let lastNavigableIndex = -1;
+                for (let i = this._childItems.length - 1; i >= 0; i--) {
+                    const child = this._childItems[i];
+                    if (child && child.isNavigable) {
+                        lastNavigableIndex = i;
+                        break;
                     }
                 }
-                return true; // Moved back to last child
+                
+                if (lastNavigableIndex >= 0) {
+                    this._childSelectedIndex = lastNavigableIndex;
+                    const lastChild = this._childItems[this._childSelectedIndex];
+                    if (lastChild) {
+                        lastChild.isActive = true;
+                        if (lastChild.onSelect) {
+                            lastChild.onSelect();
+                        }
+                    }
+                    return true; // Moved back to last navigable child
+                } else {
+                    // No navigable children, stay on confirmation
+                    this._isConfirmFocused = true;
+                    return false; // No state change
+                }
             }
             
             const oldIndex = this._childSelectedIndex;
-            const newIndex = Math.max(0, this._childSelectedIndex - 1);
+            const newIndex = this.findNextNavigableChild(this._childSelectedIndex, 'backward');
             
-            // CRITICAL: Only return true if navigation actually happened
-            // This prevents panel re-renders when user presses up at the first item
-            if (newIndex !== oldIndex) {
+            if (newIndex >= 0) {
+                // Found a navigable child above
                 this.changeChildSelection(oldIndex, newIndex);
                 return true; // Navigation happened - state changed
             } else {
-                return false; // Already at boundary - no state change, no re-render needed
+                // No navigable children above current position
+                // Check if we should auto-close when there are only non-navigable items above
+                if (!this.hasNavigableChildrenAbove(this._childSelectedIndex)) {
+                    // Auto-close: no navigable items above current position
+                    this.onExit();
+                    return true; // Container closed - state changed
+                }
+                return false; // Already at boundary - no state change
             }
         }
         
@@ -309,10 +333,14 @@ export class ContainerListItem implements IListItem {
             }
             
             const oldIndex = this._childSelectedIndex;
+            const newIndex = this.findNextNavigableChild(this._childSelectedIndex, 'forward');
             
-            // If we're at the last child, move to confirmation
-            if (this._childSelectedIndex >= this._childItems.length - 1) {
-                // Deselect current child first
+            if (newIndex >= 0) {
+                // Found a navigable child below
+                this.changeChildSelection(oldIndex, newIndex);
+                return true; // Navigation happened - state changed
+            } else {
+                // No navigable children below, move to confirmation
                 const currentChild = this._childItems[this._childSelectedIndex];
                 if (currentChild) {
                     currentChild.isActive = false;
@@ -323,10 +351,6 @@ export class ContainerListItem implements IListItem {
                 this._isConfirmFocused = true;
                 return true; // Moved to confirmation
             }
-            
-            const newIndex = this._childSelectedIndex + 1;
-            this.changeChildSelection(oldIndex, newIndex);
-            return true; // Navigation happened - state changed
         }
         
         if (key.return) {
@@ -389,10 +413,8 @@ export class ContainerListItem implements IListItem {
     onEnter(): void {
         this._isControllingInput = true;
         
-        // Initialize child selection
-        if (this._childSelectedIndex >= this._childItems.length) {
-            this._childSelectedIndex = 0;
-        }
+        // Initialize child selection to first navigable child
+        this._childSelectedIndex = this.findFirstNavigableChild();
         
         // Set initial active states and call onSelect for active child
         this._childItems.forEach((child, index) => {
@@ -407,6 +429,55 @@ export class ContainerListItem implements IListItem {
                 child.onDeselect();
             }
         });
+    }
+    
+    /**
+     * Find the next navigable child index from a given starting index
+     * @param fromIndex - Index to start searching from (exclusive)
+     * @param direction - Direction to search ('forward' or 'backward')
+     * @returns Index of next navigable child, or -1 if none found
+     */
+    private findNextNavigableChild(fromIndex: number, direction: 'forward' | 'backward'): number {
+        const step = direction === 'forward' ? 1 : -1;
+        const startBound = direction === 'forward' ? fromIndex + 1 : fromIndex - 1;
+        const endBound = direction === 'forward' ? this._childItems.length : -1;
+        
+        for (let i = startBound; direction === 'forward' ? i < endBound : i > endBound; i += step) {
+            const child = this._childItems[i];
+            if (child && child.isNavigable) {
+                return i;
+            }
+        }
+        
+        return -1; // No navigable child found
+    }
+    
+    /**
+     * Find the first navigable child when entering the container
+     * @returns Index of first navigable child, or 0 if none found
+     */
+    private findFirstNavigableChild(): number {
+        for (let i = 0; i < this._childItems.length; i++) {
+            const child = this._childItems[i];
+            if (child && child.isNavigable) {
+                return i;
+            }
+        }
+        return 0; // Fallback to first child if none are navigable
+    }
+    
+    /**
+     * Check if there are any navigable children above the current index
+     * Used for auto-close logic when navigating up from configuration items
+     */
+    private hasNavigableChildrenAbove(index: number): boolean {
+        for (let i = 0; i < index; i++) {
+            const child = this._childItems[i];
+            if (child && child.isNavigable) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**

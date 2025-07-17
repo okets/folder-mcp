@@ -157,7 +157,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const testChildren = [
-                new TextListItem("🎉", "Welcome to Folder Setup! Let's configure a new folder for indexing...", "", false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'wrap'),
+                
+                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "What language is your content?",
@@ -167,6 +169,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'radio',
                     'vertical'
                 ),
+                
+                new TextListItem("", "Content Type Selection: Choose the type of content you'll be indexing to optimize processing", false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "What type of content?",
@@ -176,6 +180,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'radio',
                     'vertical'
                 ),
+                
+                new TextListItem("", "Folder Selection: Choose the folder containing the files you want to index and search", false, undefined, 'wrap'),
                 new FilePickerListItem(
                     "·",
                     "Select folder to index",
@@ -183,6 +189,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     false,
                     'folder'
                 ),
+                
+                new TextListItem("", "Embedding Model: Select the AI model that will process your content for semantic search", false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "Choose embedding model",
@@ -306,7 +314,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const testChildren = [
-                new TextListItem("🎉", "Welcome to Folder Setup! Let's configure a new folder for indexing...", "", false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'wrap'),
+                
+                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "What language is your content?",
@@ -316,6 +326,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'radio',
                     'vertical'
                 ),
+                
+                new TextListItem("", "Content Type Selection: Choose the type of content you'll be indexing to optimize processing", false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "What type of content?",
@@ -325,6 +337,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'radio',
                     'vertical'
                 ),
+                
+                new TextListItem("", "Folder Selection: Choose the folder containing the files you want to index and search", false, undefined, 'wrap'),
                 new FilePickerListItem(
                     "·",
                     "Select folder to index",
@@ -332,6 +346,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     false,
                     'folder'
                 ),
+                
+                new TextListItem("", "Embedding Model: Select the AI model that will process your content for semantic search", false, undefined, 'wrap'),
                 new SelectionListItem(
                     "·",
                     "Choose embedding model",

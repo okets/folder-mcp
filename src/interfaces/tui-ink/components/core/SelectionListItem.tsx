@@ -18,6 +18,7 @@ export type SelectionLayout = 'vertical' | 'horizontal';
 
 export class SelectionListItem implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // SelectionListItems are interactive and navigable
     private _isControllingInput: boolean = false;
     private _selectedValues: string[] = [];
     private _focusedIndex: number = 0;

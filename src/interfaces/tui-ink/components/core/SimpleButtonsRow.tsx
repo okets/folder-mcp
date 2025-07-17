@@ -22,6 +22,7 @@ export type ButtonAlignment = 'left' | 'center' | 'right';
 
 export class SimpleButtonsRow implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // SimpleButtonsRow items are interactive and navigable
     private _isControllingInput: boolean = false;
     private _focusedButtonIndex: number = 0;
     private _isActive: boolean = false;

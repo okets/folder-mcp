@@ -8,17 +8,17 @@ export type TextOverflowMode = 'truncate' | 'wrap';
 
 /**
  * Responsive text-based ListItem with proper overflow handling
- * Shows a label with an optional value, supports truncation or wrapping
+ * Shows a single text value, supports truncation or wrapping
  */
 export class TextListItem implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = false; // TextListItems are descriptive and should be skipped in navigation
     private _isControllingInput: boolean = false;
     private _overflowMode: TextOverflowMode;
     
     constructor(
         public icon: string,
-        private label: string,
-        private value: string = '',
+        private formattedText: string | ReactElement, // Can be formatted string or React element
         public isActive: boolean = false,
         private onSelectCallback?: () => void,
         overflowMode: TextOverflowMode = 'wrap'
@@ -40,21 +40,17 @@ export class TextListItem implements IListItem {
         
         // Wrap mode: calculate actual lines needed using the same algorithm as render
         const iconWidth = this.icon.length + 1; // icon + space
-        const availableForFirstLine = maxWidth - iconWidth - (this.value ? 2 : 0);
+        const availableWidth = maxWidth - iconWidth;
         
-        if (availableForFirstLine <= 0) return 1;
+        if (availableWidth <= 0) return 1;
+        
+        // Extract plain text for calculation if it's a React element
+        const plainText = typeof this.formattedText === 'string' ? this.formattedText : 'Formatted content';
         
         // Use the actual wrapping algorithm to get precise line count
-        const labelLines = this.wrapText(this.label, availableForFirstLine);
-        let totalLines = labelLines.length;
+        const textLines = this.wrapText(plainText, availableWidth);
         
-        // Add value lines if present
-        if (this.value) {
-            const valueLines = this.wrapText(this.value, maxWidth - iconWidth);
-            totalLines += valueLines.length;
-        }
-        
-        return Math.max(1, totalLines);
+        return Math.max(1, textLines.length);
     }
     
     /**
@@ -115,7 +111,6 @@ export class TextListItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        const displayValue = this.value || '';
         // For wrap mode, calculate actual required lines based on content
         // Don't artificially limit with maxLines - let the content determine space needed
         const actualRequiredLines = this.getRequiredLines(maxWidth);
@@ -125,61 +120,23 @@ export class TextListItem implements IListItem {
             // Single line with truncation
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
-            const textPart = `${this.label}${this.value ? `: ${displayValue}` : ''}`;
-            const fullText = `${displayIcon} ${textPart}`;
             
-            let truncatedText = fullText;
-            if (fullText.length > maxWidth) {
-                const cutPoint = maxWidth - 3;
-                truncatedText = fullText.substring(0, cutPoint) + '...';
-            }
-            
-            // Special handling for checkmark icon to color it green
-            if (this.icon === '✓') {
-                if (this.isActive) {
-                    // When active: ▶✓ (no space between cursor and checkmark)
-                    return (
-                        <Text>
-                            <Transform transform={output => output}>
-                                <Text {...textColorProp(theme.colors.accent)}>
-                                    ▶
-                                </Text>
-                                <Text {...textColorProp(theme.colors.successGreen)}>
-                                    ✓
-                                </Text>
-                                <Text {...textColorProp(theme.colors.accent)}>
-                                    {' '}{textPart}
-                                </Text>
-                            </Transform>
-                        </Text>
-                    );
-                } else {
-                    // When not active:  ✓ (space before checkmark for alignment)
-                    return (
-                        <Text>
-                            <Transform transform={output => output}>
-                                <Text>
-                                    {' '}
-                                </Text>
-                                <Text {...textColorProp(theme.colors.successGreen)}>
-                                    ✓
-                                </Text>
-                                <Text>
-                                    {' '}{textPart}
-                                </Text>
-                            </Transform>
-                        </Text>
-                    );
-                }
-            }
-            
-            // For all other icons, use the displayIcon which already handles cursor replacement
             return (
                 <Text>
                     <Transform transform={output => output}>
                         <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                            {displayIcon} {textPart}
+                            {displayIcon}
                         </Text>
+                        <Text>
+                            {' '}
+                        </Text>
+                        {typeof this.formattedText === 'string' ? (
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                                {this.formattedText}
+                            </Text>
+                        ) : (
+                            this.formattedText
+                        )}
                     </Transform>
                 </Text>
             );
@@ -192,51 +149,13 @@ export class TextListItem implements IListItem {
         const iconWidth = displayIcon.length + 1;
         let linesUsed = 0;
         
-        // First line: icon + start of label
-        const availableForFirstLine = maxWidth - iconWidth - (this.value ? 2 : 0);
-        
-        const labelLines = this.wrapText(this.label, availableForFirstLine);
-        
-        if (linesUsed < maxLinesToUse && labelLines.length > 0) {
-            // Special handling for checkmark icon
-            if (this.icon === '✓') {
-                if (this.isActive) {
-                    // When active: ▶✓ (no space between cursor and checkmark)
-                    elements.push(
-                        <Text key="line-0">
-                            <Transform transform={output => output}>
-                                <Text {...textColorProp(theme.colors.accent)}>
-                                    ▶
-                                </Text>
-                                <Text {...textColorProp(theme.colors.successGreen)}>
-                                    ✓
-                                </Text>
-                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                    {' '}{labelLines[0]}
-                                </Text>
-                            </Transform>
-                        </Text>
-                    );
-                } else {
-                    // When not active:  ✓ (space before checkmark for alignment)
-                    elements.push(
-                        <Text key="line-0">
-                            <Transform transform={output => output}>
-                                <Text>
-                                    {' '}
-                                </Text>
-                                <Text {...textColorProp(theme.colors.successGreen)}>
-                                    ✓
-                                </Text>
-                                <Text>
-                                    {' '}{labelLines[0]}
-                                </Text>
-                            </Transform>
-                        </Text>
-                    );
-                }
-            } else {
-                // Normal icon handling - use displayIcon which already handles cursor replacement
+        if (typeof this.formattedText === 'string') {
+            // Handle string text with wrapping
+            const availableWidth = maxWidth - iconWidth;
+            const textLines = this.wrapText(this.formattedText, availableWidth);
+            
+            // First line: icon + start of text
+            if (linesUsed < maxLinesToUse && textLines.length > 0) {
                 elements.push(
                     <Text key="line-0">
                         <Transform transform={output => output}>
@@ -244,63 +163,42 @@ export class TextListItem implements IListItem {
                                 {displayIcon}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{labelLines[0]}
+                                {' '}{textLines[0]}
                             </Text>
                         </Transform>
                     </Text>
                 );
+                linesUsed++;
             }
-            linesUsed++;
-        }
-        
-        // Continuation lines for label
-        for (let i = 1; i < labelLines.length && linesUsed < maxLinesToUse; i++) {
+            
+            // Continuation lines for text
+            for (let i = 1; i < textLines.length && linesUsed < maxLinesToUse; i++) {
+                elements.push(
+                    <Text key={`text-line-${i}`}>
+                        <Transform transform={output => output}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                                {' '.repeat(iconWidth)}{textLines[i]}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+                linesUsed++;
+            }
+        } else {
+            // Handle React element - single line only
             elements.push(
-                <Text key={`label-line-${i}`}>
+                <Text key="formatted-line">
                     <Transform transform={output => output}>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                            {' '.repeat(iconWidth)}{labelLines[i]}
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
+                            {displayIcon}
                         </Text>
+                        <Text>
+                            {' '}
+                        </Text>
+                        {this.formattedText}
                     </Transform>
                 </Text>
             );
-            linesUsed++;
-        }
-        
-        // Value lines if present
-        if (this.value && linesUsed < maxLinesToUse) {
-            const valueLines = this.wrapText(this.value, maxWidth - iconWidth);
-            
-            // First value line with separator
-            if (valueLines.length > 0) {
-                elements.push(
-                    <Text key="value-line-0">
-                        <Transform transform={output => output}>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '.repeat(iconWidth - 2)}: 
-                            </Text>
-                            <Text {...textColorProp(theme.colors.configValuesColor)}>
-                                {valueLines[0]}
-                            </Text>
-                        </Transform>
-                    </Text>
-                );
-                linesUsed++;
-            }
-            
-            // Continuation lines for value
-            for (let i = 1; i < valueLines.length && linesUsed < maxLinesToUse; i++) {
-                elements.push(
-                    <Text key={`value-line-${i}`}>
-                        <Transform transform={output => output}>
-                            <Text {...textColorProp(theme.colors.configValuesColor)}>
-                                {' '.repeat(iconWidth)}{valueLines[i]}
-                            </Text>
-                        </Transform>
-                    </Text>
-                );
-                linesUsed++;
-            }
         }
         
         return elements.length === 1 ? elements[0]! : elements;

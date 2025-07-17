@@ -14,6 +14,7 @@ interface Segment {
 
 export class LogItem implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // LogItems are interactive and navigable
     private _isExpanded: boolean = false;
     private _isControllingInput: boolean = false;
     

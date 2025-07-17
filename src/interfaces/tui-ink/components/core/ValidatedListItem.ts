@@ -12,6 +12,7 @@ export abstract class ValidatedListItem implements IListItem {
     abstract isActive: boolean;
     abstract readonly isControllingInput: boolean;
     abstract readonly selfConstrained: true;
+    readonly isNavigable = true; // ValidatedListItems are interactive and navigable by default
     
     // Protected validation state
     protected _validationMessage: ValidationMessage | null = null;

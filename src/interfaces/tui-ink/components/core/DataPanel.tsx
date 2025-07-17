@@ -33,6 +33,7 @@ export interface DataPanelProps<T = any> {
 // Simple list item implementation for DataPanel
 class DataPanelItem implements IListItem {
     readonly selfConstrained = true as const;
+    readonly isNavigable = true; // DataPanelItems are interactive and navigable
     readonly isControllingInput = false;
     
     constructor(
