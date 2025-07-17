@@ -31,6 +31,47 @@ export class TextListItem implements IListItem {
     }
     
     /**
+     * Extract plain text content from string or React element
+     * For React elements, attempt to extract the text content recursively
+     */
+    private extractTextContent(content: string | ReactElement): string {
+        if (typeof content === 'string') {
+            return content;
+        }
+        
+        // For React elements, try to extract text from props
+        if (content && typeof content === 'object' && 'props' in content) {
+            const props = content.props as any;
+            
+            // Direct string children
+            if (typeof props.children === 'string') {
+                return props.children;
+            }
+            
+            // Array of children - recursively extract text
+            if (Array.isArray(props.children)) {
+                return props.children
+                    .map((child: any) => {
+                        if (typeof child === 'string') return child;
+                        if (child && typeof child === 'object' && 'props' in child) {
+                            return this.extractTextContent(child);
+                        }
+                        return '';
+                    })
+                    .join('');
+            }
+            
+            // Single React element child
+            if (props.children && typeof props.children === 'object' && 'props' in props.children) {
+                return this.extractTextContent(props.children);
+            }
+        }
+        
+        // Fallback for complex React elements
+        return 'Text content';
+    }
+    
+    /**
      * Calculate required lines based on text content and overflow mode
      */
     getRequiredLines(maxWidth: number): number {
@@ -39,14 +80,15 @@ export class TextListItem implements IListItem {
         }
         
         // Wrap mode: calculate actual lines needed using the same algorithm as render
-        // For empty icon, we still need 1 space; for non-empty icon, we need icon + space
-        const iconWidth = this.icon.length === 0 ? 1 : this.icon.length + 1;
+        // Use cursor arrow when active, otherwise use the normal icon
+        const displayIcon = this.isActive ? '▶' : this.icon;
+        const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
         const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
         
         if (availableWidth <= 0) return 1;
         
-        // Extract plain text for calculation if it's a React element
-        const plainText = typeof this.formattedText === 'string' ? this.formattedText : 'Formatted content';
+        // Extract plain text for calculation
+        const plainText = this.extractTextContent(this.formattedText);
         
         // Use the actual wrapping algorithm to get precise line count
         const textLines = this.wrapText(plainText, availableWidth);
@@ -87,13 +129,13 @@ export class TextListItem implements IListItem {
                 
                 if (wordWithIndent.length > maxWidth) {
                     // Word is too long, truncate with ellipsis
-                    const availableWidth = maxWidth - indent.length - 3; // -3 for ellipsis
+                    const availableWidth = maxWidth - indent.length - 1; // -1 for ellipsis
                     if (availableWidth > 0) {
                         const truncatedWord = word.substring(0, availableWidth);
-                        const truncatedLine = indent + truncatedWord + '...';
+                        const truncatedLine = indent + truncatedWord + '…';
                         lines.push(truncatedLine);
                     } else {
-                        const ellipsisLine = indent + '...';
+                        const ellipsisLine = indent + '…';
                         lines.push(ellipsisLine);
                     }
                 } else {
@@ -121,6 +163,17 @@ export class TextListItem implements IListItem {
             // Single line with truncation
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
+            const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
+            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+            
+            // Extract text and truncate if needed
+            const plainText = this.extractTextContent(this.formattedText);
+            let displayText = plainText;
+            
+            if (plainText.length > availableWidth) {
+                // Truncate with ellipsis
+                displayText = plainText.substring(0, Math.max(0, availableWidth - 1)) + '…';
+            }
             
             return (
                 <Text>
@@ -129,15 +182,11 @@ export class TextListItem implements IListItem {
                             {displayIcon}
                         </Text>
                         <Text>
-                            {' '}
+                            {"   "}
                         </Text>
-                        {typeof this.formattedText === 'string' ? (
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {this.formattedText}
-                            </Text>
-                        ) : (
-                            this.formattedText
-                        )}
+                        <Text color="gray">
+                            {displayText}
+                        </Text>
                     </Transform>
                 </Text>
             );

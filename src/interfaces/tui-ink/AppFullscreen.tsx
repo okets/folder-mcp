@@ -157,9 +157,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const testChildren = [
-                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'truncate'),
                 
-                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "What language is your content?",
@@ -170,7 +170,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 
-                new TextListItem("", <Text color="gray">Content Type Selection: Choose the type of content you'll be indexing to optimize processing</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Content Type Selection: Choose the type of content you'll be indexing to optimize processing</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "What type of content?",
@@ -181,7 +181,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 
-                new TextListItem("", <Text color="gray">Folder Selection: Choose the folder containing the files you want to index and search</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Folder Selection: Choose the folder containing the files you want to index and search</Text>, false, undefined, 'truncate'),
                 new FilePickerListItem(
                     "·",
                     "Select folder to index",
@@ -190,7 +190,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'folder'
                 ),
                 
-                new TextListItem("", <Text color="gray">Embedding Model: Select the AI model that will process your content for semantic search</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Embedding Model: Select the AI model that will process your content for semantic search</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "Choose embedding model",
@@ -314,9 +314,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const testChildren = [
-                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'truncate'),
                 
-                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Language Configuration: Select the primary language of your content for optimal search results</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "What language is your content?",
@@ -327,7 +327,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 
-                new TextListItem("", <Text color="gray">Content Type Selection: Choose the type of content you'll be indexing to optimize processing</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Content Type Selection: Choose the type of content you'll be indexing to optimize processing</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "What type of content?",
@@ -338,7 +338,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'vertical'
                 ),
                 
-                new TextListItem("", <Text color="gray">Folder Selection: Choose the folder containing the files you want to index and search</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Folder Selection: Choose the folder containing the files you want to index and search</Text>, false, undefined, 'truncate'),
                 new FilePickerListItem(
                     "·",
                     "Select folder to index",
@@ -347,7 +347,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     'folder'
                 ),
                 
-                new TextListItem("", <Text color="gray">Embedding Model: Select the AI model that will process your content for semantic search</Text>, false, undefined, 'wrap'),
+                new TextListItem("", <Text color="gray">Embedding Model: Select the AI model that will process your content for semantic search</Text>, false, undefined, 'truncate'),
                 new SelectionListItem(
                     "·",
                     "Choose embedding model",
