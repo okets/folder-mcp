@@ -39,8 +39,9 @@ export class TextListItem implements IListItem {
         }
         
         // Wrap mode: calculate actual lines needed using the same algorithm as render
-        const iconWidth = this.icon.length + 1; // icon + space
-        const availableWidth = maxWidth - iconWidth;
+        // For empty icon, we still need 1 space; for non-empty icon, we need icon + space
+        const iconWidth = this.icon.length === 0 ? 1 : this.icon.length + 1;
+        const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
         
         if (availableWidth <= 0) return 1;
         
@@ -146,15 +147,16 @@ export class TextListItem implements IListItem {
         const elements: ReactElement[] = [];
         // Use cursor arrow when active, otherwise use the normal icon
         const displayIcon = this.isActive ? '▶' : this.icon;
-        const iconWidth = displayIcon.length + 1;
+        // For empty icon, we still need 1 space; for non-empty icon, we need icon + space
+        const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
         let linesUsed = 0;
         
         if (typeof this.formattedText === 'string') {
             // Handle string text with wrapping
-            const availableWidth = maxWidth - iconWidth;
+            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
             const textLines = this.wrapText(this.formattedText, availableWidth);
             
-            // First line: icon + start of text
+            // First line: icon + indentation + start of text
             if (linesUsed < maxLinesToUse && textLines.length > 0) {
                 elements.push(
                     <Text key="line-0">
@@ -162,8 +164,8 @@ export class TextListItem implements IListItem {
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
                                 {displayIcon}
                             </Text>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '}{textLines[0]}
+                            <Text>
+                                {"   "}{textLines[0]}
                             </Text>
                         </Transform>
                     </Text>
@@ -176,8 +178,8 @@ export class TextListItem implements IListItem {
                 elements.push(
                     <Text key={`text-line-${i}`}>
                         <Transform transform={output => output}>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                                {' '.repeat(iconWidth)}{textLines[i]}
+                            <Text>
+                                {' '.repeat(iconWidth + 3)}{textLines[i]}
                             </Text>
                         </Transform>
                     </Text>
@@ -185,7 +187,7 @@ export class TextListItem implements IListItem {
                 linesUsed++;
             }
         } else {
-            // Handle React element - single line only
+            // Handle React element - single line only with indentation
             elements.push(
                 <Text key="formatted-line">
                     <Transform transform={output => output}>
@@ -193,7 +195,7 @@ export class TextListItem implements IListItem {
                             {displayIcon}
                         </Text>
                         <Text>
-                            {' '}
+                            {"   "}
                         </Text>
                         {this.formattedText}
                     </Transform>
