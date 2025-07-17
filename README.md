@@ -1,4 +1,4 @@
-# folder-mcp
+# folder-mcp (Under Development, will be released soon enough)
 
 **Model Context Protocol Server for Folder Operations**
 
