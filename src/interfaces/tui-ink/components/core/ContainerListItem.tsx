@@ -26,7 +26,6 @@ export class ContainerListItem implements IListItem {
     private _onComplete: ((results: any) => void) | undefined;
     private _isConfirmFocused: boolean = false;
     private _lastAvailableLines: number = 10; // Track actual available lines from render
-    private _navigationStep: number = 0; // Track navigation steps for debugging
     
     constructor(
         public icon: string,
@@ -136,7 +135,6 @@ export class ContainerListItem implements IListItem {
                 const visiblePortion = Math.max(0, visiblePortionEnd - visiblePortionStart);
                 accumulatedLines += visiblePortion;
                 
-                console.error(`Viewport calc: Child ${i} gets ${fullChildLines} lines (${visiblePortion} visible in viewport, accumulated: ${accumulatedLines}/${availableLines})`);
             }
         }
         
@@ -219,35 +217,6 @@ export class ContainerListItem implements IListItem {
         // Calculate viewport
         const viewport = this.calculateChildViewport(availableLines, maxWidth);
         
-        // Debug scroll indicators
-        console.error(`\n=== SCROLL INDICATORS DEBUG ===`);
-        console.error(`showScrollUp: ${viewport.showScrollUp}`);
-        console.error(`showScrollDown: ${viewport.showScrollDown}`);
-        console.error(`visibleChildren.length: ${viewport.visibleChildren.length}`);
-        console.error(`childScrollOffset: ${this._childScrollOffset}`);
-        console.error(`=== END SCROLL INDICATORS DEBUG ===\n`);
-        
-        // Debug scroll issue and line calculations
-        console.error(`\n=== SCROLL DEBUG ===`);
-        console.error(`Total children: ${this._childItems.length}`);
-        console.error(`Available lines: ${availableLines}`);
-        console.error(`MaxWidth for calculations: ${maxWidth}`);
-        console.error(`PREFIX WIDTH: 2 (for "│ ")`);
-        console.error(`Child width for getRequiredLines: ${maxWidth - 2}`);
-        
-        // Show each child's line calculation
-        this._childItems.forEach((child, i) => {
-            if (child && child.getRequiredLines) {
-                const childLines = child.getRequiredLines(maxWidth - 2);
-                const pos = this._childLinePositions[i];
-                console.error(`  Child ${i}: ${childLines} lines, position ${pos?.start}-${pos?.end}`);
-            }
-        });
-        
-        const lastPosition = this._childLinePositions.length > 0 ? this._childLinePositions[this._childLinePositions.length - 1] : null;
-        console.error(`Total content lines needed: ${lastPosition?.end || 0}`);
-        console.error(`Should scroll: ${lastPosition ? lastPosition.end > availableLines : false}`);
-        console.error(`=== END SCROLL DEBUG ===\n`);
         
         // Track how many lines we've actually rendered
         let totalLinesRendered = 0;
@@ -315,7 +284,6 @@ export class ContainerListItem implements IListItem {
                     buttonsPrefixText = '│▼'; // Last content line when scrolling down available
                 }
                 
-                console.error(`ButtonsRow: isLastVisibleChild=${isLastVisibleChild}, showScrollDown=${viewport.showScrollDown}, prefix=${buttonsPrefixText}`);
                 
                 // ButtonsRow returns a Box with flexDirection="row" containing 3-line bordered buttons
                 // We need to wrap this in a Box with row layout to add the prefix while preserving height
@@ -349,7 +317,6 @@ export class ContainerListItem implements IListItem {
                             prefixText = '│▼'; // Last content line when scrolling down available
                         }
                         
-                        console.error(`Array child ${childGlobalIndex}-${elemIndex}: isLastElementOfLastChild=${isLastElementOfLastChild}, showScrollDown=${viewport.showScrollDown}, prefix=${prefixText}`);
                         
                         elements.push(
                             <Box key={`child-${childGlobalIndex}-${elemIndex}`}>
@@ -371,7 +338,6 @@ export class ContainerListItem implements IListItem {
                         prefixText = '│▼'; // Last content line when scrolling down available
                     }
                     
-                    console.error(`Single child ${childGlobalIndex}: isLastVisibleChild=${isLastVisibleChild}, showScrollDown=${viewport.showScrollDown}, prefix=${prefixText}`);
                     
                     elements.push(
                         <Box key={`child-${childGlobalIndex}`}>
@@ -511,29 +477,20 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.downArrow) {
-            console.error(`\n=== DOWN ARROW INPUT ===`);
-            console.error(`Current index: ${this._childSelectedIndex}`);
-            console.error(`Is confirm focused: ${this._isConfirmFocused}`);
-            console.error(`Total children: ${this._childItems.length}`);
-            
             if (this._isConfirmFocused) {
                 // Already on confirmation - can't go further down
-                console.error(`Already on confirmation, consuming input`);
                 return true; // CRITICAL: Consume input even when we can't navigate
             }
             
             const oldIndex = this._childSelectedIndex;
             const newIndex = this.findNextNavigableChild(this._childSelectedIndex, 'forward');
-            console.error(`Looking for next child: ${oldIndex} -> ${newIndex}`);
             
             if (newIndex >= 0) {
                 // Found a navigable child below
-                console.error(`Found navigable child, calling changeChildSelection`);
                 this.changeChildSelection(oldIndex, newIndex);
                 return true; // Navigation happened - state changed
             } else {
                 // No navigable children below, move to confirmation
-                console.error(`No more children, moving to confirmation`);
                 const currentChild = this._childItems[this._childSelectedIndex];
                 if (currentChild) {
                     currentChild.isActive = false;
@@ -610,14 +567,10 @@ export class ContainerListItem implements IListItem {
         const prefixWidth = 2; // "│ " prefix
         const childWidth = maxWidth - prefixWidth;
         
-        console.error(`=== LINE POSITION WIDTH DEBUG ===`);
-        console.error(`maxWidth: ${maxWidth}, prefixWidth: ${prefixWidth}, childWidth: ${childWidth}`);
-        
         for (let i = 0; i < this._childItems.length; i++) {
             const child = this._childItems[i];
             if (!child) continue;
             const childLines = child.getRequiredLines ? child.getRequiredLines(childWidth) : 1;
-            console.error(`  Child ${i}: getRequiredLines(${childWidth}) = ${childLines}`);
             
             this._childLinePositions.push({
                 start: currentLine,
@@ -625,24 +578,12 @@ export class ContainerListItem implements IListItem {
             });
             currentLine += childLines;
         }
-        
-        console.error(`=== LINE POSITION CALCULATION ===`);
-        console.error(`Total children: ${this._childItems.length}`);
-        this._childLinePositions.forEach((pos, i) => {
-            console.error(`  Child ${i}: position ${pos.start}-${pos.end} (${pos.end - pos.start} lines)`);
-        });
-        console.error(`Total content lines: ${currentLine}`);
-        console.error(`=== END LINE POSITION CALCULATION ===`);
     }
     
     /**
      * Enter expanded mode and initialize child states
      */
     onEnter(): void {
-        console.error(`\n=== CONTAINER EXPANSION ===`);
-        console.error(`Expanding container: ${this.label}`);
-        console.error(`Total children: ${this._childItems.length}`);
-        
         this._isControllingInput = true;
         
         // Line positions will be calculated during first render with actual width
@@ -650,8 +591,6 @@ export class ContainerListItem implements IListItem {
         
         // Initialize child selection to first navigable child
         this._childSelectedIndex = this.findFirstNavigableChild();
-        console.error(`Initial selected index: ${this._childSelectedIndex}`);
-        console.error(`Initial scroll offset: ${this._childScrollOffset}`);
         
         // Set initial active states and call onSelect for active child
         this._childItems.forEach((child, index) => {
@@ -666,8 +605,6 @@ export class ContainerListItem implements IListItem {
                 child.onDeselect();
             }
         });
-        
-        console.error(`=== EXPANSION COMPLETE ===\n`);
     }
     
     /**
@@ -740,21 +677,11 @@ export class ContainerListItem implements IListItem {
         // Adjust scroll to ensure new selection is visible
         if (newIndex >= 0 && newIndex < this._childLinePositions.length) {
             const selectedPosition = this._childLinePositions[newIndex];
-            console.error(`\n=== SCROLL ADJUSTMENT DEBUG ===`);
-            console.error(`Navigating to child ${newIndex}`);
-            console.error(`Selected position: ${selectedPosition ? `${selectedPosition.start}-${selectedPosition.end}` : 'undefined'}`);
-            console.error(`Total line positions calculated: ${this._childLinePositions.length}`);
-            console.error(`Child line positions array:`);
-            this._childLinePositions.forEach((pos, i) => {
-                console.error(`  Child ${i}: ${pos ? `${pos.start}-${pos.end}` : 'undefined'}`);
-            });
             
             if (selectedPosition) {
                 // Use the actual available lines from last render instead of an estimate
                 // This prevents unnecessary scrolling when all content fits in viewport
                 const viewportLines = this._lastAvailableLines;
-                
-                const oldScrollOffset = this._childScrollOffset;
                 
                 // Adjust scroll to keep selected item optimally positioned
                 // For downward navigation: ensure item is visible at bottom with some padding
@@ -772,14 +699,11 @@ export class ContainerListItem implements IListItem {
                 // Handle edge cases: item is technically visible but poorly positioned
                 if (selectedPosition.end >= this._childScrollOffset + viewportLines - 1) {
                     // Item is at the very bottom edge (within 1 line) - scroll down for better visibility
-                    console.error(`EDGE CASE: Item at bottom edge, executing scroll adjustment`);
                     const totalContentLines = this._childLinePositions.length > 0 
                         ? this._childLinePositions[this._childLinePositions.length - 1]?.end || 0 
                         : 0;
                     const maxScroll = Math.max(0, totalContentLines - viewportLines);
                     const targetScroll = Math.min(maxScroll, selectedPosition.end - Math.floor(viewportLines * 0.75));
-                    console.error(`Total content: ${totalContentLines}, Max scroll: ${maxScroll}, Target: ${targetScroll}`);
-                    console.error(`Current scroll: ${this._childScrollOffset}, New scroll: ${Math.max(this._childScrollOffset, targetScroll)}`);
                     this._childScrollOffset = Math.max(this._childScrollOffset, targetScroll);
                 }
                 else if (selectedPosition.start <= this._childScrollOffset + 1) {
@@ -813,73 +737,7 @@ export class ContainerListItem implements IListItem {
                         this._childScrollOffset = Math.max(0, targetScroll);
                     }
                 }
-                
-                this._navigationStep++;
-                console.error(`\n=== NAVIGATION DEBUG ===`);
-                console.error(`STEP ${this._navigationStep}: ${oldIndex} -> ${newIndex}`);
-                console.error(`Selected position: ${selectedPosition.start}-${selectedPosition.end}`);
-                console.error(`Viewport lines: ${viewportLines}`);
-                console.error(`OLD scroll: ${oldScrollOffset}`);
-                console.error(`CURRENT scroll: ${this._childScrollOffset}`);
-                console.error(`Viewport range: ${this._childScrollOffset} to ${this._childScrollOffset + viewportLines}`);
-                
-                // Debug scroll conditions
-                const endCutOff = selectedPosition.end > this._childScrollOffset + viewportLines;
-                const startCutOff = selectedPosition.start < this._childScrollOffset;
-                const atBottomEdge = selectedPosition.end >= this._childScrollOffset + viewportLines - 1;
-                const atTopEdge = selectedPosition.start <= this._childScrollOffset + 1;
-                console.error(`CONDITIONS:`);
-                console.error(`  End cut off (${selectedPosition.end} > ${this._childScrollOffset + viewportLines}): ${endCutOff}`);
-                console.error(`  Start cut off (${selectedPosition.start} < ${this._childScrollOffset}): ${startCutOff}`);
-                console.error(`  At bottom edge (${selectedPosition.end} >= ${this._childScrollOffset + viewportLines - 1}): ${atBottomEdge}`);
-                console.error(`  At top edge (${selectedPosition.start} <= ${this._childScrollOffset + 1}): ${atTopEdge}`);
-                
-                if (!endCutOff && !startCutOff) {
-                    // Item is visible, check smart centering logic
-                    const isMovingUp = oldIndex > newIndex;
-                    const isMovingDown = oldIndex < newIndex;
-                    console.error(`Moving up: ${isMovingUp}, Moving down: ${isMovingDown}`);
-                    
-                    if (isMovingUp) {
-                        const itemMiddle = (selectedPosition.start + selectedPosition.end) / 2;
-                        const viewportMiddle = this._childScrollOffset + (viewportLines / 2);
-                        console.error(`Item middle: ${itemMiddle}, Viewport middle: ${viewportMiddle}`);
-                        console.error(`Item in bottom half (${itemMiddle} > ${viewportMiddle}): ${itemMiddle > viewportMiddle}`);
-                        if (itemMiddle > viewportMiddle) {
-                            const targetScroll = Math.max(0, selectedPosition.start - Math.floor(viewportLines / 4));
-                            console.error(`Would scroll up to: ${targetScroll}`);
-                        }
-                    } else if (isMovingDown) {
-                        const itemMiddle = (selectedPosition.start + selectedPosition.end) / 2;
-                        const viewportMiddle = this._childScrollOffset + (viewportLines / 2);
-                        console.error(`Item middle: ${itemMiddle}, Viewport middle: ${viewportMiddle}`);
-                        console.error(`Item in top half (${itemMiddle} < ${viewportMiddle}): ${itemMiddle < viewportMiddle}`);
-                        if (itemMiddle < viewportMiddle) {
-                            const totalContentLines = this._childLinePositions.length > 0 
-                                ? this._childLinePositions[this._childLinePositions.length - 1]?.end || 0 
-                                : 0;
-                            const targetScroll = Math.min(
-                                totalContentLines - viewportLines,
-                                selectedPosition.end - Math.floor(viewportLines * 3 / 4)
-                            );
-                            console.error(`Would scroll down to: ${Math.max(0, targetScroll)}`);
-                        }
-                    }
-                }
-                
-                console.error(`RESULT:`);
-                console.error(`  Old scroll: ${oldScrollOffset}`);
-                console.error(`  New scroll: ${this._childScrollOffset}`);
-                console.error(`  Scroll changed: ${oldScrollOffset !== this._childScrollOffset}`);
-                console.error(`  Item visible in viewport: ${selectedPosition.start >= this._childScrollOffset && selectedPosition.end <= this._childScrollOffset + viewportLines}`);
-                console.error(`=== END NAV DEBUG ===\n`);
-            } else {
-                console.error(`ERROR: No position found for child ${newIndex}`);
-                console.error(`This should not happen - all children should have positions`);
             }
-            console.error(`=== END SCROLL ADJUSTMENT DEBUG ===\n`);
-        } else {
-            console.error(`ERROR: Invalid newIndex ${newIndex} or positions array length ${this._childLinePositions.length}`);
         }
         
         // Select new child
