@@ -106,15 +106,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     
     const childrenArray = React.Children.toArray(children);
     
-    // Debug logging for container content
-    if (title === 'Main' && childrenArray.length > 10) {
-        console.error(`\n=== BORDEREDBOX RENDERING ===`);
-        console.error(`Title: ${title}`);
-        console.error(`Height: ${height}`);
-        console.error(`Content height: ${contentHeight}`);
-        console.error(`Children array length: ${childrenArray.length}`);
-        console.error(`=== END BORDEREDBOX ===\n`);
-    }
+    // Debug logging removed for cleaner output
     
     return (
         <LayoutConstraintProvider constraints={childConstraints}>

@@ -188,14 +188,24 @@ export class ContainerListItem implements IListItem {
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
         if (!this._isControllingInput) {
-            // Collapsed view - single line
+            // Collapsed view - single line with truncation
+            const iconWidth = this.icon.length;
+            const spaceWidth = 1; // space between icon and label
+            const availableForLabel = maxWidth - iconWidth - spaceWidth;
+            
+            let displayLabel = this.label;
+            if (this.label.length > availableForLabel) {
+                // Truncate with ellipsis if needed
+                displayLabel = this.label.substring(0, Math.max(0, availableForLabel - 1)) + '…';
+            }
+            
             return (
                 <Text>
                     <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
                         {this.icon}
                     </Text>
                     <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                        {' '}{this.label}
+                        {' '}{displayLabel}
                     </Text>
                 </Text>
             );
@@ -217,42 +227,26 @@ export class ContainerListItem implements IListItem {
         // Calculate viewport
         const viewport = this.calculateChildViewport(availableLines, maxWidth);
         
-        // Debug viewport calculation
-        console.error(`\n=== CONTAINER VIEWPORT DEBUG ===`);
-        console.error(`Container: ${this.label}`);
-        console.error(`Max lines: ${maxLines}`);
-        console.error(`Allocated height: ${allocatedHeight}`);
-        console.error(`Available lines for children: ${availableLines}`);
-        console.error(`Selected index: ${this._childSelectedIndex}`);
-        console.error(`Scroll offset: ${this._childScrollOffset}`);
-        console.error(`Visible children: ${viewport.visibleChildren.length}`);
-        console.error(`Is confirm focused: ${this._isConfirmFocused}`);
-        if (this._childLinePositions[this._childSelectedIndex]) {
-            const pos = this._childLinePositions[this._childSelectedIndex];
-            console.error(`Selected child position: ${pos?.start}-${pos?.end}`);
-        }
-        // Count actual lines that will be rendered
-        let totalRenderedLines = 1; // header
-        viewport.visibleChildren.forEach((child, idx) => {
-            const constrainedLines = viewport.childLineCounts[idx] || 0;
-            console.error(`Viewport child ${idx}: ${constrainedLines} lines`);
-            totalRenderedLines += constrainedLines;
-        });
-        totalRenderedLines += 1; // confirmation
-        console.error(`Total lines to render: ${totalRenderedLines}`);
-        console.error(`Will overflow: ${totalRenderedLines > allocatedHeight}`);
-        console.error(`Viewport line counts: [${viewport.childLineCounts.join(', ')}]`);
-        console.error(`Elements array will have: ${1 + viewport.visibleChildren.length + 1} elements`);
-        console.error(`=== END DEBUG ===\n`);
+        // Debug viewport calculation (removed for cleaner output)
         
         // Track how many lines we've actually rendered
         let totalLinesRendered = 0;
         
-        // Header (always render - 1 line)
+        // Header (always render - 1 line) with truncation
+        const iconWidth = this.icon.length;
+        const spaceWidth = 1; // space between icon and label
+        const availableForLabel = maxWidth - iconWidth - spaceWidth;
+        
+        let displayLabel = this.label;
+        if (this.label.length > availableForLabel) {
+            // Truncate with ellipsis if needed
+            displayLabel = this.label.substring(0, Math.max(0, availableForLabel - 1)) + '…';
+        }
+        
         elements.push(
             <Box key="header">
                 <Text {...textColorProp(theme.colors.accent)}>
-                    {this.icon} {this.label}
+                    {this.icon} {displayLabel}
                 </Text>
             </Box>
         );
@@ -261,16 +255,11 @@ export class ContainerListItem implements IListItem {
         
         // Render visible children with integrated scroll indicators
         let renderedLines = 0; // Track lines used by children only
-        let elementCount = elements.length; // Track how many elements we have
         viewport.visibleChildren.forEach((child, viewportIndex) => {
             // Set active state
             const childGlobalIndex = this._childItems.indexOf(child);
             const isChildSelected = childGlobalIndex === this._childSelectedIndex && !this._isConfirmFocused;
             child.isActive = isChildSelected;
-            
-            
-            // Determine line prefix
-            const isActualLastChild = childGlobalIndex === this._childItems.length - 1;
             
             // Use the constrained line count from viewport calculation
             const childMaxLines = viewport.childLineCounts[viewportIndex] || 1;
@@ -302,7 +291,6 @@ export class ContainerListItem implements IListItem {
             } else {
                 // All other children use normal row layout with prefix
                 if (Array.isArray(childElements)) {
-                    console.error(`Child ${childGlobalIndex} returned ${childElements.length} elements, constrained to ${childMaxLines} lines`);
                     // Only take the number of elements that fit within childMaxLines
                     const elementsToRender = childElements.slice(0, childMaxLines);
                     elementsToRender.forEach((element, elemIndex) => {
@@ -318,8 +306,6 @@ export class ContainerListItem implements IListItem {
                             </Box>
                         );
                     });
-                    elementCount = elements.length;
-                    console.error(`Total elements after child ${childGlobalIndex}: ${elementCount} (added ${elementsToRender.length})`);
                 } else {
                     elements.push(
                         <Box key={`child-${childGlobalIndex}`}>
@@ -334,12 +320,6 @@ export class ContainerListItem implements IListItem {
             
             // Update rendered lines counter
             renderedLines += childMaxLines;
-            console.error(`Rendered child ${childGlobalIndex}: ${childMaxLines} lines (total rendered: ${renderedLines})`);
-            
-            // Safety check - should never exceed available lines
-            if (renderedLines > availableLines) {
-                console.error(`ERROR: Exceeded available lines! ${renderedLines} > ${availableLines}`);
-            }
         });
         
         // Add confirmation line as the last element (always visible at bottom)
@@ -374,19 +354,11 @@ export class ContainerListItem implements IListItem {
         );
         
         
-        console.error(`\n=== FINAL ELEMENT COUNT ===`);
-        console.error(`Total elements to return: ${elements.length}`);
-        console.error(`Allocated height: ${allocatedHeight}`);
-        console.error(`Should limit to: ${allocatedHeight} elements max`);
-        
         // Ensure we don't return more elements than allocated height
         // This prevents overflow in the panel
         if (elements.length > allocatedHeight) {
-            console.error(`WARNING: Trimming elements from ${elements.length} to ${allocatedHeight}`);
             return elements.slice(0, allocatedHeight);
         }
-        
-        console.error(`=== END FINAL COUNT ===\n`);
         
         // Return the array of elements
         // The panel will handle the layout
