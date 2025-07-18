@@ -83,6 +83,7 @@ export class ContainerListItem implements IListItem {
      */
     private calculateChildViewport(availableLines: number, maxWidth: number): {
         visibleChildren: IListItem[],
+        childLineCounts: number[],
         scrollOffset: number,
         showScrollUp: boolean,
         showScrollDown: boolean
@@ -111,30 +112,35 @@ export class ContainerListItem implements IListItem {
         
         // Step 3: Find visible children based on scroll offset
         const visibleChildren: IListItem[] = [];
+        const childLineCounts: number[] = [];
         let accumulatedLines = 0;
         
         for (let i = 0; i < this._childItems.length; i++) {
             const pos = this._childLinePositions[i];
             const child = this._childItems[i];
             
-            // Check if child is in viewport range
-            if (pos && child && pos.end > this._childScrollOffset && pos.start < this._childScrollOffset + availableLines) {
-                // Additional check: only include if we have space to render at least 1 line of this child
-                const childStartInViewport = Math.max(0, pos.start - this._childScrollOffset);
-                const remainingSpace = availableLines - childStartInViewport;
-                
-                if (remainingSpace >= 1) {
-                    visibleChildren.push(child);
-                    
-                    // Track how many lines we've accumulated
-                    const childLines = Math.min(pos.end - pos.start, remainingSpace);
-                    accumulatedLines += childLines;
-                    
-                    // Stop if we've filled the viewport
-                    if (accumulatedLines >= availableLines) {
-                        break;
-                    }
-                }
+            if (!pos || !child) continue;
+            
+            // Skip children that are completely above the viewport
+            if (pos.end <= this._childScrollOffset) continue;
+            
+            // Stop if we've used all available space
+            if (accumulatedLines >= availableLines) break;
+            
+            // Calculate how much of this child is visible
+            const childStartInViewport = Math.max(0, pos.start - this._childScrollOffset);
+            const remainingSpace = availableLines - accumulatedLines;
+            const childRequiredLines = pos.end - pos.start;
+            
+            // Constrain to remaining space
+            const visibleLinesOfChild = Math.min(childRequiredLines, remainingSpace);
+            
+            // Only include if at least 1 line is visible
+            if (visibleLinesOfChild > 0) {
+                visibleChildren.push(child);
+                childLineCounts.push(visibleLinesOfChild);
+                accumulatedLines += visibleLinesOfChild;
+                console.error(`Viewport calc: Child ${i} gets ${visibleLinesOfChild} lines (accumulated: ${accumulatedLines}/${availableLines})`);
             }
         }
         
@@ -173,6 +179,7 @@ export class ContainerListItem implements IListItem {
         
         return {
             visibleChildren,
+            childLineCounts,
             scrollOffset: this._childScrollOffset,
             showScrollUp: this._childScrollOffset > 0,
             showScrollDown: showScrollDown
@@ -213,7 +220,9 @@ export class ContainerListItem implements IListItem {
         // Debug viewport calculation
         console.error(`\n=== CONTAINER VIEWPORT DEBUG ===`);
         console.error(`Container: ${this.label}`);
-        console.error(`Available lines: ${availableLines}`);
+        console.error(`Max lines: ${maxLines}`);
+        console.error(`Allocated height: ${allocatedHeight}`);
+        console.error(`Available lines for children: ${availableLines}`);
         console.error(`Selected index: ${this._childSelectedIndex}`);
         console.error(`Scroll offset: ${this._childScrollOffset}`);
         console.error(`Visible children: ${viewport.visibleChildren.length}`);
@@ -222,10 +231,24 @@ export class ContainerListItem implements IListItem {
             const pos = this._childLinePositions[this._childSelectedIndex];
             console.error(`Selected child position: ${pos?.start}-${pos?.end}`);
         }
+        // Count actual lines that will be rendered
+        let totalRenderedLines = 1; // header
+        viewport.visibleChildren.forEach((child, idx) => {
+            const constrainedLines = viewport.childLineCounts[idx] || 0;
+            console.error(`Viewport child ${idx}: ${constrainedLines} lines`);
+            totalRenderedLines += constrainedLines;
+        });
+        totalRenderedLines += 1; // confirmation
+        console.error(`Total lines to render: ${totalRenderedLines}`);
+        console.error(`Will overflow: ${totalRenderedLines > allocatedHeight}`);
+        console.error(`Viewport line counts: [${viewport.childLineCounts.join(', ')}]`);
+        console.error(`Elements array will have: ${1 + viewport.visibleChildren.length + 1} elements`);
         console.error(`=== END DEBUG ===\n`);
         
+        // Track how many lines we've actually rendered
+        let totalLinesRendered = 0;
         
-        // Header
+        // Header (always render - 1 line)
         elements.push(
             <Box key="header">
                 <Text {...textColorProp(theme.colors.accent)}>
@@ -233,11 +256,13 @@ export class ContainerListItem implements IListItem {
                 </Text>
             </Box>
         );
+        totalLinesRendered += 1;
         
         
         // Render visible children with integrated scroll indicators
         let renderedLines = 0; // Track lines used by children only
-        viewport.visibleChildren.forEach((child) => {
+        let elementCount = elements.length; // Track how many elements we have
+        viewport.visibleChildren.forEach((child, viewportIndex) => {
             // Set active state
             const childGlobalIndex = this._childItems.indexOf(child);
             const isChildSelected = childGlobalIndex === this._childSelectedIndex && !this._isConfirmFocused;
@@ -247,36 +272,13 @@ export class ContainerListItem implements IListItem {
             // Determine line prefix
             const isActualLastChild = childGlobalIndex === this._childItems.length - 1;
             
-            // Calculate available lines for this child
-            const childPosition = this._childLinePositions[childGlobalIndex];
-            let childMaxLines = childPosition ? childPosition.end - childPosition.start : 1;
-            
-            // Special case: If this is the last child and we have extra space, give it dynamic height
-            if (isActualLastChild && !viewport.showScrollDown) {
-                const remainingLines = availableLines - renderedLines;
-                if (remainingLines > childMaxLines) {
-                    childMaxLines = remainingLines;
-                }
-            }
+            // Use the constrained line count from viewport calculation
+            const childMaxLines = viewport.childLineCounts[viewportIndex] || 1;
             
             // For ContainerListItem, we simplify the scroll indicators
             // Since the confirmation line is always visible at the bottom,
             // we don't show scroll indicators
             let linePrefix = '│ ';
-            
-            
-            // Check if we have enough space for this child
-            // availableLines already excludes header and footer space
-            if (renderedLines + childMaxLines > availableLines) {
-                // Partial render: if we have at least 1 line of space, render what we can
-                const remainingSpace = availableLines - renderedLines;
-                if (remainingSpace >= 1) {
-                    childMaxLines = remainingSpace;
-                } else {
-                    // Not enough space for even 1 line, stop rendering
-                    return;
-                }
-            }
             
             // Render child with border prefix using Box to avoid nesting issues
             // Calculate available width based on actual prefix length
@@ -300,7 +302,10 @@ export class ContainerListItem implements IListItem {
             } else {
                 // All other children use normal row layout with prefix
                 if (Array.isArray(childElements)) {
-                    childElements.forEach((element, elemIndex) => {
+                    console.error(`Child ${childGlobalIndex} returned ${childElements.length} elements, constrained to ${childMaxLines} lines`);
+                    // Only take the number of elements that fit within childMaxLines
+                    const elementsToRender = childElements.slice(0, childMaxLines);
+                    elementsToRender.forEach((element, elemIndex) => {
                         const showPrefix = elemIndex === 0; // Only show prefix on first line of child
                         const prefixText = showPrefix ? linePrefix : '│ ';
                         
@@ -313,6 +318,8 @@ export class ContainerListItem implements IListItem {
                             </Box>
                         );
                     });
+                    elementCount = elements.length;
+                    console.error(`Total elements after child ${childGlobalIndex}: ${elementCount} (added ${elementsToRender.length})`);
                 } else {
                     elements.push(
                         <Box key={`child-${childGlobalIndex}`}>
@@ -327,6 +334,12 @@ export class ContainerListItem implements IListItem {
             
             // Update rendered lines counter
             renderedLines += childMaxLines;
+            console.error(`Rendered child ${childGlobalIndex}: ${childMaxLines} lines (total rendered: ${renderedLines})`);
+            
+            // Safety check - should never exceed available lines
+            if (renderedLines > availableLines) {
+                console.error(`ERROR: Exceeded available lines! ${renderedLines} > ${availableLines}`);
+            }
         });
         
         // Add confirmation line as the last element (always visible at bottom)
@@ -361,6 +374,22 @@ export class ContainerListItem implements IListItem {
         );
         
         
+        console.error(`\n=== FINAL ELEMENT COUNT ===`);
+        console.error(`Total elements to return: ${elements.length}`);
+        console.error(`Allocated height: ${allocatedHeight}`);
+        console.error(`Should limit to: ${allocatedHeight} elements max`);
+        
+        // Ensure we don't return more elements than allocated height
+        // This prevents overflow in the panel
+        if (elements.length > allocatedHeight) {
+            console.error(`WARNING: Trimming elements from ${elements.length} to ${allocatedHeight}`);
+            return elements.slice(0, allocatedHeight);
+        }
+        
+        console.error(`=== END FINAL COUNT ===\n`);
+        
+        // Return the array of elements
+        // The panel will handle the layout
         return elements;
     }
     

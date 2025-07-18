@@ -414,6 +414,17 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                 (listItem as any).isActive = isSelected;
                             }
                             
+                            // Debug logging for ContainerListItem
+                            if (listItem && listItem.constructor.name === 'ContainerListItem') {
+                                console.error(`\n=== PANEL RENDERING CONTAINER ===`);
+                                console.error(`Container label: ${(listItem as any).label}`);
+                                console.error(`Is controlling: ${(listItem as any).isControllingInput}`);
+                                console.error(`Panel max lines: ${maxLines}`);
+                                console.error(`Remaining lines: ${remainingLines}`);
+                                console.error(`Item max lines: ${Math.min(remainingLines, maxLines)}`);
+                                console.error(`=== END PANEL DEBUG ===\n`);
+                            }
+                            
                             // Built-in cursor management for panel-level navigation
                             if (listItem && typeof listItem === 'object' && 'icon' in listItem) {
                                 // Store original icon if not already stored
@@ -450,6 +461,11 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                             
                             // Handle both single element and array of elements
                             if (Array.isArray(itemElements)) {
+                                // Debug array rendering for ContainerListItem
+                                if (listItem.constructor.name === 'ContainerListItem') {
+                                    console.error(`Container returned ${itemElements.length} elements`);
+                                }
+                                
                                 // For multi-line items, wrap each element separately
                                 itemElements.forEach((element, index) => {
                                     elements.push(
@@ -461,7 +477,12 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                 // Use the actual required lines, not the number of React elements
                                 const requiredLines = listItem.getRequiredLines(itemMaxWidth);
                                 // Cap to actual lines rendered to prevent underflow
-                                remainingLines -= Math.min(requiredLines, itemMaxLines);
+                                const linesUsed = Math.min(requiredLines, itemMaxLines);
+                                remainingLines -= linesUsed;
+                                
+                                if (listItem.constructor.name === 'ContainerListItem') {
+                                    console.error(`Container used ${linesUsed} lines, remaining: ${remainingLines}`);
+                                }
                             } else {
                                 elements.push(
                                     <SelfConstrainedWrapper key={`item-${visualIndex}`}>
