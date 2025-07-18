@@ -203,7 +203,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const containerItem = new ContainerListItem(
-                "📁", 
+                "+", 
                 "Add Folder Wizard", 
                 testChildren,
                 false, // isActive
@@ -360,7 +360,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             ];
             
             const containerItem = new ContainerListItem(
-                "📁", 
+                "+", 
                 "Add Folder Wizard", 
                 testChildren,
                 false, // isActive

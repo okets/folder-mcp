@@ -227,11 +227,11 @@ export class ContainerListItem implements IListItem {
         
         // Header
         elements.push(
-            <Text key="header">
+            <Box key="header">
                 <Text {...textColorProp(theme.colors.accent)}>
-                    ■ {this.label}
+                    {this.icon} {this.label}
                 </Text>
-            </Text>
+            </Box>
         );
         
         
@@ -305,7 +305,7 @@ export class ContainerListItem implements IListItem {
                         const prefixText = showPrefix ? linePrefix : '│ ';
                         
                         elements.push(
-                            <Box key={`child-${childGlobalIndex}-${elemIndex}`} flexDirection="row">
+                            <Box key={`child-${childGlobalIndex}-${elemIndex}`}>
                                 <Text {...textColorProp(theme.colors.textMuted)}>
                                     {prefixText}
                                 </Text>
@@ -315,7 +315,7 @@ export class ContainerListItem implements IListItem {
                     });
                 } else {
                     elements.push(
-                        <Box key={`child-${childGlobalIndex}`} flexDirection="row">
+                        <Box key={`child-${childGlobalIndex}`}>
                             <Text {...textColorProp(theme.colors.textMuted)}>
                                 {linePrefix}
                             </Text>
@@ -346,16 +346,18 @@ export class ContainerListItem implements IListItem {
         }
         
         elements.push(
-            <Text key="confirm-action">
-                <Text {...textColorProp(theme.colors.textMuted)}>{confirmPrefix}</Text>
-                {this._isConfirmFocused ? (
-                    <Text {...textColorProp(theme.colors.accent)}>▶ </Text>
-                ) : (
-                    <Text>  </Text>
-                )}
-                <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
-                <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}> {displayConfirmText}</Text>
-            </Text>
+            <Box key="confirm-action">
+                <Text>
+                    <Text {...textColorProp(theme.colors.textMuted)}>{confirmPrefix}</Text>
+                    {this._isConfirmFocused ? (
+                        <Text {...textColorProp(theme.colors.accent)}>▶ </Text>
+                    ) : (
+                        <Text>  </Text>
+                    )}
+                    <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
+                    <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}> {displayConfirmText}</Text>
+                </Text>
+            </Box>
         );
         
         

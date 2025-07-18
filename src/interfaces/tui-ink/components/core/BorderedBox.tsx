@@ -42,9 +42,9 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     }
     
     // Calculate exact content width
-    // Border chars (|) and spaces on each side = 4 chars total
-    // If scrollbar is shown, we need 1 more char
-    const contentWidth = width - 4 - (showScrollbar ? 1 : 0);
+    // Border chars (|) on each side + 1 space before right border = 3 chars total
+    // If scrollbar is shown, we need 1 more char for the scrollbar itself
+    const contentWidth = width - 3 - (showScrollbar ? 1 : 0);
     
     // Calculate content height
     // Top border (1) + bottom border (1) = 2
@@ -91,14 +91,14 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     const createSideBorder = (content: React.ReactNode, scrollbarChar: string = ' ', key?: string) => {
         return (
             <Box key={key} width={width} flexWrap="nowrap" flexDirection="row">
-                <Text color={borderColor}>{border.vertical} </Text>
+                <Text color={borderColor}>{border.vertical}</Text>
                 <Box width={contentWidth} flexGrow={0} flexShrink={0}>
                     <ConstrainedContent width={contentWidth}>
                         {content}
                     </ConstrainedContent>
                 </Box>
                 <Box flexShrink={0}>
-                    <Text color={borderColor}> {scrollbarChar}{border.vertical}</Text>
+                    <Text color={borderColor}>{showScrollbar ? ` ${scrollbarChar}` : ' '}{border.vertical}</Text>
                 </Box>
             </Box>
         );
