@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { Box, Text, Key, Transform } from 'ink';
+import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem';
 import { theme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
@@ -25,6 +25,7 @@ export class ContainerListItem implements IListItem {
     private _childLinePositions: Array<{start: number, end: number}> = [];
     private _onComplete: ((results: any) => void) | undefined;
     private _isConfirmFocused: boolean = false;
+    private _lastAvailableLines: number = 10; // Track actual available lines from render
     
     constructor(
         public icon: string,
@@ -50,17 +51,30 @@ export class ContainerListItem implements IListItem {
     }
     
     /**
-     * Fixed height strategy - prevents infinite recursion
-     * Always reports same height regardless of children count
+     * Dynamic height strategy - calculate actual content height
+     * Parent is responsible for capping based on available space
      */
     getRequiredLines(maxWidth: number): number {
         if (!this._isControllingInput) {
             return 1; // Collapsed view
         }
         
-        // FIXED HEIGHT - like FilePickerListItem
-        // Always request 8 lines, scroll internally if needed
-        return 8;
+        // Calculate actual height needed based on children
+        let totalLines = 1; // Header line
+        
+        const prefixWidth = 2; // "│ " prefix
+        for (let i = 0; i < this._childItems.length; i++) {
+            const child = this._childItems[i];
+            if (!child) continue;
+            const childLines = child.getRequiredLines ? child.getRequiredLines(maxWidth - prefixWidth) : 1;
+            totalLines += childLines;
+        }
+        
+        // Add 1 for confirmation line
+        totalLines += 1;
+        
+        // Return actual content height - parent will handle constraints
+        return totalLines;
     }
     
     /**
@@ -73,6 +87,9 @@ export class ContainerListItem implements IListItem {
         showScrollUp: boolean,
         showScrollDown: boolean
     } {
+        // Store the actual available lines for use in changeChildSelection
+        this._lastAvailableLines = availableLines;
+        
         // Step 1: Calculate line positions for all children
         this._childLinePositions = [];
         let currentLine = 0;
@@ -89,29 +106,68 @@ export class ContainerListItem implements IListItem {
             currentLine += childLines;
         }
         
-        // Step 2: Calculate scroll offset to keep selected child visible
-        // This is copied from GenericListPanel lines 149-156
-        if (this._childSelectedIndex < this._childLinePositions.length) {
-            const selectedPosition = this._childLinePositions[this._childSelectedIndex];
-            if (selectedPosition) {
-                // Keep selected child visible
-                if (selectedPosition.end > this._childScrollOffset + availableLines) {
-                    // Item is cut off at bottom - scroll down
-                    this._childScrollOffset = selectedPosition.end - availableLines;
-                } else if (selectedPosition.start < this._childScrollOffset) {
-                    // Item is cut off at top - scroll up
-                    this._childScrollOffset = selectedPosition.start;
+        // Step 2: Don't recalculate scroll offset here - it's managed by changeChildSelection
+        // This prevents content from jumping during renders
+        
+        // Step 3: Find visible children based on scroll offset
+        const visibleChildren: IListItem[] = [];
+        let accumulatedLines = 0;
+        
+        for (let i = 0; i < this._childItems.length; i++) {
+            const pos = this._childLinePositions[i];
+            const child = this._childItems[i];
+            
+            // Check if child is in viewport range
+            if (pos && child && pos.end > this._childScrollOffset && pos.start < this._childScrollOffset + availableLines) {
+                // Additional check: only include if we have space to render at least 1 line of this child
+                const childStartInViewport = Math.max(0, pos.start - this._childScrollOffset);
+                const remainingSpace = availableLines - childStartInViewport;
+                
+                if (remainingSpace >= 1) {
+                    visibleChildren.push(child);
+                    
+                    // Track how many lines we've accumulated
+                    const childLines = Math.min(pos.end - pos.start, remainingSpace);
+                    accumulatedLines += childLines;
+                    
+                    // Stop if we've filled the viewport
+                    if (accumulatedLines >= availableLines) {
+                        break;
+                    }
                 }
             }
         }
         
-        // Step 3: Find visible children based on scroll offset
-        const visibleChildren: IListItem[] = [];
-        for (let i = 0; i < this._childItems.length; i++) {
-            const pos = this._childLinePositions[i];
-            const child = this._childItems[i];
-            if (pos && child && pos.end > this._childScrollOffset && pos.start < this._childScrollOffset + availableLines) {
-                visibleChildren.push(child);
+        // Check if scrolling down would show more content
+        let showScrollDown = false;
+        
+        if (this._childLinePositions.length > 0 && visibleChildren.length > 0) {
+            const lastVisibleChild = visibleChildren[visibleChildren.length - 1];
+            if (lastVisibleChild) {
+                const lastVisibleIndex = this._childItems.indexOf(lastVisibleChild);
+            
+            if (lastVisibleIndex >= 0 && lastVisibleIndex < this._childLinePositions.length) {
+                const lastVisiblePos = this._childLinePositions[lastVisibleIndex];
+                
+                // Show scroll down if scrolling would reveal more content
+                // This happens when:
+                // 1. There are more children that aren't visible at all
+                const hasMoreChildren = lastVisibleIndex < this._childItems.length - 1;
+                
+                // 2. OR the last visible child is cut off AND scrolling would show more of it
+                const lastChildExtendsBelow = lastVisiblePos ? 
+                    (lastVisiblePos.end - this._childScrollOffset) > availableLines : false;
+                
+                // Calculate if we're already showing the maximum possible content
+                // (i.e., we're scrolled to show the last child and confirmation)
+                const lastChildPos = this._childLinePositions[this._childLinePositions.length - 1];
+                const totalContentLines = lastChildPos ? lastChildPos.end : 0;
+                const maxScrollOffset = Math.max(0, totalContentLines - availableLines);
+                const atMaxScroll = this._childScrollOffset >= maxScrollOffset;
+                
+                showScrollDown = !atMaxScroll && (hasMoreChildren || lastChildExtendsBelow);
+                
+            }
             }
         }
         
@@ -119,7 +175,7 @@ export class ContainerListItem implements IListItem {
             visibleChildren,
             scrollOffset: this._childScrollOffset,
             showScrollUp: this._childScrollOffset > 0,
-            showScrollDown: this._childScrollOffset + availableLines < currentLine
+            showScrollDown: showScrollDown
         };
     }
     
@@ -128,47 +184,67 @@ export class ContainerListItem implements IListItem {
             // Collapsed view - single line
             return (
                 <Text>
-                    <Transform transform={output => output}>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                            {this.icon}
-                        </Text>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                            {' '}{this.label}
-                        </Text>
-                    </Transform>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
+                        {this.icon}
+                    </Text>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                        {' '}{this.label}
+                    </Text>
                 </Text>
             );
         }
         
         // Expanded view - show children
         const elements: ReactElement[] = [];
-        const availableLines = (maxLines || 8) - 1; // Reserve space for header only (bottom border integrated)
+        // Use the height allocated by parent (maxLines) or request maximum space
+        // We need to use it wisely: 1 for header, 1 for footer, rest for content
+        const allocatedHeight = maxLines || this.getRequiredLines(maxWidth);
+        const availableLines = Math.max(1, allocatedHeight - 2); // Reserve space for header and confirmation line
+        
+        // Update line positions with actual width if they haven't been calculated yet
+        // or if the width has changed significantly
+        if (this._childLinePositions.length === 0 || this._childLinePositions.length !== this._childItems.length) {
+            this.calculateAllChildLinePositions(maxWidth);
+        }
         
         // Calculate viewport
         const viewport = this.calculateChildViewport(availableLines, maxWidth);
         
+        // Debug viewport calculation
+        console.error(`\n=== CONTAINER VIEWPORT DEBUG ===`);
+        console.error(`Container: ${this.label}`);
+        console.error(`Available lines: ${availableLines}`);
+        console.error(`Selected index: ${this._childSelectedIndex}`);
+        console.error(`Scroll offset: ${this._childScrollOffset}`);
+        console.error(`Visible children: ${viewport.visibleChildren.length}`);
+        console.error(`Is confirm focused: ${this._isConfirmFocused}`);
+        if (this._childLinePositions[this._childSelectedIndex]) {
+            const pos = this._childLinePositions[this._childSelectedIndex];
+            console.error(`Selected child position: ${pos?.start}-${pos?.end}`);
+        }
+        console.error(`=== END DEBUG ===\n`);
+        
+        
         // Header
         elements.push(
             <Text key="header">
-                <Transform transform={output => output}>
-                    <Text {...textColorProp(theme.colors.accent)}>
-                        ■ {this.label}
-                    </Text>
-                </Transform>
+                <Text {...textColorProp(theme.colors.accent)}>
+                    ■ {this.label}
+                </Text>
             </Text>
         );
         
+        
         // Render visible children with integrated scroll indicators
-        viewport.visibleChildren.forEach((child, index) => {
+        let renderedLines = 0; // Track lines used by children only
+        viewport.visibleChildren.forEach((child) => {
             // Set active state
             const childGlobalIndex = this._childItems.indexOf(child);
             const isChildSelected = childGlobalIndex === this._childSelectedIndex && !this._isConfirmFocused;
             child.isActive = isChildSelected;
             
             
-            // Determine line prefix with scroll indicators (like FilePickerBody)
-            const isFirstVisible = index === 0;
-            const isLastVisible = index === viewport.visibleChildren.length - 1;
+            // Determine line prefix
             const isActualLastChild = childGlobalIndex === this._childItems.length - 1;
             
             // Calculate available lines for this child
@@ -177,21 +253,30 @@ export class ContainerListItem implements IListItem {
             
             // Special case: If this is the last child and we have extra space, give it dynamic height
             if (isActualLastChild && !viewport.showScrollDown) {
-                const usedLines = elements.length - 1; // -1 because we haven't added this child yet
-                const remainingLines = (maxLines || 8) - 1 - usedLines; // -1 for header
-                childMaxLines = Math.max(childMaxLines, remainingLines);
+                const remainingLines = availableLines - renderedLines;
+                if (remainingLines > childMaxLines) {
+                    childMaxLines = remainingLines;
+                }
             }
+            
+            // For ContainerListItem, we simplify the scroll indicators
+            // Since the confirmation line is always visible at the bottom,
+            // we don't show scroll indicators
             let linePrefix = '│ ';
             
-            if (viewport.showScrollUp && isFirstVisible) {
-                linePrefix = '│▲';
-            } else if (viewport.showScrollDown && isLastVisible) {
-                linePrefix = '│▼';
-            } else if (isActualLastChild && !viewport.showScrollDown) {
-                // Last child gets continuation border (not bottom border since confirmation will have the bottom border)
-                linePrefix = '│ ';
-            }
             
+            // Check if we have enough space for this child
+            // availableLines already excludes header and footer space
+            if (renderedLines + childMaxLines > availableLines) {
+                // Partial render: if we have at least 1 line of space, render what we can
+                const remainingSpace = availableLines - renderedLines;
+                if (remainingSpace >= 1) {
+                    childMaxLines = remainingSpace;
+                } else {
+                    // Not enough space for even 1 line, stop rendering
+                    return;
+                }
+            }
             
             // Render child with border prefix using Box to avoid nesting issues
             // Calculate available width based on actual prefix length
@@ -239,21 +324,40 @@ export class ContainerListItem implements IListItem {
                     );
                 }
             }
+            
+            // Update rendered lines counter
+            renderedLines += childMaxLines;
         });
         
-        // Add confirmation line (like folder picker)
+        // Add confirmation line as the last element (always visible at bottom)
+        // This is rendered after all scrollable content
+        // Calculate available width for the confirmation text
+        const confirmPrefix = "└─";
+        const confirmIcon = this._isConfirmFocused ? "▶ " : "  ";
+        const confirmCheck = "✓ ";
+        const confirmText = "Confirm Selection";
+        const confirmPrefixWidth = confirmPrefix.length + confirmIcon.length + confirmCheck.length;
+        const availableConfirmWidth = maxWidth - confirmPrefixWidth;
+        
+        // Truncate confirmation text if needed
+        let displayConfirmText = confirmText;
+        if (confirmText.length > availableConfirmWidth) {
+            displayConfirmText = confirmText.substring(0, Math.max(0, availableConfirmWidth - 1)) + "…";
+        }
+        
         elements.push(
             <Text key="confirm-action">
-                <Text {...textColorProp(theme.colors.textMuted)}>└─</Text>
+                <Text {...textColorProp(theme.colors.textMuted)}>{confirmPrefix}</Text>
                 {this._isConfirmFocused ? (
                     <Text {...textColorProp(theme.colors.accent)}>▶ </Text>
                 ) : (
                     <Text>  </Text>
                 )}
                 <Text {...textColorProp(theme.colors.successGreen)}>✓</Text>
-                <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}> Confirm Selection</Text>
+                <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}> {displayConfirmText}</Text>
             </Text>
         );
+        
         
         return elements;
     }
@@ -408,10 +512,36 @@ export class ContainerListItem implements IListItem {
     }
     
     /**
+     * Pre-calculate line positions for all children
+     * This is needed for scroll calculations during navigation
+     */
+    private calculateAllChildLinePositions(maxWidth: number): void {
+        this._childLinePositions = [];
+        let currentLine = 0;
+        const prefixWidth = 2; // "│ " prefix
+        
+        for (let i = 0; i < this._childItems.length; i++) {
+            const child = this._childItems[i];
+            if (!child) continue;
+            const childLines = child.getRequiredLines ? child.getRequiredLines(maxWidth - prefixWidth) : 1;
+            
+            this._childLinePositions.push({
+                start: currentLine,
+                end: currentLine + childLines
+            });
+            currentLine += childLines;
+        }
+    }
+    
+    /**
      * Enter expanded mode and initialize child states
      */
     onEnter(): void {
         this._isControllingInput = true;
+        
+        // Pre-calculate line positions for scroll management
+        // Use a reasonable default width - this will be recalculated during render
+        this.calculateAllChildLinePositions(80);
         
         // Initialize child selection to first navigable child
         this._childSelectedIndex = this.findFirstNavigableChild();
@@ -497,6 +627,34 @@ export class ContainerListItem implements IListItem {
         
         // Update index
         this._childSelectedIndex = newIndex;
+        
+        // Adjust scroll to ensure new selection is visible
+        if (newIndex >= 0 && newIndex < this._childLinePositions.length) {
+            const selectedPosition = this._childLinePositions[newIndex];
+            if (selectedPosition) {
+                // Use the actual available lines from last render instead of an estimate
+                // This prevents unnecessary scrolling when all content fits in viewport
+                const viewportLines = this._lastAvailableLines;
+                
+                const oldScrollOffset = this._childScrollOffset;
+                
+                // Adjust scroll if needed to keep selected item visible
+                if (selectedPosition.end > this._childScrollOffset + viewportLines) {
+                    // Item is cut off at bottom - scroll down to show it
+                    this._childScrollOffset = selectedPosition.end - viewportLines;
+                } else if (selectedPosition.start < this._childScrollOffset) {
+                    // Item is cut off at top - scroll up to show it
+                    this._childScrollOffset = selectedPosition.start;
+                }
+                
+                console.error(`\n=== NAVIGATION DEBUG ===`);
+                console.error(`Old index: ${oldIndex}, New index: ${newIndex}`);
+                console.error(`Selected position: ${selectedPosition.start}-${selectedPosition.end}`);
+                console.error(`Viewport lines: ${viewportLines}`);
+                console.error(`Old scroll: ${oldScrollOffset}, New scroll: ${this._childScrollOffset}`);
+                console.error(`=== END NAV DEBUG ===\n`);
+            }
+        }
         
         // Select new child
         if (newIndex >= 0 && newIndex < this._childItems.length) {

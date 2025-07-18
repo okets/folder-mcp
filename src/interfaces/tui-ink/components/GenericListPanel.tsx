@@ -56,17 +56,19 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     
     // Calculate content width for items  
     const panelWidth = width || columns - 2;
-    const borderOverhead = 6; // Increased buffer - we control layout, not Ink
+    const borderOverhead = 6; // Back to reasonable margin - the issue is BorderedBox border rendering, not text
     const itemMaxWidth = panelWidth - borderOverhead;
+    
+    
     
     // Calculate dynamic height based on content if no height specified
     let actualHeight: number;
     let maxLines: number;
     
     if (height) {
-        // Fixed height mode
+        // Fixed height mode - respect the height given by parent
         actualHeight = height;
-        const boxOverhead = 3; // 2 for borders + 1 for subtitle (title is embedded in top border)
+        const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
         maxLines = Math.max(1, actualHeight - boxOverhead);
     } else {
         // Dynamic height mode - calculate based on content but respect terminal limits
@@ -79,11 +81,13 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             
             const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
             totalRequiredLines += itemLines;
+            
         }
         
         // Calculate box overhead correctly based on BorderedBox implementation
         const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
         const idealHeight = totalRequiredLines + boxOverhead;
+        
         
         // Respect terminal height - leave space for shell, prompt, etc.
         // For very small terminals, use most of the space; for larger ones, leave more breathing room
@@ -104,6 +108,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             actualHeight = maxTerminalHeight;
             maxLines = Math.max(1, actualHeight - boxOverhead);
         }
+        
     }
     
     
@@ -123,13 +128,15 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                 if (!item) continue;
                 
                 const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
+                // Cap item lines to maxLines to prevent overflow
+                const cappedItemLines = Math.min(itemLines, maxLines);
                 
-                totalContentLines += itemLines;
+                totalContentLines += cappedItemLines;
                 itemLinePositions.push({
                     start: currentLine,
-                    end: currentLine + itemLines
+                    end: currentLine + cappedItemLines
                 });
-                currentLine += itemLines;
+                currentLine += cappedItemLines;
                 
             }
         }
@@ -378,6 +385,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         );
     }
     
+    
     return (
         <ProgressModeProvider width={panelWidth}>
             <BorderedBox
@@ -433,7 +441,8 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                             }
                             
                             // Pass the actual remaining lines so item can make responsive decisions
-                            const itemMaxLines = remainingLines;
+                            // Ensure we never give more lines than the panel has available
+                            const itemMaxLines = Math.min(remainingLines, maxLines);
                             
                             
                             // Get rendered elements from list item
@@ -450,7 +459,9 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                     );
                                 });
                                 // Use the actual required lines, not the number of React elements
-                                remainingLines -= listItem.getRequiredLines(itemMaxWidth);
+                                const requiredLines = listItem.getRequiredLines(itemMaxWidth);
+                                // Cap to actual lines rendered to prevent underflow
+                                remainingLines -= Math.min(requiredLines, itemMaxLines);
                             } else {
                                 elements.push(
                                     <SelfConstrainedWrapper key={`item-${visualIndex}`}>
@@ -460,6 +471,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                 remainingLines -= 1;
                             }
                         });
+                        
                         
                         const result = elements.length > 0 ? elements : <Text {...textColorProp(theme.colors.textMuted)}>{items.length} items</Text>;
                         return result;

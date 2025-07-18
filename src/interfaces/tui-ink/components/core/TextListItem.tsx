@@ -228,7 +228,7 @@ export class TextListItem implements IListItem {
                     <Text key={`text-line-${i}`}>
                         <Transform transform={output => output}>
                             <Text>
-                                {' '.repeat(iconWidth + 3)}{textLines[i]}
+                                {"   "}{textLines[i]}
                             </Text>
                         </Transform>
                     </Text>
@@ -236,20 +236,41 @@ export class TextListItem implements IListItem {
                 linesUsed++;
             }
         } else {
-            // Handle React element - single line only with indentation
-            elements.push(
-                <Text key="formatted-line">
-                    <Transform transform={output => output}>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                            {displayIcon}
-                        </Text>
-                        <Text>
-                            {"   "}
-                        </Text>
-                        {this.formattedText}
-                    </Transform>
-                </Text>
-            );
+            // Handle React element with wrapping - extract text and apply same logic as strings
+            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+            const plainText = this.extractTextContent(this.formattedText);
+            const textLines = this.wrapText(plainText, availableWidth);
+            
+            // First line: icon + indentation + start of text
+            if (linesUsed < maxLinesToUse && textLines.length > 0) {
+                elements.push(
+                    <Text key="line-0">
+                        <Transform transform={output => output}>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
+                                {displayIcon}
+                            </Text>
+                            <Text color="gray">
+                                {"   "}{textLines[0]}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+                linesUsed++;
+            }
+            
+            // Continuation lines for React element text
+            for (let i = 1; i < textLines.length && linesUsed < maxLinesToUse; i++) {
+                elements.push(
+                    <Text key={`react-line-${i}`}>
+                        <Transform transform={output => output}>
+                            <Text color="gray">
+                                {"   "}{textLines[i]}
+                            </Text>
+                        </Transform>
+                    </Text>
+                );
+                linesUsed++;
+            }
         }
         
         return elements.length === 1 ? elements[0]! : elements;
