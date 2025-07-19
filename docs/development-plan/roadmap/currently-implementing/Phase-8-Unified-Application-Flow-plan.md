@@ -692,6 +692,67 @@ This creates the complete visual architecture foundation needed for:
 
 The task provides a complete implementation roadmap that can be followed to create the ContainerListItem component when needed for specific user interface requirements.
 
+### Task 8.6: Implement ContainerListItem with Advanced Viewport System
+**Status**: ✅ COMPLETED  
+**Discovered**: 2025-07-19  
+**What**: Implement the full ContainerListItem component with sophisticated viewport management system and direction-aware bring-into-view logic.
+
+**Why**: Following the foundation laid in Task 8.5, implement the actual ContainerListItem component to enable complex wizard interfaces with proper navigation and visual feedback.
+
+**Implementation Summary**:
+Created a production-ready ContainerListItem component with a complete ViewportSystem architecture that handles:
+
+**Core ViewportSystem Architecture**:
+1. **ViewportCalculator**: Handles all dimension calculations, header layout, and confirmation layout
+2. **ScrollStateManager**: Manages scroll offset with direction-aware positioning algorithms
+3. **ElementVisibilityCalculator**: Determines which elements are visible and handles clipping
+4. **NavigationManager**: Finds navigable elements with proper keyboard navigation
+5. **ExpansionManager**: Handles collapsed/expanded state transitions
+
+**Key Features Implemented**:
+- **Direction-Aware Scroll Positioning**: Down navigation positions elements at viewport bottom, up navigation at top
+- **Render-Cycle Scroll Adjustment**: Ensures selected elements stay visible during render for atomic operations
+- **Height Constraints**: Prevents elements from exceeding viewport bounds with proper clipping
+- **Minimal Scroll Logic**: Only scrolls when necessary to show complete elements
+- **Responsive Behavior**: Adapts to terminal size changes and maxLines constraints
+- **Proper Input Delegation**: Routes keyboard input through nested component hierarchy
+
+**Viewport Management Innovations**:
+- **Consistent Calculation**: Same viewport calculation used for both rendering and navigation
+- **Element Position Tracking**: Precise element boundary tracking for visibility calculations
+- **Scroll Indicator Integration**: Line-based scroll indicators (▲/▼) at exact viewport boundaries
+- **Overflow Prevention**: Elements constrained to viewport height to prevent infinite expansion
+
+**Layout Improvements**:
+- **Simplified Wizard Layout**: Removed explanatory text elements for cleaner navigation
+- **Configuration Item Focus**: Direct configuration items without intervening text elements
+- **Visual Clarity**: Clean presentation focused on actionable items
+
+**Technical Subtasks Completed**:
+- [x] Implement complete ViewportSystem with 5 specialized managers
+- [x] Add direction-aware scroll positioning algorithms in ScrollStateManager
+- [x] Implement render-cycle scroll adjustment for atomic element visibility
+- [x] Add height constraints to ElementVisibilityCalculator
+- [x] Fix viewport calculation consistency between render and navigation cycles
+- [x] Remove explanatory text elements from wizard layout
+- [x] Add comprehensive navigation direction tracking
+- [x] Implement minimal scroll logic to reduce unnecessary scrolling
+
+**Success Criteria Achieved**:
+- ✅ Selected elements always stay in viewport during navigation
+- ✅ Direction-aware positioning: down navigation shows elements at bottom, up at top
+- ✅ Responsive behavior adapts to terminal size changes
+- ✅ Keyboard navigation flows smoothly between nested elements
+- ✅ Visual feedback is immediate and consistent
+- ✅ Layout is clean and focused on user actions
+
+**Files Implemented**:
+- `src/interfaces/tui-ink/components/core/ContainerListItem.tsx` - Main component
+- `src/interfaces/tui-ink/components/core/viewport/` - Complete viewport system
+- Updated `src/interfaces/tui-ink/AppFullscreen.tsx` - Simplified wizard layout
+
+**Commit**: `838d8be` - Complete implementation with direction-aware bring-into-view logic
+
 ### Task 7: Complete CLI Cleanup and Folder Selection Flow
 **Status**: ✅ Completed  
 **Discovered**: 2025-07-09  
@@ -1096,6 +1157,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 4.8 | Multi-Folder Configuration | 2025-07-10 | ✅ | CLI params, model validation, auto-completion |
 | 4.8.5 | SimpleButtonsRow Component | 2025-07-11 | ✅ | Production-ready button component |
 | 8.5 | Nested ListItem Visual Component | 2025-07-15 | ✅ | Complete implementation design and documentation |
+| 8.6 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
 | 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
 | 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition enhancement |
 | 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions |
