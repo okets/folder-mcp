@@ -98,7 +98,7 @@ export class ScrollStateManager implements ScrollCommands {
     
     /**
      * Scroll to ensure a specific element is visible
-     * Implements intelligent positioning based on navigation direction
+     * Implements direction-aware positioning based on navigation direction
      */
     scrollToElement(
         elementIndex: number, 
@@ -116,24 +116,47 @@ export class ScrollStateManager implements ScrollCommands {
         
         const oldOffset = this.scrollOffset;
         
-        // Basic visibility check first
-        if (elementPos.end > this.scrollOffset + this.viewportHeight) {
-            // Element extends below viewport - scroll down to show it
-            this.scrollOffset = elementPos.end - this.viewportHeight;
-        } else if (elementPos.start < this.scrollOffset) {
-            // Element starts above viewport - scroll up to show it
-            this.scrollOffset = elementPos.start;
+        // Check if element is already fully visible
+        if (this.isElementFullyVisible(elementPos)) {
+            return false; // No scroll needed
         }
         
-        // Apply intelligent positioning based on navigation direction
+        // Check element position relative to viewport
+        const currentViewportStart = this.scrollOffset;
+        const currentViewportEnd = this.scrollOffset + this.viewportHeight;
+        const elementCompletelyBelow = elementPos.start >= currentViewportEnd;
+        const elementCompletelyAbove = elementPos.end <= currentViewportStart;
+        const elementExtendsBelow = elementPos.end > currentViewportEnd;
+        const elementExtendsAbove = elementPos.start < currentViewportStart;
+        
+        // Direction-aware positioning:
+        // DOWN navigation: position element at BOTTOM of viewport when below
+        // UP navigation: position element at TOP of viewport when above
+        
         if (navigationDirection === 'down') {
-            // When navigating down, position element near top for better context
-            const targetOffset = Math.max(0, elementPos.start - Math.floor(this.viewportHeight * 0.2));
-            this.scrollOffset = Math.min(this.scrollOffset, targetOffset);
+            if (elementCompletelyBelow || elementExtendsBelow) {
+                // Element is below viewport - use minimal scroll to make it fully visible
+                const elementHeight = elementPos.end - elementPos.start;
+                const currentViewportEnd = this.scrollOffset + this.viewportHeight;
+                
+                // Calculate minimal scroll needed to show the complete element
+                const minScrollNeeded = elementPos.end - currentViewportEnd;
+                const newScrollOffset = this.scrollOffset + minScrollNeeded;
+                
+                this.scrollOffset = newScrollOffset;
+            }
         } else if (navigationDirection === 'up') {
-            // When navigating up, position element near bottom for better context
-            const targetOffset = elementPos.end - Math.floor(this.viewportHeight * 0.8);
-            this.scrollOffset = Math.max(this.scrollOffset, Math.max(0, targetOffset));
+            if (elementCompletelyAbove || elementExtendsAbove) {
+                // Element is above viewport - bring START to first line
+                this.scrollOffset = elementPos.start;
+            }
+        } else {
+            // Fallback: basic visibility
+            if (elementExtendsBelow) {
+                this.scrollOffset = elementPos.end - this.viewportHeight;
+            } else if (elementExtendsAbove) {
+                this.scrollOffset = elementPos.start;
+            }
         }
         
         this.constrainScrollOffset();

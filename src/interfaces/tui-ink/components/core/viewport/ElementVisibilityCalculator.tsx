@@ -80,13 +80,16 @@ export class ElementVisibilityCalculator {
             };
             
             visibleElements.push(visibleElement);
-            totalVisibleLines += renderLines;
+            
+            // CRITICAL FIX: Count only the VISIBLE portion, not the full renderLines
+            const visiblePortionHeight = visiblePortion.end - visiblePortion.start;
+            totalVisibleLines += visiblePortionHeight;
             
             if (clippingInfo.isClipped) {
                 hasClippedElements = true;
             }
             
-            // Stop if we've filled the viewport
+            // Stop if we've filled the viewport (using visible portions, not full render lines)
             if (totalVisibleLines >= viewport.contentHeight) {
                 break;
             }
@@ -104,7 +107,8 @@ export class ElementVisibilityCalculator {
      */
     calculateElementPositions(
         elements: IListItem[],
-        contentWidth: number
+        contentWidth: number,
+        maxElementHeight?: number
     ): ElementPosition[] {
         const positions: ElementPosition[] = [];
         let currentLine = 0;
@@ -115,8 +119,13 @@ export class ElementVisibilityCalculator {
                 continue;
             }
             
-            const requiredLines = element.getRequiredLines ? 
+            let requiredLines = element.getRequiredLines ? 
                 element.getRequiredLines(contentWidth) : 1;
+            
+            // Apply height constraint: element height cannot exceed viewport height
+            if (maxElementHeight && requiredLines > maxElementHeight) {
+                requiredLines = maxElementHeight;
+            }
             
             positions.push({
                 start: currentLine,

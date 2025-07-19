@@ -21,6 +21,8 @@ export class ContainerListItem implements IListItem {
     private _isConfirmFocused: boolean = false;
     private _onComplete: ((results: any) => void) | undefined;
     private _lastRenderWidth: number = 80; // Track last render width for navigation
+    private _lastMaxLines: number | undefined; // Track last maxLines constraint for consistent viewport calculation
+    private _lastNavigationDirection: 'up' | 'down' = 'down'; // Track navigation direction for bring-into-view
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -61,7 +63,8 @@ export class ContainerListItem implements IListItem {
         const viewport = this.viewportSystem.viewportCalculator.calculateViewport(maxWidth);
         const elementPositions = this.viewportSystem.visibilityCalculator.calculateElementPositions(
             this._childItems,
-            viewport.contentWidth
+            viewport.contentWidth,
+            viewport.contentHeight // Apply height constraint: max element height = viewport height
         );
         
         const totalContentHeight = this.viewportSystem.visibilityCalculator.calculateTotalContentHeight(
@@ -76,8 +79,9 @@ export class ContainerListItem implements IListItem {
      * Render using the new viewport system
      */
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        // Store width for navigation calculations
+        // Store width and maxLines for navigation calculations
         this._lastRenderWidth = maxWidth;
+        this._lastMaxLines = maxLines;
         
         if (!this._isControllingInput) {
             return this.renderCollapsed(maxWidth);
@@ -121,17 +125,23 @@ export class ContainerListItem implements IListItem {
             maxLines
         );
         
-        // Step 2: Calculate element positions
+        
+        // Step 2: Calculate element positions with height constraints
         const elementPositions = this.viewportSystem.visibilityCalculator.calculateElementPositions(
             this._childItems,
-            viewport.contentWidth
+            viewport.contentWidth,
+            viewport.contentHeight // Apply height constraint: max element height = viewport height
         );
         
         // Step 3: Update scroll manager with current dimensions
         const totalContentHeight = this.viewportSystem.visibilityCalculator.calculateTotalContentHeight(
             elementPositions
         );
+        
         this.viewportSystem.scrollManager.updateDimensions(viewport, totalContentHeight);
+        
+        // Step 3.5: RENDER-CYCLE SCROLL ADJUSTMENT - Ensure selected element is visible
+        this.ensureSelectedElementVisible(elementPositions, viewport);
         
         // Step 4: Calculate visible elements
         const visibleElements = this.viewportSystem.visibilityCalculator.calculateVisibleElements(
@@ -283,14 +293,22 @@ export class ContainerListItem implements IListItem {
             return activeChild.handleInput(input, key);
         }
         
-        // Priority 2: Handle navigation using actual render width
-        const viewport = this.viewportSystem.viewportCalculator.calculateViewport(this._lastRenderWidth);
+        // Priority 2: Handle navigation using actual render width and constraints
+        // CRITICAL: Use the same viewport calculation as rendering to ensure consistency
+        const viewport = this.viewportSystem.viewportCalculator.calculateViewport(
+            this._lastRenderWidth,
+            this._lastMaxLines // Use the same maxLines constraint as in rendering
+        );
+        
         const elementPositions = this.viewportSystem.visibilityCalculator.calculateElementPositions(
             this._childItems,
-            viewport.contentWidth
+            viewport.contentWidth,
+            viewport.contentHeight // Apply height constraint: max element height = viewport height
         );
         
         if (key.upArrow) {
+            this._lastNavigationDirection = 'up'; // Track navigation direction
+            
             if (this._isConfirmFocused) {
                 // From confirmation, go to last navigable item
                 const lastNavigableIndex = this.viewportSystem.navigationManager.findLastNavigableElement(
@@ -298,7 +316,7 @@ export class ContainerListItem implements IListItem {
                 );
                 if (lastNavigableIndex >= 0) {
                     this._isConfirmFocused = false;
-                    this.updateSelectionToIndex(lastNavigableIndex, elementPositions);
+                    this.updateSelectionToIndex(lastNavigableIndex, elementPositions, 'up');
                     return true;
                 }
                 return false; // No navigable items
@@ -311,7 +329,7 @@ export class ContainerListItem implements IListItem {
                 
                 if (prevIndex >= 0) {
                     // Found previous navigable item
-                    this.updateSelectionToIndex(prevIndex, elementPositions);
+                    this.updateSelectionToIndex(prevIndex, elementPositions, 'up');
                     return true;
                 } else {
                     // No previous item, go to confirmation (circular navigation)
@@ -322,6 +340,8 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.downArrow) {
+            this._lastNavigationDirection = 'down'; // Track navigation direction
+            
             if (this._isConfirmFocused) {
                 // From confirmation, go to first navigable item
                 const firstNavigableIndex = this.viewportSystem.navigationManager.findFirstNavigableElement(
@@ -329,7 +349,7 @@ export class ContainerListItem implements IListItem {
                 );
                 if (firstNavigableIndex >= 0) {
                     this._isConfirmFocused = false;
-                    this.updateSelectionToIndex(firstNavigableIndex, elementPositions);
+                    this.updateSelectionToIndex(firstNavigableIndex, elementPositions, 'down');
                     return true;
                 }
                 return false; // No navigable items
@@ -342,7 +362,7 @@ export class ContainerListItem implements IListItem {
                 
                 if (nextIndex >= 0) {
                     // Found next navigable item
-                    this.updateSelectionToIndex(nextIndex, elementPositions);
+                    this.updateSelectionToIndex(nextIndex, elementPositions, 'down');
                     return true;
                 } else {
                     // No next item, go to confirmation (circular navigation)
@@ -384,9 +404,13 @@ export class ContainerListItem implements IListItem {
     
     
     /**
-     * Update selection to a specific index with scroll adjustment
+     * Update selection to a specific index - scroll handled in render cycle
      */
-    private updateSelectionToIndex(newIndex: number, elementPositions: any[]): void {
+    private updateSelectionToIndex(
+        newIndex: number, 
+        elementPositions: any[], 
+        direction?: 'up' | 'down'
+    ): void {
         // Deselect old child
         const oldChild = this._childItems[this._childSelectedIndex];
         if (oldChild) {
@@ -396,15 +420,11 @@ export class ContainerListItem implements IListItem {
             }
         }
         
-        // Update selection
+        // Update selection and store navigation direction for render cycle
         this._childSelectedIndex = newIndex;
+        this._lastNavigationDirection = direction || this._lastNavigationDirection;
         
-        // Adjust scroll to ensure new selection is visible
-        this.viewportSystem.scrollManager.scrollToElement(
-            newIndex,
-            elementPositions,
-            'down' // Default direction
-        );
+        // NOTE: Scroll adjustment now happens in render cycle to ensure atomicity
         
         // Select new child
         const newChild = this._childItems[this._childSelectedIndex];
@@ -413,6 +433,38 @@ export class ContainerListItem implements IListItem {
             if (newChild.onSelect) {
                 newChild.onSelect();
             }
+        }
+    }
+    
+    /**
+     * RENDER-CYCLE SCROLL ADJUSTMENT: Ensure selected element is always visible
+     */
+    private ensureSelectedElementVisible(elementPositions: any[], viewport: any): void {
+        // Skip if focus is on confirmation
+        if (this._isConfirmFocused) {
+            return;
+        }
+        
+        const selectedElementPos = elementPositions[this._childSelectedIndex];
+        if (!selectedElementPos) {
+            return;
+        }
+        
+        const currentScrollOffset = this.viewportSystem.scrollManager.getScrollOffset();
+        const viewportStart = currentScrollOffset;
+        const viewportEnd = currentScrollOffset + viewport.contentHeight;
+        
+        // Check if selected element is visible
+        const elementVisible = selectedElementPos.start >= viewportStart && 
+                              selectedElementPos.end <= viewportEnd;
+        
+        if (!elementVisible) {
+            // Element not visible - adjust scroll using direction-aware logic
+            this.viewportSystem.scrollManager.scrollToElement(
+                this._childSelectedIndex,
+                elementPositions,
+                this._lastNavigationDirection
+            );
         }
     }
     
