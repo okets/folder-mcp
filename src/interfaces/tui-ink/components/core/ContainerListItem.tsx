@@ -187,7 +187,7 @@ export class ContainerListItem implements IListItem {
     }
     
     /**
-     * Render visible children with scroll indicators
+     * Render visible children with line-based scroll indicators
      */
     private renderVisibleChildren(
         elements: ReactElement[],
@@ -195,24 +195,18 @@ export class ContainerListItem implements IListItem {
         viewport: any,
         scrollIndicators: any
     ): void {
-        visibleElements.forEach((visibleElement, index) => {
+        // Track current line position within viewport for accurate indicator placement
+        let currentViewportLine = 0;
+        
+        // Calculate total viewport lines available for content indicators
+        const maxViewportLines = viewport.contentHeight;
+        
+        visibleElements.forEach((visibleElement) => {
             const { element, globalIndex, renderLines } = visibleElement;
             
             // Set active state
             const isChildSelected = globalIndex === this._childSelectedIndex && !this._isConfirmFocused;
             element.isActive = isChildSelected;
-            
-            // Determine scroll indicator position
-            const isFirstVisible = index === 0;
-            const isLastVisible = index === visibleElements.length - 1;
-            
-            // Calculate prefix with scroll indicators
-            let prefix = '│ ';
-            if (isFirstVisible && scrollIndicators.showUp) {
-                prefix = '│▲';
-            } else if (isLastVisible && scrollIndicators.showDown) {
-                prefix = '│▼';
-            }
             
             // Render child element
             const childElements = element.render(
@@ -220,28 +214,56 @@ export class ContainerListItem implements IListItem {
                 renderLines
             );
             
-            // Handle both single elements and arrays
+            // Handle both single elements and arrays with line-by-line tracking
             if (Array.isArray(childElements)) {
                 childElements.forEach((childElement, elemIndex) => {
-                    const showPrefix = elemIndex === 0; // Only show prefix on first line
+                    // Skip rendering if we've exceeded viewport bounds
+                    if (currentViewportLine >= maxViewportLines) {
+                        return;
+                    }
+                    
+                    // Calculate prefix with scroll indicators based on viewport line position
+                    let prefix = '│ ';
+                    if (currentViewportLine === 0 && scrollIndicators.showUp) {
+                        prefix = '│▲'; // First line of viewport
+                    } else if (currentViewportLine === maxViewportLines - 1 && scrollIndicators.showDown) {
+                        prefix = '│▼'; // Last line of viewport
+                    }
+                    
                     elements.push(
                         <Box key={`child-${globalIndex}-${elemIndex}`}>
                             <Text {...textColorProp(theme.colors.textMuted)}>
-                                {showPrefix ? prefix : '│ '}
+                                {prefix}
                             </Text>
                             {childElement}
                         </Box>
                     );
+                    
+                    // Increment line position for next iteration
+                    currentViewportLine++;
                 });
             } else {
-                elements.push(
-                    <Box key={`child-${globalIndex}`}>
-                        <Text {...textColorProp(theme.colors.textMuted)}>
-                            {prefix}
-                        </Text>
-                        {childElements}
-                    </Box>
-                );
+                // Single element case - skip if beyond viewport bounds
+                if (currentViewportLine < maxViewportLines) {
+                    let prefix = '│ ';
+                    if (currentViewportLine === 0 && scrollIndicators.showUp) {
+                        prefix = '│▲'; // First line of viewport
+                    } else if (currentViewportLine === maxViewportLines - 1 && scrollIndicators.showDown) {
+                        prefix = '│▼'; // Last line of viewport
+                    }
+                    
+                    elements.push(
+                        <Box key={`child-${globalIndex}`}>
+                            <Text {...textColorProp(theme.colors.textMuted)}>
+                                {prefix}
+                            </Text>
+                            {childElements}
+                        </Box>
+                    );
+                    
+                    // Increment line position for next iteration
+                    currentViewportLine++;
+                }
             }
         });
     }
