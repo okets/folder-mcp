@@ -20,6 +20,7 @@ export class ContainerListItem implements IListItem {
     private _childSelectedIndex: number = 0;
     private _isConfirmFocused: boolean = false;
     private _onComplete: ((results: any) => void) | undefined;
+    private _lastRenderWidth: number = 80; // Track last render width for navigation
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -75,6 +76,9 @@ export class ContainerListItem implements IListItem {
      * Render using the new viewport system
      */
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Store width for navigation calculations
+        this._lastRenderWidth = maxWidth;
+        
         if (!this._isControllingInput) {
             return this.renderCollapsed(maxWidth);
         }
@@ -111,11 +115,10 @@ export class ContainerListItem implements IListItem {
     private renderExpanded(maxWidth: number, maxLines?: number): ReactElement[] {
         const elements: ReactElement[] = [];
         
-        // Step 1: Calculate viewport
+        // Step 1: Calculate viewport (don't use getRequiredLines to avoid circular dependency)
         const viewport = this.viewportSystem.viewportCalculator.calculateViewport(
             maxWidth, 
-            maxLines,
-            this.getRequiredLines(maxWidth)
+            maxLines
         );
         
         // Step 2: Calculate element positions
@@ -258,15 +261,8 @@ export class ContainerListItem implements IListItem {
             return activeChild.handleInput(input, key);
         }
         
-        // Priority 2: Handle navigation
-        const navigationState = {
-            selectedIndex: this._childSelectedIndex,
-            isConfirmFocused: this._isConfirmFocused,
-            elements: this._childItems
-        };
-        
-        // Calculate element positions for navigation
-        const viewport = this.viewportSystem.viewportCalculator.calculateViewport(50); // Default width
+        // Priority 2: Handle navigation using actual render width
+        const viewport = this.viewportSystem.viewportCalculator.calculateViewport(this._lastRenderWidth);
         const elementPositions = this.viewportSystem.visibilityCalculator.calculateElementPositions(
             this._childItems,
             viewport.contentWidth
@@ -364,32 +360,6 @@ export class ContainerListItem implements IListItem {
         return true; // Consume all other input when controlling
     }
     
-    /**
-     * Update selection state from navigation result
-     */
-    private updateSelectionFromNavigation(navResult: any): void {
-        // Deselect old child
-        const oldChild = this._childItems[this._childSelectedIndex];
-        if (oldChild) {
-            oldChild.isActive = false;
-            if (oldChild.onDeselect) {
-                oldChild.onDeselect();
-            }
-        }
-        
-        // Update selection
-        this._childSelectedIndex = navResult.newSelectedIndex;
-        this._isConfirmFocused = false;
-        
-        // Select new child
-        const newChild = this._childItems[this._childSelectedIndex];
-        if (newChild) {
-            newChild.isActive = true;
-            if (newChild.onSelect) {
-                newChild.onSelect();
-            }
-        }
-    }
     
     /**
      * Update selection to a specific index with scroll adjustment
