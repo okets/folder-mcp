@@ -48,6 +48,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
     const [wizardJustAdded, setWizardJustAdded] = useState(false);
     
+    // State to hold current folders from ConfigurationComponent
+    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
+    
     // Navigation context for focus management
     const navigation = useNavigationContext();
     
@@ -55,13 +58,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     useEffect(() => {
         if (wizardJustAdded && showAddFolderWizard) {
             console.error(`\n=== FOCUS MANAGEMENT: Moving focus to wizard ===`);
-            // Reset the main panel selection to 0 (the wizard position)
-            navigation.setMainSelectedIndex(0);
+            // Set the main panel selection to the wizard position (after folders)
+            const wizardIndex = currentFolders ? currentFolders.length : 0;
+            navigation.setMainSelectedIndex(wizardIndex);
             setWizardJustAdded(false);
-            console.error(`Focus moved to wizard at index 0`);
+            console.error(`Focus moved to wizard at index ${wizardIndex}`);
             console.error(`=== END FOCUS MANAGEMENT ===\n`);
         }
-    }, [wizardJustAdded, showAddFolderWizard, navigation]);
+    }, [wizardJustAdded, showAddFolderWizard, navigation, currentFolders]);
     
     // Create a robust exit function that works properly on Windows
     const robustExit = useCallback(() => {
@@ -82,9 +86,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             exit();
         }
     }, [exit]);
-    
-    // State to hold current folders from ConfigurationComponent
-    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
     // Simple countdown state for exit safety
     const [countdown, setCountdown] = useState<number | null>(null);
@@ -156,35 +157,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     const configItems = React.useMemo(() => {
         const items: IListItem[] = [];
         
-        // If showing wizard, add it as an expanded ContainerListItem at the top
-        if (showAddFolderWizard) {
-            console.error(`\n=== MAIN SCREEN: SHOWING ADD FOLDER WIZARD ===`);
-            const wizard = createAddFolderWizard({
-                onComplete: async (result: AddFolderWizardResult) => {
-                    console.error(`\n=== WIZARD COMPLETE ===`);
-                    console.error(`Path: ${result.path}`);
-                    console.error(`Model: ${result.model}`);
-                    try {
-                        const container = getContainer();
-                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                        await configComponent.addFolder(result.path, result.model);
-                        await loadFolders();
-                        setShowAddFolderWizard(false);
-                        console.error(`Folder added successfully!`);
-                        console.error(`=== END WIZARD COMPLETE ===\n`);
-                    } catch (error) {
-                        console.error(`Error adding folder: ${error}`);
-                    }
-                },
-                onCancel: () => {
-                    console.error(`\n=== WIZARD CANCELLED ===\n`);
-                    setShowAddFolderWizard(false);
-                }
-            });
-            wizard.onEnter(); // Start in expanded mode
-            items.push(wizard);
-        }
-        
         // Add configured folders first (main content)
         if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
             // Add each configured folder as LogItem
@@ -225,7 +197,36 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             });
         }
         
-        // Add "Add A Folder" button at the bottom (after all folders)
+        // If showing wizard, add it after existing folders but before the button
+        if (showAddFolderWizard) {
+            console.error(`\n=== MAIN SCREEN: SHOWING ADD FOLDER WIZARD ===`);
+            const wizard = createAddFolderWizard({
+                onComplete: async (result: AddFolderWizardResult) => {
+                    console.error(`\n=== WIZARD COMPLETE ===`);
+                    console.error(`Path: ${result.path}`);
+                    console.error(`Model: ${result.model}`);
+                    try {
+                        const container = getContainer();
+                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                        await configComponent.addFolder(result.path, result.model);
+                        await loadFolders();
+                        setShowAddFolderWizard(false);
+                        console.error(`Folder added successfully!`);
+                        console.error(`=== END WIZARD COMPLETE ===\n`);
+                    } catch (error) {
+                        console.error(`Error adding folder: ${error}`);
+                    }
+                },
+                onCancel: () => {
+                    console.error(`\n=== WIZARD CANCELLED ===\n`);
+                    setShowAddFolderWizard(false);
+                }
+            });
+            wizard.onEnter(); // Start in expanded mode
+            items.push(wizard);
+        }
+        
+        // Add "Add A Folder" button at the bottom (after all folders and wizard)
         const addFolderButton = new SimpleButtonsRow(
             '+',
             '',

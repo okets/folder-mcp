@@ -221,6 +221,11 @@ export class FilePickerListItem extends ValidatedListItem {
         // Exit expanded mode
         this._isControllingInput = false;
         this._hasNavigated = false;
+        // Reset navigation path to selected path when exiting without confirmation
+        // This ensures the file picker returns to the confirmed path on next expansion
+        this._currentPath = this._selectedPath;
+        // Re-validate the selected path to ensure validation message is correct
+        this.validateValue();
         // Keep error state to show invalid path in collapsed view
     }
     
