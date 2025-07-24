@@ -692,7 +692,7 @@ This creates the complete visual architecture foundation needed for:
 
 The task provides a complete implementation roadmap that can be followed to create the ContainerListItem component when needed for specific user interface requirements.
 
-### Task 8.6: Implement ContainerListItem with Advanced Viewport System
+### Task 8.5.5: Implement ContainerListItem with Advanced Viewport System
 **Status**: ✅ COMPLETED  
 **Discovered**: 2025-07-19  
 **What**: Implement the full ContainerListItem component with sophisticated viewport management system and direction-aware bring-into-view logic.
@@ -752,6 +752,21 @@ Created a production-ready ContainerListItem component with a complete ViewportS
 - Updated `src/interfaces/tui-ink/AppFullscreen.tsx` - Simplified wizard layout
 
 **Commit**: `838d8be` - Complete implementation with direction-aware bring-into-view logic
+
+### Task 8.6: Add Folder Wizard Implementation
+**Status**: 🚧 IN PROGRESS  
+**Discovered**: 2025-07-24  
+**What**: Implement a reusable Add Folder Wizard component that collects folder path and model selection.
+
+**Why**: Need a unified component for adding folders that works in both first-run wizard and main screen, supporting future evolution to interview-based model selection.
+
+**Key Features**:
+- **Reusable Component**: Single wizard for both first-run and additional folder addition
+- **Model Metadata Display**: Enhanced model selection showing languages, parameters, GPU requirements, and backend
+- **CLI Integration**: Smart parameter handling with validation and auto-completion
+- **Future-Ready**: Architecture supports evolution to interview-based model selection
+
+**Implementation Plan**: See detailed linear plan in [Phase-8-Task-8.6-Add-Folder-Wizard.md](Phase-8-Task-8.6-Add-Folder-Wizard.md)
 
 ### Task 7: Complete CLI Cleanup and Folder Selection Flow
 **Status**: ✅ Completed  
