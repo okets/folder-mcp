@@ -278,20 +278,25 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         } else if (key.leftArrow && selectedItem) {
             // Left arrow collapses (if item supports it)
             if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
-                selectedItem.onCollapse();
-                // Trigger re-render for collapse
-                setItemUpdateTrigger(prev => prev + 1);
-                return true;
+                const didCollapse = selectedItem.onCollapse();
+                if (didCollapse) {
+                    // Trigger re-render for collapse
+                    setItemUpdateTrigger(prev => prev + 1);
+                    return true;
+                }
+                return false;
             }
         } else if (key.escape && selectedItem) {
             // ESC collapses (if item supports it), but if nothing to collapse, let it bubble up for app exit
             if ('onCollapse' in selectedItem && typeof selectedItem.onCollapse === 'function') {
-                selectedItem.onCollapse();
-                // Trigger re-render for collapse
-                setItemUpdateTrigger(prev => prev + 1);
-                return true;
+                const didCollapse = selectedItem.onCollapse();
+                if (didCollapse) {
+                    // Trigger re-render for collapse
+                    setItemUpdateTrigger(prev => prev + 1);
+                    return true;
+                }
             }
-            // If no collapse action available, let escape bubble up for app exit
+            // If no collapse action available or already collapsed, let escape bubble up for app exit
             return false;
         }
         return false;

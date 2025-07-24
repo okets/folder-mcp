@@ -217,6 +217,14 @@ export class ValidationRegistry {
     /**
      * Validate a configuration value
      */
+    /**
+     * Check if a rule exists for the given path
+     */
+    static hasRule(path: string): boolean {
+        this.initialize();
+        return this.rules.has(path);
+    }
+    
     static validateValue(path: string, value: string): ValidationResult {
         const rules = this.getRules(path);
         

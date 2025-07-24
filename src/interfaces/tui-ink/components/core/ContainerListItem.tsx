@@ -1,9 +1,10 @@
 import React, { ReactElement } from 'react';
-import { Box, Text, Key } from 'ink';
+import { Box, Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
 import { theme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 import { ViewportSystem } from './viewport';
+import { ValidationState, ValidationResult, DEFAULT_VALIDATION } from './ValidationState';
 
 /**
  * ContainerListItem - Redesigned with unified viewport management
@@ -20,9 +21,15 @@ export class ContainerListItem implements IListItem {
     private _childSelectedIndex: number = 0;
     private _isConfirmFocused: boolean = false;
     private _onComplete: ((results: any) => void) | undefined;
+    private _onCancel: (() => void) | undefined;
     private _lastRenderWidth: number = 80; // Track last render width for navigation
     private _lastMaxLines: number | undefined; // Track last maxLines constraint for consistent viewport calculation
     private _lastNavigationDirection: 'up' | 'down' = 'down'; // Track navigation direction for bring-into-view
+    
+    // Validation and dual-button state
+    private _validationResult: ValidationResult = DEFAULT_VALIDATION;
+    private _focusedButton: 'confirm' | 'cancel' | null = null;
+    private _useDualButtons: boolean = false;
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -32,10 +39,24 @@ export class ContainerListItem implements IListItem {
         private label: string,
         childItems: IListItem[],
         public isActive: boolean = false,
-        onComplete?: ((results: any) => void) | undefined
+        onComplete?: ((results: any) => void) | undefined,
+        onCancel?: (() => void) | undefined,
+        validationState?: ValidationState,
+        useDualButtons: boolean = false
     ) {
         this._childItems = [...childItems];
         this._onComplete = onComplete;
+        this._onCancel = onCancel;
+        this._useDualButtons = useDualButtons;
+        
+        if (validationState) {
+            this._validationResult = validationState.result;
+            // Set up validation change listener if provided
+            if (validationState.onValidationChange) {
+                validationState.onValidationChange(this._validationResult);
+            }
+        }
+        
         this.viewportSystem = new ViewportSystem();
     }
     
@@ -49,6 +70,35 @@ export class ContainerListItem implements IListItem {
     
     get selectedChildIndex(): number {
         return this._childSelectedIndex;
+    }
+    
+    /**
+     * Update validation state
+     */
+    updateValidation(validationResult: ValidationResult): void {
+        this._validationResult = validationResult;
+        
+        // If validation has errors and we're in dual-button mode, ensure confirm is disabled
+        if (this._useDualButtons && validationResult.hasError) {
+            // If confirm was focused but now disabled, move focus to cancel
+            if (this._focusedButton === 'confirm') {
+                this._focusedButton = 'cancel';
+            }
+        }
+    }
+    
+    /**
+     * Get current validation result
+     */
+    get validationResult(): ValidationResult {
+        return this._validationResult;
+    }
+    
+    /**
+     * Check if confirm button should be enabled
+     */
+    get isConfirmEnabled(): boolean {
+        return !this._validationResult.hasError;
     }
     
     /**
@@ -101,14 +151,36 @@ export class ContainerListItem implements IListItem {
             viewport
         );
         
+        // Check if we have validation error or warning to show
+        const hasValidationError = this._validationResult.hasError;
+        const hasValidationWarning = this._validationResult.hasWarning;
+        
+        // Calculate available space for label considering validation icon
+        const validationIconSpace = (hasValidationError || hasValidationWarning) ? 3 : 0; // " ✗" or " !"
+        const availableForLabel = viewport.contentWidth - validationIconSpace;
+        
+        // Truncate label if needed to make room for validation icon
+        let displayLabel = headerLayout.displayLabel;
+        if (validationIconSpace > 0 && headerLayout.displayLabel.length > availableForLabel) {
+            displayLabel = headerLayout.displayLabel.substring(0, availableForLabel - 1) + '…';
+        }
+        
         return (
             <Text>
-                <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
-                    {headerLayout.displayIcon}
-                </Text>
-                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
-                    {' '}{headerLayout.displayLabel}
-                </Text>
+                <Transform transform={output => output}>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
+                        {headerLayout.displayIcon}
+                    </Text>
+                    <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                        {' '}{displayLabel}
+                    </Text>
+                    {hasValidationError && (
+                        <Text color="red"> ✗</Text>
+                    )}
+                    {!hasValidationError && hasValidationWarning && (
+                        <Text color="yellow"> !</Text>
+                    )}
+                </Transform>
             </Text>
         );
     }
@@ -172,26 +244,78 @@ export class ContainerListItem implements IListItem {
         // Step 7: Render visible children with scroll indicators
         this.renderVisibleChildren(elements, visibleElements.visibleElements, viewport, scrollIndicators);
         
-        // Step 8: Render confirmation line
-        const confirmLayout = this.viewportSystem.viewportCalculator.calculateConfirmationLayout(
-            this._isConfirmFocused,
-            viewport
-        );
-        
-        elements.push(
-            <Box key="confirm-action">
-                <Text>
-                    <Text {...textColorProp(theme.colors.textMuted)}>{confirmLayout.prefix}</Text>
-                    <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}>
-                        {confirmLayout.icon}
+        // Step 8: Render confirmation line(s)
+        if (this._useDualButtons) {
+            // Render dual-button confirmation
+            const dualButtonLayout = this.viewportSystem.viewportCalculator.calculateDualButtonConfirmationLayout(
+                this._focusedButton,
+                viewport,
+                this.isConfirmEnabled
+            );
+            
+            elements.push(
+                <Box key="dual-confirm-action">
+                    <Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>{dualButtonLayout.prefix}</Text>
+                        <Text {...textColorProp(this._focusedButton ? theme.colors.accent : undefined)}>
+                            {dualButtonLayout.icon}
+                        </Text>
+                        
+                        {/* Confirm Button */}
+                        <Text {...textColorProp(
+                            dualButtonLayout.confirmButton.isEnabled 
+                                ? (dualButtonLayout.confirmButton.isFocused ? theme.colors.accent : theme.colors.successGreen)
+                                : theme.colors.textMuted
+                        )}>
+                            {dualButtonLayout.confirmButton.check}
+                        </Text>
+                        <Text {...textColorProp(
+                            dualButtonLayout.confirmButton.isEnabled 
+                                ? (dualButtonLayout.confirmButton.isFocused ? theme.colors.accent : undefined)
+                                : theme.colors.textMuted
+                        )}>
+                            {dualButtonLayout.confirmButton.text}
+                        </Text>
+                        
+                        {/* Separator */}
+                        <Text>{dualButtonLayout.separator}</Text>
+                        
+                        {/* Cancel Button */}
+                        <Text {...textColorProp(
+                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : theme.colors.dangerRed
+                        )}>
+                            {dualButtonLayout.cancelButton.cross}
+                        </Text>
+                        <Text {...textColorProp(
+                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
+                        )}>
+                            {dualButtonLayout.cancelButton.text}
+                        </Text>
                     </Text>
-                    <Text {...textColorProp(theme.colors.successGreen)}>{confirmLayout.check}</Text>
-                    <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}>
-                        {confirmLayout.displayText}
+                </Box>
+            );
+        } else {
+            // Render traditional single confirmation
+            const confirmLayout = this.viewportSystem.viewportCalculator.calculateConfirmationLayout(
+                this._isConfirmFocused,
+                viewport
+            );
+            
+            elements.push(
+                <Box key="confirm-action">
+                    <Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>{confirmLayout.prefix}</Text>
+                        <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}>
+                            {confirmLayout.icon}
+                        </Text>
+                        <Text {...textColorProp(theme.colors.successGreen)}>{confirmLayout.check}</Text>
+                        <Text {...textColorProp(this._isConfirmFocused ? theme.colors.accent : undefined)}>
+                            {confirmLayout.displayText}
+                        </Text>
                     </Text>
-                </Text>
-            </Box>
-        );
+                </Box>
+            );
+        }
         
         return elements;
     }
@@ -309,13 +433,14 @@ export class ContainerListItem implements IListItem {
         if (key.upArrow) {
             this._lastNavigationDirection = 'up'; // Track navigation direction
             
-            if (this._isConfirmFocused) {
-                // From confirmation, go to last navigable item
+            if (this._isConfirmFocused || this._focusedButton) {
+                // From confirmation/buttons, go to last navigable item
                 const lastNavigableIndex = this.viewportSystem.navigationManager.findLastNavigableElement(
                     this._childItems
                 );
                 if (lastNavigableIndex >= 0) {
                     this._isConfirmFocused = false;
+                    this._focusedButton = null;
                     this.updateSelectionToIndex(lastNavigableIndex, elementPositions, 'up');
                     return true;
                 }
@@ -342,13 +467,14 @@ export class ContainerListItem implements IListItem {
         if (key.downArrow) {
             this._lastNavigationDirection = 'down'; // Track navigation direction
             
-            if (this._isConfirmFocused) {
-                // From confirmation, go to first navigable item
+            if (this._isConfirmFocused || this._focusedButton) {
+                // From confirmation/buttons, go to first navigable item
                 const firstNavigableIndex = this.viewportSystem.navigationManager.findFirstNavigableElement(
                     this._childItems
                 );
                 if (firstNavigableIndex >= 0) {
                     this._isConfirmFocused = false;
+                    this._focusedButton = null;
                     this.updateSelectionToIndex(firstNavigableIndex, elementPositions, 'down');
                     return true;
                 }
@@ -372,26 +498,83 @@ export class ContainerListItem implements IListItem {
             }
         }
         
-        // Handle other keys
-        if (key.return) {
-            if (this._isConfirmFocused) {
-                this.confirmAndExit();
+        // Handle left/right arrows for dual-button navigation
+        if (key.leftArrow) {
+            if (this._useDualButtons && (this._isConfirmFocused || this._focusedButton)) {
+                // In dual-button mode: navigate between buttons or cancel
+                if (this._focusedButton === 'confirm') {
+                    this._focusedButton = 'cancel';
+                    return true;
+                } else if (this._focusedButton === 'cancel' || this._isConfirmFocused) {
+                    // From cancel button or legacy confirm focus: exit container
+                    this.cancelAndExit();
+                    return true;
+                }
+            } else {
+                // Traditional behavior: close the container
+                this.cancelAndExit();
                 return true;
-            } else if (activeChild?.onEnter) {
+            }
+        }
+        
+        if (key.rightArrow) {
+            if (this._useDualButtons && (this._isConfirmFocused || this._focusedButton)) {
+                // In dual-button mode: navigate between buttons
+                if (this._focusedButton === 'cancel') {
+                    // Only move to confirm if it's enabled
+                    if (this.isConfirmEnabled) {
+                        this._focusedButton = 'confirm';
+                        return true;
+                    }
+                    return false; // Stay on cancel if confirm is disabled
+                } else if (this._isConfirmFocused) {
+                    // Legacy confirm focus: move to cancel (always enabled)
+                    this._focusedButton = 'cancel';
+                    this._isConfirmFocused = false;
+                    return true;
+                }
+            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onEnter) {
+                // Traditional behavior: expand child item
                 activeChild.onEnter();
                 return true;
             }
         }
         
-        if (key.leftArrow || key.escape) {
-            // Left arrow or escape: close the container
-            this.onExit();
-            return true;
+        // Handle other keys
+        if (key.return) {
+            if (this._useDualButtons) {
+                // Dual-button mode
+                if (this._focusedButton === 'confirm' && this.isConfirmEnabled) {
+                    this.confirmAndExit();
+                    return true;
+                } else if (this._focusedButton === 'cancel') {
+                    this.cancelAndExit();
+                    return true;
+                } else if (this._isConfirmFocused && this.isConfirmEnabled) {
+                    // Legacy confirm focus
+                    this.confirmAndExit();
+                    return true;
+                } else if (!this._focusedButton && activeChild?.onEnter) {
+                    // Not on a button, delegate to active child
+                    activeChild.onEnter();
+                    return true;
+                }
+                return false; // Disabled confirm button or no action
+            } else {
+                // Traditional single-button mode
+                if (this._isConfirmFocused) {
+                    this.confirmAndExit();
+                    return true;
+                } else if (activeChild?.onEnter) {
+                    activeChild.onEnter();
+                    return true;
+                }
+            }
         }
         
-        if (key.rightArrow && !this._isConfirmFocused && activeChild?.onEnter) {
-            // Right arrow: open/expand the selected child item
-            activeChild.onEnter();
+        if (key.escape) {
+            // Escape: always close the container
+            this.cancelAndExit();
             return true;
         }
         
@@ -479,7 +662,20 @@ export class ContainerListItem implements IListItem {
                 currentChild.onDeselect();
             }
         }
-        this._isConfirmFocused = true;
+        
+        if (this._useDualButtons) {
+            // In dual-button mode, focus the appropriate button
+            if (this.isConfirmEnabled) {
+                this._focusedButton = 'confirm';
+            } else {
+                this._focusedButton = 'cancel';
+            }
+            this._isConfirmFocused = false;
+        } else {
+            // Traditional single-button mode
+            this._isConfirmFocused = true;
+            this._focusedButton = null;
+        }
     }
     
     /**
@@ -488,6 +684,16 @@ export class ContainerListItem implements IListItem {
     private confirmAndExit(): void {
         if (this._onComplete) {
             this._onComplete(this.getChildResults());
+        }
+        this.onExit();
+    }
+    
+    /**
+     * Cancel selection and exit
+     */
+    private cancelAndExit(): void {
+        if (this._onCancel) {
+            this._onCancel();
         }
         this.onExit();
     }
@@ -531,7 +737,9 @@ export class ContainerListItem implements IListItem {
             }
         });
         
+        // Clean up button focus states
         this._isConfirmFocused = false;
+        this._focusedButton = null;
     }
     
     onSelect(): void {

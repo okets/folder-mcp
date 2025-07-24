@@ -42,7 +42,7 @@ export class LogItem implements IListItem {
     onEnter(): void {
         // Toggle expansion state
         this._isExpanded = !this._isExpanded;
-        // Status items don't control input, they just expand/collapse
+        // LogItems don't control input - they just expand/collapse
     }
     
     onExpand(): void {
@@ -50,9 +50,14 @@ export class LogItem implements IListItem {
         this._isExpanded = true;
     }
     
-    onCollapse(): void {
+    onCollapse(): boolean {
         // Collapse the item (left arrow)
-        this._isExpanded = false;
+        // Return true if we actually collapsed, false if already collapsed
+        if (this._isExpanded) {
+            this._isExpanded = false;
+            return true;
+        }
+        return false;
     }
     
     onExit(): void {
@@ -60,7 +65,7 @@ export class LogItem implements IListItem {
     }
     
     handleInput(input: string, key: any): boolean {
-        // Status items don't handle input directly
+        // LogItems don't handle input directly - let escape bubble up to app level
         return false;
     }
     

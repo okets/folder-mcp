@@ -13,6 +13,7 @@ export interface ValidationError {
 export interface ValidationResult {
   valid: boolean;
   errors?: ValidationError[];
+  warnings?: ValidationError[];
 }
 
 /**

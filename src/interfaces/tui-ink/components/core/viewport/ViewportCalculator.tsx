@@ -184,4 +184,74 @@ export class ViewportCalculator {
             isTruncated
         };
     }
+    
+    /**
+     * Calculate dual-button confirmation layout with validation states
+     */
+    calculateDualButtonConfirmationLayout(
+        focusedButton: 'confirm' | 'cancel' | null,
+        viewport: ViewportState,
+        isConfirmEnabled: boolean = true
+    ): {
+        prefix: string;
+        icon: string;
+        confirmButton: {
+            check: string;
+            text: string;
+            isEnabled: boolean;
+            isFocused: boolean;
+        };
+        separator: string;
+        cancelButton: {
+            cross: string;
+            text: string;
+            isEnabled: boolean;
+            isFocused: boolean;
+        };
+        isTruncated: boolean;
+    } {
+        const prefix = "└─";
+        const icon = focusedButton ? "▶ " : "  ";
+        
+        // Button components
+        const confirmCheck = "✓ ";
+        const confirmText = "Confirm Selection";
+        const cancelCross = "✗ ";
+        const cancelText = "Cancel";
+        const separator = "  ";
+        
+        // Calculate available space
+        const fixedWidth = prefix.length + icon.length + confirmCheck.length + 
+                          cancelCross.length + separator.length;
+        const availableForText = Math.max(0, viewport.totalWidth - fixedWidth);
+        
+        // Split available space between buttons (favor confirm button)
+        const maxConfirmWidth = Math.floor(availableForText * 0.7);
+        const maxCancelWidth = availableForText - maxConfirmWidth;
+        
+        // Truncate button text if needed
+        const { displayText: confirmDisplayText, isTruncated: confirmTruncated } = 
+            this.calculateTextTruncation(confirmText, maxConfirmWidth);
+        const { displayText: cancelDisplayText, isTruncated: cancelTruncated } = 
+            this.calculateTextTruncation(cancelText, maxCancelWidth);
+        
+        return {
+            prefix,
+            icon,
+            confirmButton: {
+                check: confirmCheck,
+                text: confirmDisplayText,
+                isEnabled: isConfirmEnabled,
+                isFocused: focusedButton === 'confirm'
+            },
+            separator,
+            cancelButton: {
+                cross: cancelCross,
+                text: cancelDisplayText,
+                isEnabled: true, // Cancel is always enabled
+                isFocused: focusedButton === 'cancel'
+            },
+            isTruncated: confirmTruncated || cancelTruncated
+        };
+    }
 }

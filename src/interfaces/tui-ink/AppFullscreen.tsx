@@ -20,10 +20,13 @@ import { ConfigurationListItem } from './components/core/ConfigurationListItem';
 import { SelectionListItem } from './components/core/SelectionListItem';
 import { ContainerListItem } from './components/core/ContainerListItem';
 import { TextListItem } from './components/core/TextListItem';
+import { SimpleButtonsRow } from './components/core/SimpleButtonsRow';
+import { LogItem } from './components/core/LogItem';
 import { existsSync, statSync } from 'fs';
 import { getContainer } from '../../di/container';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { ConfigurationComponent } from '../../config/ConfigurationComponent';
+import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 
 // Get item counts once at module level to ensure consistency
 // Memoize these to prevent recreation on every render
@@ -40,6 +43,25 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
+    
+    // State for showing Add Folder Wizard
+    const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
+    const [wizardJustAdded, setWizardJustAdded] = useState(false);
+    
+    // Navigation context for focus management
+    const navigation = useNavigationContext();
+    
+    // Move focus to wizard when it's just added
+    useEffect(() => {
+        if (wizardJustAdded && showAddFolderWizard) {
+            console.error(`\n=== FOCUS MANAGEMENT: Moving focus to wizard ===`);
+            // Reset the main panel selection to 0 (the wizard position)
+            navigation.setMainSelectedIndex(0);
+            setWizardJustAdded(false);
+            console.error(`Focus moved to wizard at index 0`);
+            console.error(`=== END FOCUS MANAGEMENT ===\n`);
+        }
+    }, [wizardJustAdded, showAddFolderWizard, navigation]);
     
     // Create a robust exit function that works properly on Windows
     const robustExit = useCallback(() => {
@@ -125,7 +147,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     const inputContextService = di.resolve(ServiceTokens.InputContextService);
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     const { toggleAnimations, animationsPaused } = useAnimationContext();
-    const navigation = useNavigationContext();
     
     // Navigation state connected to config items with active cursor management
     
@@ -133,240 +154,101 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Create config items from current folders or fall back to sample data
     // Memoize to prevent unnecessary recalculations
     const configItems = React.useMemo(() => {
-        if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
-            const items: IListItem[] = [];
-            
-            // Add "Add Folder" wizard at the top
-            const languageOptions = [
-                { value: 'english', label: 'English' },
-                { value: 'spanish', label: 'Spanish' },
-                { value: 'mixed', label: 'Mixed/Multiple Languages' }
-            ];
-            
-            const contentTypeOptions = [
-                { value: 'documents', label: 'Documents (PDF, Word, etc.)' },
-                { value: 'code', label: 'Code (JavaScript, Python, etc.)' },
-                { value: 'mixed', label: 'Mixed Content' }
-            ];
-            
-            const modelOptions = [
-                { value: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },
-                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (High Quality)' },
-                { value: 'all-minilm', label: 'all-minilm (Lightweight)' },
-                { value: 'codebert-base', label: 'codebert-base (Code-Specific)' }
-            ];
-            
-            const testChildren = [
-                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'truncate'),
-                
-                new SelectionListItem(
-                    "·",
-                    "What language is your content?",
-                    languageOptions,
-                    ['english'], // default selection
-                    false, // will be set by container
-                    'radio',
-                    'vertical'
-                ),
-                
-                new SelectionListItem(
-                    "·",
-                    "What type of content?",
-                    contentTypeOptions,
-                    ['documents'], // default selection
-                    false,
-                    'radio',
-                    'vertical'
-                ),
-                
-                new FilePickerListItem(
-                    "·",
-                    "Select folder to index",
-                    process.cwd(), // start in current directory
-                    false,
-                    'folder'
-                ),
-                
-                new SelectionListItem(
-                    "·",
-                    "Choose embedding model",
-                    modelOptions,
-                    ['nomic-embed-text'], // default selection
-                    false,
-                    'radio',
-                    'vertical'
-                )
-            ];
-            
-            const containerItem = new ContainerListItem(
-                "+", 
-                "Add Folder Wizard", 
-                testChildren,
-                false, // isActive
-                (results) => {
-                    // Container completed
+        const items: IListItem[] = [];
+        
+        // If showing wizard, add it as an expanded ContainerListItem at the top
+        if (showAddFolderWizard) {
+            console.error(`\n=== MAIN SCREEN: SHOWING ADD FOLDER WIZARD ===`);
+            const wizard = createAddFolderWizard({
+                onComplete: async (result: AddFolderWizardResult) => {
+                    console.error(`\n=== WIZARD COMPLETE ===`);
+                    console.error(`Path: ${result.path}`);
+                    console.error(`Model: ${result.model}`);
+                    try {
+                        const container = getContainer();
+                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                        await configComponent.addFolder(result.path, result.model);
+                        await loadFolders();
+                        setShowAddFolderWizard(false);
+                        console.error(`Folder added successfully!`);
+                        console.error(`=== END WIZARD COMPLETE ===\n`);
+                    } catch (error) {
+                        console.error(`Error adding folder: ${error}`);
+                    }
+                },
+                onCancel: () => {
+                    console.error(`\n=== WIZARD CANCELLED ===\n`);
+                    setShowAddFolderWizard(false);
                 }
-            );
-            
-            items.push(containerItem);
-            
-            // Add each configured folder
+            });
+            wizard.onEnter(); // Start in expanded mode
+            items.push(wizard);
+        }
+        
+        // Add configured folders first (main content)
+        if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
+            // Add each configured folder as LogItem
             currentFolders.forEach((folder, index) => {
                 // Validate folder exists and is accessible
                 const folderPath = folder.path;
-                let folderIcon = '√';
+                let folderIcon = '📁';
+                let statusIcon = '✓';
                 let folderValid = true;
                 
                 try {
                     if (!existsSync(folderPath)) {
-                        folderIcon = '✗';
+                        statusIcon = '✗';
                         folderValid = false;
                     } else {
                         const stat = statSync(folderPath);
                         if (!stat.isDirectory()) {
-                            folderIcon = '✗';
+                            statusIcon = '✗';
                             folderValid = false;
                         }
                     }
                 } catch (error) {
-                    folderIcon = '✗';
+                    statusIcon = '✗';
                     folderValid = false;
                 }
                 
-                // Create a FilePickerListItem for each folder
-                const folderPicker = new FilePickerListItem(
+                // Create LogItem for each folder
+                const folderLog = new LogItem(
                     folderIcon,
-                    `Folder ${index + 1}: ${folderPath.split('/').pop() || folderPath}`,
                     folderPath,
-                    false, // GenericListPanel will handle active state
-                    'folder', // folder mode
-                    (newPath) => {
-                        // TODO: Handle folder path changes in main app
-                        // This would need to update the config and trigger re-indexing
-                    }
+                    statusIcon,
+                    false, // Not active initially
+                    false, // Not expanded initially
+                    [`Model: ${folder.model || 'nomic-embed-text'}`] // Details when expanded
                 );
                 
-                // Create SelectionListItem for this folder's model
-                const supportedModels = [
-                    'nomic-embed-text',
-                    'mxbai-embed-large', 
-                    'all-minilm',
-                    'sentence-transformers',
-                    'ollama:nomic-embed-text',
-                    'ollama:mxbai-embed-large',
-                    'ollama:all-minilm',
-                    'transformers:all-MiniLM-L6-v2'
-                ];
-                
-                const modelOptions = supportedModels.map(model => ({
-                    value: model,
-                    label: model === 'nomic-embed-text' ? `${model} (Recommended)` : model
-                }));
-                
-                const currentModel = folder.model || 'nomic-embed-text';
-                const modelConfig = new SelectionListItem(
-                    '√',
-                    `Model ${index + 1}`,
-                    modelOptions,
-                    [currentModel], // selectedValues as array
-                    false, // GenericListPanel will handle active state
-                    'radio', // mode
-                    'vertical', // layout
-                    (newValues) => {
-                        if (newValues.length > 0 && folder.path && newValues[0]) {
-                            // Handle model changes - save to configuration
-                            stableHandleModelChange.current(folder.path, newValues[0]);
-                        }
-                    }
-                );
-                
-                items.push(folderPicker, modelConfig);
+                items.push(folderLog);
             });
-            
-            
-            return items;
-        } else {
-            // Fallback to sample data when no config available
-            const sampleItems = [...CONFIG_ITEMS]; // Clone to avoid mutations
-            
-            // Add test ContainerListItem with real wizard questions
-            const languageOptions = [
-                { value: 'english', label: 'English' },
-                { value: 'spanish', label: 'Spanish' },
-                { value: 'mixed', label: 'Mixed/Multiple Languages' }
-            ];
-            
-            const contentTypeOptions = [
-                { value: 'documents', label: 'Documents (PDF, Word, etc.)' },
-                { value: 'code', label: 'Code (JavaScript, Python, etc.)' },
-                { value: 'mixed', label: 'Mixed Content' }
-            ];
-            
-            const modelOptions = [
-                { value: 'nomic-embed-text', label: 'nomic-embed-text (Recommended)' },
-                { value: 'mxbai-embed-large', label: 'mxbai-embed-large (High Quality)' },
-                { value: 'all-minilm', label: 'all-minilm (Lightweight)' },
-                { value: 'codebert-base', label: 'codebert-base (Code-Specific)' }
-            ];
-            
-            const testChildren = [
-                new TextListItem("", <Text color="gray">Welcome to Folder Setup! Let's configure a new folder for indexing...</Text>, false, undefined, 'truncate'),
-                
-                new SelectionListItem(
-                    "·",
-                    "What language is your content?",
-                    languageOptions,
-                    ['english'], // default selection
-                    false, // will be set by container
-                    'radio',
-                    'vertical'
-                ),
-                
-                new SelectionListItem(
-                    "·",
-                    "What type of content?",
-                    contentTypeOptions,
-                    ['documents'], // default selection
-                    false,
-                    'radio',
-                    'vertical'
-                ),
-                
-                new FilePickerListItem(
-                    "·",
-                    "Select folder to index",
-                    process.cwd(), // start in current directory
-                    false,
-                    'folder'
-                ),
-                
-                new SelectionListItem(
-                    "·",
-                    "Choose embedding model",
-                    modelOptions,
-                    ['nomic-embed-text'], // default selection
-                    false,
-                    'radio',
-                    'vertical'
-                )
-            ];
-            
-            const containerItem = new ContainerListItem(
-                "+", 
-                "Add Folder Wizard", 
-                testChildren,
-                false, // isActive
-                (results) => {
-                    // Container completed
-                }
-            );
-            
-            // Add container item at the beginning
-            sampleItems.unshift(containerItem);
-            
-            return sampleItems;
         }
-    }, [currentFolders]); // Remove handleModelChange dependency to prevent recreating items array
+        
+        // Add "Add A Folder" button at the bottom (after all folders)
+        const addFolderButton = new SimpleButtonsRow(
+            '+',
+            '',
+            [{
+                name: 'add-folder',
+                borderColor: theme.colors.successGreen,
+                text: '+ Add A Folder',
+                eventValue: 'add-folder'
+            }],
+            false,
+            (button) => {
+                if (button.eventValue === 'add-folder') {
+                    setShowAddFolderWizard(true);
+                    setWizardJustAdded(true);
+                }
+            },
+            'center'
+        );
+        
+        items.push(addFolderButton);
+        
+        return items;
+    }, [currentFolders, showAddFolderWizard, loadFolders]); // Add necessary dependencies
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();

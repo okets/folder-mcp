@@ -8,6 +8,7 @@
 
 import { IConfigManager, ValidationResult } from '../domain/config/IConfigManager';
 import { ValidationRegistry } from './ValidationRegistry';
+import { ValidationPipelineService } from './validation/ValidationPipelineService';
 import { existsSync } from 'fs';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
@@ -93,24 +94,16 @@ export class ConfigurationComponent {
      * Validate a configuration value using ValidationRegistry
      */
     async validate(path: string, value: any): Promise<ValidationResult> {
-        // Convert value to string for validation (same as TUI)
-        const stringValue = String(value);
+        // Use ValidationPipeline for comprehensive validation
+        const pipeline = ValidationPipelineService.getInstance();
         
-        // Use ValidationRegistry for consistent validation
-        const registryResult = ValidationRegistry.validateValue(path, stringValue);
+        // Get current configuration as context for business validation
+        const context = {
+            currentConfig: await this.get('') // Get full config
+        };
         
-        // Convert ValidationRegistry result to IConfigManager ValidationResult format
-        if (registryResult.isValid) {
-            return { valid: true };
-        } else {
-            return {
-                valid: false,
-                errors: [{
-                    path,
-                    message: registryResult.error || 'Validation failed'
-                }]
-            };
-        }
+        // Run validation through pipeline
+        return pipeline.validate(path, value, context);
     }
     
     /**

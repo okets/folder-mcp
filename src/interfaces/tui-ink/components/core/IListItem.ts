@@ -133,4 +133,16 @@ export interface IListItem extends ISelfConstrainedItem {
      * Should update internal validation state
      */
     validateValue?(): void;
+    
+    /**
+     * Called when item should expand (right arrow)
+     * Used by expandable items like LogItem
+     */
+    onExpand?(): void;
+    
+    /**
+     * Called when item should collapse (left arrow or escape)
+     * @returns true if the item was collapsed, false if already collapsed
+     */
+    onCollapse?(): boolean;
 }

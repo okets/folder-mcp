@@ -35,7 +35,12 @@ export abstract class ValidatedListItem implements IListItem {
      * Trigger validation and update internal state
      */
     public validateValue(): void {
-        this._validationMessage = this.performValidation();
+        const newValidation = this.performValidation();
+        // Only update if performValidation returns a value
+        // This allows async validation to preserve state
+        if (newValidation !== null) {
+            this._validationMessage = newValidation;
+        }
     }
     
     /**

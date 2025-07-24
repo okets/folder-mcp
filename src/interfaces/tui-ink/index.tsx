@@ -19,11 +19,13 @@ const dirIndex = args.indexOf('-d');
 const modelIndex = args.indexOf('-m');
 const cliDir = dirIndex !== -1 && dirIndex + 1 < args.length ? args[dirIndex + 1] : null;
 const cliModel = modelIndex !== -1 && modelIndex + 1 < args.length ? args[modelIndex + 1] : null;
+const isHeadless = args.includes('--headless');
 
 // Check if we're in a proper TTY environment
-if (!process.stdin.isTTY || !process.stdout.isTTY) {
+if (!isHeadless && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     console.error('Error: This application must be run in an interactive terminal.');
     console.error('Please run directly in your terminal, not through pipes or scripts.');
+    console.error('Use --headless flag for non-interactive usage.');
     process.exit(1);
 }
 
@@ -33,15 +35,16 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
 const tuiContainer = setupDIContainer(); // TUI-specific container
 let mainContainer: any; // Main app container
 
-// Check if raw mode is supported
-const isRawModeSupported = process.stdin.setRawMode !== undefined;
+// Check if raw mode is supported (skip for headless mode)
+const isRawModeSupported = isHeadless || process.stdin.setRawMode !== undefined;
 
-if (!isRawModeSupported) {
+if (!isHeadless && !isRawModeSupported) {
     console.error('Error: Raw mode is not supported in this environment.');
     console.error('The TUI requires an interactive terminal that supports raw mode.');
     console.error('');
     console.error('Try running this command directly in your terminal:');
     console.error('  npm run tui');
+    console.error('Or use --headless flag for non-interactive usage.');
     process.exit(1);
 }
 
@@ -83,9 +86,17 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
                 
                 // 2.2.1.2) validation passes
                 if (cliDir && cliModel) {
-                    // 2.2.1.2.1) both -d and -m defined? add folder and show main app
+                    // 2.2.1.2.1) both -d and -m defined? add folder
                     await configComponent.addFolder(cliDir, cliModel);
-                    await loadMainApp(configComponent);
+                    
+                    if (isHeadless) {
+                        // In headless mode, exit after adding folder
+                        console.log(`✓ Folder added successfully: ${cliDir} with model ${cliModel}`);
+                        process.exit(0);
+                    } else {
+                        // Show main app
+                        await loadMainApp(configComponent);
+                    }
                 } else {
                     // 2.2.1.2.2) only one param defined? auto-complete and show confirmation
                     setShowAutoCompletion(true);
@@ -468,8 +479,56 @@ const cleanup = () => {
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
 
+// Handle headless mode execution
+async function executeHeadless() {
+    try {
+        // Setup main DI container
+        mainContainer = setupDependencyInjection({
+            logLevel: 'error' // Quiet for headless
+        });
+        
+        const container = getContainer();
+        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+        await configComponent.load();
+        
+        // Validate parameters
+        if (cliDir && cliModel) {
+            // Validate folder
+            const pathValidation = await configComponent.validate('folders.list[].path', cliDir);
+            if (!pathValidation.valid) {
+                console.error(`✗ Invalid folder path "${cliDir}": ${pathValidation.errors?.[0]?.message}`);
+                process.exit(1);
+            }
+            
+            // Validate model
+            const modelValidation = await configComponent.validate('folders.list[].model', cliModel);
+            if (!modelValidation.valid) {
+                console.error(`✗ Invalid model "${cliModel}": ${modelValidation.errors?.[0]?.message}`);
+                process.exit(1);
+            }
+            
+            // Add folder
+            await configComponent.addFolder(cliDir, cliModel);
+            console.log(`✓ Folder added successfully: ${cliDir} with model ${cliModel}`);
+            process.exit(0);
+        } else {
+            console.error('✗ Headless mode requires both -d and -m parameters');
+            console.error('Usage: folder-mcp -d <path> -m <model> --headless');
+            process.exit(1);
+        }
+    } catch (error) {
+        console.error('✗ Error in headless mode:', error);
+        process.exit(1);
+    }
+}
+
 // Start the app and handle exit
 async function main() {
+    // Handle headless mode separately
+    if (isHeadless) {
+        return executeHeadless();
+    }
+    
     // Setup Windows terminal first
     await setupWindowsTerminal();
     

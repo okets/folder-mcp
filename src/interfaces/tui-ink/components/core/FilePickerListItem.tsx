@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { FolderValidationService } from '../../services/FolderValidationService';
 
 export type FilePickerMode = 'file' | 'folder' | 'both';
 
@@ -38,7 +39,7 @@ export class FilePickerListItem extends ValidatedListItem {
     private _hasNavigated: boolean = false;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
-    public _externalValidationMessage: any = null; // For external validation messages (wizard feature)
+    private folderValidationService?: FolderValidationService;
     
     constructor(
         public icon: string,
@@ -49,7 +50,8 @@ export class FilePickerListItem extends ValidatedListItem {
         onPathChange?: (newPath: string) => void,
         private filterPatterns?: string[],
         onChange?: () => void,
-        private showHiddenFiles: boolean = false
+        private showHiddenFiles: boolean = false,
+        folderValidationService?: FolderValidationService
     ) {
         super(); // Call parent constructor
         // Resolve initial path with home directory expansion
@@ -68,6 +70,9 @@ export class FilePickerListItem extends ValidatedListItem {
         if (onChange) {
             this.onChange = onChange;
         }
+        if (folderValidationService) {
+            this.folderValidationService = folderValidationService;
+        }
         
         // Validate initial path
         this.validateValue();
@@ -79,15 +84,18 @@ export class FilePickerListItem extends ValidatedListItem {
     
     /**
      * Implement abstract performValidation from ValidatedListItem
-     * Validates that the selected file/folder exists
+     * Validates that the selected file/folder exists and checks folder conflicts if service available
      */
     protected performValidation(): ValidationMessage | null {
-        if (!this._selectedPath || !this._selectedPathValid) {
-            return null; // No validation for invalid paths
+        // Validate the path that's being displayed
+        const pathToValidate = this._isControllingInput ? this._currentPath : this._selectedPath;
+        
+        if (!pathToValidate) {
+            return null; // No validation for empty paths
         }
         
         try {
-            const exists = fsSync.existsSync(this._selectedPath);
+            const exists = fsSync.existsSync(pathToValidate);
             
             if (!exists) {
                 return createValidationMessage(
@@ -98,7 +106,7 @@ export class FilePickerListItem extends ValidatedListItem {
             
             // For file mode, check if it's actually a file
             if (this.mode === 'file') {
-                const stats = fsSync.statSync(this._selectedPath);
+                const stats = fsSync.statSync(pathToValidate);
                 if (stats.isDirectory()) {
                     return createValidationMessage(
                         ValidationState.Error,
@@ -109,12 +117,21 @@ export class FilePickerListItem extends ValidatedListItem {
             
             // For folder mode, check if it's actually a folder
             if (this.mode === 'folder') {
-                const stats = fsSync.statSync(this._selectedPath);
+                const stats = fsSync.statSync(pathToValidate);
                 if (!stats.isDirectory()) {
                     return createValidationMessage(
                         ValidationState.Error,
                         'Not a Folder'
                     );
+                }
+                
+                // If FolderValidationService is available, perform folder conflict validation
+                if (this.folderValidationService) {
+                    // We need to make this async, but performValidation is sync
+                    // For now, trigger async validation and return null
+                    // The async result will be handled by the validation trigger
+                    this.performAsyncFolderValidation();
+                    return null;
                 }
             }
             
@@ -126,6 +143,64 @@ export class FilePickerListItem extends ValidatedListItem {
                 ValidationState.Error,
                 'Access Denied'
             );
+        }
+    }
+    
+    /**
+     * Get the appropriate color for the path based on validation state
+     */
+    private getPathColor(): string {
+        // Priority: validation error > validation warning > invalid path > valid
+        if (this._validationMessage) {
+            if (this._validationMessage.state === ValidationState.Error) {
+                return 'red';
+            } else if (this._validationMessage.state === ValidationState.Warning) {
+                return 'yellow';
+            }
+        }
+        
+        // Fall back to path validity check
+        if (!this._selectedPathValid) {
+            return 'red';
+        }
+        
+        // Default to config values color (green)
+        return theme.colors.configValuesColor;
+    }
+    
+    /**
+     * Perform async folder validation using FolderValidationService
+     */
+    private async performAsyncFolderValidation(): Promise<void> {
+        // Validate the path that's being displayed
+        const pathToValidate = this._isControllingInput ? this._currentPath : this._selectedPath;
+        
+        if (!this.folderValidationService || !pathToValidate) {
+            return;
+        }
+        
+        try {
+            const validationResult = await this.folderValidationService.validateFolderPath(pathToValidate);
+            
+            if (!validationResult.isValid || validationResult.hasWarning) {
+                // Create validation message based on result
+                const state = validationResult.hasError ? ValidationState.Error : 
+                            validationResult.hasWarning ? ValidationState.Warning : ValidationState.Valid;
+                
+                const displayMessage = this.folderValidationService.getValidationDisplayMessage(validationResult);
+                
+                this._validationMessage = createValidationMessage(state, displayMessage);
+                
+                // Trigger re-render by calling onChange if available
+                this.onChange?.();
+            } else {
+                // Clear validation message if path is valid and has no warnings
+                this._validationMessage = null;
+                this.onChange?.();
+            }
+        } catch (error) {
+            // If validation service fails, don't show an error - just continue without folder validation
+            console.error('Folder validation failed:', error);
         }
     }
     
@@ -396,8 +471,12 @@ export class FilePickerListItem extends ValidatedListItem {
                         this._currentPath = targetPath;
                         this._focusedIndex = 0;
                         this._previousFocusedIndex = 0;
+                        // Clear validation when navigating to a new directory
+                        this._validationMessage = null;
                         // Use sync loading for immediate feedback
                         this.loadDirectoryContentsSync();
+                        // Trigger validation for the new path
+                        this.validateValue();
                         return true; // Navigation changed state
                     }
                     // Don't update selected path, just navigate
@@ -874,18 +953,23 @@ export class FilePickerListItem extends ValidatedListItem {
             // Use the utility to format with validation - be conservative but preserve validation icons
             const conservativeWidth = maxWidth - 1; // Reduce by 1 to prevent wrapping but keep validation icons
             
+            // Show current path during navigation, selected path when confirmed
+            const displayPath = this._isControllingInput ? this._currentPath : this._selectedPath;
+            // Show validation for the current display path
+            const showValidation = this._validationMessage;
+            
             const formatted = formatCollapsedValidation(
                 this.label,
-                this._selectedPath,
-                this._validationMessage,
+                displayPath,
+                showValidation,
                 conservativeWidth,
                 this.icon,
                 this.isActive
             );
             
-            if (formatted.showValidation && this._validationMessage) {
+            if (formatted.showValidation && showValidation) {
                 // Render with validation message
-                const validationColor = getValidationColor(this._validationMessage.state);
+                const validationColor = getValidationColor(showValidation.state);
                 
                 return (
                     <Text>
@@ -895,7 +979,7 @@ export class FilePickerListItem extends ValidatedListItem {
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{formatted.truncatedLabel || this.label} [</Text>
-                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
+                            <Text {...textColorProp(this.getPathColor())}>
                                 {formatted.displayValue}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>]</Text>
@@ -905,13 +989,13 @@ export class FilePickerListItem extends ValidatedListItem {
                         </Transform>
                     </Text>
                 );
-            } else if (!formatted.showValidation && this._validationMessage) {
+            } else if (!formatted.showValidation && showValidation) {
                 // We have validation but formatCollapsedValidation couldn't fit it
                 // Force showing at least the validation icon
                 const label = formatted.truncatedLabel || this.label;
                 const value = formatted.displayValue;
-                const validationIcon = this._validationMessage.icon || getValidationIcon(this._validationMessage.state);
-                const validationColor = getValidationColor(this._validationMessage.state);
+                const validationIcon = showValidation.icon || getValidationIcon(showValidation.state);
+                const validationColor = getValidationColor(showValidation.state);
                 
                 // Calculate the actual space needed for the complete line with validation
                 const currentText = `${this.icon} ${label} [${value}] ${validationIcon}`;
@@ -949,7 +1033,7 @@ export class FilePickerListItem extends ValidatedListItem {
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                                 {' '}{finalLabel} [
                             </Text>
-                            <Text {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
+                            <Text {...textColorProp(this.getPathColor())}>
                                 {finalValue}
                             </Text>
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -981,7 +1065,7 @@ export class FilePickerListItem extends ValidatedListItem {
                     <Text key="label" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
                         {' '}{formatted.truncatedLabel || this.label} [
                     </Text>,
-                    <Text key="value" {...textColorProp(!this._selectedPathValid ? 'red' : theme.colors.configValuesColor)}>
+                    <Text key="value" {...textColorProp(this.getPathColor())}>
                         {formatted.displayValue}
                     </Text>,
                     <Text key="bracket" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
@@ -989,14 +1073,6 @@ export class FilePickerListItem extends ValidatedListItem {
                     </Text>
                 ];
 
-                // Add validation checkmark if present (wizard feature)
-                if (this._externalValidationMessage && this._externalValidationMessage.state === 'valid') {
-                    elements.push(
-                        <Text key="validation" {...textColorProp(theme.colors.successGreen)}>
-                            {' '}✓
-                        </Text>
-                    );
-                }
 
                 return (
                     <Text>
