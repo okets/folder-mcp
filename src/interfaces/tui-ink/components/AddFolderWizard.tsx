@@ -42,10 +42,6 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         onCancel
     } = options;
     
-    console.error(`\n=== ADD FOLDER WIZARD DEBUG ===`);
-    console.error(`Initial path: ${initialPath}`);
-    console.error(`Initial model: ${initialModel}`);
-    console.error(`=== END ADD FOLDER WIZARD DEBUG ===\n`);
     
     // Track wizard state
     let selectedPath = initialPath;
@@ -84,19 +80,8 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     
     // Validation function that updates both container and file picker
     const validateAndUpdateContainer = async (folderPath: string) => {
-        console.error(`\n=== VALIDATING PATH: ${folderPath} ===`);
-        
         const validationResult = await validationService.validateFolderPath(folderPath);
         currentValidation = validationResult;
-        
-        console.error(`Validation result: isValid=${validationResult.isValid}, hasError=${validationResult.hasError}, hasWarning=${validationResult.hasWarning}`);
-        if (validationResult.errorMessage) console.error(`Error: ${validationResult.errorMessage}`);
-        if (validationResult.warningMessage) console.error(`Warning: ${validationResult.warningMessage}`);
-        
-        // For ancestor scenarios, we still allow confirmation but will show destructive dialog
-        if (validationResult.hasWarning && validationResult.warningMessage?.includes('replace monitoring')) {
-            console.error(`Ancestor scenario detected - destructive confirmation will be shown on confirm`);
-        }
         
         // Validation is now handled by FilePickerListItem's built-in validation system
         // The FolderValidationService is passed to the constructor
@@ -105,8 +90,6 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         if (containerWizard) {
             containerWizard.updateValidation(validationResult);
         }
-        
-        console.error(`=== END VALIDATION ===\n`);
     };
     
     // Create child items
@@ -143,10 +126,6 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         }
     }));
     
-    console.error(`\n=== MODEL OPTIONS DEBUG ===`);
-    console.error(`Total models: ${modelOptions.length}`);
-    console.error(`First model: ${JSON.stringify(modelOptions[0], null, 2)}`);
-    console.error(`=== END MODEL OPTIONS DEBUG ===\n`);
     
     const modelSelector = new SelectionListItem(
         'м',
@@ -186,38 +165,11 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         async (results) => {
             // Check for ancestor scenarios requiring destructive confirmation
             if (currentValidation.hasWarning && currentValidation.warningMessage?.includes('replace monitoring')) {
-                console.error(`\n=== ANCESTOR SCENARIO CONFIRMATION ===`);
-                
                 const destructiveConfig = await createAncestorDestructiveConfig(selectedPath);
                 if (destructiveConfig) {
-                    console.error(`Destructive config created:`);
-                    console.error(`  Title: ${destructiveConfig.title}`);
-                    console.error(`  Message: ${destructiveConfig.message}`);
-                    console.error(`  Level: ${destructiveConfig.level}`);
-                    console.error(`  Consequences:`);
-                    destructiveConfig.consequences?.forEach(consequence => {
-                        console.error(`    - ${consequence}`);
-                    });
-                    console.error(`  Estimated Time: ${destructiveConfig.estimatedTime}`);
-                    console.error(`  Confirm Text: ${destructiveConfig.confirmText}`);
-                    console.error(`  Cancel Text: ${destructiveConfig.cancelText}`);
-                    
-                    // Show actual destructive confirmation dialog
-                    console.error(`\n[!] DESTRUCTIVE ACTION CONFIRMATION`);
-                    console.error(`${destructiveConfig.title}`);
-                    console.error(`${destructiveConfig.message}`);
-                    console.error(`\nConsequences:`);
-                    destructiveConfig.consequences?.forEach(consequence => {
-                        console.error(`  • ${consequence}`);
-                    });
-                    console.error(`\nCurrent: No parent folder monitoring`);
-                    console.error(`New: ${selectedPath} (${selectedModel})`);
-                    console.error(`Time: ${destructiveConfig.estimatedTime}`);
-                    console.error(`\n[This would show interactive confirmation with Cancel/Confirm buttons in UI]`);
-                    console.error(`[!] PROCEEDING WITH ANCESTOR REPLACEMENT (in real UI, user would confirm)`);
+                    // TODO: Show actual destructive confirmation dialog
+                    // For now, proceed with the action
                 }
-                
-                console.error(`=== END ANCESTOR CONFIRMATION ===\n`);
             }
             
             // Wizard completed - extract final values

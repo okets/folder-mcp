@@ -15,6 +15,10 @@ import { getContainer } from '../../di/container';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
+// Temporary debug to show received arguments
+if (args.length > 0) {
+    console.log('Arguments received:', args);
+}
 const dirIndex = args.indexOf('-d');
 const modelIndex = args.indexOf('-m');
 const cliDir = dirIndex !== -1 && dirIndex + 1 < args.length ? args[dirIndex + 1] : null;

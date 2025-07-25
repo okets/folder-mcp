@@ -200,7 +200,6 @@ export class FilePickerListItem extends ValidatedListItem {
             }
         } catch (error) {
             // If validation service fails, don't show an error - just continue without folder validation
-            console.error('Folder validation failed:', error);
         }
     }
     

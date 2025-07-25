@@ -57,13 +57,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Move focus to wizard when it's just added
     useEffect(() => {
         if (wizardJustAdded && showAddFolderWizard) {
-            console.error(`\n=== FOCUS MANAGEMENT: Moving focus to wizard ===`);
             // Set the main panel selection to the wizard position (after folders)
             const wizardIndex = currentFolders ? currentFolders.length : 0;
             navigation.setMainSelectedIndex(wizardIndex);
             setWizardJustAdded(false);
-            console.error(`Focus moved to wizard at index ${wizardIndex}`);
-            console.error(`=== END FOCUS MANAGEMENT ===\n`);
         }
     }, [wizardJustAdded, showAddFolderWizard, navigation, currentFolders]);
     
@@ -199,26 +196,19 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         
         // If showing wizard, add it after existing folders but before the button
         if (showAddFolderWizard) {
-            console.error(`\n=== MAIN SCREEN: SHOWING ADD FOLDER WIZARD ===`);
             const wizard = createAddFolderWizard({
                 onComplete: async (result: AddFolderWizardResult) => {
-                    console.error(`\n=== WIZARD COMPLETE ===`);
-                    console.error(`Path: ${result.path}`);
-                    console.error(`Model: ${result.model}`);
                     try {
                         const container = getContainer();
                         const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
                         await configComponent.addFolder(result.path, result.model);
                         await loadFolders();
                         setShowAddFolderWizard(false);
-                        console.error(`Folder added successfully!`);
-                        console.error(`=== END WIZARD COMPLETE ===\n`);
                     } catch (error) {
-                        console.error(`Error adding folder: ${error}`);
+                        // Silently handle folder addition errors
                     }
                 },
                 onCancel: () => {
-                    console.error(`\n=== WIZARD CANCELLED ===\n`);
                     setShowAddFolderWizard(false);
                 }
             });
