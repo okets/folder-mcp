@@ -29,8 +29,9 @@ Step 1: Choose a folder to index
 
 Step 2: Select embedding model
 > 🤖 Auto-detect (recommended)
-  ○ Transformers.js (offline, fast)
-  ○ Ollama (high quality, requires Ollama)
+  ○ nomic-embed-text (general purpose)
+  ○ all-MiniLM-L6-v2 (lightweight, fast)
+  ○ codebert-base (optimized for code)
 
 Step 3: Content language
 > 🌍 English (auto-detected)
@@ -43,7 +44,7 @@ Step 4: Auto-start on system boot?
 ```
 
 The wizard intelligently:
-- Detects available models (Ollama, GPU capabilities)
+- Detects GPU capabilities and recommends optimal model
 - Analyzes folder content to suggest language
 - Configures auto-start within the app
 - Uses smart defaults for everything
@@ -74,13 +75,13 @@ folder-mcp --headless
 folder-mcp --headless -f ~/Documents
 
 # Full control
-folder-mcp add ~/Work --model ollama:codellama --language en
+folder-mcp add ~/Work --model codebert-base --language en
 ```
 
 ### **Key Principles**
 - **Zero Configuration**: Smart defaults for everything
 - **Progressive Disclosure**: Simple for beginners, powerful for experts  
-- **Offline First**: Works without internet via Transformers.js
+- **Self-Contained**: Complete embedding solution with automatic GPU acceleration
 - **Intelligent Defaults**: Auto-detect models, languages, and settings
 - **Seamless Experience**: From installation to daily use
 
@@ -216,14 +217,14 @@ npm run tui  # Shows "Connected to daemon (PID: 12345)" in header
 **Discovered**: 2025-07-08  
 **What**: Simple wizard that uses existing functionality to onboard new users.
 
-**Why**: Users need guidance on first run, but we'll keep it minimal initially - just folder selection and use existing Ollama model.
+**Why**: Users need guidance on first run, but we'll keep it minimal initially - just folder selection and use default embedding model.
 
 **Subtasks**:
 - [x] Detect if `~/.folder-mcp/config.json` exists
 - [x] Show simple wizard screen: "Welcome! Select a folder to index"
 - [x] Use folder selection dialog (can reuse existing components)
 - [x] Create config with selected folder and current defaults
-- [x] Start indexing with existing Ollama integration
+- [x] Start indexing with default embedding model
 - [x] Transition to main TUI after setup
 
 **Implementation Details**:
@@ -237,7 +238,7 @@ npm run tui  # Shows "Connected to daemon (PID: 12345)" in header
 ```bash
 rm -rf ~/.folder-mcp
 folder-mcp  # Shows wizard
-# Select folder → Indexes with Ollama → Shows TUI
+# Select folder → Indexes with Python embeddings → Shows TUI
 ```
 
 ### Task 3.1: Enhance Wizard with File Picker Component
@@ -500,11 +501,11 @@ npm run build  # Build succeeds with no errors
 **Discovered**: 2025-07-10  
 **What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
 
-**Why**: After perfecting single folder configuration, users need to manage multiple folders with different models. This creates the foundation for folder isolation and proper embedding model selection per content type.
+**Why**: After perfecting single folder configuration, users need to manage multiple folders with different models. This creates the foundation for folder isolation and proper embedding model selection per content type (e.g., code-optimized models for source code folders).
 
 **Implementation Summary**:
 1. **CLI Parameters**: Extended `folder-mcp.ts` to support `-m, --model <model>` flag alongside existing `-d, --dir <path>` flag
-2. **Model Validation**: Added comprehensive model validation to ValidationRegistry with 8 supported models including ollama pattern
+2. **Model Validation**: Added comprehensive model validation to ValidationRegistry with supported Python embedding models
 3. **Configuration Management**: Extended ConfigurationComponent with full folder array CRUD operations following proper schema
 4. **Auto-completion Handler**: Created new AutoCompletionHandler component with confirmation prompts for partial parameters
 5. **TUI Integration**: Updated TUI entry point and FirstRunWizard to handle model parameters and auto-completion flow
@@ -537,16 +538,15 @@ folders:
       model: "codebert-base"
 ```
 
-**Model Options** (8 supported + ollama pattern):
-- `nomic-embed-text` (default)
-- `all-mpnet-base-v2` (general purpose)
-- `all-MiniLM-L6-v2` (lightweight)
-- `codebert-base` (code-specific)
-- `mxbai-embed-large` (high quality)
-- `sentence-transformers` (compatibility)
-- `all-minilm` (alias)
-- `transformers:*` pattern for offline models
-- `ollama:*` pattern for power users
+**Model Options** (Python embedding models):
+- `nomic-embed-text` (default, general purpose)
+- `all-mpnet-base-v2` (high accuracy)
+- `all-MiniLM-L6-v2` (lightweight, fast)
+- `codebert-base` (optimized for source code)
+- `mxbai-embed-large` (highest quality)
+- `sentence-transformers/all-MiniLM-L12-v2` (balanced)
+- `BAAI/bge-small-en-v1.5` (efficient)
+- `thenlper/gte-small` (good for documents)
 
 **Implementation Subtasks**:
 - [x] **CLI Parameter Handling**: Add `-m, --model <model>` flag with validation
@@ -902,31 +902,103 @@ Configured Folders:
 
 ## ⏳ **WAITING TASKS**
 
-### Task 9: Implement Transformers.js Embeddings
+### Task 9: Daemon-TUI WebSocket Communication Architecture
+**Status**: 🚧 IN PROGRESS
+**Priority**: 🔥 CRITICAL - Foundation for all future client-server architecture
+**What**: Establish WebSocket communication between daemon and TUI clients, moving ConfigurationComponent to daemon and creating clean client-server separation.
+
+**Why**: Current TUI directly accesses ConfigurationComponent, preventing multiple client support and real-time synchronization. This task creates the foundation for multi-client architecture (TUI, web, native) with real-time updates.
+
+#### Core Architecture Changes
+
+**WebSocket Communication Protocol**:
+- **Daemon WebSocket Server**: `ws://127.0.0.1:31849/ws` (localhost only)
+- **MCP Server**: Continues on `127.0.0.1:31847` (separate from internal communication)
+- **Bidirectional Messages**: Commands from clients, events from daemon
+- **Message Format**: JSON with correlation IDs for request/response
+
+**ConfigurationComponent Migration**:
+- **Move to Daemon**: ConfigurationComponent becomes daemon-exclusive
+- **WebSocket Exposure**: Config operations via WS commands (`folder-add`, `folder-remove`, etc.)
+- **TUI Transformation**: Remove all direct config access, use WebSocket commands only
+- **Data Model**: Daemon maintains canonical state, broadcasts changes to all clients
+
+**Multi-Client Support**:
+- **Multiple TUI Instances**: Several TUI processes can connect simultaneously
+- **Real-Time Sync**: All clients see identical state, instant updates
+- **Connection Management**: Client identification, connection health monitoring
+
+#### Implementation Plan
+
+**Phase 1: Daemon WebSocket Infrastructure**
+- [ ] **Create**: `src/domain/daemon/websocket-server.ts` - WebSocket server on `127.0.0.1:31849`
+- [ ] **Create**: `src/domain/daemon/message-handlers.ts` - Command handlers for folder operations, validation, system commands
+- [ ] **Create**: `src/domain/daemon/data-model.ts` - Canonical daemon data model interface
+
+**Phase 2: Move Services to Daemon**
+- [ ] **Relocate**: `src/interfaces/tui-ink/services/FolderValidationService.ts` → `src/domain/daemon/folder-validation-service.ts`
+- [ ] **Update**: `src/config/validation/FolderBusinessValidator.ts` - Remove TUI dependency, use WebSocket
+- [ ] **Migrate**: ConfigurationComponent to daemon ownership
+
+**Phase 3: TUI WebSocket Client**
+- [ ] **Create**: `src/interfaces/tui-ink/services/WebSocketClient.ts` - WebSocket connection with correlation IDs
+- [ ] **Create**: `src/interfaces/tui-ink/contexts/DaemonContext.ts` - React context for WebSocket client
+
+**Phase 4: TUI Component Transformation**
+- [ ] **Update**: `src/interfaces/tui-ink/AppFullscreen.tsx` - Remove direct config access, use daemon model
+- [ ] **Update**: `src/interfaces/tui-ink/components/AddFolderWizard.tsx` - Use WebSocket commands
+- [ ] **Create**: `src/interfaces/tui-ink/components/ManageFolderItem.tsx` - WebSocket-based folder removal
+
+**Phase 5: Validation System Migration**
+- [ ] **Update**: `src/interfaces/tui-ink/components/core/FilePickerListItem.tsx` - WebSocket validation
+- [ ] **Remove**: `src/interfaces/tui-ink/services/FolderValidationService.ts` - Moved to daemon
+
+**Phase 6: Error Handling & Connection Management**
+- [ ] **Create**: `src/interfaces/tui-ink/services/OfflineStateManager.ts` - Handle connection failures
+- [ ] **Update**: `src/interfaces/tui-ink/components/StatusBar.tsx` - Show connection status
+
+#### Success Criteria
+- ✅ **WebSocket Communication**: Daemon and TUI communicate exclusively via WebSocket protocol
+- ✅ **Multi-Instance Support**: Multiple TUI instances show identical state and respond to same events in real-time
+- ✅ **Configuration Routing**: All configuration file changes flow through daemon exclusively, no direct TUI access
+
+#### Not in Scope (Future Tasks)
+- **Embeddings Management**: Indexing, progress tracking, vector storage (next task)
+- **MCP Endpoints**: Search, document retrieval, MCP JSON-RPC protocol (separate from internal communication)
+
+### Task 10: Implement Python Subprocess Embeddings
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
-**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
-**What**: Add offline embeddings with Transformers.js including proper mean pooling.
+**Dependencies**: 🔥 **BLOCKED BY Task 9** - WebSocket communication must be established first
+**What**: Add high-performance embeddings via Python subprocess with GPU acceleration support.
 
-**Why**: With folder selection flow complete and frontend configuration unified, we need offline embeddings for true offline operation. However, this requires backend integration to actually use the configured embedding models.
+**Why**: With folder selection flow complete and frontend configuration unified, we need production-grade embeddings with automatic GPU optimization. Python provides mature libraries for CUDA/MPS acceleration.
 
-**Updated Priority**: **HIGH** - Critical for offline functionality, but blocked by backend integration.
+**Updated Priority**: **HIGH** - Critical for performance and production readiness, but blocked by backend integration.
 
-**Technical Details**: See [Embedding Pipeline Architecture](../../../design/unified-app-architecture.md#embedding-pipeline-architecture)
+**Architecture Overview**:
+- **Node.js Layer**: MCP protocol, file monitoring, orchestration
+- **Python Layer**: Complete document processing pipeline (reading, extraction, chunking, embedding)
+- **Communication**: JSON-RPC over stdio between Node.js PythonProcessManager and Python worker
+- **GPU Support**: Automatic detection and use of NVIDIA CUDA or Apple Silicon MPS
 
 **Subtasks**:
-- [ ] Create `src/infrastructure/embeddings/transformers-embedding-service.ts`
-- [ ] Implement mean pooling following the architecture document
-- [ ] Add model download management
-- [ ] Create fallback chain: try Transformers → fall back to Ollama
-- [ ] Update wizard to show both embedding options
-- [ ] Test with `all-MiniLM-L6-v2` model
+- [ ] Create `src/infrastructure/embeddings/python-process-manager.ts` for Node.js side
+- [ ] Create `python/embeddings_worker.py` with complete document processing pipeline
+- [ ] Implement JSON-RPC protocol for Node.js ↔ Python communication
+- [ ] Add automatic GPU detection (CUDA/MPS) with CPU fallback
+- [ ] Create persistent Python process with health monitoring
+- [ ] Add batch processing optimization for multiple files
+- [ ] Implement progress tracking and reporting
+- [ ] Update wizard to show Python embeddings option
+- [ ] Create model selection logic based on content type detection
 
 **Success Criteria**:
 ```bash
-# Disconnect from internet
-folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
-# Should successfully index offline
+# Python process auto-starts and detects GPU
+folder-mcp add ~/test-folder --model all-MiniLM-L6-v2
+# Shows: "✓ GPU detected: NVIDIA RTX 3080 (CUDA)" or "✓ GPU detected: Apple M1 (MPS)"
+# Successfully indexes with GPU acceleration
 ```
 
 ### Task 10: Basic CLI Command Structure
@@ -949,9 +1021,9 @@ folder-mcp add ~/test-folder --model transformers:all-MiniLM-L6-v2
 
 **Success Criteria**:
 ```bash
-folder-mcp add ~/Documents --model transformers
+folder-mcp add ~/Documents --model nomic-embed-text
 folder-mcp list  # Shows: ~/Documents (indexed)
-folder-mcp status  # Shows: Daemon running (PID: 12345), 1 folder indexed
+folder-mcp status  # Shows: Daemon running (PID: 12345), Python worker active, 1 folder indexed
 ```
 
 ### Task 11: Enhanced Process Management
@@ -1018,18 +1090,18 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 **Updated Priority**: **MEDIUM** - Enhancement feature, but blocked by backend integration.
 
 **Subtasks**:
-- [ ] System assessment (GPU, memory, Ollama availability)
+- [ ] System assessment (GPU capabilities, memory, Python environment)
 - [ ] Model selection with recommendations
-- [ ] Show download progress for Transformers.js models
+- [ ] Show Python environment setup progress for embedding models
 - [ ] Language detection from system locale
 - [ ] Auto-start configuration option
 - [ ] Test setup before proceeding
 
 **Success Criteria**:
-- Wizard detects Ollama if installed
-- Recommends best model based on system
-- Shows progress during model download
-- Completes with working setup
+- Wizard detects GPU capabilities (CUDA/MPS)
+- Recommends best model based on hardware
+- Shows progress during Python environment setup
+- Completes with working GPU-accelerated setup
 
 ### Task 14: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
@@ -1074,8 +1146,8 @@ ps aux | grep folder-mcp  # Daemon already running
 
 **Success Criteria**:
 ```bash
-folder-mcp add ~/Documents --model transformers
-folder-mcp add ~/Code --model ollama:codellama  
+folder-mcp add ~/Documents --model all-MiniLM-L6-v2
+folder-mcp add ~/Code --model codebert-base  
 folder-mcp search "function"  # Searches both, shows which folder each result is from
 ```
 
@@ -1176,7 +1248,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
 | 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition enhancement |
 | 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions |
-| 8 | Implement Transformers.js | 2025-07-08 | ⏳ | Offline embeddings with mean pooling |
+| 8 | Implement Python Embeddings | 2025-07-08 | ⏳ | GPU-accelerated embeddings via subprocess |
 | 9 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
 | 10 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
 | 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |

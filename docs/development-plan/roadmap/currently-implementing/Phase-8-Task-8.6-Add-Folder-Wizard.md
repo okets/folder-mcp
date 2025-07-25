@@ -300,6 +300,59 @@ Following the established TUI debugging methodology from CLAUDE.md:
 - [ ] Final human test: Run TUI one more time to confirm no debug output
 - [ ] Commit with message: "feat: implement Add Folder Wizard with validation and escape key fixes"
 
+### Step 17: Create ManageFolderItem Component
+Based on user request for folder management UI with destructive removal confirmation:
+
+#### Step 17.1: Create ManageFolderItem Factory ⭕
+- [ ] Create `src/interfaces/tui-ink/components/ManageFolderItem.tsx`
+- [ ] Implement `createManageFolderItem()` factory function following AddFolderWizard pattern
+- [ ] Return ConfigurationListItem containing nested components
+
+#### Step 17.2: Design Component Structure ⭕
+**ConfigurationListItem containing**:
+- [ ] **Read-only folder path LogItem**: Display folder path (non-interactive)
+- [ ] **Read-only model details LogItem**: Display model name + metadata (non-interactive)
+- [ ] **Remove button**: SimpleButtonsRow with "Remove Tracked Folder" button
+
+#### Step 17.3: Integrate Destructive Confirmation ⭕
+- [ ] Use existing `DestructiveConfirmationWrapper` + `IDestructiveConfig`
+- [ ] Create destructive config for folder removal with appropriate messaging:
+  ```typescript
+  {
+      level: 'critical',
+      title: 'Remove Tracked Folder',
+      message: 'Remove folder from configuration. Daemon will detect and clean up.',
+      consequences: [
+          'Remove from configuration file',
+          'Daemon will detect the configuration change',
+          'Daemon will clean up embeddings automatically',
+          'All connected clients will be notified'
+      ],
+      confirmText: 'Remove from Config',
+      cancelText: 'Keep Folder'
+  }
+  ```
+
+#### Step 17.4: Implement Removal Logic ⭕
+- [ ] Wire remove button to show destructive confirmation
+- [ ] On confirmation: call `ConfigurationComponent.removeFolder(path)`
+- [ ] Update folder list after successful removal
+- [ ] Handle removal errors gracefully
+
+#### Step 17.5: Replace LogItem Usage in AppFullscreen ⭕
+- [ ] Update `AppFullscreen.tsx` to use `createManageFolderItem()` instead of LogItem
+- [ ] Replace current folder display implementation (lines 184-192)
+- [ ] Maintain existing folder validation and status indicators
+- [ ] Preserve folder loading and refresh functionality
+
+#### Step 17.6: Test Folder Management Flow ⭕
+- [ ] Test: Folder display shows path, model, and remove button
+- [ ] Test: Remove button triggers destructive confirmation
+- [ ] Test: Confirmation cancellation preserves folder
+- [ ] Test: Confirmation proceeds with folder removal
+- [ ] Test: Folder list refreshes after removal
+- [ ] Test: Error handling for removal failures
+
 ## Success Criteria
 - [x] Single reusable wizard component for folder addition
 - [x] Works in both first-run and main screen contexts
