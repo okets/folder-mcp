@@ -228,6 +228,11 @@ export class FilePickerListItem extends ValidatedListItem {
         // Keep error state to show invalid path in collapsed view
     }
     
+    onExpand(): void {
+        // Handle right arrow key to expand - delegate to onEnter
+        this.onEnter();
+    }
+    
     private loadDirectoryContentsSync(): void {
         try {
             // Validate and normalize the path

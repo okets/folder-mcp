@@ -89,6 +89,11 @@ export class SelectionListItem implements IListItem {
         this._validationError = null;
     }
     
+    onExpand(): void {
+        // Handle right arrow key to expand - delegate to onEnter
+        this.onEnter();
+    }
+    
     handleInput(input: string, key: Key): boolean {
         if (!this._isControllingInput) return false;
         

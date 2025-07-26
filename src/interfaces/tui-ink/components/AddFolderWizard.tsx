@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { Text } from 'ink';
 import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
@@ -16,6 +17,7 @@ import { FolderValidationService } from '../services/FolderValidationService';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
 import { DestructiveConfirmationWrapper, useDestructiveConfirmation } from './DestructiveConfirmationWrapper';
+import { theme } from '../utils/theme';
 
 export interface AddFolderWizardResult {
     path: string;
@@ -27,6 +29,119 @@ export interface AddFolderWizardOptions {
     initialModel?: string;
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
+}
+
+/**
+ * Custom ContainerListItem for AddFolderWizard that shows path and validation in collapsed state
+ */
+class AddFolderContainerItem extends ContainerListItem {
+    private selectedPath: string;
+    private currentValidationResult: ValidationResult;
+    
+    constructor(
+        icon: string,
+        label: string,
+        selectedPath: string,
+        validationResult: ValidationResult,
+        childItems: IListItem[],
+        isActive: boolean,
+        onComplete?: (results: any) => void,
+        onCancel?: () => void,
+        validationState?: any,
+        useDualButtons?: boolean
+    ) {
+        super(icon, label, childItems, isActive, onComplete, onCancel, validationState, useDualButtons);
+        this.selectedPath = selectedPath;
+        this.currentValidationResult = validationResult;
+    }
+    
+    updateSelectedPath(path: string): void {
+        this.selectedPath = path;
+    }
+    
+    updateValidationResult(result: ValidationResult): void {
+        this.currentValidationResult = result;
+        // Also update parent's validation
+        super.updateValidation(result);
+    }
+    
+    // Override render to show custom collapsed state
+    render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
+        if (this.isControllingInput) {
+            // Expanded mode - use parent's render
+            return super.render(maxWidth, maxLines);
+        } else {
+            // Collapsed mode - show path and validation like ConfigurationListItem
+            return this.renderCollapsedWithPathAndValidation(maxWidth);
+        }
+    }
+    
+    private renderCollapsedWithPathAndValidation(maxWidth: number): React.ReactElement {
+        const icon = this.icon;
+        const label = 'Add Folder';
+        const path = this.selectedPath;
+        
+        // Calculate available space
+        const iconWidth = icon.length + 1; // icon + space
+        const labelWidth = label.length;
+        const bracketWidth = 4; // ": []"
+        const baseWidth = iconWidth + labelWidth + bracketWidth;
+        
+        // Reserve space for validation if present
+        let validationDisplay = '';
+        let validationWidth = 0;
+        
+        if (this.currentValidationResult.hasError || this.currentValidationResult.hasWarning) {
+            const validationIcon = this.currentValidationResult.hasError ? '✗' : '!';
+            const validationColor = this.currentValidationResult.hasError ? 'red' : 'yellow';
+            const validationMessage = this.currentValidationResult.errorMessage || this.currentValidationResult.warningMessage || '';
+            
+            // Always show at least the icon
+            validationDisplay = ` ${validationIcon}`;
+            validationWidth = 2; // space + icon
+            
+            // Try to fit the message too
+            if (validationMessage) {
+                const availableForMessage = maxWidth - baseWidth - validationWidth - path.length;
+                if (availableForMessage > 3) { // Need at least 3 chars for meaningful message
+                    const truncatedMessage = validationMessage.length > availableForMessage - 1
+                        ? validationMessage.substring(0, availableForMessage - 2) + '…'
+                        : validationMessage;
+                    validationDisplay = ` ${validationIcon} ${truncatedMessage}`;
+                    validationWidth = validationDisplay.length;
+                }
+            }
+        }
+        
+        // Calculate space for path
+        const availableForPath = maxWidth - baseWidth - validationWidth;
+        let displayPath = path;
+        
+        if (path.length > availableForPath && availableForPath > 0) {
+            // Truncate path if needed
+            displayPath = path.substring(0, Math.max(1, availableForPath - 1)) + '…';
+        }
+        
+        // Build the display
+        const iconColor = this.isActive ? theme.colors.accent : theme.colors.textMuted;
+        const textColor = this.isActive ? theme.colors.accent : undefined;
+        const pathColor = (this.currentValidationResult.hasError || this.currentValidationResult.hasWarning) 
+            ? (this.currentValidationResult.hasError ? 'red' : 'yellow')
+            : theme.colors.configValuesColor;
+        const validationColor = this.currentValidationResult.hasError ? 'red' : 'yellow';
+        
+        return (
+            <Text>
+                <Text {...(iconColor ? { color: iconColor } : {})}>{icon}</Text>
+                <Text {...(textColor ? { color: textColor } : {})}> {label}: [</Text>
+                <Text color={pathColor}>{displayPath}</Text>
+                <Text {...(textColor ? { color: textColor } : {})}>]</Text>
+                {validationDisplay && (
+                    <Text color={validationColor}>{validationDisplay}</Text>
+                )}
+            </Text>
+        );
+    }
 }
 
 /**
@@ -50,7 +165,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     // Initialize validation
     const validationService = new FolderValidationService();
     let currentValidation: ValidationResult = DEFAULT_VALIDATION;
-    let containerWizard: ContainerListItem;
+    let containerWizard: AddFolderContainerItem;
     let folderPicker: FilePickerListItem;
     
     // Create destructive config for ancestor scenarios
@@ -86,9 +201,10 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         // Validation is now handled by FilePickerListItem's built-in validation system
         // The FolderValidationService is passed to the constructor
         
-        // Update container validation state for button management
+        // Update container validation state and display
         if (containerWizard) {
-            containerWizard.updateValidation(validationResult);
+            containerWizard.updateValidationResult(validationResult);
+            containerWizard.updateSelectedPath(folderPath);
         }
     };
     
@@ -104,7 +220,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         'folder', // folder mode only
         async (newPath) => {
             selectedPath = newPath;
-            // Trigger real-time validation
+            // Trigger real-time validation (which will update the container display)
             await validateAndUpdateContainer(newPath);
         },
         undefined, // filterPatterns
@@ -157,9 +273,11 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     };
     
     // Create the container with completion handler and dual-button validation support
-    containerWizard = new ContainerListItem(
+    containerWizard = new AddFolderContainerItem(
         '⧉',
         'Add Folder',
+        selectedPath,
+        currentValidation,
         childItems,
         false, // Not active initially
         async (results) => {
@@ -181,7 +299,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         },
         onCancel, // Cancel handler
         validationState, // Validation state
-        true // Enable dual-button mode
+        false // Disable dual-button mode - use single "Add Folder" button
     );
     
     // Perform initial validation
