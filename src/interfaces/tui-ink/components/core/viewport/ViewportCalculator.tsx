@@ -155,7 +155,8 @@ export class ViewportCalculator {
      */
     calculateConfirmationLayout(
         isConfirmFocused: boolean,
-        viewport: ViewportState
+        viewport: ViewportState,
+        customText?: string
     ): { 
         prefix: string; 
         icon: string; 
@@ -166,7 +167,7 @@ export class ViewportCalculator {
         const prefix = "└─";
         const icon = isConfirmFocused ? "▶ " : "  ";
         const check = "✓ ";
-        const baseText = "Confirm Selection";
+        const baseText = customText || "Confirm Selection";
         
         const prefixWidth = prefix.length + icon.length + check.length;
         const availableForText = viewport.totalWidth - prefixWidth;
@@ -191,7 +192,9 @@ export class ViewportCalculator {
     calculateDualButtonConfirmationLayout(
         focusedButton: 'confirm' | 'cancel' | null,
         viewport: ViewportState,
-        isConfirmEnabled: boolean = true
+        isConfirmEnabled: boolean = true,
+        customConfirmText?: string,
+        customCancelText?: string
     ): {
         prefix: string;
         icon: string;
@@ -215,9 +218,9 @@ export class ViewportCalculator {
         
         // Button components
         const confirmCheck = "✓ ";
-        const confirmText = "Confirm Selection";
+        const confirmText = customConfirmText || "Confirm Selection";
         const cancelCross = "✗ ";
-        const cancelText = "Cancel";
+        const cancelText = customCancelText || "Cancel";
         const separator = "  ";
         
         // Calculate available space

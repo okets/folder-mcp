@@ -30,6 +30,8 @@ export class ContainerListItem implements IListItem {
     private _validationResult: ValidationResult = DEFAULT_VALIDATION;
     private _focusedButton: 'confirm' | 'cancel' | null = null;
     private _useDualButtons: boolean = false;
+    private _customConfirmText: string | undefined = undefined;
+    private _customCancelText: string | undefined = undefined;
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -85,6 +87,14 @@ export class ContainerListItem implements IListItem {
                 this._focusedButton = 'cancel';
             }
         }
+    }
+    
+    /**
+     * Update button text dynamically
+     */
+    updateButtonText(confirmText?: string, cancelText?: string): void {
+        this._customConfirmText = confirmText;
+        this._customCancelText = cancelText;
     }
     
     /**
@@ -250,7 +260,9 @@ export class ContainerListItem implements IListItem {
             const dualButtonLayout = this.viewportSystem.viewportCalculator.calculateDualButtonConfirmationLayout(
                 this._focusedButton,
                 viewport,
-                this.isConfirmEnabled
+                this.isConfirmEnabled,
+                this._customConfirmText,
+                this._customCancelText
             );
             
             elements.push(
@@ -298,7 +310,8 @@ export class ContainerListItem implements IListItem {
             // Render traditional single confirmation
             const confirmLayout = this.viewportSystem.viewportCalculator.calculateConfirmationLayout(
                 this._isConfirmFocused,
-                viewport
+                viewport,
+                this._customConfirmText
             );
             
             elements.push(

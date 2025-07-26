@@ -27,6 +27,7 @@ import { getContainer } from '../../di/container';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
+import { createManageFolderItem } from './components/ManageFolderItem';
 
 // Get item counts once at module level to ensure consistency
 // Memoize these to prevent recreation on every render
@@ -156,41 +157,43 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         
         // Add configured folders first (main content)
         if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
-            // Add each configured folder as LogItem
+            // Add each configured folder as ManageFolderItem
             currentFolders.forEach((folder, index) => {
                 // Validate folder exists and is accessible
                 const folderPath = folder.path;
-                let folderIcon = '📁';
-                let statusIcon = '✓';
                 let folderValid = true;
                 
                 try {
                     if (!existsSync(folderPath)) {
-                        statusIcon = '✗';
                         folderValid = false;
                     } else {
                         const stat = statSync(folderPath);
                         if (!stat.isDirectory()) {
-                            statusIcon = '✗';
                             folderValid = false;
                         }
                     }
                 } catch (error) {
-                    statusIcon = '✗';
                     folderValid = false;
                 }
                 
-                // Create LogItem for each folder
-                const folderLog = new LogItem(
-                    folderIcon,
+                // Create ManageFolderItem for each folder
+                const manageFolderItem = createManageFolderItem({
                     folderPath,
-                    statusIcon,
-                    false, // Not active initially
-                    false, // Not expanded initially
-                    [`Model: ${folder.model || 'nomic-embed-text'}`] // Details when expanded
-                );
+                    model: folder.model || 'nomic-embed-text',
+                    isValid: folderValid,
+                    onRemove: async (pathToRemove: string) => {
+                        const container = getContainer();
+                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+                        await configComponent.removeFolder(pathToRemove);
+                        await loadFolders(); // Refresh the folder list
+                    },
+                    onError: (error: string) => {
+                        // Handle removal errors silently for now
+                        // Could be enhanced to show user feedback in the future
+                    }
+                });
                 
-                items.push(folderLog);
+                items.push(manageFolderItem);
             });
         }
         
