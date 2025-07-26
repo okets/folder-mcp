@@ -270,21 +270,21 @@ class ManageFolderContainerItem extends ContainerListItem {
         
         return (
             <Text>
-                <Text color={this.isActive ? 'cyan' : 'gray'}>
+                <Text color={this.isActive ? theme.colors.accent : 'gray'}>
                     {this.icon}
                 </Text>
-                <Text {...(this.isActive ? { color: 'cyan' } : {})}>
+                <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
                     {' '}{truncatedPath}
                 </Text>
                 {truncatedStatus && (
                     <>
-                        <Text {...(this.isActive ? { color: 'cyan' } : {})}>
+                        <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
                             {' ['}
                         </Text>
                         <Text color={this.statusColor}>
                             {truncatedStatus}
                         </Text>
-                        <Text {...(this.isActive ? { color: 'cyan' } : {})}>
+                        <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
                             {']'}
                         </Text>
                     </>
@@ -436,7 +436,7 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
             
             return (
                 <Text>
-                    <Text color={this.isActive ? 'cyan' : 'gray'}>
+                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
                         {displayIcon}
                     </Text>
                     <Text color="yellow">
