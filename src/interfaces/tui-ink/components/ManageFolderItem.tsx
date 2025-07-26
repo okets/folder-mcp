@@ -351,27 +351,97 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
                 const iconColor = this.isActive ? theme.colors.accent : undefined;
                 const textColor = this.isActive ? theme.colors.accent : undefined;
                 
+                // Calculate available space for text (same logic as collapsed)
+                const iconWidth = displayIcon.length + 1; // icon + space
+                const modelPrefixWidth = 'Model ['.length;
+                const bracketCloseWidth = ']'.length;
+                const fixedWidth = iconWidth + modelPrefixWidth + bracketCloseWidth;
+                const availableForModelText = maxWidth - fixedWidth;
+                
+                // Apply truncation logic: truncate model text first, then prefix if needed
+                let displayModelText = this.displayModel;
+                let displayPrefix = 'Model [';
+                
+                if (this.displayModel.length > availableForModelText) {
+                    if (availableForModelText >= 1) {
+                        // Truncate model text to fit in brackets
+                        displayModelText = this.displayModel.substring(0, Math.max(0, availableForModelText - 1)) + '…';
+                    } else {
+                        // No space for model text, show [...]
+                        displayModelText = '…';
+                    }
+                }
+                
+                // Check if everything fits, if not truncate further
+                const currentTotalWidth = iconWidth + displayPrefix.length + displayModelText.length + bracketCloseWidth;
+                if (currentTotalWidth > maxWidth) {
+                    // Need to truncate prefix as well
+                    const remainingWidth = maxWidth - iconWidth - displayModelText.length - bracketCloseWidth;
+                    if (remainingWidth >= 1) {
+                        displayPrefix = displayPrefix.substring(0, Math.max(0, remainingWidth - 1)) + '…';
+                    } else {
+                        // Extreme truncation
+                        displayPrefix = '…';
+                        displayModelText = '';
+                    }
+                }
+                
                 const customHeader = (
                     <Text key="custom-header">
                         <Text {...(iconColor ? { color: iconColor } : {})}>{displayIcon}</Text>
-                        <Text {...(textColor ? { color: textColor } : {})}> Model [</Text>
-                        <Text color={theme.colors.configValuesColor}>{this.displayModel}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}> {displayPrefix}</Text>
+                        <Text color={theme.colors.configValuesColor}>{displayModelText}</Text>
                         <Text {...(textColor ? { color: textColor } : {})}>]</Text>
                     </Text>
                 );
                 
                 return [customHeader, ...parentResult.slice(1)];
             } else {
-                // Collapsed state - custom rendering with proper cursor logic
+                // Collapsed state - custom rendering with proper cursor logic and truncation
                 const displayIcon = this.isActive ? '▶' : this.icon;
                 const iconColor = this.isActive ? theme.colors.accent : undefined;
                 const textColor = this.isActive ? theme.colors.accent : undefined;
                 
+                // Calculate available space for text
+                const iconWidth = displayIcon.length + 1; // icon + space
+                const modelPrefixWidth = 'Model ['.length;
+                const bracketCloseWidth = ']'.length;
+                const fixedWidth = iconWidth + modelPrefixWidth + bracketCloseWidth;
+                const availableForModelText = maxWidth - fixedWidth;
+                
+                // Apply truncation logic: truncate model text first, then prefix if needed
+                let displayModelText = this.displayModel;
+                let displayPrefix = 'Model [';
+                
+                if (this.displayModel.length > availableForModelText) {
+                    if (availableForModelText >= 1) {
+                        // Truncate model text to fit in brackets
+                        displayModelText = this.displayModel.substring(0, Math.max(0, availableForModelText - 1)) + '…';
+                    } else {
+                        // No space for model text, show [...]
+                        displayModelText = '…';
+                    }
+                }
+                
+                // Check if everything fits, if not truncate further
+                const currentTotalWidth = iconWidth + displayPrefix.length + displayModelText.length + bracketCloseWidth;
+                if (currentTotalWidth > maxWidth) {
+                    // Need to truncate prefix as well
+                    const remainingWidth = maxWidth - iconWidth - displayModelText.length - bracketCloseWidth;
+                    if (remainingWidth >= 1) {
+                        displayPrefix = displayPrefix.substring(0, Math.max(0, remainingWidth - 1)) + '…';
+                    } else {
+                        // Extreme truncation
+                        displayPrefix = '…';
+                        displayModelText = '';
+                    }
+                }
+                
                 return (
                     <Text>
                         <Text {...(iconColor ? { color: iconColor } : {})}>{displayIcon}</Text>
-                        <Text {...(textColor ? { color: textColor } : {})}> Model [</Text>
-                        <Text color={theme.colors.configValuesColor}>{this.displayModel}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}> {displayPrefix}</Text>
+                        <Text color={theme.colors.configValuesColor}>{displayModelText}</Text>
                         <Text {...(textColor ? { color: textColor } : {})}>]</Text>
                     </Text>
                 );
