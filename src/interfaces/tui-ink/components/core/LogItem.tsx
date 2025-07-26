@@ -82,9 +82,9 @@ export class LogItem implements IListItem {
         if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
-            // Header using segments approach - use ■ when expanded
+            // Header using segments approach - always use ■ when expanded (cursor will be on last detail line)
             const tempIcon = this.icon; // Save current icon
-            this.icon = '■'; // Use square when expanded
+            this.icon = '■'; // Always use square when expanded
             const headerSegments = this.buildSegments(maxWidth);
             this.icon = tempIcon; // Restore original icon
             
@@ -130,10 +130,21 @@ export class LogItem implements IListItem {
             
             // Now render with appropriate symbols
             allDetailLines.forEach((line, index) => {
-                const symbol = line.isLast ? '└' : '│';
+                let symbol = line.isLast ? '└' : '│';
+                let spacing = ' '; // Normal 1-space spacing
+                
+                // Show cursor on the last line when item is active
+                if (line.isLast && this.isActive) {
+                    symbol = '└▶';
+                    spacing = ''; // No extra spacing since cursor takes up space
+                }
+                
+                // Use cyan (selection blue) for symbols when active, otherwise use header color
+                const symbolColor = this.isActive ? theme.colors.accent : headerColor;
+                
                 elements.push(
                     <Text key={`detail-${index}`}>
-                        <Text {...textColorProp(headerColor)}>{symbol}  </Text>
+                        <Text {...textColorProp(symbolColor)}>{symbol}{spacing}</Text>
                         <Text {...textColorProp(theme.colors.textMuted)}>{line.text}</Text>
                     </Text>
                 );
@@ -141,8 +152,11 @@ export class LogItem implements IListItem {
             
             return elements;
         } else {
-            // Collapsed view - use segments approach
+            // Collapsed view - show cursor when active, otherwise use original icon
+            const tempIcon = this.icon; // Save current icon
+            this.icon = this.isActive ? '▶' : this.icon; // Use cursor when active
             const segments = this.buildSegments(maxWidth);
+            this.icon = tempIcon; // Restore original icon
             return this.renderSegments(segments, maxWidth);
         }
     }
