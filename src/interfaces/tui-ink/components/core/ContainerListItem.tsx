@@ -523,6 +523,15 @@ export class ContainerListItem implements IListItem {
                     this.cancelAndExit();
                     return true;
                 }
+            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onCollapse) {
+                // New behavior: only try to collapse child if it's expanded
+                const wasCollapsed = activeChild.onCollapse();
+                if (wasCollapsed) {
+                    return true; // Item was expanded and got collapsed, consume the input
+                }
+                // Item was already collapsed, fall through to exit container
+                this.cancelAndExit();
+                return true;
             } else {
                 // Traditional behavior: close the container
                 this.cancelAndExit();
@@ -546,9 +555,9 @@ export class ContainerListItem implements IListItem {
                     this._isConfirmFocused = false;
                     return true;
                 }
-            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onEnter) {
+            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
                 // Traditional behavior: expand child item
-                activeChild.onEnter();
+                activeChild.onExpand();
                 return true;
             }
         }

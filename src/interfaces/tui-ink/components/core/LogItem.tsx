@@ -40,8 +40,8 @@ export class LogItem implements IListItem {
     }
     
     onEnter(): void {
-        // Toggle expansion state
-        this._isExpanded = !this._isExpanded;
+        // Expand the item (right arrow) - only expand, don't toggle
+        this._isExpanded = true;
         // LogItems don't control input - they just expand/collapse
     }
     
@@ -61,7 +61,7 @@ export class LogItem implements IListItem {
     }
     
     onExit(): void {
-        // Not used for status items
+        // Called when container exits - not used for individual item collapse
     }
     
     handleInput(input: string, key: any): boolean {
