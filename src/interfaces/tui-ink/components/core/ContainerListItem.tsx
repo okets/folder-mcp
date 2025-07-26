@@ -34,6 +34,7 @@ export class ContainerListItem implements IListItem {
     private _customCancelText: string | undefined = undefined;
     private _cancelConfirmationMode: boolean = false;
     private _originalCancelText: string | undefined = undefined;
+    private _confirmedRemoval: boolean = false;
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -487,6 +488,12 @@ export class ContainerListItem implements IListItem {
         );
         
         if (key.upArrow) {
+            // Revert confirmation mode if navigating away
+            if (this._cancelConfirmationMode) {
+                this._cancelConfirmationMode = false;
+                this._customCancelText = this._originalCancelText;
+            }
+            
             this._lastNavigationDirection = 'up'; // Track navigation direction
             
             if (this._isConfirmFocused || this._focusedButton) {
@@ -521,6 +528,12 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.downArrow) {
+            // Revert confirmation mode if navigating away
+            if (this._cancelConfirmationMode) {
+                this._cancelConfirmationMode = false;
+                this._customCancelText = this._originalCancelText;
+            }
+            
             this._lastNavigationDirection = 'down'; // Track navigation direction
             
             if (this._isConfirmFocused || this._focusedButton) {
@@ -559,6 +572,12 @@ export class ContainerListItem implements IListItem {
             if (this._useDualButtons && (this._isConfirmFocused || this._focusedButton)) {
                 // In dual-button mode: left arrow moves from cancel to confirm (visual left)
                 if (this._focusedButton === 'cancel') {
+                    // Revert confirmation mode when navigating away from cancel button
+                    if (this._cancelConfirmationMode) {
+                        this._cancelConfirmationMode = false;
+                        this._customCancelText = this._originalCancelText;
+                    }
+                    
                     // Only move to confirm if it's enabled
                     if (this.isConfirmEnabled) {
                         this._focusedButton = 'confirm';
@@ -664,12 +683,26 @@ export class ContainerListItem implements IListItem {
         
         // Handle 'Y' key for confirmation
         if (input.toLowerCase() === 'y' && this._cancelConfirmationMode && this._focusedButton === 'cancel') {
-            // Confirm the cancel action
+            // Confirm the cancel action - set flag to indicate this is a confirmed removal
+            this._confirmedRemoval = true;
             this.cancelAndExit();
             return true;
         }
         
+        // Handle any other key while in confirmation mode - revert to original state
+        if (this._cancelConfirmationMode && this._focusedButton === 'cancel' && input) {
+            // Any key other than Y/y or escape (already handled above) reverts confirmation
+            this._cancelConfirmationMode = false;
+            this._customCancelText = this._originalCancelText;
+            return true;
+        }
+        
         if (key.tab) {
+            // Revert confirmation mode if using tab to navigate away
+            if (this._cancelConfirmationMode) {
+                this._cancelConfirmationMode = false;
+                this._customCancelText = this._originalCancelText;
+            }
             return false; // Allow tab to bubble up
         }
         
@@ -783,7 +816,8 @@ export class ContainerListItem implements IListItem {
      * Cancel selection and exit
      */
     private cancelAndExit(): void {
-        if (this._onCancel) {
+        // Only call the cancel handler if this is a confirmed removal (Y key was pressed)
+        if (this._onCancel && this._confirmedRemoval) {
             this._onCancel();
         }
         this.onExit();
@@ -835,6 +869,7 @@ export class ContainerListItem implements IListItem {
         // Reset confirmation mode
         this._cancelConfirmationMode = false;
         this._customCancelText = this._originalCancelText;
+        this._confirmedRemoval = false;
     }
     
     onSelect(): void {

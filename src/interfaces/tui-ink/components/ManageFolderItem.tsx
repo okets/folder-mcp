@@ -474,7 +474,16 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         async () => {
             // Close button - just close the container
         },
-        undefined, // Remove button - no handler yet
+        async () => {
+            // Remove button - call the onRemove callback
+            try {
+                await onRemove(folderPath);
+            } catch (error) {
+                if (onError) {
+                    onError(`Failed to remove folder: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+        },
         undefined, // No validation state
         true // useDualButtons - enable dual button mode
     );
