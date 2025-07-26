@@ -210,6 +210,7 @@ export class ViewportCalculator {
             text: string;
             isEnabled: boolean;
             isFocused: boolean;
+            needsBoldY?: boolean;
         };
         isTruncated: boolean;
     } {
@@ -228,15 +229,31 @@ export class ViewportCalculator {
                           cancelCross.length + separator.length;
         const availableForText = Math.max(0, viewport.totalWidth - fixedWidth);
         
-        // Split available space between buttons (favor confirm button)
-        const maxConfirmWidth = Math.floor(availableForText * 0.7);
-        const maxCancelWidth = availableForText - maxConfirmWidth;
+        // Split available space between buttons based on actual text length
+        const confirmTextLength = confirmText.length;
+        const cancelTextLength = cancelText.length;
+        const totalTextLength = confirmTextLength + cancelTextLength;
+        
+        let maxConfirmWidth, maxCancelWidth;
+        if (totalTextLength <= availableForText) {
+            // Both fit, allocate exact space needed
+            maxConfirmWidth = confirmTextLength;
+            maxCancelWidth = cancelTextLength;
+        } else {
+            // Need to allocate proportionally based on text length
+            const confirmRatio = confirmTextLength / totalTextLength;
+            maxConfirmWidth = Math.floor(availableForText * confirmRatio);
+            maxCancelWidth = availableForText - maxConfirmWidth;
+        }
         
         // Truncate button text if needed
         const { displayText: confirmDisplayText, isTruncated: confirmTruncated } = 
             this.calculateTextTruncation(confirmText, maxConfirmWidth);
         const { displayText: cancelDisplayText, isTruncated: cancelTruncated } = 
             this.calculateTextTruncation(cancelText, maxCancelWidth);
+        
+        // Check if cancel text contains "Press Y to confirm" for special formatting
+        const needsBoldY = cancelText.includes('Press Y to confirm');
         
         return {
             prefix,
@@ -252,7 +269,8 @@ export class ViewportCalculator {
                 cross: cancelCross,
                 text: cancelDisplayText,
                 isEnabled: true, // Cancel is always enabled
-                isFocused: focusedButton === 'cancel'
+                isFocused: focusedButton === 'cancel',
+                needsBoldY: needsBoldY
             },
             isTruncated: confirmTruncated || cancelTruncated
         };

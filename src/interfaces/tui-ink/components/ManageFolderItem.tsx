@@ -310,7 +310,7 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
     const displayModel = modelMetadata ? modelMetadata.displayName : model;
     
     // Create read-only LogItem for folder path
-    const folderIcon = isValid ? '■' : 'X';
+    const folderIcon = isValid ? '■' : '✗';
     const statusIcon = isValid ? '✓' : '✗';
     const folderLogItem = new LogItem(
         folderIcon,
@@ -472,16 +472,15 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         childItems, // Child items for folder management
         false, // Not active initially
         async () => {
-            // For now, just close the container
-            // TODO: Implement removal logic with a different UI approach
+            // Close button - just close the container
         },
-        undefined, // No cancel handler
+        undefined, // Remove button - no handler yet
         undefined, // No validation state
-        false // useDualButtons - single button mode
+        true // useDualButtons - enable dual button mode
     );
     
-    // Set button text
-    manageFolderItem.updateButtonText('Close');
+    // Set button texts for dual button mode
+    manageFolderItem.updateButtonText('Close', 'Remove Folder');
     
     return manageFolderItem;
 }

@@ -32,6 +32,8 @@ export class ContainerListItem implements IListItem {
     private _useDualButtons: boolean = false;
     private _customConfirmText: string | undefined = undefined;
     private _customCancelText: string | undefined = undefined;
+    private _cancelConfirmationMode: boolean = false;
+    private _originalCancelText: string | undefined = undefined;
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -95,6 +97,10 @@ export class ContainerListItem implements IListItem {
     updateButtonText(confirmText?: string, cancelText?: string): void {
         this._customConfirmText = confirmText;
         this._customCancelText = cancelText;
+        // Store original cancel text for confirmation mode
+        if (cancelText && !this._originalCancelText) {
+            this._originalCancelText = cancelText;
+        }
     }
     
     /**
@@ -298,11 +304,48 @@ export class ContainerListItem implements IListItem {
                         )}>
                             {dualButtonLayout.cancelButton.cross}
                         </Text>
-                        <Text {...textColorProp(
-                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
-                        )}>
-                            {dualButtonLayout.cancelButton.text}
-                        </Text>
+                        {dualButtonLayout.cancelButton.needsBoldY ? (
+                            // Special rendering for "Press Y to confirm" with bold Y - use truncated text
+                            (() => {
+                                const text = dualButtonLayout.cancelButton.text;
+                                if (text === 'Press Y to confirm') {
+                                    // Full text fits
+                                    return (
+                                        <Text {...textColorProp(
+                                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
+                                        )}>
+                                            Press <Text bold>Y</Text> to confirm
+                                        </Text>
+                                    );
+                                } else if (text.includes('Y')) {
+                                    // Text was truncated but Y is still visible
+                                    const parts = text.split('Y');
+                                    return (
+                                        <Text {...textColorProp(
+                                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
+                                        )}>
+                                            {parts[0]}<Text bold>Y</Text>{parts[1]}
+                                        </Text>
+                                    );
+                                } else {
+                                    // Y was truncated out, just show truncated text
+                                    return (
+                                        <Text {...textColorProp(
+                                            dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
+                                        )}>
+                                            {text}
+                                        </Text>
+                                    );
+                                }
+                            })()
+                        ) : (
+                            // Normal text rendering
+                            <Text {...textColorProp(
+                                dualButtonLayout.cancelButton.isFocused ? theme.colors.accent : undefined
+                            )}>
+                                {dualButtonLayout.cancelButton.text}
+                            </Text>
+                        )}
                     </Text>
                 </Box>
             );
@@ -352,7 +395,7 @@ export class ContainerListItem implements IListItem {
             const { element, globalIndex, renderLines } = visibleElement;
             
             // Set active state
-            const isChildSelected = globalIndex === this._childSelectedIndex && !this._isConfirmFocused;
+            const isChildSelected = globalIndex === this._childSelectedIndex && !this._isConfirmFocused && !this._focusedButton;
             element.isActive = isChildSelected;
             
             // Render child element
@@ -514,12 +557,16 @@ export class ContainerListItem implements IListItem {
         // Handle left/right arrows for dual-button navigation
         if (key.leftArrow) {
             if (this._useDualButtons && (this._isConfirmFocused || this._focusedButton)) {
-                // In dual-button mode: navigate between buttons or cancel
-                if (this._focusedButton === 'confirm') {
-                    this._focusedButton = 'cancel';
-                    return true;
-                } else if (this._focusedButton === 'cancel' || this._isConfirmFocused) {
-                    // From cancel button or legacy confirm focus: exit container
+                // In dual-button mode: left arrow moves from cancel to confirm (visual left)
+                if (this._focusedButton === 'cancel') {
+                    // Only move to confirm if it's enabled
+                    if (this.isConfirmEnabled) {
+                        this._focusedButton = 'confirm';
+                        return true;
+                    }
+                    return false; // Stay on cancel if confirm is disabled
+                } else if (this._focusedButton === 'confirm' || this._isConfirmFocused) {
+                    // From confirm button or legacy confirm focus: exit container
                     this.cancelAndExit();
                     return true;
                 }
@@ -541,14 +588,10 @@ export class ContainerListItem implements IListItem {
         
         if (key.rightArrow) {
             if (this._useDualButtons && (this._isConfirmFocused || this._focusedButton)) {
-                // In dual-button mode: navigate between buttons
-                if (this._focusedButton === 'cancel') {
-                    // Only move to confirm if it's enabled
-                    if (this.isConfirmEnabled) {
-                        this._focusedButton = 'confirm';
-                        return true;
-                    }
-                    return false; // Stay on cancel if confirm is disabled
+                // In dual-button mode: right arrow moves from confirm to cancel (visual right)
+                if (this._focusedButton === 'confirm') {
+                    this._focusedButton = 'cancel';
+                    return true;
                 } else if (this._isConfirmFocused) {
                     // Legacy confirm focus: move to cancel (always enabled)
                     this._focusedButton = 'cancel';
@@ -558,6 +601,10 @@ export class ContainerListItem implements IListItem {
             } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
                 // Traditional behavior: expand child item
                 activeChild.onExpand();
+                return true;
+            } else if (!this._isConfirmFocused && !this._focusedButton && this._useDualButtons) {
+                // In dual-button mode: if no expandable item, move to buttons
+                this.moveToConfirmation();
                 return true;
             }
         }
@@ -570,8 +617,16 @@ export class ContainerListItem implements IListItem {
                     this.confirmAndExit();
                     return true;
                 } else if (this._focusedButton === 'cancel') {
-                    this.cancelAndExit();
-                    return true;
+                    if (this._cancelConfirmationMode) {
+                        // Already in confirmation mode, execute cancel
+                        this.cancelAndExit();
+                        return true;
+                    } else {
+                        // Enter confirmation mode
+                        this._cancelConfirmationMode = true;
+                        this._customCancelText = 'Press Y to confirm';
+                        return true;
+                    }
                 } else if (this._isConfirmFocused && this.isConfirmEnabled) {
                     // Legacy confirm focus
                     this.confirmAndExit();
@@ -595,7 +650,21 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.escape) {
-            // Escape: always close the container
+            if (this._cancelConfirmationMode) {
+                // Exit confirmation mode, restore original text
+                this._cancelConfirmationMode = false;
+                this._customCancelText = this._originalCancelText;
+                return true;
+            } else {
+                // Escape: always close the container
+                this.cancelAndExit();
+                return true;
+            }
+        }
+        
+        // Handle 'Y' key for confirmation
+        if (input.toLowerCase() === 'y' && this._cancelConfirmationMode && this._focusedButton === 'cancel') {
+            // Confirm the cancel action
             this.cancelAndExit();
             return true;
         }
@@ -762,6 +831,10 @@ export class ContainerListItem implements IListItem {
         // Clean up button focus states
         this._isConfirmFocused = false;
         this._focusedButton = null;
+        
+        // Reset confirmation mode
+        this._cancelConfirmationMode = false;
+        this._customCancelText = this._originalCancelText;
     }
     
     onSelect(): void {
