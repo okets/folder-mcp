@@ -12,6 +12,7 @@ import { LogItem } from './core/LogItem';
 import { IListItem } from './core/IListItem';
 import { TextListItem } from './core/TextListItem';
 import { getModelMetadata } from '../models/modelMetadata';
+import { theme } from '../utils/theme';
 
 export interface ManageFolderItemOptions {
     folderPath: string;
@@ -329,9 +330,58 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         `Backend: ${modelMetadata.backend}`
     ] : [`Backend: ${model}`];
     
-    const modelLogItem = new LogItem(
+    // Create custom LogItem with formatted model text (green value in brackets)
+    class ModelLogItem extends LogItem {
+        private displayModel: string;
+        
+        constructor(icon: string, displayModel: string, status: string, isActive: boolean, isExpanded: boolean, details?: string[], progress?: number) {
+            super(icon, `Model [${displayModel}]`, status, isActive, isExpanded, details, progress);
+            this.displayModel = displayModel;
+        }
+        
+        // Override render method to handle colored text
+        render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
+            if ((this as any)._isExpanded && (this as any).details) {
+                // For expanded state, use parent logic but we'll override the header
+                const parentResult = super.render(maxWidth, maxLines) as React.ReactElement[];
+                
+                // Replace the first element (header) with our custom colored version
+                // When expanded, always use ■ (cursor will be on bottom detail line)
+                const displayIcon = '■';
+                const iconColor = this.isActive ? theme.colors.accent : undefined;
+                const textColor = this.isActive ? theme.colors.accent : undefined;
+                
+                const customHeader = (
+                    <Text key="custom-header">
+                        <Text {...(iconColor ? { color: iconColor } : {})}>{displayIcon}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}> Model [</Text>
+                        <Text color={theme.colors.configValuesColor}>{this.displayModel}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}>]</Text>
+                    </Text>
+                );
+                
+                return [customHeader, ...parentResult.slice(1)];
+            } else {
+                // Collapsed state - custom rendering with proper cursor logic
+                const displayIcon = this.isActive ? '▶' : this.icon;
+                const iconColor = this.isActive ? theme.colors.accent : undefined;
+                const textColor = this.isActive ? theme.colors.accent : undefined;
+                
+                return (
+                    <Text>
+                        <Text {...(iconColor ? { color: iconColor } : {})}>{displayIcon}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}> Model [</Text>
+                        <Text color={theme.colors.configValuesColor}>{this.displayModel}</Text>
+                        <Text {...(textColor ? { color: textColor } : {})}>]</Text>
+                    </Text>
+                );
+            }
+        }
+    }
+    
+    const modelLogItem = new ModelLogItem(
         '◆',
-        `Model: ${displayModel}`,
+        displayModel,
         '',
         false, // Not active
         false, // Not expanded initially
