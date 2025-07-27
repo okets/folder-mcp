@@ -267,20 +267,20 @@ To properly handle destructive vs non-destructive actions in dual-button mode:
 - [x] Mark "Remove Folder" button as destructive: true
 - [x] Mark "Close" button as destructive: false
 
-### Step 17: Enable Dual-Button Mode in AddFolderWizard
+### Step 17: Enable Dual-Button Mode in AddFolderWizard ✅
 Once the destructive flag mechanism is in place:
 
-#### 17.1 Update AddFolderWizard
-- [ ] Change useDualButtons from false to true in ContainerListItem constructor
-- [ ] Configure buttons using configureButtons method
-- [ ] Set "Add Folder" button as non-destructive
-- [ ] Set "Cancel" button as non-destructive
+#### 17.1 Update AddFolderWizard ✅
+- [x] Change useDualButtons from false to true in ContainerListItem constructor
+- [x] Configure buttons using configureButtons method
+- [x] Set "Add Folder" button as non-destructive
+- [x] Set "Cancel" button as non-destructive
 
-#### 17.2 Expected Behavior
-- [ ] In FirstRunWizard: Cancel exits app, Add Folder saves config and continues
-- [ ] In AppFullscreen: Cancel removes wizard, Add Folder creates ManageFolderItem
-- [ ] No "Press Y to confirm" appears for either button (non-destructive)
-- [ ] ManageFolderItem retains "Press Y to confirm" for Remove button only
+#### 17.2 Expected Behavior ✅
+- [x] In FirstRunWizard: Cancel exits app, Add Folder saves config and continues
+- [x] In AppFullscreen: Cancel removes wizard, Add Folder creates ManageFolderItem
+- [x] No "Press Y to confirm" appears for either button (non-destructive)
+- [x] ManageFolderItem retains "Press Y to confirm" for Remove button only
 
 ## Success Criteria
 - [x] Single reusable wizard component for folder addition
@@ -289,7 +289,7 @@ Once the destructive flag mechanism is in place:
 - [x] Respects CLI flow: power users can skip wizard
 - [x] Clean architecture ready for future "interview mode"
 - [x] Destructive flag mechanism for proper button behavior
-- [ ] AddFolderWizard with cancel functionality
+- [x] AddFolderWizard with cancel functionality
 
 ## Notes
 - Keep the implementation focused on current needs (direct model selection)

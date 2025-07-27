@@ -299,7 +299,13 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         },
         onCancel, // Cancel handler
         validationState, // Validation state
-        false // Disable dual-button mode - use single "Add Folder" button
+        true // Enable dual-button mode with Add Folder and Cancel buttons
+    );
+    
+    // Configure buttons - neither is destructive
+    containerWizard.configureButtons(
+        { text: 'Add Folder', isDestructive: false },
+        { text: 'Cancel', isDestructive: false }
     );
     
     // Perform initial validation
