@@ -496,8 +496,8 @@ npm test  # 867/867 tests passing
 npm run build  # Build succeeds with no errors
 ```
 
-### Task 8: Multi-Folder Configuration (moved to partially completed section)
-**Status**: ✅ IMPLEMENTATION COMPLETE - READY FOR TESTING  
+### Task 8: Multi-Folder Configuration  
+**Status**: ✅ COMPLETED  
 **Discovered**: 2025-07-10  
 **What**: Implement clean multi-folder support by extending the unified configuration system with `-d` and `-m` CLI parameters and folder management.
 
@@ -556,7 +556,7 @@ folders:
 - [x] **Auto-completion Logic**: Implement smart parameter completion with confirmation prompts
 - [x] **Main App Display**: Show folders using existing ConfigurationItem components
 
-**Success Criteria**:
+**Success Criteria**: ✅ All Achieved
 ```bash
 # Both parameters - direct add
 folder-mcp -d ~/Documents -m nomic-embed-text
@@ -754,17 +754,30 @@ Created a production-ready ContainerListItem component with a complete ViewportS
 **Commit**: `838d8be` - Complete implementation with direction-aware bring-into-view logic
 
 ### Task 8.6: Add Folder Wizard Implementation
-**Status**: 🚧 IN PROGRESS  
+**Status**: ✅ COMPLETED  
 **Discovered**: 2025-07-24  
 **What**: Implement a reusable Add Folder Wizard component that collects folder path and model selection.
 
 **Why**: Need a unified component for adding folders that works in both first-run wizard and main screen, supporting future evolution to interview-based model selection.
 
-**Key Features**:
+**Key Features Implemented**:
 - **Reusable Component**: Single wizard for both first-run and additional folder addition
 - **Model Metadata Display**: Enhanced model selection showing languages, parameters, GPU requirements, and backend
 - **CLI Integration**: Smart parameter handling with validation and auto-completion
 - **Future-Ready**: Architecture supports evolution to interview-based model selection
+- **Comprehensive Validation**: FolderValidationService with duplicate, sub-folder, and ancestor detection
+- **Destructive Confirmation**: Proper confirmation flows for potentially destructive operations
+- **Non-Destructive Cancel**: Clean cancel functionality without confirmation prompts
+
+**Implementation Summary**:
+- Created AddFolderWizard factory with ContainerListItem architecture
+- Implemented model metadata infrastructure with 8 supported embedding models  
+- Added FolderValidationService with comprehensive validation pipeline
+- Integrated destructive flag mechanism for proper button behavior
+- Added real-time validation with proper error/warning display
+- Implemented dual-button mode with validation-based button states
+- Fixed focus management and navigation issues
+- Replaced all emojis with ASCII characters for terminal compatibility
 
 **Implementation Plan**: See detailed linear plan in [Phase-8-Task-8.6-Add-Folder-Wizard.md](Phase-8-Task-8.6-Add-Folder-Wizard.md)
 
@@ -930,30 +943,30 @@ Configured Folders:
 
 #### Implementation Plan
 
-**Phase 1: Daemon WebSocket Infrastructure**
+**Sub-task 1: Daemon WebSocket Infrastructure**
 - [ ] **Create**: `src/domain/daemon/websocket-server.ts` - WebSocket server on `127.0.0.1:31849`
 - [ ] **Create**: `src/domain/daemon/message-handlers.ts` - Command handlers for folder operations, validation, system commands
 - [ ] **Create**: `src/domain/daemon/data-model.ts` - Canonical daemon data model interface
 
-**Phase 2: Move Services to Daemon**
+**Sub-task 2: Move Services to Daemon**
 - [ ] **Relocate**: `src/interfaces/tui-ink/services/FolderValidationService.ts` → `src/domain/daemon/folder-validation-service.ts`
 - [ ] **Update**: `src/config/validation/FolderBusinessValidator.ts` - Remove TUI dependency, use WebSocket
 - [ ] **Migrate**: ConfigurationComponent to daemon ownership
 
-**Phase 3: TUI WebSocket Client**
+**Sub-task 3: TUI WebSocket Client**
 - [ ] **Create**: `src/interfaces/tui-ink/services/WebSocketClient.ts` - WebSocket connection with correlation IDs
 - [ ] **Create**: `src/interfaces/tui-ink/contexts/DaemonContext.ts` - React context for WebSocket client
 
-**Phase 4: TUI Component Transformation**
+**Sub-task 4: TUI Component Transformation**
 - [ ] **Update**: `src/interfaces/tui-ink/AppFullscreen.tsx` - Remove direct config access, use daemon model
 - [ ] **Update**: `src/interfaces/tui-ink/components/AddFolderWizard.tsx` - Use WebSocket commands
 - [ ] **Create**: `src/interfaces/tui-ink/components/ManageFolderItem.tsx` - WebSocket-based folder removal
 
-**Phase 5: Validation System Migration**
+**Sub-task 5: Validation System Migration**
 - [ ] **Update**: `src/interfaces/tui-ink/components/core/FilePickerListItem.tsx` - WebSocket validation
 - [ ] **Remove**: `src/interfaces/tui-ink/services/FolderValidationService.ts` - Moved to daemon
 
-**Phase 6: Error Handling & Connection Management**
+**Sub-task 6: Error Handling & Connection Management**
 - [ ] **Create**: `src/interfaces/tui-ink/services/OfflineStateManager.ts` - Handle connection failures
 - [ ] **Update**: `src/interfaces/tui-ink/components/StatusBar.tsx` - Show connection status
 
@@ -1241,10 +1254,11 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 4.5 | Replace Wizard Configuration Access | 2025-07-09 | ✅ | Wizard uses ConfigurationComponent |
 | 4.6 | Eliminate Direct ConfigManager Access | 2025-07-09 | ✅ | Only ConfigurationComponent uses ConfigManager |
 | 4.7 | Complete Folder Configuration Flow | 2025-07-09 | ✅ | Perfect folder config across wizard/CLI/TUI |
-| 4.8 | Multi-Folder Configuration | 2025-07-10 | ✅ | CLI params, model validation, auto-completion |
-| 4.8.5 | SimpleButtonsRow Component | 2025-07-11 | ✅ | Production-ready button component |
+| 8 | Multi-Folder Configuration | 2025-07-10 | ✅ | CLI params, model validation, auto-completion |
+| 8.5 | SimpleButtonsRow Component | 2025-07-11 | ✅ | Production-ready button component |
 | 8.5 | Nested ListItem Visual Component | 2025-07-15 | ✅ | Complete implementation design and documentation |
-| 8.6 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
+| 8.5.5 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
+| 8.6 | Add Folder Wizard Implementation | 2025-07-24 | ✅ | Reusable wizard with validation and dual-button support |
 | 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
 | 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition enhancement |
 | 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions |

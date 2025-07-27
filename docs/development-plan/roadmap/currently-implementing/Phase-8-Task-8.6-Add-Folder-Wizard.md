@@ -1,5 +1,9 @@
 # Phase 8 - Task 8.6: Add Folder Wizard Implementation
 
+**Status**: ✅ COMPLETED  
+**Discovered**: 2025-07-24  
+**Completed**: 2025-07-27
+
 ## Overview
 Implement a reusable Add Folder Wizard component that collects folder path and model selection, usable in both first-run wizard and main screen.
 
