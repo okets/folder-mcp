@@ -558,8 +558,11 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         true // useDualButtons - enable dual button mode
     );
     
-    // Set button texts for dual button mode
-    manageFolderItem.updateButtonText('Close', 'Remove Folder');
+    // Configure buttons - Remove Folder is destructive
+    manageFolderItem.configureButtons(
+        { text: 'Close', isDestructive: false },
+        { text: 'Remove Folder', isDestructive: true }
+    );
     
     return manageFolderItem;
 }

@@ -7,6 +7,14 @@ import { ViewportSystem } from './viewport';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION } from './ValidationState';
 
 /**
+ * Button configuration for dual-button mode
+ */
+export interface ButtonConfig {
+    text: string;
+    isDestructive?: boolean;
+}
+
+/**
  * ContainerListItem - Redesigned with unified viewport management
  * 
  * This is a complete rewrite using the new ViewportSystem architecture.
@@ -35,6 +43,10 @@ export class ContainerListItem implements IListItem {
     private _cancelConfirmationMode: boolean = false;
     private _originalCancelText: string | undefined = undefined;
     private _confirmedRemoval: boolean = false;
+    
+    // Button configurations
+    private _confirmButtonConfig: ButtonConfig = { text: 'Confirm', isDestructive: false };
+    private _cancelButtonConfig: ButtonConfig = { text: 'Cancel', isDestructive: false };
     
     // New viewport system
     private viewportSystem: ViewportSystem;
@@ -93,15 +105,32 @@ export class ContainerListItem implements IListItem {
     }
     
     /**
-     * Update button text dynamically
+     * Configure buttons with text and destructive flags
+     */
+    configureButtons(confirmButton?: ButtonConfig, cancelButton?: ButtonConfig): void {
+        if (confirmButton) {
+            this._confirmButtonConfig = confirmButton;
+            this._customConfirmText = confirmButton.text;
+        }
+        if (cancelButton) {
+            this._cancelButtonConfig = cancelButton;
+            this._customCancelText = cancelButton.text;
+            // Store original cancel text for confirmation mode
+            if (cancelButton.text && !this._originalCancelText) {
+                this._originalCancelText = cancelButton.text;
+            }
+        }
+    }
+    
+    /**
+     * Legacy method for backward compatibility
+     * @deprecated Use configureButtons instead
      */
     updateButtonText(confirmText?: string, cancelText?: string): void {
-        this._customConfirmText = confirmText;
-        this._customCancelText = cancelText;
-        // Store original cancel text for confirmation mode
-        if (cancelText && !this._originalCancelText) {
-            this._originalCancelText = cancelText;
-        }
+        this.configureButtons(
+            confirmText ? { text: confirmText, isDestructive: false } : undefined,
+            cancelText ? { text: cancelText, isDestructive: false } : undefined
+        );
     }
     
     /**
@@ -636,14 +665,21 @@ export class ContainerListItem implements IListItem {
                     this.confirmAndExit();
                     return true;
                 } else if (this._focusedButton === 'cancel') {
-                    if (this._cancelConfirmationMode) {
-                        // Already in confirmation mode, execute cancel
-                        this.cancelAndExit();
-                        return true;
+                    // Only require confirmation if button is marked as destructive
+                    if (this._cancelButtonConfig.isDestructive) {
+                        if (this._cancelConfirmationMode) {
+                            // Already in confirmation mode, execute cancel
+                            this.cancelAndExit();
+                            return true;
+                        } else {
+                            // Enter confirmation mode
+                            this._cancelConfirmationMode = true;
+                            this._customCancelText = 'Press Y to confirm';
+                            return true;
+                        }
                     } else {
-                        // Enter confirmation mode
-                        this._cancelConfirmationMode = true;
-                        this._customCancelText = 'Press Y to confirm';
+                        // Non-destructive button - execute immediately
+                        this.cancelAndExit();
                         return true;
                     }
                 } else if (this._isConfirmFocused && this.isConfirmEnabled) {
@@ -816,9 +852,13 @@ export class ContainerListItem implements IListItem {
      * Cancel selection and exit
      */
     private cancelAndExit(): void {
-        // Only call the cancel handler if this is a confirmed removal (Y key was pressed)
-        if (this._onCancel && this._confirmedRemoval) {
-            this._onCancel();
+        // For destructive buttons, only call handler if confirmed
+        // For non-destructive buttons, always call handler
+        if (this._onCancel) {
+            const isDestructive = this._cancelButtonConfig.isDestructive;
+            if (!isDestructive || this._confirmedRemoval) {
+                this._onCancel();
+            }
         }
         this.onExit();
     }

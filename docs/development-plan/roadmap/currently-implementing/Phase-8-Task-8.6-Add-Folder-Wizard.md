@@ -250,108 +250,37 @@ Based on user feedback that escape only works when "Add A Folder" button is high
 - [x] Fixed left arrow handling to also check return value
 - [x] Escape now properly bubbles up when LogItems are already collapsed
 
-### Step 10: Human-Agent TUI Testing
-Following the established TUI debugging methodology from CLAUDE.md:
+### Step 16: Implement Destructive Flag Mechanism for Buttons ✅
+To properly handle destructive vs non-destructive actions in dual-button mode:
 
-#### Initial Testing Round
-- [x] Agent adds debug logging to key components (AddFolderWizard, model selection, etc.)
-- [x] Agent builds the code: `npm run build`
-- [ ] Human runs TUI with stderr capture: `npm run tui 2>debug.log`
-- [ ] Human provides feedback: "done" or describes issues
-- [ ] Agent reads debug.log and analyzes any issues
-- [ ] Iterate until human confirms "looks good"
+#### 16.1 Define Button Configuration Structure ✅
+- [x] Add ButtonConfig interface to ContainerListItem with text and isDestructive properties
+- [x] Replace string-based button text fields with ButtonConfig objects
 
-#### Integration Test Scenarios (Human Executes)
-- [ ] Test: `folder-mcp` with no params, no folders → shows wizard
-- [ ] Test: `folder-mcp` with no params, has folders → shows main screen
-- [ ] Test: `folder-mcp -d /valid/path -m valid-model` → adds folder, shows main
-- [ ] Test: `folder-mcp -d /invalid/path` → shows wizard with error
-- [ ] Test: `folder-mcp -m invalid-model` → shows wizard with error
-- [ ] Test: `folder-mcp -d /valid/path -m valid-model --headless` → adds folder, exits
-- [ ] Test: Main screen "Add A Folder" button → shows wizard
-- [ ] Test: Complete wizard from main screen → updates folder list
+#### 16.2 Update ContainerListItem Implementation ✅
+- [x] Replace updateButtonText method with configureButtons method that accepts ButtonConfig objects
+- [x] Update cancel button logic to only show "Press Y to confirm" for destructive buttons
+- [x] Modify cancelAndExit to respect the destructive flag
 
-#### Validation Test Scenarios (Human Executes)
-- [ ] Test: Try to add duplicate folder → Confirm disabled, Cancel enabled, error message shown
-- [ ] Test: Try to add sub-folder of monitored folder → Confirm disabled, Cancel enabled, error message shown
-- [ ] Test: Try to add ancestor folder → Warning shown, Confirm enabled, destructive confirmation appears
-- [ ] Test: Left/right arrows navigate between Cancel and Confirm buttons
-- [ ] Test: Validation updates in real-time as user navigates folders
+#### 16.3 Update ManageFolderItem ✅
+- [x] Replace updateButtonText call with configureButtons
+- [x] Mark "Remove Folder" button as destructive: true
+- [x] Mark "Close" button as destructive: false
 
-#### Visual Testing Checklist (Human Verifies)
-- [ ] Model metadata columns align properly at different terminal widths
-- [ ] Scrolling works correctly in model selection list
-- [ ] Focus indicators display correctly (▶, ■, ·)
-- [ ] ContainerListItem expands/collapses smoothly
-- [ ] No visual jitter or flickering
-- [ ] Colors and borders render correctly
-- [ ] Cancel and Confirm buttons appear side by side
-- [ ] Button states (enabled/disabled) display correctly
-- [ ] Validation messages show clearly
-- [ ] Destructive confirmation dialog works properly
+### Step 17: Enable Dual-Button Mode in AddFolderWizard
+Once the destructive flag mechanism is in place:
 
-### Step 16: Final Cleanup and Documentation
-- [ ] **CRITICAL**: Remove ALL console.error debug statements (causes Windows terminal jitter)
-- [ ] Verify no debug logs remain: `grep -r "console.error" src/interfaces/tui-ink/`
-- [x] Remove old stub ContainerListItem from main screen (already done)
-- [ ] Update inline comments explaining the flow
-- [ ] Add JSDoc comments to new functions
-- [x] Update Phase 8 documentation with task completion (this document)
-- [ ] Final human test: Run TUI one more time to confirm no debug output
-- [ ] Commit with message: "feat: implement Add Folder Wizard with validation and escape key fixes"
+#### 17.1 Update AddFolderWizard
+- [ ] Change useDualButtons from false to true in ContainerListItem constructor
+- [ ] Configure buttons using configureButtons method
+- [ ] Set "Add Folder" button as non-destructive
+- [ ] Set "Cancel" button as non-destructive
 
-### Step 17: Create ManageFolderItem Component
-Based on user request for folder management UI with destructive removal confirmation:
-
-#### Step 17.1: Create ManageFolderItem Factory ⭕
-- [ ] Create `src/interfaces/tui-ink/components/ManageFolderItem.tsx`
-- [ ] Implement `createManageFolderItem()` factory function following AddFolderWizard pattern
-- [ ] Return ConfigurationListItem containing nested components
-
-#### Step 17.2: Design Component Structure ⭕
-**ConfigurationListItem containing**:
-- [ ] **Read-only folder path LogItem**: Display folder path (non-interactive)
-- [ ] **Read-only model details LogItem**: Display model name + metadata (non-interactive)
-- [ ] **Remove button**: SimpleButtonsRow with "Remove Tracked Folder" button
-
-#### Step 17.3: Integrate Destructive Confirmation ⭕
-- [ ] Use existing `DestructiveConfirmationWrapper` + `IDestructiveConfig`
-- [ ] Create destructive config for folder removal with appropriate messaging:
-  ```typescript
-  {
-      level: 'critical',
-      title: 'Remove Tracked Folder',
-      message: 'Remove folder from configuration. Daemon will detect and clean up.',
-      consequences: [
-          'Remove from configuration file',
-          'Daemon will detect the configuration change',
-          'Daemon will clean up embeddings automatically',
-          'All connected clients will be notified'
-      ],
-      confirmText: 'Remove from Config',
-      cancelText: 'Keep Folder'
-  }
-  ```
-
-#### Step 17.4: Implement Removal Logic ⭕
-- [ ] Wire remove button to show destructive confirmation
-- [ ] On confirmation: call `ConfigurationComponent.removeFolder(path)`
-- [ ] Update folder list after successful removal
-- [ ] Handle removal errors gracefully
-
-#### Step 17.5: Replace LogItem Usage in AppFullscreen ⭕
-- [ ] Update `AppFullscreen.tsx` to use `createManageFolderItem()` instead of LogItem
-- [ ] Replace current folder display implementation (lines 184-192)
-- [ ] Maintain existing folder validation and status indicators
-- [ ] Preserve folder loading and refresh functionality
-
-#### Step 17.6: Test Folder Management Flow ⭕
-- [ ] Test: Folder display shows path, model, and remove button
-- [ ] Test: Remove button triggers destructive confirmation
-- [ ] Test: Confirmation cancellation preserves folder
-- [ ] Test: Confirmation proceeds with folder removal
-- [ ] Test: Folder list refreshes after removal
-- [ ] Test: Error handling for removal failures
+#### 17.2 Expected Behavior
+- [ ] In FirstRunWizard: Cancel exits app, Add Folder saves config and continues
+- [ ] In AppFullscreen: Cancel removes wizard, Add Folder creates ManageFolderItem
+- [ ] No "Press Y to confirm" appears for either button (non-destructive)
+- [ ] ManageFolderItem retains "Press Y to confirm" for Remove button only
 
 ## Success Criteria
 - [x] Single reusable wizard component for folder addition
@@ -359,9 +288,12 @@ Based on user request for folder management UI with destructive removal confirma
 - [x] Shows model metadata in user-friendly format
 - [x] Respects CLI flow: power users can skip wizard
 - [x] Clean architecture ready for future "interview mode"
+- [x] Destructive flag mechanism for proper button behavior
+- [ ] AddFolderWizard with cancel functionality
 
 ## Notes
 - Keep the implementation focused on current needs (direct model selection)
 - Ensure architecture supports future evolution to interview-based model selection
 - Use "folder-mcp" instead of "transformers.js" for user clarity
 - Maintain consistent UX with existing ContainerListItem patterns
+- Destructive actions require explicit confirmation to prevent accidental data loss
