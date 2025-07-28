@@ -14,6 +14,7 @@ import { IListItem } from './core/IListItem';
 import { getModelOptions, getAllModelsWithMetadata, getModelMetadata } from '../models/modelMetadata';
 import { SelectionOption } from './core/SelectionListItem';
 import { FolderValidationService } from '../services/FolderValidationService';
+import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
 import { DestructiveConfirmationWrapper, useDestructiveConfirmation } from './DestructiveConfirmationWrapper';
@@ -226,7 +227,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         undefined, // filterPatterns
         undefined, // onChange - validation will be visible on next render cycle
         false, // showHiddenFiles
-        validationService // Pass FolderValidationService for validation
+        validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
     );
     childItems.push(folderPicker);
     

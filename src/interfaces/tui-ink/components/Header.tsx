@@ -4,6 +4,7 @@ import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useTheme } from '../contexts/ThemeContext';
 import { AnimationContainer } from './core/AnimationContainer';
 import { EXIT_COUNTDOWN_FRAMES, EXIT_COUNTDOWN_TIMING } from '../utils/animations';
+import { useFMDMConnection, useConfiguredFolders } from '../contexts/FMDMContext';
 import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
@@ -65,6 +66,8 @@ const renderCountdownMessage = (message: string, statusTextColor: string) => {
 export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, exitAnimationStatus }) => {
     const { theme } = useTheme();
     const { columns, rows } = useTerminalSize();
+    const fmdmConnection = useFMDMConnection();
+    const configuredFolders = useConfiguredFolders();
     
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
     
@@ -112,7 +115,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
     const resolution = `${columns}w${rows}h`;
     const appName = '📁 folder-mcp';
     
-    // Determine status text (priority: exitAnimationStatus > status > daemon status)
+    // Determine status text (priority: exitAnimationStatus > status > FMDM connection status > daemon status)
     let statusText = '';
     let showExitAnimation = false;
     
@@ -121,8 +124,15 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         showExitAnimation = false; // Simple text countdown, no animation
     } else if (status) {
         statusText = status;
+    } else if (fmdmConnection.connected) {
+        const folderCount = configuredFolders.length;
+        statusText = `WebSocket connected • ${folderCount} folder${folderCount !== 1 ? 's' : ''} monitored`;
+    } else if (fmdmConnection.connecting) {
+        statusText = 'Connecting to daemon...';
+    } else if (fmdmConnection.error) {
+        statusText = `Connection error: ${fmdmConnection.error}`;
     } else if (daemonStatus.running) {
-        statusText = `Connected to daemon (PID: ${daemonStatus.pid})`;
+        statusText = `Daemon running (PID: ${daemonStatus.pid}) • WebSocket disconnected`;
     } else {
         statusText = 'Daemon not running';
     }

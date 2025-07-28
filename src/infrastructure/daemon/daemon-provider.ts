@@ -37,6 +37,7 @@ export class NodeDaemonProvider implements IDaemonService {
       healthMonitor,
       signalHandler,
       performanceMonitor,
+      null as any, // WebSocket server - not used in this provider
       logger
     );
   }

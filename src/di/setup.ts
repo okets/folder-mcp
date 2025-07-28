@@ -24,6 +24,34 @@ import {
 // Import CLI services
 import { JsonOutputService } from '../application/cli/JsonOutputService.js';
 
+// Import folder domain services
+import { 
+  FolderPathResolver, 
+  FolderConfigMerger, 
+  FolderValidator, 
+  FolderManager 
+} from '../domain/folders/folder-manager.js';
+
+// Import storage services
+import { 
+  StorageFactory, 
+  MultiFolderStorageProvider 
+} from '../infrastructure/storage/multi-folder-storage.js';
+
+// Import workflow services
+import { MultiFolderIndexingWorkflow } from '../application/indexing/multi-folder-indexing.js';
+import { MultiFolderMonitoringWorkflow } from '../application/monitoring/multi-folder-monitoring.js';
+
+// Import daemon services
+import { DaemonConfigurationService } from '../daemon/services/configuration-service.js';
+import { FMDMService } from '../daemon/services/fmdm-service.js';
+import { DaemonFolderValidationService } from '../daemon/services/folder-validation-service.js';
+
+// Import WebSocket services
+import { FolderHandlers } from '../daemon/websocket/handlers/folder-handlers.js';
+import { WebSocketProtocol } from '../daemon/websocket/protocol.js';
+import { FMDMWebSocketServer } from '../daemon/websocket/server.js';
+
 /**
  * Setup the dependency injection container with all services
  */
@@ -63,40 +91,35 @@ export function setupDependencyInjection(options: {
 
   // Register folder domain services as singletons
   container.registerSingleton(SERVICE_TOKENS.FOLDER_PATH_RESOLVER, () => {
-    const { FolderPathResolver } = require('../domain/folders/folder-manager.js');
     return new FolderPathResolver();
   });
 
   container.registerSingleton(SERVICE_TOKENS.FOLDER_CONFIG_MERGER, () => {
-    const { FolderConfigMerger } = require('../domain/folders/folder-manager.js');
-    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER) as any;
     return new FolderConfigMerger(pathResolver);
   });
 
   container.registerSingleton(SERVICE_TOKENS.FOLDER_VALIDATOR, () => {
-    const { FolderValidator } = require('../domain/folders/folder-manager.js');
-    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
-    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
+    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as any;
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER) as any;
     // Use ConfigurationComponent as the unified configuration interface
-    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
     return new FolderValidator(fileSystem, pathResolver, configurationComponent);
   });
 
   container.registerSingleton(SERVICE_TOKENS.FOLDER_MANAGER, () => {
-    const { FolderManager } = require('../domain/folders/folder-manager.js');
     // Use ConfigurationComponent as the unified configuration interface
-    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-    const validator = container.resolve(SERVICE_TOKENS.FOLDER_VALIDATOR);
-    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER);
-    const configMerger = container.resolve(SERVICE_TOKENS.FOLDER_CONFIG_MERGER);
-    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER);
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
+    const validator = container.resolve(SERVICE_TOKENS.FOLDER_VALIDATOR) as any;
+    const pathResolver = container.resolve(SERVICE_TOKENS.FOLDER_PATH_RESOLVER) as any;
+    const configMerger = container.resolve(SERVICE_TOKENS.FOLDER_CONFIG_MERGER) as any;
+    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as any;
     return new FolderManager(configurationComponent, validator, pathResolver, configMerger, fileSystem);
   });
 
   // Register storage factory
   container.registerSingleton(SERVICE_TOKENS.STORAGE_FACTORY, () => {
-    const { StorageFactory } = require('../infrastructure/storage/multi-folder-storage.js');
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     const createVectorSearchService = (cacheDir: string) => {
       return serviceFactory.createVectorSearchService(cacheDir);
     };
@@ -105,29 +128,26 @@ export function setupDependencyInjection(options: {
 
   // Register multi-folder storage provider
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER, () => {
-    const { MultiFolderStorageProvider } = require('../infrastructure/storage/multi-folder-storage.js');
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
-    const storageFactory = container.resolve(SERVICE_TOKENS.STORAGE_FACTORY);
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
+    const storageFactory = container.resolve(SERVICE_TOKENS.STORAGE_FACTORY) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     return new MultiFolderStorageProvider(folderManager, storageFactory, loggingService);
   });
 
   // Register multi-folder indexing workflow
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, () => {
-    const { MultiFolderIndexingWorkflow } = require('../application/indexing/multi-folder-indexing.js');
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
-    const storageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER);
-    const singleFolderIndexing = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW);
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
+    const storageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER) as any;
+    const singleFolderIndexing = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     return new MultiFolderIndexingWorkflow(folderManager, storageProvider, singleFolderIndexing, loggingService);
   });
 
   // Register multi-folder monitoring workflow
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW, () => {
-    const { MultiFolderMonitoringWorkflow } = require('../application/monitoring/multi-folder-monitoring.js');
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
-    const singleFolderMonitoring = container.resolve(SERVICE_TOKENS.MONITORING_WORKFLOW);
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING);
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
+    const singleFolderMonitoring = container.resolve(SERVICE_TOKENS.MONITORING_WORKFLOW) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     return new MultiFolderMonitoringWorkflow(folderManager, singleFolderMonitoring, loggingService);
   });
 
@@ -342,6 +362,58 @@ export function setupDependencyInjection(options: {
   container.registerSingleton(SERVICE_TOKENS.SIGNAL_HANDLER, () => null);
   container.registerSingleton(SERVICE_TOKENS.PID_MANAGER, () => null);
   container.registerSingleton(SERVICE_TOKENS.SYSTEM_MONITOR, () => null);
+  
+  // Register Daemon Configuration Service
+  container.registerSingleton(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE, () => {
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    return new DaemonConfigurationService(configurationComponent, loggingService);
+  });
+
+  // Register FMDM Service
+  container.registerSingleton(SERVICE_TOKENS.FMDM_SERVICE, () => {
+    const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    return new FMDMService(daemonConfigService, loggingService);
+  });
+
+  // Register Daemon Folder Validation Service
+  container.registerSingleton(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE, () => {
+    const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    return new DaemonFolderValidationService(daemonConfigService, loggingService);
+  });
+
+  // Register Folder Handlers
+  container.registerSingleton('FolderHandlers' as any, () => {
+    const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    
+    return new FolderHandlers(daemonConfigService, fmdmService, validationService, loggingService);
+  });
+
+  // Register WebSocket Protocol
+  container.registerSingleton('WebSocketProtocol' as any, () => {
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
+    const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    
+    return new WebSocketProtocol(validationService, daemonConfigService, fmdmService, loggingService);
+  });
+
+  // Register WebSocket server
+  container.registerSingleton(SERVICE_TOKENS.WEBSOCKET_SERVER, () => {
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    const protocol = container.resolve('WebSocketProtocol' as any) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    
+    const server = new FMDMWebSocketServer();
+    server.setDependencies(fmdmService, protocol, loggingService);
+    return server;
+  });
 
   return container;
 }

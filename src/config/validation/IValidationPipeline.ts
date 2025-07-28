@@ -5,7 +5,7 @@
  * with business logic validation. Validators are executed in priority order.
  */
 
-import { ValidationResult } from '../ConfigurationComponent';
+import { ValidationResult } from '../ConfigurationComponent.js';
 
 /**
  * Individual validator that can validate specific configuration paths

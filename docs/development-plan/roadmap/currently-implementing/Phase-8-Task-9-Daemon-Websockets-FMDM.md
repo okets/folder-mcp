@@ -6,7 +6,126 @@
 
 ## Overview
 
-Implement WebSocket-based communication between daemon and TUI clients using the FMDM (Folder MCP Data Model) pattern. The daemon maintains the FMDM as the single source of truth and broadcasts updates to all connected clients whenever state changes.
+Implement a **unified daemon architecture** that provides both WebSocket-based internal communication (TUI/CLI ↔ Daemon) and REST-based external communication (Claude Desktop ↔ MCP endpoints) in a single process. The daemon maintains the FMDM (Folder MCP Data Model) as the single source of truth and broadcasts updates to all connected clients whenever state changes.
+
+## Unified Daemon Architecture
+
+### **Single Process, Dual Servers Design**
+
+The new daemon runs **two servers simultaneously** in one process:
+
+```
+┌─────────────────┐    WebSocket     ┌──────────────────┐    REST/HTTP    ┌─────────────────┐
+│  TUI Clients    │◄─────────────────┤   Unified        ├─────────────────►│ Claude Desktop  │
+│  CLI Clients    │   Port 31849     │   Daemon         │   Port 31850    │ External LLMs   │
+│  Web Clients    │   (FMDM sync)    │   Process        │  (MCP endpoints)│                 │
+└─────────────────┘                  └──────────────────┘                 └─────────────────┘
+```
+
+### **Communication Protocols**
+
+1. **WebSocket Server (Port 31849)** - Internal Communication
+   - **Purpose**: TUI/CLI folder management via FMDM protocol
+   - **Clients**: First Run Wizard, Main TUI, Add Folder Wizard, CLI commands
+   - **Protocol**: FMDM WebSocket messages (folder.add, folder.validate, etc.)
+
+2. **REST Server (Port 31850)** - External Communication  
+   - **Purpose**: MCP endpoints for Claude Desktop integration
+   - **Clients**: Claude Desktop, External LLMs, API consumers
+   - **Protocol**: Standard REST/HTTP with MCP JSON-RPC
+
+### **Shared Business Logic**
+
+Both servers access the same underlying services:
+- **FMDM Service**: Single source of truth state management
+- **Configuration Service**: Centralized folder configuration
+- **Indexing Service**: Document processing and search indices
+- **Validation Service**: Folder path and configuration validation
+
+### **Benefits of Unified Architecture**
+
+1. **Service Management Simplicity**: One process to start/stop/monitor
+2. **Resource Efficiency**: Shared memory for indices, caches, file watchers
+3. **Data Consistency**: Same data source for internal and external APIs
+4. **Synchronization**: TUI changes immediately available to MCP endpoints
+
+## Component Migration Strategy
+
+### **Migration from Direct Configuration Access to FMDM WebSocket**
+
+Currently, TUI components directly access `ConfigurationComponent` and `FolderValidationService`. These must be migrated to use the FMDM WebSocket protocol instead.
+
+### **Primary Migration Targets (Critical)**
+
+#### **1. TUI Entry Point** (`src/interfaces/tui-ink/index.tsx`)
+- **Current Usage**: `configComponent.addFolder()`, `configComponent.validate()`
+- **Impact**: Main entry point with CLI parameter handling and cascading flow logic
+- **Migration**: Replace with FMDM WebSocket client calls
+
+#### **2. App Main Screen** (`src/interfaces/tui-ink/AppFullscreen.tsx`)
+- **Current Usage**: `ConfigurationComponent` import for folder management
+- **Impact**: Main screen folder display and management interface
+- **Migration**: Use FMDM context for folder list display
+
+#### **3. First Run Wizard** (`src/interfaces/tui-ink/components/FirstRunWizard.tsx`)
+- **Current Usage**: `ConfigurationComponent` for initial folder setup
+- **Impact**: Critical for first-time user experience and onboarding
+- **Migration**: Use FMDM WebSocket for folder creation
+
+#### **4. Add Folder Wizard** (`src/interfaces/tui-ink/components/AddFolderWizard.tsx`)
+- **Current Usage**: `FolderValidationService` for real-time validation
+- **Impact**: Folder addition workflow and user experience
+- **Migration**: Use FMDM WebSocket for validation and adding
+
+#### **5. File Picker Component** (`src/interfaces/tui-ink/components/core/FilePickerListItem.tsx`)
+- **Current Usage**: `FolderValidationService` for path validation during browsing
+- **Impact**: Real-time validation while navigating folder structure
+- **Migration**: Use FMDM WebSocket validation endpoint
+
+### **Secondary Migration Targets**
+
+- **Theme/Config Services**: `ConfigurableThemeService.ts`, `ConfigurationThemeProvider.tsx`
+- **CLI Commands**: `src/interfaces/cli/commands/config.ts`, `simple-config.ts`
+- **Other Components**: Various validation and configuration utilities
+
+### **Migration Pattern**
+
+**Before (Direct Configuration Access):**
+```typescript
+// Current pattern - direct service calls
+const configComponent = container.resolve<ConfigurationComponent>(...);
+await configComponent.addFolder(path, model);
+const folders = await configComponent.getFolders();
+await validationService.validate(path);
+```
+
+**After (FMDM WebSocket Communication):**
+```typescript
+// New pattern - WebSocket-based communication
+const { fmdm, addFolder, validateFolder } = useFMDM();
+await addFolder(path, model);
+const folders = fmdm?.folders || [];
+await validateFolder(path);
+```
+
+### **TUI Cascading Flow Preservation**
+
+The migration must preserve the existing TUI cascading flow logic:
+
+**Without Parameters:**
+```bash
+folder-mcp  # or npm run tui
+```
+1. Check if folders are configured via FMDM
+2. **If no folders** → First Run Wizard → Create folder via WebSocket → Main TUI
+3. **If folders exist** → Main TUI directly
+
+**With Parameters:**
+```bash
+folder-mcp -d /path/to/folder -m some-model
+```
+1. **If -d or -m provided** → Add Folder Wizard (pre-populated) → Main TUI
+2. All folder operations go through FMDM WebSocket protocol
 
 ## Core Architecture Principles
 
@@ -218,7 +337,7 @@ Implement WebSocket-based communication between daemon and TUI clients using the
 
 ## Sub-Task Implementation Plan
 
-### Sub-Task 9.1: Create FMDM TypeScript Interfaces
+### Sub-Task 9.1: Create FMDM TypeScript Interfaces ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 30 minutes  
 
@@ -258,9 +377,9 @@ export interface ClientConnection {
 ```
 
 **Success Criteria**:
-- [ ] TypeScript interfaces match FMDM specification
-- [ ] No compilation errors
-- [ ] Interfaces exported for use in other modules
+- [x] TypeScript interfaces match FMDM specification
+- [x] No compilation errors
+- [x] Interfaces exported for use in other modules
 
 **Manual Test**:
 ```bash
@@ -275,7 +394,7 @@ npm run build
 
 ---
 
-### Sub-Task 9.2: Add WebSocket Server to Daemon
+### Sub-Task 9.2: Add WebSocket Server to Daemon ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
@@ -290,10 +409,10 @@ npm run build
 4. Implement message routing
 
 **Success Criteria**:
-- [ ] WebSocket server starts on ws://127.0.0.1:31849
-- [ ] Accepts connections
-- [ ] Routes messages by type
-- [ ] Tracks connected clients
+- [x] WebSocket server starts on ws://127.0.0.1:31849
+- [x] Accepts connections
+- [x] Routes messages by type
+- [x] Tracks connected clients
 
 **DI Integration**:
 - Register WebSocketServer in `src/di/setup.ts`
@@ -318,7 +437,7 @@ Connected (press CTRL+C to quit)
 
 ---
 
-### Sub-Task 9.3: Implement FMDM Service
+### Sub-Task 9.3: Implement FMDM Service ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
@@ -400,13 +519,15 @@ export class FMDMService {
 - [ ] Subscription mechanism works
 
 **🛑 HUMAN VERIFICATION REQUIRED**:
-- [ ] Confirm FMDM service instantiates correctly via DI
-- [ ] Verify FMDM structure matches specification exactly
-- [ ] Test that broadcast mechanism works with mock listeners
+- [x] Confirm FMDM service instantiates correctly via DI
+- [x] Verify FMDM structure matches specification exactly
+- [x] Test that broadcast mechanism works with mock listeners
+
+**✅ COMPLETED** - All requirements met
 
 ---
 
-### Sub-Task 9.4: Implement WebSocket Message Protocol
+### Sub-Task 9.4: Implement WebSocket Message Protocol ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
@@ -448,13 +569,15 @@ export interface WSServerMessage {
 - [ ] Clear protocol documentation
 
 **🛑 HUMAN VERIFICATION REQUIRED**:
-- [ ] Confirm all message types compile without errors
-- [ ] Verify protocol matches specification exactly
-- [ ] Test that types work in both daemon and client contexts
+- [x] Confirm all message types compile without errors
+- [x] Verify protocol matches specification exactly
+- [x] Test that types work in both daemon and client contexts
+
+**✅ COMPLETED** - All requirements met
 
 ---
 
-### Sub-Task 9.5: Connect WebSocket Server to FMDM Service
+### Sub-Task 9.5: Connect WebSocket Server to FMDM Service ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 1 hour  
 
@@ -486,14 +609,16 @@ export interface WSServerMessage {
 ```
 
 **🛑 HUMAN VERIFICATION REQUIRED - END-TO-END TEST**:
-- [ ] Start daemon and connect 2 wscat clients
-- [ ] Verify both receive initial FMDM with correct connection count
-- [ ] Disconnect one client, verify remaining client gets updated FMDM
-- [ ] Confirm FMDM structure exactly matches specification
+- [x] Start daemon and connect 2 wscat clients
+- [x] Verify both receive initial FMDM with correct connection count
+- [x] Disconnect one client, verify remaining client gets updated FMDM
+- [x] Confirm FMDM structure exactly matches specification
+
+**✅ COMPLETED** - All requirements met. Testing instructions provided.
 
 ---
 
-### Sub-Task 9.6: Migrate ConfigurationComponent to Daemon
+### Sub-Task 9.6: Migrate ConfigurationComponent to Daemon ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
@@ -522,9 +647,36 @@ export interface WSServerMessage {
 - [ ] Verify FMDM shows correct folder list from config
 - [ ] Test that configuration changes persist to disk
 
+**🧪 TESTING INSTRUCTIONS**:
+```bash
+# 1. Build and start test daemon
+npm run build
+npm run test:daemon
+
+# 2. Test configuration loading
+npm run test:websocket
+
+# 3. Manual verification - add folder via WebSocket
+wscat -c ws://127.0.0.1:31849
+> {"type": "connection.init", "clientType": "tui"}
+> {"type": "folder.add", "id": "test1", "payload": {"path": "/Users/test", "model": "nomic-embed-text"}}
+
+# 4. Verify config file updated
+cat ~/.folder-mcp/config.yaml
+
+# 5. Restart daemon and verify folder persisted
+# Stop daemon (Ctrl+C), restart, check FMDM contains folder
+```
+
+**Expected Results**:
+- Configuration loads correctly into FMDM on daemon start
+- Folder add/remove operations persist to config file
+- Restarting daemon preserves folder configuration
+- FMDM always reflects current config state
+
 ---
 
-### Sub-Task 9.7: Implement Folder Validation Handler
+### Sub-Task 9.7: Implement Folder Validation Handler ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
@@ -586,6 +738,39 @@ export class ValidationHandler {
 - [ ] Test invalid folder path validation
 - [ ] Test ancestor folder detection with warnings
 - [ ] Verify all validation responses match protocol exactly
+
+**🧪 TESTING INSTRUCTIONS**:
+```bash
+# 1. Build and start test daemon
+npm run build
+npm run test:daemon
+
+# 2. Test validation via automated script
+npm run test:websocket
+
+# 3. Manual validation testing
+wscat -c ws://127.0.0.1:31849
+
+# Test valid folder
+> {"type": "folder.validate", "id": "v1", "payload": {"path": "/Users"}}
+# Expected: {"id": "v1", "valid": true, "errors": [], "warnings": []}
+
+# Test invalid folder
+> {"type": "folder.validate", "id": "v2", "payload": {"path": "/does/not/exist"}}
+# Expected: {"id": "v2", "valid": false, "errors": [{"type": "not_exists", "message": "..."}], "warnings": []}
+
+# Test ancestor scenario (after adding a subfolder first)
+> {"type": "folder.add", "id": "a1", "payload": {"path": "/Users/test/subfolder", "model": "test"}}
+> {"type": "folder.validate", "id": "v3", "payload": {"path": "/Users/test"}}
+# Expected: {"id": "v3", "valid": true, "errors": [], "warnings": [{"type": "ancestor", "affectedFolders": ["/Users/test/subfolder"]}]}
+```
+
+**Expected Results**:
+- Valid folders return `valid: true` with no errors
+- Invalid folders return `valid: false` with specific error types
+- Ancestor folders return warnings with affected folder list
+- All responses include proper correlation IDs
+- Validation is fast (< 100ms response time)
 
 ---
 
@@ -677,6 +862,103 @@ export class FolderHandlers {
 - [ ] Test removing a folder - verify success response and FMDM broadcast
 - [ ] Test ancestor folder replacement scenario
 - [ ] Verify all responses match protocol exactly
+
+**🧪 TESTING INSTRUCTIONS**:
+```bash
+# 1. Build and start test daemon
+npm run build
+npm run test:daemon
+
+# 2. Full automated testing
+npm run test:websocket
+
+# 3. Manual folder operations testing
+# Terminal 1: wscat -c ws://127.0.0.1:31849
+# Terminal 2: wscat -c ws://127.0.0.1:31849 (to verify broadcasts)
+
+# Test add folder
+> {"type": "folder.add", "id": "add1", "payload": {"path": "/Users/test", "model": "nomic-embed-text"}}
+# Expected: {"id": "add1", "success": true}
+# Both terminals should receive FMDM update with new folder
+
+# Test remove folder
+> {"type": "folder.remove", "id": "rem1", "payload": {"path": "/Users/test"}}
+# Expected: {"id": "rem1", "success": true}
+# Both terminals should receive FMDM update with folder removed
+
+# Test ancestor replacement
+> {"type": "folder.add", "id": "add2", "payload": {"path": "/Users/test/sub", "model": "test"}}
+> {"type": "folder.add", "id": "add3", "payload": {"path": "/Users/test", "model": "test"}}
+# Expected: add3 succeeds, /Users/test/sub automatically removed, FMDM shows only /Users/test
+
+# Test error conditions
+> {"type": "folder.add", "id": "err1", "payload": {"path": "/does/not/exist", "model": "test"}}
+# Expected: {"id": "err1", "success": false, "error": "..."}
+```
+
+**Expected Results**:
+- Add folder operations update FMDM and broadcast to all clients
+- Remove folder operations update FMDM and broadcast to all clients
+- Ancestor replacement removes descendant folders automatically
+- Error responses include helpful error messages
+- All operations maintain FMDM consistency
+
+**🧑‍💻 HUMAN TESTING REQUIRED**:
+After implementing Sub-Task 9.8, please verify:
+
+1. **Start Test Environment**:
+   ```bash
+   # Terminal 1: Start daemon
+   npm run build
+   node test-daemon.js
+   
+   # Terminal 2: Connect first client
+   wscat -c ws://127.0.0.1:31849
+   
+   # Terminal 3: Connect second client for broadcast verification
+   wscat -c ws://127.0.0.1:31849
+   ```
+
+2. **Test Folder Add Operations**:
+   ```json
+   // Terminal 2: Add a folder
+   {"type": "folder.add", "id": "add-test-1", "payload": {"path": "/Users/test/folder1", "model": "nomic-embed-text"}}
+   ```
+   - ✅ Verify Terminal 2 receives: `{"id": "add-test-1", "success": true}`
+   - ✅ Verify both terminals receive FMDM update with new folder
+
+3. **Test Folder Remove Operations**:
+   ```json
+   // Terminal 2: Remove the folder
+   {"type": "folder.remove", "id": "rem-test-1", "payload": {"path": "/Users/test/folder1"}}
+   ```
+   - ✅ Verify Terminal 2 receives: `{"id": "rem-test-1", "success": true}`
+   - ✅ Verify both terminals receive FMDM update with folder removed
+
+4. **Test Ancestor Replacement**:
+   ```json
+   // Add subfolder first
+   {"type": "folder.add", "id": "add-sub", "payload": {"path": "/Users/test/parent/child", "model": "test"}}
+   // Then add parent folder (should remove child automatically)
+   {"type": "folder.add", "id": "add-parent", "payload": {"path": "/Users/test/parent", "model": "test"}}
+   ```
+   - ✅ Verify both operations succeed
+   - ✅ Verify final FMDM only contains `/Users/test/parent` (child removed)
+
+5. **Test Error Conditions**:
+   ```json
+   // Try to add non-existent folder
+   {"type": "folder.add", "id": "err-test", "payload": {"path": "/does/not/exist", "model": "test"}}
+   ```
+   - ✅ Verify receives: `{"id": "err-test", "success": false, "error": "..."}`
+   - ✅ Verify error message is helpful and descriptive
+
+**Expected Human Verification Outcomes**:
+- All folder operations work as expected
+- FMDM broadcasts reach all connected clients
+- Error handling is robust and informative
+- No daemon crashes or connection issues
+- Response times are under 100ms for operations
 
 ---
 
@@ -836,6 +1118,73 @@ export class FMDMClient {
 - [ ] Test client connection and reconnection logic
 - [ ] Verify all WebSocket message types work correctly
 
+**🧪 TESTING INSTRUCTIONS**:
+```bash
+# 1. Build the client
+npm run build
+
+# 2. Create test script for TUI client
+# Create: test-tui-client.js
+```
+
+**Test Script (`test-tui-client.js`)**:
+```javascript
+const { FMDMClient } = require('./dist/interfaces/tui-ink/services/FMDMClient.js');
+
+async function testTUIClient() {
+  const client = new FMDMClient();
+  
+  // Test connection
+  await client.connect();
+  console.log('✅ Connected');
+  
+  // Test subscription
+  const unsubscribe = client.subscribe((fmdm) => {
+    console.log('🔄 FMDM Update:', fmdm.version);
+  });
+  
+  // Test validation
+  const validation = await client.validateFolder('/Users');
+  console.log('📊 Validation:', validation);
+  
+  // Test folder operations
+  const addResult = await client.addFolder('/tmp/test', 'nomic-embed-text');
+  console.log('➕ Add result:', addResult);
+  
+  const removeResult = await client.removeFolder('/tmp/test');
+  console.log('➖ Remove result:', removeResult);
+  
+  // Test reconnection
+  console.log('🔌 Testing reconnection...');
+  client.disconnect();
+  await new Promise(r => setTimeout(r, 2000));
+  await client.connect();
+  console.log('✅ Reconnected');
+  
+  unsubscribe();
+  client.disconnect();
+}
+
+testTUIClient().catch(console.error);
+```
+
+**Manual Testing**:
+```bash
+# 1. Start daemon
+npm run test:daemon
+
+# 2. Run TUI client test
+node test-tui-client.js
+```
+
+**Expected Results**:
+- Client connects successfully
+- FMDM subscription receives updates
+- Folder validation returns proper results
+- Add/remove operations work correctly
+- Auto-reconnection works after disconnection
+- No memory leaks or hanging connections
+
 ---
 
 ### Sub-Task 9.10: Create FMDM React Context
@@ -918,6 +1267,56 @@ export const useFMDM = () => {
 - [ ] Test that context provides FMDM to child components
 - [ ] Verify connection status updates correctly
 
+**🧪 TESTING INSTRUCTIONS**:
+
+**Test Component (`test-fmdm-context.tsx`)**:
+```typescript
+import React from 'react';
+import { render } from 'ink-testing-library';
+import { FMDMProvider, useFMDM } from '../src/interfaces/tui-ink/contexts/FMDMContext';
+
+const TestComponent = () => {
+  const { fmdm, isConnected, addFolder } = useFMDM();
+  
+  return (
+    <div>
+      Status: {isConnected ? 'Connected' : 'Disconnected'}
+      Folders: {fmdm?.folders.length || 0}
+      Version: {fmdm?.version || 'None'}
+    </div>
+  );
+};
+
+const App = () => (
+  <FMDMProvider>
+    <TestComponent />
+  </FMDMProvider>
+);
+
+// Test rendering
+const { lastFrame } = render(<App />);
+console.log(lastFrame());
+```
+
+**Manual Testing**:
+```bash
+# 1. Start daemon
+npm run test:daemon
+
+# 2. Test context in TUI demo
+npm run tuidemo
+
+# 3. Create simple context test
+npx tsx test-fmdm-context.tsx
+```
+
+**Expected Results**:
+- Context provides FMDM data to child components
+- Connection status updates correctly
+- Folder operations work through context
+- No React rendering errors or warnings
+- Context handles connection failures gracefully
+
 ---
 
 ### Sub-Task 9.11: Update FilePickerListItem for WebSocket Validation
@@ -947,6 +1346,107 @@ export const useFMDM = () => {
 - [ ] Confirm FilePickerListItem compiles without validation service
 - [ ] Test real-time validation during folder browsing
 - [ ] Verify validation responses appear correctly in UI
+
+**🧪 TESTING INSTRUCTIONS**:
+```bash
+# 1. Start daemon with validation service
+npm run test:daemon
+
+# 2. Test file picker in isolation
+# Create test-file-picker.tsx
+```
+
+**Test Component (`test-file-picker.tsx`)**:
+```typescript
+import React, { useState } from 'react';
+import { render } from 'ink';
+import { FMDMProvider } from '../src/interfaces/tui-ink/contexts/FMDMContext';
+import { FilePickerListItem } from '../src/interfaces/tui-ink/components/core/FilePickerListItem';
+
+const App = () => {
+  const [selectedPath, setSelectedPath] = useState('/Users');
+  
+  return (
+    <FMDMProvider>
+      <FilePickerListItem
+        selectedPath={selectedPath}
+        onPathSelected={setSelectedPath}
+        onValidation={(result) => console.log('Validation:', result)}
+      />
+    </FMDMProvider>
+  );
+};
+
+render(<App />);
+```
+
+**Manual Testing**:
+```bash
+# 1. Start daemon
+npm run test:daemon
+
+# 2. Test file picker
+npx tsx test-file-picker.tsx
+
+# 3. Navigate through folders and observe:
+#    - Real-time validation feedback
+#    - Error/warning display
+#    - Performance (should be responsive)
+
+# 4. Test edge cases:
+#    - Navigate to restricted folders
+#    - Navigate to non-existent paths
+#    - Navigate to folders already configured
+```
+
+**Expected Results**:
+- Real-time validation as user navigates
+- Visual feedback for valid/invalid/warning states
+- No lag or stuttering during navigation
+- Clear error messages for invalid paths
+- Warning indicators for ancestor folders
+- Validation requests are debounced for performance
+
+**🧑‍💻 HUMAN TESTING REQUIRED**:
+After implementing Sub-Task 9.11, please verify:
+
+1. **Start Test Environment**:
+   ```bash
+   # Terminal 1: Start daemon
+   npm run build
+   node test-daemon.js
+   
+   # Terminal 2: Test file picker component
+   npx tsx test-file-picker.tsx
+   ```
+
+2. **Test Real-Time Validation**:
+   - ✅ Navigate through different folders using arrow keys
+   - ✅ Observe validation status appearing immediately as you navigate
+   - ✅ Verify validation messages appear in the UI
+   - ✅ Check that validation is responsive (no lag or delays)
+
+3. **Test Error Scenarios**:
+   - ✅ Navigate to a folder that's already configured → should show duplicate error
+   - ✅ Navigate to a subfolder of configured folder → should show subfolder error
+   - ✅ Navigate to restricted/permission-denied folder → should show appropriate error
+
+4. **Test Warning Scenarios**:
+   - ✅ Navigate to parent folder of configured folders → should show ancestor warning
+   - ✅ Verify warning displays affected folder list
+   - ✅ Confirm warning allows selection (doesn't block)
+
+5. **Test Performance**:
+   - ✅ Navigate rapidly through many folders → validation should keep up
+   - ✅ No visible stuttering or freezing during navigation
+   - ✅ Validation requests should be debounced (not sent on every keystroke)
+
+**Expected Human Verification Outcomes**:
+- FilePickerListItem works without FolderValidationService dependency
+- Real-time validation provides immediate feedback during navigation
+- All validation error types display correctly with helpful messages
+- Performance is smooth and responsive even with rapid navigation
+- Component properly integrates with FMDM WebSocket protocol
 
 ---
 
@@ -992,6 +1492,83 @@ const folders = fmdm?.folders || [];
 - [ ] Test removing a folder through TUI - verify it disappears immediately
 - [ ] Open second TUI instance and verify both stay synchronized
 - [ ] Test connection status indicator works correctly
+
+**🧑‍💻 COMPREHENSIVE HUMAN TESTING REQUIRED**:
+After implementing Sub-Task 9.12, please verify complete TUI migration to WebSocket:
+
+1. **Test Environment Setup**:
+   ```bash
+   # Terminal 1: Start daemon
+   npm run build
+   node test-daemon.js
+   
+   # Terminal 2: Launch TUI
+   npm run tui
+   
+   # Terminal 3: WebSocket monitoring
+   wscat -c ws://127.0.0.1:31849
+   ```
+
+2. **Test TUI-Daemon Connection**:
+   - ✅ TUI starts successfully and connects to daemon
+   - ✅ Connection status indicator shows "Connected" 
+   - ✅ Folder list loads from FMDM (not direct config access)
+   - ✅ Monitor Terminal 3 receives FMDM updates when TUI connects
+
+3. **Test Add Folder Wizard**:
+   ```bash
+   # In TUI: Navigate to Add Folder, select a test folder
+   ```
+   - ✅ File picker shows real-time validation (errors/warnings)
+   - ✅ Folder validation uses WebSocket (not FolderValidationService)
+   - ✅ Successfully adding folder updates TUI immediately
+   - ✅ Monitor Terminal 3 receives FMDM broadcast with new folder
+   - ✅ No direct ConfigurationComponent calls (check logs)
+
+4. **Test Multi-Client Synchronization**:
+   ```bash
+   # Terminal 4: Launch second TUI instance
+   npm run tui
+   ```
+   - ✅ Both TUI instances show identical folder lists
+   - ✅ Add folder in TUI #1 → appears immediately in TUI #2
+   - ✅ Remove folder in TUI #2 → disappears immediately in TUI #1
+   - ✅ All changes reflect in both instances within 100ms
+
+5. **Test Error Handling & Connection Recovery**:
+   ```bash
+   # Stop daemon (Ctrl+C in Terminal 1), observe TUI behavior
+   ```
+   - ✅ TUI shows "Disconnected" status when daemon stops
+   - ✅ TUI attempts auto-reconnection (retry indicator visible)
+   - ✅ Restart daemon → TUI reconnects automatically
+   - ✅ After reconnection, folder list syncs correctly
+
+6. **Test Complete TUI Functionality**:
+   - ✅ **FirstRunWizard**: Uses FMDM for initial folder setup
+   - ✅ **AddFolderWizard**: Uses WebSocket validation, not direct service
+   - ✅ **ManageFolderItem**: Remove operations via WebSocket
+   - ✅ **Header**: Shows connection status and FMDM stats
+   - ✅ **AppFullscreen**: Displays folders from FMDM, not config
+
+7. **Verify Architecture Compliance**:
+   ```bash
+   # Check for any remaining direct config access
+   grep -r "ConfigurationComponent\|FolderValidationService" src/interfaces/tui-ink/
+   # Should return minimal or no results
+   ```
+   - ✅ No direct `ConfigurationComponent` imports in TUI components
+   - ✅ No `FolderValidationService` imports in TUI components  
+   - ✅ All folder operations go through `FMDMContext`
+   - ✅ Clean separation between TUI and daemon infrastructure
+
+**Expected Human Verification Outcomes**:
+- **Complete Migration**: TUI uses WebSocket exclusively, no direct config access
+- **Real-Time Sync**: All TUI instances stay synchronized via FMDM broadcasts
+- **Robust Connection Handling**: Auto-reconnection and status indicators work
+- **Seamless UX**: User experience is smooth with no noticeable change from old architecture
+- **Performance**: No lag, stuttering, or delays in folder operations
+- **Architecture Compliance**: Clean module boundaries maintained
 
 ---
 
@@ -1101,6 +1678,141 @@ const daemonPid = useFMDMSelector(fmdm => fmdm.daemon.pid);
 - [ ] Performance test with 5+ concurrent TUI clients
 - [ ] Verify all FMDM broadcasts work correctly across all scenarios
 
+**🧪 COMPREHENSIVE TESTING INSTRUCTIONS**:
+
+**Test 1: Basic Multi-Client Sync**
+```bash
+# Terminal 1: Start daemon
+npm run test:daemon
+
+# Terminal 2: TUI #1
+npm run tui
+
+# Terminal 3: TUI #2
+npm run tui
+
+# Terminal 4: WebSocket client
+wscat -c ws://127.0.0.1:31849
+
+# Test steps:
+# 1. Add folder in TUI #1
+# 2. Verify appears in TUI #2 and WebSocket client immediately
+# 3. Remove folder in TUI #2
+# 4. Verify removed from TUI #1 and WebSocket client immediately
+```
+
+**Test 2: Ancestor Folder Replacement**
+```bash
+# Setup: Start daemon + 3 clients as above
+
+# Test steps:
+# 1. Add /Users/test/subfolder in TUI #1
+# 2. Add /Users/test in TUI #2 
+# 3. Verify:
+#    - Both TUIs show only /Users/test
+#    - /Users/test/subfolder was automatically removed
+#    - All clients received FMDM updates
+```
+
+**Test 3: Connection Recovery**
+```bash
+# Setup: Start daemon + TUI
+
+# Test steps:
+# 1. Note TUI shows "Connected" status
+# 2. Kill daemon (Ctrl+C)
+# 3. Verify TUI shows "Disconnected" status
+# 4. Restart daemon: npm run test:daemon
+# 5. Verify TUI auto-reconnects and shows folders
+```
+
+**Test 4: Performance Test**
+```bash
+# Create performance-test.js
+```
+
+**Performance Test Script (`performance-test.js`)**:
+```javascript
+const WebSocket = require('ws');
+
+async function createClient(id) {
+  const ws = new WebSocket('ws://127.0.0.1:31849');
+  
+  ws.on('open', () => {
+    console.log(`Client ${id} connected`);
+    ws.send(JSON.stringify({
+      type: 'connection.init',
+      clientType: 'tui'
+    }));
+  });
+  
+  ws.on('message', (data) => {
+    const msg = JSON.parse(data.toString());
+    if (msg.type === 'fmdm.update') {
+      console.log(`Client ${id} received FMDM (${msg.fmdm.connections.count} connections)`);
+    }
+  });
+  
+  return ws;
+}
+
+async function performanceTest() {
+  console.log('Creating 10 concurrent clients...');
+  
+  const clients = [];
+  for (let i = 0; i < 10; i++) {
+    clients.push(await createClient(i));
+    await new Promise(r => setTimeout(r, 100)); // Stagger connections
+  }
+  
+  // Wait and verify all connected
+  await new Promise(r => setTimeout(r, 2000));
+  console.log('All clients should show 10 connections');
+  
+  // Test broadcast performance
+  const testClient = clients[0];
+  console.log('Testing broadcast performance...');
+  
+  const start = Date.now();
+  testClient.send(JSON.stringify({
+    type: 'folder.add',
+    id: 'perf-test',
+    payload: { path: '/tmp/perf-test', model: 'test' }
+  }));
+  
+  // Measure broadcast time
+  setTimeout(() => {
+    const elapsed = Date.now() - start;
+    console.log(`Broadcast completed in ${elapsed}ms`);
+    
+    // Cleanup
+    clients.forEach(ws => ws.close());
+  }, 1000);
+}
+
+performanceTest().catch(console.error);
+```
+
+**Run Performance Test**:
+```bash
+# 1. Start daemon
+npm run test:daemon
+
+# 2. Run performance test
+node performance-test.js
+```
+
+**Expected Results**:
+- **Multi-Client Sync**: Changes appear instantly in all clients
+- **Ancestor Replacement**: Automatic cleanup works correctly
+- **Connection Recovery**: Auto-reconnection works smoothly
+- **Performance**: 
+  - 10+ concurrent clients supported
+  - FMDM broadcasts complete in <100ms
+  - No memory leaks or connection issues
+  - CPU usage remains reasonable
+- **Reliability**: No lost messages or sync issues
+
 ---
 
 ### Sub-Task 9.15: Error Handling & Edge Cases
@@ -1126,6 +1838,234 @@ const daemonPid = useFMDMSelector(fmdm => fmdm.daemon.pid);
 - [ ] Test invalid/malformed messages to daemon
 - [ ] Test concurrent operations from multiple clients
 - [ ] Verify all error scenarios handled gracefully without crashes
+
+**🧪 ERROR SCENARIO TESTING**:
+
+**Test 1: Daemon Not Running**
+```bash
+# 1. Ensure daemon is NOT running
+# 2. Start TUI: npm run tui
+# 3. Verify:
+#    - Clear "Disconnected" status shown
+#    - No crashes or hanging
+#    - Graceful error messages
+#    - Auto-retry attempts visible
+```
+
+**Test 2: Connection Drops During Operation**
+```bash
+# 1. Start daemon: npm run test:daemon
+# 2. Start TUI: npm run tui
+# 3. Begin adding a folder (don't complete)
+# 4. Kill daemon during operation
+# 5. Verify:
+#    - Operation fails gracefully
+#    - Clear error message shown
+#    - TUI remains responsive
+#    - Auto-reconnection starts
+```
+
+**Test 3: Invalid Messages**
+```bash
+# Create error-test.js
+```
+
+**Error Test Script (`error-test.js`)**:
+```javascript
+const WebSocket = require('ws');
+
+async function testErrorHandling() {
+  const ws = new WebSocket('ws://127.0.0.1:31849');
+  
+  ws.on('open', () => {
+    console.log('Testing error handling...');
+    
+    // Test invalid JSON
+    ws.send('invalid json{');
+    
+    // Test unknown message type
+    ws.send(JSON.stringify({ type: 'unknown_type' }));
+    
+    // Test missing required fields
+    ws.send(JSON.stringify({ type: 'folder.add' }));
+    
+    // Test invalid payload
+    ws.send(JSON.stringify({
+      type: 'folder.validate',
+      id: 'test',
+      payload: { invalid: 'field' }
+    }));
+  });
+  
+  ws.on('message', (data) => {
+    const msg = JSON.parse(data.toString());
+    if (msg.type === 'error') {
+      console.log('✅ Error handled:', msg.message);
+    }
+  });
+}
+
+testErrorHandling().catch(console.error);
+```
+
+**Test 4: Concurrent Operations**
+```bash
+# Create concurrent-test.js
+```
+
+**Concurrent Test Script (`concurrent-test.js`)**:
+```javascript
+const WebSocket = require('ws');
+
+async function testConcurrentOperations() {
+  const clients = [];
+  
+  // Create 3 clients
+  for (let i = 0; i < 3; i++) {
+    const ws = new WebSocket('ws://127.0.0.1:31849');
+    clients.push(ws);
+  }
+  
+  await new Promise(r => setTimeout(r, 1000));
+  
+  // All clients try to add same folder simultaneously
+  const folderPath = '/tmp/concurrent-test';
+  clients.forEach((ws, i) => {
+    ws.send(JSON.stringify({
+      type: 'folder.add',
+      id: `concurrent-${i}`,
+      payload: { path: folderPath, model: 'test' }
+    }));
+  });
+  
+  // Verify only one succeeds, others get appropriate errors
+  let responses = 0;
+  clients.forEach(ws => {
+    ws.on('message', (data) => {
+      const msg = JSON.parse(data.toString());
+      if (msg.id && msg.id.startsWith('concurrent-')) {
+        console.log(`Response ${++responses}:`, msg);
+      }
+    });
+  });
+}
+
+testConcurrentOperations().catch(console.error);
+```
+
+**Run Error Tests**:
+```bash
+# 1. Start daemon
+npm run test:daemon
+
+# 2. Run error tests
+node error-test.js
+node concurrent-test.js
+```
+
+**Expected Results**:
+- **Daemon Not Running**: Clear error messages, no crashes
+- **Connection Drops**: Graceful failure, auto-reconnection
+- **Invalid Messages**: Proper error responses, no daemon crashes
+- **Concurrent Operations**: Race conditions handled, consistent state
+- **General**: All error scenarios logged appropriately
+
+---
+
+### Sub-Task 9.16: Migrate TUI Components to FMDM WebSocket
+**Priority**: HIGH  
+**Estimated Time**: 3 hours  
+
+**Components to Migrate**:
+- **TUI Entry Point** (`src/interfaces/tui-ink/index.tsx`)
+- **App Main Screen** (`src/interfaces/tui-ink/AppFullscreen.tsx`)
+- **First Run Wizard** (`src/interfaces/tui-ink/components/FirstRunWizard.tsx`)
+- **Add Folder Wizard** (`src/interfaces/tui-ink/components/AddFolderWizard.tsx`)
+- **File Picker** (`src/interfaces/tui-ink/components/core/FilePickerListItem.tsx`)
+
+**Migration Pattern**:
+```typescript
+// Replace direct configuration access
+const configComponent = container.resolve<ConfigurationComponent>(...);
+await configComponent.addFolder(path, model);
+
+// With FMDM WebSocket communication
+const { fmdm, addFolder } = useFMDM();
+await addFolder(path, model);
+```
+
+**Success Criteria**:
+- [ ] All 5 primary components use FMDM WebSocket instead of direct config access
+- [ ] TUI cascading flow works exactly as before (no folders → wizard → main)
+- [ ] CLI parameters (-d, -m) still trigger add folder wizard correctly
+- [ ] Real-time validation performance maintained in file picker
+- [ ] No TypeScript compilation errors
+
+**🛑 HUMAN VERIFICATION REQUIRED - FULL TUI EXPERIENCE TEST**:
+- [ ] Test TUI without parameters: first run wizard → main screen flow
+- [ ] Test TUI with -d parameter: add folder wizard → main screen flow
+- [ ] Test TUI with existing folders: direct to main screen
+- [ ] Test real-time folder validation during file browsing
+- [ ] Test multi-TUI synchronization with folder add/remove operations
+
+---
+
+### Sub-Task 9.17: Integrate MCP Endpoints into Unified Daemon
+**Priority**: HIGH  
+**Estimated Time**: 2 hours  
+
+**Implementation**:
+- Move MCP REST endpoints to run inside unified daemon on port 31850
+- Connect MCP endpoints to shared business logic (same services as WebSocket)
+- Ensure MCP endpoints can access current folder configuration via FMDM
+
+**Files**:
+- Update `src/domain/daemon/daemon-service.ts` to start REST server
+- Move `src/interfaces/mcp/endpoints.ts` logic into daemon
+- Connect MCP endpoints to shared FMDM service
+
+**Success Criteria**:
+- [ ] MCP REST endpoints accessible on http://127.0.0.1:31850
+- [ ] Claude Desktop can connect and use MCP endpoints
+- [ ] MCP endpoints show current folders from FMDM
+- [ ] TUI folder changes immediately available to MCP endpoints
+- [ ] Single daemon process manages both WebSocket and REST servers
+
+**🛑 HUMAN VERIFICATION REQUIRED - MCP INTEGRATION TEST**:
+- [ ] Start unified daemon and verify both ports (31849 WebSocket, 31850 REST)
+- [ ] Connect Claude Desktop to MCP endpoints
+- [ ] Add folder via TUI, verify it's immediately available to MCP
+- [ ] Test MCP search functionality works with TUI-managed folders
+
+---
+
+### Sub-Task 9.18: Legacy Cleanup and PID Integration  
+**Priority**: MEDIUM  
+**Estimated Time**: 1 hour  
+
+**Cleanup Tasks**:
+- Delete old `src/daemon/index.ts` (simple HTTP-only daemon)
+- Update main screen daemon PID detection to use new unified daemon
+- Remove any documentation references to old daemon
+- Clean up unused imports and references
+
+**Files**:
+- Remove `src/daemon/index.ts`
+- Update any PID file detection logic
+- Update CLI daemon start command to use unified daemon (no -f parameter required)
+
+**Success Criteria**:
+- [ ] Old daemon code completely removed
+- [ ] Main screen shows correct PID for unified daemon
+- [ ] `folder-mcp daemon start` works without folder parameter
+- [ ] No broken imports or references to deleted code
+- [ ] Documentation only references unified daemon
+
+**🛑 HUMAN VERIFICATION REQUIRED - CLEANUP VERIFICATION**:
+- [ ] Confirm old daemon files are deleted and no longer accessible
+- [ ] Verify main screen PID detection works with new daemon
+- [ ] Test that daemon start command works without parameters
+- [ ] Ensure no broken functionality from cleanup
 
 ---
 

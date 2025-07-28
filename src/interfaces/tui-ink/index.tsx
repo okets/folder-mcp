@@ -6,6 +6,7 @@ import { AppFullscreen } from './AppFullscreen';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AutoCompletionHandler } from './components/AutoCompletionHandler';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
+import { FMDMProvider } from './contexts/FMDMContext';
 import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
@@ -253,13 +254,15 @@ async function startTUI() {
         
         // Configuration is now loaded
         
-        // Render with configuration support
+        // Render with configuration support and FMDM context
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
-                    <WindowsScreenWrapper>
-                        <MainApp cliDir={cliDir} cliModel={cliModel} />
-                    </WindowsScreenWrapper>
+                    <FMDMProvider autoConnect={true}>
+                        <WindowsScreenWrapper>
+                            <MainApp cliDir={cliDir} cliModel={cliModel} />
+                        </WindowsScreenWrapper>
+                    </FMDMProvider>
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {
@@ -280,9 +283,11 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={fallbackConfigComponent}>
-                    <WindowsScreenWrapper>
-                        <MainApp cliDir={cliDir} cliModel={cliModel} />
-                    </WindowsScreenWrapper>
+                    <FMDMProvider autoConnect={true}>
+                        <WindowsScreenWrapper>
+                            <MainApp cliDir={cliDir} cliModel={cliModel} />
+                        </WindowsScreenWrapper>
+                    </FMDMProvider>
                 </ConfigurationThemeProvider>
             </DIProvider>,
             {

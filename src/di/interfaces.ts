@@ -497,6 +497,12 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   PERFORMANCE_MONITOR: Symbol('PerformanceMonitor'),
   PID_MANAGER: Symbol('PidManager'),
   SYSTEM_MONITOR: Symbol('SystemMonitor'),
+  
+  // WebSocket Layer
+  WEBSOCKET_SERVER: Symbol('WebSocketServer'),
+  FMDM_SERVICE: Symbol('FMDMService'),
+  DAEMON_CONFIGURATION_SERVICE: Symbol('DaemonConfigurationService'),
+  DAEMON_FOLDER_VALIDATION_SERVICE: Symbol('DaemonFolderValidationService'),
 } as const;
 
 /**

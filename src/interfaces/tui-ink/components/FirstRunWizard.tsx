@@ -6,9 +6,7 @@ import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useRootInput } from '../hooks/useFocusChain';
-import { getContainer } from '../../../di/container';
-import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup';
-import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
+import { useFMDMOperations } from '../contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './AddFolderWizard';
 import { IListItem } from './core/IListItem';
 
@@ -54,6 +52,7 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
 const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
     const { exit } = useApp();
     const { columns } = useTerminalSize();
+    const fmdmOperations = useFMDMOperations();
     
     const [isComplete, setIsComplete] = useState(false);
     const [hasValidationError, setHasValidationError] = useState(false);
@@ -77,18 +76,22 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 errors.folder = folderResult.error;
             }
             
-            // Validate CLI model if provided
+            // Validate CLI model if provided - simplified for FMDM migration
             if (cliModel) {
-                try {
-                    const container = getContainer();
-                    const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                    const modelValidation = await configComponent.validate('folders.list[].model', cliModel);
-                    
-                    if (!modelValidation.valid) {
-                        errors.model = `Unsupported model: ${cliModel}. ${modelValidation.errors?.[0]?.message || ''}`;
-                    }
-                } catch (error) {
-                    errors.model = `Failed to validate model: ${cliModel}`;
+                // Basic model validation - FMDM will do comprehensive validation on add
+                const supportedModels = [
+                    'nomic-embed-text',
+                    'mxbai-embed-large', 
+                    'all-minilm',
+                    'sentence-transformers',
+                    'ollama:nomic-embed-text',
+                    'ollama:mxbai-embed-large',
+                    'ollama:all-minilm',
+                    'transformers:all-MiniLM-L6-v2'
+                ];
+                
+                if (!supportedModels.includes(cliModel)) {
+                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.join(', ')}`;
                 }
             }
             
@@ -105,19 +108,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const handleWizardComplete = useCallback(async (result: AddFolderWizardResult) => {
         setIsComplete(true);
         
-        // Create config using unified system
+        // Add folder using FMDM operations
         try {
-            const container = getContainer();
-            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-            
-            // Load existing config first
-            await configComponent.load();
-            
-            // Add folder using ConfigurationComponent
-            await configComponent.addFolder(result.path, result.model);
-            
-            // Set default embedding model
-            await configComponent.set('folders.defaults.embeddings.model', result.model);
+            await fmdmOperations.addFolder(result.path, result.model);
             
             // Create config object for backward compatibility
             const config = {
@@ -137,9 +130,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             
             onComplete(config);
         } catch (error) {
-            // Silently handle config save errors during TUI rendering
+            console.error('Failed to add folder during first run:', error);
         }
-    }, [onComplete]);
+    }, [onComplete, fmdmOperations]);
     
     // Color constants
     const frameColor = '#4c1589';

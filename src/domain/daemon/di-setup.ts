@@ -51,6 +51,7 @@ export async function registerDaemonServices(
     container.registerSingleton(SERVICE_TOKENS.SIGNAL_HANDLER, () => null);
     container.registerSingleton(SERVICE_TOKENS.PID_MANAGER, () => null);
     container.registerSingleton(SERVICE_TOKENS.SYSTEM_MONITOR, () => null);
+    container.registerSingleton(SERVICE_TOKENS.WEBSOCKET_SERVER, () => null);
     return;
   }
 
@@ -59,6 +60,12 @@ export async function registerDaemonServices(
   // System Monitor - monitors system resources
   container.registerSingleton(SERVICE_TOKENS.SYSTEM_MONITOR, () => {
     return new SimpleSystemMonitor(logger);
+  });
+
+  // WebSocket Server - handles WebSocket communication for FMDM
+  container.registerSingleton(SERVICE_TOKENS.WEBSOCKET_SERVER, () => {
+    const { FMDMWebSocketServer } = require('../../daemon/websocket/server.js');
+    return new FMDMWebSocketServer();
   });
 
   // PID Manager - manages process ID files
@@ -125,6 +132,7 @@ export async function registerDaemonServices(
     const processManager = container.resolve(SERVICE_TOKENS.PROCESS_MANAGER) as ProcessManager;
     const healthMonitor = container.resolve(SERVICE_TOKENS.HEALTH_MONITOR) as HealthMonitor;
     const performanceMonitor = container.resolve(SERVICE_TOKENS.PERFORMANCE_MONITOR) as PerformanceMonitor;
+    const webSocketServer = container.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER) as any;
     
     // Create daemon service first
     const daemonService = new DaemonService(
@@ -133,6 +141,7 @@ export async function registerDaemonServices(
       healthMonitor,
       null as any, // Signal handler will be set after creation
       performanceMonitor,
+      webSocketServer,
       logger
     );
     

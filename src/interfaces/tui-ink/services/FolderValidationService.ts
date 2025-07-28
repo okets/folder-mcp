@@ -7,10 +7,10 @@
  * 3. Ancestor: New path is parent of existing folders (warning → enable Confirm)
  */
 
-import { ValidationResult, createValidationResult } from '../components/core/ValidationState';
-import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
-import { getContainer } from '../../../di/container';
-import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup';
+import { ValidationResult, createValidationResult } from '../components/core/ValidationState.js';
+import { ConfigurationComponent } from '../../../config/ConfigurationComponent.js';
+import { getContainer } from '../../../di/container.js';
+import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup.js';
 import * as path from 'path';
 import * as fs from 'fs';
 

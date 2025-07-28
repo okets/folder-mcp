@@ -16,6 +16,7 @@ import {
   DaemonStatus
 } from './interfaces.js';
 import { DaemonConfig } from '../../config/schema/daemon.js';
+import { FMDMWebSocketServer } from '../../daemon/websocket/server.js';
 
 /**
  * Daemon service events
@@ -44,6 +45,7 @@ export class DaemonService extends EventEmitter implements IDaemonService {
     private healthMonitor: IHealthMonitor,
     private signalHandler: ISignalHandler | null,
     private performanceMonitor: IPerformanceMonitor,
+    private webSocketServer: FMDMWebSocketServer,
     private logger: { info: (msg: string) => void; error: (msg: string, error?: Error) => void; warn: (msg: string) => void; debug: (msg: string) => void; }
   ) {
     super();
@@ -75,6 +77,10 @@ export class DaemonService extends EventEmitter implements IDaemonService {
 
       // Start the MCP server process
       await this.processManager.startMcpServer();
+
+      // Start WebSocket server for FMDM communication
+      await this.webSocketServer.start(31849);
+      this.logger.info('FMDM WebSocket server started on ws://127.0.0.1:31849');
 
       // Start health monitoring if enabled
       if (this.config.healthCheck.enabled) {
@@ -131,6 +137,10 @@ export class DaemonService extends EventEmitter implements IDaemonService {
         this.healthMonitor.stopMonitoring();
         this.logger.info('Health monitoring stopped');
       }
+
+      // Stop WebSocket server
+      await this.webSocketServer.stop();
+      this.logger.info('FMDM WebSocket server stopped');
 
       // Stop the MCP server process
       await this.processManager.stopMcpServer();

@@ -1,0 +1,249 @@
+/**
+ * WebSocket Protocol Handler
+ * 
+ * Implements the core message routing and processing logic for the
+ * FMDM WebSocket protocol. Handles all client-daemon communication
+ * including validation, folder operations, and state synchronization.
+ */
+
+import {
+  WSClientMessage,
+  WSServerMessage,
+  ValidationResponseMessage,
+  ActionResponseMessage,
+  PongMessage,
+  ConnectionAckMessage,
+  ErrorMessage,
+  ValidationResult,
+  isValidClientMessage,
+  isFolderValidateMessage,
+  isConnectionInitMessage,
+  isPingMessage,
+  createValidationResponse,
+  createPongResponse,
+  createConnectionAck,
+  createErrorMessage,
+  VALIDATION_ERRORS
+} from './message-types.js';
+
+import { ILoggingService } from '../../di/interfaces.js';
+import { ClientConnection } from '../models/fmdm.js';
+import { FolderHandlers } from './handlers/folder-handlers.js';
+import { IDaemonConfigurationService } from '../services/configuration-service.js';
+import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
+
+/**
+ * Folder validation service interface
+ */
+export interface IFolderValidationService {
+  validate(path: string): Promise<ValidationResult>;
+}
+
+/**
+ * FMDM service interface for protocol operations
+ */
+export interface IProtocolFMDMService {
+  addClient(client: ClientConnection): void;
+  removeClient(clientId: string): void;
+  updateFolders(folders: Array<{ path: string; model: string }>): void;
+}
+
+/**
+ * WebSocket Protocol Handler
+ */
+export class WebSocketProtocol {
+  private folderHandlers: FolderHandlers;
+
+  constructor(
+    private validationService: IDaemonFolderValidationService,
+    private configService: IDaemonConfigurationService,
+    private fmdmService: IProtocolFMDMService,
+    private logger: ILoggingService
+  ) {
+    // Create folder handlers with proper interfaces
+    this.folderHandlers = new FolderHandlers(
+      this.configService,
+      this.fmdmService,
+      this.validationService,
+      this.logger
+    );
+  }
+
+  /**
+   * Process incoming client message and generate appropriate response
+   */
+  async processMessage(
+    clientId: string,
+    rawMessage: any
+  ): Promise<WSServerMessage | null> {
+    try {
+      // Validate message structure
+      if (!isValidClientMessage(rawMessage)) {
+        this.logger.warn(`Invalid message from client ${clientId}`, { message: rawMessage });
+        return createErrorMessage('Invalid message format');
+      }
+
+      const message = rawMessage as WSClientMessage;
+      this.logger.debug(`Processing message from ${clientId}: ${message.type}`);
+
+      // Route message based on type
+      switch (message.type) {
+        case 'connection.init':
+          return this.handleConnectionInit(clientId, message);
+
+        case 'folder.validate':
+          return await this.handleFolderValidate(message);
+
+        case 'folder.add':
+          return await this.folderHandlers.handleAddFolder(message);
+
+        case 'folder.remove':
+          return await this.folderHandlers.handleRemoveFolder(message);
+
+        case 'ping':
+          return this.handlePing(message);
+
+        default:
+          this.logger.warn(`Unknown message type: ${(message as any).type}`);
+          return createErrorMessage(`Unknown message type: ${(message as any).type}`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error processing message from ${clientId}`, error instanceof Error ? error : new Error(String(error)));
+      return createErrorMessage(`Internal server error: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Handle connection initialization
+   */
+  private handleConnectionInit(
+    clientId: string,
+    message: WSClientMessage
+  ): ConnectionAckMessage {
+    if (!isConnectionInitMessage(message)) {
+      throw new Error('Invalid connection init message');
+    }
+
+    const client: ClientConnection = {
+      id: clientId,
+      type: message.clientType,
+      connectedAt: new Date().toISOString()
+    };
+
+    // Add client to FMDM service
+    this.fmdmService.addClient(client);
+
+    this.logger.info(`Client ${clientId} initialized as ${message.clientType}`);
+    
+    return createConnectionAck(clientId);
+  }
+
+  /**
+   * Handle folder validation request
+   */
+  private async handleFolderValidate(
+    message: WSClientMessage
+  ): Promise<ValidationResponseMessage> {
+    if (!isFolderValidateMessage(message)) {
+      throw new Error('Invalid folder validate message');
+    }
+
+    const { path } = message.payload;
+    const { id } = message;
+
+    this.logger.debug(`Validating folder: ${path}`);
+
+    try {
+      const result = await this.validationService.validate(path);
+      
+      this.logger.debug(`Validation result for ${path}:`, {
+        valid: result.isValid,
+        errorCount: result.errors.length,
+        warningCount: result.warnings.length
+      });
+
+      return createValidationResponse(
+        id,
+        result.isValid,
+        result.errors,
+        result.warnings
+      );
+    } catch (error) {
+      this.logger.error(`Validation failed for ${path}`, error instanceof Error ? error : new Error(String(error)));
+      
+      // Return a generic validation error
+      return createValidationResponse(
+        id,
+        false,
+        [VALIDATION_ERRORS.NOT_EXISTS(path)],
+        []
+      );
+    }
+  }
+
+
+  /**
+   * Handle ping request
+   */
+  private handlePing(message: WSClientMessage): PongMessage {
+    if (!isPingMessage(message)) {
+      throw new Error('Invalid ping message');
+    }
+
+    const { id } = message;
+    this.logger.debug(`Responding to ping from client: ${id}`);
+    
+    return createPongResponse(id);
+  }
+
+  /**
+   * Handle client disconnection
+   */
+  handleClientDisconnection(clientId: string): void {
+    this.logger.info(`Client disconnected: ${clientId}`);
+    this.fmdmService.removeClient(clientId);
+  }
+
+  /**
+   * Generate correlation ID for requests
+   */
+  generateCorrelationId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Validate message payload structure
+   */
+  private validateMessagePayload(message: any, requiredFields: string[]): boolean {
+    if (!message.payload || typeof message.payload !== 'object') {
+      return false;
+    }
+
+    for (const field of requiredFields) {
+      if (!(field in message.payload) || typeof message.payload[field] !== 'string') {
+        return false;
+      }
+    }
+
+    return true;
+  }
+}
+
+/**
+ * Protocol configuration for dependency injection
+ */
+export interface ProtocolConfig {
+  enableDebugLogging?: boolean;
+  requestTimeout?: number;
+  maxMessageSize?: number;
+}
+
+/**
+ * Default protocol configuration
+ */
+export const DEFAULT_PROTOCOL_CONFIG: Required<ProtocolConfig> = {
+  enableDebugLogging: false,
+  requestTimeout: 30000, // 30 seconds
+  maxMessageSize: 1024 * 1024 // 1MB
+};

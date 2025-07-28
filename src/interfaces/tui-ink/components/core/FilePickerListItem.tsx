@@ -10,7 +10,7 @@ import { promises as fs } from 'fs';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { FolderValidationService } from '../../services/FolderValidationService';
+import { FMDMValidationAdapter } from '../../services/FMDMValidationAdapter';
 
 export type FilePickerMode = 'file' | 'folder' | 'both';
 
@@ -39,7 +39,7 @@ export class FilePickerListItem extends ValidatedListItem {
     private _hasNavigated: boolean = false;
     private onPathChange?: (newPath: string) => void;
     private onChange?: () => void;
-    private folderValidationService?: FolderValidationService;
+    private fmdmValidationAdapter?: FMDMValidationAdapter;
     
     constructor(
         public icon: string,
@@ -51,7 +51,7 @@ export class FilePickerListItem extends ValidatedListItem {
         private filterPatterns?: string[],
         onChange?: () => void,
         private showHiddenFiles: boolean = false,
-        folderValidationService?: FolderValidationService
+        fmdmValidationAdapter?: FMDMValidationAdapter
     ) {
         super(); // Call parent constructor
         // Resolve initial path with home directory expansion
@@ -70,8 +70,8 @@ export class FilePickerListItem extends ValidatedListItem {
         if (onChange) {
             this.onChange = onChange;
         }
-        if (folderValidationService) {
-            this.folderValidationService = folderValidationService;
+        if (fmdmValidationAdapter) {
+            this.fmdmValidationAdapter = fmdmValidationAdapter;
         }
         
         // Validate initial path
@@ -125,8 +125,8 @@ export class FilePickerListItem extends ValidatedListItem {
                     );
                 }
                 
-                // If FolderValidationService is available, perform folder conflict validation
-                if (this.folderValidationService) {
+                // If FMDM validation adapter is available, perform folder conflict validation
+                if (this.fmdmValidationAdapter) {
                     // We need to make this async, but performValidation is sync
                     // For now, trigger async validation and return null
                     // The async result will be handled by the validation trigger
@@ -169,25 +169,25 @@ export class FilePickerListItem extends ValidatedListItem {
     }
     
     /**
-     * Perform async folder validation using FolderValidationService
+     * Perform async folder validation using FMDM validation adapter
      */
     private async performAsyncFolderValidation(): Promise<void> {
         // Validate the path that's being displayed
         const pathToValidate = this._isControllingInput ? this._currentPath : this._selectedPath;
         
-        if (!this.folderValidationService || !pathToValidate) {
+        if (!this.fmdmValidationAdapter || !pathToValidate) {
             return;
         }
         
         try {
-            const validationResult = await this.folderValidationService.validateFolderPath(pathToValidate);
+            const validationResult = await this.fmdmValidationAdapter.validateFolderPath(pathToValidate);
             
             if (!validationResult.isValid || validationResult.hasWarning) {
                 // Create validation message based on result
                 const state = validationResult.hasError ? ValidationState.Error : 
                             validationResult.hasWarning ? ValidationState.Warning : ValidationState.Valid;
                 
-                const displayMessage = this.folderValidationService.getValidationDisplayMessage(validationResult);
+                const displayMessage = this.fmdmValidationAdapter.getValidationDisplayMessage(validationResult);
                 
                 this._validationMessage = createValidationMessage(state, displayMessage);
                 
@@ -200,6 +200,7 @@ export class FilePickerListItem extends ValidatedListItem {
             }
         } catch (error) {
             // If validation service fails, don't show an error - just continue without folder validation
+            console.error('FMDM folder validation failed:', error);
         }
     }
     

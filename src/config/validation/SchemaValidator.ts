@@ -6,8 +6,8 @@
  */
 
 import { IValidator } from './IValidationPipeline';
-import { ValidationResult } from '../ConfigurationComponent';
-import { ValidationRegistry } from '../ValidationRegistry';
+import { ValidationResult } from '../ConfigurationComponent.js';
+import { ValidationRegistry } from '../ValidationRegistry.js';
 
 export class SchemaValidator implements IValidator {
     name = 'SchemaValidator';

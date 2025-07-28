@@ -5,10 +5,10 @@
  * Used by ConfigurationComponent for all validation operations.
  */
 
-import { ValidationPipeline } from './ValidationPipeline';
-import { SchemaValidator } from './SchemaValidator';
-import { FolderBusinessValidator } from './FolderBusinessValidator';
-import { IValidationPipeline } from './IValidationPipeline';
+import { ValidationPipeline } from './ValidationPipeline.js';
+import { SchemaValidator } from './SchemaValidator.js';
+import { FolderBusinessValidator } from './FolderBusinessValidator.js';
+import { IValidationPipeline } from './IValidationPipeline.js';
 
 export class ValidationPipelineService {
     private static instance: IValidationPipeline;

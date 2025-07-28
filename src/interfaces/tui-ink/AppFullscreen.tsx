@@ -23,9 +23,7 @@ import { TextListItem } from './components/core/TextListItem';
 import { SimpleButtonsRow } from './components/core/SimpleButtonsRow';
 import { LogItem } from './components/core/LogItem';
 import { existsSync, statSync } from 'fs';
-import { getContainer } from '../../di/container';
-import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
-import { ConfigurationComponent } from '../../config/ConfigurationComponent';
+import { useFMDM, useConfiguredFolders, useFMDMOperations } from './contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem } from './components/ManageFolderItem';
 
@@ -49,8 +47,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
     const [wizardJustAdded, setWizardJustAdded] = useState(false);
     
-    // State to hold current folders from ConfigurationComponent
-    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
+    // Get current folders from FMDM context
+    const currentFolders = useConfiguredFolders();
+    const fmdmOperations = useFMDMOperations();
     
     // Navigation context for focus management
     const navigation = useNavigationContext();
@@ -106,36 +105,19 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     }, [countdown]);
     
     
-    // Load folders from ConfigurationComponent
-    const loadFolders = React.useCallback(async () => {
-        try {
-            const container = getContainer();
-            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-            const folders = await configComponent.getFolders();
-            setCurrentFolders(folders);
-        } catch (error) {
-            setCurrentFolders([]);
-        }
-    }, []);
+    // Folders are now automatically updated via FMDM context - no manual loading needed
     
-    // Load folders on mount and when config changes
-    React.useEffect(() => {
-        loadFolders();
-    }, [loadFolders, config]);
-    
-    // Handle model changes - save to configuration
+    // Handle model changes - save via FMDM operations
     const handleModelChange = React.useCallback(async (folderPath: string, newModel: string) => {
         try {
-            const container = getContainer();
-            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-            
-            await configComponent.updateFolderModel(folderPath, newModel);
-            
-            // Refresh the folders to show the updated model
-            await loadFolders();
+            // Remove the old folder and re-add with new model
+            await fmdmOperations.removeFolder(folderPath);
+            await fmdmOperations.addFolder(folderPath, newModel);
+            // FMDM context will automatically update with the new state
         } catch (error) {
+            console.error('Failed to update folder model:', error);
         }
-    }, [loadFolders]);
+    }, [fmdmOperations]);
     
     // Create a stable reference to handleModelChange for useMemo
     const stableHandleModelChange = React.useRef(handleModelChange);
@@ -182,14 +164,15 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     model: folder.model || 'nomic-embed-text',
                     isValid: folderValid,
                     onRemove: async (pathToRemove: string) => {
-                        const container = getContainer();
-                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                        await configComponent.removeFolder(pathToRemove);
-                        await loadFolders(); // Refresh the folder list
+                        try {
+                            await fmdmOperations.removeFolder(pathToRemove);
+                            // FMDM context will automatically update the folder list
+                        } catch (error) {
+                            console.error('Failed to remove folder:', error);
+                        }
                     },
                     onError: (error: string) => {
-                        // Handle removal errors silently for now
-                        // Could be enhanced to show user feedback in the future
+                        console.error('Folder management error:', error);
                     }
                 });
                 
@@ -202,13 +185,11 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             const wizard = createAddFolderWizard({
                 onComplete: async (result: AddFolderWizardResult) => {
                     try {
-                        const container = getContainer();
-                        const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                        await configComponent.addFolder(result.path, result.model);
-                        await loadFolders();
+                        await fmdmOperations.addFolder(result.path, result.model);
+                        // FMDM context will automatically update the folder list
                         setShowAddFolderWizard(false);
                     } catch (error) {
-                        // Silently handle folder addition errors
+                        console.error('Failed to add folder:', error);
                     }
                 },
                 onCancel: () => {
@@ -242,7 +223,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         items.push(addFolderButton);
         
         return items;
-    }, [currentFolders, showAddFolderWizard, loadFolders]); // Add necessary dependencies
+    }, [currentFolders, showAddFolderWizard, fmdmOperations]); // Updated dependencies
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
@@ -353,22 +334,9 @@ interface AppContentProps {
 
 const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
-    const [currentFolders, setCurrentFolders] = useState<Array<{ path: string; model: string }>>([]);
     
-    // Load folders for count calculation
-    React.useEffect(() => {
-        const loadFoldersForCount = async () => {
-            try {
-                const container = getContainer();
-                const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-                const folders = await configComponent.getFolders();
-                setCurrentFolders(folders);
-            } catch (error) {
-                setCurrentFolders([]);
-            }
-        };
-        loadFoldersForCount();
-    }, [config]);
+    // Get folders from FMDM context for count calculation
+    const currentFolders = useConfiguredFolders();
     
     // Calculate actual config item count dynamically
     const actualConfigItemCount = (() => {

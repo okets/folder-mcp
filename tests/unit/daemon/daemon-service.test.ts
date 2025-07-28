@@ -72,6 +72,7 @@ describe('DaemonService', () => {
       mockHealthMonitor,
       mockSignalHandler,
       mockPerformanceMonitor,
+      null as any, // Mock WebSocket server - not needed for tests
       mockLogger
     );
   });

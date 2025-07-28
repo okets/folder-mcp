@@ -7,8 +7,8 @@
  */
 
 import { IConfigManager, ValidationResult } from '../domain/config/IConfigManager';
-import { ValidationRegistry } from './ValidationRegistry';
-import { ValidationPipelineService } from './validation/ValidationPipelineService';
+import { ValidationRegistry } from './ValidationRegistry.js';
+import { ValidationPipelineService } from './validation/ValidationPipelineService.js';
 import { existsSync } from 'fs';
 import { unlinkSync } from 'fs';
 import { join } from 'path';

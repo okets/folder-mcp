@@ -8,8 +8,8 @@
  */
 
 import { IValidator } from './IValidationPipeline';
-import { ValidationResult } from '../ConfigurationComponent';
-import { FolderValidationService } from '../../interfaces/tui-ink/services/FolderValidationService';
+import { ValidationResult } from '../ConfigurationComponent.js';
+import { FolderValidationService } from '../../interfaces/tui-ink/services/FolderValidationService.js';
 
 export class FolderBusinessValidator implements IValidator {
     name = 'FolderBusinessValidator';

@@ -5,7 +5,7 @@
  */
 
 import { IValidator, IValidationPipeline, ValidationPipelineOptions } from './IValidationPipeline';
-import { ValidationResult } from '../ConfigurationComponent';
+import { ValidationResult } from '../ConfigurationComponent.js';
 
 export class ValidationPipeline implements IValidationPipeline {
     private validators: Map<string, IValidator> = new Map();
