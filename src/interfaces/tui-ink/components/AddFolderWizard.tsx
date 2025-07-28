@@ -13,7 +13,6 @@ import { SelectionListItem } from './core/SelectionListItem';
 import { IListItem } from './core/IListItem';
 import { getModelOptions, getAllModelsWithMetadata, getModelMetadata } from '../models/modelMetadata';
 import { SelectionOption } from './core/SelectionListItem';
-import { FolderValidationService } from '../services/FolderValidationService';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
@@ -30,6 +29,7 @@ export interface AddFolderWizardOptions {
     initialModel?: string;
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
+    fmdmOperations?: any;
 }
 
 /**
@@ -155,7 +155,8 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         initialPath = process.cwd(),
         initialModel = 'nomic-embed-text',
         onComplete,
-        onCancel
+        onCancel,
+        fmdmOperations
     } = options;
     
     
@@ -163,29 +164,35 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     let selectedPath = initialPath;
     let selectedModel = initialModel;
     
-    // Initialize validation
-    const validationService = new FolderValidationService();
+    // Initialize FMDM validation if operations are provided
+    // Since we're already past the app-level daemon connection check, we know we're connected
+    const validationService = fmdmOperations 
+        ? new FMDMValidationAdapter(fmdmOperations, () => true) // Always connected at this point
+        : null;
     let currentValidation: ValidationResult = DEFAULT_VALIDATION;
     let containerWizard: AddFolderContainerItem;
     let folderPicker: FilePickerListItem;
     
-    // Create destructive config for ancestor scenarios
+    // Create destructive config for ancestor scenarios using FMDM validation
     const createAncestorDestructiveConfig = async (folderPath: string): Promise<IDestructiveConfig | undefined> => {
-        const conflictInfo = await validationService.getAncestorConflictInfo(folderPath);
+        if (!validationService) return undefined;
+        const validationResult = await validationService.validateFolderPath(folderPath);
         
-        if (!conflictInfo || conflictInfo.conflictingFolders.length === 0) {
+        // Check if validation has ancestor warnings
+        if (!validationResult.hasWarning || !validationResult.warningMessage) {
             return undefined;
         }
         
-        const folderCount = conflictInfo.conflictingFolders.length;
-        const folderList = conflictInfo.conflictingFolders.map(f => `${f.path} (${f.model})`);
+        // For now, we'll extract folder info from the daemon validation warnings
+        // This assumes the daemon validation includes affectedFolders info
+        const folderCount = 1; // We can't get exact count without the detailed info
         
         return {
             level: 'warning',
             title: 'Replace Existing Monitored Folders',
-            message: `Adding "${folderPath}" will replace monitoring of ${folderCount} existing folder${folderCount > 1 ? 's' : ''} that are contained within it.`,
+            message: `Adding "${folderPath}" will replace monitoring of existing folders that are contained within it.`,
             consequences: [
-                ...folderList.map(folder => `Remove monitoring: ${folder}`),
+                validationResult.warningMessage,
                 `Add monitoring: ${folderPath} (${selectedModel})`
             ],
             estimatedTime: '< 1 minute',
@@ -196,6 +203,10 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     
     // Validation function that updates both container and file picker
     const validateAndUpdateContainer = async (folderPath: string) => {
+        if (!validationService) {
+            currentValidation = createValidationResult(false, 'Validation service not available');
+            return;
+        }
         const validationResult = await validationService.validateFolderPath(folderPath);
         currentValidation = validationResult;
         
@@ -229,6 +240,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         false, // showHiddenFiles
         validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
     );
+    
     childItems.push(folderPicker);
     
     // Step 2: Model selection with enhanced metadata display
@@ -309,10 +321,8 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         { text: 'Cancel', isDestructive: false }
     );
     
-    // Perform initial validation
-    validateAndUpdateContainer(selectedPath).catch(error => {
-        console.error(`Initial validation error: ${error}`);
-    });
+    // Skip initial validation - it will be performed when the user interacts with the wizard
+    // This avoids race conditions with WebSocket connection timing
     
     return containerWizard;
 }

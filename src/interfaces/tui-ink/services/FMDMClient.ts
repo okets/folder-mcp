@@ -11,7 +11,7 @@
 import WebSocket from 'ws';
 import { FMDM } from '../../../daemon/models/fmdm.js';
 import { 
-  ValidationResult,
+  ValidationResponseMessage,
   WSClientMessage,
   WSServerMessage
 } from '../../../daemon/websocket/message-types.js';
@@ -162,14 +162,17 @@ export class FMDMClient {
 
   /**
    * Validate a folder path
+   * Returns the raw ValidationResponseMessage from daemon
    */
-  async validateFolder(path: string): Promise<ValidationResult> {
+  async validateFolder(path: string): Promise<ValidationResponseMessage> {
     const id = this.generateId();
-    return this.sendRequest({
-      type: 'folder.validate',
+    const message = {
+      type: 'folder.validate' as const,
       id,
       payload: { path }
-    });
+    };
+    
+    return await this.sendRequest(message);
   }
 
   /**
@@ -336,7 +339,7 @@ export class FMDMClient {
           this.isConnected = false;
           this.isConnecting = false;
           resolve();
-        }, 1000);
+        }, 250);
         
         this.ws.once('close', () => {
           clearTimeout(closeTimeout);

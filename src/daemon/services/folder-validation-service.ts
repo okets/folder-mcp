@@ -65,8 +65,13 @@ export class DaemonFolderValidationService implements IDaemonFolderValidationSer
    */
   async validate(folderPath: string): Promise<ValidationResult> {
     try {
+      this.logger.debug(`\n=== VALIDATION DEBUG START ===`);
+      this.logger.debug(`Validating folder path: ${folderPath}`);
+      
       // Basic path validation
       if (!folderPath || folderPath.trim() === '') {
+        this.logger.debug('Validation failed: empty path');
+        this.logger.debug(`=== VALIDATION DEBUG END ===\n`);
         return {
           isValid: false,
           errors: [VALIDATION_ERRORS.NOT_EXISTS('')],
@@ -76,18 +81,24 @@ export class DaemonFolderValidationService implements IDaemonFolderValidationSer
 
       // Normalize the path to ensure consistent comparison
       const normalizedPath = path.resolve(folderPath);
+      this.logger.debug(`Normalized path: ${normalizedPath}`);
 
       // Check if path exists and is accessible
       try {
         const stat = fs.statSync(normalizedPath);
         if (!stat.isDirectory()) {
+          this.logger.debug('Validation failed: path is not a directory');
+          this.logger.debug(`=== VALIDATION DEBUG END ===\n`);
           return {
             isValid: false,
             errors: [VALIDATION_ERRORS.NOT_DIRECTORY(folderPath)],
             warnings: []
           };
         }
+        this.logger.debug('Path exists and is a directory');
       } catch (error) {
+        this.logger.debug(`Validation failed: path does not exist - ${error}`);
+        this.logger.debug(`=== VALIDATION DEBUG END ===\n`);
         return {
           isValid: false,
           errors: [VALIDATION_ERRORS.NOT_EXISTS(folderPath)],
@@ -96,10 +107,17 @@ export class DaemonFolderValidationService implements IDaemonFolderValidationSer
       }
 
       // Get existing monitored folders
+      this.logger.debug('Fetching existing folders from configuration...');
       const existingFolders = await this.configService.getFolders();
+      this.logger.debug(`Found ${existingFolders.length} existing folders:`);
+      existingFolders.forEach((folder, index) => {
+        this.logger.debug(`  [${index}] ${folder.path} (model: ${folder.model})`);
+      });
 
       if (!existingFolders || existingFolders.length === 0) {
         // No existing folders, path is valid
+        this.logger.debug('No existing folders found - validation passes');
+        this.logger.debug(`=== VALIDATION DEBUG END ===\n`);
         return {
           isValid: true,
           errors: [],
@@ -108,10 +126,25 @@ export class DaemonFolderValidationService implements IDaemonFolderValidationSer
       }
 
       // Check for folder conflicts
-      return this.checkFolderConflicts(normalizedPath, existingFolders);
+      this.logger.debug('Checking for folder conflicts...');
+      const result = this.checkFolderConflicts(normalizedPath, existingFolders);
+      this.logger.debug(`Validation result: valid=${result.isValid}, errors=${result.errors.length}, warnings=${result.warnings.length}`);
+      if (result.errors.length > 0) {
+        result.errors.forEach(error => {
+          this.logger.debug(`  Error: ${error.message}`);
+        });
+      }
+      if (result.warnings.length > 0) {
+        result.warnings.forEach(warning => {
+          this.logger.debug(`  Warning: ${warning.message}`);
+        });
+      }
+      this.logger.debug(`=== VALIDATION DEBUG END ===\n`);
+      return result;
 
     } catch (error) {
       this.logger.error('Validation error during folder validation', error instanceof Error ? error : new Error(String(error)));
+      this.logger.debug(`=== VALIDATION DEBUG END (ERROR) ===\n`);
       return {
         isValid: false,
         errors: [VALIDATION_ERRORS.NOT_EXISTS(folderPath)],

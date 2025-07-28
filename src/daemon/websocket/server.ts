@@ -52,20 +52,23 @@ export class FMDMWebSocketServer {
     });
 
     this.wss.on('connection', (ws: WebSocket) => {
+      this.log('debug', `[WS-SERVER] New WebSocket connection received`);
       this.handleConnection(ws);
     });
 
     this.wss.on('error', (error) => {
-      this.log('error', 'WebSocket server error:', error);
+      this.log('error', '[WS-SERVER-ERROR] WebSocket server error:', error);
     });
 
     // Subscribe to FMDM updates
+    this.log('debug', `[WS-SERVER] Subscribing to FMDM updates`);
     this.fmdmUnsubscribe = this.fmdmService.subscribe((fmdm: FMDM) => {
+      this.log('debug', `[WS-SERVER-FMDM] Received FMDM update, broadcasting to clients`);
       this.broadcastFMDM(fmdm);
     });
 
     this.isStarted = true;
-    this.log('info', `WebSocket server started on ws://127.0.0.1:${port}`);
+    this.log('info', `[WS-SERVER] WebSocket server started on ws://127.0.0.1:${port}`);
   }
 
   /**
@@ -73,26 +76,33 @@ export class FMDMWebSocketServer {
    */
   async stop(): Promise<void> {
     if (!this.isStarted || !this.wss) {
+      this.log('debug', `[WS-SERVER-STOP] Server already stopped or not started`);
       return;
     }
 
+    this.log('info', `[WS-SERVER-STOP] Stopping WebSocket server with ${this.clients.size} connected clients`);
+
     // Unsubscribe from FMDM updates
     if (this.fmdmUnsubscribe) {
+      this.log('debug', `[WS-SERVER-STOP] Unsubscribing from FMDM updates`);
       this.fmdmUnsubscribe();
       this.fmdmUnsubscribe = null;
     }
 
     // Close all client connections
-    this.clients.forEach(({ ws }) => {
+    this.log('debug', `[WS-SERVER-STOP] Closing ${this.clients.size} client connections`);
+    this.clients.forEach(({ ws }, clientId) => {
+      this.log('debug', `[WS-SERVER-STOP] Closing connection for client ${clientId}`);
       ws.close();
     });
     this.clients.clear();
 
     // Close the server
     return new Promise((resolve) => {
+      this.log('debug', `[WS-SERVER-STOP] Closing WebSocket server`);
       this.wss!.close(() => {
         this.isStarted = false;
-        this.log('info', 'WebSocket server stopped');
+        this.log('info', '[WS-SERVER-STOP] WebSocket server stopped');
         resolve();
       });
     });
@@ -105,38 +115,43 @@ export class FMDMWebSocketServer {
     const clientId = this.generateClientId();
     this.clients.set(clientId, { ws, clientType: 'unknown' });
 
-    this.log('info', `Client ${clientId} connected`);
+    this.log('info', `[WS-CONNECT] Client ${clientId} connected`);
 
     ws.on('message', async (data) => {
       try {
-        const message = JSON.parse(data.toString());
+        const rawMessage = data.toString();
+        this.log('debug', `[WS-RAW] Client ${clientId} raw message: ${rawMessage}`);
+        const message = JSON.parse(rawMessage);
         await this.handleMessage(clientId, message, ws);
       } catch (error) {
-        this.log('error', `Error parsing message from client ${clientId}:`, error);
+        this.log('error', `[WS-PARSE-ERROR] Error parsing message from client ${clientId}:`, error);
         this.sendError(ws, 'Invalid JSON message');
       }
     });
 
     ws.on('close', () => {
+      this.log('info', `[WS-CLOSE] Client ${clientId} connection closed`);
       this.handleClientDisconnection(clientId);
     });
 
     ws.on('error', (error) => {
-      this.log('error', `Client ${clientId} error:`, error);
+      this.log('error', `[WS-CLIENT-ERROR] Client ${clientId} error:`, error);
       this.handleClientDisconnection(clientId);
     });
 
     // Note: Don't send FMDM immediately - wait for connection.init
     // This ensures client is ready to receive and process the FMDM
+    this.log('debug', `[WS-CONNECT-WAIT] Client ${clientId} connected, waiting for connection.init before sending FMDM`);
   }
 
   /**
    * Handle incoming message from client
    */
   private async handleMessage(clientId: string, message: any, ws: WebSocket): Promise<void> {
-    this.log('debug', `Received message from ${clientId}:`, { type: message.type });
+    this.log('debug', `[WS-IN] Client ${clientId} -> ${JSON.stringify(message)}`);
 
     if (!this.protocol) {
+      this.log('error', `[WS-ERROR] Protocol handler not available for client ${clientId}`);
       this.sendError(ws, 'Protocol handler not available');
       return;
     }
@@ -144,28 +159,37 @@ export class FMDMWebSocketServer {
     try {
       // Special handling for connection.init to update client type
       if (message.type === 'connection.init' && message.clientType) {
+        this.log('debug', `[WS-INIT] Client ${clientId} initializing as type: ${message.clientType}`);
         const clientInfo = this.clients.get(clientId);
         if (clientInfo) {
           clientInfo.clientType = message.clientType;
           this.clients.set(clientId, clientInfo);
+          this.log('debug', `[WS-INIT] Client ${clientId} type updated to ${message.clientType}`);
           
           // Send initial FMDM to newly initialized client
           if (this.fmdmService) {
             const fmdm = this.fmdmService.getFMDM();
-            this.sendMessage(ws, createFMDMUpdateMessage(fmdm));
-            this.log('debug', `Sent initial FMDM to client ${clientId}`);
+            const fmdmMessage = createFMDMUpdateMessage(fmdm);
+            this.log('debug', `[WS-FMDM-INIT] Sending initial FMDM to client ${clientId}: ${JSON.stringify(fmdmMessage)}`);
+            this.sendMessage(ws, fmdmMessage);
           }
         }
       }
 
       // Process message through protocol handler
+      this.log('debug', `[WS-PROTOCOL] Processing message from ${clientId} through protocol handler`);
       const response = await this.protocol.processMessage(clientId, message);
       
       if (response) {
+        this.log('debug', `[WS-OUT] Client ${clientId} <- ${JSON.stringify(response)}`);
         this.sendMessage(ws, response);
+      } else {
+        this.log('debug', `[WS-PROTOCOL] No response generated for message from ${clientId}`);
       }
     } catch (error) {
-      this.log('error', `Error processing message from ${clientId}`, error);
+      this.log('error', `[WS-ERROR] Error processing message from ${clientId}:`, error);
+      const errorResponse = { type: 'error', message: 'Internal server error' };
+      this.log('debug', `[WS-ERROR-OUT] Client ${clientId} <- ${JSON.stringify(errorResponse)}`);
       this.sendError(ws, 'Internal server error');
     }
   }
@@ -177,12 +201,15 @@ export class FMDMWebSocketServer {
     const clientInfo = this.clients.get(clientId);
     if (clientInfo) {
       this.clients.delete(clientId);
-      this.log('info', `Client ${clientId} disconnected (type: ${clientInfo.clientType})`);
+      this.log('info', `[WS-DISCONNECT] Client ${clientId} disconnected (type: ${clientInfo.clientType})`);
       
       // Notify protocol handler
       if (this.protocol) {
+        this.log('debug', `[WS-DISCONNECT-PROTOCOL] Notifying protocol handler of client ${clientId} disconnection`);
         this.protocol.handleClientDisconnection(clientId);
       }
+    } else {
+      this.log('debug', `[WS-DISCONNECT-UNKNOWN] Attempted to disconnect unknown client ${clientId}`);
     }
   }
 
@@ -192,10 +219,14 @@ export class FMDMWebSocketServer {
   private sendMessage(ws: WebSocket, message: any): void {
     if (ws.readyState === WebSocket.OPEN) {
       try {
-        ws.send(JSON.stringify(message));
+        const messageStr = JSON.stringify(message);
+        this.log('debug', `[WS-SEND] Sending message: ${messageStr}`);
+        ws.send(messageStr);
       } catch (error) {
-        this.log('error', 'Failed to send message to client', error);
+        this.log('error', '[WS-SEND-ERROR] Failed to send message to client:', error);
       }
+    } else {
+      this.log('debug', `[WS-SEND-SKIP] WebSocket not open (state: ${ws.readyState}), skipping message: ${JSON.stringify(message)}`);
     }
   }
 
@@ -203,10 +234,12 @@ export class FMDMWebSocketServer {
    * Send error message to client
    */
   private sendError(ws: WebSocket, error: string): void {
-    this.sendMessage(ws, {
+    const errorMessage = {
       type: 'error',
       message: error
-    });
+    };
+    this.log('debug', `[WS-ERROR-SEND] Sending error message: ${JSON.stringify(errorMessage)}`);
+    this.sendMessage(ws, errorMessage);
   }
 
   /**
@@ -215,11 +248,23 @@ export class FMDMWebSocketServer {
   public broadcastFMDM(fmdm: FMDM): void {
     const message = createFMDMUpdateMessage(fmdm);
 
-    this.clients.forEach(({ ws }) => {
-      this.sendMessage(ws, message);
+    this.log('debug', `[WS-BROADCAST-START] Broadcasting FMDM update to ${this.clients.size} clients: ${JSON.stringify(message)}`);
+    
+    let successCount = 0;
+    let skipCount = 0;
+    
+    this.clients.forEach(({ ws }, clientId) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        this.log('debug', `[WS-BROADCAST-CLIENT] Sending FMDM to client ${clientId}`);
+        this.sendMessage(ws, message);
+        successCount++;
+      } else {
+        this.log('debug', `[WS-BROADCAST-SKIP] Skipping client ${clientId} (WebSocket state: ${ws.readyState})`);
+        skipCount++;
+      }
     });
 
-    this.log('debug', `Broadcasted FMDM update to ${this.clients.size} clients`);
+    this.log('debug', `[WS-BROADCAST-COMPLETE] FMDM broadcast complete - sent to ${successCount} clients, skipped ${skipCount} clients`);
   }
 
   /**

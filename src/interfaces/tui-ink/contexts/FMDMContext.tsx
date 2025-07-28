@@ -8,9 +8,10 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { FMDM } from '../../../daemon/models/fmdm.js';
-import { registerCleanupHandler } from '../utils/cleanup.js';
+import { registerCleanupHandler, unregisterCleanupHandler } from '../utils/cleanup.js';
 import { FMDMClient, FMDMConnectionStatus } from '../services/FMDMClient.js';
-import { ValidationResult } from '../../../daemon/websocket/message-types.js';
+import { ValidationResult, createValidationResult } from '../components/core/ValidationState.js';
+import { ValidationResponseMessage } from '../../../daemon/websocket/message-types.js';
 
 /**
  * FMDM Context interface
@@ -84,14 +85,17 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     }
 
     // Register global cleanup handler for proper exit handling
-    registerCleanupHandler(async () => {
+    const cleanupHandler = async () => {
       await client.disconnect();
-    });
+    };
+    registerCleanupHandler(cleanupHandler);
 
     // Cleanup subscriptions on unmount
     return () => {
       unsubscribeFMDM();
       unsubscribeStatus();
+      // Unregister cleanup handler to prevent accumulation
+      unregisterCleanupHandler(cleanupHandler);
       // Properly disconnect WebSocket (fire and forget for cleanup)
       client.disconnect().catch((error) => {
         console.error('Error disconnecting FMDM client:', error);
@@ -114,7 +118,23 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
 
   // Folder operations
   const validateFolder = useCallback(async (path: string): Promise<ValidationResult> => {
-    return await client.validateFolder(path);
+    const daemonResult: ValidationResponseMessage = await client.validateFolder(path);
+    
+    // Convert daemon ValidationResponseMessage to TUI ValidationResult
+    if (!daemonResult.valid) {
+      // Has errors
+      const errorMessage = daemonResult.errors.length > 0 
+        ? daemonResult.errors[0]!.message
+        : 'Folder validation failed';
+      return createValidationResult(false, errorMessage);
+    } else if (daemonResult.warnings.length > 0) {
+      // Valid but has warnings
+      const warningMessage = daemonResult.warnings[0]!.message;
+      return createValidationResult(true, undefined, warningMessage);
+    } else {
+      // Valid with no warnings
+      return createValidationResult(true);
+    }
   }, [client]);
 
   const addFolder = useCallback(async (path: string, model: string): Promise<{ success: boolean; error?: string }> => {

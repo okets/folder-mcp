@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import { join } from 'path';
 import { existsSync, statSync } from 'fs';
 import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useRootInput } from '../hooks/useFocusChain';
-import { useFMDMOperations } from '../contexts/FMDMContext';
+import { useFMDMOperations, useFMDMConnection } from '../contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './AddFolderWizard';
 import { IListItem } from './core/IListItem';
 
@@ -53,6 +53,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const { exit } = useApp();
     const { columns } = useTerminalSize();
     const fmdmOperations = useFMDMOperations();
+    const fmdmConnection = useFMDMConnection();
     
     const [isComplete, setIsComplete] = useState(false);
     const [hasValidationError, setHasValidationError] = useState(false);
@@ -140,6 +141,32 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
     
+    // Add input handling that works for both error screen and normal wizard
+    useInput((input, key) => {
+        if (key.escape && (!fmdmConnection.connected && !fmdmConnection.connecting)) {
+            // Only handle ESC on error screen, let normal wizard handle its own ESC
+            process.exit(0);
+        }
+    });
+
+    // Check if daemon is connected - if not, show error screen
+    if (!fmdmConnection.connected && !fmdmConnection.connecting) {
+        return (
+            <Box flexDirection="column" height="100%" justifyContent="center" alignItems="center" padding={1}>
+                <Box flexDirection="column" alignItems="center" paddingY={2}>
+                    <Text color="red" bold>⚠ folder-mcp service not running</Text>
+                    <Text color="gray">The daemon is required for folder-mcp to function.</Text>
+                    <Text color="gray">Please start the daemon and try again.</Text>
+                    <Box marginTop={1}>
+                        <Text color="yellow">Press </Text>
+                        <Text color="yellow" bold>Esc</Text>
+                        <Text color="yellow"> to exit</Text>
+                    </Box>
+                </Box>
+            </Box>
+        );
+    }
+    
     // Show completion screen
     if (isComplete) {
         return (
@@ -214,7 +241,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         initialPath,
         initialModel,
         onComplete: handleWizardComplete,
-        onCancel: () => exit()
+        onCancel: () => exit(),
+        fmdmOperations
     });
     
     // Start wizard in expanded mode

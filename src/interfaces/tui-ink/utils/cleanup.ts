@@ -6,10 +6,14 @@
  */
 
 // Global cleanup registry for WebSocket connections
-const cleanupHandlers: Array<() => Promise<void>> = [];
+const cleanupHandlers = new Set<() => Promise<void>>();
 
 export const registerCleanupHandler = (handler: () => Promise<void>) => {
-    cleanupHandlers.push(handler);
+    cleanupHandlers.add(handler);
+};
+
+export const unregisterCleanupHandler = (handler: () => Promise<void>) => {
+    cleanupHandlers.delete(handler);
 };
 
 export const runAllCleanup = async () => {

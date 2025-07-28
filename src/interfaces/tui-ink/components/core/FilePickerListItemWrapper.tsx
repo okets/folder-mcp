@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { FilePickerListItem, FilePickerMode } from './FilePickerListItem';
-import { useFMDMOperations, useIsDaemonConnected } from '../../contexts/FMDMContext';
+import { useFMDMOperations } from '../../contexts/FMDMContext';
 import { FMDMValidationAdapter } from '../../services/FMDMValidationAdapter';
 
 interface FilePickerListItemWrapperProps {
@@ -38,12 +38,11 @@ export const FilePickerListItemWrapper: React.FC<FilePickerListItemWrapperProps>
 }) => {
     // Get FMDM operations from context
     const fmdmOperations = useFMDMOperations();
-    const isDaemonConnected = useIsDaemonConnected();
 
     // Create validation adapter
     const validationAdapter = React.useMemo(() => {
-        return new FMDMValidationAdapter(fmdmOperations, isDaemonConnected);
-    }, [fmdmOperations, isDaemonConnected]);
+        return new FMDMValidationAdapter(fmdmOperations, () => true); // Always connected at this point
+    }, [fmdmOperations]);
 
     // Create FilePickerListItem with FMDM validation adapter
     const filePickerItem = React.useMemo(() => {
@@ -105,12 +104,11 @@ export const useFilePickerWithFMDM = (
     showHiddenFiles: boolean = false
 ): FilePickerListItem => {
     const fmdmOperations = useFMDMOperations();
-    const isDaemonConnected = useIsDaemonConnected();
 
     // Create validation adapter
     const validationAdapter = React.useMemo(() => {
-        return new FMDMValidationAdapter(fmdmOperations, isDaemonConnected);
-    }, [fmdmOperations, isDaemonConnected]);
+        return new FMDMValidationAdapter(fmdmOperations, () => true); // Always connected at this point
+    }, [fmdmOperations]);
 
     return React.useMemo(() => {
         return new FilePickerListItem(

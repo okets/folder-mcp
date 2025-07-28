@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useContext, memo, useEffect } from 'react';
-import { Box, Text, useApp, Key } from 'ink';
+import { Box, Text, useApp, Key, useInput } from 'ink';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
 import { LayoutContainer } from './components/LayoutContainer';
@@ -23,7 +23,7 @@ import { TextListItem } from './components/core/TextListItem';
 import { SimpleButtonsRow } from './components/core/SimpleButtonsRow';
 import { LogItem } from './components/core/LogItem';
 import { existsSync, statSync } from 'fs';
-import { useFMDM, useConfiguredFolders, useFMDMOperations } from './contexts/FMDMContext';
+import { useFMDM, useConfiguredFolders, useFMDMOperations, useFMDMConnection } from './contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
@@ -43,6 +43,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
+    
+    // Check daemon connection first
+    const fmdmConnection = useFMDMConnection();
     
     // State for showing Add Folder Wizard
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
@@ -65,7 +68,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         }
     }, [wizardJustAdded, showAddFolderWizard, navigation, currentFolders]);
     
-    // Create a robust exit function that works properly on Windows
+    // Create a robust exit function that works properly across platforms
     const robustExit = useCallback(async () => {
         try {
             // Run all cleanup handlers first (including WebSocket cleanup)
@@ -87,8 +90,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                 process.exit(0);
             }, 100);
         } else {
-            // macOS/Linux: use Ink's exit which works fine
-            exit();
+            // macOS/Linux: use process.exit to avoid Ink exit hanging issues
+            setTimeout(() => {
+                process.exit(0);
+            }, 50);
         }
     }, [exit]);
     
@@ -202,7 +207,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                 },
                 onCancel: () => {
                     setShowAddFolderWizard(false);
-                }
+                },
+                fmdmOperations
             });
             wizard.onEnter(); // Start in expanded mode
             items.push(wizard);
@@ -291,13 +297,40 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         priority: -100 // Low priority so active elements can override
     });
     
+    // Add input handling that works for both error screen and normal app
+    useInput((input, key) => {
+        if (key.escape && (!fmdmConnection.connected && !fmdmConnection.connecting)) {
+            // Only handle ESC on error screen, let normal app handle its own ESC
+            robustExit().catch((error) => {
+                console.error('Error during exit:', error);
+                process.exit(1);
+            });
+        }
+    });
+
+    // Check if daemon is connected - if not, show error screen
+    if (!fmdmConnection.connected && !fmdmConnection.connecting) {
+        return (
+            <Box flexDirection="column" height={rows} width={columns} justifyContent="center" alignItems="center">
+                <Box flexDirection="column" alignItems="center" paddingY={2}>
+                    <Text color="red" bold>⚠ folder-mcp service not running</Text>
+                    <Text color="gray">The daemon is required for folder-mcp to function.</Text>
+                    <Text color="gray">Please start the daemon and try again.</Text>
+                    <Box marginTop={1}>
+                        <Text color="yellow">Press </Text>
+                        <Text color="yellow" bold>Esc</Text>
+                        <Text color="yellow"> to exit</Text>
+                    </Box>
+                </Box>
+            </Box>
+        );
+    }
+
     // Fixed height calculations (accounting for header margin)
     const isLowResolution = rows < 25;
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
     const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
-    
-    
     
     return (
         <Box flexDirection="column" height={rows} width={columns}>

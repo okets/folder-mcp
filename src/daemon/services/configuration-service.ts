@@ -66,14 +66,24 @@ export class DaemonConfigurationService implements IDaemonConfigurationService {
    */
   async getFolders(): Promise<FolderConfig[]> {
     try {
+      this.logger.debug(`\n=== CONFIG SERVICE DEBUG START ===`);
+      this.logger.debug('Calling configComponent.getFolders()...');
       const folders = await this.configComponent.getFolders();
-      this.logger.debug(`Retrieved ${folders.length} configured folders`);
-      return folders.map(folder => ({
+      this.logger.debug(`ConfigComponent returned ${folders.length} folders:`);
+      folders.forEach((folder, index) => {
+        this.logger.debug(`  [${index}] ${folder.path} (model: ${folder.model})`);
+      });
+      
+      const result = folders.map(folder => ({
         path: folder.path,
         model: folder.model
       }));
+      this.logger.debug(`Returning ${result.length} folders to validation service`);
+      this.logger.debug(`=== CONFIG SERVICE DEBUG END ===\n`);
+      return result;
     } catch (error) {
       this.logger.error('Failed to get folders from configuration', error instanceof Error ? error : new Error(String(error)));
+      this.logger.debug(`=== CONFIG SERVICE DEBUG END (ERROR) ===\n`);
       return [];
     }
   }
@@ -97,11 +107,31 @@ export class DaemonConfigurationService implements IDaemonConfigurationService {
    */
   async removeFolder(path: string): Promise<void> {
     try {
+      this.logger.debug(`\n=== REMOVE FOLDER DEBUG START ===`);
+      this.logger.debug(`Removing folder: ${path}`);
+      
+      // Get folders before removal
+      const beforeFolders = await this.configComponent.getFolders();
+      this.logger.debug(`Folders before removal (${beforeFolders.length}):`);
+      beforeFolders.forEach((folder, index) => {
+        this.logger.debug(`  [${index}] ${folder.path}`);
+      });
+      
       await this.configComponent.removeFolder(path);
+      
+      // Get folders after removal
+      const afterFolders = await this.configComponent.getFolders();
+      this.logger.debug(`Folders after removal (${afterFolders.length}):`);
+      afterFolders.forEach((folder, index) => {
+        this.logger.debug(`  [${index}] ${folder.path}`);
+      });
+      
       this.logger.info(`Removed folder: ${path}`);
+      this.logger.debug(`=== REMOVE FOLDER DEBUG END ===\n`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to remove folder ${path}:`, error instanceof Error ? error : new Error(String(error)));
+      this.logger.debug(`=== REMOVE FOLDER DEBUG END (ERROR) ===\n`);
       throw new Error(`Failed to remove folder: ${errorMessage}`);
     }
   }

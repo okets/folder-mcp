@@ -17,7 +17,7 @@ async function startTestDaemon() {
     // Setup dependency injection
     const container = setupDependencyInjection({
       folderPath: process.cwd(),
-      logLevel: 'info'
+      logLevel: 'debug'
     });
     
     console.log('✅ DI container initialized');

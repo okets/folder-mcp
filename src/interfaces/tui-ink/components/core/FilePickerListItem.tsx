@@ -74,8 +74,11 @@ export class FilePickerListItem extends ValidatedListItem {
             this.fmdmValidationAdapter = fmdmValidationAdapter;
         }
         
-        // Validate initial path
-        this.validateValue();
+        // Skip initial validation when using FMDM adapter to avoid WebSocket race conditions
+        // Validation will occur on first render and user interactions
+        if (!this.fmdmValidationAdapter) {
+            this.validateValue();
+        }
     }
     
     get isControllingInput(): boolean {
