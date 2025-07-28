@@ -73,6 +73,11 @@ class AddFolderContainerItem extends ContainerListItem {
             return super.render(maxWidth, maxLines);
         } else {
             // Collapsed mode - show path and validation like ConfigurationListItem
+            // Ensure validation state is current before rendering
+            if (this.currentValidationResult.isValid && this.currentValidationResult !== this.validationResult) {
+                // Sync validation state to prevent display inconsistencies
+                this.currentValidationResult = this.validationResult;
+            }
             return this.renderCollapsedWithPathAndValidation(maxWidth);
         }
     }
@@ -236,7 +241,14 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
             await validateAndUpdateContainer(newPath);
         },
         undefined, // filterPatterns
-        undefined, // onChange - validation will be visible on next render cycle
+        async () => {
+            // onChange callback - sync FilePickerListItem validation to container
+            // This ensures validation state stays consistent between components
+            if (validationService && containerWizard) {
+                const validationResult = await validationService.validateFolderPath(selectedPath);
+                containerWizard.updateValidationResult(validationResult);
+            }
+        }, // onChange - keep container validation in sync
         false, // showHiddenFiles
         validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
     );
@@ -321,8 +333,15 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         { text: 'Cancel', isDestructive: false }
     );
     
-    // Skip initial validation - it will be performed when the user interacts with the wizard
-    // This avoids race conditions with WebSocket connection timing
+    // Perform initial validation now that containerWizard is created
+    // This ensures the validation state is properly initialized
+    validateAndUpdateContainer(selectedPath).catch(error => {
+        console.error(`Initial validation error: ${error}`);
+        // If validation fails, set a basic error state
+        if (containerWizard) {
+            containerWizard.updateValidationResult(createValidationResult(false, 'Validation service unavailable'));
+        }
+    });
     
     return containerWizard;
 }

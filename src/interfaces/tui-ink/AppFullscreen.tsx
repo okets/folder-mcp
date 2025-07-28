@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useContext, memo, useEffect } from 'react';
+import React, { useCallback, useState, useContext, memo, useEffect, useMemo, useRef } from 'react';
 import { Box, Text, useApp, Key, useInput } from 'ink';
 import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
@@ -54,6 +54,44 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Get current folders from FMDM context
     const currentFolders = useConfiguredFolders();
     const fmdmOperations = useFMDMOperations();
+    
+    // Memoize the AddFolderWizard instance to prevent recreation on every render
+    // This preserves the wizard's internal state (like expansion state) across re-renders
+    const wizardInstance = useRef<any>(null);
+    const memoizedWizard = useMemo(() => {
+        if (showAddFolderWizard) {
+            // Only create new wizard if one doesn't exist or wizard was just added
+            if (!wizardInstance.current || wizardJustAdded) {
+                wizardInstance.current = createAddFolderWizard({
+                    onComplete: async (result: AddFolderWizardResult) => {
+                        try {
+                            await fmdmOperations.addFolder(result.path, result.model);
+                            // FMDM context will automatically update the folder list
+                            setShowAddFolderWizard(false);
+                            wizardInstance.current = null; // Clear instance when done
+                        } catch (error) {
+                            console.error('Failed to add folder:', error);
+                        }
+                    },
+                    onCancel: () => {
+                        setShowAddFolderWizard(false);
+                        wizardInstance.current = null; // Clear instance when cancelled
+                    },
+                    fmdmOperations
+                });
+                
+                // Initialize in expanded mode only when first created
+                if (wizardJustAdded) {
+                    wizardInstance.current.onEnter();
+                }
+            }
+            return wizardInstance.current;
+        } else {
+            // Clear wizard when not showing
+            wizardInstance.current = null;
+            return null;
+        }
+    }, [showAddFolderWizard, wizardJustAdded, fmdmOperations]);
     
     // Navigation context for focus management
     const navigation = useNavigationContext();
@@ -194,24 +232,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         }
         
         // If showing wizard, add it after existing folders but before the button
-        if (showAddFolderWizard) {
-            const wizard = createAddFolderWizard({
-                onComplete: async (result: AddFolderWizardResult) => {
-                    try {
-                        await fmdmOperations.addFolder(result.path, result.model);
-                        // FMDM context will automatically update the folder list
-                        setShowAddFolderWizard(false);
-                    } catch (error) {
-                        console.error('Failed to add folder:', error);
-                    }
-                },
-                onCancel: () => {
-                    setShowAddFolderWizard(false);
-                },
-                fmdmOperations
-            });
-            wizard.onEnter(); // Start in expanded mode
-            items.push(wizard);
+        if (showAddFolderWizard && memoizedWizard) {
+            items.push(memoizedWizard);
         }
         
         // Add "Add A Folder" button at the bottom (after all folders and wizard)
@@ -237,7 +259,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         items.push(addFolderButton);
         
         return items;
-    }, [currentFolders, showAddFolderWizard, fmdmOperations]); // Updated dependencies
+    }, [currentFolders, showAddFolderWizard, memoizedWizard, fmdmOperations]); // Updated dependencies
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
