@@ -916,7 +916,7 @@ Configured Folders:
 ## ⏳ **WAITING TASKS**
 
 ### Task 9: Daemon-TUI WebSocket Communication Architecture
-**Status**: 🚧 IN PROGRESS
+**Status**: ✅ COMPLETED  
 **Priority**: 🔥 CRITICAL - Foundation for all future client-server architecture
 **What**: Establish WebSocket communication between daemon and TUI clients, moving ConfigurationComponent to daemon and creating clean client-server separation.
 
@@ -1014,32 +1014,31 @@ folder-mcp add ~/test-folder --model all-MiniLM-L6-v2
 # Successfully indexes with GPU acceleration
 ```
 
-### Task 10: Basic CLI Command Structure
+### Task 11: MCP Endpoints Migration to Daemon-Centric Architecture
 **Status**: ⏳ Waiting  
-**Discovered**: 2025-07-08  
-**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
-**What**: Implement core CLI commands that communicate with the daemon.
+**Dependencies**: Task 10 (New Embeddings Mechanism)  
+**Priority**: **HIGH** - Critical for unified architecture  
 
-**Why**: With clean CLI structure established, we can now add power user commands. These commands work under the hood for the wizard and provide direct CLI access.
+**What**: Completely rewrite MCP endpoints to use daemon as single source of truth. Remove all direct configuration access and make MCP endpoints pure daemon clients.
 
-**Updated Priority**: **HIGH** - Essential for power user functionality, but blocked by backend integration.
+**Why**: Daemon must be the authoritative service. MCP endpoints should only call daemon methods, never access configuration, embeddings, or file systems directly.
+
+**Architecture Change**:
+- **Before**: MCP server → Direct config/embedding/file access
+- **After**: MCP server → Daemon API calls only
 
 **Subtasks**:
-- [ ] Extend `src/interfaces/cli/folder-mcp.ts` with new commands
-- [ ] `folder-mcp add <folder> [options]` - sends request to daemon
-- [ ] `folder-mcp list` - queries daemon for indexed folders
-- [ ] `folder-mcp status` - shows daemon status and stats
-- [ ] `folder-mcp remove <folder>` - removes folder from index
-- [ ] All commands communicate via HTTP to daemon
+- [ ] Remove all configuration imports from MCP endpoints (HybridConfigLoader, etc.)
+- [ ] Replace direct embedding service calls with daemon embedding endpoints
+- [ ] Replace direct file system access with daemon file operation endpoints  
+- [ ] Replace direct vector search with daemon search endpoints
+- [ ] Convert MCP endpoints to pure API relay functions (daemon client)
+- [ ] Remove standalone mcp-server.ts dependency injection setup
+- [ ] MCP endpoints only interact with daemon via WebSocket/HTTP APIs
+- [ ] Delete obsolete configuration and embedding service code
+- [ ] Update tests to mock daemon endpoints instead of direct services
 
-**Success Criteria**:
-```bash
-folder-mcp add ~/Documents --model nomic-embed-text
-folder-mcp list  # Shows: ~/Documents (indexed)
-folder-mcp status  # Shows: Daemon running (PID: 12345), Python worker active, 1 folder indexed
-```
-
-### Task 11: Enhanced Process Management
+### Task 12: Enhanced Process Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
@@ -1065,7 +1064,7 @@ kill -9 $(cat ~/.folder-mcp/daemon.pid)  # Simulate crash
 folder-mcp status  # Detects crashed daemon, cleans up PID file
 ```
 
-### Task 12: Multi-Agent Connection Management
+### Task 13: Multi-Agent Connection Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
@@ -1092,30 +1091,6 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - VSCode config auto-updates to use HTTP
 - Both agents can connect simultaneously
 
-### Task 13: Enhanced Setup Wizard
-**Status**: ⏳ Waiting  
-**Discovered**: 2025-07-08  
-**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
-**What**: Full wizard experience with system detection and smart defaults.
-
-**Why**: With folder selection complete, we can enhance the wizard with advanced features. First impressions matter - the wizard should detect available options and guide users to the best setup.
-
-**Updated Priority**: **MEDIUM** - Enhancement feature, but blocked by backend integration.
-
-**Subtasks**:
-- [ ] System assessment (GPU capabilities, memory, Python environment)
-- [ ] Model selection with recommendations
-- [ ] Show Python environment setup progress for embedding models
-- [ ] Language detection from system locale
-- [ ] Auto-start configuration option
-- [ ] Test setup before proceeding
-
-**Success Criteria**:
-- Wizard detects GPU capabilities (CUDA/MPS)
-- Recommends best model based on hardware
-- Shows progress during Python environment setup
-- Completes with working GPU-accelerated setup
-
 ### Task 14: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
@@ -1140,31 +1115,7 @@ folder-mcp config set autoStart true
 ps aux | grep folder-mcp  # Daemon already running
 ```
 
-### Task 15: Multi-Folder Support
-**Status**: ⏳ Waiting  
-**Discovered**: 2025-07-08  
-**Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
-**What**: Support multiple indexed folders with isolation.
-
-**Why**: With single folder flow established, we can extend to multiple folders. Users have knowledge in different folders and want to search across them or keep them separate.
-
-**Updated Priority**: **HIGH** - Core feature, but blocked by backend integration.
-
-**Subtasks**:
-- [ ] Modify storage to support folder isolation
-- [ ] Per-folder configuration (model, language)
-- [ ] Update all screens to show multiple folders
-- [ ] Cross-folder search with source attribution
-- [ ] Folder management UI in TUI
-
-**Success Criteria**:
-```bash
-folder-mcp add ~/Documents --model all-MiniLM-L6-v2
-folder-mcp add ~/Code --model codebert-base  
-folder-mcp search "function"  # Searches both, shows which folder each result is from
-```
-
-### Task 16: Complete Documentation and Release Prep
+### Task 15: Complete Documentation and Release Prep
 **Status**: ⏳ Waiting  
 **What**: Update all documentation and prepare for release.
 
@@ -1187,7 +1138,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 - Troubleshooting guide addresses common issues
 - Roadmap is updated with Phase 8 completion
 
-### Task 17: Implement Centralized Focus Management System
+### Task 18: Implement Centralized Focus Management System
 **Status**: ⏳ Waiting  
 **Priority**: Low (will be bumped up if focus issues persist)
 **Discovered**: 2025-07-09  
@@ -1259,18 +1210,7 @@ folder-mcp search "function"  # Searches both, shows which folder each result is
 | 8.5 | Nested ListItem Visual Component | 2025-07-15 | ✅ | Complete implementation design and documentation |
 | 8.5.5 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
 | 8.6 | Add Folder Wizard Implementation | 2025-07-24 | ✅ | Reusable wizard with validation and dual-button support |
-| 7 | Complete CLI Cleanup and Folder Selection Flow | 2025-07-09 | ✅ | Clean CLI params, cursor system |
-| 5 | Integrate -d Parameter with Unified Config | 2025-07-09 | ⏳ | CLI folder addition enhancement |
-| 6 | Enhanced Wizard Flow with CLI Integration | 2025-07-09 | ⏳ | Skip CLI-answered questions |
-| 8 | Implement Python Embeddings | 2025-07-08 | ⏳ | GPU-accelerated embeddings via subprocess |
-| 9 | Basic CLI Commands | 2025-07-08 | ⏳ | add, list, status, remove |
-| 10 | Enhanced Process Management | 2025-07-08 | ⏳ | Auto-start, crash recovery |
-| 11 | Multi-Agent Connections | 2025-07-08 | ⏳ | stdio + HTTP support |
-| 12 | Enhanced Setup Wizard | 2025-07-08 | ⏳ | System detection, smart defaults |
-| 13 | System Integration | 2025-07-08 | ⏳ | Auto-start on boot |
-| 14 | Multi-Folder Support | 2025-07-08 | ⏳ | Isolated folder management |
-| 15 | Documentation & Release | 2025-07-08 | ⏳ | Complete docs and checklist |
-| 16 | Centralized Focus Management | 2025-07-09 | ⏳ | Clean separation of focus/active/control states |
+
 
 ### **Key Discoveries**
 - **Task 1**: The TUI had accumulated multiple entry points for different screens (config, status, folders, wizard) which added complexity. By removing these and creating a single entry point, we simplify the user experience and prepare for a unified flow where navigation happens within the app rather than through different commands.
