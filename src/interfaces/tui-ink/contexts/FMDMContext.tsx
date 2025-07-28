@@ -8,6 +8,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { FMDM } from '../../../daemon/models/fmdm.js';
+import { registerCleanupHandler } from '../utils/cleanup.js';
 import { FMDMClient, FMDMConnectionStatus } from '../services/FMDMClient.js';
 import { ValidationResult } from '../../../daemon/websocket/message-types.js';
 
@@ -26,7 +27,7 @@ export interface FMDMContextType {
   
   // Connection management
   connect: () => Promise<void>;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
   ping: () => Promise<void>;
   
   // Utility
@@ -82,11 +83,19 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
       });
     }
 
+    // Register global cleanup handler for proper exit handling
+    registerCleanupHandler(async () => {
+      await client.disconnect();
+    });
+
     // Cleanup subscriptions on unmount
     return () => {
       unsubscribeFMDM();
       unsubscribeStatus();
-      client.disconnect();
+      // Properly disconnect WebSocket (fire and forget for cleanup)
+      client.disconnect().catch((error) => {
+        console.error('Error disconnecting FMDM client:', error);
+      });
     };
   }, [client, autoConnect]);
 
@@ -95,8 +104,8 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     await client.connect();
   }, [client]);
 
-  const disconnect = useCallback(() => {
-    client.disconnect();
+  const disconnect = useCallback(async () => {
+    await client.disconnect();
   }, [client]);
 
   const ping = useCallback(async () => {

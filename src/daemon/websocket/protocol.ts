@@ -201,7 +201,7 @@ export class WebSocketProtocol {
    * Handle client disconnection
    */
   handleClientDisconnection(clientId: string): void {
-    this.logger.info(`Client disconnected: ${clientId}`);
+    // Remove client from FMDM service (logging handled by server)
     this.fmdmService.removeClient(clientId);
   }
 

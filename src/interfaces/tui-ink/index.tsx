@@ -13,6 +13,7 @@ import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
 import { IConfigManager } from '../../domain/config/IConfigManager';
 import { ConfigurationComponent } from '../../config/ConfigurationComponent';
 import { getContainer } from '../../di/container';
+import { runAllCleanup } from './utils/cleanup.js';
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -471,7 +472,10 @@ const WindowsScreenWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
 let app: any;
 
 // Handle graceful exit
-const cleanup = () => {
+const cleanup = async () => {
+    // Run all cleanup handlers (including WebSocket cleanup)
+    await runAllCleanup();
+    
     if (app) {
         app.unmount();
     }
@@ -485,8 +489,19 @@ const cleanup = () => {
     process.exit(0);
 };
 
-process.on('SIGINT', cleanup);
-process.on('SIGTERM', cleanup);
+process.on('SIGINT', () => {
+    cleanup().catch((error) => {
+        console.error('Error during cleanup:', error);
+        process.exit(1);
+    });
+});
+
+process.on('SIGTERM', () => {
+    cleanup().catch((error) => {
+        console.error('Error during cleanup:', error);
+        process.exit(1);
+    });
+});
 
 // Handle headless mode execution
 async function executeHeadless() {
@@ -551,6 +566,11 @@ async function main() {
     
     return instance.waitUntilExit();
 }
+
+// Add ESC key handling with proper cleanup
+process.on('beforeExit', async () => {
+    await runAllCleanup();
+});
 
 main().then(() => {
     // Let terminal handle cleanup naturally

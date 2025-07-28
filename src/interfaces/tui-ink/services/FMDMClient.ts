@@ -310,24 +310,47 @@ export class FMDMClient {
   /**
    * Disconnect from daemon
    */
-  disconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    
-    this.isConnected = false;
-    this.isConnecting = false;
-    this.fmdm = null;
-    this.requests.clear();
-    this.reconnectAttempts = 0;
-    
-    this.notifyStatusListeners({ connected: false, connecting: false });
+  disconnect(): Promise<void> {
+    return new Promise((resolve) => {
+      // Clear any reconnect timers
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Wait for WebSocket to close properly
+        this.ws.once('close', () => {
+          this.ws = null;
+          this.isConnected = false;
+          this.isConnecting = false;
+          resolve();
+        });
+        
+        // Force close after a timeout to prevent hanging
+        const closeTimeout = setTimeout(() => {
+          if (this.ws) {
+            this.ws.terminate();
+            this.ws = null;
+          }
+          this.isConnected = false;
+          this.isConnecting = false;
+          resolve();
+        }, 1000);
+        
+        this.ws.once('close', () => {
+          clearTimeout(closeTimeout);
+        });
+        
+        this.ws.close();
+      } else {
+        // Already closed or not connected
+        this.ws = null;
+        this.isConnected = false;
+        this.isConnecting = false;
+        resolve();
+      }
+    });
   }
 
   /**

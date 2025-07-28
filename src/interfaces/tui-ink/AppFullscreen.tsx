@@ -26,6 +26,7 @@ import { existsSync, statSync } from 'fs';
 import { useFMDM, useConfiguredFolders, useFMDMOperations } from './contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem } from './components/ManageFolderItem';
+import { runAllCleanup } from './utils/cleanup';
 
 // Get item counts once at module level to ensure consistency
 // Memoize these to prevent recreation on every render
@@ -65,7 +66,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     }, [wizardJustAdded, showAddFolderWizard, navigation, currentFolders]);
     
     // Create a robust exit function that works properly on Windows
-    const robustExit = useCallback(() => {
+    const robustExit = useCallback(async () => {
+        try {
+            // Run all cleanup handlers first (including WebSocket cleanup)
+            await runAllCleanup();
+        } catch (error) {
+            console.error('Error during cleanup:', error);
+        }
+        
         if (process.platform === 'win32') {
             // Windows-specific exit: restore terminal and force exit
             if (process.stdout.isTTY) {
@@ -74,10 +82,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     process.stdout.write('\x1b[?1049l'); // Switch back to main screen
                 }
             }
-            // Give a small delay for terminal cleanup, then force exit
+            // Give a small delay for terminal cleanup after WebSocket cleanup, then force exit
             setTimeout(() => {
                 process.exit(0);
-            }, 50);
+            }, 100);
         } else {
             // macOS/Linux: use Ink's exit which works fine
             exit();
@@ -257,7 +265,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             if (countdown !== null) {
                 // Second escape during countdown - exit immediately
                 setCountdown(null);
-                robustExit();
+                robustExit().catch((error) => {
+                    console.error('Error during exit:', error);
+                    process.exit(1);
+                });
                 return true;
             }
             

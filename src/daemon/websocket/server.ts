@@ -126,11 +126,8 @@ export class FMDMWebSocketServer {
       this.handleClientDisconnection(clientId);
     });
 
-    // Send initial FMDM to new client
-    if (this.fmdmService) {
-      const fmdm = this.fmdmService.getFMDM();
-      this.sendMessage(ws, createFMDMUpdateMessage(fmdm));
-    }
+    // Note: Don't send FMDM immediately - wait for connection.init
+    // This ensures client is ready to receive and process the FMDM
   }
 
   /**
@@ -151,6 +148,13 @@ export class FMDMWebSocketServer {
         if (clientInfo) {
           clientInfo.clientType = message.clientType;
           this.clients.set(clientId, clientInfo);
+          
+          // Send initial FMDM to newly initialized client
+          if (this.fmdmService) {
+            const fmdm = this.fmdmService.getFMDM();
+            this.sendMessage(ws, createFMDMUpdateMessage(fmdm));
+            this.log('debug', `Sent initial FMDM to client ${clientId}`);
+          }
         }
       }
 
