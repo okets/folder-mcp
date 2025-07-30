@@ -14,15 +14,15 @@ Implement a robust Python-based embeddings system that replaces the Ollama depen
 ### System Components
 
 ```
-┌─────────────────┐    WebSocket     ┌──────────────────────┐    JSON-RPC     ┌─────────────────────┐
-│  TUI Clients    │◄─────────────────┤   Unified Daemon     │     (stdio)     │  Python Embeddings  │
-│  CLI Clients    │   Port 31849     │   (TypeScript)       ├─────────────────►│  Worker Process     │
-└─────────────────┘                  │                      │                 │                     │
+┌─────────────────┐    WebSocket     ┌──────────────────────┐    JSON-RPC     ┌────────────────────────┐
+│  TUI Clients    │◄─────────────────┤   Unified Daemon     │     (stdio)     │  Python Embeddings     │
+│  CLI Clients    │   Port 31849     │   (TypeScript)       ├────────────────►│  Worker Process        │
+└─────────────────┘                  │                      │                 │                        │
                                      │  PythonEmbedding     │                 │ • sentence-transformers│
-                                     │  Service             │                 │ • faiss-cpu           │
-                                     │  (JSON-RPC Client)   │                 │ • numpy               │
-                                     └──────────────────────┘                 │ • torch               │
-                                                                              └─────────────────────┘
+                                     │  Service             │                 │ • faiss-cpu            │
+                                     │  (JSON-RPC Client)   │                 │ • numpy                │
+                                     └──────────────────────┘                 │ • torch                │
+                                                                              └────────────────────────┘
 ```
 
 ### Key Design Principles
@@ -400,774 +400,860 @@ class EmbeddingHandler:
 
 ---
 
-### Sub-Task 10.5: Complete JSON-RPC Integration
+### Sub-Task 10.5: Add Curated Model List to System Configuration ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 1 hour  
+**Completion Date**: 2025-07-29
 
-**Update**: `embeddings_worker.py`
+**Create**: `system-configuration.json` (if not exists) or update existing
+```json
+{
+  "embeddings": {
+    "python": {
+      "supportedModels": [
+        "all-MiniLM-L6-v2",
+        "all-mpnet-base-v2", 
+        "all-MiniLM-L12-v2",
+        "all-distilroberta-v1",
+        "paraphrase-MiniLM-L6-v2"
+      ]
+    }
+  }
+}
+```
+
+**Create**: `src/infrastructure/embeddings/python/utils/supported_models.py`
 ```python
-def main():
-    # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler(sys.stderr)]
-    )
+import json
+import os
+from typing import List
+
+def get_supported_models() -> List[str]:
+    """Get supported models from system configuration"""
+    config_path = os.path.join(os.path.dirname(__file__), '../../../../..', 'system-configuration.json')
     
-    # Initialize components
-    model_manager = ModelManager()
-    embedding_handler = EmbeddingHandler(model_manager)
-    
-    # Create server
-    server = EmbeddingsRPCServer(model_manager, embedding_handler)
-    
-    # Register methods with priority support
-    server.server.register_function(embedding_handler.generate_single, 'generate_embedding')
-    server.server.register_function(embedding_handler.generate_immediate, 'generate_immediate')
-    server.server.register_function(embedding_handler.generate_batch, 'generate_batch')
-    
-    logging.info("Python embeddings worker started")
-    server.start()
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config.get('embeddings', {}).get('python', {}).get('supportedModels', [])
+    except Exception:
+        # Fallback list if config unavailable
+        return ['all-MiniLM-L6-v2', 'all-mpnet-base-v2']
+
+def validate_model(model_name: str) -> bool:
+    """Validate model against supported list"""
+    return model_name in get_supported_models()
 ```
 
 **Success Criteria**:
-- [ ] Complete JSON-RPC server runs
-- [ ] All methods are callable
-- [ ] Logging works properly
-- [ ] Graceful shutdown on SIGTERM
+- [ ] Configuration-based model list implemented
+- [ ] No hardcoded model arrays in Python code
+- [ ] Model validation works against config
+- [ ] Fallback list for missing config
 
 ---
 
-### Sub-Task 10.6: Create TypeScript JSON-RPC Client
+### Sub-Task 10.6: Add Daemon Model Download Orchestration ✅ COMPLETED
 **Priority**: HIGH  
 **Estimated Time**: 3 hours  
-
-**File**: `src/infrastructure/embeddings/python-embedding-service.ts`
-```typescript
-import { spawn, ChildProcess } from 'child_process';
-import { EventEmitter } from 'events';
-import { join } from 'path';
-import type { 
-  EmbeddingOperations, 
-  BatchEmbeddingOperations,
-  EmbeddingVector,
-  EmbeddingResult,
-  TextChunk 
-} from '../../domain/embeddings/index.js';
-
-interface JSONRPCRequest {
-  jsonrpc: '2.0';
-  method: string;
-  params?: any;
-  id: string | number;
-}
-
-interface JSONRPCResponse {
-  jsonrpc: '2.0';
-  result?: any;
-  error?: {
-    code: number;
-    message: string;
-    data?: any;
-  };
-  id: string | number;
-}
-
-export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddingOperations {
-  private process: ChildProcess | null = null;
-  private requestId = 0;
-  private pendingRequests = new Map<string | number, {
-    resolve: (value: any) => void;
-    reject: (error: Error) => void;
-    timeout: NodeJS.Timeout;
-  }>();
-  private isInitialized = false;
-  private eventEmitter = new EventEmitter();
-  
-  constructor(
-    private readonly config: {
-      pythonPath?: string;
-      scriptPath?: string;
-      timeout?: number;
-      maxRetries?: number;
-    } = {}
-  ) {
-    this.config = {
-      pythonPath: 'python3',
-      timeout: 30000,
-      maxRetries: 3,
-      ...config
-    };
-  }
-  
-  async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-    
-    try {
-      await this.startPythonProcess();
-      
-      // Test health check
-      const health = await this.callMethod('health_check');
-      if (health.status !== 'healthy') {
-        throw new Error('Python worker unhealthy');
-      }
-      
-      this.isInitialized = true;
-    } catch (error) {
-      throw new Error(`Failed to initialize Python embedding service: ${error}`);
-    }
-  }
-  
-  private async startPythonProcess(): Promise<void> {
-    const scriptPath = this.config.scriptPath || 
-      join(__dirname, 'python', 'embeddings_worker.py');
-      
-    this.process = spawn(this.config.pythonPath!, [scriptPath], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    
-    this.process.stdout?.on('data', (data) => {
-      this.handleStdout(data);
-    });
-    
-    this.process.stderr?.on('data', (data) => {
-      console.error(`Python stderr: ${data}`);
-    });
-    
-    this.process.on('error', (error) => {
-      console.error('Python process error:', error);
-      this.cleanup();
-    });
-    
-    this.process.on('exit', (code, signal) => {
-      console.error(`Python process exited: code=${code}, signal=${signal}`);
-      this.cleanup();
-    });
-    
-    // Wait for process to be ready
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  
-  private handleStdout(data: Buffer): void {
-    const lines = data.toString().split('\n').filter(line => line.trim());
-    
-    for (const line of lines) {
-      try {
-        const response: JSONRPCResponse = JSON.parse(line);
-        const pending = this.pendingRequests.get(response.id);
-        
-        if (pending) {
-          clearTimeout(pending.timeout);
-          this.pendingRequests.delete(response.id);
-          
-          if (response.error) {
-            pending.reject(new Error(response.error.message));
-          } else {
-            pending.resolve(response.result);
-          }
-        }
-      } catch (error) {
-        // Not JSON, probably log output
-        console.log(`Python output: ${line}`);
-      }
-    }
-  }
-  
-  private async callMethod(method: string, params?: any): Promise<any> {
-    if (!this.process || !this.process.stdin) {
-      throw new Error('Python process not running');
-    }
-    
-    const id = ++this.requestId;
-    const request: JSONRPCRequest = {
-      jsonrpc: '2.0',
-      method,
-      params,
-      id
-    };
-    
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id);
-        reject(new Error(`Request timeout: ${method}`));
-      }, this.config.timeout!);
-      
-      this.pendingRequests.set(id, { resolve, reject, timeout });
-      
-      this.process!.stdin!.write(JSON.stringify(request) + '\n');
-    });
-  }
-  
-  async generateSingleEmbedding(text: string): Promise<EmbeddingVector> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-    
-    const result = await this.callMethod('generate_embedding', { text });
-    
-    return {
-      vector: result.vector,
-      dimensions: result.dimensions,
-      model: result.model,
-      createdAt: new Date().toISOString(),
-      metadata: {
-        generatedAt: new Date().toISOString(),
-        modelVersion: result.model,
-        tokensUsed: Math.ceil(text.length / 4),
-        confidence: 1.0
-      }
-    };
-  }
-  
-  async generateImmediateEmbedding(text: string): Promise<EmbeddingVector> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-    
-    // Use immediate method for search queries - pauses batch processing
-    const result = await this.callMethod('generate_immediate', { 
-      text,
-      timeout: 5000  // Shorter timeout for immediate requests
-    });
-    
-    return {
-      vector: result.vector,
-      dimensions: result.dimensions,
-      model: result.model,
-      createdAt: new Date().toISOString(),
-      metadata: {
-        generatedAt: new Date().toISOString(),
-        modelVersion: result.model,
-        tokensUsed: Math.ceil(text.length / 4),
-        confidence: 1.0,
-        priority: 'immediate'
-      }
-    };
-  }
-  
-  async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-    
-    const texts = chunks.map(chunk => chunk.content);
-    const results = await this.callMethod('generate_batch', { texts });
-    
-    return results.map((result: any, index: number) => ({
-      vector: result.vector,
-      dimensions: result.dimensions,
-      model: result.model,
-      createdAt: new Date().toISOString(),
-      chunkId: `chunk_${index}_${chunks[index].chunkIndex}`,
-      metadata: {
-        generatedAt: new Date().toISOString(),
-        modelVersion: result.model,
-        tokensUsed: Math.ceil(chunks[index].content.length / 4),
-        confidence: 1.0
-      }
-    }));
-  }
-  
-  calculateSimilarity(vector1: EmbeddingVector, vector2: EmbeddingVector): number {
-    // Cosine similarity calculation
-    let dotProduct = 0;
-    let norm1 = 0;
-    let norm2 = 0;
-    
-    for (let i = 0; i < vector1.vector.length; i++) {
-      dotProduct += vector1.vector[i] * vector2.vector[i];
-      norm1 += vector1.vector[i] * vector1.vector[i];
-      norm2 += vector2.vector[i] * vector2.vector[i];
-    }
-    
-    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-  }
-  
-  async processBatch(chunks: TextChunk[], batchSize: number = 32): Promise<EmbeddingResult[]> {
-    const results: EmbeddingResult[] = [];
-    
-    for (let i = 0; i < chunks.length; i += batchSize) {
-      const batch = chunks.slice(i, i + batchSize);
-      const startTime = Date.now();
-      
-      try {
-        const embeddings = await this.generateEmbeddings(batch);
-        
-        for (let j = 0; j < batch.length; j++) {
-          results.push({
-            chunk: batch[j],
-            embedding: embeddings[j],
-            processingTime: Date.now() - startTime,
-            success: true
-          });
-        }
-      } catch (error) {
-        // Handle batch failure
-        for (const chunk of batch) {
-          results.push({
-            chunk,
-            embedding: this.createZeroEmbedding(),
-            processingTime: Date.now() - startTime,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-    }
-    
-    return results;
-  }
-  
-  estimateProcessingTime(chunkCount: number): number {
-    // Estimate based on model and hardware
-    const baseTime = 50; // ms per chunk
-    return chunkCount * baseTime;
-  }
-  
-  private createZeroEmbedding(): EmbeddingVector {
-    return {
-      vector: new Array(384).fill(0),
-      dimensions: 384,
-      model: 'all-MiniLM-L6-v2',
-      createdAt: new Date().toISOString(),
-      metadata: {
-        generatedAt: new Date().toISOString(),
-        modelVersion: 'all-MiniLM-L6-v2',
-        tokensUsed: 0,
-        confidence: 0
-      }
-    };
-  }
-  
-  private cleanup(): void {
-    this.isInitialized = false;
-    this.pendingRequests.forEach(({ reject, timeout }) => {
-      clearTimeout(timeout);
-      reject(new Error('Python process terminated'));
-    });
-    this.pendingRequests.clear();
-    this.process = null;
-  }
-  
-  async shutdown(): Promise<void> {
-    if (this.process) {
-      this.process.kill('SIGTERM');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (this.process) {
-        this.process.kill('SIGKILL');
-      }
-    }
-    this.cleanup();
-  }
-}
-```
-
-**Success Criteria**:
-- [ ] TypeScript client compiles without errors
-- [ ] Implements all required interfaces
-- [ ] Process management is robust
-- [ ] Error handling is comprehensive
-
----
-
-### Sub-Task 10.7: Dependency Injection Integration
-**Priority**: HIGH  
-**Estimated Time**: 1 hour  
-
-**Update**: `src/di/setup.ts`
-```typescript
-// Add to imports
-import { PythonEmbeddingService } from '../infrastructure/embeddings/python-embedding-service.js';
-import { OllamaEmbeddingService } from '../infrastructure/embeddings/ollama-embedding-service.js';
-
-// Add embedding service registration with fallback
-container.register(DITokens.embeddingService, {
-  useFactory: () => {
-    const config = container.resolve<ConfigurationComponent>(DITokens.configurationComponent);
-    const embeddingProvider = config.get('embeddings.provider') || 'python';
-    
-    if (embeddingProvider === 'python') {
-      try {
-        const pythonService = new PythonEmbeddingService({
-          pythonPath: config.get('embeddings.pythonPath') || 'python3',
-          timeout: config.get('embeddings.timeout') || 30000
-        });
-        
-        // Test initialization
-        pythonService.initialize().catch(error => {
-          console.error('Python embedding service failed to initialize:', error);
-          console.log('Falling back to Ollama service');
-        });
-        
-        return pythonService;
-      } catch (error) {
-        console.error('Failed to create Python embedding service:', error);
-      }
-    }
-    
-    // Fallback to Ollama
-    return new OllamaEmbeddingService({
-      baseUrl: config.get('embeddings.ollamaUrl') || 'http://127.0.0.1:11434',
-      model: config.get('embeddings.model') || 'nomic-embed-text'
-    });
-  }
-});
-```
-
-**Success Criteria**:
-- [ ] DI registration works correctly
-- [ ] Configuration-based provider selection
-- [ ] Graceful fallback to Ollama
-- [ ] No breaking changes to existing code
-
----
-
-### Sub-Task 10.8: Update Daemon Integration
-**Priority**: HIGH  
-**Estimated Time**: 1 hour  
+**Completion Date**: 2025-07-29
 
 **Update**: `src/domain/daemon/daemon-service.ts`
 ```typescript
-// Add Python process lifecycle management
-private async startEmbeddingService(): Promise<void> {
-  const embeddingService = this.container.resolve(DITokens.embeddingService);
-  
-  if (embeddingService instanceof PythonEmbeddingService) {
-    this.logger.info('Initializing Python embedding service...');
+export class DaemonService extends EventEmitter implements IDaemonService {
+  // ... existing code ...
+
+  /**
+   * Download model if not already cached, with progress tracking
+   */
+  async downloadModelIfNeeded(modelName: string): Promise<void> {
+    this.logger.info(`Checking if model ${modelName} needs download`);
+    
     try {
-      await embeddingService.initialize();
-      this.logger.info('Python embedding service initialized successfully');
+      // Check if model is already cached via Python service
+      const embeddingService = this.container.resolve(SERVICE_TOKENS.EMBEDDING);
+      const isModelCached = await embeddingService.isModelCached(modelName);
+      
+      if (isModelCached) {
+        this.logger.info(`Model ${modelName} already cached`);
+        return;
+      }
+
+      // Emit progress start event for TUI
+      this.webSocketServer.broadcast('model_download_start', { 
+        modelName, 
+        status: 'downloading' 
+      });
+
+      // Call Python service to download model with progress tracking
+      await embeddingService.downloadModel(modelName, (progress) => {
+        // Emit progress updates to TUI via WebSocket
+        this.webSocketServer.broadcast('model_download_progress', {
+          modelName,
+          progress: progress.percent,
+          message: `Downloading ${modelName}... ${progress.percent}%`,
+          estimatedTimeRemaining: progress.eta
+        });
+      });
+
+      // Emit completion event
+      this.webSocketServer.broadcast('model_download_complete', { 
+        modelName, 
+        status: 'ready' 
+      });
+
+      this.logger.info(`Model ${modelName} downloaded successfully`);
     } catch (error) {
-      this.logger.error('Failed to initialize Python embedding service:', error);
-      this.logger.info('Will use Ollama fallback');
+      // Emit error event for TUI display
+      this.webSocketServer.broadcast('model_download_error', { 
+        modelName, 
+        error: error.message 
+      });
+      throw error;
     }
   }
-}
-
-// Add to start() method
-async start(): Promise<void> {
-  // ... existing code ...
-  
-  // Start embedding service
-  await this.startEmbeddingService();
-  
-  // ... rest of start logic ...
-}
-
-// Add to stop() method
-async stop(): Promise<void> {
-  // ... existing code ...
-  
-  // Stop embedding service
-  const embeddingService = this.container.resolve(DITokens.embeddingService);
-  if (embeddingService instanceof PythonEmbeddingService) {
-    await embeddingService.shutdown();
-  }
-  
-  // ... rest of stop logic ...
 }
 ```
 
 **Success Criteria**:
-- [ ] Daemon starts Python process
-- [ ] Proper lifecycle management
-- [ ] Clean shutdown handling
-- [ ] Error recovery works
+- [x] Daemon orchestrates model downloads
+- [x] Progress events broadcast to TUI via WebSocket
+- [x] Model cache checking works through Python service
+- [x] Error handling with user feedback via WebSocket
 
 ---
 
-### Sub-Task 10.9: Create Integration Tests
+### Sub-Task 10.7: Add Python Model Download JSON-RPC Method ✅ COMPLETED
+**Priority**: HIGH  
+**Estimated Time**: 2 hours  
+**Completion Date**: 2025-07-29
+
+**Update**: `src/infrastructure/embeddings/python/handlers/embedding_handler.py`
+```python
+import os
+from pathlib import Path
+from sentence_transformers import SentenceTransformer
+from .utils.supported_models import validate_model
+
+class EmbeddingHandler:
+    # ... existing code ...
+    
+    def download_model(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Download model with progress reporting for JSON-RPC"""
+        model_name = request.get('model_name')
+        
+        if not validate_model(model_name):
+            return {
+                'success': False,
+                'error': f'Model {model_name} not in supported list'
+            }
+        
+        try:
+            # Check if already cached
+            if self.is_model_cached(model_name):
+                return {
+                    'success': True,
+                    'message': f'Model {model_name} already cached',
+                    'progress': 100
+                }
+            
+            logger.info(f"Downloading model {model_name}...")
+            
+            # Download model - sentence-transformers handles caching automatically
+            # This will download to ~/.cache/torch/sentence_transformers/
+            model = SentenceTransformer(model_name)
+            
+            return {
+                'success': True,
+                'message': f'Model {model_name} downloaded successfully',
+                'progress': 100
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to download model {model_name}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def is_model_cached(self, model_name: str) -> bool:
+        """Check if model is already in sentence-transformers cache"""
+        try:
+            # Check default sentence-transformers cache directory
+            cache_dir = Path.home() / '.cache' / 'torch' / 'sentence_transformers'
+            model_dir = cache_dir / model_name.replace('/', '_')
+            
+            # Check if model directory exists and contains required files
+            if model_dir.exists() and (model_dir / 'config.json').exists():
+                return True
+                
+            # Alternative: try loading to check if cached
+            try:
+                SentenceTransformer(model_name, cache_folder=str(cache_dir))
+                return True
+            except:
+                return False
+        except Exception:
+            return False
+```
+
+**Success Criteria**:
+- [x] JSON-RPC download method implemented
+- [x] Model validation against supported list
+- [x] Cache checking prevents re-downloads
+- [x] Uses sentence-transformers automatic caching
+
+---
+
+### Sub-Task 10.8: Add TUI Progress Display to ManageFolderItem ✅ COMPLETED
+**Priority**: HIGH  
+**Estimated Time**: 2 hours  
+**Completion Date**: 2025-07-29
+
+**Update**: `src/interfaces/tui-ink/components/ManageFolderItem.tsx`
+```typescript
+import React, { useState, useEffect } from 'react';
+import { Box, Text } from 'ink';
+
+export interface ManageFolderItemProps {
+  // ... existing props ...
+}
+
+interface ModelDownloadProgress {
+  modelName: string;
+  progress: number;
+  message: string;
+  status: 'downloading' | 'complete' | 'error';
+}
+
+export const ManageFolderItem: React.FC<ManageFolderItemProps> = ({
+  // ... existing props
+}) => {
+  const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null);
+
+  useEffect(() => {
+    // Listen for model download progress events from daemon
+    const handleModelDownloadStart = (data: any) => {
+      setDownloadProgress({
+        modelName: data.modelName,
+        progress: 0,
+        message: `Starting download: ${data.modelName}`,
+        status: 'downloading'
+      });
+    };
+
+    const handleModelDownloadProgress = (data: any) => {
+      setDownloadProgress({
+        modelName: data.modelName,
+        progress: data.progress,
+        message: data.message,
+        status: 'downloading'
+      });
+    };
+
+    const handleModelDownloadComplete = (data: any) => {
+      setDownloadProgress({
+        modelName: data.modelName,
+        progress: 100,
+        message: `Model ${data.modelName} ready`,
+        status: 'complete'
+      });
+      
+      // Clear progress display after 2 seconds
+      setTimeout(() => setDownloadProgress(null), 2000);
+    };
+
+    const handleModelDownloadError = (data: any) => {
+      setDownloadProgress({
+        modelName: data.modelName,
+        progress: 0,
+        message: `Download failed: ${data.error}`,
+        status: 'error'
+      });
+      
+      // Clear error after 5 seconds
+      setTimeout(() => setDownloadProgress(null), 5000);
+    };
+
+    // Subscribe to WebSocket events (reusing LogItems pattern)
+    webSocketService.on('model_download_start', handleModelDownloadStart);
+    webSocketService.on('model_download_progress', handleModelDownloadProgress);
+    webSocketService.on('model_download_complete', handleModelDownloadComplete);
+    webSocketService.on('model_download_error', handleModelDownloadError);
+
+    return () => {
+      webSocketService.off('model_download_start', handleModelDownloadStart);
+      webSocketService.off('model_download_progress', handleModelDownloadProgress);
+      webSocketService.off('model_download_complete', handleModelDownloadComplete);
+      webSocketService.off('model_download_error', handleModelDownloadError);
+    };
+  }, []);
+
+  return (
+    <Box flexDirection="column">
+      {/* Existing folder management content */}
+      
+      {/* Progress display when downloading models - similar to LogItems */}
+      {downloadProgress && (
+        <Box marginTop={1} paddingX={2} borderStyle="round" borderColor="blue">
+          <Box flexDirection="column">
+            <Text color={downloadProgress.status === 'error' ? 'red' : 'blue'}>
+              {downloadProgress.message}
+            </Text>
+            {downloadProgress.status === 'downloading' && (
+              <Box marginTop={1}>
+                <ModelDownloadProgressBar 
+                  progress={downloadProgress.progress} 
+                  width={40}
+                  color={downloadProgress.status === 'error' ? 'red' : 'blue'}
+                />
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// Reuse progress bar pattern from LogItems
+const ModelDownloadProgressBar: React.FC<{
+  progress: number;
+  width: number;
+  color?: string;
+}> = ({ progress, width, color = 'blue' }) => {
+  const filled = Math.floor((progress / 100) * width);
+  const empty = width - filled;
+  
+  return (
+    <Text color={color}>
+      {'█'.repeat(filled)}{'░'.repeat(empty)} {Math.round(progress)}%
+    </Text>
+  );
+};
+```
+
+**Success Criteria**:
+- [x] Progress display integrated into ManageFolderItem
+- [x] Reuses existing LogItems progress bar pattern
+- [x] WebSocket events properly handled
+- [x] Visual consistency with existing TUI elements
+
+---
+
+### Sub-Task 10.9: Add WebSocket Model List Endpoint
+**Priority**: MEDIUM  
+**Estimated Time**: 1 hour  
+
+**Create**: `src/daemon/websocket/handlers/models.ts`
+```typescript
+import { WebSocketMessageHandler } from '../interfaces/websocket-handler.js';
+import { WebSocket } from 'ws';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+export class ModelsHandler implements WebSocketMessageHandler {
+  
+  async handleMessage(message: any, ws: WebSocket): Promise<void> {
+    if (message.type === 'models_list') {
+      try {
+        // Get supported models from system configuration
+        const supportedModels = this.getSupportedModels();
+
+        ws.send(JSON.stringify({
+          type: 'models_list_response',
+          requestId: message.requestId,
+          data: {
+            models: supportedModels,
+            backend: 'python',
+            cached: await this.getCachedModelStatus(supportedModels)
+          }
+        }));
+      } catch (error) {
+        ws.send(JSON.stringify({
+          type: 'error',
+          requestId: message.requestId,
+          error: 'Failed to get model list'
+        }));
+      }
+    }
+  }
+
+  private getSupportedModels(): string[] {
+    try {
+      // Read from system configuration
+      const configPath = join(process.cwd(), 'system-configuration.json');
+      const config = JSON.parse(readFileSync(configPath, 'utf8'));
+      return config.embeddings?.python?.supportedModels || this.getFallbackModels();
+    } catch (error) {
+      return this.getFallbackModels();
+    }
+  }
+
+  private getFallbackModels(): string[] {
+    return [
+      'all-MiniLM-L6-v2',
+      'all-mpnet-base-v2'
+    ];
+  }
+
+  private async getCachedModelStatus(models: string[]): Promise<{[key: string]: boolean}> {
+    // Quick cache status check (optional enhancement)
+    const status: {[key: string]: boolean} = {};
+    for (const model of models) {
+      // For now, assume not cached - daemon can check later
+      status[model] = false;
+    }
+    return status;
+  }
+}
+```
+
+**Success Criteria**:
+- [ ] WebSocket endpoint returns model list from configuration
+- [ ] Fast response (no external API calls)
+- [ ] Proper error handling and fallback
+- [ ] Simple model names only (no metadata)
+
+---
+
+### Sub-Task 10.10: Update AddFolderWizard Model Selection
 **Priority**: HIGH  
 **Estimated Time**: 2 hours  
 
-**File**: `tests/integration/embeddings/python-embeddings.test.ts`
+**Update**: `src/interfaces/tui-ink/components/FirstRunWizard.tsx`
 ```typescript
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PythonEmbeddingService } from '../../../src/infrastructure/embeddings/python-embedding-service.js';
+// Add model selection state
+const [availableModels, setAvailableModels] = useState<string[]>([]);
+const [selectedModel, setSelectedModel] = useState<string>('');
+const [modelSelectionIndex, setModelSelectionIndex] = useState<number>(0);
 
-describe('Python Embeddings Integration', () => {
-  let service: PythonEmbeddingService;
+useEffect(() => {
+  // Fetch available models when wizard starts
+  const fetchModels = async () => {
+    try {
+      // Request model list from daemon via WebSocket
+      const response = await webSocketService.request('models_list', {});
+      const models = response.data.models || ['all-MiniLM-L6-v2'];
+      
+      setAvailableModels(models);
+      setSelectedModel(models[0]); // Default to first model
+      setModelSelectionIndex(0);
+    } catch (error) {
+      console.error('Failed to fetch models:', error);
+      // Fallback to default model
+      const fallbackModels = ['all-MiniLM-L6-v2'];
+      setAvailableModels(fallbackModels);
+      setSelectedModel(fallbackModels[0]);
+      setModelSelectionIndex(0);
+    }
+  };
   
-  beforeAll(async () => {
-    service = new PythonEmbeddingService();
-    await service.initialize();
+  fetchModels();
+}, []);
+
+// Add model selection step to wizard
+const renderModelSelection = () => (
+  <Box flexDirection="column">
+    <Text color="blue" bold>Select Embedding Model:</Text>
+    <Text color="gray" marginTop={1}>
+      Choose a model for document processing and semantic search:
+    </Text>
+    
+    <Box marginTop={2} flexDirection="column">
+      {availableModels.map((model, index) => (
+        <Box key={model} marginY={0}>
+          <Text color={index === modelSelectionIndex ? 'green' : 'white'}>
+            {index === modelSelectionIndex ? '→ ' : '  '}
+            {model}
+            {index === 0 && ' (recommended)'}
+          </Text>
+        </Box>
+      ))}
+    </Box>
+    
+    <Box marginTop={2}>
+      <Text color="gray">Use ↑/↓ to select, Enter to confirm</Text>
+    </Box>
+  </Box>
+);
+
+// Add keyboard handling for model selection
+const handleModelSelectionInput = (input: string, key: Key) => {
+  if (key.upArrow) {
+    const newIndex = Math.max(0, modelSelectionIndex - 1);
+    if (newIndex !== modelSelectionIndex) {
+      setModelSelectionIndex(newIndex);
+      setSelectedModel(availableModels[newIndex]);
+      return true;
+    }
+  } else if (key.downArrow) {
+    const newIndex = Math.min(availableModels.length - 1, modelSelectionIndex + 1);
+    if (newIndex !== modelSelectionIndex) {
+      setModelSelectionIndex(newIndex);
+      setSelectedModel(availableModels[newIndex]);
+      return true;
+    }
+  } else if (key.return) {
+    // Proceed to next step with selected model
+    onModelSelected(selectedModel);
+    return true;
+  }
+  return false;
+};
+```
+
+**Success Criteria**:
+- [ ] Model selection dropdown populated from WebSocket endpoint
+- [ ] Simple model name display (no metadata complexity)
+- [ ] Keyboard navigation works properly
+- [ ] First model marked as recommended
+
+---
+
+### Sub-Task 10.12: Implement Python Process Keep-Alive System ✅ COMPLETED
+**Priority**: HIGH  
+**Estimated Time**: 3 hours  
+**Status**: ✅ COMPLETED
+
+**Implementation Goal**: Add configurable keep-alive system for Python process lifecycle management.
+
+**Features Required**:
+1. **5-minute keep-alive after immediate requests** - Keep Python process running for 5 minutes after last search request
+2. **Configurable timers** - Make both crawling pause (1-minute) and keep-alive (5-minute) configurable
+3. **Immediate request prioritization** - Search requests are "immediate" and should reset keep-alive timer
+4. **Comprehensive testing** - Use Jest fake timers with ~10 second test timeouts
+5. **Process lifecycle management** - Proper startup, keep-alive, and shutdown handling
+
+**Implementation Approach**:
+```typescript
+// Configuration additions to system-configuration.json
+{
+  "embeddings": {
+    "python": {
+      "processManagement": {
+        "crawlingPauseMinutes": 1,    // 1 minute pause after search
+        "keepAliveMinutes": 5,        // 5 minutes keep-alive
+        "shutdownGracePeriodSeconds": 30
+      }
+    }
+  }
+}
+```
+
+**Key Components to Update**:
+- `src/infrastructure/embeddings/python-embedding-service.ts` - Process lifecycle management
+- `src/infrastructure/embeddings/python/handlers/embedding_handler.py` - Timer management 
+- `src/config/system-configuration.json` - Configurable timers
+- `tests/integration/python-process-lifecycle.test.ts` - Comprehensive testing with fake timers
+
+**Testing Strategy**:
+```typescript
+// Use Jest fake timers for fast async testing
+describe('Python Process Keep-Alive', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
   });
   
-  afterAll(async () => {
-    await service.shutdown();
-  });
-  
-  it('should generate single embedding', async () => {
-    const result = await service.generateSingleEmbedding('Hello world');
-    
-    expect(result.vector).toHaveLength(384);
-    expect(result.dimensions).toBe(384);
-    expect(result.model).toBe('all-MiniLM-L6-v2');
-    expect(result.metadata?.confidence).toBe(1.0);
-  });
-  
-  it('should handle empty text', async () => {
-    const result = await service.generateSingleEmbedding('');
-    
-    expect(result.vector).toHaveLength(384);
-    expect(result.vector.every(v => v === 0)).toBe(true);
-  });
-  
-  it('should process batch efficiently', async () => {
-    const chunks = Array.from({ length: 10 }, (_, i) => ({
-      content: `Test chunk ${i}`,
-      chunkIndex: i,
-      metadata: {}
-    }));
-    
-    const startTime = Date.now();
-    const results = await service.processBatch(chunks, 5);
-    const duration = Date.now() - startTime;
-    
-    expect(results).toHaveLength(10);
-    expect(results.every(r => r.success)).toBe(true);
-    expect(duration).toBeLessThan(5000); // Should be fast
-  });
-  
-  it('should calculate similarity correctly', () => {
-    const vector1 = {
-      vector: [1, 0, 0],
-      dimensions: 3,
-      model: 'test',
-      createdAt: new Date().toISOString()
-    };
-    
-    const vector2 = {
-      vector: [0.7071, 0.7071, 0],
-      dimensions: 3,
-      model: 'test',
-      createdAt: new Date().toISOString()
-    };
-    
-    const similarity = service.calculateSimilarity(vector1, vector2);
-    expect(similarity).toBeCloseTo(0.7071, 4);
-  });
-  
-  it('should recover from process crash', async () => {
-    // Simulate process crash
-    (service as any).process?.kill('SIGKILL');
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Should reinitialize on next call
-    const result = await service.generateSingleEmbedding('Recovery test');
-    expect(result.vector).toHaveLength(384);
+  it('should keep process alive for 5 minutes after immediate request', async () => {
+    // Fast test with ~10 second timeouts instead of real 5 minutes
   });
 });
 ```
 
 **Success Criteria**:
-- [ ] All integration tests pass
-- [ ] Process recovery works
-- [ ] Performance is acceptable
-- [ ] Error scenarios handled
+- [x] Python process stays alive for configurable period after immediate requests
+- [x] Crawling pause duration is configurable (default 1 minute)
+- [x] Keep-alive duration is configurable (default 5 minutes)
+- [x] Comprehensive tests use fake timers with ~10 second timeouts
+- [x] Process shutdown is graceful with proper cleanup
+- [x] Integration with existing search request handling
+
+**Implementation Summary**:
+✅ **Configuration System**: Added `processManagement` configuration to `system-configuration.json` with configurable timers:
+   - `crawlingPauseMinutes`: 1 (pause batch processing after immediate requests)
+   - `keepAliveMinutes`: 5 (keep Python process alive after last immediate request)
+   - `shutdownGracePeriodSeconds`: 30 (graceful shutdown timeout)
+
+✅ **Python Handler Updates**: Enhanced `embedding_handler.py` with keep-alive timer system:
+   - `_reset_keep_alive_timer()`: Resets timer for immediate requests
+   - `_handle_keep_alive_timeout()`: Graceful shutdown after timeout
+   - `_graceful_shutdown_worker()`: Clean process termination
+
+✅ **Node.js Service Enhancement**: Updated `python-embedding-service.ts` with:
+   - Process lifecycle management with auto-restart capability
+   - Health monitoring with restart triggers
+   - Configurable restart attempts with exponential backoff
+   - Graceful shutdown prevention of auto-restart
+   - Integration with model download and cache checking
+
+✅ **Testing Infrastructure**: Created comprehensive integration tests with:
+   - Vitest fake timers for fast async testing
+   - Process lifecycle validation
+   - Keep-alive functionality verification
+   - Health check and restart logic testing
+   - Model download and cache validation
+
+**Architecture Integration**:
+- Integrates with existing priority-based processing system
+- Extends current crawling pause mechanism with configurable keep-alive
+- Maintains compatibility with immediate vs batch request prioritization
+- Uses existing configuration management system
 
 ---
 
-### Sub-Task 10.10: Add Health Monitoring
+### Sub-Task 10.11: Integration Testing and Documentation
 **Priority**: MEDIUM  
-**Estimated Time**: 1 hour  
+**Estimated Time**: 2 hours  
 
-**File**: `src/infrastructure/embeddings/python-health-monitor.ts`
+**Create**: `tests/integration/python-model-management.test.ts`
 ```typescript
-export class PythonHealthMonitor {
-  private healthCheckInterval: NodeJS.Timeout | null = null;
-  private consecutiveFailures = 0;
-  private readonly maxFailures = 3;
-  
-  constructor(
-    private readonly service: PythonEmbeddingService,
-    private readonly onUnhealthy: () => void
-  ) {}
-  
-  start(intervalMs: number = 30000): void {
-    this.healthCheckInterval = setInterval(async () => {
-      try {
-        const health = await this.service.callMethod('health_check');
-        if (health.status === 'healthy') {
-          this.consecutiveFailures = 0;
-        } else {
-          this.handleFailure();
-        }
-      } catch (error) {
-        this.handleFailure();
-      }
-    }, intervalMs);
-  }
-  
-  private handleFailure(): void {
-    this.consecutiveFailures++;
-    if (this.consecutiveFailures >= this.maxFailures) {
-      this.onUnhealthy();
-    }
-  }
-  
-  stop(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-    }
-  }
-}
-```
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { DaemonService } from '../../src/domain/daemon/daemon-service.js';
 
-**Success Criteria**:
-- [ ] Health monitoring works
-- [ ] Detects unhealthy state
-- [ ] Triggers recovery actions
-- [ ] No false positives
+describe('Python Model Management Integration', () => {
+  let daemon: DaemonService;
+  let mockWebSocket: any;
+  
+  beforeAll(async () => {
+    daemon = new DaemonService(testConfig);
+    await daemon.start();
+    
+    // Mock WebSocket for progress events
+    mockWebSocket = {
+      broadcast: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn()
+    };
+    daemon.webSocketServer = mockWebSocket;
+  });
+  
+  afterAll(async () => {
+    await daemon.stop();
+  });
+  
+  it('should download model with progress events', async () => {
+    const progressEvents: any[] = [];
+    mockWebSocket.broadcast.mockImplementation((event, data) => {
+      progressEvents.push({ event, data });
+    });
+    
+    // Trigger model download
+    await daemon.downloadModelIfNeeded('all-MiniLM-L6-v2');
+    
+    // Verify progress events were broadcast
+    expect(progressEvents).toContainEqual({
+      event: 'model_download_start',
+      data: { modelName: 'all-MiniLM-L6-v2', status: 'downloading' }
+    });
+    
+    expect(progressEvents).toContainEqual({
+      event: 'model_download_complete',
+      data: { modelName: 'all-MiniLM-L6-v2', status: 'ready' }
+    });
+  });
 
----
+  it('should skip download for already cached models', async () => {
+    // Mock model as already cached
+    const embeddingService = daemon.container.resolve('EMBEDDING_SERVICE');
+    vi.spyOn(embeddingService, 'isModelCached').mockResolvedValue(true);
+    
+    const progressEvents: any[] = [];
+    mockWebSocket.broadcast.mockImplementation((event, data) => {
+      progressEvents.push({ event, data });
+    });
+    
+    await daemon.downloadModelIfNeeded('all-MiniLM-L6-v2');
+    
+    // Should not broadcast download events for cached models
+    expect(progressEvents).toHaveLength(0);
+  });
 
-### Sub-Task 10.11: Configuration and Documentation
-**Priority**: MEDIUM  
-**Estimated Time**: 1 hour  
-
-**Update**: `src/config/schema/embeddings.ts`
-```typescript
-export interface EmbeddingsConfig {
-  provider: 'python' | 'ollama';
-  pythonPath?: string;
-  pythonScriptPath?: string;
-  timeout?: number;
-  maxRetries?: number;
-  model?: string;
-  batchSize?: number;
-  ollamaUrl?: string;  // Fallback option
-}
+  it('should handle model download errors gracefully', async () => {
+    const embeddingService = daemon.container.resolve('EMBEDDING_SERVICE');
+    vi.spyOn(embeddingService, 'downloadModel').mockRejectedValue(
+      new Error('Network error')
+    );
+    
+    const progressEvents: any[] = [];
+    mockWebSocket.broadcast.mockImplementation((event, data) => {
+      progressEvents.push({ event, data });
+    });
+    
+    await expect(daemon.downloadModelIfNeeded('invalid-model')).rejects.toThrow('Network error');
+    
+    expect(progressEvents).toContainEqual({
+      event: 'model_download_error',
+      data: { modelName: 'invalid-model', error: 'Network error' }
+    });
+  });
+});
 ```
 
 **Update**: `README.md` section
 ```markdown
-## Embeddings Configuration
+## Python Embeddings Model Management
 
-folder-mcp supports two embedding providers:
+The Python embedding backend uses a curated list of high-quality sentence-transformer models:
 
-### Python Embeddings (Default)
-- Uses sentence-transformers directly
-- Automatic GPU detection (CUDA/MPS)
-- No external dependencies
+### Supported Models
+- **all-MiniLM-L6-v2** (default) - Fast, 384 dimensions, good general performance
+- **all-mpnet-base-v2** - Higher quality, 768 dimensions, better accuracy
+- **all-MiniLM-L12-v2** - Balanced option, 384 dimensions
+- **all-distilroberta-v1** - Specialized for certain domains
+- **paraphrase-MiniLM-L6-v2** - Optimized for paraphrase detection
 
-Configuration:
-```yaml
-embeddings:
-  provider: python
-  model: all-MiniLM-L6-v2
-  batchSize: 32
-  pythonPath: python3  # or full path to Python executable
+### Model Downloads
+- Models are downloaded automatically when first selected
+- Progress is shown in the TUI during downloads
+- Models are cached locally using sentence-transformers caching
+- No need to manually manage model files
+
+### Configuration
+Models are configured in `system-configuration.json`:
+```json
+{
+  "embeddings": {
+    "python": {
+      "supportedModels": [
+        "all-MiniLM-L6-v2",
+        "all-mpnet-base-v2"
+      ]
+    }
+  }
+}
 ```
 
-### Ollama Embeddings (Fallback)
-- Requires Ollama installation
-- Used when Python unavailable
-
-Configuration:
-```yaml
-embeddings:
-  provider: ollama
-  ollamaUrl: http://127.0.0.1:11434
-  model: nomic-embed-text
+### For More Models
+If you need access to more embedding models, use the Ollama backend:
+```bash
+folder-mcp config set processing.embeddingBackend ollama
+ollama pull nomic-embed-text
 ```
 ```
 
 **Success Criteria**:
-- [ ] Configuration schema updated
-- [ ] Documentation is clear
-- [ ] Migration path documented
-- [ ] Troubleshooting guide added
+- [ ] Integration tests pass for complete download flow
+- [ ] Error handling tested for network issues
+- [ ] Documentation covers model selection and configuration
+- [ ] User guide explains model characteristics
 
 ---
 
 ## Testing Strategy
 
 ### Unit Tests
-- JSON-RPC message parsing
-- Error handling scenarios
-- Configuration validation
-- Interface compliance
+- Model validation against configuration list
+- WebSocket endpoint responses
+- Progress event handling
+- TUI component rendering
 
 ### Integration Tests
-- End-to-end embedding generation
-- Process lifecycle management
-- Fallback to Ollama
-- Performance benchmarks
+- Complete model download flow
+- Daemon-Python communication
+- TUI progress display during downloads
+- AddFolderWizard model selection
 
-### Manual Testing Checklist
-- [ ] Python process starts with daemon
-- [ ] GPU detection works correctly
-- [ ] Embeddings generate successfully
-- [ ] Batch processing is efficient
-- [ ] Process recovery after crash
-- [ ] Clean shutdown on daemon stop
-- [ ] Fallback to Ollama when Python fails
+### User Acceptance Tests
+- Wizard shows model list from configuration
+- Model downloads with visible progress
+- First embedding generation works after download
+- Error handling for unsupported models
 
-## Integration with MCP Endpoints
-
-The embeddings service should be used differently based on the operation:
-
-**For Search Operations (MCP search endpoint)**:
-```typescript
-// Use immediate method - processes instantly and pauses batch operations
-const searchEmbedding = await embeddingService.generateImmediateEmbedding(query);
-```
-
-**For Indexing Operations (folder processing)**:
-```typescript
-// Use batch method - runs in background when no immediate requests
-const embeddings = await embeddingService.processBatch(chunks, 32);
-```
-
-This ensures search queries always get sub-second responses while indexing happens efficiently in the background.
+---
 
 ## Success Metrics
 
-1. **Stability**: Zero crashes in 24-hour test run
-2. **Performance**: < 100ms per embedding (immediate requests)
-3. **Resource Usage**: < 500MB memory for model
-4. **Recovery Time**: < 5 seconds after crash
-5. **Compatibility**: Works on Windows/macOS/Linux
-6. **Priority Handling**: Search queries never wait for batch processing
+### Performance Targets
+- Model list loads instantly (< 100ms)
+- Download progress updates every 2-5 seconds
+- First embedding generation within 30s of model selection
+- TUI remains responsive during downloads
 
-## Migration Path
+### User Experience Goals
+- Clear model selection without guessing names
+- Visible progress for all long operations
+- No hidden downloads or surprises
+- Consistent progress display patterns
 
-1. **Phase 1**: Python service available but not default
-2. **Phase 2**: Python becomes default, Ollama as fallback
-3. **Phase 3**: Deprecate Ollama support (optional)
+### Technical Requirements
+- Configuration-driven model list (no hardcoding)
+- Reuse existing TUI progress components
+- WebSocket integration with daemon
+- Proper error handling and recovery
 
-## Troubleshooting Guide
+---
 
-### Common Issues
+## Implementation Notes
 
-**Python not found**:
-```bash
-# Check Python installation
-python3 --version
+### Key Architectural Decisions
+1. **Configuration-based model list** - stored in system-configuration.json
+2. **Daemon-orchestrated downloads** - centralized progress tracking
+3. **TUI progress integration** - reuse LogItems patterns
+4. **Simple model names only** - no metadata complexity for now
 
-# Set explicit path in config
-embeddings:
-  pythonPath: /usr/local/bin/python3
-```
+---
 
-**Module import errors**:
-```bash
-# Install dependencies
-cd src/infrastructure/embeddings/python
-pip install -r requirements.txt
-```
+## Testing Strategy
 
-**GPU not detected**:
-```bash
-# Check CUDA
-python -c "import torch; print(torch.cuda.is_available())"
+### Unit Tests
+- Model validation against configuration list
+- WebSocket endpoint responses
+- Progress event handling
+- TUI component rendering
 
-# Check MPS (Apple Silicon)
-python -c "import torch; print(torch.backends.mps.is_available())"
-```
+### Integration Tests
+- Complete model download flow
+- Daemon-Python communication
+- TUI progress display during downloads
+- AddFolderWizard model selection
+
+### User Acceptance Tests
+- Wizard shows model list from configuration
+- Model downloads with visible progress
+- First embedding generation works after download
+- Error handling for unsupported models
+
+---
+
+## Success Metrics
+
+### Performance Targets
+- Model list loads instantly (< 100ms)
+- Download progress updates every 2-5 seconds
+- First embedding generation within 30s of model selection
+- TUI remains responsive during downloads
+
+### User Experience Goals
+- Clear model selection without guessing names
+- Visible progress for all long operations
+- No hidden downloads or surprises
+- Consistent progress display patterns
+
+### Technical Requirements
+- Configuration-driven model list (no hardcoding)
+- Reuse existing TUI progress components
+- WebSocket integration with daemon
+- Proper error handling and recovery
+
+---
+
+## Implementation Notes
+
+### Key Architectural Decisions
+1. **Configuration-based model list** - stored in system-configuration.json
+2. **Daemon-orchestrated downloads** - centralized progress tracking
+3. **TUI progress integration** - reuse LogItems patterns
+4. **Simple model names only** - no metadata complexity for now
+
+### Future Enhancements (Post-Implementation)
+- Rich model metadata with descriptions
+- Model recommendation based on content type
+- Download progress caching/resumption
+- Model size and resource requirements display
+- Custom model addition interface
+
+---
 
 ## Next Steps
 

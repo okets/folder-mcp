@@ -66,6 +66,35 @@ npm run test:integration -- tests/integration/config/  # Run configuration integ
 node dist/mcp-server.js <folder-path>  # Start MCP server with folder path
 ```
 
+## What is folder-mcp?
+
+**folder-mcp** is a tool that turns any machine into an MCP server, providing semantic search and file reading capabilities to AI agents (Claude, VSCode, Cursor, or any MCP-compatible client). 
+
+### Core Purpose
+- **Transform any folder/filesystem** into a semantically searchable knowledge base
+- **Universal MCP server** - Works with any MCP client (not just Claude)
+- **Multi-folder support** - Configure and serve multiple folders simultaneously
+- **Local or cloud access** - Use locally or expose via Cloudflare tunnel with custom domain
+- **GPU-accelerated embeddings** - Python-based embeddings for high-quality semantic search
+- **Always-running daemon** - Background service with auto-start on boot
+
+### User Experience Vision
+```bash
+# Install once
+npm install -g folder-mcp
+
+# Launch TUI to configure
+folder-mcp
+
+# In TUI:
+# - Add multiple folders to serve
+# - Configure local/cloud access
+# - Set up embedding models
+# - Monitor daemon status
+
+# Daemon runs forever, any MCP client can connect
+```
+
 ## Architecture Overview
 
 This is a **Model Context Protocol (MCP) server** that provides semantic file system access to LLMs through structured tools. The architecture follows **Clean Architecture principles** with strict domain/infrastructure separation.
@@ -157,36 +186,72 @@ folder-mcp config env list               # List environment variables
 
 See `docs/configuration.md` for complete configuration documentation.
 
-## MCP Protocol Implementation
+## Key Components and Their Roles
 
-**Entry Point:** `src/mcp-server.ts` - Main server that:
-1. Sets up dependency injection
-2. Starts MCP protocol server
-3. Initializes file indexing and watching
-4. Handles graceful shutdown
+### 1. Always-Running Daemon
+- **Purpose**: Background service that manages all configured folders
+- **Features**: 
+  - Auto-starts on boot with user-level permissions
+  - Manages multiple folder configurations
+  - Handles MCP server instances
+  - WebSocket server for real-time communication
+  - Health monitoring and auto-recovery
 
-**CRITICAL:** All logging MUST go to stderr only. Claude Desktop expects only valid JSON-RPC on stdout.
+### 2. Full-Screen TUI (Terminal User Interface)
+- **Purpose**: Configuration and management interface
+- **Features**:
+  - Add/remove multiple folders
+  - Configure local access (ports, authentication)
+  - Configure cloud access (Cloudflare tunnel)
+  - Select embedding models
+  - Monitor daemon health and statistics
+  - View real-time logs
 
-**Tools Provided:**
-- `search` - Semantic search across documents
-- `get_document_outline` - Extract document structure
-- `get_document_data` - Get document content and metadata
-- `list_folders/documents` - File system browsing
-- `get_sheet_data/slides/pages` - Format-specific data extraction
+### 3. MCP Server Implementation
+- **Entry Point:** `src/mcp-server.ts` - Main server that:
+  1. Sets up dependency injection
+  2. Starts MCP protocol server
+  3. Initializes file indexing and watching
+  4. Handles graceful shutdown
+
+- **CRITICAL:** All logging MUST go to stderr only. MCP clients expect only valid JSON-RPC on stdout.
+
+- **Tools Provided:**
+  - `search` - Semantic search across documents (powered by embeddings)
+  - `get_document_outline` - Extract document structure
+  - `get_document_data` - Get document content and metadata
+  - `list_folders/documents` - File system browsing
+  - `get_sheet_data/slides/pages` - Format-specific data extraction
+
+### 4. Embedding System
+- **Primary**: Python-based GPU-accelerated embeddings
+  - High-quality semantic search
+  - Curated model list (all-MiniLM-L6-v2, all-mpnet-base-v2, etc.)
+  - First-run model download (~400MB)
+- **Power User Option**: Ollama integration
+  - For additional models not in curated list
+  - NOT a fallback - an advanced feature
 
 ## File Processing Pipeline
 
 **Supported Formats:** PDF, DOCX, XLSX, PPTX, TXT, MD
+
 **Processing Flow:**
 1. File parsing (`domain/files/parser.ts`)
 2. Content chunking (`domain/content/chunking.ts`)
-3. Embedding generation (Ollama integration)
+3. Embedding generation (Python or Ollama)
 4. Vector storage (FAISS-based)
 
-**Ollama Integration:**
-- API URL: `http://127.0.0.1:11434`
-- GPU acceleration for embedding models
-- Multiple model support (nomic-embed-text, mxbai-embed-large, etc.)
+**Embedding Providers:**
+- **Python Embeddings** (Primary):
+  - Located in `src/infrastructure/embeddings/python/`
+  - GPU-accelerated via PyTorch
+  - Runs as subprocess with JSON-RPC communication
+  - Includes keep-alive and priority queue features
+- **Ollama Integration** (Power user option):
+  - API URL: `http://127.0.0.1:11434`
+  - Additional model flexibility
+  - Requires separate Ollama installation
 
 **Security Features:**
 - Directory traversal attack prevention
@@ -324,6 +389,22 @@ Discrepancy: Expected X but seeing Y
 - Test edge cases (top, bottom, middle)
 - Verify visually that the fix matches the screenshot
 - Use descriptive variable names in test scripts
+
+## Critical Technical Challenges
+
+### Python Embeddings Distribution
+**The Challenge**: folder-mcp requires Python with GPU-accelerated ML libraries (torch, sentence-transformers) for high-quality semantic search. This is complex because:
+- Users shouldn't need to install Python or manage dependencies
+- Total size with dependencies can exceed 1GB
+- Different platforms need different binaries
+- Must work immediately after `npm install -g folder-mcp`
+
+**Current Status**: Python embedding system is coded but not yet working in tests due to:
+- Import structure issues (relative imports in directly executed scripts)
+- Missing dependencies in test environment
+- No distribution mechanism implemented
+
+**Solution Being Implemented**: Pre-compiled Python executables using PyInstaller, distributed via npm postinstall scripts.
 
 ## Phase 8: Unified Application Flow
 

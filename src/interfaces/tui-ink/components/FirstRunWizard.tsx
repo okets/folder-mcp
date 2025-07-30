@@ -62,7 +62,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
     const initialPath = folderResult.path;
-    const initialModel = cliModel || 'nomic-embed-text';
+    const initialModel = cliModel || 'all-MiniLM-L6-v2'; // Default to Python model
     
     // Set up root input handler
     useRootInput();
@@ -77,19 +77,11 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 errors.folder = folderResult.error;
             }
             
-            // Validate CLI model if provided - simplified for FMDM migration
+            // Validate CLI model if provided - use Python models list
             if (cliModel) {
-                // Basic model validation - FMDM will do comprehensive validation on add
-                const supportedModels = [
-                    'nomic-embed-text',
-                    'mxbai-embed-large', 
-                    'all-minilm',
-                    'sentence-transformers',
-                    'ollama:nomic-embed-text',
-                    'ollama:mxbai-embed-large',
-                    'ollama:all-minilm',
-                    'transformers:all-MiniLM-L6-v2'
-                ];
+                // Import Python models for validation
+                const { getPythonModels } = await import('../services/ModelListService');
+                const supportedModels = getPythonModels().map(model => model.name);
                 
                 if (!supportedModels.includes(cliModel)) {
                     errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.join(', ')}`;

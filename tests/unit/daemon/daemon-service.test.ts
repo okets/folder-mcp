@@ -60,6 +60,14 @@ const mockLogger = {
   debug: vi.fn()
 };
 
+const mockWebSocketServer = {
+  start: vi.fn().mockResolvedValue(undefined),
+  stop: vi.fn().mockResolvedValue(undefined),
+  broadcast: vi.fn(),
+  getConnectedClients: vi.fn(() => []),
+  isRunning: vi.fn(() => false)
+};
+
 describe('DaemonService', () => {
   let daemonService: DaemonService;
 
@@ -72,7 +80,7 @@ describe('DaemonService', () => {
       mockHealthMonitor,
       mockSignalHandler,
       mockPerformanceMonitor,
-      null as any, // Mock WebSocket server - not needed for tests
+      mockWebSocketServer as any,
       mockLogger
     );
   });

@@ -25,7 +25,7 @@ import { LogItem } from './components/core/LogItem';
 import { existsSync, statSync } from 'fs';
 import { useFMDM, useConfiguredFolders, useFMDMOperations, useFMDMConnection } from './contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
-import { createManageFolderItem } from './components/ManageFolderItem';
+import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
 
 // Get item counts once at module level to ensure consistency
@@ -435,6 +435,7 @@ interface AppFullscreenProps {
 export const AppFullscreen: React.FC<AppFullscreenProps> = ({ config }) => {
     return (
         <AnimationProvider>
+            <ModelDownloadManagerInitializer />
             <AppContent config={config} />
         </AnimationProvider>
     );

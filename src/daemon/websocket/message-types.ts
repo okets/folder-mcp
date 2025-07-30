@@ -71,6 +71,14 @@ export interface PingMessage extends WSClientMessageBase {
 }
 
 /**
+ * Model list request message
+ */
+export interface ModelListMessage extends WSClientMessageBase {
+  type: 'models.list';
+  id: string; // Required for correlation
+}
+
+/**
  * Union type for all client messages
  */
 export type WSClientMessage = 
@@ -78,7 +86,8 @@ export type WSClientMessage =
   | FolderValidateMessage
   | FolderAddMessage
   | FolderRemoveMessage
-  | PingMessage;
+  | PingMessage
+  | ModelListMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -172,6 +181,56 @@ export interface ErrorMessage extends WSServerMessageBase {
 }
 
 /**
+ * Model download event messages
+ */
+export interface ModelDownloadStartMessage extends WSServerMessageBase {
+  type: 'model_download_start';
+  data: {
+    modelName: string;
+    status: 'downloading';
+  };
+}
+
+export interface ModelDownloadProgressMessage extends WSServerMessageBase {
+  type: 'model_download_progress';
+  data: {
+    modelName: string;
+    progress: number;
+    message?: string;
+    estimatedTimeRemaining?: number;
+  };
+}
+
+export interface ModelDownloadCompleteMessage extends WSServerMessageBase {
+  type: 'model_download_complete';
+  data: {
+    modelName: string;
+    status: 'ready';
+  };
+}
+
+export interface ModelDownloadErrorMessage extends WSServerMessageBase {
+  type: 'model_download_error';
+  data: {
+    modelName: string;
+    error: string;
+  };
+}
+
+/**
+ * Model list response message
+ */
+export interface ModelListResponseMessage extends WSServerMessageBase {
+  type: 'models.list.response';
+  id: string; // Matches request ID
+  data: {
+    models: string[];
+    backend: 'python' | 'ollama';
+    cached?: {[modelName: string]: boolean};
+  };
+}
+
+/**
  * Union type for all server messages
  */
 export type WSServerMessage = 
@@ -180,7 +239,12 @@ export type WSServerMessage =
   | ActionResponseMessage
   | PongMessage
   | ConnectionAckMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | ModelDownloadStartMessage
+  | ModelDownloadProgressMessage
+  | ModelDownloadCompleteMessage
+  | ModelDownloadErrorMessage
+  | ModelListResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -202,6 +266,7 @@ export function isValidClientMessage(message: any): message is WSClientMessage {
     case 'folder.add':
     case 'folder.remove':
     case 'ping':
+    case 'models.list':
       return typeof message.id === 'string' && message.id.length > 0;
     
     default:
@@ -250,6 +315,13 @@ export function isConnectionInitMessage(message: WSClientMessage): message is Co
  */
 export function isPingMessage(message: WSClientMessage): message is PingMessage {
   return message.type === 'ping' && typeof message.id === 'string';
+}
+
+/**
+ * Type guard for model list messages
+ */
+export function isModelListMessage(message: WSClientMessage): message is ModelListMessage {
+  return message.type === 'models.list' && typeof message.id === 'string';
 }
 
 // =============================================================================
@@ -326,6 +398,26 @@ export function createErrorMessage(message: string, code?: string): ErrorMessage
     type: 'error',
     message,
     ...(code && { code })
+  };
+}
+
+/**
+ * Create a model list response message
+ */
+export function createModelListResponse(
+  id: string,
+  models: string[],
+  backend: 'python' | 'ollama',
+  cached?: {[modelName: string]: boolean}
+): ModelListResponseMessage {
+  return {
+    type: 'models.list.response',
+    id,
+    data: {
+      models,
+      backend,
+      ...(cached && { cached })
+    }
   };
 }
 

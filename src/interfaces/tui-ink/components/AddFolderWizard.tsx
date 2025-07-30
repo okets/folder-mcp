@@ -11,7 +11,7 @@ import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
 import { IListItem } from './core/IListItem';
-import { getModelOptions, getAllModelsWithMetadata, getModelMetadata } from '../models/modelMetadata';
+import { getPythonModels, ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
@@ -158,7 +158,7 @@ class AddFolderContainerItem extends ContainerListItem {
 export function createAddFolderWizard(options: AddFolderWizardOptions): ContainerListItem {
     const {
         initialPath = process.cwd(),
-        initialModel = 'nomic-embed-text',
+        initialModel = 'all-MiniLM-L6-v2', // Default to first Python model
         onComplete,
         onCancel,
         fmdmOperations
@@ -255,15 +255,15 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     
     childItems.push(folderPicker);
     
-    // Step 2: Model selection with enhanced metadata display
-    const modelOptions: SelectionOption[] = getAllModelsWithMetadata().map(meta => ({
-        value: meta.name,
-        label: meta.recommended ? `${meta.displayName} (Recommended)` : meta.displayName,
+    // Step 2: Model selection with Python models only
+    const pythonModels = getPythonModels();
+    const modelOptions: SelectionOption[] = pythonModels.map(model => ({
+        value: model.name,
+        label: model.recommended ? `${model.displayName}` : model.displayName,
         details: {
-            'Languages': meta.languages.join(','),
-            'Params': meta.params,
-            'GPU': meta.gpuRequired ? 'Required' : 'Optional',
-            'Backend': meta.backend
+            'Backend': model.backend,
+            'Type': 'Sentence Transformer',
+            'Status': 'Available'
         }
     }));
     
@@ -285,7 +285,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         undefined, // maxSelections
         false, // autoSwitchLayout
         true, // showDetails - Enable column display
-        ['Languages', 'Params', 'GPU', 'Backend'] // Column headers
+        ['Backend', 'Type', 'Status'] // Column headers
     );
     childItems.push(modelSelector);
     

@@ -13,6 +13,7 @@ import { IListItem } from './core/IListItem';
 import { TextListItem } from './core/TextListItem';
 import { getModelMetadata } from '../models/modelMetadata';
 import { theme } from '../utils/theme';
+import { useModelDownloadEvents, ModelDownloadEvent } from '../contexts/FMDMContext';
 
 export interface ManageFolderItemOptions {
     folderPath: string;
@@ -294,6 +295,67 @@ class ManageFolderContainerItem extends ContainerListItem {
     }
 }
 
+// Model download manager initialization component
+export const ModelDownloadManagerInitializer: React.FC = () => {
+    const { subscribeToModelDownloads } = useModelDownloadEvents();
+    
+    React.useEffect(() => {
+        const manager = ModelDownloadManager.getInstance();
+        manager.setSubscribeFunction(subscribeToModelDownloads);
+        
+        return () => {
+            manager.cleanup();
+        };
+    }, [subscribeToModelDownloads]);
+    
+    return null;
+};
+
+// Global model download subscription manager
+class ModelDownloadManager {
+    private static instance: ModelDownloadManager | null = null;
+    private subscribeFunction: ((listener: (event: ModelDownloadEvent) => void) => () => void) | null = null;
+    private activeSubscriptions = new Map<string, (() => void)>();
+    
+    static getInstance(): ModelDownloadManager {
+        if (!ModelDownloadManager.instance) {
+            ModelDownloadManager.instance = new ModelDownloadManager();
+        }
+        return ModelDownloadManager.instance;
+    }
+    
+    setSubscribeFunction(fn: (listener: (event: ModelDownloadEvent) => void) => () => void) {
+        this.subscribeFunction = fn;
+    }
+    
+    subscribeModel(modelName: string, callback: (event: ModelDownloadEvent) => void): () => void {
+        if (!this.subscribeFunction) {
+            return () => {}; // No-op if not initialized
+        }
+        
+        const unsubscribe = this.subscribeFunction((event: ModelDownloadEvent) => {
+            if (event.modelName === modelName) {
+                callback(event);
+            }
+        });
+        
+        this.activeSubscriptions.set(modelName, unsubscribe);
+        
+        return () => {
+            const existingUnsub = this.activeSubscriptions.get(modelName);
+            if (existingUnsub) {
+                existingUnsub();
+                this.activeSubscriptions.delete(modelName);
+            }
+        };
+    }
+    
+    cleanup() {
+        this.activeSubscriptions.forEach(unsubscribe => unsubscribe());
+        this.activeSubscriptions.clear();
+    }
+}
+
 export function createManageFolderItem(options: ManageFolderItemOptions): ContainerListItem {
     const {
         folderPath,
@@ -330,13 +392,55 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         `Backend: ${modelMetadata.backend}`
     ] : [`Backend: ${model}`];
     
-    // Create custom LogItem with formatted model text (green value in brackets)
-    class ModelLogItem extends LogItem {
+    // Create custom LogItem with formatted model text and download progress
+    class ModelLogItemWithProgress extends LogItem {
         private displayModel: string;
+        private modelName: string;
+        private downloadProgress: number | undefined;
+        private downloadStatus: 'idle' | 'downloading' | 'complete' | 'error';
+        private unsubscribe: (() => void) | null = null;
         
-        constructor(icon: string, displayModel: string, status: string, isActive: boolean, isExpanded: boolean, details?: string[], progress?: number) {
+        constructor(icon: string, displayModel: string, modelName: string, status: string, isActive: boolean, isExpanded: boolean, details?: string[], progress?: number) {
             super(icon, `Model [${displayModel}]`, status, isActive, isExpanded, details, progress);
             this.displayModel = displayModel;
+            this.modelName = modelName;
+            this.downloadProgress = undefined;
+            this.downloadStatus = 'idle';
+        }
+
+        // Method to set up download event listening
+        setupDownloadTracking() {
+            const manager = ModelDownloadManager.getInstance();
+            this.unsubscribe = manager.subscribeModel(this.modelName, (event: ModelDownloadEvent) => {
+                switch (event.status) {
+                    case 'downloading':
+                        this.downloadStatus = 'downloading';
+                        this.downloadProgress = event.progress;
+                        break;
+                    case 'ready':
+                        this.downloadStatus = 'complete';
+                        this.downloadProgress = 100;
+                        break;
+                    case 'error':
+                        this.downloadStatus = 'error';
+                        this.downloadProgress = undefined;
+                        break;
+                }
+                // Update the progress property for LogItem progress bar
+                if (this.downloadProgress !== undefined) {
+                    (this as any).progress = this.downloadProgress;
+                } else {
+                    (this as any).progress = undefined;
+                }
+            });
+        }
+
+        // Clean up subscription
+        cleanup() {
+            if (this.unsubscribe) {
+                this.unsubscribe();
+                this.unsubscribe = null;
+            }
         }
         
         // Override render method to handle colored text
@@ -449,15 +553,19 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         }
     }
     
-    const modelLogItem = new ModelLogItem(
+    const modelLogItem = new ModelLogItemWithProgress(
         '◆',
         displayModel,
+        model, // Pass the actual model name for tracking
         '',
         false, // Not active
         false, // Not expanded initially
         modelDetails, // Model metadata as details
-        undefined // No progress
+        undefined // No progress initially
     );
+    
+    // Set up download tracking for this model
+    modelLogItem.setupDownloadTracking();
     
     
     // Create custom status LogItem with configurable color

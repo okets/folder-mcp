@@ -9,6 +9,7 @@ import { ValidationPipeline } from './ValidationPipeline.js';
 import { SchemaValidator } from './SchemaValidator.js';
 import { FolderBusinessValidator } from './FolderBusinessValidator.js';
 import { IValidationPipeline } from './IValidationPipeline.js';
+import { FolderValidationService } from '../../interfaces/tui-ink/services/FolderValidationService.js';
 
 export class ValidationPipelineService {
     private static instance: IValidationPipeline;
@@ -34,7 +35,12 @@ export class ValidationPipelineService {
         
         // Register validators in priority order
         pipeline.registerValidator(new SchemaValidator());
-        pipeline.registerValidator(new FolderBusinessValidator());
+        
+        // For the folder validator, we need to create the validation service
+        // Since this is a singleton service pattern and FolderValidationService 
+        // handles its own DI internally, this is acceptable
+        const folderValidationService = new FolderValidationService();
+        pipeline.registerValidator(new FolderBusinessValidator(folderValidationService));
         
         // Future validators can be added here:
         // pipeline.registerValidator(new ModelValidator());

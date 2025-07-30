@@ -14,11 +14,13 @@ import {
   PongMessage,
   ConnectionAckMessage,
   ErrorMessage,
+  ModelListResponseMessage,
   ValidationResult,
   isValidClientMessage,
   isFolderValidateMessage,
   isConnectionInitMessage,
   isPingMessage,
+  isModelListMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
@@ -29,6 +31,7 @@ import {
 import { ILoggingService } from '../../di/interfaces.js';
 import { ClientConnection } from '../models/fmdm.js';
 import { FolderHandlers } from './handlers/folder-handlers.js';
+import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
 
@@ -53,6 +56,7 @@ export interface IProtocolFMDMService {
  */
 export class WebSocketProtocol {
   private folderHandlers: FolderHandlers;
+  private modelHandlers: ModelHandlers;
 
   constructor(
     private validationService: IDaemonFolderValidationService,
@@ -67,6 +71,9 @@ export class WebSocketProtocol {
       this.validationService,
       this.logger
     );
+    
+    // Create model handlers
+    this.modelHandlers = new ModelHandlers(this.logger);
   }
 
   /**
@@ -102,6 +109,9 @@ export class WebSocketProtocol {
 
         case 'ping':
           return this.handlePing(message);
+
+        case 'models.list':
+          return await this.modelHandlers.handleModelList(message);
 
         default:
           this.logger.warn(`Unknown message type: ${(message as any).type}`);

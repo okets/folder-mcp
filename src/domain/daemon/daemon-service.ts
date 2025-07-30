@@ -17,6 +17,8 @@ import {
 } from './interfaces.js';
 import { DaemonConfig } from '../../config/schema/daemon.js';
 import { FMDMWebSocketServer } from '../../daemon/websocket/server.js';
+import { DependencyContainer } from '../../di/container.js';
+import { SERVICE_TOKENS, IEmbeddingService } from '../../di/interfaces.js';
 
 /**
  * Daemon service events
@@ -38,6 +40,7 @@ export class DaemonService extends EventEmitter implements IDaemonService {
   private startTime: Date | null = null;
   private restartCount = 0;
   private lastError: string | null = null;
+  private container: DependencyContainer | null = null;
 
   constructor(
     private config: DaemonConfig,
@@ -50,6 +53,13 @@ export class DaemonService extends EventEmitter implements IDaemonService {
   ) {
     super();
     this.setupEventHandlers();
+  }
+
+  /**
+   * Set the dependency injection container for accessing services
+   */
+  setContainer(container: DependencyContainer): void {
+    this.container = container;
   }
 
   /**
@@ -273,6 +283,113 @@ export class DaemonService extends EventEmitter implements IDaemonService {
     }
     
     this.logger.info('Daemon configuration updated');
+  }
+
+  /**
+   * Download model if not already cached, with progress tracking
+   */
+  async downloadModelIfNeeded(modelName: string): Promise<void> {
+    this.logger.info(`Checking if model ${modelName} needs download`);
+    
+    if (!this.container) {
+      this.logger.error('DI container not set - cannot access embedding service');
+      throw new Error('DI container not available for accessing embedding service');
+    }
+
+    try {
+      // Get embedding service from DI container
+      const embeddingService = this.container.resolve(SERVICE_TOKENS.EMBEDDING) as IEmbeddingService;
+      
+      // Check if model is already cached
+      const isModelCached = await this.checkModelCache(embeddingService, modelName);
+      
+      if (isModelCached) {
+        this.logger.info(`Model ${modelName} already cached`);
+        return;
+      }
+
+      // Emit progress start event for TUI
+      this.webSocketServer.broadcast('model_download_start', { 
+        modelName, 
+        status: 'downloading' 
+      });
+
+      // Call embedding service to download model with progress tracking
+      await this.downloadModelWithProgress(embeddingService, modelName);
+
+      // Emit completion event
+      this.webSocketServer.broadcast('model_download_complete', { 
+        modelName, 
+        status: 'ready' 
+      });
+
+      this.logger.info(`Model ${modelName} downloaded successfully`);
+    } catch (error) {
+      // Emit error event for TUI display
+      this.webSocketServer.broadcast('model_download_error', { 
+        modelName, 
+        error: error instanceof Error ? error.message : String(error)
+      });
+      this.logger.error(`Failed to download model ${modelName}:`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if model is already cached through embedding service
+   */
+  private async checkModelCache(embeddingService: IEmbeddingService, modelName: string): Promise<boolean> {
+    try {
+      // Check if the embedding service has a method to check model cache
+      // This will be implemented in the embedding service interface
+      if ('isModelCached' in embeddingService && typeof embeddingService.isModelCached === 'function') {
+        return await (embeddingService as any).isModelCached(modelName);
+      }
+      
+      // Fallback: assume not cached if we can't check
+      return false;
+    } catch (error) {
+      this.logger.warn(`Failed to check model cache for ${modelName}: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+  }
+
+  /**
+   * Download model with progress updates
+   */
+  private async downloadModelWithProgress(embeddingService: IEmbeddingService, modelName: string): Promise<void> {
+    // Set up progress callback
+    const progressCallback = (progress: { percent: number; eta?: number; message?: string }) => {
+      this.webSocketServer.broadcast('model_download_progress', {
+        modelName,
+        progress: progress.percent,
+        message: progress.message || `Downloading ${modelName}... ${progress.percent}%`,
+        estimatedTimeRemaining: progress.eta
+      });
+    };
+
+    // Check if the embedding service has a download method with progress
+    if ('downloadModel' in embeddingService && typeof (embeddingService as any).downloadModel === 'function') {
+      try {
+        // Try with progress callback first
+        await (embeddingService as any).downloadModel(modelName, progressCallback);
+      } catch (error) {
+        // If callback not supported, try without callback
+        await (embeddingService as any).downloadModel(modelName);
+      }
+    } else {
+      // Fallback: try to initialize the model (this will download it)
+      this.logger.info(`Embedding service doesn't have downloadModel method, trying to initialize with model: ${modelName}`);
+      
+      // Emit intermediate progress
+      progressCallback({ percent: 50, message: `Initializing ${modelName}...` });
+      
+      // This might trigger a download if the model isn't available
+      await embeddingService.initialize();
+      
+      // Emit completion
+      progressCallback({ percent: 100, message: `${modelName} ready` });
+    }
   }
 
   /**

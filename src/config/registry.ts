@@ -368,6 +368,22 @@ export class ConfigurationRegistry {
       cliArg: '--model-name'
     });
 
+    this.register({
+      path: 'processing.embeddingBackend',
+      name: 'Embedding Backend',
+      description: 'Which embedding service to use. Python provides better performance and local processing, Ollama offers more model choices.',
+      type: 'string',
+      defaultValue: 'python',
+      examples: ['python', 'ollama'],
+      validation: {
+        values: ['python', 'ollama'] as const
+      },
+      category: 'processing',
+      tags: ['embedding', 'backend', 'performance'],
+      envVar: 'FOLDER_MCP_PROCESSING_EMBEDDING_BACKEND',
+      cliArg: '--embedding-backend'
+    });
+
     // File options
     this.register({
       path: 'files.extensions',

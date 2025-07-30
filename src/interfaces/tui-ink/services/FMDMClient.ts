@@ -13,12 +13,25 @@ import { FMDM } from '../../../daemon/models/fmdm.js';
 import { 
   ValidationResponseMessage,
   WSClientMessage,
-  WSServerMessage
+  WSServerMessage,
+  ModelDownloadStartMessage,
+  ModelDownloadProgressMessage,
+  ModelDownloadCompleteMessage,
+  ModelDownloadErrorMessage
 } from '../../../daemon/websocket/message-types.js';
 
 export interface FMDMConnectionStatus {
   connected: boolean;
   connecting: boolean;
+  error?: string;
+}
+
+export interface ModelDownloadEvent {
+  modelName: string;
+  status: 'downloading' | 'ready' | 'error';
+  progress?: number;
+  message?: string;
+  estimatedTimeRemaining?: number;
   error?: string;
 }
 
@@ -30,6 +43,7 @@ export class FMDMClient {
   private fmdm: FMDM | null = null;
   private listeners = new Set<(fmdm: FMDM) => void>();
   private statusListeners = new Set<(status: FMDMConnectionStatus) => void>();
+  private modelDownloadListeners = new Set<(event: ModelDownloadEvent) => void>();
   private requests = new Map<string, (response: any) => void>();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isConnected = false;
@@ -128,6 +142,62 @@ export class FMDMClient {
           const handler = this.requests.get(message.id)!;
           this.requests.delete(message.id);
           handler(message);
+        }
+        break;
+        
+      case 'model_download_start':
+        {
+          const startMessage = message as ModelDownloadStartMessage;
+          this.notifyModelDownloadListeners({
+            modelName: startMessage.data.modelName,
+            status: 'downloading',
+            message: `Starting download of ${startMessage.data.modelName}...`
+          });
+        }
+        break;
+        
+      case 'model_download_progress':
+        {
+          const progressMessage = message as ModelDownloadProgressMessage;
+          const event: ModelDownloadEvent = {
+            modelName: progressMessage.data.modelName,
+            status: 'downloading',
+            progress: progressMessage.data.progress
+          };
+          
+          if (progressMessage.data.message) {
+            event.message = progressMessage.data.message;
+          }
+          
+          if (progressMessage.data.estimatedTimeRemaining) {
+            event.estimatedTimeRemaining = progressMessage.data.estimatedTimeRemaining;
+          }
+          
+          this.notifyModelDownloadListeners(event);
+        }
+        break;
+        
+      case 'model_download_complete':
+        {
+          const completeMessage = message as ModelDownloadCompleteMessage;
+          this.notifyModelDownloadListeners({
+            modelName: completeMessage.data.modelName,
+            status: 'ready',
+            progress: 100,
+            message: `${completeMessage.data.modelName} download complete`
+          });
+        }
+        break;
+        
+      case 'model_download_error':
+        {
+          const errorMessage = message as ModelDownloadErrorMessage;
+          this.notifyModelDownloadListeners({
+            modelName: errorMessage.data.modelName,
+            status: 'error',
+            error: errorMessage.data.error,
+            message: `Failed to download ${errorMessage.data.modelName}: ${errorMessage.data.error}`
+          });
         }
         break;
         
@@ -277,6 +347,15 @@ export class FMDMClient {
   }
 
   /**
+   * Subscribe to model download events
+   */
+  subscribeToModelDownloads(listener: (event: ModelDownloadEvent) => void): () => void {
+    this.modelDownloadListeners.add(listener);
+    
+    return () => this.modelDownloadListeners.delete(listener);
+  }
+
+  /**
    * Notify all FMDM listeners
    */
   private notifyListeners(): void {
@@ -299,6 +378,19 @@ export class FMDMClient {
         listener(status);
       } catch (error) {
         console.error('Error in status listener:', error);
+      }
+    });
+  }
+
+  /**
+   * Notify all model download listeners
+   */
+  private notifyModelDownloadListeners(event: ModelDownloadEvent): void {
+    this.modelDownloadListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('Error in model download listener:', error);
       }
     });
   }

@@ -164,6 +164,22 @@
     "defaultProfile": "default",
     "autoSwitch": false
   },
+  "embeddings": {
+    "python": {
+      "supportedModels": [
+        "all-MiniLM-L6-v2",
+        "all-mpnet-base-v2",
+        "all-MiniLM-L12-v2",
+        "all-distilroberta-v1",
+        "paraphrase-MiniLM-L6-v2"
+      ],
+      "processManagement": {
+        "crawlingPauseMinutes": 1,
+        "keepAliveMinutes": 5,
+        "shutdownGracePeriodSeconds": 30
+      }
+    }
+  },
   "metadata": {
     "version": "1.0.0",
     "createdAt": "2025-07-07T00:00:00.000Z",

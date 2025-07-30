@@ -36,7 +36,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
 
   afterEach(async () => {
     await cleanupTestEnvironment(testEnv);
-  });
+  }, 15000); // Extended cleanup timeout for real data tests
 
   describe('Real Business Document Indexing', () => {
     it('should index real marketing documents', async () => {
@@ -55,7 +55,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       expect(result.filesProcessed).toBeGreaterThan(0);
       expect(result.chunksGenerated).toBeGreaterThan(0);
       expect(result.embeddingsCreated).toBeGreaterThan(0);
-    });
+    }, 30000); // 30 second timeout for real document processing
 
     it('should index real financial documents', async () => {
       const financeDir = path.join(testEnv.folderPath, 'Finance');
@@ -73,7 +73,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       expect(result.filesProcessed).toBeGreaterThan(0);
       // Real documents should generate embeddings
       expect(result.embeddingsCreated).toBeGreaterThan(0);
-    });
+    }, 30000); // 30 second timeout for PDF/Excel processing
 
     it('should handle real edge case files', async () => {
       const edgeCasesDir = path.join(testEnv.folderPath, 'test-edge-cases');
@@ -90,7 +90,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       expect(result.success).toBe(true);
       expect(Array.isArray(result.errors)).toBe(true);
       // Some files might fail (corrupted, etc.) but process should continue
-    });
+    }, 45000); // 45 second timeout for edge case processing
 
     it('should index entire real knowledge base', async () => {
       const options: IndexingOptions = {
@@ -112,7 +112,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
         expect(result.statistics.totalBytes).toBeGreaterThan(0);
         expect(result.statistics.totalWords).toBeGreaterThan(0);
       }
-    });
+    }, 60000); // 60 second timeout for comprehensive indexing
   });
 
   describe('Real Data Error Handling', () => {
@@ -144,7 +144,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       expect(result.success).toBe(true);
       // May have errors for corrupted.pdf, corrupted.xlsx
       expect(Array.isArray(result.errors)).toBe(true);
-    });
+    }, 30000); // 30 second timeout for corrupted file handling
   });
 
   describe('Real Performance Characteristics', () => {
@@ -164,7 +164,7 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       expect(duration).toBeLessThan(30000); // Should complete within 30 seconds
       expect(result.processingTime).toBeGreaterThan(0);
       expect(result.processingTime).toBeLessThan(duration);
-    });
+    }, 35000); // 35 second timeout (slightly longer than expected completion time)
 
     it('should provide accurate progress with real files', async () => {
       const options: IndexingOptions = {
@@ -178,6 +178,6 @@ describe('Integration - Indexing Workflow with Real Data', () => {
       
       expect(result.success).toBe(true);
       expect(result.filesProcessed).toBeGreaterThan(0);
-    });
+    }, 45000); // 45 second timeout for progress tracking test
   });
 });

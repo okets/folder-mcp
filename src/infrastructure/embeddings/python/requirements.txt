@@ -1,0 +1,14 @@
+# Core Dependencies
+sentence-transformers==2.2.2
+torch>=2.0.0
+transformers>=4.20.0
+numpy>=1.21.0
+
+# Vector Storage
+faiss-cpu>=1.7.4
+
+# JSON-RPC Communication
+jsonrpclib-pelix>=0.4.3
+
+# Utilities
+typing-extensions>=4.0.0

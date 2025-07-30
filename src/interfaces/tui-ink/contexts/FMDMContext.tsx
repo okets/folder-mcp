@@ -9,7 +9,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { FMDM } from '../../../daemon/models/fmdm.js';
 import { registerCleanupHandler, unregisterCleanupHandler } from '../utils/cleanup.js';
-import { FMDMClient, FMDMConnectionStatus } from '../services/FMDMClient.js';
+import { FMDMClient, FMDMConnectionStatus, ModelDownloadEvent } from '../services/FMDMClient.js';
+
+// Export types for use in other components
+export type { ModelDownloadEvent } from '../services/FMDMClient.js';
 import { ValidationResult, createValidationResult } from '../components/core/ValidationState.js';
 import { ValidationResponseMessage } from '../../../daemon/websocket/message-types.js';
 
@@ -30,6 +33,9 @@ export interface FMDMContextType {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   ping: () => Promise<void>;
+  
+  // Model download events
+  subscribeToModelDownloads: (listener: (event: ModelDownloadEvent) => void) => () => void;
   
   // Utility
   isConnected: boolean;
@@ -145,6 +151,11 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     return await client.removeFolder(path);
   }, [client]);
 
+  // Model download subscription
+  const subscribeToModelDownloads = useCallback((listener: (event: ModelDownloadEvent) => void) => {
+    return client.subscribeToModelDownloads(listener);
+  }, [client]);
+
   // Computed properties
   const isConnected = connectionStatus.connected;
   const isConnecting = connectionStatus.connecting;
@@ -163,6 +174,9 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     connect,
     disconnect,
     ping,
+    
+    // Model download events
+    subscribeToModelDownloads,
     
     // Utility
     isConnected,
@@ -245,4 +259,14 @@ export const useIsFolderConfigured = (path: string): boolean => {
 export const useFolderConfig = (path: string): { path: string; model: string } | null => {
   const folders = useConfiguredFolders();
   return folders.find(folder => folder.path === path) || null;
+};
+
+/**
+ * Hook to subscribe to model download events
+ */
+export const useModelDownloadEvents = (): {
+  subscribeToModelDownloads: (listener: (event: ModelDownloadEvent) => void) => () => void;
+} => {
+  const { subscribeToModelDownloads } = useFMDM();
+  return { subscribeToModelDownloads };
 };

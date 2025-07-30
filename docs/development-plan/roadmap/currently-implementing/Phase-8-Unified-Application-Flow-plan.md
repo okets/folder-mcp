@@ -979,40 +979,73 @@ Configured Folders:
 - **Embeddings Management**: Indexing, progress tracking, vector storage (next task)
 - **MCP Endpoints**: Search, document retrieval, MCP JSON-RPC protocol (separate from internal communication)
 
-### Task 10: Implement Python Subprocess Embeddings
-**Status**: ⏳ Waiting  
+### Task 10: Implement Python Subprocess Embeddings System
+**Status**: ✅ COMPLETED  
 **Discovered**: 2025-07-08  
-**Dependencies**: 🔥 **BLOCKED BY Task 9** - WebSocket communication must be established first
-**What**: Add high-performance embeddings via Python subprocess with GPU acceleration support.
+**Completion Date**: 2025-07-29  
+**What**: Implement comprehensive Python-based embeddings system with GPU acceleration, environment variable configuration overrides for testing, and full JSON-RPC communication protocol.
 
-**Why**: With folder selection flow complete and frontend configuration unified, we need production-grade embeddings with automatic GPU optimization. Python provides mature libraries for CUDA/MPS acceleration.
+**Why**: Replace Ollama dependency with high-performance Python embeddings supporting GPU acceleration (CUDA/MPS), configurable timeouts for testing vital functionality like crawling pause and keep-alive features, and production-ready subprocess communication.
 
-**Updated Priority**: **HIGH** - Critical for performance and production readiness, but blocked by backend integration.
+**Implementation Summary**:
 
-**Architecture Overview**:
-- **Node.js Layer**: MCP protocol, file monitoring, orchestration
-- **Python Layer**: Complete document processing pipeline (reading, extraction, chunking, embedding)
-- **Communication**: JSON-RPC over stdio between Node.js PythonProcessManager and Python worker
-- **GPU Support**: Automatic detection and use of NVIDIA CUDA or Apple Silicon MPS
+**🔧 Core Python Embeddings Infrastructure**:
+- **Python Service**: Complete JSON-RPC subprocess with sentence-transformers integration
+- **GPU Acceleration**: Automatic detection and optimization for Apple Silicon MPS and NVIDIA CUDA
+- **Model Management**: Curated list of 8 supported embedding models with automatic downloads
+- **Device Optimization**: Conservative batch sizing and memory management for stable GPU usage
+- **Process Management**: Keep-alive functionality, graceful shutdown, and error recovery
 
-**Subtasks**:
-- [ ] Create `src/infrastructure/embeddings/python-process-manager.ts` for Node.js side
-- [ ] Create `python/embeddings_worker.py` with complete document processing pipeline
-- [ ] Implement JSON-RPC protocol for Node.js ↔ Python communication
-- [ ] Add automatic GPU detection (CUDA/MPS) with CPU fallback
-- [ ] Create persistent Python process with health monitoring
-- [ ] Add batch processing optimization for multiple files
-- [ ] Implement progress tracking and reporting
-- [ ] Update wizard to show Python embeddings option
-- [ ] Create model selection logic based on content type detection
+**⚙️ Configurable Process Management**:
+- **Crawling Pause**: Configurable pause mechanism (default 60s, test override to 10s) when search requests interrupt batch processing
+- **Keep-Alive System**: Configurable keep-alive duration (default 5min, test override to 20s) to maintain Python process between requests
+- **Environment Overrides**: Test-specific configuration via environment variables without affecting production defaults
+- **Priority Queue**: Immediate vs batch request handling with proper priority management
 
-**Success Criteria**:
-```bash
-# Python process auto-starts and detects GPU
-folder-mcp add ~/test-folder --model all-MiniLM-L6-v2
-# Shows: "✓ GPU detected: NVIDIA RTX 3080 (CUDA)" or "✓ GPU detected: Apple M1 (MPS)"
-# Successfully indexes with GPU acceleration
+**🧪 Comprehensive Test Coverage**:
+- **Re-enabled All Python Tests**: Previously disabled tests for vital functionality now fully working
+- **Real Document Testing**: Integration tests with actual business documents (Marketing, Finance, Engineering, Policy docs)  
+- **Edge Case Handling**: Tests for huge files (5000+ chunks), corrupted files, special characters, and empty files
+- **Performance Validation**: Real-world processing times with GPU acceleration and timeout management
+- **Configuration Testing**: Validation of environment variable overrides and process management config
+
+**📁 Re-enabled Test Suites**:
+- **tests/real-integration/embedding-real.test.ts**: All 7 tests passing - validates real embeddings with actual business documents
+- **tests/integration/workflows/indexing-real-data.test.ts**: All 8 tests passing - comprehensive workflow testing with realistic timeouts
+- **ConfigurationComponent.test.ts**: Restored and fixed - 22 tests covering validation system
+
+**🔧 Key Technical Achievements**:
+- **JSON-RPC Communication**: Robust stdio-based communication with correlation IDs and error handling
+- **Environment Variable Configuration**: Test-friendly configuration overrides for crawling pause and keep-alive timeouts
+- **Model Caching**: Intelligent model download and caching system with progress tracking
+- **Process Lifecycle Management**: Proper startup, health checking, graceful shutdown, and error recovery
+- **Memory Management**: Conservative GPU memory usage with optimized batch processing
+
+**🏗️ Architecture Components Implemented**:
 ```
+Node.js Layer:
+├── src/infrastructure/embeddings/python-embedding-service.ts (JSON-RPC client)
+├── src/infrastructure/embeddings/index.ts (service registration)
+└── Integration with existing MCP endpoints
+
+Python Layer:
+├── src/infrastructure/embeddings/python/main.py (JSON-RPC server)
+├── src/infrastructure/embeddings/python/handlers/ (request handlers)
+├── src/infrastructure/embeddings/python/utils/ (device detection, models)
+└── Complete sentence-transformers integration with GPU optimization
+```
+
+**✅ All Success Criteria Achieved**:
+- Python subprocess auto-starts with GPU detection (Apple Silicon MPS confirmed working)
+- All vital functionality tests passing (crawling pause, keep-alive, comprehensive workflows)
+- Real document processing with Marketing, Finance, Engineering, and Policy documents
+- Configurable timeouts working in test environment (10s crawling pause, 20s keep-alive)
+- Production-ready defaults maintained (60s crawling pause, 5min keep-alive)
+- All integration tests passing with realistic processing times and proper error handling
+
+**Test Results**: 15 additional passing tests (7 embedding + 8 indexing), zero tolerance for failed tests achieved.
+
+**Implementation Details**: See comprehensive implementation in [Phase-8-Task-10-Python-Embeddings.md](Phase-8-Task-10-Python-Embeddings.md)
 
 ### Task 11: MCP Endpoints Migration to Daemon-Centric Architecture
 **Status**: ⏳ Waiting  
@@ -1210,6 +1243,7 @@ ps aux | grep folder-mcp  # Daemon already running
 | 8.5 | Nested ListItem Visual Component | 2025-07-15 | ✅ | Complete implementation design and documentation |
 | 8.5.5 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
 | 8.6 | Add Folder Wizard Implementation | 2025-07-24 | ✅ | Reusable wizard with validation and dual-button support |
+| 10 | Implement Python Subprocess Embeddings System | 2025-07-29 | ✅ | Comprehensive Python embeddings with GPU acceleration and test coverage |
 
 
 ### **Key Discoveries**

@@ -27,6 +27,7 @@ export type ConfigSource = 'default' | 'system' | 'user' | 'profile' | 'environm
 // Processing configuration (shared across local, resolved, and runtime configs)
 export interface ProcessingConfig {
   modelName: string;
+  embeddingBackend: 'python' | 'ollama';
   chunkSize: number;
   overlap: number;
   batchSize: number;
@@ -522,6 +523,7 @@ export const VALIDATION_RULES: ValidationRule[] = [
 export const DEFAULT_VALUES = {
   processing: {
     modelName: 'nomic-v1.5',
+    embeddingBackend: 'python' as 'python' | 'ollama',
     chunkSize: 400 as number,
     overlap: 10 as number,
     batchSize: 32 as number,
@@ -674,6 +676,7 @@ export type { SystemCapabilities };
 export function getProcessingDefaults(): ProcessingConfig {
   return {
     modelName: DEFAULT_VALUES.processing.modelName,
+    embeddingBackend: DEFAULT_VALUES.processing.embeddingBackend,
     chunkSize: DEFAULT_VALUES.processing.chunkSize,
     overlap: DEFAULT_VALUES.processing.overlap,
     batchSize: DEFAULT_VALUES.processing.batchSize,

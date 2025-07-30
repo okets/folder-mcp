@@ -268,6 +268,35 @@ export class FMDMWebSocketServer {
   }
 
   /**
+   * Broadcast arbitrary event to all connected clients
+   */
+  public broadcast(eventType: string, data: any): void {
+    const message = {
+      type: eventType,
+      data,
+      timestamp: new Date().toISOString()
+    };
+
+    this.log('debug', `[WS-BROADCAST-EVENT] Broadcasting event '${eventType}' to ${this.clients.size} clients`);
+    
+    let successCount = 0;
+    let skipCount = 0;
+    
+    this.clients.forEach(({ ws }, clientId) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        this.log('debug', `[WS-BROADCAST-EVENT-CLIENT] Sending event '${eventType}' to client ${clientId}`);
+        this.sendMessage(ws, message);
+        successCount++;
+      } else {
+        this.log('debug', `[WS-BROADCAST-EVENT-SKIP] Skipping client ${clientId} (WebSocket state: ${ws.readyState})`);
+        skipCount++;
+      }
+    });
+
+    this.log('debug', `[WS-BROADCAST-EVENT-COMPLETE] Event '${eventType}' broadcast complete - sent to ${successCount} clients, skipped ${skipCount} clients`);
+  }
+
+  /**
    * Get current client connections for FMDM
    */
   public getClientConnections(): ClientConnection[] {

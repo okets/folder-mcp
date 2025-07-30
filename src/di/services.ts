@@ -351,40 +351,83 @@ export class EmbeddingService implements IEmbeddingService {
       return;
     }
 
-    this.loggingService.debug('Initializing real Ollama embedding service', { modelName: this.config.modelName });
-    
-    try {
-      // Use real OllamaEmbeddingService instead of mock DefaultEmbeddingOperations
-      const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
-      this.embeddingModel = new OllamaEmbeddingService({
-        model: this.config.modelName || 'mxbai-embed-large'
-      });
-      
-      // Initialize the real service (this will verify Ollama connectivity)
-      await this.embeddingModel.initialize();
-      
-      this.initialized = true;
-      this.loggingService.info('Real Ollama embedding service initialized successfully', { 
-        modelName: this.config.modelName,
-        backend: 'ollama-api',
-        modelConfig: this.embeddingModel.getModelConfig()
-      });
-    } catch (error) {
-      this.loggingService.error('Failed to initialize real Ollama embedding service', error instanceof Error ? error : new Error(String(error)));
-      
-      // Fallback to mock service if Ollama is not available
-      this.loggingService.warn('Falling back to mock embedding service due to Ollama initialization failure');
-      
-      try {
-        const { DefaultEmbeddingOperations } = await import('../domain/embeddings/index.js');
-        this.embeddingModel = new DefaultEmbeddingOperations();
-        this.initialized = true;
-        this.loggingService.info('Mock embedding service initialized as fallback');
-      } catch (fallbackError) {
-        this.loggingService.error('Failed to initialize fallback embedding service', fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)));
-        throw error; // Throw the original error, not the fallback error
-      }
+    const backend = (this.config as any).embeddingBackend || 'python';
+    this.loggingService.debug('Initializing embedding service', { 
+      backend, 
+      modelName: this.config.modelName 
+    });
+
+    // Respect user's explicit backend choice
+    if (backend === 'python') {
+      await this.initializePythonService();
+    } else if (backend === 'ollama') {
+      await this.initializeOllamaService();
+    } else {
+      throw new Error(`Unknown embedding backend: ${backend}. Supported backends: python, ollama`);
     }
+  }
+
+  private async initializePythonService(): Promise<void> {
+    const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
+    
+    // Map Ollama model names to sentence-transformer equivalents
+    const modelName = this.mapModelNameForPython(this.config.modelName || 'nomic-embed-text');
+    
+    this.embeddingModel = new PythonEmbeddingService({
+      modelName,
+      timeout: 30000,
+      maxRetries: 3,
+      healthCheckInterval: 30000
+    });
+    
+    await this.embeddingModel.initialize();
+    this.initialized = true;
+    this.loggingService.info('Python embedding service initialized successfully', { 
+      modelName,
+      backend: 'python-sentence-transformers',
+      originalModelName: this.config.modelName,
+      modelConfig: this.embeddingModel.getModelConfig()
+    });
+  }
+
+  private async initializeOllamaService(): Promise<void> {
+    const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
+    this.embeddingModel = new OllamaEmbeddingService({
+      model: this.config.modelName || 'nomic-embed-text'
+    });
+    
+    await this.embeddingModel.initialize();
+    this.initialized = true;
+    this.loggingService.info('Ollama embedding service initialized successfully', { 
+      modelName: this.config.modelName,
+      backend: 'ollama-api',
+      modelConfig: this.embeddingModel.getModelConfig()
+    });
+  }
+
+
+  private mapModelNameForPython(ollamaModelName: string): string {
+    // Map common Ollama model names to sentence-transformer equivalents
+    const modelMap: Record<string, string> = {
+      'nomic-embed-text': 'all-MiniLM-L6-v2',
+      'nomic-embed-text-v1.5': 'all-MiniLM-L12-v2', 
+      'mxbai-embed-large': 'all-mpnet-base-v2',
+      'all-minilm-l6-v2': 'all-MiniLM-L6-v2',
+      'all-minilm-l12-v2': 'all-MiniLM-L12-v2',
+      'all-mpnet-base-v2': 'all-mpnet-base-v2'
+    };
+
+    const mapped = modelMap[ollamaModelName.toLowerCase()];
+    if (mapped) {
+      this.loggingService.debug('Mapped Ollama model to sentence-transformer model', { 
+        from: ollamaModelName, 
+        to: mapped 
+      });
+      return mapped;
+    }
+
+    // If no mapping found, assume it's already a sentence-transformer model name
+    return ollamaModelName;
   }
 
   async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
@@ -440,11 +483,36 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
   getModelConfig(): any {
-    return this.embeddingModel?.getCurrentModelConfig?.() || null;
+    return this.embeddingModel?.getCurrentModelConfig?.() || this.embeddingModel?.getModelConfig?.() || null;
   }
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Cleanup the embedding service and shutdown any background processes
+   */
+  async cleanup(): Promise<void> {
+    if (!this.initialized) {
+      return;
+    }
+
+    this.loggingService.debug('Cleaning up embedding service');
+
+    try {
+      // If using Python embedding service, perform graceful shutdown
+      if (this.embeddingModel?.shutdown) {
+        this.loggingService.debug('Shutting down Python embedding service');
+        await this.embeddingModel.shutdown(30); // 30 second timeout
+        this.loggingService.info('Python embedding service shutdown completed');
+      }
+    } catch (error) {
+      this.loggingService.error('Error during embedding service cleanup', error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      this.embeddingModel = null;
+      this.initialized = false;
+    }
   }
 }
 

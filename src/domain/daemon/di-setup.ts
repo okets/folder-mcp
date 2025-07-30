@@ -145,6 +145,9 @@ export async function registerDaemonServices(
       logger
     );
     
+    // Set the DI container so daemon service can access embedding services
+    daemonService.setContainer(container);
+    
     // Now create signal handler with daemon service reference
     const signalHandler = createSignalHandler(
       daemonConfig,

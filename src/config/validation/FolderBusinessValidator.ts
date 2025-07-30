@@ -17,8 +17,8 @@ export class FolderBusinessValidator implements IValidator {
     
     private validationService: FolderValidationService;
     
-    constructor() {
-        this.validationService = new FolderValidationService();
+    constructor(validationService: FolderValidationService) {
+        this.validationService = validationService;
     }
     
     canValidate(path: string): boolean {
