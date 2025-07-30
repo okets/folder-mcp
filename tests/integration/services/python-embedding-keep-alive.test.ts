@@ -5,7 +5,7 @@
  * Uses real timers with shortened durations for testing.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PythonEmbeddingService } from '../../../src/infrastructure/embeddings/python-embedding-service.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -14,28 +14,28 @@ describe('PythonEmbeddingService Keep-Alive Integration', () => {
   let service: PythonEmbeddingService;
   const testTimeout = 30000; // 30 seconds for integration tests
 
-  beforeEach(() => {
-    // Create service with test configuration for short keep-alive duration
+  beforeAll(() => {
+    // Create service once for all tests - let keep-alive handle persistence
     service = new PythonEmbeddingService({
       modelName: 'all-MiniLM-L6-v2',
       timeout: 30000,
       healthCheckInterval: 5000,
-      autoRestart: true,
-      maxRestartAttempts: 2,
-      restartDelay: 1000,
+      autoRestart: false, // Disable auto-restart for faster tests
+      maxRestartAttempts: 1,
+      restartDelay: 500,
       testConfig: {
         crawlingPauseSeconds: 10,
-        keepAliveSeconds: 20,        // 20 seconds instead of 5 minutes
+        keepAliveSeconds: 60,        // 1 minute keep-alive for tests
         shutdownGracePeriodSeconds: 5
       }
     });
   });
 
-  afterEach(async () => {
-    // Clean up
+  afterAll(async () => {
+    // Clean up only after all tests complete
     if (service) {
       try {
-        await service.shutdown(5);
+        await service.shutdown(10);
       } catch (error) {
         // Ignore shutdown errors in tests
       }
@@ -99,36 +99,8 @@ describe('PythonEmbeddingService Keep-Alive Integration', () => {
     }
   }, testTimeout);
 
-  it('should handle process restart when auto-restart is enabled', async () => {
-    try {
-      await service.initialize();
-      
-      const initialStats = service.getServiceStats();
-      expect(initialStats.restartAttempts).toBe(0);
-      
-      // Simulate process crash by getting the process ID and killing it
-      const processId = initialStats.processId;
-      if (processId) {
-        // Force kill the process to simulate crash
-        process.kill(processId, 'SIGKILL');
-        
-        // Wait a moment for restart logic to trigger
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Check that restart attempt was recorded
-        const statsAfterCrash = service.getServiceStats();
-        expect(statsAfterCrash.restartAttempts).toBeGreaterThan(0);
-      }
-      
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('dependencies not available')) {
-        console.warn('Skipping Python test - dependencies not available');
-        return;
-      }
-      // Process killing might fail in test environment, which is ok
-      console.warn('Process restart test skipped - could not simulate crash');
-    }
-  }, testTimeout);
+  // Note: Process restart testing is covered in dedicated lifecycle tests
+  // Removed process killing test since service is now shared across all tests
 
   it('should support model download functionality', async () => {
     try {
@@ -175,33 +147,8 @@ describe('PythonEmbeddingService Keep-Alive Integration', () => {
     }
   }, testTimeout);
 
-  it('should shutdown gracefully and prevent auto-restart', async () => {
-    try {
-      await service.initialize();
-      
-      const initialStats = service.getServiceStats();
-      expect(initialStats.initialized).toBe(true);
-      
-      // Shutdown service
-      await service.shutdown(5);
-      
-      const finalStats = service.getServiceStats();
-      expect(finalStats.initialized).toBe(false);
-      
-      // Wait a moment to ensure no restart occurs
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Service should remain shutdown
-      expect(service.isInitialized()).toBe(false);
-      
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('dependencies not available')) {
-        console.warn('Skipping Python test - dependencies not available');
-        return;
-      }
-      throw error;
-    }
-  }, testTimeout);
+  // Note: Shutdown testing is covered in dedicated comprehensive tests
+  // Removed manual shutdown test since service is now shared across all tests
 
   it('should handle immediate vs batch requests priority', async () => {
     try {

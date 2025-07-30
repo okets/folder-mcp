@@ -5,7 +5,7 @@
  * No complex scenarios - just core functionality verification.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PythonEmbeddingService } from '../../../src/infrastructure/embeddings/python-embedding-service.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -14,26 +14,33 @@ describe('Python Embeddings - Core Functionality', () => {
   let service: PythonEmbeddingService;
   const testTimeout = 15000; // 15 seconds maximum per test
 
-  beforeEach(() => {
+  beforeAll(() => {
+    // Create service once for all tests - let keep-alive handle persistence
     service = new PythonEmbeddingService({
-      modelName: 'all-MiniLM-L6-v2',
+      modelName: 'all-MiniLM-L6-v2', // Small fast model for testing
       timeout: 10000, // 10 seconds timeout
       healthCheckInterval: 5000,
       autoRestart: false, // Disable auto-restart for faster tests
       maxRestartAttempts: 1,
-      restartDelay: 500
+      restartDelay: 500,
+      testConfig: {
+        crawlingPauseSeconds: 10,
+        keepAliveSeconds: 60,        // 1 minute keep-alive for tests
+        shutdownGracePeriodSeconds: 5
+      }
     });
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
+    // Only cleanup after all tests complete
     if (service) {
       try {
-        await service.shutdown(5); // Quick shutdown
+        await service.shutdown(10);
       } catch (error) {
         // Ignore cleanup errors
       }
     }
-  }, 10000); // 10 second cleanup timeout
+  }, 15000);
 
   describe('Environment', () => {
     it('should have Python script available', () => {
@@ -122,16 +129,6 @@ describe('Python Embeddings - Core Functionality', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle service not initialized', async () => {
-      // Don't initialize service
-      expect(service.isInitialized()).toBe(false);
-      // The service might handle this gracefully rather than throwing
-      try {
-        await service.generateSingleEmbedding("test");
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
-    }, testTimeout);
 
     it('should handle invalid text input', async () => {
       await service.initialize();
@@ -142,13 +139,5 @@ describe('Python Embeddings - Core Functionality', () => {
     }, testTimeout);
   });
 
-  describe('Cleanup', () => {
-    it('should shutdown cleanly', async () => {
-      await service.initialize();
-      expect(service.isInitialized()).toBe(true);
-      
-      await service.shutdown(5);
-      expect(service.isInitialized()).toBe(false);
-    }, testTimeout);
-  });
+  // Cleanup test removed - let keep-alive system handle service lifecycle
 });

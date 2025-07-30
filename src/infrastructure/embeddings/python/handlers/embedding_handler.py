@@ -461,7 +461,8 @@ class EmbeddingHandler:
         if not validate_model(model_name):
             return {
                 'success': False,
-                'error': f'Model {model_name} not in supported list'
+                'error': f'Model {model_name} not in supported list',
+                'progress': 0
             }
         
         try:
@@ -489,7 +490,8 @@ class EmbeddingHandler:
             logger.error(f"Failed to download model {model_name}: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'progress': 0
             }
 
     def is_model_cached(self, model_name: str) -> bool:

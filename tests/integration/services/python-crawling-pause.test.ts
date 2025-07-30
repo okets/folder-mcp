@@ -9,7 +9,7 @@
  * - Priority-based queue system working correctly
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PythonEmbeddingService } from '../../../src/infrastructure/embeddings/python-embedding-service.js';
 import type { TextChunk } from '../../../src/types/index.js';
 
@@ -17,29 +17,30 @@ describe('Python Crawling Pause and Priority System', () => {
   let service: PythonEmbeddingService;
   const testTimeout = 25000; // 25 seconds for timing-sensitive tests (crawling pause = 10s)
 
-  beforeEach(() => {
+  beforeAll(() => {
     vi.useRealTimers();
     
+    // Create service once for all tests - let keep-alive handle persistence
     service = new PythonEmbeddingService({
       modelName: 'all-MiniLM-L6-v2',
       timeout: 30000,
       healthCheckInterval: 5000,
-      autoRestart: true,
-      maxRestartAttempts: 2,
-      restartDelay: 1000,
+      autoRestart: false, // Disable auto-restart for faster tests
+      maxRestartAttempts: 1,
+      restartDelay: 500,
       // Configure short durations for testing
       testConfig: {
         crawlingPauseSeconds: 10,    // 10 seconds instead of 1 minute
-        keepAliveSeconds: 20,        // 20 seconds instead of 5 minutes
+        keepAliveSeconds: 60,        // 1 minute keep-alive for tests
         shutdownGracePeriodSeconds: 5
       }
     });
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     if (service) {
       try {
-        await service.shutdown(5);
+        await service.shutdown(10);
       } catch (error) {
         // Ignore cleanup errors
       }
