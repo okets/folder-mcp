@@ -66,13 +66,6 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             // Implement circular navigation - wrap from last to first
             const newIndex = currentIndex >= maxItems - 1 ? 0 : currentIndex + 1;
             
-            console.error(`\n=== useNavigation navigateDown ===`);
-            console.error(`Container: ${prev.activeContainer}`);
-            console.error(`Current index: ${currentIndex}`);
-            console.error(`Max items: ${maxItems}`);
-            console.error(`New index: ${newIndex}`);
-            console.error(`=== End navigateDown ===\n`);
-            
             // CRITICAL: Only update state if index actually changes!
             if (currentIndex === newIndex) {
                 return prev; // Return the same state object to prevent re-render

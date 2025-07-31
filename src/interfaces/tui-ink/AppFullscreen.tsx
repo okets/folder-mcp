@@ -37,9 +37,10 @@ const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 
 interface AppContentInnerProps {
     config?: any;
+    onConfigItemsCountChange?: (count: number) => void;
 }
 
-const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
+const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfigItemsCountChange }) => {
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
@@ -284,6 +285,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
     
+    // Report the actual count of config items to parent
+    useEffect(() => {
+        if (onConfigItemsCountChange) {
+            onConfigItemsCountChange(configItems.length);
+        }
+    }, [configItems.length, onConfigItemsCountChange]);
     
     // Set up root input handler
     useRootInput();
@@ -394,16 +401,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     parentId="navigation"
                     priority={50}
                     onInput={(input, key) => {
-                        console.error(`\n=== AppFullscreen onInput ===`);
-                        console.error(`Key: ${key.downArrow ? 'DOWN' : key.upArrow ? 'UP' : 'OTHER'}`);
-                        console.error(`Current index: ${navigation.mainSelectedIndex}`);
-                        console.error(`Current item type: ${configItems[navigation.mainSelectedIndex]?.constructor.name}`);
-                        console.error(`Total items: ${configItems.length}`);
-                        
                         // Check if current item is controlling input (expanded)
                         const currentItem = configItems[navigation.mainSelectedIndex];
                         if (currentItem?.isControllingInput) {
-                            console.error(`Current item is controlling input - delegating`);
                             // Let the GenericListPanel delegate to the expanded item
                             return false;
                         }
@@ -445,11 +445,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                             }
                             
                             if (nextIndex !== currentIndex) {
-                                console.error(`Navigating from index ${currentIndex} to ${nextIndex}`);
                                 navigation.setMainSelectedIndex(nextIndex);
                                 return true;
                             }
-                            console.error(`No navigation - staying at index ${currentIndex}`);
                         } else if (key.upArrow) {
                             const currentIndex = navigation.mainSelectedIndex;
                             // Find previous navigable item
@@ -482,7 +480,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                                 return true;
                             }
                         }
-                        console.error(`=== End AppFullscreen onInput ===\n`);
                         return false; // Let other navigation handle it
                     }}
                 />
@@ -509,10 +506,14 @@ interface AppContentProps {
 
 const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
+    const [configItemCount, setConfigItemCount] = useState(1); // Start with 1 for at least the button
     
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={20} statusItemCount={STATUS_ITEM_COUNT}>
-            <AppContentInner config={config} />
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={configItemCount} statusItemCount={STATUS_ITEM_COUNT}>
+            <AppContentInner 
+                config={config} 
+                onConfigItemsCountChange={setConfigItemCount}
+            />
         </NavigationProvider>
     );
 });
