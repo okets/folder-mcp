@@ -49,6 +49,7 @@ import { DaemonFolderValidationService } from '../daemon/services/folder-validat
 
 // Import WebSocket services
 import { FolderHandlers } from '../daemon/websocket/handlers/folder-handlers.js';
+import { ModelHandlers } from '../daemon/websocket/handlers/model-handlers.js';
 import { WebSocketProtocol } from '../daemon/websocket/protocol.js';
 import { FMDMWebSocketServer } from '../daemon/websocket/server.js';
 
@@ -391,7 +392,8 @@ export function setupDependencyInjection(options: {
     const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     
-    return new FolderHandlers(daemonConfigService, fmdmService, validationService, loggingService);
+    const modelHandlers = new ModelHandlers(loggingService);
+    return new FolderHandlers(daemonConfigService, fmdmService, validationService, modelHandlers, loggingService);
   });
 
   // Register WebSocket Protocol

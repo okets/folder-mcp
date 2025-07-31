@@ -44,6 +44,13 @@ export abstract class ValidatedListItem implements IListItem {
     }
     
     /**
+     * Set validation message directly (useful for pre-computed validation)
+     */
+    public setValidationMessage(message: ValidationMessage | null): void {
+        this._validationMessage = message;
+    }
+    
+    /**
      * Get the color for the item's bullet/icon based on validation state
      * @param defaultColor - The default color to use if no validation state
      * @returns The appropriate color for the current validation state

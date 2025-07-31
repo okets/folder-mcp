@@ -258,6 +258,18 @@ export class FMDMClient {
   }
 
   /**
+   * Get supported models from daemon
+   */
+  async getModels(): Promise<{ models: string[]; backend: 'python' | 'ollama' }> {
+    const id = this.generateId();
+    const response = await this.sendRequest({
+      type: 'models.list',
+      id
+    });
+    return response.data;
+  }
+
+  /**
    * Remove a folder from monitoring
    */
   async removeFolder(path: string): Promise<{ success: boolean; error?: string }> {

@@ -16,6 +16,7 @@ import {
 import { ILoggingService } from '../../../di/interfaces.js';
 import { IDaemonConfigurationService } from '../../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../../services/folder-validation-service.js';
+import { ModelHandlers } from './model-handlers.js';
 
 /**
  * FMDM service interface for folder handlers
@@ -32,6 +33,7 @@ export class FolderHandlers {
     private configService: IDaemonConfigurationService,
     private fmdmService: IFMDMServiceForHandlers,
     private validationService: IDaemonFolderValidationService,
+    private modelHandlers: ModelHandlers,
     private logger: ILoggingService
   ) {}
 
@@ -49,12 +51,34 @@ export class FolderHandlers {
     this.logger.info(`Adding folder: ${path} with model: ${model}`);
 
     try {
-      // Validate folder first
+      // Debug: Log model validation step
+      this.logger.debug(`\n=== FOLDER ADD DEBUG START ===`);
+      this.logger.debug(`Requested model: "${model}"`);
+      const supportedModels = this.modelHandlers.getSupportedModels();
+      this.logger.debug(`Supported models: ${JSON.stringify(supportedModels)}`);
+      
+      // Validate model first (before folder validation)
+      const isModelSupported = this.modelHandlers.isModelSupported(model);
+      this.logger.debug(`Model supported check: ${isModelSupported}`);
+      
+      if (!isModelSupported) {
+        const errorMessage = `Unsupported model: ${model}. Supported models: ${supportedModels.join(', ')}`;
+        this.logger.warn(`Cannot add folder ${path}: ${errorMessage}`);
+        this.logger.debug(`=== FOLDER ADD DEBUG END (MODEL ERROR) ===\n`);
+        return createActionResponse(id, false, errorMessage);
+      }
+      
+      this.logger.debug(`Model validation passed, proceeding to folder validation...`);
+
+      // Validate folder path
+      this.logger.debug(`Starting folder path validation for: ${path}`);
       const validation = await this.validationService.validate(path);
+      this.logger.debug(`Folder validation result: valid=${validation.isValid}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`);
       
       if (!validation.isValid) {
         const errorMessage = validation.errors[0]?.message || 'Folder validation failed';
         this.logger.warn(`Cannot add folder ${path}: ${errorMessage}`);
+        this.logger.debug(`=== FOLDER ADD DEBUG END (FOLDER VALIDATION ERROR) ===\n`);
         return createActionResponse(id, false, errorMessage);
       }
 
@@ -75,18 +99,28 @@ export class FolderHandlers {
       }
 
       // Add the new folder
+      this.logger.debug(`Calling configService.addFolder(${path}, ${model})...`);
       await this.configService.addFolder(path, model);
+      this.logger.debug(`configService.addFolder completed successfully`);
       
       // Update FMDM with new folder list
+      this.logger.debug(`Fetching updated folder list from configService...`);
       const updatedFolders = await this.configService.getFolders();
+      this.logger.debug(`Retrieved ${updatedFolders.length} folders from configService`);
+      
+      this.logger.debug(`Updating FMDM with folder list...`);
       this.fmdmService.updateFolders(updatedFolders);
+      this.logger.debug(`FMDM updated successfully`);
 
       this.logger.info(`Successfully added folder: ${path}`);
+      this.logger.debug(`=== FOLDER ADD DEBUG END (SUCCESS) ===\n`);
       return createActionResponse(id, true);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Failed to add folder ${path}`, error instanceof Error ? error : new Error(String(error)));
+      this.logger.debug(`Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
+      this.logger.debug(`=== FOLDER ADD DEBUG END (EXCEPTION) ===\n`);
       return createActionResponse(id, false, `Failed to add folder: ${errorMessage}`);
     }
   }

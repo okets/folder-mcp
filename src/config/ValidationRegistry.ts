@@ -94,41 +94,16 @@ export class ValidationRegistry {
         // Embedding model validation (per folder)
         this.registerRule('folders.list[].model', {
             validate: (value: string) => {
-                if (!value || value.trim() === '') return false;
-                const supportedModels = [
-                    'nomic-embed-text',
-                    'mxbai-embed-large',
-                    'all-minilm',
-                    'sentence-transformers',
-                    'ollama:nomic-embed-text',
-                    'ollama:mxbai-embed-large',
-                    'ollama:all-minilm',
-                    'transformers:all-MiniLM-L6-v2'
-                ];
-                return supportedModels.includes(value);
+                // Basic validation - just check if it's a non-empty string
+                // Model validation is now handled by the daemon's ModelHandlers (single source of truth)
+                return !!(value && value.trim() !== '');
             },
-            message: 'Must be a supported embedding model',
+            message: 'Model name is required',
             getTuiResult: (value: string) => {
                 if (!value || value.trim() === '') {
                     return { isValid: false, error: 'Model name is required' };
                 }
-                const supportedModels = [
-                    'nomic-embed-text',
-                    'mxbai-embed-large',
-                    'all-minilm',
-                    'sentence-transformers',
-                    'ollama:nomic-embed-text',
-                    'ollama:mxbai-embed-large',
-                    'ollama:all-minilm',
-                    'transformers:all-MiniLM-L6-v2'
-                ];
-                if (!supportedModels.includes(value)) {
-                    return { 
-                        isValid: false, 
-                        error: `Unsupported model: ${value}`,
-                        info: `Supported models: ${supportedModels.join(', ')}`
-                    };
-                }
+                // Model validation is now handled by daemon - just check for non-empty string
                 return { isValid: true };
             }
         });

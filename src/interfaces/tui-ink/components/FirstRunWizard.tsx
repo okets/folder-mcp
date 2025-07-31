@@ -58,6 +58,8 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const [isComplete, setIsComplete] = useState(false);
     const [hasValidationError, setHasValidationError] = useState(false);
     const [validationErrors, setValidationErrors] = useState<{ folder?: string; model?: string }>({});
+    const [wizardItem, setWizardItem] = useState<IListItem | null>(null);
+    const [wizardLoading, setWizardLoading] = useState(true);
     
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
@@ -126,6 +128,36 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             console.error('Failed to add folder during first run:', error);
         }
     }, [onComplete, fmdmOperations]);
+    
+    // Create wizard asynchronously after daemon connection
+    useEffect(() => {
+        const createWizard = async () => {
+            if (!fmdmConnection.connected || hasValidationError) {
+                return;
+            }
+            
+            try {
+                setWizardLoading(true);
+                const wizard = await createAddFolderWizard({
+                    initialPath,
+                    initialModel,
+                    onComplete: handleWizardComplete,
+                    onCancel: () => exit(),
+                    fmdmOperations
+                });
+                
+                // Start wizard in expanded mode
+                wizard.onEnter();
+                setWizardItem(wizard);
+            } catch (error) {
+                console.error('Failed to create wizard:', error);
+            } finally {
+                setWizardLoading(false);
+            }
+        };
+        
+        createWizard();
+    }, [fmdmConnection.connected, hasValidationError, initialPath, initialModel, handleWizardComplete, exit, fmdmOperations]);
     
     // Color constants
     const frameColor = '#4c1589';
@@ -228,17 +260,14 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         );
     }
     
-    // Create the wizard
-    const wizardItem = createAddFolderWizard({
-        initialPath,
-        initialModel,
-        onComplete: handleWizardComplete,
-        onCancel: () => exit(),
-        fmdmOperations
-    });
-    
-    // Start wizard in expanded mode
-    wizardItem.onEnter();
+    // Show loading while wizard is being created
+    if (wizardLoading || !wizardItem) {
+        return (
+            <Box flexDirection="column" height="100%" justifyContent="center" alignItems="center">
+                <Text color="yellow">Loading models...</Text>
+            </Box>
+        );
+    }
     
     return (
         <Box flexDirection="column" height="100%">

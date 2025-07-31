@@ -28,6 +28,7 @@ export interface FMDMContextType {
   validateFolder: (path: string) => Promise<ValidationResult>;
   addFolder: (path: string, model: string) => Promise<{ success: boolean; error?: string }>;
   removeFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
+  getModels: () => Promise<{ models: string[]; backend: 'python' | 'ollama' }>;
   
   // Connection management
   connect: () => Promise<void>;
@@ -45,7 +46,7 @@ export interface FMDMContextType {
 /**
  * FMDM Context
  */
-const FMDMContext = createContext<FMDMContextType | null>(null);
+export const FMDMContext = createContext<FMDMContextType | null>(null);
 
 /**
  * FMDM Provider Props
@@ -151,6 +152,10 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     return await client.removeFolder(path);
   }, [client]);
 
+  const getModels = useCallback(async (): Promise<{ models: string[]; backend: 'python' | 'ollama' }> => {
+    return await client.getModels();
+  }, [client]);
+
   // Model download subscription
   const subscribeToModelDownloads = useCallback((listener: (event: ModelDownloadEvent) => void) => {
     return client.subscribeToModelDownloads(listener);
@@ -169,6 +174,7 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     validateFolder,
     addFolder,
     removeFolder,
+    getModels,
     
     // Connection management
     connect,
@@ -221,11 +227,12 @@ export const useFMDMConnection = (): FMDMConnectionStatus => {
  * Hook to access folder operations only
  */
 export const useFMDMOperations = () => {
-  const { validateFolder, addFolder, removeFolder } = useFMDM();
+  const { validateFolder, addFolder, removeFolder, getModels } = useFMDM();
   return {
     validateFolder,
     addFolder,
-    removeFolder
+    removeFolder,
+    getModels
   };
 };
 

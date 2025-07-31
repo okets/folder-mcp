@@ -6,7 +6,8 @@ import { AppFullscreen } from './AppFullscreen';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AutoCompletionHandler } from './components/AutoCompletionHandler';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
-import { FMDMProvider } from './contexts/FMDMContext';
+import { FMDMProvider, useFMDM } from './contexts/FMDMContext';
+import { FMDM } from '../../daemon/models/fmdm';
 import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
 import { CONFIG_SERVICE_TOKENS } from '../../config/di-setup';
@@ -54,130 +55,66 @@ if (!isHeadless && !isRawModeSupported) {
     process.exit(1);
 }
 
-// Main app component that decides between wizard and main app
+// Main app component that decides between wizard and main app based on FMDM data
 const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string | null | undefined }> = ({ cliDir, cliModel }) => {
     const [showWizard, setShowWizard] = useState(true);
     const [showAutoCompletion, setShowAutoCompletion] = useState(false);
     const [config, setConfig] = useState<any>(null);
     const [hasValidationError, setHasValidationError] = useState(false);
     
-    // Check config and implement the exact flow described
+    // Get FMDM data to determine if we have configured folders
+    const { fmdm, isConnected } = useFMDM();
+    
+    // FMDM-based first run detection - make decisions based on daemon state
     React.useEffect(() => {
-        const checkConfigAndImplementFlow = async () => {
-            const container = getContainer();
-            const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-            
-            // Check if we have any configured folders (first run detection)
-            const folders = await configComponent.get('folders.list') || [];
-            const hasConfiguredFolders = Array.isArray(folders) && folders.length > 0;
-            
-            // 2.2) With CLI params?
-            if (cliDir || cliModel) {
-                // 2.2.1) -d or -m params defined? validate.
-                const validationResult = await validateCliParams(cliDir ?? null, cliModel ?? null, configComponent);
-                
-                if (!validationResult.valid) {
-                    // 2.2.1.1) validation fails: show error message and prevent wizard
-                    console.error(`\x1b[31m✗\x1b[0m ${validationResult.error}`);
-                    console.error('');
-                    console.error('Please check your parameters and try again.');
-                    console.error('\x1b[38;5;208mTip: if you run folder-mcp without parameters, a setup wizard will appear.\x1b[0m');
-                    setHasValidationError(true);
-                    setShowWizard(false);
-                    setShowAutoCompletion(false);
-                    // Exit after a brief delay to ensure error is displayed
-                    setTimeout(() => process.exit(1), 100);
-                    return;
-                }
-                
-                // 2.2.1.2) validation passes
-                if (cliDir && cliModel) {
-                    // 2.2.1.2.1) both -d and -m defined? add folder
-                    await configComponent.addFolder(cliDir, cliModel);
-                    
-                    if (isHeadless) {
-                        // In headless mode, exit after adding folder
-                        console.log(`✓ Folder added successfully: ${cliDir} with model ${cliModel}`);
-                        process.exit(0);
-                    } else {
-                        // Show main app
-                        await loadMainApp(configComponent);
-                    }
-                } else {
-                    // 2.2.1.2.2) only one param defined? auto-complete and show confirmation
-                    setShowAutoCompletion(true);
-                    setShowWizard(false);
-                }
-            } else {
-                // 2.1) Without CLI params
-                if (hasConfiguredFolders) {
-                    // 2.1.2) at least one folder already set? show main app
-                    await loadMainApp(configComponent);
-                } else {
-                    // 2.1.1) first run? show wizard
-                    setShowWizard(true);
-                }
+        if (!isConnected || !fmdm) {
+            // Wait for FMDM connection and data
+            return;
+        }
+        
+        const hasConfiguredFolders = fmdm.folders && fmdm.folders.length > 0;
+        
+        if (hasConfiguredFolders) {
+            // Have folders configured - skip wizard and show main app
+            loadMainAppFromFMDM(fmdm);
+        } else {
+            // No folders configured - show wizard (unless CLI params)
+            handleCliParamsOrShowWizard();
+        }
+    }, [isConnected, fmdm]);
+    
+    const loadMainAppFromFMDM = (fmdm: FMDM) => {
+        // Convert FMDM to config format for backward compatibility
+        const loadedConfig = {
+            folders: fmdm.folders || [],
+            embedding: {
+                model: 'nomic-embed-text', // Default from FMDM models
+                batchSize: 32
+            },
+            server: {
+                port: 9876,
+                host: '127.0.0.1'
+            },
+            ui: {
+                theme: 'auto'
             }
         };
         
-        const validateCliParams = async (dir: string | null, model: string | null, configComponent: ConfigurationComponent) => {
-            // Validate -d parameter
-            if (dir) {
-                const pathValidation = await configComponent.validate('folders.list[].path', dir);
-                if (!pathValidation.valid) {
-                    return { valid: false, error: `Invalid folder path "\x1b[31m${dir}\x1b[0m": ${pathValidation.errors?.[0]?.message}` };
-                }
-            }
-            
-            // Validate -m parameter
-            if (model) {
-                const modelValidation = await configComponent.validate('folders.list[].model', model);
-                if (!modelValidation.valid) {
-                    return { valid: false, error: `Invalid model "\x1b[31m${model}\x1b[0m": ${modelValidation.errors?.[0]?.message}` };
-                }
-            }
-            
-            return { valid: true };
-        };
-        
-        const loadMainApp = async (configComponent: ConfigurationComponent) => {
-            try {
-                // Load config from unified ConfigurationComponent
-                await configComponent.load();
-                
-                // Get folders configuration with fallback to defaults
-                const foldersList = await configComponent.get('folders.list');
-                const embeddingModel = await configComponent.get('folders.defaults.embeddings.model');
-                const theme = await configComponent.get('theme');
-                
-                // Create config object for backward compatibility
-                const loadedConfig = {
-                    folders: foldersList || [],
-                    embedding: {
-                        model: embeddingModel || 'nomic-embed-text',
-                        batchSize: 32
-                    },
-                    server: {
-                        port: 9876,
-                        host: '127.0.0.1'
-                    },
-                    ui: {
-                        theme: theme || 'auto'
-                    }
-                };
-                
-                setConfig(loadedConfig);
-                setShowWizard(false);
-                setShowAutoCompletion(false);
-            } catch (error) {
-                // Config loading failed, show wizard for first run
-                setShowWizard(true);
-                setShowAutoCompletion(false);
-            }
-        };
-        
-        checkConfigAndImplementFlow();
-    }, [cliDir, cliModel]);
+        setConfig(loadedConfig);
+        setShowWizard(false);
+        setShowAutoCompletion(false);
+    };
+    
+    const handleCliParamsOrShowWizard = async () => {
+        // 2.2) With CLI params?
+        if (cliDir || cliModel) {
+            // For now, just show wizard - CLI handling can be added later
+            setShowWizard(true);
+        } else {
+            // 2.1.1) first run? show wizard
+            setShowWizard(true);
+        }
+    };
     
     const handleWizardComplete = (newConfig: any) => {
         setConfig(newConfig);

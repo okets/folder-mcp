@@ -15,6 +15,13 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { spawn, type ChildProcess } from 'child_process';
+import { FMDMWebSocketServer } from './websocket/server.js';
+import { FMDMService } from './services/fmdm-service.js';
+import { WebSocketProtocol } from './websocket/protocol.js';
+import { DaemonFolderValidationService } from './services/folder-validation-service.js';
+import { DaemonConfigurationService } from './services/configuration-service.js';
+// SQLiteVecStorage will be imported in Phase 5 when properly integrated
+import { setupDependencyInjection } from '../di/setup.js';
 
 // Create a simple debug logger
 const debug = (message: string, ...args: any[]) => {
@@ -42,6 +49,9 @@ class FolderMCPDaemon {
   private config: DaemonConfig;
   private startTime: Date;
   private mcpProcess: ChildProcess | null = null;
+  private webSocketServer: FMDMWebSocketServer | null = null;
+  private fmdmService: FMDMService | null = null;
+  private diContainer: any = null;
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -53,6 +63,85 @@ class FolderMCPDaemon {
     
     // Write PID file
     this.writePidFile();
+    
+    // Initialize DI container for indexing services
+    this.diContainer = setupDependencyInjection({
+      logLevel: 'info'
+    });
+    
+    // Setup configuration services in DI container
+    const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
+    const { join } = await import('path');
+    const { homedir } = await import('os');
+    registerConfigurationServices(this.diContainer, {
+      userConfigPath: join(homedir(), '.folder-mcp', 'config.yaml')
+    });
+    
+    // Connect to real configuration system
+    const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+    await configComponent.load();
+    
+    // Real config service that reads from the same source as TUI
+    const realConfigService = {
+      getFolders: async () => {
+        const foldersList = await configComponent.get('folders.list') || [];
+        debug(`RealConfigService: Retrieved ${foldersList.length} folders from config: ${JSON.stringify(foldersList)}`);
+        return foldersList;
+      }
+    };
+    const mockLogger = {
+      debug: (msg: string, ...args: any[]) => debug(msg, ...args),
+      info: (msg: string, ...args: any[]) => debug(msg, ...args),
+      warn: (msg: string, ...args: any[]) => debug(msg, ...args),
+      error: (msg: string, ...args: any[]) => debug(msg, ...args),
+      fatal: (msg: string, ...args: any[]) => debug(msg, ...args),
+      setLevel: (level: string) => {} // No-op for mock
+    };
+    this.fmdmService = new FMDMService(realConfigService, mockLogger);
+    
+    // Load existing folders from configuration and update FMDM
+    try {
+      debug('About to load existing folders from configuration...');
+      const existingFolders = await realConfigService.getFolders();
+      debug(`Loading ${existingFolders.length} existing folders from configuration`);
+      if (existingFolders.length > 0) {
+        // Convert config folders to FMDM folder format
+        const fmdmFolders = existingFolders.map((folder: any) => ({
+          path: folder.path,
+          model: folder.model
+        }));
+        debug(`Converting to FMDM format: ${JSON.stringify(fmdmFolders)}`);
+        this.fmdmService.updateFolders(fmdmFolders);
+        debug(`Updated FMDM with ${fmdmFolders.length} existing folders`);
+      } else {
+        debug('No existing folders found in configuration');
+      }
+    } catch (error) {
+      debug('Error loading existing folders:', error instanceof Error ? error.message : error);
+      debug('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    }
+    
+    // Create and start WebSocket server for TUI communication
+    this.webSocketServer = new FMDMWebSocketServer(this.fmdmService, mockLogger);
+    
+    // Create proper WebSocket protocol with all required services
+    const daemonConfigService = new DaemonConfigurationService(configComponent, mockLogger);
+    const validationService = new DaemonFolderValidationService(daemonConfigService, mockLogger);
+    
+    // Initialize services
+    await validationService.initialize();
+    
+    // Create the proper WebSocket protocol
+    const webSocketProtocol = new WebSocketProtocol(
+      validationService,
+      daemonConfigService,
+      this.fmdmService,
+      mockLogger
+    );
+    
+    this.webSocketServer.setDependencies(this.fmdmService, webSocketProtocol, mockLogger);
+    await this.webSocketServer.start(31849);
+    debug('WebSocket server started on ws://127.0.0.1:31849');
     
     // Create HTTP server
     this.server = createServer(this.handleRequest.bind(this));
@@ -171,6 +260,13 @@ class FolderMCPDaemon {
   async stop(): Promise<void> {
     debug('Stopping daemon...');
     
+    // Stop WebSocket server
+    if (this.webSocketServer) {
+      debug('Stopping WebSocket server...');
+      await this.webSocketServer.stop();
+      this.webSocketServer = null;
+    }
+    
     // Stop MCP process if running
     if (this.mcpProcess) {
       debug('Stopping MCP process...');
@@ -193,6 +289,12 @@ class FolderMCPDaemon {
     
     debug('Daemon stopped');
   }
+
+  // TODO: Future Phase 5 - Connect SQLite-vec storage to daemon indexing pipeline
+  // This will be implemented following the clean architecture where:
+  // - Daemon orchestrates indexing workflow
+  // - FMDM broadcasts status changes
+  // - TUI displays status updates
 
   // Setup graceful shutdown
   setupShutdownHandlers(): void {

@@ -1047,7 +1047,67 @@ Python Layer:
 
 **Implementation Details**: See comprehensive implementation in [Phase-8-Task-10-Python-Embeddings.md](Phase-8-Task-10-Python-Embeddings.md)
 
-### Task 11: MCP Endpoints Migration to Daemon-Centric Architecture
+### Task 11: SQLite-vec Embeddings Storage Implementation  
+**Status**: 🚧 In Progress  
+**Discovered**: 2025-07-30  
+**Dependencies**: Task 10 (Python Embeddings System)  
+**What**: Implement SQLite-vec based embedding storage to replace mock VectorSearchService and JSON file storage, with complete TUI progress reporting integration.
+
+**Why**: Current system uses a mock in-memory VectorSearchService and JSON file storage. We need a production-ready vector database using SQLite-vec for:
+- Persistent embedding storage with real-time progress feedback to TUI
+- Fast similarity search with SIMD acceleration  
+- Multi-folder support with per-folder databases
+- Incremental updates and file monitoring integration
+- Zero dependencies (SQLite-vec is self-contained)
+- Complete folder addition flow with status reporting to ManageFolderItem
+
+**Key Design Decisions**:
+- **Disposable Embeddings**: No migration needed - embeddings can be recreated from source files
+- **Per-Folder Databases**: Each folder gets its own `.folder-mcp/embeddings.db`
+- **Clean Architecture**: Proper DI boundaries between domain interfaces and infrastructure
+- **Progress Reporting**: Complete flow from folder addition → indexing → TUI status updates
+- **Testing**: Use `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/` for all tests
+
+**Implementation Summary**:
+1. **Create SQLite-vec Infrastructure Provider**
+   - Location: `src/infrastructure/embeddings/sqlite-vec/`
+   - Implement `IVectorSearchService` interface
+   - Use sqlite-vec for vector storage and similarity search
+   - Replace the mock in-memory implementation
+
+2. **Database Schema Design**
+   - Create tables for embeddings storage
+   - Index vectors using sqlite-vec's vector indexing
+   - Store metadata alongside vectors
+
+3. **Delete JSON File Storage**
+   - Remove `.folder-mcp/embeddings/*.json` file handling
+   - Clean up old cache directory structure code
+   - No migration needed - embeddings are disposable
+
+4. **Update Multi-Folder Storage**
+   - Update `StorageFactory` to create SQLite-vec instances
+   - Each folder gets its own SQLite database
+   - Implement proper vector search across folders
+
+5. **Complete TUI Progress Reporting Integration**
+   - Real-time folder status updates in ManageFolderItem component
+   - Progress tracking from folder addition through SQLite-vec indexing
+   - WebSocket-based progress events from daemon to TUI
+   - Status display: `idle` → `scanning` → `parsing` → `embedding` → `indexing` → `ready` → `error`
+
+6. **Testing**
+   - Update tests to use SQLite-vec instead of JSON files
+   - Add performance benchmarks
+   - Ensure proper cleanup of SQLite databases
+   - Test complete progress reporting flow
+   - Use test knowledge base for all testing
+
+**Implementation Plan**: See detailed linear plan in [Phase-8-Task-11-SQLite-vec-Embeddings.md](Phase-8-Task-11-SQLite-vec-Embeddings.md)
+
+**Progress Reporting Architecture**: The final Phase 10 of Task 11 implements complete progress reporting from the moment a folder is added through the TUI, ensuring users see real-time feedback during the SQLite-vec indexing process. This includes FMDM interface extensions, WebSocket progress events, FolderProgressService coordination, IndexingOrchestrator integration, and dynamic ManageFolderItem status updates.
+
+### Task 12: MCP Endpoints Migration to Daemon-Centric Architecture
 **Status**: ⏳ Waiting  
 **Dependencies**: Task 10 (New Embeddings Mechanism)  
 **Priority**: **HIGH** - Critical for unified architecture  
@@ -1071,7 +1131,7 @@ Python Layer:
 - [ ] Delete obsolete configuration and embedding service code
 - [ ] Update tests to mock daemon endpoints instead of direct services
 
-### Task 12: Enhanced Process Management
+### Task 13: Enhanced Process Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
@@ -1097,7 +1157,7 @@ kill -9 $(cat ~/.folder-mcp/daemon.pid)  # Simulate crash
 folder-mcp status  # Detects crashed daemon, cleans up PID file
 ```
 
-### Task 13: Multi-Agent Connection Management
+### Task 14: Multi-Agent Connection Management
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
@@ -1124,7 +1184,7 @@ folder-mcp status  # Detects crashed daemon, cleans up PID file
 - VSCode config auto-updates to use HTTP
 - Both agents can connect simultaneously
 
-### Task 14: System Integration (Auto-start)
+### Task 15: System Integration (Auto-start)
 **Status**: ⏳ Waiting  
 **Discovered**: 2025-07-08  
 **Dependencies**: 🔥 **BLOCKED BY Task 4.7** - Backend must be connected to unified config first
@@ -1148,7 +1208,7 @@ folder-mcp config set autoStart true
 ps aux | grep folder-mcp  # Daemon already running
 ```
 
-### Task 15: Complete Documentation and Release Prep
+### Task 16: Complete Documentation and Release Prep
 **Status**: ⏳ Waiting  
 **What**: Update all documentation and prepare for release.
 
@@ -1171,7 +1231,7 @@ ps aux | grep folder-mcp  # Daemon already running
 - Troubleshooting guide addresses common issues
 - Roadmap is updated with Phase 8 completion
 
-### Task 18: Implement Centralized Focus Management System
+### Task 19: Implement Centralized Focus Management System
 **Status**: ⏳ Waiting  
 **Priority**: Low (will be bumped up if focus issues persist)
 **Discovered**: 2025-07-09  
@@ -1244,6 +1304,7 @@ ps aux | grep folder-mcp  # Daemon already running
 | 8.5.5 | ContainerListItem with Viewport System | 2025-07-19 | ✅ | Direction-aware bring-into-view with complete viewport architecture |
 | 8.6 | Add Folder Wizard Implementation | 2025-07-24 | ✅ | Reusable wizard with validation and dual-button support |
 | 10 | Implement Python Subprocess Embeddings System | 2025-07-29 | ✅ | Comprehensive Python embeddings with GPU acceleration and test coverage |
+| 11 | SQLite-vec Embeddings Storage Implementation | 2025-07-30 | 🚧 | Replace mock VectorSearchService with SQLite-vec database |
 
 
 ### **Key Discoveries**

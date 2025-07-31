@@ -64,16 +64,17 @@ export class WebSocketProtocol {
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService
   ) {
-    // Create folder handlers with proper interfaces
+    // Create model handlers first
+    this.modelHandlers = new ModelHandlers(this.logger);
+    
+    // Create folder handlers with proper interfaces, including model handlers
     this.folderHandlers = new FolderHandlers(
       this.configService,
       this.fmdmService,
       this.validationService,
+      this.modelHandlers,
       this.logger
     );
-    
-    // Create model handlers
-    this.modelHandlers = new ModelHandlers(this.logger);
   }
 
   /**

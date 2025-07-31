@@ -19,34 +19,14 @@ export interface ModelInfo {
  * For Phase 8 Task 10, we use curated Python models only
  */
 export function getPythonModels(): ModelInfo[] {
-  // These models match the curated list in system-configuration.json
-  // from Sub-Task 10.5: Add Curated Model List to System Configuration
+  // TEMPORARY: Hardcoded fallback when daemon call fails
+  // This should rarely be used since wizard now fetches from daemon
   return [
     {
-      name: 'all-MiniLM-L6-v2',
+      name: 'folder-mcp:all-MiniLM-L6-v2',
       displayName: 'All-MiniLM-L6-v2 (Recommended)',
       backend: 'python',
       recommended: true
-    },
-    {
-      name: 'all-mpnet-base-v2',
-      displayName: 'All-MPNet Base v2',
-      backend: 'python'
-    },
-    {
-      name: 'all-MiniLM-L12-v2',
-      displayName: 'All-MiniLM-L12-v2',
-      backend: 'python'
-    },
-    {
-      name: 'all-distilroberta-v1',
-      displayName: 'All-DistilRoBERTa v1',
-      backend: 'python'
-    },
-    {
-      name: 'paraphrase-MiniLM-L6-v2',
-      displayName: 'Paraphrase-MiniLM-L6-v2',
-      backend: 'python'
     }
   ];
 }

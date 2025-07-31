@@ -49,62 +49,72 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
     
     // State for showing Add Folder Wizard
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
-    const [wizardJustAdded, setWizardJustAdded] = useState(false);
+    const [wizardCreationRequest, setWizardCreationRequest] = useState<'pending' | 'processing' | 'done' | null>(null);
+    const [wizardInstance, setWizardInstance] = useState<any>(null);
+    const [wizardLoading, setWizardLoading] = useState(false);
+    
+    // Navigation context for focus management - must be declared before usage
+    const navigation = useNavigationContext();
     
     // Get current folders from FMDM context
     const currentFolders = useConfiguredFolders();
     const fmdmOperations = useFMDMOperations();
-    
-    // Memoize the AddFolderWizard instance to prevent recreation on every render
-    // This preserves the wizard's internal state (like expansion state) across re-renders
-    const wizardInstance = useRef<any>(null);
-    const memoizedWizard = useMemo(() => {
-        if (showAddFolderWizard) {
-            // Only create new wizard if one doesn't exist or wizard was just added
-            if (!wizardInstance.current || wizardJustAdded) {
-                wizardInstance.current = createAddFolderWizard({
-                    onComplete: async (result: AddFolderWizardResult) => {
-                        try {
-                            await fmdmOperations.addFolder(result.path, result.model);
-                            // FMDM context will automatically update the folder list
+    // Create wizard asynchronously when needed
+    useEffect(() => {
+        const createWizard = async () => {
+            if (!showAddFolderWizard) {
+                setWizardInstance(null);
+                return;
+            }
+            
+            // Only process pending creation requests
+            if (wizardCreationRequest === 'pending' && !wizardInstance) {
+                try {
+                    setWizardCreationRequest('processing');
+                    setWizardLoading(true);
+                    
+                    const wizard = await createAddFolderWizard({
+                        onComplete: async (result: AddFolderWizardResult) => {
+                            try {
+                                await fmdmOperations.addFolder(result.path, result.model);
+                                // FMDM context will automatically update the folder list
+                                setShowAddFolderWizard(false);
+                                setWizardInstance(null); // Clear instance when done
+                                setWizardCreationRequest(null); // Reset for next time
+                            } catch (error) {
+                                console.error('Failed to add folder:', error);
+                            }
+                        },
+                        onCancel: () => {
                             setShowAddFolderWizard(false);
-                            wizardInstance.current = null; // Clear instance when done
-                        } catch (error) {
-                            console.error('Failed to add folder:', error);
-                        }
-                    },
-                    onCancel: () => {
-                        setShowAddFolderWizard(false);
-                        wizardInstance.current = null; // Clear instance when cancelled
-                    },
-                    fmdmOperations
-                });
-                
-                // Initialize in expanded mode only when first created
-                if (wizardJustAdded) {
-                    wizardInstance.current.onEnter();
+                            setWizardInstance(null); // Clear instance when cancelled
+                            setWizardCreationRequest(null); // Reset for next time
+                        },
+                        fmdmOperations
+                    });
+                    
+                    setWizardInstance(wizard);
+                    
+                    // Initialize in expanded mode and set focus
+                    wizard.onEnter();
+                    
+                    // Set focus to the wizard position
+                    const wizardIndex = currentFolders ? currentFolders.length : 0;
+                    navigation.setMainSelectedIndex(wizardIndex);
+                    
+                    // Mark creation as done
+                    setWizardCreationRequest('done');
+                } catch (error) {
+                    console.error('Failed to create wizard:', error);
+                    setWizardCreationRequest(null); // Reset on error
+                } finally {
+                    setWizardLoading(false);
                 }
             }
-            return wizardInstance.current;
-        } else {
-            // Clear wizard when not showing
-            wizardInstance.current = null;
-            return null;
-        }
-    }, [showAddFolderWizard, wizardJustAdded, fmdmOperations]);
-    
-    // Navigation context for focus management
-    const navigation = useNavigationContext();
-    
-    // Move focus to wizard when it's just added
-    useEffect(() => {
-        if (wizardJustAdded && showAddFolderWizard) {
-            // Set the main panel selection to the wizard position (after folders)
-            const wizardIndex = currentFolders ? currentFolders.length : 0;
-            navigation.setMainSelectedIndex(wizardIndex);
-            setWizardJustAdded(false);
-        }
-    }, [wizardJustAdded, showAddFolderWizard, navigation, currentFolders]);
+        };
+        
+        createWizard();
+    }, [showAddFolderWizard, wizardCreationRequest, fmdmOperations, currentFolders, navigation]); // Dependencies updated
     
     // Create a robust exit function that works properly across platforms
     const robustExit = useCallback(async () => {
@@ -232,8 +242,18 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         }
         
         // If showing wizard, add it after existing folders but before the button
-        if (showAddFolderWizard && memoizedWizard) {
-            items.push(memoizedWizard);
+        if (showAddFolderWizard) {
+            if (wizardLoading) {
+                // Show loading item while wizard is being created
+                const loadingItem = new TextListItem(
+                    '⏳',
+                    'Loading wizard... (fetching models from daemon)',
+                    false
+                );
+                items.push(loadingItem);
+            } else if (wizardInstance) {
+                items.push(wizardInstance);
+            }
         }
         
         // Add "Add A Folder" button at the bottom (after all folders and wizard)
@@ -250,7 +270,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
             (button) => {
                 if (button.eventValue === 'add-folder') {
                     setShowAddFolderWizard(true);
-                    setWizardJustAdded(true);
+                    setWizardCreationRequest('pending');
                 }
             },
             'center'
@@ -259,7 +279,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
         items.push(addFolderButton);
         
         return items;
-    }, [currentFolders, showAddFolderWizard, memoizedWizard, fmdmOperations]); // Updated dependencies
+    }, [currentFolders, showAddFolderWizard, wizardInstance, wizardLoading, fmdmOperations]); // Updated dependencies
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
@@ -374,7 +394,96 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config }) => {
                     parentId="navigation"
                     priority={50}
                     onInput={(input, key) => {
-                        return false; // Let navigation handle it
+                        console.error(`\n=== AppFullscreen onInput ===`);
+                        console.error(`Key: ${key.downArrow ? 'DOWN' : key.upArrow ? 'UP' : 'OTHER'}`);
+                        console.error(`Current index: ${navigation.mainSelectedIndex}`);
+                        console.error(`Current item type: ${configItems[navigation.mainSelectedIndex]?.constructor.name}`);
+                        console.error(`Total items: ${configItems.length}`);
+                        
+                        // Check if current item is controlling input (expanded)
+                        const currentItem = configItems[navigation.mainSelectedIndex];
+                        if (currentItem?.isControllingInput) {
+                            console.error(`Current item is controlling input - delegating`);
+                            // Let the GenericListPanel delegate to the expanded item
+                            return false;
+                        }
+                        
+                        // Special handling for SimpleButtonsRow - when it delegates navigation,
+                        // it has already exited control mode, so we need to handle re-selection
+                        if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
+                            // Ensure the item is properly selected after navigation from buttons
+                            currentItem.isActive = true;
+                            currentItem.onSelect();
+                        }
+                        
+                        // Handle navigation with awareness of navigable items only for collapsed items
+                        if (key.downArrow) {
+                            const currentIndex = navigation.mainSelectedIndex;
+                            // Find next navigable item
+                            let nextIndex = currentIndex;
+                            let found = false;
+                            
+                            // Try to find next navigable item
+                            for (let i = currentIndex + 1; i < configItems.length; i++) {
+                                const item = configItems[i];
+                                if (item && item.isNavigable !== false) {
+                                    nextIndex = i;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If not found, wrap to beginning and find first navigable
+                            if (!found) {
+                                for (let i = 0; i <= currentIndex; i++) {
+                                    const item = configItems[i];
+                                    if (item && item.isNavigable !== false) {
+                                        nextIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (nextIndex !== currentIndex) {
+                                console.error(`Navigating from index ${currentIndex} to ${nextIndex}`);
+                                navigation.setMainSelectedIndex(nextIndex);
+                                return true;
+                            }
+                            console.error(`No navigation - staying at index ${currentIndex}`);
+                        } else if (key.upArrow) {
+                            const currentIndex = navigation.mainSelectedIndex;
+                            // Find previous navigable item
+                            let prevIndex = currentIndex;
+                            let found = false;
+                            
+                            // Try to find previous navigable item
+                            for (let i = currentIndex - 1; i >= 0; i--) {
+                                const item = configItems[i];
+                                if (item && item.isNavigable !== false) {
+                                    prevIndex = i;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If not found, wrap to end and find last navigable
+                            if (!found) {
+                                for (let i = configItems.length - 1; i >= currentIndex; i--) {
+                                    const item = configItems[i];
+                                    if (item && item.isNavigable !== false) {
+                                        prevIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            if (prevIndex !== currentIndex) {
+                                navigation.setMainSelectedIndex(prevIndex);
+                                return true;
+                            }
+                        }
+                        console.error(`=== End AppFullscreen onInput ===\n`);
+                        return false; // Let other navigation handle it
                     }}
                 />
                 <GenericListPanel
@@ -401,28 +510,8 @@ interface AppContentProps {
 const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     
-    // Get folders from FMDM context for count calculation
-    const currentFolders = useConfiguredFolders();
-    
-    // Calculate actual config item count dynamically
-    const actualConfigItemCount = (() => {
-        if (currentFolders && Array.isArray(currentFolders) && currentFolders.length > 0) {
-            // Each folder contributes 2 items: folder picker + model selector
-            // Plus 1 for the "Add Folder Wizard" at the top
-            const count = 1 + (currentFolders.length * 2);
-            
-            
-            return count;
-        } else {
-            const count = CONFIG_ITEM_COUNT; // Fallback to sample data count
-            
-            
-            return count;
-        }
-    })();
-    
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={actualConfigItemCount} statusItemCount={STATUS_ITEM_COUNT}>
+        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={20} statusItemCount={STATUS_ITEM_COUNT}>
             <AppContentInner config={config} />
         </NavigationProvider>
     );

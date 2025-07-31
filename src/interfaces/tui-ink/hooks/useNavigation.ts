@@ -40,8 +40,10 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         if (isBlocked) return;
         setState(prev => {
             const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
+            const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
             const currentIndex = prev[key];
-            const newIndex = Math.max(0, currentIndex - 1);
+            // Implement circular navigation - wrap from first to last
+            const newIndex = currentIndex <= 0 ? maxItems - 1 : currentIndex - 1;
             
             // Only update state if index actually changes
             if (currentIndex === newIndex) {
@@ -53,7 +55,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
                 [key]: newIndex
             };
         });
-    }, [isBlocked]);
+    }, [isBlocked, configItemCount, statusItemCount]);
 
     const navigateDown = useCallback(() => {
         if (isBlocked) return;
@@ -61,7 +63,15 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
             const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
             const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
             const currentIndex = prev[key];
-            const newIndex = Math.min(maxItems - 1, currentIndex + 1);
+            // Implement circular navigation - wrap from last to first
+            const newIndex = currentIndex >= maxItems - 1 ? 0 : currentIndex + 1;
+            
+            console.error(`\n=== useNavigation navigateDown ===`);
+            console.error(`Container: ${prev.activeContainer}`);
+            console.error(`Current index: ${currentIndex}`);
+            console.error(`Max items: ${maxItems}`);
+            console.error(`New index: ${newIndex}`);
+            console.error(`=== End navigateDown ===\n`);
             
             // CRITICAL: Only update state if index actually changes!
             if (currentIndex === newIndex) {

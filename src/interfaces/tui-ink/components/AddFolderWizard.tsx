@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { Text } from 'ink';
+import { Text, Key } from 'ink';
 import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
@@ -15,6 +15,7 @@ import { getPythonModels, ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
+import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
 import { DestructiveConfirmationWrapper, useDestructiveConfirmation } from './DestructiveConfirmationWrapper';
 import { theme } from '../utils/theme';
@@ -66,6 +67,43 @@ class AddFolderContainerItem extends ContainerListItem {
         super.updateValidation(result);
     }
     
+    // Override handleInput to customize left arrow behavior
+    handleInput(input: string, key: Key): boolean {
+        if (key.leftArrow) {
+            // Get current state using type assertions to access protected members
+            const focusedButton = (this as any)._focusedButton;
+            const isConfirmFocused = (this as any)._isConfirmFocused;
+            const childSelectedIndex = (this as any)._childSelectedIndex;
+            const activeChild = (this as any)._childItems[childSelectedIndex];
+            
+            // Check if we're at the button level
+            if (focusedButton || isConfirmFocused) {
+                // Toggle between buttons
+                if (focusedButton === 'cancel') {
+                    // Move from Cancel to Add Folder (if enabled)
+                    if (this.isConfirmEnabled) {
+                        (this as any)._focusedButton = 'confirm';
+                    }
+                    return true;
+                } else if (focusedButton === 'confirm' || isConfirmFocused) {
+                    // Move from Add Folder to Cancel
+                    (this as any)._focusedButton = 'cancel';
+                    (this as any)._isConfirmFocused = false;
+                    return true;
+                }
+            } else if (activeChild && !activeChild.isControllingInput) {
+                // We're on a collapsed child item - jump to Cancel button
+                (this as any)._focusedButton = 'cancel';
+                (this as any)._childSelectedIndex = -1;
+                return true;
+            }
+            // If child is expanded (isControllingInput), let parent handle it normally
+        }
+        
+        // For all other keys, use parent's handling
+        return super.handleInput(input, key);
+    }
+    
     // Override render to show custom collapsed state
     render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
         if (this.isControllingInput) {
@@ -73,11 +111,8 @@ class AddFolderContainerItem extends ContainerListItem {
             return super.render(maxWidth, maxLines);
         } else {
             // Collapsed mode - show path and validation like ConfigurationListItem
-            // Ensure validation state is current before rendering
-            if (this.currentValidationResult.isValid && this.currentValidationResult !== this.validationResult) {
-                // Sync validation state to prevent display inconsistencies
-                this.currentValidationResult = this.validationResult;
-            }
+            // Don't override currentValidationResult - it has the most up-to-date validation
+            // The parent's validationResult might be stale or default
             return this.renderCollapsedWithPathAndValidation(maxWidth);
         }
     }
@@ -97,10 +132,13 @@ class AddFolderContainerItem extends ContainerListItem {
         let validationDisplay = '';
         let validationWidth = 0;
         
+        // Validation display logic follows
+        
         if (this.currentValidationResult.hasError || this.currentValidationResult.hasWarning) {
             const validationIcon = this.currentValidationResult.hasError ? '✗' : '!';
             const validationColor = this.currentValidationResult.hasError ? 'red' : 'yellow';
             const validationMessage = this.currentValidationResult.errorMessage || this.currentValidationResult.warningMessage || '';
+            
             
             // Always show at least the icon
             validationDisplay = ` ${validationIcon}`;
@@ -117,6 +155,7 @@ class AddFolderContainerItem extends ContainerListItem {
                     validationWidth = validationDisplay.length;
                 }
             }
+        } else {
         }
         
         // Calculate space for path
@@ -153,21 +192,62 @@ class AddFolderContainerItem extends ContainerListItem {
 /**
  * Factory function to create an Add Folder Wizard
  * @param options Configuration options for the wizard
- * @returns ContainerListItem configured as an add folder wizard
+ * @returns Promise<ContainerListItem> configured as an add folder wizard
  */
-export function createAddFolderWizard(options: AddFolderWizardOptions): ContainerListItem {
+export async function createAddFolderWizard(options: AddFolderWizardOptions): Promise<ContainerListItem> {
     const {
         initialPath = process.cwd(),
-        initialModel = 'all-MiniLM-L6-v2', // Default to first Python model
+        initialModel, // Will be set dynamically from daemon
         onComplete,
         onCancel,
         fmdmOperations
     } = options;
+
+    // Get models from daemon to determine the correct default
+    let selectedModel = initialModel;
+    let pythonModels: ModelInfo[] = [];
+    
+    if (fmdmOperations && fmdmOperations.getModels) {
+        try {
+            const { models } = await fmdmOperations.getModels();
+            // Convert daemon models to ModelInfo format
+            pythonModels = models.map((modelName: string) => ({
+                name: modelName,
+                displayName: modelName.replace('folder-mcp:', '') + ' (Recommended)',
+                backend: 'python' as const,
+                recommended: true
+            }));
+            
+            // Use first model from daemon as default if no initial model provided
+            if (!selectedModel && pythonModels.length > 0) {
+                selectedModel = pythonModels[0]?.name;
+            }
+        } catch (error) {
+            console.error('Failed to get models from daemon, using fallback list:', error);
+            // Fallback to hardcoded list if daemon call fails
+            pythonModels = [{
+                name: 'folder-mcp:all-MiniLM-L6-v2',
+                displayName: 'All-MiniLM-L6-v2 (Recommended)',
+                backend: 'python',
+                recommended: true
+            }];
+            selectedModel = pythonModels[0]?.name;
+        }
+    } else {
+        // Fallback if no FMDM operations available
+        pythonModels = [{
+            name: 'folder-mcp:all-MiniLM-L6-v2',
+            displayName: 'All-MiniLM-L6-v2 (Recommended)',
+            backend: 'python',
+            recommended: true
+        }];
+        selectedModel = pythonModels[0]?.name;
+    }
     
     
     // Track wizard state
     let selectedPath = initialPath;
-    let selectedModel = initialModel;
+    // selectedModel is already declared above with dynamic daemon fetching
     
     // Initialize FMDM validation if operations are provided
     // Since we're already past the app-level daemon connection check, we know we're connected
@@ -206,17 +286,28 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         };
     };
     
-    // Validation function that updates both container and file picker
-    const validateAndUpdateContainer = async (folderPath: string) => {
+    // Validation function that validates both folder and model
+    const validateAndUpdateContainer = async (folderPath: string, model?: string) => {
         if (!validationService) {
             currentValidation = createValidationResult(false, 'Validation service not available');
             return;
         }
-        const validationResult = await validationService.validateFolderPath(folderPath);
-        currentValidation = validationResult;
         
-        // Validation is now handled by FilePickerListItem's built-in validation system
-        // The FolderValidationService is passed to the constructor
+        const modelToValidate = model || selectedModel;
+        if (!modelToValidate) {
+            currentValidation = createValidationResult(false, 'No model selected');
+            return;
+        }
+        
+        let validationResult: ValidationResult;
+        
+        if (validationService.validateFolderAndModel) {
+            validationResult = await validationService.validateFolderAndModel(folderPath, modelToValidate);
+        } else {
+            validationResult = await validationService.validateFolderPath(folderPath);
+        }
+        
+        currentValidation = validationResult;
         
         // Update container validation state and display
         if (containerWizard) {
@@ -237,15 +328,19 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         'folder', // folder mode only
         async (newPath) => {
             selectedPath = newPath;
-            // Trigger real-time validation (which will update the container display)
-            await validateAndUpdateContainer(newPath);
+            // Trigger real-time validation of both folder and model
+            await validateAndUpdateContainer(newPath, selectedModel);
         },
         undefined, // filterPatterns
         async () => {
-            // onChange callback - sync FilePickerListItem validation to container
-            // This ensures validation state stays consistent between components
-            if (validationService && containerWizard) {
-                const validationResult = await validationService.validateFolderPath(selectedPath);
+            // onChange callback - sync validation to container with both folder and model
+            if (validationService && containerWizard && selectedModel) {
+                let validationResult: ValidationResult;
+                if (validationService.validateFolderAndModel) {
+                    validationResult = await validationService.validateFolderAndModel(selectedPath, selectedModel);
+                } else {
+                    validationResult = await validationService.validateFolderPath(selectedPath);
+                }
                 containerWizard.updateValidationResult(validationResult);
             }
         }, // onChange - keep container validation in sync
@@ -255,8 +350,7 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     
     childItems.push(folderPicker);
     
-    // Step 2: Model selection with Python models only
-    const pythonModels = getPythonModels();
+    // Step 2: Model selection with dynamically fetched Python models
     const modelOptions: SelectionOption[] = pythonModels.map(model => ({
         value: model.name,
         label: model.recommended ? `${model.displayName}` : model.displayName,
@@ -272,13 +366,15 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
         'м',
         'Choose embedding model',
         modelOptions,
-        [initialModel], // Initial selection
+        selectedModel ? [selectedModel] : [], // Use dynamically fetched default model
         false, // Will be managed by ContainerListItem
         'radio', // Single selection
         'vertical', // Vertical layout for detailed display
-        (values) => {
+        async (values) => {
             if (values.length > 0 && values[0]) {
                 selectedModel = values[0];
+                // Trigger validation when model changes
+                await validateAndUpdateContainer(selectedPath, selectedModel);
             }
         },
         undefined, // minSelections
@@ -316,6 +412,11 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
             }
             
             // Wizard completed - extract final values
+            if (!selectedModel) {
+                console.error('No model selected for wizard completion');
+                return;
+            }
+            
             const result: AddFolderWizardResult = {
                 path: selectedPath,
                 model: selectedModel
@@ -334,14 +435,24 @@ export function createAddFolderWizard(options: AddFolderWizardOptions): Containe
     );
     
     // Perform initial validation now that containerWizard is created
-    // This ensures the validation state is properly initialized
-    validateAndUpdateContainer(selectedPath).catch(error => {
-        console.error(`Initial validation error: ${error}`);
+    // This ensures the validation state is properly initialized with both folder and model
+    try {
+        await validateAndUpdateContainer(selectedPath, selectedModel);
+        // Initial validation completed
+        
+        // Also set the validation on the folder picker so it shows immediately
+        if (currentValidation.hasWarning || currentValidation.hasError) {
+            const state = currentValidation.hasError ? ValidatedListItemValidationState.Error : ValidatedListItemValidationState.Warning;
+            const message = currentValidation.errorMessage || currentValidation.warningMessage || '';
+            const validationMessage = createValidationMessage(state, message);
+            folderPicker.setValidationMessage(validationMessage);
+        }
+    } catch (error) {
         // If validation fails, set a basic error state
         if (containerWizard) {
             containerWizard.updateValidationResult(createValidationResult(false, 'Validation service unavailable'));
         }
-    });
+    }
     
     return containerWizard;
 }

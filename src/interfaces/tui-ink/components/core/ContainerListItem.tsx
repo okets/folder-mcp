@@ -279,6 +279,10 @@ export class ContainerListItem implements IListItem {
             viewport
         );
         
+        // Check if we have validation error or warning to show in header
+        const hasValidationError = this._validationResult.hasError;
+        const hasValidationWarning = this._validationResult.hasWarning;
+        
         elements.push(
             <Box key="header">
                 <Text {...textColorProp(theme.colors.accent)}>

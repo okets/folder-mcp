@@ -5,8 +5,6 @@
  * Provides model list retrieval and cache status checking.
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { 
   WSClientMessage,
   ModelListResponseMessage,
@@ -16,16 +14,6 @@ import {
 } from '../message-types.js';
 import { ILoggingService } from '../../../di/interfaces.js';
 
-/**
- * Interface for supported models configuration
- */
-interface SystemConfiguration {
-  embeddings?: {
-    python?: {
-      supportedModels?: string[];
-    };
-  };
-}
 
 /**
  * Model handlers for WebSocket protocol
@@ -72,39 +60,20 @@ export class ModelHandlers {
   }
 
   /**
-   * Get supported models from system configuration
+   * Get supported models - single source of truth for all model lists
    */
-  private getSupportedModels(): string[] {
-    try {
-      // Read from system configuration file
-      const configPath = join(process.cwd(), 'system-configuration.json');
-      const configContent = readFileSync(configPath, 'utf8');
-      const config: SystemConfiguration = JSON.parse(configContent);
-      
-      const models = config.embeddings?.python?.supportedModels;
-      if (Array.isArray(models) && models.length > 0) {
-        return models;
-      }
-      
-      // Fallback to default models if config doesn't have them
-      return this.getFallbackModels();
-      
-    } catch (error) {
-      this.logger.warn('Failed to read system configuration, using fallback models', error instanceof Error ? error : new Error(String(error)));
-      return this.getFallbackModels();
-    }
+  getSupportedModels(): string[] {
+    // Single hardcoded model for now - this is the authoritative list
+    // All other components (TUI, validation) must get models from this endpoint
+    return [
+      'folder-mcp:all-MiniLM-L6-v2'
+    ];
   }
 
   /**
-   * Get fallback model list when configuration is unavailable
+   * Validate if a model is supported
    */
-  private getFallbackModels(): string[] {
-    return [
-      'all-MiniLM-L6-v2',
-      'all-mpnet-base-v2',
-      'all-MiniLM-L12-v2',
-      'all-distilroberta-v1',
-      'paraphrase-MiniLM-L6-v2'
-    ];
+  isModelSupported(model: string): boolean {
+    return this.getSupportedModels().includes(model);
   }
 }
