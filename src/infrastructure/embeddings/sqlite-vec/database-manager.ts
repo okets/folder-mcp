@@ -48,8 +48,22 @@ export class DatabaseManager {
             ...config
         };
         
-        // Construct database path: folderPath/.folder-mcp/embeddings.db
-        const folderMcpDir = join(this.config.folderPath, '.folder-mcp');
+        // Determine the correct database path
+        // folderPath might be either:
+        // 1. Base folder path (e.g., /path/to/folder)
+        // 2. Cache directory path (e.g., /path/to/folder/.folder-mcp/storage)
+        let folderMcpDir: string;
+        
+        if (this.config.folderPath.includes('.folder-mcp')) {
+            // folderPath already contains .folder-mcp, extract the base and reconstruct
+            const parts = this.config.folderPath.split('.folder-mcp');
+            const baseFolderPath = (parts[0] || '').replace(/[\/\\]$/, ''); // Remove trailing slash
+            folderMcpDir = join(baseFolderPath, '.folder-mcp');
+        } else {
+            // folderPath is the base folder, append .folder-mcp
+            folderMcpDir = join(this.config.folderPath, '.folder-mcp');
+        }
+        
         this.databasePath = join(folderMcpDir, 'embeddings.db');
     }
 

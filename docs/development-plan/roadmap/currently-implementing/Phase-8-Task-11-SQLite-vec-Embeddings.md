@@ -38,6 +38,17 @@ DI Container:
 └── Update services.ts to use SQLiteVecStorage instead of mock
 ```
 
+## Updated Folder Status Model
+
+**New Simplified Status Names** (to be implemented in Sub Task 7):
+```typescript
+export type FolderIndexingStatus = 
+  | 'scanning'     // Looking for file changes, creating embeddings creation list
+  | 'indexing'     // Currently indexing files (show X/Y progress)
+  | 'active'       // Embeddings are fully available
+  | 'error';       // Embeddings, folder or model unavailable
+```
+
 ## Database Schema
 
 ```sql
@@ -275,33 +286,165 @@ npm run tui
 
 **Required Before Proceeding**: SQLite-vec storage fully integrated with daemon, status tracking working correctly
 
-### Sub Task 6: Status Broadcasting via FMDM
-- [ ] **Implement daemon status broadcasting system**
-  - [ ] Create status update events in indexing pipeline
-  - [ ] Ensure all folder status changes trigger FMDM broadcasts
-  - [ ] Add progress percentage updates during embedding/indexing sub tasks
-- [ ] **Update WebSocket protocol for real-time updates**
-  - [ ] Ensure FMDM updates with status changes reach TUI clients immediately
-  - [ ] Add throttling to prevent excessive status update messages
-  - [ ] Handle multiple folder status updates independently
-- [ ] **Add error state handling and recovery**
-  - [ ] Implement proper error status broadcasting
-  - [ ] Add retry mechanisms for failed indexing
-  - [ ] Ensure error states are clearly communicated to TUI
+### ✅ Sub Task 6: Basic Status Broadcasting Infrastructure **COMPLETED**
 
-### Sub Task 7: TUI Real-Time Status Display
-- [ ] **Update ManageFolderItem for dynamic status display**
-  - [ ] Implement status-based color coding (pending: yellow, indexing: blue, ready: green, error: red)
-  - [ ] Add progress indicators for active indexing operations
-  - [ ] Ensure real-time updates without manual refresh
-- [ ] **Enhance TUI responsiveness during indexing**
-  - [ ] Ensure TUI remains responsive during heavy indexing operations
-  - [ ] Add visual feedback for long-running operations
-  - [ ] Implement proper loading states and progress indicators
-- [ ] **Complete folder lifecycle testing**
-  - [ ] Test complete flow: Add folder → Status updates → Indexing → Ready
-  - [ ] Verify multiple folder management with independent status tracking
-  - [ ] Test error scenarios and recovery options
+**What was implemented:**
+- [x] **FMDM Service with status broadcasting**
+  - [x] `updateFolderStatus()` method in FMDM service
+  - [x] WebSocket broadcast of status changes to all connected clients
+  - [x] Status field in FMDM model (`FolderConfig.status`)
+- [x] **Daemon integration with basic status updates**
+  - [x] Status updates in `startFolderIndexing()`: pending → indexing → indexed/error
+  - [x] Error handling with status update to 'error' on failures
+  - [x] Connection to FMDM service for broadcasting
+- [x] **WebSocket protocol support**
+  - [x] FMDM updates automatically broadcast to TUI clients
+  - [x] Multiple folder status tracking independently
+  - [x] Real-time connection maintained between daemon and TUI
+
+**Current Status Flow**: `pending` → `indexing` → `indexed` or `error`
+
+### 🔧 Sub Task 7: Complete Status System with TUI Display **NOT IMPLEMENTED**
+
+**ASSIGNMENT: Implement the scanning → indexing → active/error Status Flow**
+
+**Overview**: Create a unified status system that provides real-time feedback for all indexing scenarios (new folders, file changes, daemon restarts).
+
+**Prerequisites**:
+- Sub Task 6 completed (basic FMDM broadcasting infrastructure)
+- SQLite-vec storage connected to daemon
+- TUI receiving FMDM updates via WebSocket
+
+**Detailed Implementation Steps**:
+
+#### Step 1: Update FMDM Status Model
+**File**: `src/daemon/models/fmdm.ts`
+
+```typescript
+// Change the status type to simplified flow
+export type FolderIndexingStatus = 
+  | 'scanning'     // Looking for file changes, creating work list
+  | 'indexing'     // Processing files and creating embeddings
+  | 'active'       // Embeddings ready, monitoring for changes
+  | 'error';       // Folder, model, or embeddings unavailable
+
+// Add progress tracking to folder config
+export interface FolderConfig {
+  path: string;
+  model: string;
+  status: FolderIndexingStatus;
+  progress?: {
+    current: number;  // Files processed
+    total: number;    // Total files to process
+  };
+}
+```
+
+#### Step 2: Update FMDM Service for Progress Support
+**File**: `src/daemon/services/fmdm-service.ts`
+
+- [ ] Modify `updateFolderStatus` method signature:
+  ```typescript
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, progress?: { current: number; total: number }): void
+  ```
+- [ ] Add throttling mechanism (max 1 update per second per folder)
+- [ ] Store progress in folder config when provided
+
+#### Step 3: Implement Scanning Phase in Indexing
+**File**: `src/application/indexing/orchestrator.ts`
+
+- [ ] Add scanning phase at start of `executeIndexingWorkflow`:
+  ```typescript
+  // 1. Scanning phase - count files and create work list
+  const filesToProcess = await this.scanForIndexableFiles(folderPath, options);
+  const totalFiles = filesToProcess.length;
+  
+  // Notify that scanning is complete, moving to indexing
+  // This is where daemon would call: updateFolderStatus(path, 'indexing', { current: 0, total: totalFiles })
+  ```
+- [ ] Return progress info in result for daemon to broadcast
+
+#### Step 4: Update Daemon Indexing Flow
+**File**: `src/daemon/index.ts`
+
+- [ ] Modify `startFolderIndexing` to implement new flow:
+  ```typescript
+  // Start with scanning status
+  this.fmdmService.updateFolderStatus(folderPath, 'scanning');
+  
+  // Call indexing service
+  const result = await this.indexingService.indexFolder(folderPath, options);
+  
+  // indexingService will have notified about scanning→indexing transition
+  // and progress updates during processing
+  
+  if (result.success) {
+    this.fmdmService.updateFolderStatus(folderPath, 'active');
+  } else {
+    this.fmdmService.updateFolderStatus(folderPath, 'error');
+  }
+  ```
+
+- [ ] Add progress callback to indexing options:
+  ```typescript
+  onProgress: (current: number, total: number) => {
+    this.fmdmService.updateFolderStatus(folderPath, 'indexing', { current, total });
+  }
+  ```
+
+#### Step 5: Connect Status to TUI Display
+**File**: `src/interfaces/tui-ink/AppFullscreen.tsx`
+
+- [ ] Extract status and progress from FMDM folder data:
+  ```typescript
+  // In the folder mapping loop (around line 205)
+  currentFolders.forEach((folder, index) => {
+    const folderStatus = folder.status || 'scanning';
+    const statusColor = {
+      'scanning': 'yellow',
+      'indexing': 'blue', 
+      'active': 'green',
+      'error': 'red'
+    }[folderStatus] || 'gray';
+    
+    // Format status text with progress
+    let statusText = folderStatus;
+    if (folder.progress && folderStatus === 'indexing') {
+      statusText = `indexing - ${folder.progress.current}/${folder.progress.total} files`;
+    }
+    
+    const manageFolderItem = createManageFolderItem({
+      folderPath,
+      model: folder.model || 'nomic-embed-text',
+      isValid: folderValid,
+      folderStatus: statusText,    // ADD THIS
+      statusColor: statusColor,     // ADD THIS
+      onRemove: async (pathToRemove: string) => { ... }
+    });
+  });
+  ```
+
+#### Step 6: Add Progress Callback Infrastructure
+**Files**: Various indexing-related files
+
+- [ ] Add `onProgress` callback to `IndexingOptions` interface
+- [ ] Thread progress callback through indexing pipeline
+- [ ] Call progress callback after each file processed
+- [ ] Implement throttling at callback level
+
+#### Step 7: Handle Edge Cases
+- [ ] Daemon restart: All folders start in 'scanning' state
+- [ ] File changes in 'active' folder: Transition back to 'scanning'
+- [ ] Model unavailable: Immediate transition to 'error'
+- [ ] Folder permission issues: Transition to 'error' with details
+
+**Testing Checklist**:
+- [ ] New folder: scanning → indexing (0/X files) → indexing (Y/X files) → active
+- [ ] File change: active → scanning → indexing → active
+- [ ] Daemon restart: all folders show scanning → indexing → active
+- [ ] Error cases: proper error status with no progress
+- [ ] Multiple folders: independent status progression
+- [ ] TUI updates: real-time status changes without lag
 
 ### 🔍 **MANUAL TESTING REVIEW STOP 3: Complete Status Integration**
 
@@ -355,7 +498,7 @@ npm run tui
 
 **Required Before Proceeding**: Complete status integration working flawlessly, excellent user experience
 
-### Sub Task 8: Performance Optimization and Edge Cases
+### ❌ Sub Task 8: Performance Optimization and Edge Cases **NOT IMPLEMENTED**
 - [ ] **Database performance optimization**
   - [ ] Implement database vacuum/optimization on startup
   - [ ] Add query performance monitoring and logging
@@ -371,7 +514,7 @@ npm run tui
   - [ ] Delete JSON file storage code and unused imports
   - [ ] Update DI container registration to use SQLiteVecStorage
 
-### Sub Task 9: Testing and Validation
+### ❌ Sub Task 9: Testing and Validation **NOT IMPLEMENTED**
 - [ ] **Comprehensive unit tests**
   - [ ] SQLiteVecStorage database operations
   - [ ] Document CRUD operations

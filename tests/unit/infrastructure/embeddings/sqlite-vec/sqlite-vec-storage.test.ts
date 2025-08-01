@@ -107,7 +107,7 @@ describe('SQLiteVecStorage', () => {
                 .rejects.toThrow(/Embeddings count .* must match metadata count/);
         });
 
-        it.skip('should replace existing index when building new one', async () => {
+        it('should replace existing index when building new one', async () => {
             // Build first index
             const embeddings1: TestEmbedding[] = [new Array(384).fill(0.1)];
             const metadata1: VectorMetadata[] = [{

@@ -10,7 +10,7 @@ import { FolderMCPDaemon } from '../../../src/daemon/index.js';
 import { FMDMService } from '../../../src/daemon/services/fmdm-service.js';
 import { setupDependencyInjection } from '../../../src/di/setup.js';
 import { MODULE_TOKENS } from '../../../src/di/interfaces.js';
-import { IMultiFolderIndexingWorkflow } from '../../../src/application/indexing/index.js';
+import { IMultiFolderIndexingWorkflow, IndexingOrchestrator } from '../../../src/application/indexing/index.js';
 import { SERVICE_TOKENS } from '../../../src/di/interfaces.js';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -20,7 +20,7 @@ describe('SQLiteVecStorage Daemon Integration', () => {
   let testFolder: string;
   let daemon: FolderMCPDaemon | undefined;
   let diContainer: any;
-  let indexingService: IMultiFolderIndexingWorkflow;
+  let indexingOrchestrator: IndexingOrchestrator;
   
   beforeEach(async () => {
     // Create temporary test folder
@@ -30,13 +30,14 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     // Create a test document
     writeFileSync(join(testFolder, 'test.txt'), 'This is a test document for indexing.');
     
-    // Setup DI container
+    // Setup DI container with test folder path
     diContainer = setupDependencyInjection({
-      logLevel: 'error' // Quiet during tests
+      logLevel: 'error', // Quiet during tests
+      folderPath: testFolder // Configure vector search service for test folder
     });
     
-    // Get multi-folder indexing service
-    indexingService = await diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
+    // Get indexing orchestrator directly to avoid folder configuration requirement
+    indexingOrchestrator = await diContainer.resolveAsync(MODULE_TOKENS.APPLICATION.INDEXING_WORKFLOW);
   });
   
   afterEach(async () => {
@@ -57,27 +58,23 @@ describe('SQLiteVecStorage Daemon Integration', () => {
 
   it('should connect SQLiteVecStorage to IndexingOrchestrator', async () => {
     // Test that IndexingOrchestrator uses SQLiteVecStorage not mock
-    expect(indexingService).toBeDefined();
-    expect(typeof indexingService.indexFolder).toBe('function');
+    expect(indexingOrchestrator).toBeDefined();
+    expect(typeof indexingOrchestrator.indexFolder).toBe('function');
     
     // Try to index a folder to verify the service works
-    const result = await indexingService.indexFolder(testFolder, {
-      baseOptions: {
-        forceReindex: true
-      }
+    const result = await indexingOrchestrator.indexFolder(testFolder, {
+      forceReindex: true
     });
     
     expect(result).toBeDefined();
     expect(result.success).toBe(true);
-    expect(result.result?.filesProcessed).toBeGreaterThan(0);
+    expect(result.filesProcessed).toBeGreaterThan(0);
   });
   
   it('should create per-folder databases in correct locations', async () => {
     // Test database creation at folderPath/.folder-mcp/embeddings.db
-    await indexingService.indexFolder(testFolder, {
-      baseOptions: {
-        forceReindex: true
-      }
+    await indexingOrchestrator.indexFolder(testFolder, {
+      forceReindex: true
     });
     
     // Check if SQLite database was created
@@ -90,7 +87,7 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     const nonExistentFolder = join(tmpdir(), 'non-existent-folder');
     
     await expect(async () => {
-      await indexingService.indexFolder(nonExistentFolder, {});
+      await indexingOrchestrator.indexFolder(nonExistentFolder, {});
     }).rejects.toThrow();
   });
 });

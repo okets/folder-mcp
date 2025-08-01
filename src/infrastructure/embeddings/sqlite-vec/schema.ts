@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS chunks (
  */
 export const EMBEDDINGS_TABLE_TEMPLATE = `
 CREATE TABLE IF NOT EXISTS embeddings (
-    chunk_id INTEGER PRIMARY KEY,
+    chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
     embedding TEXT
 );`;
 

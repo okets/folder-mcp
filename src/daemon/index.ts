@@ -18,8 +18,6 @@ import { spawn, type ChildProcess } from 'child_process';
 import { FMDMWebSocketServer } from './websocket/server.js';
 import { FMDMService } from './services/fmdm-service.js';
 import { WebSocketProtocol } from './websocket/protocol.js';
-import { DaemonFolderValidationService } from './services/folder-validation-service.js';
-import { DaemonConfigurationService } from './services/configuration-service.js';
 // SQLiteVecStorage will be imported in Phase 5 when properly integrated
 import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
@@ -89,23 +87,8 @@ class FolderMCPDaemon {
     const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
     await configComponent.load();
     
-    // Real config service that reads from the same source as TUI
-    const realConfigService = {
-      getFolders: async () => {
-        const foldersList = await configComponent.get('folders.list') || [];
-        debug(`RealConfigService: Retrieved ${foldersList.length} folders from config: ${JSON.stringify(foldersList)}`);
-        return foldersList;
-      }
-    };
-    const mockLogger = {
-      debug: (msg: string, ...args: any[]) => debug(msg, ...args),
-      info: (msg: string, ...args: any[]) => debug(msg, ...args),
-      warn: (msg: string, ...args: any[]) => debug(msg, ...args),
-      error: (msg: string, ...args: any[]) => debug(msg, ...args),
-      fatal: (msg: string, ...args: any[]) => debug(msg, ...args),
-      setLevel: (level: string) => {} // No-op for mock
-    };
-    this.fmdmService = new FMDMService(realConfigService, mockLogger);
+    // Resolve FMDM service from DI container
+    this.fmdmService = this.diContainer.resolve(SERVICE_TOKENS.FMDM_SERVICE);
     
     // Initialize multi-folder indexing service from DI container
     this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
@@ -114,7 +97,7 @@ class FolderMCPDaemon {
     // Load existing folders from configuration and update FMDM
     try {
       debug('About to load existing folders from configuration...');
-      const existingFolders = await realConfigService.getFolders();
+      const existingFolders = await configComponent.get('folders.list') || [];
       debug(`Loading ${existingFolders.length} existing folders from configuration`);
       if (existingFolders.length > 0) {
         // Convert config folders to FMDM folder format
@@ -124,7 +107,7 @@ class FolderMCPDaemon {
           status: 'pending' as const  // Default status for newly loaded folders
         }));
         debug(`Converting to FMDM format: ${JSON.stringify(fmdmFolders)}`);
-        this.fmdmService.updateFolders(fmdmFolders);
+        this.fmdmService!.updateFolders(fmdmFolders);
         debug(`Updated FMDM with ${fmdmFolders.length} existing folders`);
       } else {
         debug('No existing folders found in configuration');
@@ -134,27 +117,30 @@ class FolderMCPDaemon {
       debug('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     }
     
-    // Create and start WebSocket server for TUI communication
-    this.webSocketServer = new FMDMWebSocketServer(this.fmdmService, mockLogger);
+    // Resolve WebSocket server from DI container
+    this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
     
-    // Create proper WebSocket protocol with all required services
-    const daemonConfigService = new DaemonConfigurationService(configComponent, mockLogger);
-    const validationService = new DaemonFolderValidationService(daemonConfigService, mockLogger);
-    
-    // Initialize services
+    // Resolve validation service and initialize it
+    const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
     await validationService.initialize();
     
-    // Create the proper WebSocket protocol
+    // Create WebSocket protocol with daemon as indexing trigger
+    // We need to create this manually because the daemon needs to pass itself as the indexing trigger
+    const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
+    const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
     const webSocketProtocol = new WebSocketProtocol(
       validationService,
       daemonConfigService,
-      this.fmdmService,
-      mockLogger,
+      this.fmdmService!,
+      loggingService,
       this // Pass daemon as indexing trigger
     );
     
-    this.webSocketServer.setDependencies(this.fmdmService, webSocketProtocol, mockLogger);
-    await this.webSocketServer.start(31849);
+    // Update WebSocket server with custom protocol
+    this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
+    
+    // Start WebSocket server
+    await this.webSocketServer!.start(31849);
     debug('WebSocket server started on ws://127.0.0.1:31849');
     
     // Create HTTP server

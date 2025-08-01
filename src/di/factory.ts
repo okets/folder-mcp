@@ -118,19 +118,17 @@ export class ServiceFactory implements IServiceFactory {
     const loggingService = this.getLoggingService();
     // Use SQLiteVecStorage instead of mock VectorSearchService
     
-    // Extract folder path from cache dir (e.g., /path/to/folder/.folder-mcp/storage -> /path/to/folder)
-    const folderPath = cacheDir.replace('/.folder-mcp/storage', '');
-    
+    // Pass cacheDir directly to SQLiteVecStorage - it will handle extracting the correct path
     // Create SQLiteVecStorage config with default values
     // TODO: In future, get actual model info from folder configuration
     const config = {
-      folderPath: folderPath,
+      folderPath: cacheDir, // DatabaseManager will handle extracting the base folder path
       modelName: 'all-MiniLM-L6-v2', // Default model
       modelDimension: 384, // Default dimension for all-MiniLM-L6-v2
       logger: loggingService
     };
     
-    loggingService.info(`Creating SQLiteVecStorage for folder: ${folderPath} (from cache dir: ${cacheDir})`);
+    loggingService.info(`Creating SQLiteVecStorage for cache dir: ${cacheDir}`);
     return new SQLiteVecStorage(config);
   }
 

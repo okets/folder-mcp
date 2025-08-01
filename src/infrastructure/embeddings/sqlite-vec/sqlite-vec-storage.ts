@@ -266,7 +266,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
         // Execute in transaction
         const insertTransaction = db.transaction(() => {
             const documentMap = new Map<string, number>();
-            let documentId = 1;
 
             for (let i = 0; i < embeddings.length; i++) {
                 const embedding = embeddings[i];
@@ -278,15 +277,16 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 // Insert document if not already inserted
                 if (!documentMap.has(meta.filePath)) {
-                    insertDocStmt.run(
+                    const docResult = insertDocStmt.run(
                         meta.filePath,
-                        `fingerprint_${Date.now()}_${documentId}`, // Generate simple fingerprint
+                        `fingerprint_${Date.now()}_${i}`, // Generate simple fingerprint
                         1000, // Default file size
                         'application/octet-stream', // Default mime type
                         new Date().toISOString()
                     );
-                    documentMap.set(meta.filePath, documentId);
-                    documentId++;
+                    // Use the actual auto-generated ID from the database
+                    const docId = docResult.lastInsertRowid as number;
+                    documentMap.set(meta.filePath, docId);
                 }
 
                 const docId = documentMap.get(meta.filePath)!;

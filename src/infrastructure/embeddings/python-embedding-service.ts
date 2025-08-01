@@ -529,6 +529,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         }
       }
 
+      // Buffer stderr to capture startup errors
+      let stderrBuffer = '';
+      let processStarted = false;
+
       this.pythonProcess = spawn(this.config.pythonPath || 'python3', [
         this.config.scriptPath || join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
         this.config.modelName
@@ -537,9 +541,20 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         env: env
       });
 
+      // Capture stderr immediately to detect startup errors
+      this.pythonProcess.stderr?.on('data', (data) => {
+        const message = data.toString();
+        stderrBuffer += message;
+        // Still log to console for debugging
+        if (message.trim()) {
+          console.error(`Python[stderr]: ${message.trim()}`);
+        }
+      });
+
       // Handle process events
       this.pythonProcess.on('spawn', () => {
         console.error('Python process spawned successfully');
+        processStarted = true;
         this.setupProcessHandlers();
         resolve();
       });
@@ -553,6 +568,18 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         console.error(`Python process exited: code=${code}, signal=${signal}`);
         this.pythonProcess = null;
         this.initialized = false;
+        
+        // If process exits before starting successfully, check for known errors
+        if (!processStarted) {
+          // Check if dependencies are missing
+          if (code === 1 && stderrBuffer.includes('dependencies not available')) {
+            reject(new Error('Python embedding dependencies not available'));
+            return;
+          }
+          // Generic startup failure
+          reject(new Error(`Python process failed to start: exit code ${code}`));
+          return;
+        }
         
         // Reject all pending requests
         for (const [id, pending] of this.pendingRequests) {
@@ -590,13 +617,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       }
     });
 
-    // Handle stderr (logging from Python)
-    this.pythonProcess.stderr?.on('data', (data) => {
-      const message = data.toString().trim();
-      if (message) {
-        console.error(`Python[stderr]: ${message}`);
-      }
-    });
+    // Note: stderr is already handled in startPythonProcess to capture startup errors
   }
 
   /**
