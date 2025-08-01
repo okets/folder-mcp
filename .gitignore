@@ -57,6 +57,10 @@ coverage/
 # Test folder cache directories (these are created by our tool)
 **/test-*/**/.folder-mcp/
 
+# Runtime embeddings folders
+.folder-mcp/
+**/.folder-mcp/
+
 # Test data directories (temporary test artifacts)
 tests/test-data-phase*/
 
