@@ -168,12 +168,17 @@ class EmbeddingHandler:
         try:
             logger.info(f"Loading model {self.model_name} on {self.device}...")
             
-            # Load model
-            self.model = SentenceTransformer(self.model_name)
+            # Load model on CPU first to avoid MPS meta tensor issues
+            self.model = SentenceTransformer(self.model_name, device='cpu')
             
-            # Move to optimal device
-            if self.device != 'cpu':
-                self.model.to(self.device)
+            # Move to MPS if available (skip if already on target device)
+            if self.device != 'cpu' and str(self.model.device) != self.device:
+                try:
+                    self.model = self.model.to(self.device)
+                    logger.info(f"Model moved to {self.device}")
+                except Exception as e:
+                    logger.warning(f"Failed to move model to {self.device}, using CPU: {e}")
+                    self.device = 'cpu'
             
             self.model_loaded_event.set()
             logger.info(f"Model {self.model_name} loaded successfully on {self.device}")
