@@ -97,7 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
 
 ## Implementation Plan
 
-### ✅ Phase 1: Setup and Infrastructure **COMPLETED**
+### ✅ Sub Task 1: Setup and Infrastructure **COMPLETED**
 - ✅ Install sqlite-vec package (`npm install sqlite-vec`)
 - ✅ Create `src/infrastructure/embeddings/sqlite-vec/` directory structure  
 - ✅ Implement `DatabaseManager` class for SQLite connection management
@@ -108,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
 - ✅ Create `schema.ts` with all table definitions
 - ✅ Write unit tests for database initialization
 
-### ✅ Phase 2: Core Storage Implementation **COMPLETED**
+### ✅ Sub Task 2: Core Storage Implementation **COMPLETED**
 - ✅ Create `SQLiteVecStorage` class implementing `IVectorSearchService`
   - ✅ Constructor with database path injection
   - ✅ `buildIndex(embeddings, metadata)` implementation
@@ -127,7 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
 - ✅ Implement proper error handling and logging
 - ✅ Add transaction support for atomic operations
 
-### ✅ Phase 3: WebSocket Protocol Extensions **COMPLETED**
+### ✅ Sub Task 3: WebSocket Protocol Extensions **COMPLETED**
 - ✅ Add `folder.add` message handler to daemon WebSocket protocol
 - ✅ Add `folder.remove` message handler to daemon WebSocket protocol  
 - ✅ Add `folder.validate` message handler to daemon WebSocket protocol
@@ -146,7 +146,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
 
 **Status**: Ready to proceed with daemon indexing integration
 
-### Phase 4: FMDM Status Interface Extension
+### Sub Task 4: FMDM Status Interface Extension
 - [ ] **Extend FMDM FolderConfig interface** with status tracking
   - [ ] Add `status` field to `FolderConfig` in `src/daemon/models/fmdm.ts`
   - [ ] Define `FolderStatus` type: `'pending' | 'initializing' | 'scanning' | 'parsing' | 'embedding' | 'indexing' | 'ready' | 'error'`
@@ -161,7 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
   - [ ] Modify `ManageFolderItem` to display status (prepare for Phase 7)
   - [ ] Ensure all folder-related components handle the new status field
 
-### Phase 5: Daemon Indexing Pipeline Integration
+### Sub Task 5: Daemon Indexing Pipeline Integration
 - [ ] **Connect SQLiteVecStorage to daemon indexing**
   - [ ] Update `IndexingOrchestrator` to use SQLiteVecStorage instead of mock
   - [ ] Integrate per-folder database creation in daemon
@@ -205,7 +205,7 @@ npm run tui
 ```
 
 **Pass/Fail Criteria**:
-- ✅ **PASS**: Status progression works correctly through all indexing phases
+- ✅ **PASS**: Status progression works correctly through all indexing sub tasks
 - ✅ **PASS**: SQLite databases created in correct locations with proper schema
 - ✅ **PASS**: Documents successfully indexed and searchable
 - ✅ **PASS**: TUI shows real-time status updates during indexing
@@ -215,11 +215,11 @@ npm run tui
 
 **Required Before Proceeding**: SQLite-vec storage fully integrated with daemon, status tracking working correctly
 
-### Phase 6: Status Broadcasting via FMDM
+### Sub Task 6: Status Broadcasting via FMDM
 - [ ] **Implement daemon status broadcasting system**
   - [ ] Create status update events in indexing pipeline
   - [ ] Ensure all folder status changes trigger FMDM broadcasts
-  - [ ] Add progress percentage updates during embedding/indexing phases
+  - [ ] Add progress percentage updates during embedding/indexing sub tasks
 - [ ] **Update WebSocket protocol for real-time updates**
   - [ ] Ensure FMDM updates with status changes reach TUI clients immediately
   - [ ] Add throttling to prevent excessive status update messages
@@ -229,7 +229,7 @@ npm run tui
   - [ ] Add retry mechanisms for failed indexing
   - [ ] Ensure error states are clearly communicated to TUI
 
-### Phase 7: TUI Real-Time Status Display
+### Sub Task 7: TUI Real-Time Status Display
 - [ ] **Update ManageFolderItem for dynamic status display**
   - [ ] Implement status-based color coding (pending: yellow, indexing: blue, ready: green, error: red)
   - [ ] Add progress indicators for active indexing operations
@@ -257,7 +257,7 @@ npm run tui
 2. Add test-knowledge-base folder via TUI
 3. Watch ManageFolderItem status during indexing:
    - Should start as "pending" (yellow/orange)
-   - Progress through phases with appropriate colors
+   - Progress through sub tasks with appropriate colors
    - End at "ready" (green) when complete
 4. Verify status updates happen in real-time, not just start/end
 5. Check that TUI remains responsive throughout indexing
@@ -295,7 +295,7 @@ npm run tui
 
 **Required Before Proceeding**: Complete status integration working flawlessly, excellent user experience
 
-### Phase 8: Performance Optimization and Edge Cases
+### Sub Task 8: Performance Optimization and Edge Cases
 - [ ] **Database performance optimization**
   - [ ] Implement database vacuum/optimization on startup
   - [ ] Add query performance monitoring and logging
@@ -311,7 +311,7 @@ npm run tui
   - [ ] Delete JSON file storage code and unused imports
   - [ ] Update DI container registration to use SQLiteVecStorage
 
-### Phase 9: Testing and Validation
+### Sub Task 9: Testing and Validation
 - [ ] **Comprehensive unit tests**
   - [ ] SQLiteVecStorage database operations
   - [ ] Document CRUD operations

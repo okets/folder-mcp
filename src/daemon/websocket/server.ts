@@ -330,10 +330,18 @@ export class FMDMWebSocketServer {
    */
   private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, meta?: any): void {
     if (this.logger) {
-      this.logger[level](message, meta);
+      if (meta !== undefined) {
+        this.logger[level](message, meta);
+      } else {
+        this.logger[level](message);
+      }
     } else {
       // Fallback to console
-      console[level === 'debug' ? 'log' : level](`[WebSocket] ${message}`, meta || '');
+      if (meta !== undefined) {
+        console[level === 'debug' ? 'log' : level](`[WebSocket] ${message}`, meta);
+      } else {
+        console[level === 'debug' ? 'log' : level](`[WebSocket] ${message}`);
+      }
     }
   }
 

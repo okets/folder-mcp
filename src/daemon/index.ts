@@ -26,7 +26,11 @@ import { setupDependencyInjection } from '../di/setup.js';
 // Create a simple debug logger
 const debug = (message: string, ...args: any[]) => {
   const timestamp = new Date().toISOString();
-  console.error(`[${timestamp}] [DAEMON] ${message}`, ...args);
+  if (args.length > 0) {
+    console.error(`[${timestamp}] [DAEMON] ${message}`, ...args);
+  } else {
+    console.error(`[${timestamp}] [DAEMON] ${message}`);
+  }
 };
 
 interface DaemonConfig {
