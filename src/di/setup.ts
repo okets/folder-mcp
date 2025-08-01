@@ -135,11 +135,11 @@ export function setupDependencyInjection(options: {
     return new MultiFolderStorageProvider(folderManager, storageFactory, loggingService);
   });
 
-  // Register multi-folder indexing workflow
-  container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, () => {
+  // Register multi-folder indexing workflow (async because it depends on async IndexingWorkflow)
+  container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, async () => {
     const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
     const storageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER) as any;
-    const singleFolderIndexing = container.resolve(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
+    const singleFolderIndexing = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     return new MultiFolderIndexingWorkflow(folderManager, storageProvider, singleFolderIndexing, loggingService);
   });

@@ -22,6 +22,9 @@ import { DaemonFolderValidationService } from './services/folder-validation-serv
 import { DaemonConfigurationService } from './services/configuration-service.js';
 // SQLiteVecStorage will be imported in Phase 5 when properly integrated
 import { setupDependencyInjection } from '../di/setup.js';
+import { MODULE_TOKENS } from '../di/interfaces.js';
+import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
+import { SERVICE_TOKENS } from '../di/interfaces.js';
 
 // Create a simple debug logger
 const debug = (message: string, ...args: any[]) => {
@@ -56,6 +59,7 @@ class FolderMCPDaemon {
   private webSocketServer: FMDMWebSocketServer | null = null;
   private fmdmService: FMDMService | null = null;
   private diContainer: any = null;
+  private indexingService: IMultiFolderIndexingWorkflow | null = null;
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -103,6 +107,10 @@ class FolderMCPDaemon {
     };
     this.fmdmService = new FMDMService(realConfigService, mockLogger);
     
+    // Initialize multi-folder indexing service from DI container
+    this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
+    debug('Multi-folder indexing service initialized');
+    
     // Load existing folders from configuration and update FMDM
     try {
       debug('About to load existing folders from configuration...');
@@ -112,7 +120,8 @@ class FolderMCPDaemon {
         // Convert config folders to FMDM folder format
         const fmdmFolders = existingFolders.map((folder: any) => ({
           path: folder.path,
-          model: folder.model
+          model: folder.model,
+          status: 'pending' as const  // Default status for newly loaded folders
         }));
         debug(`Converting to FMDM format: ${JSON.stringify(fmdmFolders)}`);
         this.fmdmService.updateFolders(fmdmFolders);
@@ -140,7 +149,8 @@ class FolderMCPDaemon {
       validationService,
       daemonConfigService,
       this.fmdmService,
-      mockLogger
+      mockLogger,
+      this // Pass daemon as indexing trigger
     );
     
     this.webSocketServer.setDependencies(this.fmdmService, webSocketProtocol, mockLogger);
@@ -323,6 +333,47 @@ class FolderMCPDaemon {
       debug('Unhandled rejection:', reason);
       this.stop().finally(() => process.exit(1));
     });
+  }
+
+  /**
+   * Trigger indexing for a specific folder with status updates
+   */
+  async startFolderIndexing(folderPath: string): Promise<void> {
+    if (!this.fmdmService || !this.indexingService) {
+      debug(`Cannot start indexing: services not initialized`);
+      return;
+    }
+
+    debug(`Starting indexing for folder: ${folderPath}`);
+    
+    try {
+      // Update status to indexing
+      this.fmdmService.updateFolderStatus(folderPath, 'indexing');
+      
+      // Start indexing (this is async)
+      const indexingResult = await this.indexingService.indexFolder(folderPath, {
+        baseOptions: {
+          forceReindex: false // Use cache when possible
+        }
+      });
+      
+      if (indexingResult.success) {
+        // Update status to indexed first, then watching
+        this.fmdmService.updateFolderStatus(folderPath, 'indexed');
+        
+        // TODO: In future, start file monitoring and update to 'watching'
+        // For now, keep as 'indexed'
+        debug(`Indexing completed for folder: ${folderPath}`);
+      } else {
+        // Update status to error
+        this.fmdmService.updateFolderStatus(folderPath, 'error');
+        debug(`Indexing failed for folder: ${folderPath}`, indexingResult.error);
+      }
+      
+    } catch (error) {
+      debug(`Indexing error for folder ${folderPath}:`, error);
+      this.fmdmService.updateFolderStatus(folderPath, 'error');
+    }
   }
 }
 

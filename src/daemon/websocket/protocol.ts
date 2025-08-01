@@ -30,7 +30,7 @@ import {
 
 import { ILoggingService } from '../../di/interfaces.js';
 import { ClientConnection } from '../models/fmdm.js';
-import { FolderHandlers } from './handlers/folder-handlers.js';
+import { FolderHandlers, IIndexingTrigger } from './handlers/folder-handlers.js';
 import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
@@ -62,7 +62,8 @@ export class WebSocketProtocol {
     private validationService: IDaemonFolderValidationService,
     private configService: IDaemonConfigurationService,
     private fmdmService: IProtocolFMDMService,
-    private logger: ILoggingService
+    private logger: ILoggingService,
+    private indexingTrigger?: IIndexingTrigger
   ) {
     // Create model handlers first
     this.modelHandlers = new ModelHandlers(this.logger);
@@ -73,7 +74,8 @@ export class WebSocketProtocol {
       this.fmdmService,
       this.validationService,
       this.modelHandlers,
-      this.logger
+      this.logger,
+      this.indexingTrigger
     );
   }
 

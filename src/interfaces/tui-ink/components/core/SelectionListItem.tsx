@@ -465,13 +465,35 @@ export class SelectionListItem implements IListItem {
                 </Text>
             ];
 
-            // Add validation checkmark if present (wizard feature)
-            if (this._validationMessage && this._validationMessage.state === 'valid') {
-                elements.push(
-                    <Text key="validation" {...textColorProp(theme.colors.successGreen)}>
-                        {' '}✓
-                    </Text>
-                );
+            // Add validation message if present (wizard feature)
+            if (this._validationMessage) {
+                if (this._validationMessage.state === 'valid') {
+                    elements.push(
+                        <Text key="validation" {...textColorProp(theme.colors.successGreen)}>
+                            {' '}✓
+                        </Text>
+                    );
+                } else if (this._validationMessage.state === 'error') {
+                    // Show error message similar to how it's shown in collapsed header
+                    const errorText = this._validationMessage.message ? ` ✗ ${this._validationMessage.message}` : ' ✗';
+                    const usedSpace = displayIcon.length + 1 + label.length + 2 + value.length + 1; // icon + space + label + " [" + value + "]"
+                    const availableSpace = maxWidth - usedSpace;
+                    
+                    if (availableSpace >= errorText.length) {
+                        elements.push(
+                            <Text key="validation" {...textColorProp('red')}>
+                                {errorText}
+                            </Text>
+                        );
+                    } else if (availableSpace > 3) { // " ✗ " minimum
+                        const truncatedError = errorText.slice(0, availableSpace - 1) + '…';
+                        elements.push(
+                            <Text key="validation" {...textColorProp('red')}>
+                                {truncatedError}
+                            </Text>
+                        );
+                    }
+                }
             }
 
             return (

@@ -8,7 +8,14 @@
 
 import { ConfigurationComponent } from '../../config/ConfigurationComponent.js';
 import { ILoggingService } from '../../di/interfaces.js';
-import { FolderConfig } from '../models/fmdm.js';
+
+/**
+ * Configuration folder format (without runtime status)
+ */
+export interface ConfigFolderEntry {
+  path: string;
+  model: string;
+}
 
 /**
  * Configuration service interface for daemon use
@@ -17,7 +24,7 @@ export interface IDaemonConfigurationService {
   /**
    * Get all configured folders
    */
-  getFolders(): Promise<FolderConfig[]>;
+  getFolders(): Promise<ConfigFolderEntry[]>;
   
   /**
    * Add a new folder configuration
@@ -42,7 +49,7 @@ export interface IDaemonConfigurationService {
   /**
    * Get folder configuration by path
    */
-  getFolder(path: string): Promise<FolderConfig | null>;
+  getFolder(path: string): Promise<ConfigFolderEntry | null>;
   
   /**
    * Get available models list
@@ -64,7 +71,7 @@ export class DaemonConfigurationService implements IDaemonConfigurationService {
   /**
    * Get all configured folders
    */
-  async getFolders(): Promise<FolderConfig[]> {
+  async getFolders(): Promise<ConfigFolderEntry[]> {
     try {
       this.logger.debug(`\n=== CONFIG SERVICE DEBUG START ===`);
       this.logger.debug('Calling configComponent.getFolders()...');
@@ -175,7 +182,7 @@ export class DaemonConfigurationService implements IDaemonConfigurationService {
   /**
    * Get folder configuration by path
    */
-  async getFolder(path: string): Promise<FolderConfig | null> {
+  async getFolder(path: string): Promise<ConfigFolderEntry | null> {
     try {
       const folder = await this.configComponent.getFolder(path);
       if (!folder) {

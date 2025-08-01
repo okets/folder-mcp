@@ -146,20 +146,20 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
 
 **Status**: Ready to proceed with daemon indexing integration
 
-### Sub Task 4: FMDM Status Interface Extension
-- [ ] **Extend FMDM FolderConfig interface** with status tracking
-  - [ ] Add `status` field to `FolderConfig` in `src/daemon/models/fmdm.ts`
-  - [ ] Define `FolderStatus` type: `'pending' | 'initializing' | 'scanning' | 'parsing' | 'embedding' | 'indexing' | 'ready' | 'error'`
-  - [ ] Add optional `progress` field for percentage tracking
-  - [ ] Update TypeScript interfaces across codebase
-- [ ] **Update daemon FMDM operations** to include status
-  - [ ] Modify folder addition to set initial status as `'pending'`
-  - [ ] Update all FMDM broadcast messages to include folder status
-  - [ ] Ensure status changes trigger FMDM updates to connected clients
-- [ ] **Update TUI components** to handle status field
-  - [ ] Update `useConfiguredFolders()` hook to include status information
-  - [ ] Modify `ManageFolderItem` to display status (prepare for Phase 7)
-  - [ ] Ensure all folder-related components handle the new status field
+### ✅ Sub Task 4: FMDM Status Interface Extension **COMPLETED**
+- ✅ **Extend FMDM FolderConfig interface** with status tracking
+  - ✅ Add `status` field to `FolderConfig` in `src/daemon/models/fmdm.ts`
+  - ✅ Define `FolderIndexingStatus` type: `'pending' | 'indexing' | 'indexed' | 'error' | 'watching'`
+  - ✅ Update TypeScript interfaces across codebase
+- ✅ **Update daemon FMDM operations** to include status
+  - ✅ Modify folder addition to set initial status as `'pending'`
+  - ✅ Update all FMDM broadcast messages to include folder status
+  - ✅ Add `updateFolderStatus()` method to FMDM service for status changes
+  - ✅ Ensure status changes trigger FMDM updates to connected clients
+- ✅ **Separate configuration concerns**
+  - ✅ Create `ConfigFolderEntry` interface for configuration service
+  - ✅ Keep FMDM `FolderConfig` separate with runtime status
+  - ✅ Clean conversion between config and FMDM formats
 
 ### Sub Task 5: Daemon Indexing Pipeline Integration
 - [ ] **Connect SQLiteVecStorage to daemon indexing**
@@ -167,13 +167,73 @@ CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reinde
   - [ ] Integrate per-folder database creation in daemon
   - [ ] Ensure databases are created in correct folder `.folder-mcp/embeddings.db` locations
 - [ ] **Implement background indexing with status updates**
-  - [ ] Modify indexing process to update folder status: `pending` → `initializing` → `scanning` → `parsing` → `embedding` → `indexing` → `ready`
-  - [ ] Handle indexing errors with `error` status
+  - [ ] Modify indexing process to update folder status: `pending` → `indexing` → `indexed`
+  - [ ] Handle indexing errors with `error` status, final success with `watching` status
   - [ ] Ensure status changes are broadcast via FMDM to TUI clients
 - [ ] **Add folder validation integration**
   - [ ] Ensure SQLite database initialization during folder addition
   - [ ] Handle database creation errors gracefully
   - [ ] Update folder removal to clean up SQLite databases
+
+**Unit Tests for Sub Task 5**:
+```typescript
+// tests/daemon/indexing/sqlite-vec-integration.test.ts
+describe('SQLiteVecStorage Daemon Integration', () => {
+  it('should connect SQLiteVecStorage to IndexingOrchestrator', async () => {
+    // Test that IndexingOrchestrator uses SQLiteVecStorage not mock
+  });
+  
+  it('should create per-folder databases in correct locations', async () => {
+    // Test database creation at folderPath/.folder-mcp/embeddings.db
+  });
+  
+  it('should update folder status during indexing process', async () => {
+    // Test status progression: pending → indexing → indexed → watching
+  });
+  
+  it('should handle indexing errors with proper status updates', async () => {
+    // Test error status updates and recovery
+  });
+  
+  it('should broadcast status changes via FMDM', async () => {
+    // Test that status changes trigger FMDM broadcasts
+  });
+  
+  it('should initialize SQLite database during folder addition', async () => {
+    // Test database initialization in daemon folder handlers
+  });
+  
+  it('should clean up databases during folder removal', async () => {
+    // Test database cleanup when folders are removed
+  });
+});
+
+// tests/daemon/services/fmdm-status-integration.test.ts  
+describe('FMDM Status Integration', () => {
+  it('should update folder status via updateFolderStatus method', async () => {
+    // Test FMDM service status updates
+  });
+  
+  it('should broadcast status changes to connected clients', async () => {
+    // Test WebSocket status broadcasting
+  });
+  
+  it('should handle multiple folder status updates independently', async () => {
+    // Test concurrent status updates for different folders
+  });
+});
+```
+
+**Integration Tests**:
+```bash
+# Test with actual test-knowledge-base folder
+npm run test:integration -- --grep "SQLite-vec daemon integration"
+
+# Manual daemon testing
+node dist/src/daemon/index.js  # Start daemon
+# In another terminal: npm run tui
+# Add test-knowledge-base folder, watch status updates
+```
 
 ### 🔍 **MANUAL TESTING REVIEW STOP 2: Daemon Integration**
 

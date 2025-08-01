@@ -6,7 +6,7 @@
  * client connection tracking.
  */
 
-import { FMDM, FolderConfig, DaemonStatus, ConnectionInfo, ClientConnection } from '../models/fmdm.js';
+import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ConnectionInfo, ClientConnection } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 
 /**
@@ -52,13 +52,18 @@ export interface IFMDMService {
    * Get connection count
    */
   getConnectionCount(): number;
+  
+  /**
+   * Update status for a specific folder
+   */
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus): void;
 }
 
 /**
  * Configuration service interface (minimal for FMDM needs)
  */
 export interface IConfigurationService {
-  getFolders(): Promise<FolderConfig[]>;
+  getFolders(): Promise<Array<{ path: string; model: string }>>;
 }
 
 /**
@@ -122,9 +127,17 @@ export class FMDMService implements IFMDMService {
    */
   async loadFoldersFromConfig(): Promise<void> {
     try {
-      const folders = await this.configService.getFolders();
-      this.updateFolders(folders);
-      this.logger.debug(`Loaded ${folders.length} folders from configuration`);
+      const configFolders = await this.configService.getFolders();
+      
+      // Convert config folders to FMDM format with default status
+      const fmdmFolders: FolderConfig[] = configFolders.map(folder => ({
+        path: folder.path,
+        model: folder.model,
+        status: 'pending' as const  // Default status for loaded folders
+      }));
+      
+      this.updateFolders(fmdmFolders);
+      this.logger.debug(`Loaded ${fmdmFolders.length} folders from configuration`);
     } catch (error) {
       this.logger.error('Failed to load folders from configuration', error instanceof Error ? error : new Error(String(error)));
       // Keep existing folders if config load fails
@@ -229,6 +242,36 @@ export class FMDMService implements IFMDMService {
    */
   getConnectionCount(): number {
     return this.fmdm.connections.count;
+  }
+  
+  /**
+   * Update status for a specific folder
+   */
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus): void {
+    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    
+    if (folderIndex === -1) {
+      this.logger.warn(`Attempted to update status for unknown folder: ${folderPath}`);
+      return;
+    }
+    
+    // Update the folder status
+    const folder = this.fmdm.folders[folderIndex];
+    if (!folder) {
+      this.logger.error(`Folder at index ${folderIndex} is unexpectedly undefined`);
+      return;
+    }
+    
+    this.fmdm.folders[folderIndex] = {
+      path: folder.path,
+      model: folder.model,
+      status: status
+    };
+    
+    // Update version and broadcast changes
+    this.fmdm.version = this.generateVersion();
+    this.logger.debug(`Updated folder status: ${folderPath} -> ${status}`);
+    this.broadcast();
   }
   
   /**

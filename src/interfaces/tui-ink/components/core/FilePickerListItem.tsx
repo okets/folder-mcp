@@ -93,6 +93,8 @@ export class FilePickerListItem extends ValidatedListItem {
         // Validate the path that's being displayed
         const pathToValidate = this._isControllingInput ? this._currentPath : this._selectedPath;
         
+        console.error(`[FilePickerListItem] performValidation called - path: ${pathToValidate}, isControllingInput: ${this._isControllingInput}`);
+        
         if (!pathToValidate) {
             return null; // No validation for empty paths
         }
@@ -130,6 +132,7 @@ export class FilePickerListItem extends ValidatedListItem {
                 
                 // If FMDM validation adapter is available, perform folder conflict validation
                 if (this.fmdmValidationAdapter) {
+                    console.error(`[FilePickerListItem] FMDM validation adapter available, triggering async validation`);
                     // We need to make this async, but performValidation is sync
                     // For now, trigger async validation and return null
                     // The async result will be handled by the validation trigger
@@ -178,6 +181,8 @@ export class FilePickerListItem extends ValidatedListItem {
         // Validate the path that's being displayed
         const pathToValidate = this._isControllingInput ? this._currentPath : this._selectedPath;
         
+        console.error(`[FilePickerListItem] performAsyncFolderValidation called - path: ${pathToValidate}`);
+        
         if (!this.fmdmValidationAdapter || !pathToValidate) {
             return;
         }
@@ -195,10 +200,12 @@ export class FilePickerListItem extends ValidatedListItem {
                 this._validationMessage = createValidationMessage(state, displayMessage);
                 
                 // Trigger re-render by calling onChange if available
+                console.error(`[FilePickerListItem] Calling onChange after validation (invalid/warning)`);
                 this.onChange?.();
             } else {
                 // Clear validation message if path is valid and has no warnings
                 this._validationMessage = null;
+                console.error(`[FilePickerListItem] Calling onChange after validation (valid)`);
                 this.onChange?.();
             }
         } catch (error) {

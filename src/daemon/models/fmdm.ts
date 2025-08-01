@@ -19,7 +19,18 @@ export interface FMDM {
 export interface FolderConfig {
   path: string;
   model: string;
+  status: FolderIndexingStatus;
 }
+
+/**
+ * Indexing status for a monitored folder
+ */
+export type FolderIndexingStatus = 
+  | 'pending'      // Not yet started indexing
+  | 'indexing'     // Currently indexing files
+  | 'indexed'      // Indexing completed successfully
+  | 'error'        // Error occurred during indexing
+  | 'watching';    // Actively watching for file changes
 
 /**
  * Current daemon process status information

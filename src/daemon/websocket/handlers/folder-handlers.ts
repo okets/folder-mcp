@@ -22,7 +22,14 @@ import { ModelHandlers } from './model-handlers.js';
  * FMDM service interface for folder handlers
  */
 export interface IFMDMServiceForHandlers {
-  updateFolders(folders: Array<{ path: string; model: string }>): void;
+  updateFolders(folders: Array<{ path: string; model: string; status: string }>): void;
+}
+
+/**
+ * Indexing trigger interface for folder handlers
+ */
+export interface IIndexingTrigger {
+  startFolderIndexing(folderPath: string): Promise<void>;
 }
 
 /**
@@ -34,7 +41,8 @@ export class FolderHandlers {
     private fmdmService: IFMDMServiceForHandlers,
     private validationService: IDaemonFolderValidationService,
     private modelHandlers: ModelHandlers,
-    private logger: ILoggingService
+    private logger: ILoggingService,
+    private indexingTrigger?: IIndexingTrigger
   ) {}
 
   /**
@@ -105,12 +113,30 @@ export class FolderHandlers {
       
       // Update FMDM with new folder list
       this.logger.debug(`Fetching updated folder list from configService...`);
-      const updatedFolders = await this.configService.getFolders();
-      this.logger.debug(`Retrieved ${updatedFolders.length} folders from configService`);
+      const configFolders = await this.configService.getFolders();
+      this.logger.debug(`Retrieved ${configFolders.length} folders from configService`);
+      
+      // Convert config folders to FMDM format with status
+      const updatedFolders = configFolders.map((folder: any) => ({
+        path: folder.path,
+        model: folder.model,
+        status: 'pending' as const  // New folders start as pending
+      }));
       
       this.logger.debug(`Updating FMDM with folder list...`);
       this.fmdmService.updateFolders(updatedFolders);
       this.logger.debug(`FMDM updated successfully`);
+
+      // Trigger background indexing for the newly added folder
+      if (this.indexingTrigger) {
+        this.logger.debug(`Triggering background indexing for folder: ${path}`);
+        // Don't await - let indexing run in background
+        this.indexingTrigger.startFolderIndexing(path).catch((error) => {
+          this.logger.error(`Background indexing failed for ${path}`, error instanceof Error ? error : new Error(String(error)));
+        });
+      } else {
+        this.logger.warn(`No indexing trigger available - folder ${path} will not be indexed`);
+      }
 
       this.logger.info(`Successfully added folder: ${path}`);
       this.logger.debug(`=== FOLDER ADD DEBUG END (SUCCESS) ===\n`);
@@ -142,7 +168,15 @@ export class FolderHandlers {
       await this.configService.removeFolder(path);
       
       // Update FMDM with new folder list
-      const updatedFolders = await this.configService.getFolders();
+      const configFolders = await this.configService.getFolders();
+      
+      // Convert config folders to FMDM format with status
+      const updatedFolders = configFolders.map((folder: any) => ({
+        path: folder.path,
+        model: folder.model,
+        status: 'pending' as const  // Folders start as pending after removal
+      }));
+      
       this.fmdmService.updateFolders(updatedFolders);
 
       this.logger.info(`Successfully removed folder: ${path}`);

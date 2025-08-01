@@ -1,0 +1,39 @@
+{
+  "parsedContent": {
+    "content": "This is a test document for indexing.",
+    "type": "txt",
+    "originalPath": "../../../../var/folders/v0/mstccld1723164sk055xym300000gn/T/test-folder-1754009663963/test.txt",
+    "metadata": {
+      "type": "txt",
+      "originalPath": "../../../../var/folders/v0/mstccld1723164sk055xym300000gn/T/test-folder-1754009663963/test.txt",
+      "size": 37,
+      "lastModified": "2025-08-01T00:54:23.964Z",
+      "lines": 1,
+      "encoding": "utf-8"
+    }
+  },
+  "chunks": [
+    {
+      "content": "This is a test document for indexing.",
+      "startPosition": 0,
+      "endPosition": 37,
+      "tokenCount": 10,
+      "chunkIndex": 0,
+      "metadata": {
+        "sourceFile": "../../../../var/folders/v0/mstccld1723164sk055xym300000gn/T/test-folder-1754009663963/test.txt",
+        "sourceType": "txt",
+        "totalChunks": 1,
+        "hasOverlap": false,
+        "originalMetadata": {
+          "type": "txt",
+          "originalPath": "../../../../var/folders/v0/mstccld1723164sk055xym300000gn/T/test-folder-1754009663963/test.txt",
+          "size": 37,
+          "lastModified": "2025-08-01T00:54:23.964Z",
+          "lines": 1,
+          "encoding": "utf-8"
+        }
+      }
+    }
+  ],
+  "processedAt": "2025-08-01T00:54:28.539Z"
+}

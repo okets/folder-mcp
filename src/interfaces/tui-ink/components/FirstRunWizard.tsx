@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import { join } from 'path';
 import { existsSync, statSync } from 'fs';
@@ -64,7 +64,27 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
     const initialPath = folderResult.path;
-    const initialModel = cliModel || 'all-MiniLM-L6-v2'; // Default to Python model
+    const initialModel = cliModel || undefined; // Will be set from daemon's model list
+    
+    // Use refs for stable values that shouldn't trigger re-renders
+    const stableRefs = useRef({
+        initialPath,
+        initialModel,
+        onComplete,
+        exit,
+        fmdmOperations
+    });
+    
+    // Update refs when values change
+    useEffect(() => {
+        stableRefs.current = {
+            initialPath,
+            initialModel,
+            onComplete,
+            exit,
+            fmdmOperations
+        };
+    });
     
     // Set up root input handler
     useRootInput();
@@ -85,8 +105,11 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 const { getPythonModels } = await import('../services/ModelListService');
                 const supportedModels = getPythonModels().map(model => model.name);
                 
-                if (!supportedModels.includes(cliModel)) {
-                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.join(', ')}`;
+                // Also check if model is missing the folder-mcp: prefix
+                const normalizedModel = cliModel.startsWith('folder-mcp:') ? cliModel : `folder-mcp:${cliModel}`;
+                
+                if (!supportedModels.includes(normalizedModel)) {
+                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.map(m => m.replace('folder-mcp:', '')).join(', ')}`;
                 }
             }
             
@@ -99,48 +122,53 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         validateParams();
     }, [cliDir, cliModel, folderResult.error]);
     
-    // Handle wizard completion
-    const handleWizardComplete = useCallback(async (result: AddFolderWizardResult) => {
-        setIsComplete(true);
-        
-        // Add folder using FMDM operations
-        try {
-            await fmdmOperations.addFolder(result.path, result.model);
-            
-            // Create config object for backward compatibility
-            const config = {
-                folders: [{
-                    path: result.path,
-                    model: result.model
-                }],
-                embedding: {
-                    model: result.model,
-                    batchSize: 32
-                },
-                server: {
-                    port: 9876,
-                    host: '127.0.0.1'
-                }
-            };
-            
-            onComplete(config);
-        } catch (error) {
-            console.error('Failed to add folder during first run:', error);
-        }
-    }, [onComplete, fmdmOperations]);
-    
     // Create wizard asynchronously after daemon connection
     useEffect(() => {
+        
+        // Skip if already have a wizard or if not ready
+        if (wizardItem || !fmdmConnection.connected || hasValidationError) {
+            return;
+        }
+        
         const createWizard = async () => {
-            if (!fmdmConnection.connected || hasValidationError) {
-                return;
-            }
+            // Get stable references
+            const { initialPath, initialModel, onComplete, exit, fmdmOperations } = stableRefs.current;
+            
+            // Handle wizard completion - defined inside useEffect to avoid dependency issues
+            const handleWizardComplete = async (result: AddFolderWizardResult) => {
+                setIsComplete(true);
+                
+                // Add folder using FMDM operations
+                try {
+                    await fmdmOperations.addFolder(result.path, result.model);
+                    
+                    // Create config object for backward compatibility
+                    const config = {
+                        folders: [{
+                            path: result.path,
+                            model: result.model
+                        }],
+                        embedding: {
+                            model: result.model,
+                            batchSize: 32
+                        },
+                        server: {
+                            port: 9876,
+                            host: '127.0.0.1'
+                        }
+                    };
+                    
+                    onComplete(config);
+                } catch (error) {
+                    console.error('Failed to add folder during first run:', error);
+                }
+            };
             
             try {
                 setWizardLoading(true);
                 const wizard = await createAddFolderWizard({
                     initialPath,
-                    initialModel,
+                    ...(initialModel ? { initialModel } : {}),
                     onComplete: handleWizardComplete,
                     onCancel: () => exit(),
                     fmdmOperations
@@ -150,14 +178,13 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                 wizard.onEnter();
                 setWizardItem(wizard);
             } catch (error) {
-                console.error('Failed to create wizard:', error);
             } finally {
                 setWizardLoading(false);
             }
         };
         
         createWizard();
-    }, [fmdmConnection.connected, hasValidationError, initialPath, initialModel, handleWizardComplete, exit, fmdmOperations]);
+    }, [fmdmConnection.connected, hasValidationError, wizardItem]); // Removed unstable dependencies
     
     // Color constants
     const frameColor = '#4c1589';

@@ -122,6 +122,7 @@ class AddFolderContainerItem extends ContainerListItem {
         const label = 'Add Folder';
         const path = this.selectedPath;
         
+        
         // Calculate available space
         const iconWidth = icon.length + 1; // icon + space
         const labelWidth = label.length;
@@ -219,8 +220,10 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             }));
             
             // Use first model from daemon as default if no initial model provided
-            if (!selectedModel && pythonModels.length > 0) {
+            if (!initialModel && pythonModels.length > 0) {
+                if (!initialModel && pythonModels.length > 0) {
                 selectedModel = pythonModels[0]?.name;
+            }
             }
         } catch (error) {
             console.error('Failed to get models from daemon, using fallback list:', error);
@@ -231,7 +234,9 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 backend: 'python',
                 recommended: true
             }];
-            selectedModel = pythonModels[0]?.name;
+            if (!initialModel && pythonModels.length > 0) {
+                selectedModel = pythonModels[0]?.name;
+            }
         }
     } else {
         // Fallback if no FMDM operations available
@@ -244,6 +249,20 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         selectedModel = pythonModels[0]?.name;
     }
     
+    // Validate that initialModel exists in the list
+    let modelValidationError: string | null = null;
+    
+    
+    if (selectedModel && pythonModels.length > 0) {
+        const modelExists = pythonModels.some(m => m.name === selectedModel);
+        if (!modelExists) {
+            modelValidationError = `Model "${selectedModel}" is not available. Please select from the list.`;
+            // Don't change selectedModel - keep it to show the error
+        }
+    } else if (!selectedModel && pythonModels.length > 0) {
+        // If no model selected, use first available
+        selectedModel = pythonModels[0]?.name;
+    }
     
     // Track wizard state
     let selectedPath = initialPath;
@@ -295,7 +314,10 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         
         const modelToValidate = model || selectedModel;
         if (!modelToValidate) {
-            currentValidation = createValidationResult(false, 'No model selected');
+            currentValidation = createValidationResult(false, 'Please select an embedding model');
+            if (containerWizard) {
+                containerWizard.updateValidationResult(currentValidation);
+            }
             return;
         }
         
@@ -334,14 +356,23 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         undefined, // filterPatterns
         async () => {
             // onChange callback - sync validation to container with both folder and model
-            if (validationService && containerWizard && selectedModel) {
-                let validationResult: ValidationResult;
-                if (validationService.validateFolderAndModel) {
-                    validationResult = await validationService.validateFolderAndModel(selectedPath, selectedModel);
+            if (validationService && containerWizard) {
+                // Check if we have a model validation error first
+                if (modelValidationError) {
+                    // Keep the model validation error
+                    containerWizard.updateValidationResult(createValidationResult(false, modelValidationError));
+                } else if (selectedModel) {
+                    let validationResult: ValidationResult;
+                    if (validationService.validateFolderAndModel) {
+                        validationResult = await validationService.validateFolderAndModel(selectedPath, selectedModel);
+                    } else {
+                        validationResult = await validationService.validateFolderPath(selectedPath);
+                    }
+                    containerWizard.updateValidationResult(validationResult);
                 } else {
-                    validationResult = await validationService.validateFolderPath(selectedPath);
+                    // No model selected
+                    containerWizard.updateValidationResult(createValidationResult(false, 'Please select an embedding model'));
                 }
-                containerWizard.updateValidationResult(validationResult);
             }
         }, // onChange - keep container validation in sync
         false, // showHiddenFiles
@@ -362,17 +393,24 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     }));
     
     
+    // For display purposes, we'll show the invalid model in the selection even if it's not in options
+    // This helps users understand what model was attempted
+    const initialModelSelection = selectedModel ? [selectedModel] : [];
+    
     const modelSelector = new SelectionListItem(
         'м',
         'Choose embedding model',
         modelOptions,
-        selectedModel ? [selectedModel] : [], // Use dynamically fetched default model
+        initialModelSelection, // Show the model even if invalid
         false, // Will be managed by ContainerListItem
         'radio', // Single selection
         'vertical', // Vertical layout for detailed display
         async (values) => {
             if (values.length > 0 && values[0]) {
                 selectedModel = values[0];
+                // Clear model validation error when user selects a valid model
+                modelValidationError = null;
+                modelSelector._validationMessage = null;
                 // Trigger validation when model changes
                 await validateAndUpdateContainer(selectedPath, selectedModel);
             }
@@ -384,6 +422,13 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         ['Backend', 'Type', 'Status'] // Column headers
     );
     childItems.push(modelSelector);
+    
+    // Set validation error if model doesn't exist using validation message
+    if (modelValidationError) {
+        // Create a validation message for the model selector
+        const modelValidationMessage = createValidationMessage(ValidatedListItemValidationState.Error, modelValidationError);
+        modelSelector._validationMessage = modelValidationMessage;
+    }
     
     // Set up validation state
     const validationState: ValidationState = {
@@ -437,15 +482,23 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Perform initial validation now that containerWizard is created
     // This ensures the validation state is properly initialized with both folder and model
     try {
-        await validateAndUpdateContainer(selectedPath, selectedModel);
-        // Initial validation completed
-        
-        // Also set the validation on the folder picker so it shows immediately
-        if (currentValidation.hasWarning || currentValidation.hasError) {
-            const state = currentValidation.hasError ? ValidatedListItemValidationState.Error : ValidatedListItemValidationState.Warning;
-            const message = currentValidation.errorMessage || currentValidation.warningMessage || '';
-            const validationMessage = createValidationMessage(state, message);
-            folderPicker.setValidationMessage(validationMessage);
+        // Check model validation first
+        if (modelValidationError) {
+            const modelErrorResult = createValidationResult(false, modelValidationError);
+            containerWizard.updateValidationResult(modelErrorResult);
+            // Also update the current validation state
+            currentValidation = modelErrorResult;
+        } else {
+            await validateAndUpdateContainer(selectedPath, selectedModel);
+            // Initial validation completed
+            
+            // Also set the validation on the folder picker so it shows immediately
+            if (currentValidation.hasWarning || currentValidation.hasError) {
+                const state = currentValidation.hasError ? ValidatedListItemValidationState.Error : ValidatedListItemValidationState.Warning;
+                const message = currentValidation.errorMessage || currentValidation.warningMessage || '';
+                const validationMessage = createValidationMessage(state, message);
+                folderPicker.setValidationMessage(validationMessage);
+            }
         }
     } catch (error) {
         // If validation fails, set a basic error state

@@ -29,6 +29,7 @@ import {
 } from '../domain/index.js';
 
 import { DEFAULT_ENHANCED_MCP_CONFIG } from '../config/enhanced-mcp.js';
+import { SQLiteVecStorage } from '../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 
 import {
   ConfigurationService,
@@ -37,7 +38,6 @@ import {
   EmbeddingService,
   CacheService,
   FileSystemService,
-  VectorSearchService,
   ErrorRecoveryService
 } from './services.js';
 
@@ -116,7 +116,22 @@ export class ServiceFactory implements IServiceFactory {
 
   createVectorSearchService(cacheDir: string): IVectorSearchService {
     const loggingService = this.getLoggingService();
-    return new VectorSearchService(cacheDir, loggingService);
+    // Use SQLiteVecStorage instead of mock VectorSearchService
+    
+    // Extract folder path from cache dir (e.g., /path/to/folder/.folder-mcp/storage -> /path/to/folder)
+    const folderPath = cacheDir.replace('/.folder-mcp/storage', '');
+    
+    // Create SQLiteVecStorage config with default values
+    // TODO: In future, get actual model info from folder configuration
+    const config = {
+      folderPath: folderPath,
+      modelName: 'all-MiniLM-L6-v2', // Default model
+      modelDimension: 384, // Default dimension for all-MiniLM-L6-v2
+      logger: loggingService
+    };
+    
+    loggingService.info(`Creating SQLiteVecStorage for folder: ${folderPath} (from cache dir: ${cacheDir})`);
+    return new SQLiteVecStorage(config);
   }
 
   createCacheService(folderPath: string): ICacheService {
