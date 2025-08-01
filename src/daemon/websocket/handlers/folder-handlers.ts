@@ -133,6 +133,10 @@ export class FolderHandlers {
         // Don't await - let indexing run in background
         this.indexingTrigger.startFolderIndexing(path).catch((error) => {
           this.logger.error(`Background indexing failed for ${path}`, error instanceof Error ? error : new Error(String(error)));
+          this.logger.debug(`Indexing error details: ${error instanceof Error ? error.message : String(error)}`);
+          if (error instanceof Error && error.stack) {
+            this.logger.debug(`Stack trace: ${error.stack}`);
+          }
         });
       } else {
         this.logger.warn(`No indexing trigger available - folder ${path} will not be indexed`);

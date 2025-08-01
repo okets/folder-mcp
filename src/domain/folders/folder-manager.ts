@@ -271,6 +271,7 @@ export class FolderManager extends EventEmitter implements IFolderManager {
     const foldersConfig = this.configManager.get('folders') as FoldersConfig || DEFAULT_FOLDERS_CONFIG;
     const foldersList = foldersConfig.list || [];
     
+    
     // Clear existing folders
     this.folders.clear();
     
@@ -352,7 +353,21 @@ export class FolderManager extends EventEmitter implements IFolderManager {
   private setupConfigWatcher(): void {
     // Listen for configuration changes that affect folders
     this.configManager.on('configChanged', async (event: any) => {
-      if (event.changedPaths.some((path: string) => path.startsWith('folders'))) {
+      // Handle both old and new event formats
+      // Old format: { changedPaths: string[] }
+      // New format: { key: string, value: any, previousValue: any }
+      
+      let shouldRefresh = false;
+      
+      if (event.changedPaths && Array.isArray(event.changedPaths)) {
+        // Old format
+        shouldRefresh = event.changedPaths.some((path: string) => path.startsWith('folders'));
+      } else if (event.key && typeof event.key === 'string') {
+        // New format
+        shouldRefresh = event.key.startsWith('folders');
+      }
+      
+      if (shouldRefresh) {
         await this.refreshFromConfig();
       }
     });

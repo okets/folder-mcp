@@ -372,7 +372,21 @@ class FolderMCPDaemon {
       
     } catch (error) {
       debug(`Indexing error for folder ${folderPath}:`, error);
-      this.fmdmService.updateFolderStatus(folderPath, 'error');
+      debug(`Error details:`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+        type: error?.constructor?.name || typeof error
+      });
+      
+      // Update status to error
+      try {
+        this.fmdmService.updateFolderStatus(folderPath, 'error');
+      } catch (statusError) {
+        debug(`Failed to update folder status after error:`, statusError);
+      }
+      
+      // Don't re-throw the error - this prevents daemon crash
+      // The error is logged and status is updated
     }
   }
 }

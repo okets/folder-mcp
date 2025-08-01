@@ -284,12 +284,27 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
   }
 
   async indexFolder(folderPath: string, options: MultiFolderIndexingOptions = {}): Promise<FolderIndexingResult> {
+    this.loggingService.debug(`indexFolder called with path: "${folderPath}"`);
+    
+    // Log all available folders for debugging
+    const allFolders = await this.folderManager.getFolders();
+    this.loggingService.debug(`Available folders: ${JSON.stringify(allFolders.map(f => ({ path: f.path, resolvedPath: f.resolvedPath })))}`);
+    
     const folder = await this.folderManager.getFolderByPath(folderPath);
     if (!folder) {
+      // Try to understand why folder wasn't found
+      this.loggingService.error(`Folder not found: "${folderPath}". Available paths: ${allFolders.map(f => f.path).join(', ')}`);
       throw new Error(`Folder not found: ${folderPath}`);
     }
 
-    this.loggingService.info(`Starting indexing for folder: ${folderPath}`);
+    // Validate folder has required properties
+    if (!folder.resolvedPath) {
+      this.loggingService.error(`Folder configuration missing resolvedPath for ${folderPath}`, 
+        new Error(`Folder object: ${JSON.stringify(folder)}`));
+      throw new Error(`Invalid folder configuration: missing resolvedPath for ${folderPath}`);
+    }
+
+    this.loggingService.info(`Starting indexing for folder: ${folderPath} (resolved: ${folder.resolvedPath})`);
 
     return this.indexSingleFolder(folder, options.baseOptions || {});
   }
