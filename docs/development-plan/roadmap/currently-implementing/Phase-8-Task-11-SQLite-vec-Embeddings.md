@@ -304,147 +304,96 @@ npm run tui
 
 **Current Status Flow**: `pending` → `indexing` → `indexed` or `error`
 
-### 🔧 Sub Task 7: Complete Status System with TUI Display **NOT IMPLEMENTED**
+### ✅ Sub Task 7: Complete Status System with TUI Display **COMPLETED**
 
-**ASSIGNMENT: Implement the scanning → indexing → active/error Status Flow**
+**Status**: ✅ COMPLETED
+**Why**: Basic status system implemented and working, architectural issues identified
 
-**Overview**: Create a unified status system that provides real-time feedback for all indexing scenarios (new folders, file changes, daemon restarts).
+**What Was Implemented**:
+- ✅ Updated FMDM Status Model with new status types (scanning/indexing/active/error)
+- ✅ Added progress tracking fields to FolderConfig interface
+- ✅ Implemented VALID_STATUS_TRANSITIONS state machine
+- ✅ Updated FMDM Service with throttling mechanism (1 update/second per folder)
+- ✅ Added state transition validation to prevent invalid transitions
+- ✅ Implemented pending updates queue with 100ms flush interval
+- ✅ Added scanning phase to IndexingOrchestrator
+- ✅ Updated daemon indexing flow with complete status lifecycle
+- ✅ Connected status display to TUI with progress and error handling
+- ✅ Created comprehensive test suite for status system
 
-**Prerequisites**:
-- Sub Task 6 completed (basic FMDM broadcasting infrastructure)
-- SQLite-vec storage connected to daemon
-- TUI receiving FMDM updates via WebSocket
+**Critical Issues Fixed**:
+1. **Storage Module Import**: Fixed ES module imports requiring explicit .js extensions
+2. **Status Transitions**: Added self-transition for 'indexing' to allow progress updates
+3. **Status Reversion Bug**: Identified root cause as missing async orchestration
 
-**Detailed Implementation Steps**:
+## Sub Task 7.5: Implement FolderLifecycleOrchestrator 🚧 NEXT
 
-#### Step 1: Update FMDM Status Model
-**File**: `src/daemon/models/fmdm.ts`
+**Status**: 🚧 NOT STARTED
+**Why**: Need proper orchestration to manage complete folder lifecycle and prevent race conditions
 
-```typescript
-// Change the status type to simplified flow
-export type FolderIndexingStatus = 
-  | 'scanning'     // Looking for file changes, creating work list
-  | 'indexing'     // Processing files and creating embeddings
-  | 'active'       // Embeddings ready, monitoring for changes
-  | 'error';       // Folder, model, or embeddings unavailable
+### Problem Statement:
+Current implementation reports indexing completion while async callbacks (chunking, embedding) are still pending. This causes:
+- Status reverting from 'active' back to 'indexing 94%'
+- Race conditions between completion reporting and async work
+- No single source of truth for folder processing state
 
-// Add progress tracking to folder config
-export interface FolderConfig {
-  path: string;
-  model: string;
-  status: FolderIndexingStatus;
-  progress?: {
-    current: number;  // Files processed
-    total: number;    // Total files to process
-  };
-}
-```
+### Solution - FolderLifecycleOrchestrator:
+A comprehensive orchestrator that manages the entire folder lifecycle:
 
-#### Step 2: Update FMDM Service for Progress Support
-**File**: `src/daemon/services/fmdm-service.ts`
+1. **Scanning Phase Orchestration**:
+   - Coordinate file discovery and planning
+   - Report scanning progress (X files found, Y to index)
+   - Determine if indexing is needed or go straight to active
 
-- [ ] Modify `updateFolderStatus` method signature:
-  ```typescript
-  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, progress?: { current: number; total: number }): void
-  ```
-- [ ] Add throttling mechanism (max 1 update per second per folder)
-- [ ] Store progress in folder config when provided
+2. **Indexing Phase Orchestration**:
+   - Track ALL async work (parsing, chunking, embedding)
+   - Prevent premature completion reporting
+   - Ensure all callbacks complete before status change
+   - Provide accurate progress reporting
 
-#### Step 3: Implement Scanning Phase in Indexing
-**File**: `src/application/indexing/orchestrator.ts`
+3. **Status Management**:
+   - Single source of truth for folder status
+   - Enforce proper state transitions
+   - Handle error states and recovery
+   - Support incremental re-indexing
 
-- [ ] Add scanning phase at start of `executeIndexingWorkflow`:
-  ```typescript
-  // 1. Scanning phase - count files and create work list
-  const filesToProcess = await this.scanForIndexableFiles(folderPath, options);
-  const totalFiles = filesToProcess.length;
-  
-  // Notify that scanning is complete, moving to indexing
-  // This is where daemon would call: updateFolderStatus(path, 'indexing', { current: 0, total: totalFiles })
-  ```
-- [ ] Return progress info in result for daemon to broadcast
+4. **Integration Points**:
+   - Receive work from daemon's startFolderIndexing
+   - Coordinate with IndexingOrchestrator
+   - Update FMDM with accurate status
+   - Track async job completion
 
-#### Step 4: Update Daemon Indexing Flow
-**File**: `src/daemon/index.ts`
+### Implementation Tasks:
+- [ ] Create FolderLifecycleOrchestrator class
+- [ ] Implement async job tracking mechanism
+- [ ] Add scanning phase with progress reporting
+- [ ] Ensure proper completion detection for all async work
+- [ ] Integrate with daemon and FMDM service
+- [ ] Add comprehensive error handling and recovery
+- [ ] Support pause/resume capabilities
+- [ ] Enable incremental indexing triggers
 
-- [ ] Modify `startFolderIndexing` to implement new flow:
-  ```typescript
-  // Start with scanning status
-  this.fmdmService.updateFolderStatus(folderPath, 'scanning');
-  
-  // Call indexing service
-  const result = await this.indexingService.indexFolder(folderPath, options);
-  
-  // indexingService will have notified about scanning→indexing transition
-  // and progress updates during processing
-  
-  if (result.success) {
-    this.fmdmService.updateFolderStatus(folderPath, 'active');
-  } else {
-    this.fmdmService.updateFolderStatus(folderPath, 'error');
-  }
-  ```
+### Architectural Issues to Address:
+1. **Async Callback Race Conditions**:
+   - Current IndexingOrchestrator reports completion while async work is pending
+   - Need to track all async operations (parsing, chunking, embedding)
+   - Prevent premature 'active' status until ALL work completes
 
-- [ ] Add progress callback to indexing options:
-  ```typescript
-  onProgress: (current: number, total: number) => {
-    this.fmdmService.updateFolderStatus(folderPath, 'indexing', { current, total });
-  }
-  ```
+2. **Missing Lifecycle Coordination**:
+   - No single component manages the complete folder lifecycle
+   - Status updates scattered across multiple services
+   - Need unified orchestration from scanning through active state
 
-#### Step 5: Connect Status to TUI Display
-**File**: `src/interfaces/tui-ink/AppFullscreen.tsx`
+3. **Configuration Synchronization**:
+   - Multiple configuration sources (FMDM, ConfigurationComponent, FolderManager)
+   - Cache invalidation issues between components
+   - Need single source of truth for folder state
 
-- [ ] Extract status and progress from FMDM folder data:
-  ```typescript
-  // In the folder mapping loop (around line 205)
-  currentFolders.forEach((folder, index) => {
-    const folderStatus = folder.status || 'scanning';
-    const statusColor = {
-      'scanning': 'yellow',
-      'indexing': 'blue', 
-      'active': 'green',
-      'error': 'red'
-    }[folderStatus] || 'gray';
-    
-    // Format status text with progress
-    let statusText = folderStatus;
-    if (folder.progress && folderStatus === 'indexing') {
-      statusText = `indexing - ${folder.progress.current}/${folder.progress.total} files`;
-    }
-    
-    const manageFolderItem = createManageFolderItem({
-      folderPath,
-      model: folder.model || 'nomic-embed-text',
-      isValid: folderValid,
-      folderStatus: statusText,    // ADD THIS
-      statusColor: statusColor,     // ADD THIS
-      onRemove: async (pathToRemove: string) => { ... }
-    });
-  });
-  ```
 
-#### Step 6: Add Progress Callback Infrastructure
-**Files**: Various indexing-related files
+## Sub Task 8: Embed All Documents on First Run ❌ NOT IMPLEMENTED
 
-- [ ] Add `onProgress` callback to `IndexingOptions` interface
-- [ ] Thread progress callback through indexing pipeline
-- [ ] Call progress callback after each file processed
-- [ ] Implement throttling at callback level
-
-#### Step 7: Handle Edge Cases
-- [ ] Daemon restart: All folders start in 'scanning' state
-- [ ] File changes in 'active' folder: Transition back to 'scanning'
-- [ ] Model unavailable: Immediate transition to 'error'
-- [ ] Folder permission issues: Transition to 'error' with details
-
-**Testing Checklist**:
-- [ ] New folder: scanning → indexing (0/X files) → indexing (Y/X files) → active
-- [ ] File change: active → scanning → indexing → active
-- [ ] Daemon restart: all folders show scanning → indexing → active
-- [ ] Error cases: proper error status with no progress
-- [ ] Multiple folders: independent status progression
-- [ ] TUI updates: real-time status changes without lag
+**Status**: ❌ NOT STARTED
+**Why**: Moved to after Sub Task 7.5 completion
 
 ### 🔍 **MANUAL TESTING REVIEW STOP 3: Complete Status Integration**
 
@@ -498,7 +447,7 @@ npm run tui
 
 **Required Before Proceeding**: Complete status integration working flawlessly, excellent user experience
 
-### ❌ Sub Task 8: Performance Optimization and Edge Cases **NOT IMPLEMENTED**
+### ❌ Sub Task 9: Performance Optimization and Edge Cases **NOT IMPLEMENTED**
 - [ ] **Database performance optimization**
   - [ ] Implement database vacuum/optimization on startup
   - [ ] Add query performance monitoring and logging
@@ -514,7 +463,7 @@ npm run tui
   - [ ] Delete JSON file storage code and unused imports
   - [ ] Update DI container registration to use SQLiteVecStorage
 
-### ❌ Sub Task 9: Testing and Validation **NOT IMPLEMENTED**
+### ❌ Sub Task 10: Testing and Validation **NOT IMPLEMENTED**
 - [ ] **Comprehensive unit tests**
   - [ ] SQLiteVecStorage database operations
   - [ ] Document CRUD operations
