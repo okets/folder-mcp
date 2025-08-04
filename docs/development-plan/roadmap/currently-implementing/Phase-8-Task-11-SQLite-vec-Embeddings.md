@@ -326,9 +326,9 @@ npm run tui
 2. **Status Transitions**: Added self-transition for 'indexing' to allow progress updates
 3. **Status Reversion Bug**: Identified root cause as missing async orchestration
 
-## Sub Task 7.5: Implement FolderLifecycleOrchestrator 🚧 NEXT
+## Sub Task 7.5: Implement FolderLifecycleOrchestrator 🚧 IN PROGRESS
 
-**Status**: 🚧 NOT STARTED
+**Status**: 🚧 IN PROGRESS
 **Why**: Need proper orchestration to manage complete folder lifecycle and prevent race conditions
 
 ### Problem Statement:
@@ -337,57 +337,317 @@ Current implementation reports indexing completion while async callbacks (chunki
 - Race conditions between completion reporting and async work
 - No single source of truth for folder processing state
 
-### Solution - FolderLifecycleOrchestrator:
-A comprehensive orchestrator that manages the entire folder lifecycle:
+### Solution - Task-Based FolderLifecycleOrchestrator:
 
-1. **Scanning Phase Orchestration**:
-   - Coordinate file discovery and planning
-   - Report scanning progress (X files found, Y to index)
-   - Determine if indexing is needed or go straight to active
+A non-blocking, per-folder orchestrator that tracks all async operations through a task-based system:
 
-2. **Indexing Phase Orchestration**:
-   - Track ALL async work (parsing, chunking, embedding)
-   - Prevent premature completion reporting
-   - Ensure all callbacks complete before status change
-   - Provide accurate progress reporting
+#### Core Design Principles:
+- **Non-blocking Architecture**: Each folder has its own orchestrator instance
+- **Task-Based Tracking**: Granular tracking of file operations prevents premature completion
+- **State Evolution**: Data model evolves through lifecycle phases
+- **Clean Architecture**: Domain logic separated from infrastructure with proper DI
 
-3. **Status Management**:
-   - Single source of truth for folder status
-   - Enforce proper state transitions
-   - Handle error states and recovery
-   - Support incremental re-indexing
+#### Lifecycle States:
+1. **scanning** → Discovering what needs to be done (file changes)
+2. **indexing** → Processing tasks (creating/updating/removing embeddings)
+3. **active** → All tasks complete, monitoring for changes
+4. **error** → Recoverable error state with retry capability
 
-4. **Integration Points**:
-   - Receive work from daemon's startFolderIndexing
-   - Coordinate with IndexingOrchestrator
-   - Update FMDM with accurate status
-   - Track async job completion
+#### Data Model Evolution:
 
-### Implementation Tasks:
-- [ ] Create FolderLifecycleOrchestrator class
-- [ ] Implement async job tracking mechanism
-- [ ] Add scanning phase with progress reporting
-- [ ] Ensure proper completion detection for all async work
-- [ ] Integrate with daemon and FMDM service
-- [ ] Add comprehensive error handling and recovery
-- [ ] Support pause/resume capabilities
-- [ ] Enable incremental indexing triggers
+**Initial State (Scanning Phase):**
+```typescript
+{
+  status: "scanning",
+  folderPath: "/path/to/folder",
+  lastScanStarted: Date
+}
+```
 
-### Architectural Issues to Address:
-1. **Async Callback Race Conditions**:
-   - Current IndexingOrchestrator reports completion while async work is pending
-   - Need to track all async operations (parsing, chunking, embedding)
-   - Prevent premature 'active' status until ALL work completes
+**After Scanning (Task List Built):**
+```typescript
+{
+  status: "indexing",
+  folderPath: "/path/to/folder",
+  lastScanStarted: Date,
+  fileEmbeddingTasks: [
+    {
+      file: "file_1.pdf",
+      task: "RemoveEmbeddings",  // File was deleted
+      status: "pending",
+      retryCount: 0,
+      maxRetries: 3
+    },
+    {
+      file: "file_2.xlsx", 
+      task: "CreateEmbeddings",  // New file added
+      status: "pending",
+      retryCount: 0,
+      maxRetries: 3
+    },
+    {
+      file: "file_3.docx",
+      task: "UpdateEmbeddings",  // File was modified
+      status: "pending",
+      retryCount: 0,
+      maxRetries: 3
+    }
+  ],
+  progress: {
+    totalTasks: 3,
+    completedTasks: 0,
+    failedTasks: 0
+  }
+}
+```
 
-2. **Missing Lifecycle Coordination**:
-   - No single component manages the complete folder lifecycle
-   - Status updates scattered across multiple services
-   - Need unified orchestration from scanning through active state
+**During Processing (Tasks Updating):**
+```typescript
+{
+  status: "indexing",
+  // ... other fields ...
+  fileEmbeddingTasks: [
+    { file: "file_1.pdf", task: "RemoveEmbeddings", status: "success" },
+    { file: "file_2.xlsx", task: "CreateEmbeddings", status: "in-progress" },
+    { file: "file_3.docx", task: "UpdateEmbeddings", status: "error", 
+      errorMessage: "Embedding service timeout", retryCount: 1 }
+  ],
+  progress: {
+    totalTasks: 3,
+    completedTasks: 1,
+    failedTasks: 0  // Not failed until max retries exceeded
+  }
+}
+```
 
-3. **Configuration Synchronization**:
-   - Multiple configuration sources (FMDM, ConfigurationComponent, FolderManager)
-   - Cache invalidation issues between components
-   - Need single source of truth for folder state
+**Final State (All Tasks Complete):**
+```typescript
+{
+  status: "active",
+  folderPath: "/path/to/folder",
+  lastScanStarted: Date,
+  lastIndexCompleted: Date,
+  // Tasks cleared or archived after successful completion
+}
+```
+
+#### Key Features:
+
+1. **Async Task Tracking**:
+   - Each file operation is a discrete task
+   - Tasks update their own status via callbacks
+   - No completion until ALL tasks resolve
+
+2. **Progress Throttling**:
+   - FMDM updates throttled to max 2/second
+   - Prevents WebSocket overload
+   - Final update guaranteed via debouncing
+
+3. **Error Recovery**:
+   - Automatic retry with exponential backoff
+   - Per-task retry tracking
+   - Graceful degradation on persistent failures
+
+4. **Change Detection Loop**:
+   - Active state monitors file changes
+   - Triggers new scanning phase when changes detected
+   - Maintains continuous synchronization
+
+### Implementation Architecture:
+
+#### Domain Layer (src/domain/folders/):
+```typescript
+// folder-lifecycle-orchestrator.ts
+interface FolderLifecycleOrchestrator {
+  readonly folderId: string;
+  readonly currentState: FolderLifecycleState;
+  
+  startScanning(): Promise<void>;
+  onTaskComplete(taskId: string, result: TaskResult): void;
+  getProgress(): FolderProgress;
+}
+
+// folder-lifecycle-models.ts
+type FolderStatus = 'scanning' | 'indexing' | 'active' | 'error';
+type TaskType = 'CreateEmbeddings' | 'UpdateEmbeddings' | 'RemoveEmbeddings';
+type TaskStatus = 'pending' | 'in-progress' | 'success' | 'error';
+```
+
+#### Application Layer (src/application/indexing/):
+```typescript
+// folder-lifecycle-orchestrator-impl.ts
+class FolderLifecycleOrchestratorImpl implements FolderLifecycleOrchestrator {
+  constructor(
+    private folderId: string,
+    private folderPath: string,
+    private indexingOrchestrator: IndexingOrchestrator,
+    private fmdmService: FMDMService,
+    private fileSystemService: FileSystemService
+  ) {}
+  
+  // Implementation with state machine and task queue
+}
+```
+
+#### Daemon Integration:
+```typescript
+class ImprovedDaemon {
+  private orchestrators = new Map<string, FolderLifecycleOrchestrator>();
+  
+  async startFolderIndexing(folderPath: string): Promise<void> {
+    const orchestrator = this.createOrchestrator(folderPath);
+    this.orchestrators.set(folderPath, orchestrator);
+    await orchestrator.startScanning();
+  }
+}
+```
+
+### ⚠️ CRITICAL: Avoid Confusion with Old Embeddings System
+
+**Old System (DO NOT MODIFY)**:
+- **Location**: `src/infrastructure/embeddings/python/`, `src/infrastructure/storage/`
+- **Technology**: FAISS-based vector storage with Python subprocess
+- **Used by**: Current MCP endpoints (`src/interfaces/mcp/endpoints.ts` - search tool)
+- **Storage**: Uses FAISS indexes in `.cache/torch/sentence_transformers/`
+
+**New System (WHAT WE'RE BUILDING)**:
+- **Location**: `src/infrastructure/embeddings/sqlite-vec/`
+- **Technology**: SQLite-vec native extension
+- **Purpose**: Replace the old system after task completion
+- **Storage**: SQLite database with vector extension
+
+**Files to AVOID modifying**:
+- `src/interfaces/mcp/endpoints.ts` (active MCP search endpoint)
+- `src/infrastructure/embeddings/ollama-embedding-service.ts`
+- `src/infrastructure/embeddings/python/` (entire directory)
+- `src/infrastructure/storage/multi-folder-storage.ts`
+
+### Linear Execution Plan with Safety Stops
+
+#### 🔴 STOP 0: Pre-requisites Verification
+```bash
+# Must pass before starting:
+npm run test -- tests/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.test.ts
+ls tests/fixtures/test-knowledge-base/  # Verify test data exists
+```
+
+#### Step 1: Domain Models
+**Create:**
+- `src/domain/folders/folder-lifecycle-models.ts` - Type definitions only
+- `tests/domain/folders/folder-lifecycle-models.test.ts` - Test instantiation
+
+**🔴 STOP 1:** `npm run test -- tests/domain/folders/folder-lifecycle-models.test.ts`
+
+#### Step 2: State Machine
+**Create:**
+- `src/domain/folders/folder-lifecycle-state-machine.ts` - Pure state logic
+- `tests/domain/folders/folder-lifecycle-state-machine.test.ts`
+
+**🔴 STOP 2:** `npm run test -- tests/domain/folders/folder-lifecycle-state-machine.test.ts`
+
+#### Step 3: Task Queue
+**Create:**
+- `src/domain/folders/folder-task-queue.ts` - Retry logic (1s, 2s, 4s backoff)
+- `tests/domain/folders/folder-task-queue.test.ts`
+
+**🔴 STOP 3:** `npm run test -- tests/domain/folders/folder-task-queue.test.ts`
+
+#### Step 4: Orchestrator Implementation
+**Create:**
+- `src/domain/folders/folder-lifecycle-orchestrator.ts` - Interface only
+- `src/application/indexing/folder-lifecycle-orchestrator-impl.ts` - Implementation
+- `tests/application/indexing/folder-lifecycle-orchestrator.test.ts`
+
+**Dependencies:**
+- `IIndexingOrchestrator` (existing)
+- `FMDMService` (existing)  
+- `IFileSystemService` (existing)
+- `SQLiteVecStorage` (from Sub Task 7)
+
+**🔴 STOP 4:** `npm run test -- tests/application/indexing/folder-lifecycle-orchestrator.test.ts`
+
+#### Step 5: Progress Throttler
+**Create:**
+- `src/application/indexing/progress-throttler.ts` - Max 2 updates/second
+- `tests/application/indexing/progress-throttler.test.ts`
+
+**🔴 STOP 5:** `npm run test -- tests/application/indexing/progress-throttler.test.ts`
+
+#### Step 6: Integration Tests
+**Create:**
+- `tests/integration/folder-lifecycle-integration.test.ts` - Full lifecycle with mocks
+
+**🔴 STOP 6:** `npm run test -- tests/integration/folder-lifecycle-integration.test.ts`
+
+#### Step 7: Daemon Integration
+**Modify:**
+- `src/daemon/index.ts` - Add orchestrator management
+- `tests/daemon/folder-lifecycle-daemon.test.ts`
+
+**DI Registration:**
+```typescript
+container.register('FolderLifecycleOrchestrator', {
+  useFactory: (c) => new FolderLifecycleOrchestratorImpl(...)
+});
+```
+
+**🔴 STOP 7:** `npm run test -- tests/daemon/folder-lifecycle-daemon.test.ts`
+
+#### Step 8: Real File Tests
+**Create:**
+- `tests/e2e/folder-lifecycle-real-files.test.ts` - Test with actual files
+
+**🔴 STOP 8:** `npm run test -- tests/e2e/folder-lifecycle-real-files.test.ts`
+
+#### Step 9: Manual TUI Verification
+```bash
+rm -rf ~/.folder-mcp/folders/
+npm run tui
+# Add test-knowledge-base, verify: scanning → indexing → active
+```
+
+#### 🟢 FINAL GATE: All Tests Pass
+```bash
+npm run test -- tests/**/*folder-lifecycle*.test.ts
+```
+
+### Critical Implementation Context
+
+**Existing Services Locations:**
+- `IIndexingOrchestrator`: `src/application/indexing/orchestrator.ts`
+- `FMDMService`: `src/daemon/services/fmdm-service.ts`
+- `SQLiteVecStorage`: `src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.ts`
+- `IFileSystemService`: `src/domain/files/file-system-operations.ts`
+
+**DI Tokens (from `src/di/interfaces.ts`):**
+- `INDEXING_ORCHESTRATOR`
+- `FILE_SYSTEM_SERVICE`
+- `SQLITE_VEC_STORAGE` (if exists, or create new)
+
+**Async Tracking Strategy:**
+```typescript
+// Wrap IndexingOrchestrator to track completion
+const indexingPromise = this.indexingOrchestrator.indexFolder(path);
+const taskId = generateTaskId();
+this.pendingTasks.set(taskId, indexingPromise);
+
+indexingPromise
+  .then(() => this.onTaskComplete(taskId, { success: true }))
+  .catch(err => this.onTaskComplete(taskId, { success: false, error: err }));
+```
+
+**Integration Points:**
+1. Daemon calls `orchestrator.startScanning()` instead of direct indexing
+2. Orchestrator wraps IndexingOrchestrator calls
+3. Progress updates throttled to FMDM
+4. State persisted in memory (not database for this task)
+
+### Success Criteria:
+1. No race conditions - status never reverts after reaching 'active'
+2. All async operations properly tracked and awaited
+3. Progress updates throttled to prevent WebSocket overload
+4. Failed tasks automatically retry with proper backoff
+5. Each folder operates independently without blocking others
 
 
 ## Sub Task 8: Embed All Documents on First Run ❌ NOT IMPLEMENTED
