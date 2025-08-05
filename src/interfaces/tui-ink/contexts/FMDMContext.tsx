@@ -53,7 +53,6 @@ export const FMDMContext = createContext<FMDMContextType | null>(null);
  */
 export interface FMDMProviderProps {
   children: ReactNode;
-  daemonUrl?: string;
   autoConnect?: boolean;
 }
 
@@ -62,10 +61,9 @@ export interface FMDMProviderProps {
  */
 export const FMDMProvider: React.FC<FMDMProviderProps> = ({
   children,
-  daemonUrl = 'ws://127.0.0.1:31849',
   autoConnect = true
 }) => {
-  const [client] = useState(() => new FMDMClient(daemonUrl));
+  const [client] = useState(() => new FMDMClient());
   const [fmdm, setFMDM] = useState<FMDM | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<FMDMConnectionStatus>({
     connected: false,
@@ -84,10 +82,11 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
       setConnectionStatus(status);
     });
 
-    // Auto-connect if enabled
+    // Auto-connect if enabled - graceful connection without error throwing
     if (autoConnect) {
-      client.connect().catch((error) => {
-        console.error('Failed to auto-connect to daemon:', error);
+      client.connect().catch(() => {
+        // Graceful handling - connection errors are handled internally by FMDMClient
+        // The client will automatically retry with daemon discovery
       });
     }
 

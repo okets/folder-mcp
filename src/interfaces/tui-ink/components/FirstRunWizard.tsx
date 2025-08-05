@@ -200,22 +200,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         }
     });
 
-    // Check if daemon is connected - if not, show error screen
+    // Don't show daemon error screen here - let AppFullscreen handle daemon connection logic
+    // FirstRunWizard should only render when daemon is connected
     if (!fmdmConnection.connected && !fmdmConnection.connecting) {
-        return (
-            <Box flexDirection="column" height="100%" justifyContent="center" alignItems="center" padding={1}>
-                <Box flexDirection="column" alignItems="center" paddingY={2}>
-                    <Text color="red" bold>⚠ folder-mcp service not running</Text>
-                    <Text color="gray">The daemon is required for folder-mcp to function.</Text>
-                    <Text color="gray">Please start the daemon and try again.</Text>
-                    <Box marginTop={1}>
-                        <Text color="yellow">Press </Text>
-                        <Text color="yellow" bold>Esc</Text>
-                        <Text color="yellow"> to exit</Text>
-                    </Box>
-                </Box>
-            </Box>
-        );
+        return null; // Let parent (AppFullscreen) handle daemon connection
     }
     
     // Show completion screen

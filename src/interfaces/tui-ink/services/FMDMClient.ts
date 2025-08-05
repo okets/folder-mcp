@@ -19,6 +19,7 @@ import {
   ModelDownloadCompleteMessage,
   ModelDownloadErrorMessage
 } from '../../../daemon/websocket/message-types.js';
+import { DaemonConnector } from '../daemon-connector.js';
 
 export interface FMDMConnectionStatus {
   connected: boolean;
@@ -49,75 +50,100 @@ export class FMDMClient {
   private isConnected = false;
   private isConnecting = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private maxReconnectAttempts = 50; // Increased for daemon waiting - will retry for ~25 minutes
+  private daemonConnector: DaemonConnector;
+  private isReconnecting = false; // Track if we're in reconnection mode
   
-  constructor(private daemonUrl: string = 'ws://127.0.0.1:31849') {}
+  constructor() {
+    this.daemonConnector = new DaemonConnector({
+      debug: false,
+      timeoutMs: 5000,
+      maxRetries: 3
+    });
+  }
 
   /**
-   * Connect to the daemon WebSocket server
+   * Connect to the daemon WebSocket server using auto-discovery
    */
   async connect(): Promise<void> {
     if (this.isConnected || this.isConnecting) {
       return;
     }
 
-    this.isConnecting = true;
-    this.notifyStatusListeners({ connected: false, connecting: true });
+    // Only set connecting state on initial connection, not during reconnects
+    if (!this.isReconnecting) {
+      this.isConnecting = true;
+      this.notifyStatusListeners({ connected: false, connecting: true });
+    }
 
-    return new Promise((resolve, reject) => {
-      try {
-        this.ws = new WebSocket(this.daemonUrl);
-        
-        this.ws.on('open', () => {
-          this.isConnected = true;
-          this.isConnecting = false;
-          this.reconnectAttempts = 0;
-          
-          // Initialize connection with daemon
-          this.ws!.send(JSON.stringify({
-            type: 'connection.init',
-            clientType: 'tui'
-          }));
-          
-          this.notifyStatusListeners({ connected: true, connecting: false });
-          resolve();
-        });
-        
-        this.ws.on('message', (data) => {
-          try {
-            const message = JSON.parse(data.toString()) as WSServerMessage;
-            this.handleMessage(message);
-          } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
-          }
-        });
-        
-        this.ws.on('close', () => {
-          this.isConnected = false;
-          this.isConnecting = false;
-          this.notifyStatusListeners({ connected: false, connecting: false });
-          this.scheduleReconnect();
-        });
-        
-        this.ws.on('error', (error) => {
-          this.isConnecting = false;
-          this.notifyStatusListeners({ 
-            connected: false, 
-            connecting: false, 
-            error: error.message 
-          });
-          reject(error);
-        });
-      } catch (error) {
+    try {
+      // Use DaemonConnector for auto-discovery
+      const { ws, connectionInfo } = await this.daemonConnector.connect();
+      
+      this.ws = ws;
+      this.isConnected = true;
+      this.isConnecting = false;
+      this.isReconnecting = false;
+      this.reconnectAttempts = 0;
+      
+      // Clear any existing reconnect timer since we're now connected
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      
+      // Initialize connection with daemon
+      this.ws.send(JSON.stringify({
+        type: 'connection.init',
+        clientType: 'tui'
+      }));
+      
+      // Set up event handlers
+      this.ws.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString()) as WSServerMessage;
+          this.handleMessage(message);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      });
+      
+      this.ws.on('close', () => {
+        this.isConnected = false;
+        this.isConnecting = false;
+        // Only show connecting state during active reconnection, not daemon down
+        this.notifyStatusListeners({ connected: false, connecting: false });
+        this.scheduleReconnect();
+      });
+      
+      this.ws.on('error', (error) => {
+        this.isConnected = false;
         this.isConnecting = false;
         this.notifyStatusListeners({ 
           connected: false, 
-          connecting: false, 
-          error: error instanceof Error ? error.message : String(error)
+          connecting: false 
         });
-        reject(error);
+      });
+      
+      this.notifyStatusListeners({ connected: true, connecting: false });
+      
+    } catch (error) {
+      this.isConnected = false;
+      this.isConnecting = false;
+      
+      // Don't flash connecting state during failed reconnection attempts
+      if (!this.isReconnecting) {
+        this.notifyStatusListeners({ 
+          connected: false, 
+          connecting: false 
+        });
       }
-    });
+      
+      // Start reconnection attempts immediately for graceful daemon waiting
+      this.scheduleReconnect();
+      
+      // Don't throw the error - this allows the TUI to start gracefully without daemon
+    }
   }
 
   /**
@@ -212,21 +238,29 @@ export class FMDMClient {
   }
 
   /**
-   * Schedule automatic reconnection
+   * Schedule automatic reconnection with daemon discovery
    */
   private scheduleReconnect(): void {
     if (this.reconnectTimer || this.reconnectAttempts >= this.maxReconnectAttempts) {
       return;
     }
     
-    this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000); // Exponential backoff
+    // Mark as reconnecting to avoid UI state flashing
+    this.isReconnecting = true;
     
-    this.reconnectTimer = setTimeout(() => {
+    this.reconnectAttempts++;
+    // Use a more reasonable backoff for daemon discovery: 1s, 2s, 4s, then cap at 10s
+    const delay = Math.min(1000 * Math.pow(2, Math.min(this.reconnectAttempts - 1, 3)), 10000);
+    
+    this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      this.connect().catch(() => {
-        // If reconnection fails, scheduleReconnect will be called again by the 'close' event
-      });
+      
+      // Try to connect without throwing errors
+      try {
+        await this.connect();
+      } catch (error) {
+        // Connection failed, scheduleReconnect is already called by connect() method
+      }
     }, delay);
   }
 
@@ -424,6 +458,10 @@ export class FMDMClient {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
       }
+      
+      // Reset reconnection state
+      this.isReconnecting = false;
+      this.reconnectAttempts = 0;
       
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         // Wait for WebSocket to close properly

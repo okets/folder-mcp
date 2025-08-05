@@ -28,10 +28,7 @@ const cliDir = dirIndex !== -1 && dirIndex + 1 < args.length ? args[dirIndex + 1
 const cliModel = modelIndex !== -1 && modelIndex + 1 < args.length ? args[modelIndex + 1] : null;
 const isHeadless = args.includes('--headless');
 
-// Determine daemon WebSocket URL from environment or default
-const daemonPort = process.env.FOLDER_MCP_DAEMON_PORT ? parseInt(process.env.FOLDER_MCP_DAEMON_PORT) : 31849;
-const wsPort = daemonPort + 1; // WebSocket port is HTTP port + 1
-const daemonUrl = `ws://127.0.0.1:${wsPort}`;
+// Auto-discovery is now handled by FMDMClient - no hardcoded URLs needed
 
 // Check if we're in a proper TTY environment
 if (!isHeadless && (!process.stdin.isTTY || !process.stdout.isTTY)) {
@@ -72,8 +69,15 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     
     // FMDM-based first run detection - make decisions based on daemon state
     React.useEffect(() => {
-        if (!isConnected || !fmdm) {
-            // Wait for FMDM connection and data
+        if (!isConnected) {
+            // Daemon not connected - AppFullscreen will handle the daemon error screen
+            setShowWizard(false);
+            setConfig(null);
+            return;
+        }
+        
+        if (!fmdm) {
+            // Wait for FMDM data after connection
             return;
         }
         
@@ -202,7 +206,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
-                    <FMDMProvider daemonUrl={daemonUrl} autoConnect={true}>
+                    <FMDMProvider autoConnect={true}>
                         <WindowsScreenWrapper>
                             <MainApp cliDir={cliDir} cliModel={cliModel} />
                         </WindowsScreenWrapper>
@@ -227,7 +231,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={fallbackConfigComponent}>
-                    <FMDMProvider daemonUrl={daemonUrl} autoConnect={true}>
+                    <FMDMProvider autoConnect={true}>
                         <WindowsScreenWrapper>
                             <MainApp cliDir={cliDir} cliModel={cliModel} />
                         </WindowsScreenWrapper>

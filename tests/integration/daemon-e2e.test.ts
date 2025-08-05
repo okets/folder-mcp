@@ -11,9 +11,10 @@ import { homedir } from 'os';
 import { existsSync, rmSync, mkdirSync, copyFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import WebSocket from 'ws';
+import { DaemonConnector } from '../../src/interfaces/tui-ink/daemon-connector.js';
 
-// Test configuration
-const TEST_DAEMON_PORT = 8765;
+// Test configuration - no hardcoded ports needed with auto-discovery
+const TEST_DAEMON_PORT = 8765; // Used for spawning daemon, connector will auto-discover
 const TEST_KNOWLEDGE_BASE = join(process.cwd(), 'tests/fixtures/test-knowledge-base');
 const TEMP_TEST_DIR = join('/tmp', 'test-daemon-e2e');
 const DEBOUNCE_MS = 1000; // Fast debouncing for tests
@@ -38,6 +39,7 @@ interface FMDMUpdate {
 describe('Daemon E2E Integration Tests', () => {
   let daemonProcess: ChildProcess;
   let ws: WebSocket;
+  let daemonConnector: DaemonConnector;
   
   // Test helpers
   const createTempFolder = (name: string): string => {
@@ -86,17 +88,23 @@ describe('Daemon E2E Integration Tests', () => {
     }
   };
 
-  const waitForConnection = (): Promise<void> => {
-    return new Promise((resolve) => {
-      ws.on('open', () => {
-        // Send connection.init to trigger initial FMDM state
-        ws.send(JSON.stringify({
-          type: 'connection.init',
-          clientType: 'cli'
-        }));
-        resolve();
-      });
+  const connectToDaemon = async (): Promise<void> => {
+    // Create daemon connector for auto-discovery
+    daemonConnector = new DaemonConnector({
+      timeoutMs: 5000,
+      maxRetries: 3,
+      debug: false
     });
+
+    // Connect using auto-discovery
+    const { ws: webSocket } = await daemonConnector.connect();
+    ws = webSocket;
+    
+    // Send connection.init to trigger initial FMDM state
+    ws.send(JSON.stringify({
+      type: 'connection.init',
+      clientType: 'cli'
+    }));
   };
 
   const waitForFMDMUpdate = (predicate: (fmdm: FMDMUpdate) => boolean, timeoutMs = 10000): Promise<FMDMUpdate> => {
@@ -183,12 +191,11 @@ describe('Daemon E2E Integration Tests', () => {
       rmSync(configDir, { recursive: true });
     }
 
-    // Start daemon with test configuration
+    // Start daemon with test configuration (no port coordination needed)
     const env = {
       ...process.env,
       FOLDER_MCP_DEVELOPMENT_ENABLED: 'true',
       FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS: DEBOUNCE_MS.toString(),
-      FOLDER_MCP_DAEMON_PORT: TEST_DAEMON_PORT.toString(),
       FOLDER_MCP_LOG_LEVEL: 'error' // Keep quiet during tests
     };
 
@@ -220,10 +227,8 @@ describe('Daemon E2E Integration Tests', () => {
       });
     });
 
-    // Connect WebSocket client (WebSocket runs on HTTP port + 1)
-    const WS_PORT = TEST_DAEMON_PORT + 1;
-    ws = new WebSocket(`ws://localhost:${WS_PORT}`);
-    await waitForConnection();
+    // Connect to daemon using auto-discovery
+    await connectToDaemon();
   }, 30000);
 
   afterAll(async () => {
@@ -446,13 +451,12 @@ describe('Daemon E2E Integration Tests', () => {
       ...process.env,
       FOLDER_MCP_DEVELOPMENT_ENABLED: 'true',
       FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS: DEBOUNCE_MS.toString(),
-      FOLDER_MCP_DAEMON_PORT: TEST_DAEMON_PORT.toString(),
       FOLDER_MCP_LOG_LEVEL: 'error'
     };
 
     daemonProcess = spawn('node', ['dist/src/daemon/index.js', '--port', TEST_DAEMON_PORT.toString()], { env });
 
-    // Wait for daemon to start and reconnect WebSocket
+    // Wait for daemon to start
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Daemon restart timeout')), 10000);
       daemonProcess.stderr?.on('data', (data) => {
@@ -463,15 +467,13 @@ describe('Daemon E2E Integration Tests', () => {
       });
     });
 
-    const WS_PORT = TEST_DAEMON_PORT + 1;
-    ws = new WebSocket(`ws://localhost:${WS_PORT}`);
-    
     // Set up FMDM listener BEFORE connection to avoid race condition
     const fmdmPromise = waitForFMDMUpdate(
       (fmdm) => fmdm.fmdm.folders.some(f => f.path === testFolder)  // Folder should persist after restart
     );
     
-    await waitForConnection();
+    // Reconnect using auto-discovery
+    await connectToDaemon();
 
     // After restart, daemon should restore folders from persistent storage (database)
     const fmdmUpdate = await fmdmPromise;

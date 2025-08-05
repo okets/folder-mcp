@@ -24,6 +24,7 @@ import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
 import { FolderLifecycleManager } from './services/folder-lifecycle-manager.js';
+import { DaemonRegistry } from './registry/daemon-registry.js';
 
 // Create a simple debug logger
 const debug = (message: string, ...args: any[]) => {
@@ -70,8 +71,23 @@ class FolderMCPDaemon {
   async start(): Promise<void> {
     debug('Starting folder-mcp daemon...');
     
-    // Write PID file
-    this.writePidFile();
+    // Register daemon with atomic singleton enforcement (discover + register in one atomic operation)
+    try {
+      await DaemonRegistry.register({
+        pid: process.pid,
+        httpPort: this.config.port,
+        wsPort: this.config.port + 1,
+        startTime: this.startTime.toISOString(),
+        version: '1.0.0' // TODO: Get from package.json
+      });
+      debug('Daemon registered in discovery registry');
+    } catch (error) {
+      debug('Failed to register daemon in discovery registry:', error);
+      throw new Error(`Failed to register daemon: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    // Legacy PID file is no longer needed - DaemonRegistry handles discovery
+    // this.writePidFile();
     
     // Initialize DI container for indexing services
     this.diContainer = setupDependencyInjection({
@@ -164,10 +180,13 @@ class FolderMCPDaemon {
     this.server = createServer(this.handleRequest.bind(this));
     
     // Start listening
-    return new Promise((resolve, reject) => {
-      this.server!.listen(this.config.port, this.config.host, () => {
+    return new Promise(async (resolve, reject) => {
+      this.server!.listen(this.config.port, this.config.host, async () => {
         debug(`Daemon listening on http://${this.config.host}:${this.config.port}`);
         debug(`PID file: ${this.config.pidFile}`);
+        
+        // Registration already completed during singleton check
+        
         resolve();
       });
       
@@ -301,8 +320,16 @@ class FolderMCPDaemon {
       });
     }
     
-    // Remove PID file
-    this.removePidFile();
+    // Legacy PID file cleanup no longer needed - DaemonRegistry handles cleanup
+    // this.removePidFile();
+    
+    // Clean up discovery registry
+    try {
+      await DaemonRegistry.cleanup();
+      debug('Discovery registry cleaned up');
+    } catch (error) {
+      debug('Failed to cleanup discovery registry:', error);
+    }
     
     debug('Daemon stopped');
   }
@@ -335,6 +362,16 @@ class FolderMCPDaemon {
     process.on('unhandledRejection', (reason) => {
       debug('Unhandled rejection:', reason);
       this.stop().finally(() => process.exit(1));
+    });
+    
+    // Extra safety: cleanup registry on process exit
+    process.on('exit', () => {
+      // Synchronous cleanup only - process is already exiting
+      try {
+        DaemonRegistry.cleanup();
+      } catch (error) {
+        // Ignore errors during exit cleanup
+      }
     });
   }
 
@@ -396,32 +433,13 @@ export function getPidFilePath(): string {
   return join(configDir, 'daemon.pid');
 }
 
-export function isDaemonRunning(): { running: boolean; pid?: number } {
-  const pidFile = getPidFilePath();
+export async function isDaemonRunning(): Promise<{ running: boolean; pid?: number }> {
+  // Use new DaemonRegistry instead of legacy PID file
+  const daemonInfo = await DaemonRegistry.discover();
   
-  if (!existsSync(pidFile)) {
-    return { running: false };
-  }
-  
-  try {
-    const pidStr = readFileSync(pidFile, 'utf8').trim();
-    const pid = parseInt(pidStr, 10);
-    
-    if (isNaN(pid)) {
-      return { running: false };
-    }
-    
-    // Check if process is actually running
-    try {
-      process.kill(pid, 0); // Doesn't actually kill, just checks if process exists
-      return { running: true, pid };
-    } catch {
-      // Process doesn't exist, remove stale PID file
-      unlinkSync(pidFile);
-      return { running: false };
-    }
-  } catch (error) {
-    debug('Error checking daemon status:', error);
+  if (daemonInfo) {
+    return { running: true, pid: daemonInfo.pid };
+  } else {
     return { running: false };
   }
 }
@@ -439,7 +457,7 @@ Usage:
   folder-mcp-daemon [options]
 
 Options:
-  --port <port>    HTTP server port (default: 9876)
+  --port <port>    HTTP server port (default: 31849)
   --host <host>    HTTP server host (default: 127.0.0.1)
   --help, -h       Show this help message
 
@@ -451,7 +469,7 @@ the folder-mcp services.
   
   // Parse options
   const portIndex = args.indexOf('--port');
-  const port = portIndex !== -1 ? parseInt(args[portIndex + 1] || '9876', 10) : 9876;
+  const port = portIndex !== -1 ? parseInt(args[portIndex + 1] || '31849', 10) : 31849;
   
   const hostIndex = args.indexOf('--host');
   const host = hostIndex !== -1 ? args[hostIndex + 1] || '127.0.0.1' : '127.0.0.1';
@@ -472,7 +490,7 @@ the folder-mcp services.
   };
   
   // Check if daemon is already running
-  const status = isDaemonRunning();
+  const status = await isDaemonRunning();
   if (status.running) {
     debug(`Daemon already running with PID ${status.pid}`);
     process.exit(1);

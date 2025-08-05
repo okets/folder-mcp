@@ -28,6 +28,8 @@ import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFo
 import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
 import { FolderIndexingStatus } from '../../daemon/models/fmdm';
+import { spawn } from 'child_process';
+import { join } from 'path';
 
 /**
  * Maps folder indexing status to appropriate display color
@@ -173,6 +175,40 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Simple countdown state for exit safety
     const [countdown, setCountdown] = useState<number | null>(null);
+    
+    // Daemon startup function
+    const startDaemon = useCallback(async () => {
+        try {
+            // Find the daemon executable path relative to the current working directory
+            const daemonPath = join(process.cwd(), 'dist', 'src', 'daemon', 'index.js');
+            
+            if (!existsSync(daemonPath)) {
+                console.error('Daemon executable not found at:', daemonPath);
+                console.error('Please run "npm run build" first');
+                return;
+            }
+            
+            // Spawn daemon process in background
+            const daemonProcess = spawn('node', [daemonPath], {
+                detached: true,
+                stdio: 'ignore'
+            });
+            
+            // Unref so TUI doesn't wait for daemon process
+            daemonProcess.unref();
+            
+            console.error('Starting daemon...');
+            
+            // Give daemon a moment to start before trying to reconnect
+            setTimeout(() => {
+                // The FMDM client will automatically try to reconnect
+                console.error('Daemon startup initiated');
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Failed to start daemon:', error);
+        }
+    }, []);
     
     // Countdown effect
     useEffect(() => {
@@ -375,12 +411,19 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Add input handling that works for both error screen and normal app
     useInput((input, key) => {
-        if (key.escape && (!fmdmConnection.connected && !fmdmConnection.connecting)) {
-            // Only handle ESC on error screen, let normal app handle its own ESC
-            robustExit().catch((error) => {
-                console.error('Error during exit:', error);
-                process.exit(1);
-            });
+        if (!fmdmConnection.connected && !fmdmConnection.connecting) {
+            // Only handle keys on error screen
+            if (key.escape) {
+                robustExit().catch((error) => {
+                    console.error('Error during exit:', error);
+                    process.exit(1);
+                });
+            } else if (key.return) {
+                // Start daemon when user presses enter
+                startDaemon().catch((error) => {
+                    console.error('Error starting daemon:', error);
+                });
+            }
         }
     });
 
@@ -392,10 +435,17 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     <Text color="red" bold>⚠ folder-mcp service not running</Text>
                     <Text color="gray">The daemon is required for folder-mcp to function.</Text>
                     <Text color="gray">Please start the daemon and try again.</Text>
-                    <Box marginTop={1}>
-                        <Text color="yellow">Press </Text>
-                        <Text color="yellow" bold>Esc</Text>
-                        <Text color="yellow"> to exit</Text>
+                    <Box marginTop={1} flexDirection="column" alignItems="center">
+                        <Box>
+                            <Text color="yellow">Press </Text>
+                            <Text color="yellow" bold>enter</Text>
+                            <Text color="yellow"> to start the service</Text>
+                        </Box>
+                        <Box>
+                            <Text color="yellow">Press </Text>
+                            <Text color="yellow" bold>esc</Text>
+                            <Text color="yellow"> to exit</Text>
+                        </Box>
                     </Box>
                 </Box>
             </Box>
