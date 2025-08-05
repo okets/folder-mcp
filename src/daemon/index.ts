@@ -444,6 +444,56 @@ export async function isDaemonRunning(): Promise<{ running: boolean; pid?: numbe
   }
 }
 
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const startTime = Date.now();
+  
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      process.kill(pid, 0); // Check if process exists (doesn't actually kill)
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
+        return; // Process no longer exists - success!
+      }
+      throw error; // Some other error
+    }
+  }
+  
+  throw new Error(`Process ${pid} did not exit within ${timeoutMs}ms`);
+}
+
+async function stopExistingDaemon(daemonInfo: any): Promise<void> {
+  debug(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
+  
+  try {
+    // Try graceful shutdown first (SIGTERM)
+    process.kill(daemonInfo.pid, 'SIGTERM');
+    
+    // Wait up to 5 seconds for graceful shutdown
+    await waitForProcessExit(daemonInfo.pid, 5000);
+    debug('Existing daemon stopped gracefully');
+    
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
+      // Process already dead
+      debug('Existing daemon already stopped');
+    } else {
+      // Graceful shutdown failed, try force kill
+      debug('Graceful shutdown failed, force killing...');
+      try {
+        process.kill(daemonInfo.pid, 'SIGKILL');
+        await waitForProcessExit(daemonInfo.pid, 2000);
+        debug('Existing daemon force killed');
+      } catch (killError) {
+        throw new Error(`Failed to stop existing daemon: ${killError}`);
+      }
+    }
+  }
+  
+  // Clean up registry file
+  await DaemonRegistry.cleanup();
+}
+
 // Main function
 async function main(): Promise<void> {
   // Parse command line arguments
@@ -457,9 +507,10 @@ Usage:
   folder-mcp-daemon [options]
 
 Options:
-  --port <port>    HTTP server port (default: 31849)
-  --host <host>    HTTP server host (default: 127.0.0.1)
-  --help, -h       Show this help message
+  --port <port>      HTTP server port (default: 31849)
+  --host <host>      HTTP server host (default: 127.0.0.1)
+  --restart, -r      Restart daemon, stopping any existing instances
+  --help, -h         Show this help message
 
 The daemon provides an HTTP API for TUI communication and manages
 the folder-mcp services.
@@ -473,6 +524,8 @@ the folder-mcp services.
   
   const hostIndex = args.indexOf('--host');
   const host = hostIndex !== -1 ? args[hostIndex + 1] || '127.0.0.1' : '127.0.0.1';
+  
+  const restartFlag = args.includes('--restart') || args.includes('-r');
   
   // Create config directory if it doesn't exist
   const configDir = join(homedir(), '.folder-mcp');
@@ -492,8 +545,17 @@ the folder-mcp services.
   // Check if daemon is already running
   const status = await isDaemonRunning();
   if (status.running) {
-    debug(`Daemon already running with PID ${status.pid}`);
-    process.exit(1);
+    if (restartFlag) {
+      // Get daemon info for stopping
+      const daemonInfo = await DaemonRegistry.discover();
+      if (daemonInfo) {
+        await stopExistingDaemon(daemonInfo);
+        debug('Existing daemon stopped, starting new instance...');
+      }
+    } else {
+      debug(`Daemon already running with PID ${status.pid}`);
+      process.exit(1);
+    }
   }
   
   // Start daemon
