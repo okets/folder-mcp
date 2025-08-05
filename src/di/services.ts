@@ -7,7 +7,7 @@ import { homedir } from 'os';vice implementations for dependency injection
  * with proper dependency injection support.
  */
 
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, unlinkSync } from 'fs';
 import { join, resolve, extname } from 'path';
 import { homedir } from 'os';
 
@@ -664,6 +664,40 @@ export class CacheService implements ICacheService {
     const previousIndex = loadPreviousIndex(cacheDir);
     return detectCacheStatus(fingerprints, previousIndex);
   }
+
+  async invalidateCache(filePath: string): Promise<void> {
+    // Generate cache key from file path (same as used in orchestrator)
+    const cacheKey = filePath.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    // Remove metadata cache
+    const cacheDir = join(this.folderPath, '.folder-mcp');
+    const metadataPath = join(cacheDir, 'metadata', `${cacheKey}.json`);
+    const embeddingsPath = join(cacheDir, 'embeddings', `${cacheKey}.json`);
+    const vectorsPath = join(cacheDir, 'vectors', `${cacheKey}.json`);
+    
+    try {
+      const { unlinkSync } = await import('fs');
+      
+      // Remove cache files if they exist
+      if (existsSync(metadataPath)) {
+        unlinkSync(metadataPath);
+        this.loggingService.debug('Invalidated metadata cache', { filePath, cacheKey });
+      }
+      
+      if (existsSync(embeddingsPath)) {
+        unlinkSync(embeddingsPath);
+        this.loggingService.debug('Invalidated embeddings cache', { filePath, cacheKey });
+      }
+      
+      if (existsSync(vectorsPath)) {
+        unlinkSync(vectorsPath);
+        this.loggingService.debug('Invalidated vectors cache', { filePath, cacheKey });
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to invalidate cache', error instanceof Error ? error : new Error(String(error)), { filePath });
+      // Don't throw - cache invalidation failure shouldn't stop processing
+    }
+  }
 }
 
 // File System Service (simplified implementation)
@@ -754,6 +788,82 @@ export class FileSystemService implements IFileSystemService {
     } catch (error) {
       this.loggingService.error('Failed to watch folder', error instanceof Error ? error : new Error(String(error)), { folderPath });
       throw error;
+    }
+  }
+
+  async scanFolder(folderPath: string): Promise<{ files: any[], errors: any[] }> {
+    const files: any[] = [];
+    const errors: any[] = [];
+    
+    try {
+      const { readdirSync, statSync } = await import('fs');
+      const { join } = await import('path');
+      
+      const scanRecursive = (dir: string) => {
+        try {
+          const entries = readdirSync(dir, { withFileTypes: true });
+          
+          for (const entry of entries) {
+            const fullPath = join(dir, entry.name);
+            
+            if (entry.isDirectory()) {
+              // Skip common ignore patterns
+              if (!['.git', 'node_modules', '.folder-mcp', 'dist', 'build'].includes(entry.name)) {
+                scanRecursive(fullPath);
+              }
+            } else if (entry.isFile()) {
+              const stats = statSync(fullPath);
+              files.push({
+                path: fullPath,
+                lastModified: stats.mtime.getTime(),
+                size: stats.size
+              });
+            }
+          }
+        } catch (error) {
+          errors.push({ path: dir, error: error instanceof Error ? error.message : String(error) });
+        }
+      };
+      
+      scanRecursive(folderPath);
+    } catch (error) {
+      this.loggingService.error('Failed to scan folder', error instanceof Error ? error : new Error(String(error)));
+      errors.push({ path: folderPath, error: error instanceof Error ? error.message : String(error) });
+    }
+    
+    return { files, errors };
+  }
+
+  async getFileHash(filePath: string): Promise<string> {
+    const content = await this.readFile(filePath);
+    const hash = this.cryptographyProvider.createHash('sha256');
+    hash.update(content);
+    return hash.digest('hex');
+  }
+
+  async getFileMetadata(filePath: string): Promise<any> {
+    try {
+      const { statSync } = await import('fs');
+      const stats = statSync(filePath);
+      
+      return {
+        path: filePath,
+        size: stats.size,
+        lastModified: stats.mtime.getTime(),
+        isFile: stats.isFile(),
+        isDirectory: stats.isDirectory()
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  isDirectory(path: string): boolean {
+    try {
+      const { statSync } = require('fs');
+      return statSync(path).isDirectory();
+    } catch {
+      return false;
     }
   }
 }
@@ -872,6 +982,41 @@ export class VectorSearchService implements IVectorSearchService {
 
   isReady(): boolean {
     return this.isIndexReady;
+  }
+
+  async removeDocument(filePath: string): Promise<void> {
+    this.loggingService.info('Removing document from vector index', { filePath });
+    
+    if (!this.isIndexReady || !this.vectorIndex) {
+      this.loggingService.warn('Vector index not ready, skipping document removal', { filePath });
+      return;
+    }
+    
+    try {
+      // Filter out metadata and embeddings for the specified file
+      if (this.vectorIndex.metadata && this.vectorIndex.embeddings) {
+        const indicesToKeep: number[] = [];
+        
+        for (let i = 0; i < this.vectorIndex.metadata.length; i++) {
+          const meta = this.vectorIndex.metadata[i];
+          if (meta?.filePath !== filePath) {
+            indicesToKeep.push(i);
+          }
+        }
+        
+        // Keep only the non-removed items
+        this.vectorIndex.metadata = indicesToKeep.map(i => this.vectorIndex.metadata[i]);
+        this.vectorIndex.embeddings = indicesToKeep.map(i => this.vectorIndex.embeddings[i]);
+        
+        this.loggingService.info('Document removed from vector index', { 
+          filePath, 
+          remainingDocuments: this.vectorIndex.metadata.length 
+        });
+      }
+    } catch (error) {
+      this.loggingService.error('Failed to remove document from vector index', error instanceof Error ? error : new Error(String(error)), { filePath });
+      // Don't throw - removal failure shouldn't stop processing
+    }
   }
 }
 
@@ -1004,6 +1149,28 @@ export class EnhancedCacheService implements ICacheService {
     const cacheDir = join(this.folderPath, '.folder-mcp');
     const previousIndex = loadPreviousIndex(cacheDir);
     return detectCacheStatus(fingerprints, previousIndex);
+  }
+
+  async invalidateCache(filePath: string): Promise<void> {
+    // Generate cache key from file path (same as used in orchestrator)
+    const cacheKey = filePath.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    // Remove cache entries for all cache types
+    const cacheTypes: Array<'metadata' | 'embeddings' | 'vectors'> = ['metadata', 'embeddings', 'vectors'];
+    
+    for (const cacheType of cacheTypes) {
+      try {
+        const cachePath = join(this.folderPath, cacheType, `${cacheKey}.json`);
+        
+        if (existsSync(cachePath)) {
+          unlinkSync(cachePath);
+          this.loggingService.debug('Invalidated cache entry', { filePath, cacheKey, cacheType });
+        }
+      } catch (error) {
+        this.loggingService.warn('Failed to invalidate cache entry', { filePath, cacheKey, cacheType, error: error instanceof Error ? error.message : String(error) });
+        // Don't throw - cache invalidation failure shouldn't stop processing
+      }
+    }
   }
 }
 

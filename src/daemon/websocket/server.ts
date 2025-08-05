@@ -7,6 +7,7 @@ import { WebSocketProtocol } from './protocol.js';
 import { IFMDMService } from '../services/fmdm-service.js';
 import { ILoggingService } from '../../di/interfaces.js';
 import { createFMDMUpdateMessage } from './message-types.js';
+import { BroadcastThrottler } from './broadcast-throttler.js';
 
 /**
  * WebSocket server that manages client connections and broadcasts FMDM updates
@@ -17,12 +18,23 @@ export class FMDMWebSocketServer {
   private isStarted = false;
   private protocol: WebSocketProtocol | null = null;
   private fmdmUnsubscribe: (() => void) | null = null;
+  private broadcastThrottler: BroadcastThrottler;
+  private latestFMDM: FMDM | null = null;
 
   constructor(
     private fmdmService?: IFMDMService,
     private logger?: ILoggingService
   ) {
     // Constructor supports DI injection but also allows manual setting
+    
+    // Initialize throttler with environment-aware config
+    // For testing: faster updates (10/sec, 20ms debounce)
+    // For production: conservative updates (2/sec, 100ms debounce)
+    const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+    this.broadcastThrottler = new BroadcastThrottler({
+      maxUpdatesPerSecond: isTestEnv ? 10 : 2,
+      debounceMs: isTestEnv ? 20 : 100
+    });
   }
 
   /**
@@ -32,6 +44,12 @@ export class FMDMWebSocketServer {
     this.fmdmService = fmdmService;
     this.protocol = protocol;
     this.logger = logger;
+    
+    // Set up callback to send initial FMDM when client connects
+    this.protocol.setClientConnectedCallback((clientId: string) => {
+      this.log('debug', `[WS-SERVER] Client ${clientId} connected, sending initial FMDM`);
+      this.sendInitialFMDM(clientId);
+    });
   }
 
   /**
@@ -63,8 +81,24 @@ export class FMDMWebSocketServer {
     // Subscribe to FMDM updates
     this.log('debug', `[WS-SERVER] Subscribing to FMDM updates`);
     this.fmdmUnsubscribe = this.fmdmService.subscribe((fmdm: FMDM) => {
-      this.log('debug', `[WS-SERVER-FMDM] Received FMDM update, broadcasting to clients`);
-      this.broadcastFMDM(fmdm);
+      // Check if this update contains progress information
+      const hasProgress = fmdm.folders.some(f => f.progress !== undefined);
+      this.log('debug', `[WS-SERVER-FMDM] Received FMDM update, hasProgress: ${hasProgress}, folders: ${fmdm.folders.length}`);
+      if (hasProgress) {
+        const progressFolders = fmdm.folders.filter(f => f.progress !== undefined);
+        this.log('debug', `[WS-SERVER-PROGRESS] Progress updates for ${progressFolders.length} folders: ${progressFolders.map(f => `${f.path}=${f.progress}%`).join(', ')}`);
+      }
+      
+      // Store latest FMDM state
+      this.latestFMDM = fmdm;
+      
+      // Request throttled broadcast
+      this.broadcastThrottler.requestBroadcast(() => {
+        if (this.latestFMDM) {
+          this.log('debug', `[WS-SERVER-THROTTLED] Broadcasting throttled FMDM update to ${this.clients.size} clients`);
+          this.broadcastFMDM(this.latestFMDM);
+        }
+      });
     });
 
     this.isStarted = true;
@@ -81,6 +115,9 @@ export class FMDMWebSocketServer {
     }
 
     this.log('info', `[WS-SERVER-STOP] Stopping WebSocket server with ${this.clients.size} connected clients`);
+
+    // Dispose of throttler
+    this.broadcastThrottler.dispose();
 
     // Unsubscribe from FMDM updates
     if (this.fmdmUnsubscribe) {
@@ -240,6 +277,29 @@ export class FMDMWebSocketServer {
     };
     this.log('debug', `[WS-ERROR-SEND] Sending error message: ${JSON.stringify(errorMessage)}`);
     this.sendMessage(ws, errorMessage);
+  }
+
+  /**
+   * Send initial FMDM state to a newly connected client
+   */
+  public sendInitialFMDM(clientId: string): void {
+    const clientInfo = this.clients.get(clientId);
+    if (!clientInfo) {
+      this.log('warn', `[WS-INITIAL-FMDM] Client ${clientId} not found`);
+      return;
+    }
+
+    if (!this.fmdmService) {
+      this.log('error', '[WS-INITIAL-FMDM] FMDM service not available');
+      return;
+    }
+
+    // Get current FMDM state and send immediately (bypass throttling)
+    const currentFMDM = this.fmdmService.getFMDM();
+    const message = createFMDMUpdateMessage(currentFMDM);
+    
+    this.log('debug', `[WS-INITIAL-FMDM] Sending initial FMDM state to client ${clientId}`);
+    this.sendMessage(clientInfo.ws, message);
   }
 
   /**

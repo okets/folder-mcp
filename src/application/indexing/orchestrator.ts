@@ -307,7 +307,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     return result;
   }
-  private async processFile(filePath: string, options: IndexingOptions): Promise<{
+  async processFile(filePath: string, options: IndexingOptions = {}): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
@@ -418,5 +418,24 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       processingRate: 0,
       embeddingRate: 0
     };
+  }
+
+  async removeFile(filePath: string): Promise<any> {
+    try {
+      // Remove from cache
+      await this.cacheService.invalidateCache(filePath);
+      
+      // Remove from vector search if available
+      if (this.vectorSearchService) {
+        await this.vectorSearchService.removeDocument(filePath);
+      }
+      
+      this.loggingService.info('File removed from index', { filePath });
+      
+      return { success: true, filePath };
+    } catch (error) {
+      this.loggingService.error('Failed to remove file from index', error as Error, { filePath });
+      return { success: false, filePath, error: (error as Error).message };
+    }
   }
 }

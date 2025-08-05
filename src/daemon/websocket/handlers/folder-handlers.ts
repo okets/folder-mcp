@@ -17,19 +17,13 @@ import { ILoggingService } from '../../../di/interfaces.js';
 import { IDaemonConfigurationService } from '../../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../../services/folder-validation-service.js';
 import { ModelHandlers } from './model-handlers.js';
+import { IFolderLifecycleManager } from '../../services/folder-lifecycle-manager.js';
 
 /**
  * FMDM service interface for folder handlers
  */
 export interface IFMDMServiceForHandlers {
   updateFolders(folders: Array<{ path: string; model: string; status: string }>): void;
-}
-
-/**
- * Indexing trigger interface for folder handlers
- */
-export interface IIndexingTrigger {
-  startFolderIndexing(folderPath: string): Promise<void>;
 }
 
 /**
@@ -42,7 +36,7 @@ export class FolderHandlers {
     private validationService: IDaemonFolderValidationService,
     private modelHandlers: ModelHandlers,
     private logger: ILoggingService,
-    private indexingTrigger?: IIndexingTrigger
+    private folderLifecycleManager?: IFolderLifecycleManager
   ) {}
 
   /**
@@ -128,18 +122,18 @@ export class FolderHandlers {
       this.logger.debug(`FMDM updated successfully`);
 
       // Trigger background indexing for the newly added folder
-      if (this.indexingTrigger) {
-        this.logger.debug(`Triggering background indexing for folder: ${path}`);
+      if (this.folderLifecycleManager) {
+        this.logger.debug(`Starting folder lifecycle management for: ${path}`);
         // Don't await - let indexing run in background
-        this.indexingTrigger.startFolderIndexing(path).catch((error) => {
-          this.logger.error(`Background indexing failed for ${path}`, error instanceof Error ? error : new Error(String(error)));
-          this.logger.debug(`Indexing error details: ${error instanceof Error ? error.message : String(error)}`);
+        this.folderLifecycleManager.startFolder({ path, model, status: 'pending' }).catch((error) => {
+          this.logger.error(`Failed to start folder lifecycle for ${path}`, error instanceof Error ? error : new Error(String(error)));
+          this.logger.debug(`Lifecycle error details: ${error instanceof Error ? error.message : String(error)}`);
           if (error instanceof Error && error.stack) {
             this.logger.debug(`Stack trace: ${error.stack}`);
           }
         });
       } else {
-        this.logger.warn(`No indexing trigger available - folder ${path} will not be indexed`);
+        this.logger.warn(`No folder lifecycle manager available - folder ${path} will not be indexed`);
       }
 
       this.logger.info(`Successfully added folder: ${path}`);

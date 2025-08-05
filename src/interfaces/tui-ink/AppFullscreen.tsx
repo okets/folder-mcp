@@ -27,6 +27,31 @@ import { useFMDM, useConfiguredFolders, useFMDMOperations, useFMDMConnection } f
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
+import { FolderIndexingStatus } from '../../daemon/models/fmdm';
+
+/**
+ * Maps folder indexing status to appropriate display color
+ */
+function getStatusColor(status?: FolderIndexingStatus): string {
+    switch (status) {
+        case 'pending':
+            return 'yellow';
+        case 'scanning':
+            return 'cyan';
+        case 'indexing':
+            return 'blue';
+        case 'indexed':
+            return 'green';
+        case 'active':
+            return 'green';
+        case 'watching':
+            return 'green';
+        case 'error':
+            return 'red';
+        default:
+            return 'yellow'; // Default fallback
+    }
+}
 
 // Get item counts once at module level to ensure consistency
 // Memoize these to prevent recreation on every render
@@ -225,6 +250,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     folderPath,
                     model: folder.model || 'nomic-embed-text',
                     isValid: folderValid,
+                    folderStatus: folder.status || 'pending', // Pass the actual status from FMDM
+                    statusColor: getStatusColor(folder.status), // Map status to appropriate color
                     onRemove: async (pathToRemove: string) => {
                         try {
                             await fmdmOperations.removeFolder(pathToRemove);

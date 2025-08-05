@@ -7,7 +7,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { FMDM } from '../../../daemon/models/fmdm.js';
+import { FMDM, FolderConfig } from '../../../daemon/models/fmdm.js';
 import { registerCleanupHandler, unregisterCleanupHandler } from '../utils/cleanup.js';
 import { FMDMClient, FMDMConnectionStatus, ModelDownloadEvent } from '../services/FMDMClient.js';
 
@@ -245,9 +245,9 @@ export const useIsDaemonConnected = (): boolean => {
 };
 
 /**
- * Hook to get configured folders
+ * Hook to get configured folders with complete information
  */
-export const useConfiguredFolders = (): Array<{ path: string; model: string }> => {
+export const useConfiguredFolders = (): FolderConfig[] => {
   const { fmdm } = useFMDM();
   return fmdm?.folders || [];
 };

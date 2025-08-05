@@ -28,6 +28,11 @@ const cliDir = dirIndex !== -1 && dirIndex + 1 < args.length ? args[dirIndex + 1
 const cliModel = modelIndex !== -1 && modelIndex + 1 < args.length ? args[modelIndex + 1] : null;
 const isHeadless = args.includes('--headless');
 
+// Determine daemon WebSocket URL from environment or default
+const daemonPort = process.env.FOLDER_MCP_DAEMON_PORT ? parseInt(process.env.FOLDER_MCP_DAEMON_PORT) : 31849;
+const wsPort = daemonPort + 1; // WebSocket port is HTTP port + 1
+const daemonUrl = `ws://127.0.0.1:${wsPort}`;
+
 // Check if we're in a proper TTY environment
 if (!isHeadless && (!process.stdin.isTTY || !process.stdout.isTTY)) {
     console.error('Error: This application must be run in an interactive terminal.');
@@ -197,7 +202,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={configComponent}>
-                    <FMDMProvider autoConnect={true}>
+                    <FMDMProvider daemonUrl={daemonUrl} autoConnect={true}>
                         <WindowsScreenWrapper>
                             <MainApp cliDir={cliDir} cliModel={cliModel} />
                         </WindowsScreenWrapper>
@@ -222,7 +227,7 @@ async function startTUI() {
         const app = render(
             <DIProvider container={tuiContainer}>
                 <ConfigurationThemeProvider configManager={fallbackConfigComponent}>
-                    <FMDMProvider autoConnect={true}>
+                    <FMDMProvider daemonUrl={daemonUrl} autoConnect={true}>
                         <WindowsScreenWrapper>
                             <MainApp cliDir={cliDir} cliModel={cliModel} />
                         </WindowsScreenWrapper>

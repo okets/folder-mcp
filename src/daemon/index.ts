@@ -23,6 +23,7 @@ import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
+import { FolderLifecycleManager } from './services/folder-lifecycle-manager.js';
 
 // Create a simple debug logger
 const debug = (message: string, ...args: any[]) => {
@@ -58,6 +59,8 @@ class FolderMCPDaemon {
   private fmdmService: FMDMService | null = null;
   private diContainer: any = null;
   private indexingService: IMultiFolderIndexingWorkflow | null = null;
+  private folderLifecycleManager: FolderLifecycleManager | null = null;
+  private CONFIG_SERVICE_TOKENS: any = null;
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -77,6 +80,7 @@ class FolderMCPDaemon {
     
     // Setup configuration services in DI container
     const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
+    this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
     const { join } = await import('path');
     const { homedir } = await import('os');
     registerConfigurationServices(this.diContainer, {
@@ -94,11 +98,25 @@ class FolderMCPDaemon {
     this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
     debug('Multi-folder indexing service initialized');
     
+    // Initialize folder lifecycle manager
+    const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
+    const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
+    const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
+    
+    this.folderLifecycleManager = new FolderLifecycleManager(
+      indexingOrchestrator,
+      this.fmdmService!,
+      fileSystemService,
+      loggingService
+    );
+    debug('Folder lifecycle manager initialized');
+    
     // Load existing folders from configuration and update FMDM
     try {
       debug('About to load existing folders from configuration...');
       const existingFolders = await configComponent.get('folders.list') || [];
       debug(`Loading ${existingFolders.length} existing folders from configuration`);
+      debug(`Configuration folders:`, JSON.stringify(existingFolders, null, 2));
       if (existingFolders.length > 0) {
         // Convert config folders to FMDM folder format
         const fmdmFolders = existingFolders.map((folder: any) => ({
@@ -124,24 +142,23 @@ class FolderMCPDaemon {
     const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
     await validationService.initialize();
     
-    // Create WebSocket protocol with daemon as indexing trigger
-    // We need to create this manually because the daemon needs to pass itself as the indexing trigger
+    // Create WebSocket protocol with proper indexing trigger
     const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
-    const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
     const webSocketProtocol = new WebSocketProtocol(
       validationService,
       daemonConfigService,
       this.fmdmService!,
       loggingService,
-      this // Pass daemon as indexing trigger
+      this.folderLifecycleManager // Pass folder lifecycle manager directly
     );
     
     // Update WebSocket server with custom protocol
     this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
     
-    // Start WebSocket server
-    await this.webSocketServer!.start(31849);
-    debug('WebSocket server started on ws://127.0.0.1:31849');
+    // Start WebSocket server on HTTP port + 1
+    const wsPort = this.config.port + 1;
+    await this.webSocketServer!.start(wsPort);
+    debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
     
     // Create HTTP server
     this.server = createServer(this.handleRequest.bind(this));
@@ -325,7 +342,7 @@ class FolderMCPDaemon {
    * Trigger indexing for a specific folder with status updates
    */
   async startFolderIndexing(folderPath: string): Promise<void> {
-    if (!this.fmdmService || !this.indexingService) {
+    if (!this.fmdmService || !this.folderLifecycleManager) {
       debug(`Cannot start indexing: services not initialized`);
       return;
     }
@@ -333,28 +350,24 @@ class FolderMCPDaemon {
     debug(`Starting indexing for folder: ${folderPath}`);
     
     try {
-      // Update status to indexing
-      this.fmdmService.updateFolderStatus(folderPath, 'indexing');
+      // Get folder configuration
+      const configComponent = this.diContainer.resolve(this.CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+      const folders = await configComponent.get('folders.list') || [];
+      const folderConfig = folders.find((f: any) => f.path === folderPath);
       
-      // Start indexing (this is async)
-      const indexingResult = await this.indexingService.indexFolder(folderPath, {
-        baseOptions: {
-          forceReindex: false // Use cache when possible
-        }
+      if (!folderConfig) {
+        debug(`Folder not found in configuration: ${folderPath}`);
+        return;
+      }
+      
+      // Start lifecycle management for this folder
+      await this.folderLifecycleManager.startFolder({
+        path: folderConfig.path,
+        model: folderConfig.model,
+        status: 'pending'
       });
       
-      if (indexingResult.success) {
-        // Update status to indexed first, then watching
-        this.fmdmService.updateFolderStatus(folderPath, 'indexed');
-        
-        // TODO: In future, start file monitoring and update to 'watching'
-        // For now, keep as 'indexed'
-        debug(`Indexing completed for folder: ${folderPath}`);
-      } else {
-        // Update status to error
-        this.fmdmService.updateFolderStatus(folderPath, 'error');
-        debug(`Indexing failed for folder: ${folderPath}`, indexingResult.error);
-      }
+      debug(`Started lifecycle management for folder: ${folderPath}`);
       
     } catch (error) {
       debug(`Indexing error for folder ${folderPath}:`, error);
@@ -437,8 +450,11 @@ the folder-mcp services.
   }
   
   // Parse options
-  const port = parseInt(args[args.indexOf('--port') + 1] || '9876', 10);
-  const host = args[args.indexOf('--host') + 1] || '127.0.0.1';
+  const portIndex = args.indexOf('--port');
+  const port = portIndex !== -1 ? parseInt(args[portIndex + 1] || '9876', 10) : 9876;
+  
+  const hostIndex = args.indexOf('--host');
+  const host = hostIndex !== -1 ? args[hostIndex + 1] || '127.0.0.1' : '127.0.0.1';
   
   // Create config directory if it doesn't exist
   const configDir = join(homedir(), '.folder-mcp');

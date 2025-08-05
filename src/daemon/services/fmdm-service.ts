@@ -57,12 +57,17 @@ export interface IFMDMService {
    * Update status for a specific folder
    */
   updateFolderStatus(folderPath: string, status: FolderIndexingStatus): void;
+  
+  /**
+   * Update progress for a specific folder
+   */
+  updateFolderProgress(folderPath: string, progressPercentage: number): void;
 }
 
 /**
  * Configuration service interface (minimal for FMDM needs)
  */
-export interface IConfigurationService {
+export interface IFMDMConfigurationService {
   getFolders(): Promise<Array<{ path: string; model: string }>>;
 }
 
@@ -74,7 +79,7 @@ export class FMDMService implements IFMDMService {
   private listeners: Set<(fmdm: FMDM) => void> = new Set();
   
   constructor(
-    private configService: IConfigurationService,
+    private configService: IFMDMConfigurationService,
     private logger: ILoggingService
   ) {
     // Initialize with default FMDM
@@ -271,6 +276,36 @@ export class FMDMService implements IFMDMService {
     // Update version and broadcast changes
     this.fmdm.version = this.generateVersion();
     this.logger.debug(`Updated folder status: ${folderPath} -> ${status}`);
+    this.broadcast();
+  }
+  
+  /**
+   * Update progress for a specific folder
+   */
+  updateFolderProgress(folderPath: string, progressPercentage: number): void {
+    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    
+    if (folderIndex === -1) {
+      this.logger.warn(`Attempted to update progress for unknown folder: ${folderPath}`);
+      return;
+    }
+    
+    // Update the folder progress
+    const folder = this.fmdm.folders[folderIndex];
+    if (!folder) {
+      this.logger.error(`Folder at index ${folderIndex} is unexpectedly undefined`);
+      return;
+    }
+    
+    // Store progress in folder metadata (could be extended later)
+    this.fmdm.folders[folderIndex] = {
+      ...folder,
+      progress: progressPercentage
+    };
+    
+    // Update version and broadcast changes
+    this.fmdm.version = this.generateVersion();
+    this.logger.debug(`Updated folder progress: ${folderPath} -> ${progressPercentage}%`);
     this.broadcast();
   }
   

@@ -34,6 +34,13 @@ export interface VectorMetadata {
     slideNumber?: number;
 }
 
+export interface FileMetadata {
+    filePath: string;
+    lastModified: number;
+    size: number;
+    hash?: string;
+}
+
 export class SQLiteVecStorage implements IVectorSearchService {
     private dbManager: DatabaseManager;
     private logger: ILoggingService | undefined;
@@ -362,6 +369,14 @@ export class SQLiteVecStorage implements IVectorSearchService {
     }
 
     /**
+     * Remove document from vector index (alias for deleteDocument)
+     * Implements IVectorSearchService interface method
+     */
+    async removeDocument(filePath: string): Promise<void> {
+        await this.deleteDocument(filePath);
+    }
+
+    /**
      * Mark document for reindexing
      */
     async markForReindex(filePath: string): Promise<void> {
@@ -388,5 +403,90 @@ export class SQLiteVecStorage implements IVectorSearchService {
         const results = getStmt.all() as any[];
         
         return results.map(row => row.file_path);
+    }
+
+    /**
+     * Get file metadata for change detection
+     */
+    async getFileMetadata(filePath: string): Promise<FileMetadata | null> {
+        if (!this.dbManager.isReady()) {
+            // If database not ready, assume file is new
+            return null;
+        }
+
+        try {
+            const db = this.dbManager.getDatabase();
+            const stmt = db.prepare(`
+                SELECT file_path, last_modified, file_size, fingerprint 
+                FROM documents 
+                WHERE file_path = ?
+            `);
+            const result = stmt.get(filePath) as any;
+            
+            if (!result) {
+                return null;
+            }
+
+            return {
+                filePath: result.file_path,
+                lastModified: new Date(result.last_modified).getTime(),
+                size: result.file_size || 0,
+                hash: result.fingerprint
+            };
+        } catch (error) {
+            this.logger?.error(`Failed to get file metadata for ${filePath}`, error as Error);
+            return null;
+        }
+    }
+
+    /**
+     * Remove embeddings for a specific file
+     */
+    async removeFileEmbeddings(filePath: string): Promise<void> {
+        if (!this.dbManager.isReady()) {
+            throw new Error('Database not initialized');
+        }
+
+        try {
+            await this.deleteDocument(filePath);
+            this.logger?.info(`Removed embeddings for file: ${filePath}`);
+        } catch (error) {
+            const errorMessage = `Failed to remove embeddings for ${filePath}: ${error instanceof Error ? error.message : String(error)}`;
+            this.logger?.error(errorMessage, error as Error);
+            throw new Error(errorMessage);
+        }
+    }
+
+    /**
+     * Get all document fingerprints for change detection
+     * Returns a map of file path to fingerprint/hash
+     */
+    async getDocumentFingerprints(): Promise<Map<string, string>> {
+        if (!this.dbManager.isReady()) {
+            // If database not ready, return empty map
+            return new Map();
+        }
+
+        try {
+            const db = this.dbManager.getDatabase();
+            const stmt = db.prepare(`
+                SELECT file_path, fingerprint 
+                FROM documents 
+                WHERE fingerprint IS NOT NULL
+            `);
+            const results = stmt.all() as any[];
+            
+            const fingerprints = new Map<string, string>();
+            for (const row of results) {
+                fingerprints.set(row.file_path, row.fingerprint);
+            }
+            
+            this.logger?.debug(`Retrieved ${fingerprints.size} document fingerprints`);
+            return fingerprints;
+        } catch (error) {
+            this.logger?.error('Failed to get document fingerprints', error as Error);
+            // Return empty map on error to allow indexing to proceed
+            return new Map();
+        }
     }
 }

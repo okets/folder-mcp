@@ -326,10 +326,61 @@ npm run tui
 2. **Status Transitions**: Added self-transition for 'indexing' to allow progress updates
 3. **Status Reversion Bug**: Identified root cause as missing async orchestration
 
-## Sub Task 7.5: Implement FolderLifecycleOrchestrator 🚧 IN PROGRESS
+## 🚧 Sub Task 7.5: Implement FolderLifecycleOrchestrator **IN PROGRESS**
 
-**Status**: 🚧 IN PROGRESS
-**Why**: Need proper orchestration to manage complete folder lifecycle and prevent race conditions
+**Status**: 🚧 IN PROGRESS - Core implementation complete, 5 E2E test bugs remaining
+**Why**: Core FolderLifecycleOrchestrator implemented and integrated with daemon E2E tests
+
+### ✅ **Completed Work:**
+- ✅ Designed and implemented FolderLifecycleOrchestrator with task-based tracking
+- ✅ Created domain models: FolderLifecycleState, FileEmbeddingTask, FolderProgress
+- ✅ Implemented FolderLifecycleStateMachine with proper state transitions
+- ✅ Built FolderTaskQueue with retry logic and concurrency control
+- ✅ Integrated with daemon through FolderLifecycleManager
+- ✅ Fixed 3 major TDD-identified bugs (race conditions, progress tracking, restart logic)
+- ✅ Successfully validated core E2E scenarios: basic lifecycle, progress tracking, daemon restart
+
+### 🚧 **Sub Task 7.5.1: Fix Remaining E2E Test Failures** - IN PROGRESS
+
+**5 System Bugs identified from failing daemon integration tests:**
+
+#### **Bug A: Concurrent Processing Race Condition** 
+- **Failing Test:** `should handle concurrent folder processing`
+- **Issue:** Test expects all 3 folders to reach 'indexing' status, but small folders skip directly from 'scanning' to 'active'
+- **Root Cause:** Race condition where fast folder processing bypasses the indexing state
+- **Fix Approach:** Either update test logic to handle direct scanning→active transitions OR ensure all folders always go through indexing phase
+- **Priority:** Medium (test logic issue, not core functionality bug)
+
+#### **Bug B: Folder Removal Not Implemented** 
+- **Failing Test:** `should handle folder removal during processing`
+- **Issue:** `removeFolder()` WebSocket message doesn't properly remove folder from FMDM
+- **Root Cause:** Folder removal WebSocket handler missing or not updating FMDM state
+- **Fix Approach:** Implement proper `folder.remove` handler in WebSocket protocol and ensure FMDM updates
+- **Priority:** High (missing core feature)
+
+#### **Bug C: Error Reporting Not Integrated** 
+- **Failing Test:** `should report errors through FMDM`
+- **Issue:** When folder addition fails (non-existent path), error status isn't broadcast via FMDM
+- **Root Cause:** Error handling path doesn't integrate with FMDM broadcasting system
+- **Fix Approach:** Add error status updates to FMDM service when folder operations fail
+- **Priority:** High (error handling critical for UX)
+
+#### **Bug D: File System Watcher Inactive During Indexing** 
+- **Failing Tests:** `should detect and process files added/removed during indexing`
+- **Issue:** File system watcher doesn't detect live file changes during indexing phase
+- **Root Cause:** File monitoring likely paused/disabled while folder is in indexing state
+- **Fix Approach:** Keep file system watcher active during indexing, implement proper debounce restart logic
+- **Priority:** High (live file detection is core feature)
+
+#### **Bug E: State Machine Edge Cases** 
+- **Multiple Tests:** Various state transition issues across different scenarios
+- **Issue:** Edge cases in folder lifecycle state machine not properly handled
+- **Root Cause:** State transitions missing for concurrent operations, errors, and dynamic changes
+- **Fix Approach:** Review and enhance folder lifecycle state machine for all edge cases
+- **Priority:** Medium (edge case handling, core flows work)
+
+**Current E2E Test Results:** 5 passed | 5 failed (10 total)
+**Next Action:** Fix Bug B (Folder Removal) as highest impact missing feature
 
 ### Problem Statement:
 Current implementation reports indexing completion while async callbacks (chunking, embedding) are still pending. This causes:
@@ -579,36 +630,50 @@ ls tests/fixtures/test-knowledge-base/  # Verify test data exists
 
 **🔴 STOP 6:** `npm run test -- tests/integration/folder-lifecycle-integration.test.ts`
 
-#### Step 7: Daemon Integration
-**Modify:**
-- `src/daemon/index.ts` - Add orchestrator management
-- `tests/daemon/folder-lifecycle-daemon.test.ts`
+#### Step 7: End-to-End Daemon Integration Tests
+**Replace failing integration tests with comprehensive daemon-based E2E tests:**
+- `tests/integration/daemon-e2e.test.ts` - Complete daemon workflow testing
 
-**DI Registration:**
-```typescript
-container.register('FolderLifecycleOrchestrator', {
-  useFactory: (c) => new FolderLifecycleOrchestratorImpl(...)
-});
-```
+**Test Suite Design:**
+1. **"should complete full folder lifecycle via daemon"** - Basic workflow validation
+2. **"should detect and process multiple file types"** - File type detection with real test knowledge base
+3. **"should handle concurrent folder processing"** - Multiple subfolders processed simultaneously
+4. **"should provide real-time progress updates"** - Progress tracking validation
+5. **"should handle daemon restart with existing folders"** - State persistence testing
+6. **"should handle folder removal during processing"** - Graceful cleanup using temp folders
+7. **"should report errors through FMDM"** - Error state propagation
+8. **"should detect and process files added during indexing"** - Live file addition testing
+9. **"should detect and handle files removed during indexing"** - Live file removal testing
+10. **"should debounce multiple rapid file changes"** - Debounced re-indexing validation
 
-**🔴 STOP 7:** `npm run test -- tests/daemon/folder-lifecycle-daemon.test.ts`
+**Key Features:**
+- **Debounced Re-indexing**: 30-second delay after last file change (configurable via `FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS=1000` for tests)
+- **Live File System Changes**: Tests file addition/removal during processing using temporary folders
+- **FMDM Subscription Testing**: Monitors real daemon updates via FMDM subscription (simulates WebSocket clients)
+- **Safe Test Data**: All destructive tests use temp directories, existing test-knowledge-base is read-only
+- **Concurrent Processing**: Tests multiple subfolder processing simultaneously
+- **Real System Validation**: Uses actual daemon services, no DI container replication
 
-#### Step 8: Real File Tests
-**Create:**
-- `tests/e2e/folder-lifecycle-real-files.test.ts` - Test with actual files
+**Implementation Strategy:**
+- Environment variable configuration: `FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS=1000` for fast tests
+- Temp folder pattern: Copy files FROM test-knowledge-base TO temp directories for safe testing
+- FMDM subscription pattern: Monitor state changes and progress updates in real-time
+- Subfolder concurrency: Use Engineering/, Finance/, Legal/, Marketing/, Sales/ as separate folders
 
-**🔴 STOP 8:** `npm run test -- tests/e2e/folder-lifecycle-real-files.test.ts`
+**🔴 STOP 7:** `npm run test -- tests/integration/daemon-e2e.test.ts`
 
-#### Step 9: Manual TUI Verification
+#### Step 8: Manual TUI Verification
 ```bash
 rm -rf ~/.folder-mcp/folders/
 npm run tui
 # Add test-knowledge-base, verify: scanning → indexing → active
+# Test file system watching with debounced re-indexing
 ```
 
 #### 🟢 FINAL GATE: All Tests Pass
 ```bash
 npm run test -- tests/**/*folder-lifecycle*.test.ts
+npm run test -- tests/integration/daemon-e2e.test.ts
 ```
 
 ### Critical Implementation Context
@@ -626,14 +691,41 @@ npm run test -- tests/**/*folder-lifecycle*.test.ts
 
 **Async Tracking Strategy:**
 ```typescript
-// Wrap IndexingOrchestrator to track completion
-const indexingPromise = this.indexingOrchestrator.indexFolder(path);
+// Wrap IndexingOrchestrator to track completion per file
 const taskId = generateTaskId();
-this.pendingTasks.set(taskId, indexingPromise);
+this.pendingTasks.set(taskId, 'in-progress');
 
-indexingPromise
-  .then(() => this.onTaskComplete(taskId, { success: true }))
-  .catch(err => this.onTaskComplete(taskId, { success: false, error: err }));
+// Process individual file task
+switch (task.type) {
+  case 'CreateEmbeddings':
+  case 'UpdateEmbeddings':
+    await this.indexingOrchestrator.processFile(task.file);
+    break;
+  case 'RemoveEmbeddings':
+    await this.indexingOrchestrator.removeFile(task.file);
+    break;
+}
+
+this.onTaskComplete(taskId, { success: true });
+```
+
+**File System Watching with Debounced Re-indexing:**
+```typescript
+// File change detection triggers debounced re-scan
+private debounceTimer: NodeJS.Timeout | null = null;
+private readonly debounceMs = parseInt(process.env.FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS) || 30000;
+
+onFileSystemChange(): void {
+  // Cancel current tasks
+  this.cancelPendingTasks();
+  
+  // Reset debounce timer
+  if (this.debounceTimer) clearTimeout(this.debounceTimer);
+  
+  this.debounceTimer = setTimeout(() => {
+    this.startScanning(); // Re-scan after quiet period
+  }, this.debounceMs);
+}
 ```
 
 **Integration Points:**

@@ -302,6 +302,11 @@ export function setupDependencyInjection(options: {
     return await serviceFactory.createIndexingOrchestrator(container);
   });
 
+  // Register as IIndexingOrchestrator interface
+  container.registerSingleton('IIndexingOrchestrator', async () => {
+    return await serviceFactory.createIndexingOrchestrator(container);
+  });
+
   // Register incremental indexer
   container.registerSingleton(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING, async () => {
     return await serviceFactory.createIncrementalIndexer(container);

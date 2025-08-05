@@ -15,6 +15,20 @@ import { SystemCapabilities } from '../config/schema.js';
 // =============================================================================
 
 /**
+ * Indexing orchestrator interface
+ */
+export interface IIndexingOrchestrator {
+  indexFolder(path: string, options?: any): Promise<any>;
+  processFile(filePath: string): Promise<any>;
+  removeFile(filePath: string): Promise<any>;
+  pauseFolder(path: string): void;
+  resumeFolder(path: string): void;
+  isPaused(path: string): boolean;
+  getStatistics(): any;
+  reset(): void;
+}
+
+/**
  * Configuration service interface
  * Handles configuration resolution, validation, and caching
  */
@@ -145,6 +159,11 @@ export interface IVectorSearchService {
    * Check if index is loaded and ready
    */
   isReady(): boolean;
+  
+  /**
+   * Remove document from vector index
+   */
+  removeDocument(filePath: string): Promise<void>;
 }
 
 /**
@@ -176,6 +195,11 @@ export interface ICacheService {
    * Get cache status for files
    */
   getCacheStatus(fingerprints: FileFingerprint[]): Promise<any>;
+  
+  /**
+   * Invalidate cache for a specific file
+   */
+  invalidateCache(filePath: string): Promise<void>;
 }
 
 /**
@@ -202,6 +226,26 @@ export interface IFileSystemService {
    * Watch folder for changes
    */
   watchFolder(folderPath: string, callback: (event: string, filePath: string) => void): Promise<void>;
+  
+  /**
+   * Scan folder for files
+   */
+  scanFolder(folderPath: string): Promise<{ files: any[], errors: any[] }>;
+  
+  /**
+   * Get file hash
+   */
+  getFileHash(filePath: string): Promise<string>;
+  
+  /**
+   * Get file metadata
+   */
+  getFileMetadata(filePath: string): Promise<any>;
+  
+  /**
+   * Check if path is directory
+   */
+  isDirectory(path: string): boolean;
 }
 
 /**

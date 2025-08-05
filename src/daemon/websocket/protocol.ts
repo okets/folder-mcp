@@ -30,10 +30,11 @@ import {
 
 import { ILoggingService } from '../../di/interfaces.js';
 import { ClientConnection } from '../models/fmdm.js';
-import { FolderHandlers, IIndexingTrigger } from './handlers/folder-handlers.js';
+import { FolderHandlers } from './handlers/folder-handlers.js';
 import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
+import { IFolderLifecycleManager } from '../services/folder-lifecycle-manager.js';
 
 /**
  * Folder validation service interface
@@ -57,13 +58,14 @@ export interface IProtocolFMDMService {
 export class WebSocketProtocol {
   private folderHandlers: FolderHandlers;
   private modelHandlers: ModelHandlers;
+  private onClientConnected?: (clientId: string) => void;
 
   constructor(
     private validationService: IDaemonFolderValidationService,
     private configService: IDaemonConfigurationService,
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService,
-    private indexingTrigger?: IIndexingTrigger
+    private folderLifecycleManager?: IFolderLifecycleManager
   ) {
     // Create model handlers first
     this.modelHandlers = new ModelHandlers(this.logger);
@@ -75,8 +77,15 @@ export class WebSocketProtocol {
       this.validationService,
       this.modelHandlers,
       this.logger,
-      this.indexingTrigger
+      this.folderLifecycleManager
     );
+  }
+
+  /**
+   * Set callback for when a client successfully connects
+   */
+  setClientConnectedCallback(callback: (clientId: string) => void): void {
+    this.onClientConnected = callback;
   }
 
   /**
@@ -148,6 +157,11 @@ export class WebSocketProtocol {
     this.fmdmService.addClient(client);
 
     this.logger.info(`Client ${clientId} initialized as ${message.clientType}`);
+    
+    // Notify that client is connected (so server can send initial FMDM)
+    if (this.onClientConnected) {
+      this.onClientConnected(clientId);
+    }
     
     return createConnectionAck(clientId);
   }
