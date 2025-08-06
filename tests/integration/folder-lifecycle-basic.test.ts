@@ -36,17 +36,29 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     
     mockStorage = {
       getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
-      removeDocument: vi.fn(() => Promise.resolve())
+      removeDocument: vi.fn(() => Promise.resolve()),
+      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      buildIndex: vi.fn().mockResolvedValue(void 0) // Add missing buildIndex method
     };
     
-    // Create orchestrator
+    // Create mock logger
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+      setLevel: vi.fn()
+    };
+    
+    // Create orchestrator - FIXED parameter order
     orchestrator = new FolderLifecycleManagerImpl(
       'test-basic',
       '/test/path',
       mockIndexingOrchestrator,
-      mockFmdmService,
-      mockFileSystemService,
-      mockStorage
+      mockFileSystemService,    // Fixed: fileSystemService in correct position
+      mockStorage,              // Fixed: sqliteVecStorage in correct position  
+      mockLogger                // Fixed: added missing logger parameter
     );
   });
   

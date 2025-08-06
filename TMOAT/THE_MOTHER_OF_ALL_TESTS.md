@@ -18,6 +18,33 @@
 
 **This is agent-led TDD** - The test suite grows with every feature.
 
+## 🚨 CRITICAL: Test Failure Analysis Protocol
+
+**NEVER adjust tests to match broken implementations!** 
+
+When a test fails, follow this decision tree:
+
+### Test Failure Decision Process:
+1. **THINK**: What is this test validating? Is it a valid business requirement?
+2. **ANALYZE**: Is the test outdated due to architectural changes, or revealing a real bug?
+
+**If test represents valid business logic/requirement:**
+- ✅ **FIX THE IMPLEMENTATION** - The test is correct, our code is wrong
+- ✅ Keep the test, make the system match the expected behavior
+
+**If test is outdated/wrong:**  
+- ❌ **DELETE THE TEST** - Remove stale/incorrect tests completely
+- ❌ Never adjust tests just to make them pass
+
+**If test is unclear:**
+- 🤔 **INVESTIGATE** - Understand the business domain and intended behavior
+- 🤔 Make informed decision based on domain knowledge, not convenience
+
+### Skipped Tests Policy:
+- **All `.skip()` tests must be evaluated**: Either fix and unskip, or delete entirely
+- **No stale code allowed**: Tests that can't be fixed or aren't worth fixing should be removed
+- **Clean test suite**: Every test must have clear value and pass reliably
+
 ## 🎯 Purpose
 
 TMOAT is a comprehensive, agent-driven, end-to-end testing framework for the folder-mcp Orchestrated Folder Lifecycle Architecture. It follows a "smoke test first" approach - run one comprehensive test that covers everything, and only drill down if it fails.
@@ -36,12 +63,44 @@ TMOAT is a comprehensive, agent-driven, end-to-end testing framework for the fol
 ## 🛠️ Required Tools
 
 The testing agent must have access to:
-- **Desktop Commander** (`mcp__desktop-commander__*`) - For process management and file operations
+- **Desktop Commander** (`mcp__desktop-commander__*`) - **CRITICAL**: Primary tool for ALL process management and file operations
 - **WebSocket Client** - For daemon communication (ws://127.0.0.1:31850)
-- **TMOAT Helpers** - Pre-built utilities in `docs/testing/tmoat-helpers.js`
-- **File System Access** - To create/modify test folders
-- **Process Spawning** - To start/stop the daemon
+- **ESLint** (`mcp__eslint__lint-files`) - **ESSENTIAL**: For catching interface errors, missing methods, type mismatches, and code quality issues
+- **Tree-sitter** (`mcp__tree-sitter__*`) - **ESSENTIAL**: For semantic code analysis, finding methods, interfaces, class definitions, and understanding code structure
+- **TMOAT Helpers** - Pre-built utilities in `TMOAT/tmoat-helpers.js`
+- **File System Access** - To create/modify test folders (via Desktop Commander)
+- **NEVER use direct process spawning** - All process management MUST go through Desktop Commander
 - **SQLite Access** - To inspect `.folder-mcp/embeddings.db` files
+
+### 🔧 Long-Running Test Management
+
+**CRITICAL**: For long-running commands (npm test, builds, etc.), use Desktop Commander background execution:
+
+```bash
+# ❌ WRONG: Direct execution - will timeout
+npm test
+
+# ✅ CORRECT: Background execution via Desktop Commander
+mcp__desktop-commander__start_process --command "npm test" --timeout_ms 600000
+
+# Then periodically check status:
+mcp__desktop-commander__read_process_output --pid <process-id> --timeout_ms 5000
+
+# Check if process is still running:
+mcp__desktop-commander__list_sessions
+```
+
+**Why this matters:**
+- `npm test` can take 5-10+ minutes with integration tests
+- Python embeddings tests download models (slow on first run)
+- Direct command execution will timeout in agents
+- Desktop Commander provides proper background process management
+
+**CRITICAL WORKFLOW**:
+1. Use Desktop Commander to manage daemon lifecycle (start/stop/restart)
+2. Use WebSocket to communicate with daemon (add/remove folders, monitor FMDM)
+3. Use Desktop Commander for all file operations and process monitoring
+4. NEVER try to run the TUI - it requires interactive terminal that agents can't access
 
 ### TMOAT Helpers Available
 
@@ -84,10 +143,11 @@ rm -rf /Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/*
 # Build the project
 npm run build
 
-# Start daemon with clean state
-node dist/src/daemon/index.js --restart
+# CRITICAL: Start daemon using Desktop Commander (NOT directly)
+# This allows full agent control over the daemon process lifecycle
+mcp__desktop-commander__start_process --command "node dist/src/daemon/index.js --restart" --timeout_ms 10000
 
-# Connect to WebSocket
+# Connect to WebSocket from test code
 ws://127.0.0.1:31850
 ```
 
@@ -118,8 +178,11 @@ async function runQuickSmokeTest() {
 
 ### 3. WebSocket Message Format
 ```javascript
-// Add folder
-{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'nomic-embed-text' }}
+// Connection init (REQUIRED - use supported client type)
+{ type: 'connection.init', clientType: 'cli' }
+
+// Add folder (CRITICAL: Use correct model name)
+{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'folder-mcp:all-MiniLM-L6-v2' }}
 
 // Remove folder  
 { type: 'folder.remove', payload: { path: '/path/to/folder' }}
@@ -127,6 +190,11 @@ async function runQuickSmokeTest() {
 // Monitor FMDM updates
 { type: 'fmdm.update', fmdm: { folders: [...], daemon: {...}, connections: {...} }}
 ```
+
+**CRITICAL WebSocket Requirements:**
+- **Client Type**: Must be 'cli', 'tui', or 'web' (NOT 'tmoat-smoke-test')
+- **Model Name**: Must use 'folder-mcp:all-MiniLM-L6-v2' (NOT 'nomic-embed-text')
+- **Connection Init**: Always send connection.init first before any other messages
 
 ### 4. State Validation Points
 - **Folder Status**: pending → scanning → ready → indexing → active
@@ -189,12 +257,25 @@ cp -r tests/fixtures/test-knowledge-base/Finance tests/fixtures/tmp/smoke-large 
 
 ### Smoke Test Execution
 
-**Step 1: Start daemon with --restart flag**
+**Step 1: Start daemon using Desktop Commander**
 ```bash
-node dist/src/daemon/index.js --restart
+# CRITICAL: Use Desktop Commander to run daemon in background
+# The daemon MUST be run in the background using the Desktop Commander MCP server
+# This allows the testing agent to have full control over the daemon lifecycle
+
+# Start daemon with --restart flag through Desktop Commander:
+mcp__desktop-commander__start_process --command "node dist/src/daemon/index.js --restart" --timeout_ms 10000
+
+# OR use npx folder-mcp --daemon if CLI is preferred (future)
+# npx folder-mcp --daemon --restart
+
+# NEVER run daemon directly without Desktop Commander in testing
+# NEVER try to run the TUI (requires interactive terminal that agents can't use)
 ```
-✓ Daemon starts successfully
+✓ Daemon starts successfully in background
 ✓ Previous instances killed if any
+✓ Desktop Commander manages the process
+✓ Agent has full control over daemon lifecycle
 
 **Step 2: Add 3 folders simultaneously**
 ```javascript
@@ -214,7 +295,7 @@ await client.addFolder('tests/fixtures/tmp/smoke-large');
 //   type: 'folder.add', 
 //   payload: { 
 //     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/smoke-small',
-//     model: 'nomic-embed-text' 
+//     model: 'folder-mcp:all-MiniLM-L6-v2' 
 //   }
 // }));
 ```
@@ -247,22 +328,32 @@ TMOATFileHelper.modifyTestFile(
 ✓ Only changed files are processed
 ✓ Progress reflects partial work
 
-**Step 4: Stop daemon gracefully**
+**Step 4: Stop daemon gracefully using Desktop Commander**
 ```bash
-# Send SIGTERM or Ctrl+C
-kill -TERM <daemon-pid>
+# Use Desktop Commander to terminate the process properly
+# This ensures clean shutdown and proper resource cleanup
+
+mcp__desktop-commander__force_terminate --pid <daemon-pid>
+
+# OR if using the CLI approach (future):
+# npx folder-mcp --daemon --stop
 ```
 ✓ Daemon shuts down cleanly
 ✓ No errors in logs
+✓ Desktop Commander handles process termination properly
 
 **Step 5: Make offline changes**
 ```bash
 echo "offline file" > tests/fixtures/tmp/smoke-small/offline.txt
 ```
 
-**Step 6: Restart daemon**
+**Step 6: Restart daemon using Desktop Commander**
 ```bash
-node dist/src/daemon/index.js
+# Restart daemon through Desktop Commander
+mcp__desktop-commander__start_process --command "node dist/src/daemon/index.js" --timeout_ms 10000
+
+# OR if using CLI approach (future):
+# npx folder-mcp --daemon --restart
 ```
 ✓ Daemon restores folder states
 ✓ Detects offline changes in smoke-small
@@ -285,7 +376,7 @@ ws.send(JSON.stringify({
   type: 'folder.add', 
   payload: { 
     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/does-not-exist',
-    model: 'nomic-embed-text' 
+    model: 'folder-mcp:all-MiniLM-L6-v2' 
   }
 }));
 ```
@@ -533,6 +624,34 @@ ws.send(JSON.stringify({
 - **Quick Check** (2 mins): Run smoke test steps 1-3 only
 - **Full Test** (10 mins): Complete smoke test
 - **Deep Dive** (30+ mins): Smoke test + relevant diagnostic tests
+
+## 🎯 Comprehensive TMOAT Test Scenarios
+
+The expanded TMOAT test suite now includes atomic tests for comprehensive system validation:
+
+### Basic System Operations (Tests 1-4)
+1. **Connection Test**: WebSocket connection establishment with correct client type
+2. **Folder Addition Test**: Complete folder lifecycle (pending → scanning → ready → indexing → active)
+3. **File Monitoring Test**: Real-time file change detection while folder is active
+4. **Folder Cleanup Test**: Proper folder removal and resource cleanup
+
+### Advanced System Resilience (Tests 5-9) 
+5. **Database Verification Test**: Validates `.folder-mcp/embeddings.db` creation and SQLite structure
+6. **Complete Folder Cleanup Test**: Ensures complete `.folder-mcp` directory removal on folder deletion
+7. **Daemon Restart Test**: Tests incremental scanning after daemon restart (remove 2 files, add 1, modify 1)
+8. **Offline Changes Test**: Validates detection of file changes made while daemon was offline
+9. **Database Recovery Test**: Verifies system rebuilds database when `.folder-mcp` directory is deleted
+
+### Test Execution
+```bash
+# Run complete atomic test suite
+node TMOAT/run-smoke-test.js
+
+# Run individual atomic test
+node TMOAT/atomic-test-N-description.js
+```
+
+Each atomic test is self-contained and validates specific functionality with real WebSocket communication to the daemon.
 
 ## 🎯 Success Criteria Summary
 

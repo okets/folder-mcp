@@ -47,7 +47,9 @@ describe('FolderLifecycleManagerImpl', () => {
     mockSqliteVecStorage = {
       getFileMetadata: vi.fn().mockResolvedValue(null),
       removeFileEmbeddings: vi.fn().mockResolvedValue(true),
-      getDocumentFingerprints: vi.fn().mockResolvedValue(new Map())
+      getDocumentFingerprints: vi.fn().mockResolvedValue(new Map()),
+      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      buildIndex: vi.fn().mockResolvedValue(void 0) // Add missing buildIndex method
     } as any;
 
     mockLogger = {

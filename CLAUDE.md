@@ -20,6 +20,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **TMOAT integrates with automated testing** - They work together, not in isolation. Every feature needs both automated and manual test coverage.
 
+## 🚨 CRITICAL: Test Failure Protocol
+
+**NEVER adjust tests to match broken implementations!**
+
+When any test fails:
+1. **THINK**: What business requirement is this test validating?
+2. **DECIDE**: Is the test correct or is our implementation wrong?
+
+**Fix Implementation (not tests) when:**
+- Test validates important business logic/requirement
+- Test catches real bugs or regressions
+- Expected behavior makes sense for the domain
+
+**Delete Test when:**
+- Test is outdated due to architectural changes
+- Test validates behavior that's no longer needed
+- Test is flaky/unreliable and not worth fixing
+
+**Skipped Tests**: All `.skip()` tests must be evaluated - either unskip and fix, or delete entirely. No stale code allowed.
+
 **Rationale**: Git provides complete rollback protection. Focus on efficient development, not file permission overhead. TMOAT ensures system integrity through continuous test evolution.
 
 ## Essential Commands
@@ -63,6 +83,39 @@ npm run test:integration # Run integration tests only
 npm run test:e2e       # Run end-to-end tests
 npm run test:performance # Run performance tests
 npm run test:coverage  # Generate coverage report
+```
+
+**Code Quality & Linting:**
+```bash
+# ESLint for catching interface errors, missing methods, type issues
+npx eslint src/                    # Lint all source files  
+npx eslint tests/                  # Lint all test files
+npx eslint --fix src/ tests/       # Auto-fix linting issues
+
+# Use via MCP for TMOAT integration:
+# mcp__eslint__lint-files --filePaths ["/absolute/path/to/file.ts"]
+```
+
+**Semantic Code Analysis:**
+```bash
+# Tree-sitter for semantic code analysis and understanding code structure
+# Register project first (one time setup):
+# mcp__tree-sitter__register_project_tool --path "/Users/hanan/Projects/folder-mcp" --name "folder-mcp"
+
+# Find methods, classes, interfaces in code:
+mcp__tree-sitter__get_symbols --project "folder-mcp" --file_path "src/path/to/file.ts" --symbol_types ["functions", "classes", "interfaces"]
+
+# Search for specific patterns:
+mcp__tree-sitter__find_text --project "folder-mcp" --pattern "onStateChange|dispose|onProgressUpdate" --file_pattern "**/*.ts"
+
+# Get AST for understanding code structure:
+mcp__tree-sitter__get_ast --project "folder-mcp" --path "src/path/to/file.ts" --max_depth 3
+
+# Run queries to find missing method implementations:
+mcp__tree-sitter__run_query --project "folder-mcp" --query "(method_definition name: (property_identifier) @method)" --language "typescript"
+
+# ESSENTIAL for TMOAT: Use tree-sitter to understand code structure, find missing methods,
+# analyze interfaces, and identify implementation gaps that cause test failures
 ```
 
 **TMOAT - Integrated Manual + Automated Testing:**

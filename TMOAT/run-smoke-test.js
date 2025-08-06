@@ -1,384 +1,294 @@
 #!/usr/bin/env node
 
 /**
- * TMOAT Smoke Test Execution Script
- * This script connects to the daemon and runs the comprehensive smoke test
+ * TMOAT Smoke Test Runner
+ * Comprehensive end-to-end test that validates the entire folder-mcp system
+ * 
+ * This is the main entry point for TMOAT testing.
+ * It runs all atomic tests in sequence and provides a complete system validation.
  */
 
-import WebSocket from 'ws';
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
-import { join, dirname } from 'path';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = path.dirname(__filename);
 
-class SmokeTestRunner {
-    constructor() {
-        this.ws = null;
-        this.connected = false;
-        this.folderStates = new Map();
-        this.testResults = [];
+console.log('🎪 THE MOTHER OF ALL TESTS (TMOAT) - SMOKE TEST RUNNER');
+console.log('='.repeat(70));
+console.log('Comprehensive end-to-end validation of folder-mcp system');
+console.log('='.repeat(70));
+
+// Test configuration
+const TESTS_DIR = __dirname;
+const TMP_DIR = path.resolve(__dirname, '../tests/fixtures/tmp');
+const SOURCE_DIR = path.resolve(__dirname, '../tests/fixtures/test-knowledge-base');
+
+// Atomic tests to run in sequence
+const ATOMIC_TESTS = [
+    {
+        name: 'Connection Test',
+        file: 'atomic-test-1-connection.js',
+        description: 'WebSocket connection to daemon',
+        timeout: 15000
+    },
+    {
+        name: 'Folder Addition Test', 
+        file: 'atomic-test-2-folder-addition.js',
+        description: 'Folder lifecycle (pending → active)',
+        timeout: 35000
+    },
+    {
+        name: 'File Monitoring Test',
+        file: 'atomic-test-3-file-monitoring.js', 
+        description: 'File change detection while active',
+        timeout: 50000
+    },
+    {
+        name: 'Folder Cleanup Test',
+        file: 'atomic-test-4-folder-cleanup.js',
+        description: 'Folder removal and cleanup',
+        timeout: 25000
+    },
+    {
+        name: 'Database Verification Test',
+        file: 'atomic-test-5-database-verification.js',
+        description: 'Database creation and structure verification',
+        timeout: 30000
+    },
+    {
+        name: 'Complete Folder Cleanup Test',
+        file: 'atomic-test-6-folder-cleanup.js',
+        description: 'Complete .folder-mcp directory removal',
+        timeout: 45000
+    },
+    {
+        name: 'Daemon Restart Test',
+        file: 'atomic-test-7-daemon-restart.js',
+        description: 'Incremental changes after daemon restart',
+        timeout: 90000
+    },
+    {
+        name: 'Offline Changes Test',
+        file: 'atomic-test-8-offline-changes.js',
+        description: 'File changes detection after offline period',
+        timeout: 120000
+    },
+    {
+        name: 'Database Recovery Test',
+        file: 'atomic-test-9-database-recovery.js',
+        description: 'Database rebuilding after .folder-mcp deletion',
+        timeout: 120000
     }
+];
 
-    async connect() {
-        return new Promise((resolve, reject) => {
-            this.ws = new WebSocket('ws://127.0.0.1:31850');
-            
-            this.ws.on('open', () => {
-                this.log('🔌 Connected to daemon WebSocket');
-                this.connected = true;
-                
-                // Initialize connection
-                this.send({
-                    type: 'connection.init',
-                    clientType: 'tmoat-smoke-test'
-                });
-                
-                resolve();
-            });
+// Test results tracking
+let testResults = [];
+let overallStartTime = Date.now();
 
-            this.ws.on('message', (data) => {
-                this.handleMessage(data);
-            });
-
-            this.ws.on('error', (err) => {
-                this.log(`❌ WebSocket error: ${err.message}`);
-                reject(err);
-            });
-
-            this.ws.on('close', () => {
-                this.log('🔌 WebSocket connection closed');
-                this.connected = false;
-            });
-
-            // Timeout after 5 seconds
-            setTimeout(() => {
-                if (!this.connected) {
-                    reject(new Error('WebSocket connection timeout'));
-                }
-            }, 5000);
-        });
-    }
-
-    send(message) {
-        if (!this.connected) {
-            throw new Error('WebSocket not connected');
-        }
-        this.ws.send(JSON.stringify(message));
-    }
-
-    handleMessage(data) {
-        try {
-            const parsed = JSON.parse(data);
-            const timestamp = new Date().toISOString().substring(11, 23);
-
-            if (parsed.type === 'fmdm.update') {
-                this.updateFolderStates(parsed.fmdm.folders);
-                this.log(`[${timestamp}] 📊 FMDM Update: ${parsed.fmdm.folders.length} folders`);
-                
-                // Show folder statuses
-                parsed.fmdm.folders.forEach(folder => {
-                    const folderName = folder.path.split('/').pop();
-                    const progress = folder.progress !== undefined ? ` (${folder.progress}%)` : '';
-                    this.log(`  📁 ${folderName}: ${folder.status}${progress}`);
-                });
-            } else if (parsed.type === 'connection.ack') {
-                this.log(`[${timestamp}] ✅ Connection acknowledged`);
-            } else {
-                this.log(`[${timestamp}] 📨 ${parsed.type}`);
-            }
-        } catch (e) {
-            this.log(`❌ Error parsing message: ${e.message}`);
-        }
-    }
-
-    updateFolderStates(folders) {
-        folders.forEach(folder => {
-            this.folderStates.set(folder.path, {
-                status: folder.status,
-                progress: folder.progress,
-                model: folder.model,
-                timestamp: Date.now()
-            });
-        });
-    }
-
-    async waitForFolderStatus(folderPath, expectedStatus, timeoutMs = 30000) {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error(`Timeout waiting for folder ${folderPath} to reach ${expectedStatus}`));
-            }, timeoutMs);
-
-            const checkStatus = () => {
-                const state = this.folderStates.get(folderPath);
-                if (state && state.status === expectedStatus) {
-                    clearTimeout(timeout);
-                    resolve(state);
-                }
-            };
-
-            // Check every 500ms
-            const interval = setInterval(checkStatus, 500);
-            
-            // Also check when timeout clears
-            timeout._onTimeout = () => {
-                clearInterval(interval);
-                reject(new Error(`Timeout waiting for folder ${folderPath} to reach ${expectedStatus}`));
-            };
-
-            // Check immediately
-            checkStatus();
-        });
-    }
-
-    async addFolder(folderPath, model = 'nomic-embed-text') {
-        this.send({
-            type: 'folder.add',
-            id: `add-${Date.now()}`,
-            payload: {
-                path: folderPath,
-                model: model
-            }
-        });
-
-        this.log(`📂 Adding folder: ${folderPath} with model: ${model}`);
-    }
-
-    async removeFolder(folderPath) {
-        this.send({
-            type: 'folder.remove',
-            id: `remove-${Date.now()}`,
-            payload: {
-                path: folderPath
-            }
-        });
-
-        this.log(`🗑️  Removing folder: ${folderPath}`);
-    }
-
-    createTestFile(filePath, content) {
-        writeFileSync(filePath, content);
-        this.log(`📝 Created test file: ${filePath}`);
-    }
-
-    modifyTestFile(filePath, additionalContent) {
-        if (!existsSync(filePath)) {
-            throw new Error(`File does not exist: ${filePath}`);
-        }
-        
-        const existingContent = readFileSync(filePath, 'utf8');
-        writeFileSync(filePath, existingContent + additionalContent);
-        this.log(`✏️  Modified test file: ${filePath}`);
-    }
-
-    validateDatabaseExists(folderPath) {
-        const dbPath = `${folderPath}/.folder-mcp/embeddings.db`;
-        if (existsSync(dbPath)) {
-            this.log(`✅ VALIDATION PASS: Database exists at ${dbPath}`);
-            return true;
-        } else {
-            this.log(`❌ VALIDATION FAIL: Database missing at ${dbPath}`);
-            return false;
-        }
-    }
-
-    recordTestResult(step, description, result, error = null) {
-        this.testResults.push({
-            step,
-            description,
-            result: result ? '✅ PASS' : '❌ FAIL',
-            error: error ? error.message : null,
-            timestamp: new Date().toISOString()
-        });
-        
-        this.log(`${result ? '✅' : '❌'} Step ${step}: ${description} - ${result ? 'PASS' : 'FAIL'}`);
-        if (error) {
-            this.log(`   Error: ${error.message}`);
-        }
-    }
-
-    close() {
-        if (this.ws) {
-            this.ws.close();
-            this.connected = false;
-        }
-    }
-
-    log(message) {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] ${message}`);
-    }
-
-    async sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async runSmokeTest() {
-        this.log('🚀 Starting TMOAT SMOKE TEST');
-        let allPassed = true;
-
-        try {
-            // Step 2: Add 3 folders simultaneously
-            this.log('\n📋 Step 2: Adding 3 folders simultaneously');
-            const basePath = '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp';
-            const folders = [
-                `${basePath}/smoke-small`,
-                `${basePath}/smoke-medium`, 
-                `${basePath}/smoke-large`
-            ];
-
-            // Add all folders
-            for (const folder of folders) {
-                await this.addFolder(folder);
-                await this.sleep(1000); // Small delay between additions
-            }
-
-            // Wait for all folders to reach 'active' state
-            for (const folder of folders) {
-                try {
-                    this.log(`⏳ Waiting for ${folder} to reach active state...`);
-                    await this.waitForFolderStatus(folder, 'active', 60000);
-                    
-                    // Validate database exists
-                    const dbExists = this.validateDatabaseExists(folder);
-                    this.recordTestResult(2, `Folder lifecycle for ${folder.split('/').pop()}`, dbExists);
-                    
-                    if (!dbExists) {
-                        allPassed = false;
-                    }
-                } catch (error) {
-                    this.recordTestResult(2, `Folder lifecycle for ${folder.split('/').pop()}`, false, error);
-                    allPassed = false;
-                }
-            }
-
-            // Step 3: Test file monitoring
-            this.log('\n📋 Step 3: Testing file monitoring while active');
-            
-            try {
-                // Add file to small folder
-                this.createTestFile(
-                    `${folders[0]}/new-test-file.txt`, 
-                    'New file content for TMOAT testing'
-                );
-
-                // Modify file in medium folder (find existing file first)
-                const mediumFiles = ['contract.pdf', 'terms.pdf', 'agreement.pdf'];
-                let targetFile = null;
-                for (const file of mediumFiles) {
-                    const filePath = `${folders[1]}/${file}`;
-                    if (existsSync(filePath)) {
-                        // For PDF, just create a new text file next to it
-                        targetFile = `${folders[1]}/modified-during-test.txt`;
-                        this.createTestFile(targetFile, 'File created during active monitoring test');
-                        break;
-                    }
-                }
-
-                if (targetFile) {
-                    this.log('✅ File monitoring test completed - files created');
-                    this.recordTestResult(3, 'File monitoring during active state', true);
-                } else {
-                    throw new Error('Could not find suitable file for modification test');
-                }
-
-                await this.sleep(3000); // Wait for file watching to detect changes
-
-            } catch (error) {
-                this.recordTestResult(3, 'File monitoring during active state', false, error);
-                allPassed = false;
-            }
-
-            // Step 7: Remove a folder
-            this.log('\n📋 Step 7: Testing folder removal');
-            try {
-                await this.removeFolder(folders[1]); // Remove medium folder
-                await this.sleep(2000);
-                
-                // Check that database is gone
-                const dbPath = `${folders[1]}/.folder-mcp/embeddings.db`;
-                const dbRemoved = !existsSync(dbPath);
-                this.recordTestResult(7, 'Folder removal and cleanup', dbRemoved);
-                
-                if (!dbRemoved) {
-                    allPassed = false;
-                }
-            } catch (error) {
-                this.recordTestResult(7, 'Folder removal', false, error);
-                allPassed = false;
-            }
-
-            // Step 8: Test error handling
-            this.log('\n📋 Step 8: Testing error handling');
-            try {
-                const invalidPath = '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/does-not-exist';
-                await this.addFolder(invalidPath);
-                
-                // Wait for error status
-                try {
-                    await this.waitForFolderStatus(invalidPath, 'error', 10000);
-                    this.recordTestResult(8, 'Error handling for invalid path', true);
-                } catch (timeoutError) {
-                    this.recordTestResult(8, 'Error handling for invalid path', false, new Error('Expected error status not received'));
-                    allPassed = false;
-                }
-            } catch (error) {
-                this.recordTestResult(8, 'Error handling setup', false, error);
-                allPassed = false;
-            }
-
-        } catch (error) {
-            this.log(`❌ SMOKE TEST FAILED: ${error.message}`);
-            allPassed = false;
-        }
-
-        // Print results summary
-        this.log('\n📊 SMOKE TEST RESULTS:');
-        this.testResults.forEach(result => {
-            this.log(`${result.result} ${result.description}`);
-            if (result.error) {
-                this.log(`    └─ ${result.error}`);
-            }
-        });
-
-        const passedCount = this.testResults.filter(r => r.result === '✅ PASS').length;
-        const totalCount = this.testResults.length;
-        
-        this.log(`\n🎯 SUMMARY: ${passedCount}/${totalCount} tests passed`);
-        
-        if (allPassed) {
-            this.log('🟢 SMOKE TEST PASSED - System ready to ship!');
-            return true;
-        } else {
-            this.log('🔴 SMOKE TEST FAILED - Issues need investigation');
-            return false;
-        }
-    }
-}
-
-// Run the smoke test
-async function main() {
-    const runner = new SmokeTestRunner();
+async function setupTestEnvironment() {
+    console.log('\n📋 SETUP: Preparing test environment...');
     
     try {
-        await runner.connect();
-        await runner.sleep(2000); // Give connection time to stabilize
+        // Clean up any previous test artifacts
+        console.log('🧹 Cleaning up previous test artifacts...');
+        try {
+            await fs.rm(TMP_DIR, { recursive: true, force: true });
+        } catch (error) {
+            // Directory might not exist, that's fine
+        }
         
-        const testPassed = await runner.runSmokeTest();
+        // Create tmp directory
+        console.log('📁 Creating tmp directory...');
+        await fs.mkdir(TMP_DIR, { recursive: true });
         
-        runner.close();
+        // Copy test files for different test scenarios
+        console.log('📄 Setting up test files...');
+        await fs.cp(path.join(SOURCE_DIR, 'Engineering'), path.join(TMP_DIR, 'smoke-small'), { recursive: true });
+        await fs.cp(path.join(SOURCE_DIR, 'Legal'), path.join(TMP_DIR, 'smoke-medium'), { recursive: true });
+        await fs.cp(path.join(SOURCE_DIR, 'Finance'), path.join(TMP_DIR, 'smoke-large'), { recursive: true });
         
-        // Exit with appropriate code
-        process.exit(testPassed ? 0 : 1);
-        
+        console.log('✅ Test environment setup complete');
+        return true;
     } catch (error) {
-        console.error(`❌ Smoke test failed to run: ${error.message}`);
-        runner.close();
-        process.exit(1);
+        console.log(`❌ Failed to setup test environment: ${error.message}`);
+        return false;
     }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-    main();
+async function runAtomicTest(test) {
+    console.log(`\n🧪 RUNNING: ${test.name}`);
+    console.log(`📝 ${test.description}`);
+    console.log('-'.repeat(50));
+    
+    const startTime = Date.now();
+    
+    return new Promise((resolve) => {
+        const testProcess = spawn('node', [path.join(TESTS_DIR, test.file)], {
+            stdio: 'pipe',
+            cwd: path.dirname(TESTS_DIR)
+        });
+        
+        let stdout = '';
+        let stderr = '';
+        
+        testProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            stdout += output;
+            // Real-time output for immediate feedback
+            process.stdout.write(output);
+        });
+        
+        testProcess.stderr.on('data', (data) => {
+            const output = data.toString();
+            stderr += output;
+            process.stderr.write(output);
+        });
+        
+        testProcess.on('close', (code) => {
+            const endTime = Date.now();
+            const duration = endTime - startTime;
+            
+            const result = {
+                name: test.name,
+                description: test.description,
+                passed: code === 0 && (stdout.includes('PASSED') || stdout.includes('✅')),
+                duration: duration,
+                code: code,
+                stdout: stdout,
+                stderr: stderr
+            };
+            
+            console.log(`\n⏱️  Duration: ${duration}ms`);
+            console.log(`🚦 Result: ${result.passed ? '✅ PASSED' : '❌ FAILED'}`);
+            
+            testResults.push(result);
+            resolve(result);
+        });
+        
+        // Kill test if it times out
+        const timeout = setTimeout(() => {
+            console.log(`\n⏰ Test timed out after ${test.timeout}ms`);
+            testProcess.kill('SIGTERM');
+            
+            setTimeout(() => {
+                if (!testProcess.killed) {
+                    testProcess.kill('SIGKILL');
+                }
+            }, 5000);
+        }, test.timeout);
+        
+        testProcess.on('close', () => {
+            clearTimeout(timeout);
+        });
+    });
 }
+
+async function generateTestReport() {
+    const overallEndTime = Date.now();
+    const totalDuration = overallEndTime - overallStartTime;
+    
+    console.log('\n📊 TMOAT SMOKE TEST REPORT');
+    console.log('='.repeat(70));
+    
+    // Summary statistics
+    const totalTests = testResults.length;
+    const passedTests = testResults.filter(r => r.passed).length;
+    const failedTests = totalTests - passedTests;
+    
+    console.log(`📈 Overall Results:`);
+    console.log(`   Total Tests: ${totalTests}`);
+    console.log(`   Passed: ${passedTests} ✅`);
+    console.log(`   Failed: ${failedTests} ${failedTests > 0 ? '❌' : ''}`);
+    console.log(`   Success Rate: ${((passedTests / totalTests) * 100).toFixed(1)}%`);
+    console.log(`   Total Duration: ${(totalDuration / 1000).toFixed(1)}s`);
+    
+    // Individual test results
+    console.log(`\n📋 Individual Test Results:`);
+    testResults.forEach((result, index) => {
+        const status = result.passed ? '✅ PASS' : '❌ FAIL';
+        const duration = `${(result.duration / 1000).toFixed(1)}s`;
+        console.log(`   ${index + 1}. ${status} ${result.name} (${duration})`);
+        if (!result.passed) {
+            console.log(`      🔍 Exit code: ${result.code}`);
+            if (result.stderr) {
+                console.log(`      ⚠️  Stderr: ${result.stderr.trim()}`);
+            }
+        }
+    });
+    
+    // Overall verdict
+    console.log(`\n🎯 FINAL VERDICT:`);
+    if (passedTests === totalTests) {
+        console.log(`✅ ALL TESTS PASSED - System is ready to ship! 🚀`);
+        console.log(`🎉 folder-mcp daemon and WebSocket interface are working correctly`);
+        return true;
+    } else {
+        console.log(`❌ ${failedTests} TEST(S) FAILED - System needs attention`);
+        console.log(`🔧 Review failed tests and fix issues before proceeding`);
+        return false;
+    }
+}
+
+async function cleanupTestEnvironment() {
+    console.log('\n🧹 CLEANUP: Removing test artifacts...');
+    try {
+        await fs.rm(TMP_DIR, { recursive: true, force: true });
+        console.log('✅ Cleanup complete');
+    } catch (error) {
+        console.log(`⚠️  Cleanup warning: ${error.message}`);
+    }
+}
+
+// Main execution
+async function runSmokeTest() {
+    console.log(`📅 Started: ${new Date().toISOString()}`);
+    
+    // Setup
+    const setupSuccess = await setupTestEnvironment();
+    if (!setupSuccess) {
+        console.log('❌ Setup failed, aborting tests');
+        process.exit(1);
+    }
+    
+    // Run all atomic tests in sequence
+    console.log('\n🚀 EXECUTION: Running atomic tests in sequence...');
+    for (const test of ATOMIC_TESTS) {
+        const result = await runAtomicTest(test);
+        
+        // Stop on first failure for quick debugging
+        if (!result.passed) {
+            console.log(`\n⚠️  Test failed: ${test.name}`);
+            console.log(`🛠️  Fix this issue before running remaining tests`);
+            break;
+        }
+    }
+    
+    // Generate report
+    const allPassed = await generateTestReport();
+    
+    // Cleanup
+    await cleanupTestEnvironment();
+    
+    // Exit with appropriate code
+    process.exit(allPassed ? 0 : 1);
+}
+
+// Handle unhandled promises and errors
+process.on('unhandledRejection', (reason, promise) => {
+    console.log('❌ Unhandled Promise Rejection:', reason);
+    process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+    console.log('❌ Uncaught Exception:', error.message);
+    process.exit(1);
+});
+
+// Start the smoke test
+runSmokeTest().catch((error) => {
+    console.log('❌ Smoke test failed:', error.message);
+    process.exit(1);
+});

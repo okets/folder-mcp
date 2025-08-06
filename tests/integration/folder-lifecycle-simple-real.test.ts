@@ -40,17 +40,29 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     };
     
     mockStorage = {
-      getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map()))
+      getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
+      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      buildIndex: vi.fn().mockResolvedValue(void 0) // Add missing buildIndex method
     };
     
-    // Create orchestrator
+    // Create mock logger
+    const mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+      setLevel: vi.fn()
+    };
+    
+    // Create orchestrator - FIXED parameter order and added logger
     orchestrator = new FolderLifecycleManagerImpl(
       'test-simple',
       testKnowledgeBase,
       mockIndexingOrchestrator,
-      mockFmdmService,
-      mockFileSystemService,
-      mockStorage
+      mockFileSystemService,    // Fixed: fileSystemService in correct position
+      mockStorage,              // Fixed: sqliteVecStorage in correct position
+      mockLogger                // Fixed: added missing logger parameter
     );
   });
   
@@ -87,11 +99,20 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
       stateChanges.push(state.status);
     });
     
-    // Start scanning
+    // Start scanning  
     await orchestrator.startScanning();
     
-    // Verify state transitions
+    // Verify state transitions - scanning should go to 'ready' state waiting for startIndexing()
     expect(stateChanges).toContain('scanning');
+    expect(orchestrator.currentState.status).toBe('ready');
+    
+    // Now explicitly start indexing to progress to 'indexing' state
+    await orchestrator.startIndexing();
+    
+    // Wait for indexing to progress
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Should now be in indexing state
     expect(orchestrator.currentState.status).toBe('indexing');
     
     // Verify files were detected
@@ -167,28 +188,31 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     
     await orchestrator.startScanning();
     
-    // Process first task
-    const task1 = orchestrator.getNextTask();
-    expect(task1).toBeDefined();
-    orchestrator.startTask(task1!);
+    // Should be in ready state with tasks
+    expect(orchestrator.currentState.status).toBe('ready');
+    expect(orchestrator.currentState.fileEmbeddingTasks.length).toBe(2);
     
-    // Wait for processing
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Now properly start indexing to process tasks
+    await orchestrator.startIndexing();
     
-    // Check progress
-    expect(progressUpdates.length).toBeGreaterThan(0);
-    expect(progressUpdates[progressUpdates.length - 1]).toBe(50);
-    
-    // Process second task
-    const task2 = orchestrator.getNextTask();
-    expect(task2).toBeDefined();
-    orchestrator.startTask(task2!);
+    // Wait for async indexing to complete  
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Wait for completion
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise(resolve => {
+      const checkComplete = () => {
+        if (orchestrator.isComplete()) {
+          resolve(undefined);
+        } else {
+          setTimeout(checkComplete, 50);
+        }
+      };
+      checkComplete();
+    });
     
-    // Should be complete
+    // Should be complete with progress at 100%
     expect(orchestrator.isComplete()).toBe(true);
+    expect(progressUpdates.length).toBeGreaterThan(0);
     expect(progressUpdates[progressUpdates.length - 1]).toBe(100);
   });
   
@@ -202,7 +226,13 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
       stateChanges.push(state.status);
     });
     
-    await orchestrator.startScanning();
+    // This should NOT throw - error should be handled internally
+    try {
+      await orchestrator.startScanning();
+    } catch (error) {
+      // If we get here, our error handling is not working
+      throw new Error(`startScanning() should handle errors gracefully but threw: ${error instanceof Error ? error.message : String(error)}`);
+    }
     
     // Should transition to error state
     expect(stateChanges).toContain('error');

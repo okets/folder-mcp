@@ -92,6 +92,10 @@ export class FolderLifecycleManagerImpl extends EventEmitter implements IFolderL
     };
   }
 
+  get currentState(): FolderLifecycleState {
+    return this.getState();
+  }
+
   async stop(): Promise<void> {
     this.logger.debug(`[MANAGER-STOP] Stopping folder manager for ${this.folderPath}`);
     this.active = false;
@@ -420,28 +424,6 @@ export class FolderLifecycleManagerImpl extends EventEmitter implements IFolderL
     return this.folderPath;
   }
 
-  private reset(): void {
-    this.stateMachine.reset();
-    this.taskQueue.clearAll();
-    this.pendingIndexingTasks.clear();
-    
-    this.state = {
-      folderId: this.folderId,
-      folderPath: this.folderPath,
-      status: 'pending',
-      fileEmbeddingTasks: [],
-      progress: {
-        totalTasks: 0,
-        completedTasks: 0,
-        failedTasks: 0,
-        inProgressTasks: 0,
-        percentage: 0
-      },
-      consecutiveErrors: 0
-    };
-    
-    this.updateState({ status: 'pending' });
-  }
 
   private async detectChanges(currentFiles: string[]): Promise<FileChangeInfo[]> {
     this.logger.debug(`[MANAGER-DETECT] Detecting changes for ${currentFiles.length} files`);
@@ -550,7 +532,26 @@ export class FolderLifecycleManagerImpl extends EventEmitter implements IFolderL
     if (this.stateMachine.canTransitionTo('error')) {
       this.stateMachine.transitionTo('error');
       this.updateState({ status: 'error' });
-      this.emit('error', error);
+      
+      // Only emit error event if there are listeners to avoid unhandled error
+      if (this.listenerCount('error') > 0) {
+        this.emit('error', error);
+      }
     }
+  }
+
+  // Convenience methods for tests and external API
+  onStateChange(callback: (state: FolderLifecycleState) => void): void {
+    this.on('stateChange', callback);
+  }
+
+  onProgressUpdate(callback: (progress: FolderProgress) => void): void {
+    this.on('progressUpdate', callback);
+  }
+
+  dispose(): void {
+    // Cleanup method that calls stop() and removes all listeners
+    this.stop();
+    this.removeAllListeners();
   }
 }

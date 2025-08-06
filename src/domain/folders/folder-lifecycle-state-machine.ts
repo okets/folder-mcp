@@ -72,7 +72,7 @@ export class FolderLifecycleStateMachine {
    * Reset the state machine to initial state
    */
   reset(): void {
-    this.currentState = 'scanning';
+    this.currentState = 'pending';  // Fixed: should match constructor default
     this.previousState = null;
   }
 

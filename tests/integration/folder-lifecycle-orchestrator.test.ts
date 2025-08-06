@@ -247,7 +247,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(finalState.fileEmbeddingTasks).toHaveLength(0);
     });
 
-    it.skip('should handle file modifications', async () => {
+    it('should handle file modifications', async () => {
       // Create initial file
       const filePath = path.join(testFolderPath, 'test.txt');
       const initialModTime = Date.now() - 10000; // 10 seconds ago
@@ -330,7 +330,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(readyState.fileEmbeddingTasks[0]?.task).toBe('UpdateEmbeddings');
     });
 
-    it.skip('should handle errors with retry logic', async () => {
+    it('should handle errors with retry logic', async () => {
       
       // Create test file
       await fs.writeFile(path.join(testFolderPath, 'error-file.txt'), 'Error test');
@@ -392,7 +392,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(attemptCount).toBeGreaterThanOrEqual(3); // Failed at least twice, succeeded eventually
     });
 
-    it.skip('should handle permanent failures', async () => {
+    it('should handle permanent failures', async () => {
       // Create test file
       await fs.writeFile(path.join(testFolderPath, 'permanent-error.txt'), 'Error test');
       
@@ -601,7 +601,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(finalState.status).toBe('active');
     });
 
-    it.skip('should handle reset correctly', async () => {
+    it('should handle reset correctly', async () => {
       // Create test file
       const resetTestPath = path.join(testFolderPath, 'reset-test.txt');
       await fs.writeFile(resetTestPath, 'Reset test');
