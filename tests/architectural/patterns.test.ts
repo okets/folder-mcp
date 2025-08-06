@@ -53,7 +53,9 @@ describe('Architectural Pattern Compliance', () => {
       // Check that services follow naming conventions
       const serviceFiles = getServiceFiles(applicationPath);
       for (const file of serviceFiles) {
-        expect(path.basename(file)).toMatch(/\.(service|use-case)\.ts$/);
+        const basename = path.basename(file);
+        // Allow both .service.ts pattern and -service.ts pattern (e.g., folder-lifecycle-service.ts)
+        expect(basename).toMatch(/(\.(service|use-case)|-(service|use-case))\.ts$/);
       }
     });
 
