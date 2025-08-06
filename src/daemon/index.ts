@@ -23,7 +23,7 @@ import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
-import { FolderLifecycleManager } from './services/folder-lifecycle-manager.js';
+import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
 
 // Create a simple debug logger
@@ -60,7 +60,7 @@ class FolderMCPDaemon {
   private fmdmService: FMDMService | null = null;
   private diContainer: any = null;
   private indexingService: IMultiFolderIndexingWorkflow | null = null;
-  private folderLifecycleManager: FolderLifecycleManager | null = null;
+  private monitoredFoldersOrchestrator: MonitoredFoldersOrchestrator | null = null;
   private CONFIG_SERVICE_TOKENS: any = null;
 
   constructor(config: DaemonConfig) {
@@ -119,11 +119,12 @@ class FolderMCPDaemon {
     const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
     const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
     
-    this.folderLifecycleManager = new FolderLifecycleManager(
+    this.monitoredFoldersOrchestrator = new MonitoredFoldersOrchestrator(
       indexingOrchestrator,
       this.fmdmService!,
       fileSystemService,
-      loggingService
+      loggingService,
+      configComponent // Reuse existing configComponent
     );
     debug('Folder lifecycle manager initialized');
     
@@ -138,11 +139,24 @@ class FolderMCPDaemon {
         const fmdmFolders = existingFolders.map((folder: any) => ({
           path: folder.path,
           model: folder.model,
-          status: 'pending' as const  // Default status for newly loaded folders
+          status: 'pending' as const  // Default status for newly loaded folders (orchestrator will manage lifecycle)
         }));
         debug(`Converting to FMDM format: ${JSON.stringify(fmdmFolders)}`);
         this.fmdmService!.updateFolders(fmdmFolders);
         debug(`Updated FMDM with ${fmdmFolders.length} existing folders`);
+        
+        // Start lifecycle management for all existing folders
+        debug('Starting lifecycle management for existing folders...');
+        for (const folder of existingFolders) {
+          try {
+            debug(`Starting lifecycle for folder: ${folder.path}`);
+            await this.monitoredFoldersOrchestrator!.addFolder(folder.path, folder.model);
+          } catch (error) {
+            debug(`Failed to start lifecycle for folder ${folder.path}:`, error);
+            // Continue with other folders even if one fails
+          }
+        }
+        debug('Completed starting lifecycle management for all existing folders');
       } else {
         debug('No existing folders found in configuration');
       }
@@ -165,7 +179,7 @@ class FolderMCPDaemon {
       daemonConfigService,
       this.fmdmService!,
       loggingService,
-      this.folderLifecycleManager // Pass folder lifecycle manager directly
+      this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
     );
     
     // Update WebSocket server with custom protocol
@@ -379,7 +393,7 @@ class FolderMCPDaemon {
    * Trigger indexing for a specific folder with status updates
    */
   async startFolderIndexing(folderPath: string): Promise<void> {
-    if (!this.fmdmService || !this.folderLifecycleManager) {
+    if (!this.fmdmService || !this.monitoredFoldersOrchestrator) {
       debug(`Cannot start indexing: services not initialized`);
       return;
     }
@@ -398,11 +412,7 @@ class FolderMCPDaemon {
       }
       
       // Start lifecycle management for this folder
-      await this.folderLifecycleManager.startFolder({
-        path: folderConfig.path,
-        model: folderConfig.model,
-        status: 'pending'
-      });
+      await this.monitoredFoldersOrchestrator.addFolder(folderConfig.path, folderConfig.model);
       
       debug(`Started lifecycle management for folder: ${folderPath}`);
       
@@ -527,6 +537,25 @@ the folder-mcp services.
   
   const restartFlag = args.includes('--restart') || args.includes('-r');
   
+  // Handle restart BEFORE any other operations
+  if (restartFlag) {
+    debug('Restart flag detected, checking for existing daemon...');
+    const status = await isDaemonRunning();
+    if (status.running) {
+      const daemonInfo = await DaemonRegistry.discover();
+      if (daemonInfo) {
+        debug(`Found existing daemon (PID: ${daemonInfo.pid}), stopping it...`);
+        await stopExistingDaemon(daemonInfo);
+        debug('Existing daemon stopped, waiting for cleanup...');
+        
+        // Wait to ensure the process is fully terminated and registry is cleaned
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } else {
+      debug('No existing daemon found to restart');
+    }
+  }
+  
   // Create config directory if it doesn't exist
   const configDir = join(homedir(), '.folder-mcp');
   try {
@@ -542,20 +571,11 @@ the folder-mcp services.
     pidFile: getPidFilePath()
   };
   
-  // Check if daemon is already running
+  // Check if daemon is already running (after restart handling)
   const status = await isDaemonRunning();
-  if (status.running) {
-    if (restartFlag) {
-      // Get daemon info for stopping
-      const daemonInfo = await DaemonRegistry.discover();
-      if (daemonInfo) {
-        await stopExistingDaemon(daemonInfo);
-        debug('Existing daemon stopped, starting new instance...');
-      }
-    } else {
-      debug(`Daemon already running with PID ${status.pid}`);
-      process.exit(1);
-    }
+  if (status.running && !restartFlag) {
+    debug(`Daemon already running with PID ${status.pid}`);
+    process.exit(1);
   }
   
   // Start daemon

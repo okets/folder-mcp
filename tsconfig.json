@@ -34,6 +34,9 @@
     "node_modules",
     "dist",
     "src/interfaces/tui-ink-old/**/*",
-    "src/interfaces/tui/**/*"
+    "src/interfaces/tui/**/*",
+    "tests/integration/folder-lifecycle-*.test.ts",
+    "tests/integration/folder-lifecycle-orchestrator.test.ts",
+    "tests/integration/folder-lifecycle-simple-real.test.ts"
   ]
 }

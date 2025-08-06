@@ -10,7 +10,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Show results** - Let you review the changes and outcomes
 - ⚠️ **Confirm git commits only** - Always ask before `git commit` or `git push`
 
-**Rationale**: Git provides complete rollback protection. Focus on efficient development, not file permission overhead.
+**Testing Requirements (Integrated TDD)**:
+- 🔴 **MANDATORY**: Check automated tests AND TMOAT before starting any feature
+- 🤖 **AUTOMATED FIRST**: Create unit/integration tests for all features
+- 👤 **MANUAL SECOND**: Add TMOAT steps for end-to-end validation
+- ✅ **DUAL VALIDATION**: Both automated AND manual tests must pass
+- 📍 **Location**: `TMOAT/THE_MOTHER_OF_ALL_TESTS.md`
+- ⏱️ **Time**: Automated (2 mins) + Manual smoke test (5-10 mins)
+
+**TMOAT integrates with automated testing** - They work together, not in isolation. Every feature needs both automated and manual test coverage.
+
+**Rationale**: Git provides complete rollback protection. Focus on efficient development, not file permission overhead. TMOAT ensures system integrity through continuous test evolution.
 
 ## Essential Commands
 
@@ -53,6 +63,31 @@ npm run test:integration # Run integration tests only
 npm run test:e2e       # Run end-to-end tests
 npm run test:performance # Run performance tests
 npm run test:coverage  # Generate coverage report
+```
+
+**TMOAT - Integrated Manual + Automated Testing:**
+```bash
+# ⚠️ INTEGRATED TDD - Both automated and manual tests required
+# Full documentation: docs/testing/THE_MOTHER_OF_ALL_TESTS.md
+
+# Integrated TDD Workflow:
+1. CHECK: Do automated tests AND TMOAT cover your feature?
+2. AUTOMATED: If no, add unit/integration test first
+3. MANUAL: If no, add TMOAT steps second  
+4. TEST: Run npm test (should fail) + TMOAT (should fail)
+5. BUILD: Implement the feature
+6. VERIFY: Run npm test (should pass) + TMOAT (should pass)
+
+# Complete test run (7-12 mins):
+npm test                                    # Automated tests first (2 mins)
+npm run build                               # Then build (1 min)
+node dist/src/daemon/index.js --restart     # Start daemon
+# Follow TMOAT smoke test (5-10 mins)
+
+# BOTH automated AND manual tests must pass!
+# - Automated tests catch regressions and unit logic
+# - TMOAT validates end-to-end real-world scenarios
+# - They complement each other, don't replace each other
 ```
 
 **Configuration Testing:**

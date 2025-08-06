@@ -40,7 +40,6 @@ export class DaemonRegistry {
       const runningDaemons = await DaemonRegistry.findRunningDaemonProcesses();
       const otherDaemons = runningDaemons.filter(pid => pid !== process.pid);
       
-      
       if (otherDaemons.length > 0) {
         // Found other daemon processes - strict singleton violation
         const otherPid = otherDaemons[0];
@@ -95,16 +94,36 @@ export class DaemonRegistry {
           const daemonPids: number[] = [];
           
           for (const line of lines) {
-            // Look for our daemon process - must be a node process, not shell
+            // Skip empty lines
+            if (!line.trim()) continue;
+            
+            // Look for our daemon process - must be a direct node process
+            // Skip any shell processes or wrappers
             if (line.includes('dist/src/daemon/index.js') && 
-                line.includes('node') && 
                 !line.includes('grep') && 
-                !line.includes('/bin/sh')) {
+                !line.includes('/bin/sh') &&
+                !line.includes('bash') &&
+                !line.includes('/bin/zsh') &&
+                !line.includes('eval') &&
+                !line.includes('source')) {
+              
+              // Extract the command part (everything after the time columns)
               const parts = line.trim().split(/\s+/);
-              if (parts.length > 1 && parts[1]) {
-                const pid = parseInt(parts[1], 10);
-                if (!isNaN(pid)) {
-                  daemonPids.push(pid);
+              if (parts.length > 10) {
+                // The command typically starts around column 11
+                const command = parts.slice(10).join(' ');
+                
+                // Check if this is a direct node invocation of our daemon
+                if (command.startsWith('node dist/src/daemon/index.js') ||
+                    command.startsWith('node ./dist/src/daemon/index.js') ||
+                    command.startsWith('/usr/local/bin/node dist/src/daemon/index.js')) {
+                  const pidStr = parts[1];
+                  if (pidStr) {
+                    const pid = parseInt(pidStr, 10);
+                    if (!isNaN(pid)) {
+                      daemonPids.push(pid);
+                    }
+                  }
                 }
               }
             }

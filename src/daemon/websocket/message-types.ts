@@ -251,27 +251,79 @@ export type WSServerMessage =
 // =============================================================================
 
 /**
- * Type guard for client messages
+ * Message validation result
  */
-export function isValidClientMessage(message: any): message is WSClientMessage {
-  if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
-    return false;
+export interface MessageValidationResult {
+  valid: boolean;
+  errorCode?: string;
+  errorMessage?: string;
+  supportedTypes?: string[];
+}
+
+/**
+ * Enhanced validation function that returns detailed error information
+ */
+export function validateClientMessage(message: any): MessageValidationResult {
+  // Check basic structure
+  if (!message || typeof message !== 'object') {
+    return {
+      valid: false,
+      errorCode: 'INVALID_STRUCTURE',
+      errorMessage: 'Message must be a JSON object'
+    };
   }
 
+  if (typeof message.type !== 'string') {
+    return {
+      valid: false,
+      errorCode: 'MISSING_TYPE',
+      errorMessage: 'Message must have a "type" field of type string',
+      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list']
+    };
+  }
+
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list'];
+  
   switch (message.type) {
     case 'connection.init':
-      return ['tui', 'cli', 'web'].includes(message.clientType);
+      if (!['tui', 'cli', 'web'].includes(message.clientType)) {
+        return {
+          valid: false,
+          errorCode: 'INVALID_CLIENT_TYPE',
+          errorMessage: `Invalid clientType "${message.clientType}". Supported types: tui, cli, web`
+        };
+      }
+      return { valid: true };
     
     case 'folder.validate':
     case 'folder.add':
     case 'folder.remove':
     case 'ping':
     case 'models.list':
-      return typeof message.id === 'string' && message.id.length > 0;
+      if (typeof message.id !== 'string' || message.id.length === 0) {
+        return {
+          valid: false,
+          errorCode: 'MISSING_ID',
+          errorMessage: `Message type "${message.type}" requires a non-empty "id" field for correlation`
+        };
+      }
+      return { valid: true };
     
     default:
-      return false;
+      return {
+        valid: false,
+        errorCode: 'UNKNOWN_MESSAGE_TYPE',
+        errorMessage: `Unknown message type "${message.type}"`,
+        supportedTypes
+      };
   }
+}
+
+/**
+ * Type guard for client messages (backward compatibility)
+ */
+export function isValidClientMessage(message: any): message is WSClientMessage {
+  return validateClientMessage(message).valid;
 }
 
 /**

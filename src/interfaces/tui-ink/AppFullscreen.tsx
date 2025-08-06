@@ -286,7 +286,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     folderPath,
                     model: folder.model || 'nomic-embed-text',
                     isValid: folderValid,
-                    folderStatus: folder.status || 'pending', // Pass the actual status from FMDM
+                    folderStatus: folder.status === 'indexing' && folder.progress !== undefined 
+                        ? `indexing (${folder.progress}%)`  // Include progress for indexing status
+                        : folder.status || 'pending', // Pass the actual status from FMDM
                     statusColor: getStatusColor(folder.status), // Map status to appropriate color
                     onRemove: async (pathToRemove: string) => {
                         try {

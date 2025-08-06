@@ -86,10 +86,12 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
         if (hasConfiguredFolders) {
             // Have folders configured - skip wizard and show main app
             loadMainAppFromFMDM(fmdm);
-        } else if (showWizard && !config) {
-            // Only show wizard if we haven't already loaded the main app
-            // This prevents switching back to wizard when user removes all folders
-            handleCliParamsOrShowWizard();
+        } else {
+            // No folders configured - ensure wizard is shown
+            // Set showWizard to true since it might have been set to false when daemon wasn't connected
+            setShowWizard(true);
+            // Ensure config is null so AppFullscreen doesn't show
+            setConfig(null);
         }
     }, [isConnected, fmdm]);
     

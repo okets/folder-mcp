@@ -22,7 +22,7 @@ const DEBOUNCE_MS = 1000; // Fast debouncing for tests
 interface FolderConfig {
   path: string;
   model: string;
-  status: 'scanning' | 'indexing' | 'active' | 'error';
+  status: 'pending' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
   progress?: number;
 }
 

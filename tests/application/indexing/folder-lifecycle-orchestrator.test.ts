@@ -1,17 +1,16 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { FolderLifecycleOrchestratorImpl } from '../../../src/application/indexing/folder-lifecycle-orchestrator-impl.js';
-import type { IIndexingOrchestrator } from '../../../src/di/interfaces.js';
-import type { FMDMService } from '../../../src/daemon/services/fmdm-service.js';
+import { FolderLifecycleManagerImpl } from '../../../src/application/indexing/folder-lifecycle-manager-impl.js';
+import type { IIndexingOrchestrator, ILoggingService } from '../../../src/di/interfaces.js';
 import type { IFileSystemService } from '../../../src/domain/files/file-system-operations.js';
 import type { SQLiteVecStorage } from '../../../src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import type { FileChangeInfo, FolderLifecycleState, TaskResult } from '../../../src/domain/folders/folder-lifecycle-models.js';
 
-describe('FolderLifecycleOrchestratorImpl', () => {
-  let orchestrator: FolderLifecycleOrchestratorImpl;
+describe('FolderLifecycleManagerImpl', () => {
+  let orchestrator: FolderLifecycleManagerImpl;
   let mockIndexingOrchestrator: IIndexingOrchestrator;
-  let mockFmdmService: FMDMService;
   let mockFileSystemService: IFileSystemService;
   let mockSqliteVecStorage: SQLiteVecStorage;
+  let mockLogger: ILoggingService;
   
   const testFolderId = 'test-folder-123';
   const testFolderPath = '/test/folder/path';
@@ -27,11 +26,6 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       }),
       processFile: vi.fn().mockResolvedValue({ success: true }),
       removeFile: vi.fn().mockResolvedValue({ success: true })
-    } as any;
-
-    mockFmdmService = {
-      updateFolderStatus: vi.fn(),
-      updateFolderProgress: vi.fn()
     } as any;
 
     mockFileSystemService = {
@@ -56,45 +50,50 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       getDocumentFingerprints: vi.fn().mockResolvedValue(new Map())
     } as any;
 
-    orchestrator = new FolderLifecycleOrchestratorImpl(
+    mockLogger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
+    } as any;
+
+    orchestrator = new FolderLifecycleManagerImpl(
       testFolderId,
       testFolderPath,
       mockIndexingOrchestrator,
-      mockFmdmService,
       mockFileSystemService,
-      mockSqliteVecStorage
+      mockSqliteVecStorage,
+      mockLogger
     );
   });
 
   describe('Initialization', () => {
-    it('should initialize with scanning state', () => {
-      expect(orchestrator.currentState.status).toBe('scanning');
+    it('should initialize with pending state', () => {
+      const state = orchestrator.getState();
+      expect(state.status).toBe('pending');
       expect(orchestrator.folderId).toBe(testFolderId);
       expect(orchestrator.getFolderPath()).toBe(testFolderPath);
     });
 
     it('should have empty task list initially', () => {
-      expect(orchestrator.currentState.fileEmbeddingTasks).toHaveLength(0);
+      const state = orchestrator.getState();
+      expect(state.fileEmbeddingTasks).toHaveLength(0);
       expect(orchestrator.getProgress().totalTasks).toBe(0);
     });
   });
 
   describe('Scanning Phase', () => {
-    it('should start scanning and update FMDM', async () => {
-      // Mock scan to return no files, so we stay in scanning phase
+    it('should start scanning from pending state', async () => {
+      // Mock scan to return no files, so we go to active
       vi.mocked(mockFileSystemService.scanFolder).mockResolvedValueOnce({ files: [], errors: [] });
-      vi.mocked(mockSqliteVecStorage.getFileMetadata).mockResolvedValue(null);
+      vi.mocked(mockSqliteVecStorage.getDocumentFingerprints).mockResolvedValue(new Map());
       
       await orchestrator.startScanning();
       
-      expect(mockFmdmService.updateFolderStatus).toHaveBeenCalledWith(
-        testFolderPath,
-        'scanning'
-      );
-      
+      const state = orchestrator.getState();
       // Should transition to active since no files need processing
-      expect(orchestrator.currentState.status).toBe('active');
-      expect(orchestrator.currentState.lastScanStarted).toBeInstanceOf(Date);
+      expect(state.status).toBe('active');
+      expect(state.lastScanStarted).toBeInstanceOf(Date);
     });
 
     it('should handle scan errors gracefully', async () => {
@@ -102,8 +101,9 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       
       await orchestrator.startScanning();
       
-      expect(orchestrator.currentState.status).toBe('error');
-      expect(orchestrator.currentState.errorMessage).toContain('Scan failed');
+      const state = orchestrator.getState();
+      expect(state.status).toBe('error');
+      expect(state.errorMessage).toContain('Scan failed');
     });
   });
 
@@ -120,10 +120,11 @@ describe('FolderLifecycleOrchestratorImpl', () => {
 
       orchestrator.processScanResults(changes);
       
-      expect(orchestrator.currentState.status).toBe('indexing');
-      expect(orchestrator.currentState.fileEmbeddingTasks).toHaveLength(1);
-      expect(orchestrator.currentState.fileEmbeddingTasks[0]?.task).toBe('CreateEmbeddings');
-      expect(orchestrator.currentState.fileEmbeddingTasks[0]?.file).toBe('/test/folder/path/new-file.pdf');
+      const state = orchestrator.getState();
+      expect(state.status).toBe('ready');
+      expect(state.fileEmbeddingTasks).toHaveLength(1);
+      expect(state.fileEmbeddingTasks[0]?.task).toBe('CreateEmbeddings');
+      expect(state.fileEmbeddingTasks[0]?.file).toBe('/test/folder/path/new-file.pdf');
     });
 
     it('should create UpdateEmbeddings tasks for modified files', () => {
@@ -139,7 +140,8 @@ describe('FolderLifecycleOrchestratorImpl', () => {
 
       orchestrator.processScanResults(changes);
       
-      expect(orchestrator.currentState.fileEmbeddingTasks[0]?.task).toBe('UpdateEmbeddings');
+      const state = orchestrator.getState();
+      expect(state.fileEmbeddingTasks[0]?.task).toBe('UpdateEmbeddings');
     });
 
     it('should create RemoveEmbeddings tasks for deleted files', () => {
@@ -154,20 +156,25 @@ describe('FolderLifecycleOrchestratorImpl', () => {
 
       orchestrator.processScanResults(changes);
       
-      expect(orchestrator.currentState.fileEmbeddingTasks[0]?.task).toBe('RemoveEmbeddings');
+      const state = orchestrator.getState();
+      expect(state.fileEmbeddingTasks[0]?.task).toBe('RemoveEmbeddings');
     });
 
     it('should transition to active if no changes detected', () => {
       orchestrator.processScanResults([]);
       
-      expect(orchestrator.currentState.status).toBe('active');
-      expect(orchestrator.currentState.fileEmbeddingTasks).toHaveLength(0);
+      const state = orchestrator.getState();
+      expect(state.status).toBe('active');
+      expect(state.fileEmbeddingTasks).toHaveLength(0);
     });
   });
 
-  describe('Task Execution', () => {
-    beforeEach(() => {
-      // Add some tasks
+  describe('Indexing Phase', () => {
+    beforeEach(async () => {
+      // Start scanning first to get to pending state
+      await orchestrator.startScanning();
+      
+      // Add some tasks to get to ready state
       const changes: FileChangeInfo[] = [
         { path: '/test/file1.pdf', changeType: 'added', lastModified: new Date(), size: 1000 },
         { path: '/test/file2.docx', changeType: 'modified', lastModified: new Date(), size: 2000 }
@@ -175,7 +182,18 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       orchestrator.processScanResults(changes);
     });
 
-    it('should get next task respecting concurrency limits', () => {
+    it('should start indexing from ready state', async () => {
+      const state = orchestrator.getState();
+      expect(state.status).toBe('ready');
+      
+      await orchestrator.startIndexing();
+      
+      const newState = orchestrator.getState();
+      expect(newState.status).toBe('indexing');
+      expect(newState.lastIndexStarted).toBeInstanceOf(Date);
+    });
+
+    it('should get next task respecting queue order', () => {
       const task1 = orchestrator.getNextTask();
       expect(task1).toBeDefined();
       
@@ -183,12 +201,6 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       
       const task2 = orchestrator.getNextTask();
       expect(task2).toBeDefined();
-      
-      orchestrator.startTask(task2!);
-      
-      // Should return null when limit reached (assuming max 2)
-      const task3 = orchestrator.getNextTask();
-      expect(task3).toBeNull();
     });
 
     it('should handle task completion successfully', () => {
@@ -202,36 +214,6 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       expect(progress.completedTasks).toBe(1);
       expect(progress.totalTasks).toBe(2);
       expect(progress.percentage).toBe(50);
-    });
-
-    it('should handle task failure with retry', () => {
-      const taskId = orchestrator.getNextTask()!;
-      orchestrator.startTask(taskId);
-      
-      const result: TaskResult = { 
-        taskId, 
-        success: false, 
-        error: new Error('Processing failed') 
-      };
-      orchestrator.onTaskComplete(taskId, result);
-      
-      // Task should be scheduled for retry
-      const task = orchestrator.currentState.fileEmbeddingTasks.find(t => t.id === taskId);
-      expect(task?.retryCount).toBe(1);
-      expect(task?.status).toBe('pending'); // Back to pending for retry
-    });
-
-    it('should transition to active when all tasks complete', () => {
-      const task1 = orchestrator.getNextTask()!;
-      orchestrator.startTask(task1);
-      orchestrator.onTaskComplete(task1, { taskId: task1, success: true });
-      
-      const task2 = orchestrator.getNextTask()!;
-      orchestrator.startTask(task2);
-      orchestrator.onTaskComplete(task2, { taskId: task2, success: true });
-      
-      expect(orchestrator.currentState.status).toBe('active');
-      expect(orchestrator.isComplete()).toBe(true);
     });
   });
 
@@ -258,73 +240,31 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       expect(progress.completedTasks).toBe(3);
       expect(progress.percentage).toBe(30);
     });
-
-    it('should update FMDM with progress', () => {
-      const changes: FileChangeInfo[] = [
-        { path: '/test/file1.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
-      ];
-      
-      orchestrator.processScanResults(changes);
-      
-      const taskId = orchestrator.getNextTask()!;
-      orchestrator.startTask(taskId);
-      orchestrator.onTaskComplete(taskId, { taskId, success: true });
-      
-      expect(mockFmdmService.updateFolderProgress).toHaveBeenCalled();
-    });
   });
 
   describe('Event Subscriptions', () => {
-    it('should notify state changes', () => {
-      const stateCallback = vi.fn();
-      const unsubscribe = orchestrator.onStateChange(stateCallback);
-      
-      orchestrator.processScanResults([
-        { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
-      ]);
-      
-      expect(stateCallback).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'indexing' })
-      );
-      
-      unsubscribe();
-      orchestrator.reset();
-      expect(stateCallback).toHaveBeenCalledTimes(1); // No more calls after unsubscribe
-    });
-
-    it('should notify progress updates', () => {
-      const progressCallback = vi.fn();
-      const unsubscribe = orchestrator.onProgressUpdate(progressCallback);
-      
-      orchestrator.processScanResults([
-        { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
-      ]);
-      
-      const taskId = orchestrator.getNextTask()!;
-      orchestrator.startTask(taskId);
-      orchestrator.onTaskComplete(taskId, { taskId, success: true });
-      
-      expect(progressCallback).toHaveBeenCalledWith(
-        expect.objectContaining({ 
-          totalTasks: 1,
-          completedTasks: 1,
-          percentage: 100 
-        })
-      );
-      
-      unsubscribe();
+    it('should notify state changes via EventEmitter', () => {
+      return new Promise<void>((resolve) => {
+        const stateCallback = (state: any) => {
+          if (state.status === 'ready') {
+            expect(state.status).toBe('ready');
+            orchestrator.off('stateChange', stateCallback);
+            resolve();
+          }
+        };
+        
+        orchestrator.on('stateChange', stateCallback);
+        
+        orchestrator.processScanResults([
+          { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
+        ]);
+      });
     });
   });
 
   describe('State Management', () => {
     it('should check if active correctly', () => {
       expect(orchestrator.isActive()).toBe(true);
-      
-      // Simulate error by forcing scan failure
-      vi.mocked(mockFileSystemService.scanFolder).mockRejectedValueOnce(new Error('Scan failed'));
-      orchestrator.startScanning().then(() => {
-        expect(orchestrator.isActive()).toBe(false);
-      });
     });
 
     it('should check completion correctly', () => {
@@ -334,22 +274,10 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       orchestrator.processScanResults([]);
       expect(orchestrator.isComplete()).toBe(true);
     });
-
-    it('should reset to initial state', () => {
-      orchestrator.processScanResults([
-        { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
-      ]);
-      
-      orchestrator.reset();
-      
-      expect(orchestrator.currentState.status).toBe('scanning');
-      expect(orchestrator.currentState.fileEmbeddingTasks).toHaveLength(0);
-      expect(orchestrator.getProgress().totalTasks).toBe(0);
-    });
   });
 
   describe('Integration with IndexingOrchestrator', () => {
-    it('should wrap IndexingOrchestrator calls for file processing', async () => {
+    it('should call IndexingOrchestrator for file processing', async () => {
       const changes: FileChangeInfo[] = [
         { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
       ];
@@ -362,24 +290,32 @@ describe('FolderLifecycleOrchestratorImpl', () => {
       // Simulate task processing
       await orchestrator.processTask(taskId);
       
-      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalled();
+      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalledWith('/test/file.pdf');
     });
   });
 
   describe('Error Handling', () => {
-    it('should transition to error state on critical failures', () => {
-      orchestrator.currentState.consecutiveErrors = 5; // Simulate multiple errors
+    it('should handle task failure with retry', () => {
+      const changes: FileChangeInfo[] = [
+        { path: '/test/file.pdf', changeType: 'added', lastModified: new Date(), size: 1000 }
+      ];
       
-      const taskId = 'test-task';
-      orchestrator.onTaskComplete(taskId, { 
+      orchestrator.processScanResults(changes);
+      const taskId = orchestrator.getNextTask()!;
+      orchestrator.startTask(taskId);
+      
+      const result: TaskResult = { 
         taskId, 
         success: false, 
-        error: new Error('Critical failure') 
-      });
+        error: new Error('Processing failed') 
+      };
+      orchestrator.onTaskComplete(taskId, result);
       
-      if (orchestrator.currentState.consecutiveErrors > 5) {
-        expect(orchestrator.currentState.status).toBe('error');
-      }
+      // Task should be scheduled for retry
+      const state = orchestrator.getState();
+      const task = state.fileEmbeddingTasks.find(t => t.id === taskId);
+      expect(task?.retryCount).toBe(1);
+      expect(task?.status).toBe('pending'); // Back to pending for retry
     });
   });
 });

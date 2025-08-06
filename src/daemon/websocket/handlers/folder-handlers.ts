@@ -17,13 +17,14 @@ import { ILoggingService } from '../../../di/interfaces.js';
 import { IDaemonConfigurationService } from '../../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../../services/folder-validation-service.js';
 import { ModelHandlers } from './model-handlers.js';
-import { IFolderLifecycleManager } from '../../services/folder-lifecycle-manager.js';
+import { IMonitoredFoldersOrchestrator } from '../../services/monitored-folders-orchestrator.js';
 
 /**
  * FMDM service interface for folder handlers
  */
 export interface IFMDMServiceForHandlers {
-  updateFolders(folders: Array<{ path: string; model: string; status: string }>): void;
+  updateFolders(folders: Array<{ path: string; model: string; status: string; progress?: number }>): void;
+  getFMDM(): { folders: Array<{ path: string; model: string; status: string; progress?: number }> };
 }
 
 /**
@@ -36,7 +37,7 @@ export class FolderHandlers {
     private validationService: IDaemonFolderValidationService,
     private modelHandlers: ModelHandlers,
     private logger: ILoggingService,
-    private folderLifecycleManager?: IFolderLifecycleManager
+    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
   ) {}
 
   /**
@@ -110,11 +111,11 @@ export class FolderHandlers {
       const configFolders = await this.configService.getFolders();
       this.logger.debug(`Retrieved ${configFolders.length} folders from configService`);
       
-      // Convert config folders to FMDM format with status
+      // Convert config folders to FMDM format - let orchestrator manage status
       const updatedFolders = configFolders.map((folder: any) => ({
         path: folder.path,
         model: folder.model,
-        status: 'pending' as const  // New folders start as pending
+        status: 'pending' as const  // New folders start pending (orchestrator will manage lifecycle)
       }));
       
       this.logger.debug(`Updating FMDM with folder list...`);
@@ -122,10 +123,10 @@ export class FolderHandlers {
       this.logger.debug(`FMDM updated successfully`);
 
       // Trigger background indexing for the newly added folder
-      if (this.folderLifecycleManager) {
+      if (this.monitoredFoldersOrchestrator) {
         this.logger.debug(`Starting folder lifecycle management for: ${path}`);
         // Don't await - let indexing run in background
-        this.folderLifecycleManager.startFolder({ path, model, status: 'pending' }).catch((error) => {
+        this.monitoredFoldersOrchestrator.addFolder(path, model).catch((error: unknown) => {
           this.logger.error(`Failed to start folder lifecycle for ${path}`, error instanceof Error ? error : new Error(String(error)));
           this.logger.debug(`Lifecycle error details: ${error instanceof Error ? error.message : String(error)}`);
           if (error instanceof Error && error.stack) {
@@ -165,15 +166,36 @@ export class FolderHandlers {
     try {
       await this.configService.removeFolder(path);
       
-      // Update FMDM with new folder list
+      // Remove from MonitoredFoldersOrchestrator (stops lifecycle, file watching, and cleans up .folder-mcp)
+      if (this.monitoredFoldersOrchestrator) {
+        try {
+          await this.monitoredFoldersOrchestrator.removeFolder(path);
+          this.logger.info(`Successfully removed folder from orchestrator: ${path}`);
+        } catch (error) {
+          this.logger.error(`Failed to remove folder from orchestrator ${path}`, error instanceof Error ? error : new Error(String(error)));
+          // Continue with removal even if orchestrator cleanup fails
+        }
+      }
+      
+      // Update FMDM with new folder list, preserving existing statuses
       const configFolders = await this.configService.getFolders();
       
-      // Convert config folders to FMDM format with status
-      const updatedFolders = configFolders.map((folder: any) => ({
-        path: folder.path,
-        model: folder.model,
-        status: 'pending' as const  // Folders start as pending after removal
-      }));
+      // Get current FMDM state to preserve existing folder statuses
+      const currentFmdm = this.fmdmService.getFMDM();
+      const existingFolderStatuses = new Map(
+        currentFmdm.folders.map((folder: any) => [folder.path, { status: folder.status, progress: folder.progress }])
+      );
+      
+      // Convert config folders to FMDM format - preserve existing statuses for remaining folders
+      const updatedFolders = configFolders.map((folder: any) => {
+        const existingStatus = existingFolderStatuses.get(folder.path);
+        return {
+          path: folder.path,
+          model: folder.model,
+          status: (existingStatus?.status || 'pending') as string,
+          progress: existingStatus?.progress
+        };
+      });
       
       this.fmdmService.updateFolders(updatedFolders);
 

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
-import { FolderLifecycleOrchestratorImpl } from '../../src/application/indexing/folder-lifecycle-orchestrator-impl.js';
+import { FolderLifecycleManagerImpl } from '../../src/application/indexing/folder-lifecycle-manager-impl.js';
 import { FolderTaskQueue } from '../../src/domain/folders/folder-task-queue.js';
 import { FolderLifecycleStateMachine } from '../../src/domain/folders/folder-lifecycle-state-machine.js';
 import { existsSync, rmSync } from 'fs';
@@ -14,7 +14,7 @@ import { existsSync, rmSync } from 'fs';
 describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
   const testKnowledgeBase = join(process.cwd(), 'tests/fixtures/test-knowledge-base');
   
-  let orchestrator: FolderLifecycleOrchestratorImpl;
+  let orchestrator: FolderLifecycleManagerImpl;
   let mockFmdmService: any;
   let mockFileSystemService: any;
   let mockIndexingOrchestrator: any;
@@ -44,7 +44,7 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     };
     
     // Create orchestrator
-    orchestrator = new FolderLifecycleOrchestratorImpl(
+    orchestrator = new FolderLifecycleManagerImpl(
       'test-simple',
       testKnowledgeBase,
       mockIndexingOrchestrator,

@@ -17,6 +17,8 @@ import {
   ModelListResponseMessage,
   ValidationResult,
   isValidClientMessage,
+  validateClientMessage,
+  MessageValidationResult,
   isFolderValidateMessage,
   isConnectionInitMessage,
   isPingMessage,
@@ -34,7 +36,7 @@ import { FolderHandlers } from './handlers/folder-handlers.js';
 import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
-import { IFolderLifecycleManager } from '../services/folder-lifecycle-manager.js';
+import { IMonitoredFoldersOrchestrator } from '../services/monitored-folders-orchestrator.js';
 
 /**
  * Folder validation service interface
@@ -49,7 +51,8 @@ export interface IFolderValidationService {
 export interface IProtocolFMDMService {
   addClient(client: ClientConnection): void;
   removeClient(clientId: string): void;
-  updateFolders(folders: Array<{ path: string; model: string }>): void;
+  updateFolders(folders: Array<{ path: string; model: string; status?: string; progress?: number }>): void;
+  getFMDM(): { folders: Array<{ path: string; model: string; status: string; progress?: number }> };
 }
 
 /**
@@ -65,7 +68,7 @@ export class WebSocketProtocol {
     private configService: IDaemonConfigurationService,
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService,
-    private folderLifecycleManager?: IFolderLifecycleManager
+    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
   ) {
     // Create model handlers first
     this.modelHandlers = new ModelHandlers(this.logger);
@@ -77,7 +80,7 @@ export class WebSocketProtocol {
       this.validationService,
       this.modelHandlers,
       this.logger,
-      this.folderLifecycleManager
+      this.monitoredFoldersOrchestrator
     );
   }
 
@@ -96,10 +99,22 @@ export class WebSocketProtocol {
     rawMessage: any
   ): Promise<WSServerMessage | null> {
     try {
-      // Validate message structure
-      if (!isValidClientMessage(rawMessage)) {
-        this.logger.warn(`Invalid message from client ${clientId}`, { message: rawMessage });
-        return createErrorMessage('Invalid message format');
+      // Enhanced validation with detailed error reporting
+      const validationResult = validateClientMessage(rawMessage);
+      if (!validationResult.valid) {
+        this.logger.warn(`Invalid message from client ${clientId}`, { 
+          message: rawMessage,
+          errorCode: validationResult.errorCode,
+          errorMessage: validationResult.errorMessage
+        });
+        
+        // Create detailed error message
+        let errorMessage = validationResult.errorMessage || 'Invalid message format';
+        if (validationResult.supportedTypes?.length) {
+          errorMessage += `. Supported message types: ${validationResult.supportedTypes.join(', ')}`;
+        }
+        
+        return createErrorMessage(errorMessage, validationResult.errorCode);
       }
 
       const message = rawMessage as WSClientMessage;
@@ -126,13 +141,17 @@ export class WebSocketProtocol {
           return await this.modelHandlers.handleModelList(message);
 
         default:
+          // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
-          return createErrorMessage(`Unknown message type: ${(message as any).type}`);
+          return createErrorMessage(
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list`,
+            'UNKNOWN_MESSAGE_TYPE'
+          );
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error processing message from ${clientId}`, error instanceof Error ? error : new Error(String(error)));
-      return createErrorMessage(`Internal server error: ${errorMessage}`);
+      return createErrorMessage(`Internal server error: ${errorMessage}`, 'INTERNAL_ERROR');
     }
   }
 
