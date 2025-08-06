@@ -10,8 +10,8 @@ describe('FolderLifecycleStateMachine', () => {
   });
 
   describe('Initial State', () => {
-    it('should start in scanning state', () => {
-      expect(stateMachine.getCurrentState()).toBe('scanning');
+    it('should start in pending state', () => {
+      expect(stateMachine.getCurrentState()).toBe('pending');
     });
 
     it('should not have previous state initially', () => {
@@ -20,27 +20,29 @@ describe('FolderLifecycleStateMachine', () => {
   });
 
   describe('Valid Transitions', () => {
-    it('should transition from scanning to indexing', () => {
-      expect(stateMachine.getCurrentState()).toBe('scanning');
+    it('should transition from pending to scanning', () => {
+      expect(stateMachine.getCurrentState()).toBe('pending');
       
-      const result = stateMachine.transitionTo('indexing');
+      const result = stateMachine.transitionTo('scanning');
       
       expect(result).toBe(true);
-      expect(stateMachine.getCurrentState()).toBe('indexing');
+      expect(stateMachine.getCurrentState()).toBe('scanning');
+      expect(stateMachine.getPreviousState()).toBe('pending');
+    });
+
+    it('should transition from scanning to ready', () => {
+      stateMachine.transitionTo('scanning');
+      
+      const result = stateMachine.transitionTo('ready');
+      
+      expect(result).toBe(true);
+      expect(stateMachine.getCurrentState()).toBe('ready');
       expect(stateMachine.getPreviousState()).toBe('scanning');
     });
 
-    it('should transition from indexing to active', () => {
-      stateMachine.transitionTo('indexing');
-      
-      const result = stateMachine.transitionTo('active');
-      
-      expect(result).toBe(true);
-      expect(stateMachine.getCurrentState()).toBe('active');
-      expect(stateMachine.getPreviousState()).toBe('indexing');
-    });
-
     it('should transition from active back to scanning', () => {
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       stateMachine.transitionTo('indexing');
       stateMachine.transitionTo('active');
       
@@ -52,15 +54,25 @@ describe('FolderLifecycleStateMachine', () => {
     });
 
     it('should transition to error from any state', () => {
-      const states: FolderStatus[] = ['scanning', 'indexing', 'active'];
+      const states: FolderStatus[] = ['pending', 'scanning', 'ready', 'indexing', 'active'];
       
       for (const fromState of states) {
         const sm = new FolderLifecycleStateMachine();
-        if (fromState !== 'scanning') {
+        // Set up the required state
+        if (fromState === 'scanning') {
+          sm.transitionTo('scanning');
+        } else if (fromState === 'ready') {
+          sm.transitionTo('scanning');
+          sm.transitionTo('ready');
+        } else if (fromState === 'indexing') {
+          sm.transitionTo('scanning');
+          sm.transitionTo('ready');
           sm.transitionTo('indexing');
-          if (fromState === 'active') {
-            sm.transitionTo('active');
-          }
+        } else if (fromState === 'active') {
+          sm.transitionTo('scanning');
+          sm.transitionTo('ready');
+          sm.transitionTo('indexing');
+          sm.transitionTo('active');
         }
         
         const result = sm.transitionTo('error');
@@ -70,19 +82,20 @@ describe('FolderLifecycleStateMachine', () => {
       }
     });
 
-    it('should transition from error back to scanning', () => {
+    it('should transition from error back to pending', () => {
       stateMachine.transitionTo('error');
       
-      const result = stateMachine.transitionTo('scanning');
+      const result = stateMachine.transitionTo('pending');
       
       expect(result).toBe(true);
-      expect(stateMachine.getCurrentState()).toBe('scanning');
+      expect(stateMachine.getCurrentState()).toBe('pending');
       expect(stateMachine.getPreviousState()).toBe('error');
     });
   });
 
   describe('Invalid Transitions', () => {
     it('should allow transition from scanning to active (no changes scenario)', () => {
+      stateMachine.transitionTo('scanning');
       const result = stateMachine.transitionTo('active');
       
       expect(result).toBe(true);
@@ -91,16 +104,20 @@ describe('FolderLifecycleStateMachine', () => {
     });
 
     it('should not transition from indexing to scanning', () => {
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       stateMachine.transitionTo('indexing');
       
       const result = stateMachine.transitionTo('scanning');
       
       expect(result).toBe(false);
       expect(stateMachine.getCurrentState()).toBe('indexing');
-      expect(stateMachine.getPreviousState()).toBe('scanning');
+      expect(stateMachine.getPreviousState()).toBe('ready');
     });
 
     it('should not transition from active to indexing', () => {
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       stateMachine.transitionTo('indexing');
       stateMachine.transitionTo('active');
       
@@ -111,44 +128,54 @@ describe('FolderLifecycleStateMachine', () => {
     });
 
     it('should not transition to the same state', () => {
-      const result = stateMachine.transitionTo('scanning');
+      const result = stateMachine.transitionTo('pending');
       
       expect(result).toBe(false);
-      expect(stateMachine.getCurrentState()).toBe('scanning');
+      expect(stateMachine.getCurrentState()).toBe('pending');
     });
   });
 
   describe('Transition Validation', () => {
     it('should validate if transition is allowed', () => {
-      expect(stateMachine.canTransitionTo('indexing')).toBe(true);
-      expect(stateMachine.canTransitionTo('active')).toBe(true); // Now allowed
+      expect(stateMachine.canTransitionTo('scanning')).toBe(true);
       expect(stateMachine.canTransitionTo('error')).toBe(true);
-      expect(stateMachine.canTransitionTo('scanning')).toBe(false);
+      expect(stateMachine.canTransitionTo('ready')).toBe(false);
+      expect(stateMachine.canTransitionTo('indexing')).toBe(false);
+      expect(stateMachine.canTransitionTo('active')).toBe(false);
+      expect(stateMachine.canTransitionTo('pending')).toBe(false);
     });
 
     it('should validate transitions from indexing state', () => {
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       stateMachine.transitionTo('indexing');
       
       expect(stateMachine.canTransitionTo('active')).toBe(true);
       expect(stateMachine.canTransitionTo('error')).toBe(true);
       expect(stateMachine.canTransitionTo('scanning')).toBe(false);
+      expect(stateMachine.canTransitionTo('ready')).toBe(false);
       expect(stateMachine.canTransitionTo('indexing')).toBe(false);
     });
 
     it('should validate transitions from active state', () => {
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       stateMachine.transitionTo('indexing');
       stateMachine.transitionTo('active');
       
       expect(stateMachine.canTransitionTo('scanning')).toBe(true);
       expect(stateMachine.canTransitionTo('error')).toBe(true);
       expect(stateMachine.canTransitionTo('indexing')).toBe(false);
+      expect(stateMachine.canTransitionTo('ready')).toBe(false);
       expect(stateMachine.canTransitionTo('active')).toBe(false);
     });
 
     it('should validate transitions from error state', () => {
       stateMachine.transitionTo('error');
       
-      expect(stateMachine.canTransitionTo('scanning')).toBe(true);
+      expect(stateMachine.canTransitionTo('pending')).toBe(true);
+      expect(stateMachine.canTransitionTo('scanning')).toBe(false);
+      expect(stateMachine.canTransitionTo('ready')).toBe(false);
       expect(stateMachine.canTransitionTo('indexing')).toBe(false);
       expect(stateMachine.canTransitionTo('active')).toBe(false);
       expect(stateMachine.canTransitionTo('error')).toBe(false);
@@ -160,14 +187,14 @@ describe('FolderLifecycleStateMachine', () => {
       const history: FolderStatus[] = [];
       
       history.push(stateMachine.getCurrentState());
-      stateMachine.transitionTo('indexing');
-      history.push(stateMachine.getCurrentState());
-      stateMachine.transitionTo('active');
-      history.push(stateMachine.getCurrentState());
       stateMachine.transitionTo('scanning');
       history.push(stateMachine.getCurrentState());
+      stateMachine.transitionTo('ready');
+      history.push(stateMachine.getCurrentState());
+      stateMachine.transitionTo('indexing');
+      history.push(stateMachine.getCurrentState());
       
-      expect(history).toEqual(['scanning', 'indexing', 'active', 'scanning']);
+      expect(history).toEqual(['pending', 'scanning', 'ready', 'indexing']);
     });
   });
 
@@ -189,12 +216,12 @@ describe('FolderLifecycleStateMachine', () => {
 
   describe('Reset Functionality', () => {
     it('should reset to initial state', () => {
-      stateMachine.transitionTo('indexing');
-      stateMachine.transitionTo('active');
+      stateMachine.transitionTo('scanning');
+      stateMachine.transitionTo('ready');
       
       stateMachine.reset();
       
-      expect(stateMachine.getCurrentState()).toBe('scanning');
+      expect(stateMachine.getCurrentState()).toBe('pending');
       expect(stateMachine.getPreviousState()).toBeNull();
     });
   });

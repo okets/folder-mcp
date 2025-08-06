@@ -554,4 +554,37 @@ export class FolderLifecycleManagerImpl extends EventEmitter implements IFolderL
     this.stop();
     this.removeAllListeners();
   }
+
+  reset(): void {
+    // Reset the state machine
+    this.stateMachine.reset();
+    
+    // Reset the internal state
+    this.state = {
+      folderId: this.folderId,
+      folderPath: this.folderPath,
+      status: 'pending',
+      fileEmbeddingTasks: [],
+      progress: {
+        totalTasks: 0,
+        completedTasks: 0,
+        failedTasks: 0,
+        inProgressTasks: 0,
+        percentage: 0
+      },
+      consecutiveErrors: 0
+    };
+
+    // Clear task queue
+    this.taskQueue.clearAll();
+    
+    // Clear pending tasks
+    this.pendingIndexingTasks.clear();
+    
+    // Set as active again
+    this.active = true;
+    
+    // Emit state change
+    this.emit('stateChange', this.getState());
+  }
 }

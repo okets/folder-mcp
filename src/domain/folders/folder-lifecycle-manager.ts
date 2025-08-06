@@ -42,6 +42,11 @@ export interface IFolderLifecycleManager extends EventEmitter {
   isActive(): boolean;
 
   /**
+   * Reset the manager to its initial state
+   */
+  reset(): void;
+
+  /**
    * Events emitted by the manager:
    * - 'stateChange': When state transitions
    * - 'scanComplete': When scanning finishes

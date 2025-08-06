@@ -98,6 +98,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       isReady: vi.fn().mockReturnValue(true),
       updateDocument: vi.fn(),
       deleteDocument: vi.fn(),
+      removeDocument: vi.fn().mockResolvedValue(undefined), // Add missing removeDocument method
       markForReindex: vi.fn(),
       getDocumentsNeedingReindex: vi.fn(),
       getDocumentFingerprints: vi.fn().mockResolvedValue(new Map())
@@ -316,7 +317,11 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
         isDirectory: false
       });
       
-      // Rescan
+      // Reset orchestrator state to pending first
+      orchestrator.reset();
+      expect(orchestrator.getState().status).toBe('pending');
+      
+      // Rescan with modified file
       await orchestrator.startScanning();
       
       // Should detect the modification and go to ready state
@@ -643,10 +648,10 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       // Should be able to start again
       await orchestrator.startScanning();
       
-      // Wait for scanning to begin
+      // Wait for scanning to complete (should go to ready since we have files)
       await vi.waitFor(() => {
         const state = orchestrator.getState();
-        expect(state.status).toBe('scanning');
+        expect(state.status).toBe('ready');
       });
     });
   });

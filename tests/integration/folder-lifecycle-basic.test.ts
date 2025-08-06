@@ -94,15 +94,15 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
       }
     });
     
-    // Initial state should be scanning
-    expect(orchestrator.currentState.status).toBe('scanning');
+    // Initial state should be pending
+    expect(orchestrator.currentState.status).toBe('pending');
     
     // Start scanning
     await orchestrator.startScanning();
     
-    // Should have transitioned
+    // Should have transitioned to ready after scanning
     expect(stateChanges).toContain('scanning');
-    expect(orchestrator.currentState.status).toBe('indexing');
+    expect(orchestrator.currentState.status).toBe('ready');
     expect(orchestrator.currentState.fileEmbeddingTasks.length).toBe(2);
   });
   
@@ -175,24 +175,30 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     mockFileSystemService.getFileHash.mockResolvedValue('hash');
     
     const progressUpdates: any[] = [];
+    const stateChanges: string[] = [];
+    
+    // Set up listeners before starting operations
     orchestrator.onProgressUpdate((progress) => {
       progressUpdates.push(progress);
     });
     
+    orchestrator.onStateChange((state) => {
+      stateChanges.push(state.status);
+    });
+    
     await orchestrator.startScanning();
+    expect(orchestrator.currentState.status).toBe('ready');
     
-    // Get and start the task
-    const taskId = orchestrator.getNextTask();
-    expect(taskId).toBeDefined();
+    // Start indexing to properly transition state machine
+    await orchestrator.startIndexing();
     
-    orchestrator.startTask(taskId!);
-    
-    // Wait for async processing
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for async processing to complete
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Should have progress updates
     expect(progressUpdates.length).toBeGreaterThan(0);
     expect(progressUpdates[progressUpdates.length - 1].percentage).toBe(100);
+    expect(orchestrator.currentState.status).toBe('active');
     expect(orchestrator.isComplete()).toBe(true);
   });
   
@@ -227,21 +233,18 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     // Wait for retry delay (1 second for first retry)
     await new Promise(resolve => setTimeout(resolve, 1100));
     
-    // Task should be retryable
-    const retryTaskId = orchestrator.getNextTask();
-    expect(retryTaskId).toBeDefined();
+    // Start indexing to process all tasks including retries
+    await orchestrator.startIndexing();
     
-    // Process retry - should succeed
-    orchestrator.startTask(retryTaskId!);
-    
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Wait for retry processing to complete 
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Check if tasks actually completed
     const finalState = orchestrator.currentState;
     console.log('Final state:', finalState.status);
     console.log('Final tasks:', finalState.fileEmbeddingTasks);
     
-    expect(orchestrator.isComplete()).toBe(true);
     expect(orchestrator.currentState.status).toBe('active');
+    expect(orchestrator.isComplete()).toBe(true);
   });
 });

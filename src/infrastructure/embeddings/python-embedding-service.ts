@@ -465,10 +465,12 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       // Send shutdown request to Python process
       if (this.pythonProcess) {
         try {
+          // Use the shutdown timeout (plus a small buffer) for the JSON-RPC timeout
+          const rpcTimeoutMs = (timeoutSeconds * 1000) + 1000; // Add 1 second buffer
           await this.sendJsonRpcRequest('shutdown', {
             timeout_seconds: timeoutSeconds,
             request_id: `shutdown_${this.nextRequestId++}`
-          });
+          }, rpcTimeoutMs);
         } catch (error) {
           console.error('Error sending shutdown request:', error);
         }
@@ -648,7 +650,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   /**
    * Send JSON-RPC request to Python process
    */
-  private async sendJsonRpcRequest(method: string, params: any): Promise<any> {
+  private async sendJsonRpcRequest(method: string, params: any, customTimeout?: number): Promise<any> {
     if (!this.pythonProcess || !this.pythonProcess.stdin) {
       throw new Error('Python process not available');
     }
@@ -662,11 +664,14 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     };
 
     return new Promise((resolve, reject) => {
+      // Use custom timeout if provided, otherwise default config timeout
+      const timeoutMs = customTimeout || this.config.timeout;
+      
       // Set up timeout
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(requestId);
-        reject(new Error(`Request timeout: ${method}`));
-      }, this.config.timeout);
+        reject(new Error(`Request timeout: ${method} (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       // Store pending request
       this.pendingRequests.set(requestId, { resolve, reject, timeout });

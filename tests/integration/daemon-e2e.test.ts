@@ -17,7 +17,7 @@ import { DaemonConnector } from '../../src/interfaces/tui-ink/daemon-connector.j
 const TEST_DAEMON_PORT = 8765; // Used for spawning daemon, connector will auto-discover
 const TEST_KNOWLEDGE_BASE = join(process.cwd(), 'tests/fixtures/test-knowledge-base');
 const TEMP_TEST_DIR = join('/tmp', 'test-daemon-e2e');
-const DEBOUNCE_MS = 1000; // Fast debouncing for tests
+const DEBOUNCE_MS = 200; // Fast debouncing for tests - optimized from 1000ms to 200ms
 
 interface FolderConfig {
   path: string;
@@ -53,32 +53,38 @@ describe('Daemon E2E Integration Tests', () => {
     return tempPath;
   };
 
-  const copyTestFiles = (fromSubfolder: string, toPath: string) => {
+  const copyTestFiles = (fromSubfolder: string, toPath: string, maxFiles = 3) => {
     const sourceDir = join(TEST_KNOWLEDGE_BASE, fromSubfolder);
     if (!existsSync(sourceDir)) {
       throw new Error(`Test data subfolder not found: ${sourceDir}`);
     }
     
-    // Recursively copy all files from the source directory
-    const copyRecursively = (srcDir: string, destDir: string) => {
+    // Recursively copy limited files from the source directory - optimized for performance
+    const copyRecursively = (srcDir: string, destDir: string, fileCount = 0) => {
+      if (fileCount >= maxFiles) return fileCount; // Stop when we've copied enough files
+      
       const files = readdirSync(srcDir);
-      files.forEach(file => {
+      for (const file of files) {
+        if (fileCount >= maxFiles) break;
+        
         const sourcePath = join(srcDir, file);
         const destPath = join(destDir, file);
         try {
           const stat = statSync(sourcePath);
           if (stat.isFile()) {
             copyFileSync(sourcePath, destPath);
+            fileCount++;
           } else if (stat.isDirectory()) {
             if (!existsSync(destPath)) {
               mkdirSync(destPath, { recursive: true });
             }
-            copyRecursively(sourcePath, destPath);
+            fileCount = copyRecursively(sourcePath, destPath, fileCount);
           }
         } catch (e) {
           // Ignore file copy errors, some files might be in use
         }
-      });
+      }
+      return fileCount;
     };
     
     try {
@@ -107,7 +113,7 @@ describe('Daemon E2E Integration Tests', () => {
     }));
   };
 
-  const waitForFMDMUpdate = (predicate: (fmdm: FMDMUpdate) => boolean, timeoutMs = 10000): Promise<FMDMUpdate> => {
+  const waitForFMDMUpdate = (predicate: (fmdm: FMDMUpdate) => boolean, timeoutMs = 5000): Promise<FMDMUpdate> => {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error(`FMDM update timeout after ${timeoutMs}ms`));
@@ -166,13 +172,16 @@ describe('Daemon E2E Integration Tests', () => {
     );
   };
 
-  const waitForFolderStatus = async (folderPath: string, status: string, timeoutMs = 30000): Promise<FolderConfig> => {
+  const waitForFolderStatus = async (folderPath: string, status: string, timeoutMs?: number): Promise<FolderConfig> => {
+    // Use different timeouts based on status - 'active' needs more time for indexing
+    const defaultTimeout = status === 'active' ? 15000 : 8000;
+    const finalTimeout = timeoutMs || defaultTimeout;
     const fmdmUpdate = await waitForFMDMUpdate(
       (fmdm) => {
         const folder = fmdm.fmdm.folders.find(f => f.path === folderPath);
         return folder?.status === status;
       },
-      timeoutMs
+      finalTimeout
     );
 
     return fmdmUpdate.fmdm.folders.find(f => f.path === folderPath)!;
@@ -208,7 +217,7 @@ describe('Daemon E2E Integration Tests', () => {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Daemon startup timeout'));
-      }, 10000);
+      }, 8000); // Optimized from 10s to 8s
 
       daemonProcess.stderr?.on('data', (data) => {
         if (data.toString().includes('Daemon started successfully')) {
@@ -229,7 +238,7 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Connect to daemon using auto-discovery
     await connectToDaemon();
-  }, 30000);
+  }, 20000); // Optimized from 30s to 20s
 
   afterAll(async () => {
     // Clean up WebSocket
@@ -281,10 +290,10 @@ describe('Daemon E2E Integration Tests', () => {
     const activeFolder = await waitForFolderStatus(testFolder, 'active');
     expect(activeFolder.status).toBe('active');
 
-    // Verify SQLite database was created (currently using centralized storage)
-    const centralDbPath = join(process.cwd(), '.folder-mcp', 'embeddings.db');
-    expect(existsSync(centralDbPath)).toBe(true);
-  }, 60000);
+    // Verify metadata directory was created (currently using centralized metadata storage)
+    const metadataDir = join(process.cwd(), '.folder-mcp', 'metadata');
+    expect(existsSync(metadataDir)).toBe(true);
+  }, 30000); // Optimized from 60s to 30s
 
   it('should detect and process multiple file types', async () => {
     const testFolder = createTempFolder('file-types');
@@ -306,7 +315,7 @@ describe('Daemon E2E Integration Tests', () => {
     const activeFolder = await waitForFolderStatus(testFolder, 'active');
     expect(activeFolder.status).toBe('active');
     console.log(`Folder completed indexing: ${testFolder}`);
-  }, 60000);
+  }, 30000); // Optimized from 60s to 30s
 
   it('should handle concurrent folder processing', async () => {
     const folder1 = createTempFolder('concurrent-1');
@@ -342,7 +351,7 @@ describe('Daemon E2E Integration Tests', () => {
     results.forEach(folder => {
       expect(folder.progress).toBe(100);
     });
-  }, 120000);
+  }, 60000); // Optimized from 120s to 60s
 
   it('should provide real-time progress updates', async () => {
     const testFolder = createTempFolder('progress-tracking');
@@ -432,7 +441,7 @@ describe('Daemon E2E Integration Tests', () => {
       // Clean up the progress handler
       ws.removeListener('message', progressHandler);
     }
-  }, 60000);
+  }, 40000); // Optimized from 60s to 40s
 
   it('should handle daemon restart with persistent folder state', async () => {
     const testFolder = createTempFolder('daemon-restart');
@@ -458,7 +467,7 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Wait for daemon to start
     await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Daemon restart timeout')), 10000);
+      const timeout = setTimeout(() => reject(new Error('Daemon restart timeout')), 5000); // Further optimized to 5s
       daemonProcess.stderr?.on('data', (data) => {
         if (data.toString().includes('Daemon started successfully')) {
           clearTimeout(timeout);
@@ -484,7 +493,7 @@ describe('Daemon E2E Integration Tests', () => {
     expect(restoredFolder?.path).toBe(testFolder);
     expect(fmdmUpdate.fmdm.daemon).toBeDefined();
     expect(fmdmUpdate.fmdm.connections).toBeDefined();
-  }, 120000);
+  }, 60000); // Optimized from 120s to 60s
 
   it('should handle folder removal during processing', async () => {
     const testFolder = createTempFolder('removal-test');
@@ -502,7 +511,7 @@ describe('Daemon E2E Integration Tests', () => {
     );
 
     expect(fmdmUpdate.fmdm.folders.find(f => f.path === testFolder)).toBeUndefined();
-  }, 60000);
+  }, 30000); // Optimized from 60s to 30s
 
   it('should report errors through FMDM', async () => {
     const nonExistentFolder = join(TEMP_TEST_DIR, 'does-not-exist');
@@ -543,7 +552,7 @@ describe('Daemon E2E Integration Tests', () => {
     writeFileSync(join(testFolder, 'new-file.txt'), 'This is a new file added during indexing');
 
     // Wait for debounce period
-    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 500));
+    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 200)); // Reduced from +500ms to +200ms
 
     // Should detect the new file and restart indexing
     const updatedFolder = await waitForFMDMUpdate(
@@ -559,7 +568,7 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Should still complete successfully
     await waitForFolderStatus(testFolder, 'active');
-  }, 90000);
+  }, 50000); // Optimized from 90s to 50s
 
   it('should detect and handle files removed during indexing', async () => {
     const testFolder = createTempFolder('live-removal');
@@ -579,7 +588,7 @@ describe('Daemon E2E Integration Tests', () => {
     });
 
     // Wait for debounce period
-    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 500));
+    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 200)); // Reduced from +500ms to +200ms
 
     // Should detect the removed file and restart indexing
     const updatedFolder = await waitForFMDMUpdate(
@@ -595,7 +604,7 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Should still complete successfully
     await waitForFolderStatus(testFolder, 'active');
-  }, 90000);
+  }, 50000); // Optimized from 90s to 50s
 
   it('should debounce multiple rapid file changes', async () => {
     const testFolder = createTempFolder('debounce-test');
@@ -628,7 +637,7 @@ describe('Daemon E2E Integration Tests', () => {
     }
 
     // Wait for debounce to settle
-    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 1000));
+    await new Promise(resolve => setTimeout(resolve, DEBOUNCE_MS + 300)); // Reduced from +1000ms to +300ms
 
     // Should not have excessive scanning phases due to debouncing
     const scanningCount = stateChanges.filter(s => s === 'scanning').length;
@@ -636,5 +645,5 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Should still complete successfully
     await waitForFolderStatus(testFolder, 'active');
-  }, 120000);
+  }, 60000); // Optimized from 120s to 60s
 });

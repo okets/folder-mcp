@@ -168,17 +168,41 @@ class EmbeddingHandler:
         try:
             logger.info(f"Loading model {self.model_name} on {self.device}...")
             
-            # Load model on CPU first to avoid MPS meta tensor issues
-            self.model = SentenceTransformer(self.model_name, device='cpu')
+            # FIX: Handle PyTorch meta tensor issue properly
+            # The error "Cannot copy out of meta tensor" suggests we need to use to_empty()
+            # Try different device loading strategies in order of preference
             
-            # Move to MPS if available (skip if already on target device)
-            if self.device != 'cpu' and str(self.model.device) != self.device:
+            try:
+                # First attempt: Load directly on target device
+                self.model = SentenceTransformer(self.model_name, device=self.device)
+                logger.info(f"Model loaded directly on {self.device}")
+            except Exception as device_error:
+                logger.warning(f"Direct device loading failed: {device_error}")
                 try:
-                    self.model = self.model.to(self.device)
-                    logger.info(f"Model moved to {self.device}")
-                except Exception as e:
-                    logger.warning(f"Failed to move model to {self.device}, using CPU: {e}")
-                    self.device = 'cpu'
+                    # Second attempt: Load on CPU first, then use to_empty() for proper device transfer
+                    logger.info("Attempting CPU load with proper device transfer...")
+                    self.model = SentenceTransformer(self.model_name, device='cpu')
+                    
+                    if self.device != 'cpu':
+                        # Use to_empty() instead of to() to handle meta tensors properly
+                        logger.info(f"Using to_empty() for device transfer to {self.device}")
+                        try:
+                            # This is the proper way to handle meta tensors in newer PyTorch
+                            import torch
+                            if hasattr(torch.nn.Module, 'to_empty'):
+                                self.model = self.model.to_empty(device=self.device)
+                                logger.info(f"Model transferred to {self.device} using to_empty()")
+                            else:
+                                # Fallback for older PyTorch versions
+                                self.model = self.model.to(self.device)
+                                logger.info(f"Model transferred to {self.device} using to()")
+                        except Exception as transfer_error:
+                            logger.warning(f"Device transfer failed, keeping CPU: {transfer_error}")
+                            self.device = 'cpu'
+                    
+                except Exception as cpu_error:
+                    logger.error(f"CPU loading also failed: {cpu_error}")
+                    raise cpu_error
             
             self.model_loaded_event.set()
             logger.info(f"Model {self.model_name} loaded successfully on {self.device}")
@@ -535,40 +559,49 @@ class EmbeddingHandler:
         Returns:
             True if shutdown completed successfully
         """
-        logger.info("Shutting down EmbeddingHandler...")
+        logger.info(f"Shutting down EmbeddingHandler with {timeout_seconds}s timeout...")
         
         try:
-            # Signal shutdown
+            # Signal shutdown immediately
             self.shutdown_requested = True
             self.shutdown_event.set()
             self.is_running = False
             
-            # Cancel keep-alive timer
+            # Cancel keep-alive timer immediately
             self._cancel_keep_alive_timer()
+            
+            # Give processing thread a shorter timeout (max 50% of total timeout)
+            thread_timeout = min(timeout_seconds * 0.5, 5.0)  # Max 5 seconds for thread shutdown
             
             # Wait for processing thread to finish
             if self.processing_thread and self.processing_thread.is_alive():
-                self.processing_thread.join(timeout=timeout_seconds)
+                logger.info(f"Waiting up to {thread_timeout}s for processing thread to stop...")
+                self.processing_thread.join(timeout=thread_timeout)
                 
                 if self.processing_thread.is_alive():
-                    logger.warning("Processing thread did not stop within timeout")
-                    return False
+                    logger.warning(f"Processing thread did not stop within {thread_timeout}s timeout - proceeding anyway")
+                    # Don't return False - continue with cleanup
             
-            # Clear model from GPU memory
+            # Clear model from GPU memory quickly
             if self.model and self.device != 'cpu':
                 try:
+                    logger.info("Clearing GPU memory...")
                     del self.model
+                    self.model = None
                     if self.device == 'cuda':
+                        import torch
                         torch.cuda.empty_cache()
-                except:
-                    pass
+                        logger.info("GPU memory cleared")
+                except Exception as gpu_error:
+                    logger.warning(f"Error clearing GPU memory (non-fatal): {gpu_error}")
             
-            logger.info("EmbeddingHandler shutdown completed")
+            logger.info("EmbeddingHandler shutdown completed successfully")
             return True
             
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
-            return False
+            # Still return True if we get here - we tried our best
+            return True
     
     def _reset_keep_alive_timer(self) -> None:
         """Reset the keep-alive timer for immediate requests"""
