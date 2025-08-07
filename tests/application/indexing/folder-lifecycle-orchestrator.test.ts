@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { FolderLifecycleManagerImpl } from '../../../src/application/indexing/folder-lifecycle-manager-impl.js';
+import { FolderLifecycleService } from '../../../src/application/indexing/folder-lifecycle-service.js';
 import type { IIndexingOrchestrator, ILoggingService } from '../../../src/di/interfaces.js';
 import type { IFileSystemService } from '../../../src/domain/files/file-system-operations.js';
 import type { SQLiteVecStorage } from '../../../src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import type { FileChangeInfo, FolderLifecycleState, TaskResult } from '../../../src/domain/folders/folder-lifecycle-models.js';
 
-describe('FolderLifecycleManagerImpl', () => {
-  let orchestrator: FolderLifecycleManagerImpl;
+describe('FolderLifecycleService', () => {
+  let orchestrator: FolderLifecycleService;
   let mockIndexingOrchestrator: IIndexingOrchestrator;
   let mockFileSystemService: IFileSystemService;
   let mockSqliteVecStorage: SQLiteVecStorage;
@@ -59,7 +59,7 @@ describe('FolderLifecycleManagerImpl', () => {
       error: vi.fn()
     } as any;
 
-    orchestrator = new FolderLifecycleManagerImpl(
+    orchestrator = new FolderLifecycleService(
       testFolderId,
       testFolderPath,
       mockIndexingOrchestrator,

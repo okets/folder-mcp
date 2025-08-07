@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { FolderLifecycleManagerImpl } from '../../src/application/indexing/folder-lifecycle-manager-impl.js';
+import { FolderLifecycleService } from '../../src/application/indexing/folder-lifecycle-service.js';
 import { IIndexingOrchestrator, IFileSystemService, ILoggingService } from '../../src/di/interfaces.js';
 import { FMDMService } from '../../src/daemon/services/fmdm-service.js';
 import { SQLiteVecStorage } from '../../src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
@@ -9,7 +9,7 @@ import fs from 'fs/promises';
 import os from 'os';
 
 describe('FolderLifecycleOrchestrator Integration Tests', () => {
-  let orchestrator: FolderLifecycleManagerImpl;
+  let orchestrator: FolderLifecycleService;
   let indexingOrchestrator: IIndexingOrchestrator;
   let fmdmService: FMDMService;
   let fileSystemService: IFileSystemService;
@@ -105,7 +105,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
     } as any;
 
     // Create orchestrator with logger
-    orchestrator = new FolderLifecycleManagerImpl(
+    orchestrator = new FolderLifecycleService(
       'test-folder-id',
       testFolderPath,
       indexingOrchestrator,

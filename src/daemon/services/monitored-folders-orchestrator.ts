@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { FolderLifecycleManagerImpl } from '../../application/indexing/folder-lifecycle-manager-impl.js';
+import { FolderLifecycleService } from '../../application/indexing/folder-lifecycle-service.js';
 import { IFolderLifecycleManager } from '../../domain/folders/folder-lifecycle-manager.js';
 import { IIndexingOrchestrator, IFileSystemService, ILoggingService } from '../../di/interfaces.js';
 import { FMDMService } from './fmdm-service.js';
@@ -71,7 +71,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       });
       
       // Create folder lifecycle manager
-      const folderManager = new FolderLifecycleManagerImpl(
+      const folderManager = new FolderLifecycleService(
         `folder-${Date.now()}`, // Generate unique ID
         path,
         this.indexingOrchestrator,

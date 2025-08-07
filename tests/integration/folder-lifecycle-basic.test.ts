@@ -6,10 +6,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
-import { FolderLifecycleManagerImpl } from '../../src/application/indexing/folder-lifecycle-manager-impl.js';
+import { FolderLifecycleService } from '../../src/application/indexing/folder-lifecycle-service.js';
 
 describe('FolderLifecycleOrchestrator - Basic Integration', () => {
-  let orchestrator: FolderLifecycleManagerImpl;
+  let orchestrator: FolderLifecycleService;
   let mockFmdmService: any;
   let mockFileSystemService: any;
   let mockIndexingOrchestrator: any;
@@ -52,7 +52,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     };
     
     // Create orchestrator - FIXED parameter order
-    orchestrator = new FolderLifecycleManagerImpl(
+    orchestrator = new FolderLifecycleService(
       'test-basic',
       '/test/path',
       mockIndexingOrchestrator,
