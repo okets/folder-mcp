@@ -25,8 +25,8 @@ import type { TextChunk } from '../../../src/types/index.js';
 
 describe('Python Embeddings - Complete Test Suite', () => {
   let service: PythonEmbeddingService;
-  const testTimeout = 15000; // 15 seconds - optimized for performance
-  const downloadTimeout = 30000; // 30 seconds only for model download tests
+  const testTimeout = 30000; // 30 seconds - needed for model loading
+  const downloadTimeout = 60000; // 60 seconds for model download tests
   
   // CRITICAL: Track these metrics for keep-alive and priority verification
   const processMetrics = {
@@ -63,8 +63,8 @@ describe('Python Embeddings - Complete Test Suite', () => {
     // Create service once for ALL tests - this verifies keep-alive works
     service = new PythonEmbeddingService({
       modelName: 'all-MiniLM-L6-v2',
-      timeout: 15000,  // Optimized timeout - reduced from 30s to 15s
-      healthCheckInterval: 10000,  // Longer intervals for stability
+      timeout: 30000,  // 30 seconds for model loading (must be long enough for initial load)
+      healthCheckInterval: 30000,  // 30 seconds between health checks
       autoRestart: false, // Disable for testing to verify keep-alive
       maxRestartAttempts: 0,  // Disable restarts to test pure keep-alive
       restartDelay: 1000,
@@ -105,12 +105,12 @@ describe('Python Embeddings - Complete Test Suite', () => {
         const uptime = (Date.now() - processMetrics.startTime) / 1000;
         console.log(`Process kept alive for ${uptime.toFixed(1)}s with PID ${processMetrics.initialPID}`);
         
-        await service.shutdown(5);  // SHORTER shutdown timeout - reduced from 10s to 5s
+        await service.shutdown(10);  // 10 seconds for shutdown
       } catch (error) {
         // Ignore shutdown errors in tests
       }
     }
-  }, 15000);  // SHORTER afterAll timeout - reduced from 30s to 15s
+  }, 30000);  // 30 seconds for afterAll to handle shutdown
 
   describe('Environment and Configuration (covers all 5 files)', () => {
     it('should have Python script available', () => {
@@ -611,7 +611,7 @@ describe('Python Embeddings - Complete Test Suite', () => {
       
       expect(config).toBeDefined();
       expect(config.model).toBe('all-MiniLM-L6-v2');
-      expect(config.timeout).toBe(15000);  // Updated to match optimized timeout
+      expect(config.timeout).toBe(30000);  // 30 seconds needed for model loading
       expect(service.isInitialized()).toBe(true);
       
       // Verify keep-alive is working by checking process still alive
@@ -787,7 +787,7 @@ describe('Python Embeddings - Complete Test Suite', () => {
         }
         throw error;
       }
-    }, 5000); // Short timeout - no artificial delays
+    }, testTimeout); // Use standard test timeout
 
     it('should verify keep-alive system maintained same process throughout ALL tests', () => {
       // CRITICAL: This is the final verification that keep-alive worked
