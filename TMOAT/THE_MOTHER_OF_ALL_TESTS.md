@@ -128,10 +128,38 @@ import {
     └── smoke-test-3/       # Created during tests
 ```
 
-**Important**: 
-- Use `test-knowledge-base` for read-only operations
-- Create all test folders in `tests/fixtures/tmp/`
-- Clean up `tmp/` folder after each test run
+## 🚨 CRITICAL: Temporary File Policy
+
+**NEVER SPAM THE USER'S PC OR PROJECT ROOT WITH TEMPORARY FILES!**
+
+**MANDATORY RULES:**
+- ✅ **ALWAYS** create temporary files in designated directories only:
+  - `[project-path]/tests/fixtures/tmp/` for test fixtures and test data
+  - `[project-path]/tmp/` for general temporary files, test scripts, debug logs
+- ❌ **NEVER** create temporary files in:
+  - **Project root directory** (`./test-*.js`, `./debug.*`, `./monitor-*`)
+  - User's home directory (`/Users/hanan/`)
+  - System temp directories (`/tmp/`, `/var/tmp/`)
+  - Any location outside the project folder
+
+**🧹 CLEANUP PROTOCOL:**
+- **BEFORE any test/operation**: `rm -f ./test-* ./debug.* ./monitor-* ./quick-*`
+- **AFTER any test/operation**: `rm -rf ./tmp/* ./tests/fixtures/tmp/*`
+- **Clean project root**: Remove any files matching forbidden patterns
+
+**❌ FORBIDDEN file patterns in project root:**
+- `./test-*.js`, `./test-*.cjs`, `./test-*.ts` → Use `./tmp/test-*.js`
+- `./debug.*`, `./debug-*.*` → Use `./tmp/debug.*`
+- `./monitor-*.*`, `./quick-*.*`, `./check-*.*` → Use `./tmp/monitor-*.*`
+- `./indexing-*.*`, `.*-process.*` → Use `./tmp/indexing-*.*`
+- Any files starting with: `test-`, `debug-`, `monitor-`, `quick-`, `check-`
+
+**✅ TESTING FILE ORGANIZATION:**
+- **Read-only fixtures**: Use `tests/fixtures/test-knowledge-base/` (never modify)
+- **Test data creation**: Use `tests/fixtures/tmp/test-data-${timestamp}/`
+- **Test scripts**: Use `tmp/test-${operation}-${timestamp}.js`
+- **Debug logs**: Use `tmp/debug-${component}.log`
+- **CRITICAL**: Any code creating temporary directories MUST use project-local paths only
 
 ## 📋 Test Execution Protocol
 

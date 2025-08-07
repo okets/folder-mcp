@@ -24,6 +24,7 @@ interface FolderConfig {
   model: string;
   status: 'pending' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
   progress?: number;
+  errorMessage?: string;
 }
 
 interface FMDMUpdate {
@@ -638,6 +639,7 @@ describe('Daemon E2E Integration Tests', () => {
 
     const errorFolder = errorUpdate.fmdm.folders.find(f => f.path === nonExistentFolder);
     expect(errorFolder?.status).toBe('error');
+    expect(errorFolder?.errorMessage).toContain('does not exist');
   }, 30000);
 
   it('should detect and process files added during indexing', async () => {

@@ -413,6 +413,42 @@ When the user requests features or approaches that may have better alternatives,
 - **Preserve existing functionality** - Don't remove features to solve problems unless explicitly requested
 - When fixing visual bugs, maintain the original design intent and only fix the specific issue requested
 
+## 🚨 CRITICAL: Temporary File Policy
+
+**NEVER SPAM THE USER'S PC OR PROJECT ROOT WITH TEMPORARY FILES!**
+
+**MANDATORY RULES:**
+- ✅ **ALWAYS** create temporary files in designated directories only:
+  - `[project-path]/tests/fixtures/tmp/` for test fixtures and test data
+  - `[project-path]/tmp/` for general temporary files, scripts, logs
+- ❌ **NEVER** create temporary files in:
+  - Project root directory (`./test-*.js`, `./debug.*`, `./monitor-*`)
+  - User's home directory (`/Users/hanan/`)
+  - System temp directories (`/tmp/`, `/var/tmp/`)
+  - Any location outside the project folder
+- 🧹 **ALWAYS** clean up before operations: `rm -f ./test-* ./debug.* ./monitor-* ./quick-*`
+- 🧹 **ALWAYS** clean up after operations: `rm -rf ./tmp/* ./tests/fixtures/tmp/*`
+
+**❌ FORBIDDEN file patterns in project root:**
+- `./test-*.js`, `./test-*.cjs`, `./test-*.ts` → Use `./tmp/test-*.js`
+- `./debug.*`, `./debug-*.*` → Use `./tmp/debug.*`
+- `./monitor-*.*`, `./quick-*.*` → Use `./tmp/monitor-*.*`
+- `./indexing-*.*`, `.*-process.*` → Use `./tmp/indexing-*.*`
+- Any files starting with: `test-`, `debug-`, `monitor-`, `quick-`, `check-`
+
+**Examples of WRONG behavior:**
+- Creating `./test-deletion-fix.cjs` in project root
+- Creating `./debug.log` or `./debug-python-test.js` in project root
+- Creating `./monitor-changes.cjs` in project root
+- Using Node.js `os.tmpdir()` or `/tmp` for test files
+- Leaving temporary files behind after tests fail
+
+**Examples of CORRECT behavior:**
+- Using `./tmp/test-deletion-fix.cjs` for temporary test scripts
+- Using `./tmp/debug.log` for debug logs
+- Using `./tests/fixtures/tmp/test-data/` for test data
+- Always cleaning: `rm -rf ./tmp/* && rm -f ./test-* ./debug.*`
+
 ## Commit Policy
 
 **CRITICAL:** NEVER commit code without explicit user confirmation:
