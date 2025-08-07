@@ -166,6 +166,7 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('createSearchService') &&
             !content.includes('createTypedFolderMCPService') &&
             !content.includes('createTypedTransport') &&
+            !content.includes('createFolderLifecycleService') &&
             !content.includes('OllamaEmbeddingService') &&
             !file.includes('ValidationPipelineService')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);
