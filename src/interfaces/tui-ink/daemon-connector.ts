@@ -169,7 +169,17 @@ export class DaemonConnector {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${wsPort}`);
       const timeoutId = setTimeout(() => {
-        ws.terminate();
+        // Safely close the connection - handle different WebSocket implementations
+        try {
+          if (typeof ws.terminate === 'function') {
+            ws.terminate();
+          } else if (typeof ws.close === 'function') {
+            ws.close();
+          }
+          // If neither method exists, the connection will be cleaned up when ws goes out of scope
+        } catch (error) {
+          // Ignore errors during cleanup
+        }
         reject(new Error(`Connection timeout after ${this.options.timeoutMs}ms`));
       }, this.options.timeoutMs);
 

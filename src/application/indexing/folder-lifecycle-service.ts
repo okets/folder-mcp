@@ -161,22 +161,20 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     }
     
     if (changes.length === 0) {
-      this.logger.debug('[MANAGER-PROCESS] No changes detected, transitioning to active');
-      // No changes, transition directly to active
-      // First transition from scanning to ready if needed
-      if (this.state.status === 'scanning' && this.stateMachine.canTransitionTo('ready')) {
-        this.stateMachine.transitionTo('ready');
-        this.updateState({ status: 'ready' });
-      }
-      // Then from ready to active
+      this.logger.debug('[MANAGER-PROCESS] No changes detected, transitioning directly to active');
+      // No changes, transition directly from scanning to active (skip ready state)
       if (this.stateMachine.canTransitionTo('active')) {
         this.stateMachine.transitionTo('active');
         this.updateState({ 
           status: 'active',
           lastIndexCompleted: new Date(),
+          fileEmbeddingTasks: [], // Empty task list
         });
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
+        this.logger.debug('[MANAGER-PROCESS] Successfully transitioned to active state');
+      } else {
+        this.logger.error(`[MANAGER-PROCESS] Cannot transition to active from ${this.state.status}`);
       }
       return;
     }

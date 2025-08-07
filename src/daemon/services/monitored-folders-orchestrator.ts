@@ -40,6 +40,18 @@ export interface IMonitoredFoldersOrchestrator {
   getManager(folderPath: string): IFolderLifecycleManager | undefined;
 }
 
+// Factory function to create FolderLifecycleService instances
+function createFolderLifecycleService(
+  id: string,
+  path: string,
+  indexingOrchestrator: IIndexingOrchestrator,
+  fileSystemService: IFileSystemService,
+  storage: any,
+  logger: ILoggingService
+): IFolderLifecycleManager {
+  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, logger);
+}
+
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
   private folderManagers = new Map<string, IFolderLifecycleManager>();
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
@@ -70,8 +82,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         logger: this.logger
       });
       
-      // Create folder lifecycle manager
-      const folderManager = new FolderLifecycleService(
+      // Use factory function to create folder lifecycle manager
+      const folderManager = createFolderLifecycleService(
         `folder-${Date.now()}`, // Generate unique ID
         path,
         this.indexingOrchestrator,
