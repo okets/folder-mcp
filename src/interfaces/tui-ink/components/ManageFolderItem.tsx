@@ -267,7 +267,186 @@ class ManageFolderContainerItem extends ContainerListItem {
         const cursorWidth = this.isActive ? 0 : 0; // Cursor is handled separately in GenericListPanel
         const availableWidth = maxWidth - iconWidth - cursorWidth;
         
-        const { path: truncatedPath, status: truncatedStatus } = this.truncatePathFromLeft(this.folderPath, availableWidth);
+        // Check if we have validation error to show WITH status
+        const validationResult = this.validationResult;
+        const hasValidationError = validationResult.hasError;
+        const hasValidationWarning = validationResult.hasWarning;
+        
+        if (hasValidationError && validationResult.errorMessage) {
+            // Show both status AND validation error message: path [error] ✗ message
+            const errorMessage = validationResult.errorMessage;
+            const statusText = `[${this.folderStatus}]`;
+            const errorIcon = ' ✗ ';
+            
+            // Advanced truncation logic similar to file picker validation
+            return this.renderWithAdvancedTruncation(
+                this.folderPath,
+                statusText,
+                errorIcon + errorMessage,
+                availableWidth,
+                theme.colors.dangerRed
+            );
+        } else if (hasValidationWarning && validationResult.warningMessage) {
+            // Show both status AND validation warning message: path [status] ! message
+            const warningMessage = validationResult.warningMessage;
+            const statusText = `[${this.folderStatus}]`;
+            const warningIcon = ' ! ';
+            
+            return this.renderWithAdvancedTruncation(
+                this.folderPath,
+                statusText,
+                warningIcon + warningMessage,
+                availableWidth,
+                theme.colors.warningOrange
+            );
+        } else {
+            // Original status display for non-error cases
+            const { path: truncatedPath, status: truncatedStatus } = this.truncatePathFromLeft(this.folderPath, availableWidth);
+            
+            return (
+                <Text>
+                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
+                        {this.icon}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {' '}{truncatedPath}
+                    </Text>
+                    {truncatedStatus && (
+                        <>
+                            <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                                {' ['}
+                            </Text>
+                            <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                                {truncatedStatus}
+                            </Text>
+                            <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                                {']'}
+                            </Text>
+                        </>
+                    )}
+                </Text>
+            );
+        }
+    }
+    
+    /**
+     * Advanced truncation for validation display similar to file picker
+     * Format: path [status] ✗ message with intelligent truncation priority
+     */
+    private renderWithAdvancedTruncation(
+        path: string,
+        status: string,
+        validation: string,
+        availableWidth: number,
+        validationColor: string
+    ): React.ReactElement {
+        const pathPrefix = ' '; // Space after icon
+        const statusSpace = ' '; // Space before status
+        const validationSpace = ' '; // Space before validation (already included in validation string)
+        
+        // Calculate minimum required widths
+        const minStatusWidth = status.length;
+        const validationIconWidth = 2; // " ✗" or " !"
+        const minValidationWidth = validationIconWidth;
+        
+        // Total fixed width: space + status + validation icon
+        const fixedWidth = pathPrefix.length + statusSpace.length + minStatusWidth + minValidationWidth;
+        
+        if (availableWidth <= fixedWidth) {
+            // Extremely tight - show minimal display
+            const minPath = availableWidth > fixedWidth + 1 ? '…' : '';
+            return (
+                <Text>
+                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
+                        {this.icon}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {pathPrefix}{minPath}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {statusSpace}[
+                    </Text>
+                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                        {status.replace(/^\[|\]$/g, '')}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        ]
+                    </Text>
+                    <Text color={validationColor}>
+                        {validation.substring(0, minValidationWidth)}
+                    </Text>
+                </Text>
+            );
+        }
+        
+        // Calculate available width for path and validation message
+        const availableForContent = availableWidth - fixedWidth;
+        
+        // Try different truncation strategies in priority order:
+        
+        // 1. Try to fit full path + full validation
+        const fullValidationWidth = validation.length;
+        if (path.length + fullValidationWidth <= availableForContent) {
+            return (
+                <Text>
+                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
+                        {this.icon}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {pathPrefix}{path}{statusSpace}[
+                    </Text>
+                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                        {status.replace(/^\[|\]$/g, '')}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        ]
+                    </Text>
+                    <Text color={validationColor}>
+                        {validation}
+                    </Text>
+                </Text>
+            );
+        }
+        
+        // 2. Try to fit truncated path + full validation
+        if (fullValidationWidth < availableForContent) {
+            const pathWidth = availableForContent - fullValidationWidth;
+            const truncatedPath = pathWidth >= 3 
+                ? '…' + path.substring(path.length - (pathWidth - 1))
+                : '…';
+            return (
+                <Text>
+                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
+                        {this.icon}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {pathPrefix}{truncatedPath}{statusSpace}[
+                    </Text>
+                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                        {status.replace(/^\[|\]$/g, '')}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        ]
+                    </Text>
+                    <Text color={validationColor}>
+                        {validation}
+                    </Text>
+                </Text>
+            );
+        }
+        
+        // 3. Truncate both path and validation message
+        const halfWidth = Math.floor(availableForContent / 2);
+        const pathWidth = Math.max(1, halfWidth);
+        const validationWidth = availableForContent - pathWidth;
+        
+        const truncatedPath = pathWidth >= 3 
+            ? '…' + path.substring(path.length - (pathWidth - 1))
+            : '…';
+        
+        const truncatedValidation = validationWidth > minValidationWidth
+            ? validation.substring(0, validationWidth - 1) + '…'
+            : validation.substring(0, minValidationWidth);
         
         return (
             <Text>
@@ -275,21 +454,17 @@ class ManageFolderContainerItem extends ContainerListItem {
                     {this.icon}
                 </Text>
                 <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                    {' '}{truncatedPath}
+                    {pathPrefix}{truncatedPath}{statusSpace}[
                 </Text>
-                {truncatedStatus && (
-                    <>
-                        <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                            {' ['}
-                        </Text>
-                        <Text color={this.statusColor}>
-                            {truncatedStatus}
-                        </Text>
-                        <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                            {']'}
-                        </Text>
-                    </>
-                )}
+                <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                    {status.replace(/^\[|\]$/g, '')}
+                </Text>
+                <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                    ]
+                </Text>
+                <Text color={validationColor}>
+                    {truncatedValidation}
+                </Text>
             </Text>
         );
     }
@@ -633,9 +808,8 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         'truncate' // Use truncate mode
     );
     
-    // Create child items array
+    // Create child items array - exclude status item when there's a validation error to avoid redundancy
     const childItems: IListItem[] = [
-        statusLogItem,
         modelLogItem
     ];
     

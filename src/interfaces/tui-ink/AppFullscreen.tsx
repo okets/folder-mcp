@@ -30,6 +30,7 @@ import { runAllCleanup } from './utils/cleanup';
 import { FolderIndexingStatus } from '../../daemon/models/fmdm';
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { createValidationResult, ValidationState } from './components/core/ValidationState';
 
 /**
  * Maps folder indexing status to appropriate display color
@@ -80,6 +81,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const [wizardCreationRequest, setWizardCreationRequest] = useState<'pending' | 'processing' | 'done' | null>(null);
     const [wizardInstance, setWizardInstance] = useState<any>(null);
     const [wizardLoading, setWizardLoading] = useState(false);
+    
+    // State to preserve folder expansion during terminal resizes
+    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     
     // Navigation context for focus management - must be declared before usage
     const navigation = useNavigationContext();
@@ -281,6 +285,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     folderValid = false;
                 }
                 
+                // Create validation state for error folders
+                let validationState: ValidationState | undefined = undefined;
+                if (folder.status === 'error' && folder.errorMessage) {
+                    validationState = {
+                        result: createValidationResult(false, folder.errorMessage)
+                    };
+                }
+                
                 // Create ManageFolderItem for each folder
                 const manageFolderItem = createManageFolderItem({
                     folderPath,
@@ -302,6 +314,34 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         console.error('Folder management error:', error);
                     }
                 });
+                
+                // Apply validation state to the folder item if there's an error
+                if (validationState) {
+                    manageFolderItem.updateValidation(validationState.result);
+                }
+                
+                // Restore expansion state if this folder was previously expanded
+                if (expandedFolders.has(folderPath)) {
+                    manageFolderItem.onEnter(); // Expand the item
+                }
+                
+                // Override the onEnter and onExit methods to track expansion state
+                const originalOnEnter = manageFolderItem.onEnter.bind(manageFolderItem);
+                const originalOnExit = manageFolderItem.onExit.bind(manageFolderItem);
+                
+                manageFolderItem.onEnter = () => {
+                    originalOnEnter();
+                    setExpandedFolders(prev => new Set(prev).add(folderPath));
+                };
+                
+                manageFolderItem.onExit = () => {
+                    originalOnExit();
+                    setExpandedFolders(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(folderPath);
+                        return newSet;
+                    });
+                };
                 
                 items.push(manageFolderItem);
             });

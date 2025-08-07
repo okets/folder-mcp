@@ -560,7 +560,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Validate all monitored folders still exist
    */
   private async validateAllFolders(): Promise<void> {
-    const foldersToRemove: string[] = [];
+    const foldersToMarkError: string[] = [];
     
     for (const [folderPath, manager] of this.folderManagers) {
       try {
@@ -569,19 +569,82 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         // Check if folder still exists
         if (!fs.existsSync(folderPath)) {
           this.logger.warn(`[ORCHESTRATOR] Monitored folder no longer exists: ${folderPath}`);
-          foldersToRemove.push(folderPath);
+          foldersToMarkError.push(folderPath);
         }
       } catch (error) {
         this.logger.error(`[ORCHESTRATOR] Error validating folder ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
-        // If we can't validate, assume folder is problematic and mark for removal
-        foldersToRemove.push(folderPath);
+        // If we can't validate, assume folder is problematic and mark with error
+        foldersToMarkError.push(folderPath);
       }
     }
     
-    // Remove non-existent folders
-    for (const folderPath of foldersToRemove) {
-      this.logger.info(`[ORCHESTRATOR] Removing non-existent folder from monitoring: ${folderPath}`);
-      await this.removeFolderInternal(folderPath, 'Folder no longer exists');
+    // Mark non-existent folders with error status instead of removing them
+    for (const folderPath of foldersToMarkError) {
+      this.logger.info(`[ORCHESTRATOR] Marking deleted folder with error status: ${folderPath}`);
+      await this.markFolderAsError(folderPath, 'Folder no longer exists');
+    }
+  }
+  
+  /**
+   * Mark folder as error and stop its lifecycle manager but keep it in tracking
+   */
+  private async markFolderAsError(folderPath: string, errorMessage: string): Promise<void> {
+    const manager = this.folderManagers.get(folderPath);
+    if (!manager) {
+      this.logger.debug(`[ORCHESTRATOR] No manager found for folder error marking: ${folderPath}`);
+      return;
+    }
+    
+    try {
+      // Stop the manager to halt any ongoing processes
+      await manager.stop();
+      this.logger.info(`[ORCHESTRATOR] Stopped lifecycle manager for error folder: ${folderPath}`);
+      
+      // Stop file watching if it was started
+      if (this.monitoringOrchestrator) {
+        try {
+          await this.monitoringOrchestrator.stopFileWatching(folderPath);
+          this.logger.info(`[ORCHESTRATOR] Stopped file watching for error folder: ${folderPath}`);
+        } catch (error) {
+          this.logger.warn(`[ORCHESTRATOR] Failed to stop file watching for ${folderPath}`, error as Error);
+        }
+      }
+      
+      // Remove from active managers but keep in error tracking
+      this.folderManagers.delete(folderPath);
+      
+      // Get folder config from configuration to preserve model info
+      let folderConfig: FolderConfig;
+      try {
+        const configFolders = await this.configService.get('folders.list') || [];
+        const existingConfig = configFolders.find((f: any) => f.path === folderPath);
+        
+        folderConfig = {
+          path: folderPath,
+          model: existingConfig?.model || 'nomic-embed-text', // Fallback to default model
+          status: 'error',
+          errorMessage: errorMessage
+        };
+      } catch (error) {
+        // If we can't get the config, create a minimal one
+        folderConfig = {
+          path: folderPath,
+          model: 'nomic-embed-text', // Default model
+          status: 'error',
+          errorMessage: errorMessage
+        };
+      }
+      
+      // Add to error folders tracking
+      this.errorFolders.set(folderPath, folderConfig);
+      
+      // Update FMDM to show the folder with error status
+      this.updateFMDM();
+      
+      this.logger.info(`[ORCHESTRATOR] Marked folder as error: ${folderPath} (${errorMessage})`);
+      
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Error marking folder as error ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
     }
   }
   

@@ -167,8 +167,12 @@ export class ContainerListItem implements IListItem {
             elementPositions
         );
         
-        // Return header + content + confirmation
-        return 1 + totalContentHeight + 1;
+        // Calculate additional lines for validation message in expanded mode
+        const validationLines = (this._validationResult.hasError && this._validationResult.errorMessage) || 
+                               (this._validationResult.hasWarning && this._validationResult.warningMessage) ? 1 : 0;
+        
+        // Return header + validation + content + confirmation
+        return 1 + validationLines + totalContentHeight + 1;
     }
     
     /**
@@ -290,6 +294,30 @@ export class ContainerListItem implements IListItem {
                 </Text>
             </Box>
         );
+        
+        // Step 6.5: Render validation message using TextListItem approach
+        if (hasValidationError && this._validationResult.errorMessage) {
+            // Create a temporary TextListItem for validation display (non-navigable)
+            const validationDisplay = (
+                <Box key="validation-error">
+                    <Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>│ </Text>
+                        <Text {...textColorProp(theme.colors.dangerRed)}>✗ {this._validationResult.errorMessage}</Text>
+                    </Text>
+                </Box>
+            );
+            elements.push(validationDisplay);
+        } else if (hasValidationWarning && this._validationResult.warningMessage) {
+            const validationDisplay = (
+                <Box key="validation-warning">
+                    <Text>
+                        <Text {...textColorProp(theme.colors.textMuted)}>│ </Text>
+                        <Text {...textColorProp(theme.colors.warningOrange)}>! {this._validationResult.warningMessage}</Text>
+                    </Text>
+                </Box>
+            );
+            elements.push(validationDisplay);
+        }
         
         // Step 7: Render visible children with scroll indicators
         this.renderVisibleChildren(elements, visibleElements.visibleElements, viewport, scrollIndicators);
