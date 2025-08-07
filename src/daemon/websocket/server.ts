@@ -47,8 +47,11 @@ export class FMDMWebSocketServer {
     
     // Set up callback to send initial FMDM when client connects
     this.protocol.setClientConnectedCallback((clientId: string) => {
-      this.log('debug', `[WS-SERVER] Client ${clientId} connected, sending initial FMDM`);
-      this.sendInitialFMDM(clientId);
+      this.log('debug', `[WS-SERVER-CALLBACK] Client ${clientId} connection callback triggered, sending initial FMDM`);
+      // Add small delay to ensure client is ready to receive
+      setTimeout(() => {
+        this.sendInitialFMDM(clientId);
+      }, 10);
     });
   }
 
@@ -203,13 +206,9 @@ export class FMDMWebSocketServer {
           this.clients.set(clientId, clientInfo);
           this.log('debug', `[WS-INIT] Client ${clientId} type updated to ${message.clientType}`);
           
-          // Send initial FMDM to newly initialized client
-          if (this.fmdmService) {
-            const fmdm = this.fmdmService.getFMDM();
-            const fmdmMessage = createFMDMUpdateMessage(fmdm);
-            this.log('debug', `[WS-FMDM-INIT] Sending initial FMDM to client ${clientId}: ${JSON.stringify(fmdmMessage)}`);
-            this.sendMessage(ws, fmdmMessage);
-          }
+          // NOTE: Initial FMDM sending is handled by the protocol callback mechanism
+          // to avoid race conditions. The protocol will call onClientConnected() which
+          // triggers sendInitialFMDM() through the setClientConnectedCallback.
         }
       }
 
@@ -285,7 +284,7 @@ export class FMDMWebSocketServer {
   public sendInitialFMDM(clientId: string): void {
     const clientInfo = this.clients.get(clientId);
     if (!clientInfo) {
-      this.log('warn', `[WS-INITIAL-FMDM] Client ${clientId} not found`);
+      this.log('warn', `[WS-INITIAL-FMDM] Client ${clientId} not found in ${this.clients.size} connected clients`);
       return;
     }
 
@@ -298,7 +297,7 @@ export class FMDMWebSocketServer {
     const currentFMDM = this.fmdmService.getFMDM();
     const message = createFMDMUpdateMessage(currentFMDM);
     
-    this.log('debug', `[WS-INITIAL-FMDM] Sending initial FMDM state to client ${clientId}`);
+    this.log('debug', `[WS-INITIAL-FMDM] Sending initial FMDM state to client ${clientId} with ${currentFMDM.folders.length} folders`);
     this.sendMessage(clientInfo.ws, message);
   }
 

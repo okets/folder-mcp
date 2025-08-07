@@ -40,6 +40,16 @@ export interface FolderProgress {
 }
 
 /**
+ * Scanning progress for bidirectional file comparison
+ */
+export interface ScanningProgress {
+  phase: 'folder-to-db' | 'db-to-folder';
+  processedFiles: number;
+  totalFiles: number;
+  percentage: number;
+}
+
+/**
  * Complete state of a folder's lifecycle
  */
 export interface FolderLifecycleState {
@@ -53,6 +63,7 @@ export interface FolderLifecycleState {
   lastIndexCompleted?: Date;
   fileEmbeddingTasks: FileEmbeddingTask[];
   progress: FolderProgress;
+  scanningProgress?: ScanningProgress;
   errorMessage?: string;
   consecutiveErrors: number;
 }

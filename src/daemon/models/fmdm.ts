@@ -20,7 +20,14 @@ export interface FolderConfig {
   path: string;
   model: string;
   status: FolderIndexingStatus;
-  progress?: number; // Optional progress percentage (0-100)
+  progress?: number; // Optional indexing progress percentage (0-100)
+  scanningProgress?: {
+    phase: 'folder-to-db' | 'db-to-folder';
+    processedFiles: number;
+    totalFiles: number;
+    percentage: number;
+  }; // Optional scanning progress during scanning phase
+  errorMessage?: string; // Optional error message when status is 'error'
 }
 
 /**
@@ -29,6 +36,7 @@ export interface FolderConfig {
 export type FolderIndexingStatus = 
   | 'pending'      // Not yet started indexing
   | 'scanning'     // Scanning for files
+  | 'ready'        // Ready to start indexing (has tasks queued)
   | 'indexing'     // Currently indexing files
   | 'indexed'      // Indexing completed successfully
   | 'active'       // Active and watching for changes

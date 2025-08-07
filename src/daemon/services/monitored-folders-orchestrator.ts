@@ -54,7 +54,9 @@ function createFolderLifecycleService(
 
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
   private folderManagers = new Map<string, IFolderLifecycleManager>();
+  private errorFolders = new Map<string, FolderConfig>(); // Track error folders separately
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
+  private folderValidationTimer?: NodeJS.Timeout;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -64,6 +66,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private configService: any // TODO: Add proper type
   ) {
     super();
+    
+    // Start periodic folder validation (every 30 seconds)
+    this.startFolderValidation();
   }
   
   async addFolder(path: string, model: string): Promise<void> {
@@ -71,6 +76,29 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     if (this.folderManagers.has(path)) {
       this.logger.warn(`Already managing folder: ${path}`);
       return;
+    }
+    
+    // Check if folder exists first
+    const fs = await import('fs');
+    if (!fs.existsSync(path)) {
+      this.logger.error(`[ORCHESTRATOR] Cannot add non-existent folder: ${path}`);
+      
+      // Create a dummy error folder config for FMDM
+      const errorFolderConfig: FolderConfig = {
+        path: path,
+        model: model,
+        status: 'error',
+        progress: 0,
+        errorMessage: 'Folder does not exist'
+      };
+      
+      // Store error folder and update FMDM
+      this.errorFolders.set(path, errorFolderConfig);
+      this.updateFMDM();
+      
+      const error = new Error(`Folder does not exist: ${path}`);
+      this.logger.error(`Failed to add folder: ${path}`, error);
+      throw error;
     }
     
     try {
@@ -98,7 +126,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Store manager
       this.folderManagers.set(path, folderManager);
       
-      // Update FMDM immediately with pending state
+      // Update FMDM for initial pending state
       this.updateFMDM();
       
       // Start scanning
@@ -111,8 +139,50 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         await this.startFileWatchingForFolder(path);
       }
       
+      // Save folder to configuration for persistence across daemon restarts
+      try {
+        const configFolders = await this.configService.get('folders.list') || [];
+        const existingFolder = configFolders.find((f: any) => f.path === path);
+        
+        if (!existingFolder) {
+          configFolders.push({ path, model });
+          await this.configService.set('folders.list', configFolders);
+          this.logger.info(`[ORCHESTRATOR] Saved folder to configuration: ${path}`);
+        }
+      } catch (error) {
+        this.logger.warn(`[ORCHESTRATOR] Failed to save folder to configuration: ${path}`, error as Error);
+        // Don't fail the entire operation if config save fails
+      }
+      
       this.logger.info(`Added folder to monitoring: ${path}`);
     } catch (error) {
+      // If folder was added to managers but failed later, make sure it has error status in FMDM
+      if (this.folderManagers.has(path)) {
+        const manager = this.folderManagers.get(path);
+        if (manager) {
+          const state = manager.getState();
+          if (state.status !== 'error') {
+            // Force error state update in FMDM
+            const errorFolderConfig: FolderConfig = {
+              path: path,
+              model: model,
+              status: 'error',
+              progress: 0,
+              errorMessage: error instanceof Error ? error.message : String(error)
+            };
+            
+            const currentFolders = this.getCurrentFolderConfigs();
+            const existingIndex = currentFolders.findIndex(f => f.path === path);
+            if (existingIndex >= 0) {
+              currentFolders[existingIndex] = errorFolderConfig;
+            } else {
+              currentFolders.push(errorFolderConfig);
+            }
+            this.fmdmService.updateFolders(currentFolders);
+          }
+        }
+      }
+      
       this.logger.error(`Failed to add folder: ${path}`, error as Error);
       throw error;
     }
@@ -157,7 +227,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't fail the entire removal process if cleanup fails
     }
     
+    // Remove from configuration
+    try {
+      const configFolders = await this.configService.get('folders.list') || [];
+      const updatedFolders = configFolders.filter((f: any) => f.path !== folderPath);
+      if (updatedFolders.length !== configFolders.length) {
+        await this.configService.set('folders.list', updatedFolders);
+        this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
+      }
+    } catch (error) {
+      this.logger.warn(`[ORCHESTRATOR] Failed to remove folder from configuration: ${folderPath}`, error as Error);
+      // Don't fail the entire operation if config removal fails
+    }
+    
     this.folderManagers.delete(folderPath);
+    
+    // Also remove from error folders if it was there
+    this.errorFolders.delete(folderPath);
     
     // Update FMDM after removal
     this.updateFMDM();
@@ -170,13 +256,38 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   async startAll(): Promise<void> {
-    // This will be called by daemon on startup to initialize all configured folders
-    // For now, just log
     this.logger.info('Starting all configured folders...');
+    
+    // Get all folders from configuration via configService
+    try {
+      const existingFolders = await this.configService.get('folders.list') || [];
+      this.logger.info(`Found ${existingFolders.length} folders in configuration to restore`);
+      
+      if (existingFolders.length > 0) {
+        // Start lifecycle management for all existing folders
+        for (const folder of existingFolders) {
+          try {
+            this.logger.info(`Restoring folder: ${folder.path} with model: ${folder.model}`);
+            await this.addFolder(folder.path, folder.model);
+          } catch (error) {
+            this.logger.error(`Failed to restore folder ${folder.path}:`, error as Error);
+            // Continue with other folders even if one fails
+          }
+        }
+        this.logger.info(`Completed restoring ${existingFolders.length} folders from configuration`);
+      } else {
+        this.logger.info('No folders found in configuration to restore');
+      }
+    } catch (error) {
+      this.logger.error('Error loading folders from configuration during startAll:', error as Error);
+    }
   }
   
   async stopAll(): Promise<void> {
     this.logger.info(`Stopping all ${this.folderManagers.size} folder managers`);
+    
+    // Stop folder validation timer
+    this.stopFolderValidation();
     
     for (const [path, manager] of this.folderManagers) {
       try {
@@ -196,6 +307,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
     
     this.folderManagers.clear();
+    this.errorFolders.clear();
   }
   
   /**
@@ -260,7 +372,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.info(`[ORCHESTRATOR] No tasks for ${folderPath}, already active`);
     }
     
-    // Update FMDM
+    // Update FMDM when indexing starts or folder becomes active
     this.updateFMDM();
   }
   
@@ -312,6 +424,18 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           dummyConfigService as any,
           dummyIncrementalIndexer as any
         );
+        
+        // Set up change detection callback
+        this.monitoringOrchestrator.setChangeDetectionCallback((folderPath: string, changeCount: number) => {
+          this.logger.info(`[ORCHESTRATOR] File changes detected in ${folderPath} (${changeCount} changes)`);
+          const manager = this.folderManagers.get(folderPath);
+          if (manager) {
+            // Directly trigger the change detection handling
+            this.onChangesDetected(folderPath, manager);
+          } else {
+            this.logger.warn(`[ORCHESTRATOR] No manager found for changed folder: ${folderPath}`);
+          }
+        });
       }
       
       // Start file watching for this folder
@@ -357,23 +481,159 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   /**
+   * Get current folder configs for FMDM
+   */
+  private getCurrentFolderConfigs(): FolderConfig[] {
+    const folders: FolderConfig[] = [];
+    
+    // Add folders with managers
+    for (const [path, manager] of this.folderManagers) {
+      const state = manager.getState();
+      const folderConfig: FolderConfig = {
+        path,
+        model: state.model || 'unknown', 
+        status: state.status,
+        ...(state.errorMessage && { errorMessage: state.errorMessage })
+      };
+      
+      // Add indexing progress (for indexing phase and completed active folders)
+      if (state.status === 'indexing') {
+        folderConfig.progress = state.progress?.percentage;
+      } else if (state.status === 'active') {
+        folderConfig.progress = 100; // Active folders are 100% complete
+      }
+      
+      // Add scanning progress (only for scanning phase)
+      if (state.status === 'scanning' && state.scanningProgress) {
+        folderConfig.scanningProgress = {
+          phase: state.scanningProgress.phase,
+          processedFiles: state.scanningProgress.processedFiles,
+          totalFiles: state.scanningProgress.totalFiles,
+          percentage: state.scanningProgress.percentage,
+        };
+      }
+      
+      folders.push(folderConfig);
+    }
+    
+    // Add error folders (folders that couldn't be created)
+    for (const [path, errorConfig] of this.errorFolders) {
+      folders.push(errorConfig);
+    }
+    
+    return folders;
+  }
+
+  /**
    * Update FMDM with current state of all folders
    */
   private updateFMDM(): void {
-    const folders: FolderConfig[] = [];
-    
-    for (const [path, manager] of this.folderManagers) {
-      const state = manager.getState();
-      folders.push({
-        path,
-        model: state.model || 'unknown', // TODO: Store model in manager state
-        status: state.status,
-        progress: state.progress?.percentage,
-        errorMessage: state.errorMessage
-      } as FolderConfig);
-    }
+    const folders = this.getCurrentFolderConfigs();
     
     // Update FMDM with all folder states
     this.fmdmService.updateFolders(folders);
+  }
+  
+  /**
+   * Start periodic folder validation to detect deleted folders
+   */
+  private startFolderValidation(): void {
+    this.logger.debug('[ORCHESTRATOR] Starting periodic folder validation');
+    
+    this.folderValidationTimer = setInterval(async () => {
+      await this.validateAllFolders();
+    }, 30000); // Check every 30 seconds
+  }
+  
+  /**
+   * Stop folder validation timer
+   */
+  private stopFolderValidation(): void {
+    if (this.folderValidationTimer) {
+      clearInterval(this.folderValidationTimer);
+      delete this.folderValidationTimer;
+      this.logger.debug('[ORCHESTRATOR] Stopped folder validation timer');
+    }
+  }
+  
+  /**
+   * Validate all monitored folders still exist
+   */
+  private async validateAllFolders(): Promise<void> {
+    const foldersToRemove: string[] = [];
+    
+    for (const [folderPath, manager] of this.folderManagers) {
+      try {
+        const fs = await import('fs');
+        
+        // Check if folder still exists
+        if (!fs.existsSync(folderPath)) {
+          this.logger.warn(`[ORCHESTRATOR] Monitored folder no longer exists: ${folderPath}`);
+          foldersToRemove.push(folderPath);
+        }
+      } catch (error) {
+        this.logger.error(`[ORCHESTRATOR] Error validating folder ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+        // If we can't validate, assume folder is problematic and mark for removal
+        foldersToRemove.push(folderPath);
+      }
+    }
+    
+    // Remove non-existent folders
+    for (const folderPath of foldersToRemove) {
+      this.logger.info(`[ORCHESTRATOR] Removing non-existent folder from monitoring: ${folderPath}`);
+      await this.removeFolderInternal(folderPath, 'Folder no longer exists');
+    }
+  }
+  
+  /**
+   * Internal folder removal with optional error message
+   */
+  private async removeFolderInternal(folderPath: string, reason?: string): Promise<void> {
+    const manager = this.folderManagers.get(folderPath);
+    if (!manager) {
+      this.logger.debug(`[ORCHESTRATOR] No manager found for folder removal: ${folderPath}`);
+      return;
+    }
+    
+    try {
+      // Stop the manager
+      await manager.stop();
+      
+      // Stop file watching if it was started
+      if (this.monitoringOrchestrator) {
+        try {
+          await this.monitoringOrchestrator.stopFileWatching(folderPath);
+          this.logger.info(`[ORCHESTRATOR] Stopped file watching for removed folder: ${folderPath}`);
+        } catch (error) {
+          this.logger.warn(`[ORCHESTRATOR] Failed to stop file watching for ${folderPath}`, error as Error);
+        }
+      }
+      
+      // Remove from configuration (but don't fail if it's not there)
+      try {
+        const configFolders = await this.configService.get('folders.list') || [];
+        const updatedFolders = configFolders.filter((f: any) => f.path !== folderPath);
+        if (updatedFolders.length !== configFolders.length) {
+          await this.configService.set('folders.list', updatedFolders);
+          this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
+        }
+      } catch (error) {
+        this.logger.debug(`[ORCHESTRATOR] Folder not in configuration during cleanup: ${folderPath}`);
+      }
+      
+      // Remove from our tracking
+      this.folderManagers.delete(folderPath);
+      
+      // Also remove from error folders if it was there
+      this.errorFolders.delete(folderPath);
+      
+      // Update FMDM to remove the folder
+      this.updateFMDM();
+      
+      this.logger.info(`[ORCHESTRATOR] Successfully removed folder: ${folderPath}${reason ? ` (${reason})` : ''}`);
+      
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Error during folder cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+    }
   }
 }

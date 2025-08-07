@@ -10,6 +10,7 @@ import type {
   FileChangeInfo,
   FileEmbeddingTask,
   FolderStatus,
+  ScanningProgress,
 } from '../../domain/folders/folder-lifecycle-models.js';
 import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecycle-state-machine.js';
 import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
@@ -115,10 +116,15 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   async startScanning(): Promise<void> {
     this.logger.debug(`[MANAGER-SCAN] Starting scan for ${this.folderPath}`);
     
-    // Only allow scanning from pending state (orchestrator controls transitions)
-    if (this.state.status !== 'pending') {
+    // Allow scanning from pending or active states (for change detection)
+    if (this.state.status !== 'pending' && this.state.status !== 'active') {
       this.logger.warn(`[MANAGER-SCAN] Cannot start scanning from ${this.state.status} state`);
       return;
+    }
+    
+    // If transitioning from active, log this important event
+    if (this.state.status === 'active') {
+      this.logger.info(`[MANAGER-SCAN] Re-scanning active folder ${this.folderPath} due to detected changes`);
     }
 
     // Transition to scanning
@@ -128,6 +134,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       lastScanStarted: new Date(), 
     });
 
+
     try {
       this.logger.debug(`[MANAGER-SCAN] Scanning folder: ${this.folderPath}`);
       // Perform the actual scan
@@ -135,14 +142,16 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug(`[MANAGER-SCAN] Found ${scanResult.files.length} files in ${this.folderPath}`);
       
       // Extract file paths from file objects
-      const filePaths = scanResult.files.map(file => typeof file === 'string' ? file : file.path || file.filePath || file.absolutePath);
+      const filePaths = scanResult.files
+        .map(file => typeof file === 'string' ? file : file.path || file.filePath || file.absolutePath)
+        .filter((path): path is string => Boolean(path));
       this.logger.debug(`[MANAGER-SCAN] Extracted ${filePaths.length} file paths`);
       
       const changes = await this.detectChanges(filePaths);
       this.logger.debug(`[MANAGER-SCAN] Detected ${changes.length} changes in ${this.folderPath}`);
       
       this.updateState({ lastScanCompleted: new Date() });
-      this.processScanResults(changes);
+      await this.processScanResults(changes);
     } catch (error) {
       this.logger.error(`[MANAGER-SCAN-ERROR] Scan failed for ${this.folderPath}:`, error instanceof Error ? error : new Error(String(error)));
       const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -150,7 +159,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     }
   }
 
-  processScanResults(changes: FileChangeInfo[]): void {
+  async processScanResults(changes: FileChangeInfo[]): Promise<void> {
     this.logger.debug(`[MANAGER-PROCESS] Processing ${changes.length} changes for ${this.folderPath}`);
     
     // If we're in pending state, transition to scanning first (for direct test calls)
@@ -208,6 +217,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
           percentage: 0,
         },
       });
+      
+      
       // Emit scan complete with tasks
       this.emit('scanComplete', this.getState());
       this.logger.debug(`[MANAGER-PROCESS] Transitioned to ready with ${tasks.length} tasks`);
@@ -454,20 +465,49 @@ return;
       const existingFingerprints = await this.sqliteVecStorage.getDocumentFingerprints();
       this.logger.debug(`[MANAGER-DETECT] Found ${existingFingerprints.size} existing fingerprints`);
       
-      for (const filePath of currentFiles) {
+      // Phase 1: Compare folder files to database (folder-to-db)
+      this.updateScanningProgress({
+        phase: 'folder-to-db',
+        processedFiles: 0,
+        totalFiles: currentFiles.length,
+        percentage: 0,
+      });
+      
+      for (let i = 0; i < currentFiles.length; i++) {
+        const filePath = currentFiles[i];
+        if (!filePath) {
+          this.logger.debug(`[MANAGER-DETECT] Skipping undefined file path at index ${i}`);
+          continue;
+        }
         this.logger.debug(`[MANAGER-DETECT] Processing file: ${filePath}`);
         
         // Get current file metadata
-        const fileMetadata = await this.fileSystemService.getFileMetadata(filePath);
-        if (!fileMetadata) {
-          this.logger.debug(`[MANAGER-DETECT] No metadata for ${filePath}, skipping`);
+        let fileMetadata: any;
+        try {
+          fileMetadata = await this.fileSystemService.getFileMetadata(filePath);
+          if (!fileMetadata) {
+            this.logger.debug(`[MANAGER-DETECT] No metadata for ${filePath}, skipping`);
+            continue;
+          }
+        } catch (error) {
+          this.logger.debug(`[MANAGER-DETECT] Error getting metadata for ${filePath}, skipping:`, error);
           continue;
         }
         
         const existingFingerprint = existingFingerprints.get(filePath);
-        const currentHash = await this.fileSystemService.getFileHash(filePath);
+        let currentHash: string;
+        try {
+          currentHash = await this.fileSystemService.getFileHash(filePath);
+          if (!currentHash) {
+            this.logger.debug(`[MANAGER-DETECT] No hash for ${filePath}, skipping`);
+            continue;
+          }
+        } catch (error) {
+          this.logger.debug(`[MANAGER-DETECT] Error getting hash for ${filePath}, skipping:`, error);
+          continue;
+        }
         
-        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: existingFingerprint=${existingFingerprint ? 'exists' : 'null'}, currentHash=${currentHash?.substring(0, 8)}...`);
+        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: existingFingerprint=${existingFingerprint ? 'exists' : 'null'}, currentHash=${currentHash.substring(0, 8)}...`);
         
         if (!existingFingerprint) {
           this.logger.debug(`[MANAGER-DETECT] New file detected: ${filePath}`);
@@ -491,11 +531,40 @@ return;
         } else {
           this.logger.debug(`[MANAGER-DETECT] File unchanged: ${filePath}`);
         }
+        
+        // Update folder-to-db progress (throttled to every 10% or every 10 files, whichever is smaller)
+        const folderToDbProgress = Math.round(((i + 1) / currentFiles.length) * 100);
+        const shouldUpdate = (i + 1) === currentFiles.length || // Always update on last file
+                           folderToDbProgress % 10 === 0 || // Every 10%
+                           (i + 1) % Math.max(1, Math.floor(currentFiles.length / 10)) === 0; // Every 10th of files
+        
+        if (shouldUpdate) {
+          this.updateScanningProgress({
+            phase: 'folder-to-db',
+            processedFiles: i + 1,
+            totalFiles: currentFiles.length,
+            percentage: folderToDbProgress,
+          });
+        }
       }
       
-      // Detect removed files
+      // Phase 2: Compare database to folder files (db-to-folder) for removed files
+      const dbFiles = Array.from(existingFingerprints.keys());
+      this.updateScanningProgress({
+        phase: 'db-to-folder',
+        processedFiles: 0,
+        totalFiles: dbFiles.length,
+        percentage: 0,
+      });
+      
       const currentFileSet = new Set(currentFiles);
-      for (const [filePath, _] of existingFingerprints) {
+      for (let i = 0; i < dbFiles.length; i++) {
+        const filePath = dbFiles[i];
+        if (!filePath) {
+          this.logger.debug(`[MANAGER-DETECT] Skipping undefined db file path at index ${i}`);
+          continue;
+        }
+        
         if (!currentFileSet.has(filePath)) {
           this.logger.debug(`[MANAGER-DETECT] Removed file detected: ${filePath}`);
           changes.push({
@@ -505,7 +574,26 @@ return;
             size: 0,
           });
         }
+        
+        // Update db-to-folder progress (throttled)
+        const dbToFolderProgress = Math.round(((i + 1) / dbFiles.length) * 100);
+        const shouldUpdate = (i + 1) === dbFiles.length || // Always update on last file
+                           dbToFolderProgress % 10 === 0 || // Every 10%
+                           (i + 1) % Math.max(1, Math.floor(dbFiles.length / 10)) === 0; // Every 10th of files
+        
+        if (shouldUpdate) {
+          this.updateScanningProgress({
+            phase: 'db-to-folder',
+            processedFiles: i + 1,
+            totalFiles: dbFiles.length,
+            percentage: dbToFolderProgress,
+          });
+        }
       }
+      
+      // Clear scanning progress when done
+      this.clearScanningProgress();
+      
     } catch (error) {
       this.logger.error('[MANAGER-DETECT-ERROR] Error in detectChanges:', error instanceof Error ? error : new Error(String(error)));
       throw error;
@@ -537,6 +625,17 @@ return;
     
     // Emit progress update
     this.emit('progressUpdate', progress);
+    this.emit('stateChange', this.getState());
+  }
+
+  private updateScanningProgress(scanningProgress: ScanningProgress): void {
+    this.state.scanningProgress = scanningProgress;
+    this.logger.debug(`[MANAGER-SCAN-PROGRESS] ${scanningProgress.phase}: ${scanningProgress.processedFiles}/${scanningProgress.totalFiles} (${scanningProgress.percentage}%)`);
+    this.emit('stateChange', this.getState());
+  }
+
+  private clearScanningProgress(): void {
+    delete this.state.scanningProgress;
     this.emit('stateChange', this.getState());
   }
 

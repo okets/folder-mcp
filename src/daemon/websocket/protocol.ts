@@ -179,7 +179,10 @@ export class WebSocketProtocol {
     
     // Notify that client is connected (so server can send initial FMDM)
     if (this.onClientConnected) {
+      this.logger.debug(`[PROTOCOL] Calling onClientConnected callback for client ${clientId}`);
       this.onClientConnected(clientId);
+    } else {
+      this.logger.error(`[PROTOCOL] onClientConnected callback not set for client ${clientId}`);
     }
     
     return createConnectionAck(clientId);

@@ -99,8 +99,13 @@ class FolderMCPDaemon {
     this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
     const { join } = await import('path');
     const { homedir } = await import('os');
+    
+    // Support custom config directory for testing via FOLDER_MCP_USER_CONFIG_DIR
+    const userConfigDir = process.env.FOLDER_MCP_USER_CONFIG_DIR || join(homedir(), '.folder-mcp');
+    const userConfigPath = join(userConfigDir, 'config.yaml');
+    
     registerConfigurationServices(this.diContainer, {
-      userConfigPath: join(homedir(), '.folder-mcp', 'config.yaml')
+      userConfigPath: userConfigPath
     });
     
     // Connect to real configuration system
@@ -128,40 +133,13 @@ class FolderMCPDaemon {
     );
     debug('Folder lifecycle manager initialized');
     
-    // Load existing folders from configuration and update FMDM
+    // Use orchestrator's startAll method to restore folders from configuration
     try {
-      debug('About to load existing folders from configuration...');
-      const existingFolders = await configComponent.get('folders.list') || [];
-      debug(`Loading ${existingFolders.length} existing folders from configuration`);
-      debug(`Configuration folders:`, JSON.stringify(existingFolders, null, 2));
-      if (existingFolders.length > 0) {
-        // Convert config folders to FMDM folder format
-        const fmdmFolders = existingFolders.map((folder: any) => ({
-          path: folder.path,
-          model: folder.model,
-          status: 'pending' as const  // Default status for newly loaded folders (orchestrator will manage lifecycle)
-        }));
-        debug(`Converting to FMDM format: ${JSON.stringify(fmdmFolders)}`);
-        this.fmdmService!.updateFolders(fmdmFolders);
-        debug(`Updated FMDM with ${fmdmFolders.length} existing folders`);
-        
-        // Start lifecycle management for all existing folders
-        debug('Starting lifecycle management for existing folders...');
-        for (const folder of existingFolders) {
-          try {
-            debug(`Starting lifecycle for folder: ${folder.path}`);
-            await this.monitoredFoldersOrchestrator!.addFolder(folder.path, folder.model);
-          } catch (error) {
-            debug(`Failed to start lifecycle for folder ${folder.path}:`, error);
-            // Continue with other folders even if one fails
-          }
-        }
-        debug('Completed starting lifecycle management for all existing folders');
-      } else {
-        debug('No existing folders found in configuration');
-      }
+      debug('Calling orchestrator.startAll() to restore folders from configuration...');
+      await this.monitoredFoldersOrchestrator!.startAll();
+      debug('Successfully completed orchestrator.startAll()');
     } catch (error) {
-      debug('Error loading existing folders:', error instanceof Error ? error.message : error);
+      debug('Error in orchestrator.startAll():', error instanceof Error ? error.message : error);
       debug('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     }
     
@@ -189,6 +167,13 @@ class FolderMCPDaemon {
     const wsPort = this.config.port + 1;
     await this.webSocketServer!.start(wsPort);
     debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+    
+    // Update FMDM with complete daemon status information
+    this.fmdmService!.updateDaemonStatus({
+      pid: process.pid,
+      uptime: Math.floor(process.uptime())
+    });
+    debug(`Updated FMDM with daemon status - PID: ${process.pid}, uptime: ${Math.floor(process.uptime())}s`);
     
     // Create HTTP server
     this.server = createServer(this.handleRequest.bind(this));

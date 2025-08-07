@@ -73,65 +73,33 @@ export class FolderHandlers {
       
       this.logger.debug(`Model validation passed, proceeding to folder validation...`);
 
-      // Validate folder path
-      this.logger.debug(`Starting folder path validation for: ${path}`);
-      const validation = await this.validationService.validate(path);
-      this.logger.debug(`Folder validation result: valid=${validation.isValid}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`);
-      
-      if (!validation.isValid) {
-        const errorMessage = validation.errors[0]?.message || 'Folder validation failed';
-        this.logger.warn(`Cannot add folder ${path}: ${errorMessage}`);
-        this.logger.debug(`=== FOLDER ADD DEBUG END (FOLDER VALIDATION ERROR) ===\n`);
-        return createActionResponse(id, false, errorMessage);
+      // Note: Folder path validation is handled by MonitoredFoldersOrchestrator
+      // This allows for centralized folder lifecycle management and proper FMDM error reporting
+
+      // Try to add to configuration, but handle validation errors gracefully
+      let configSuccess = false;
+      try {
+        this.logger.debug(`Calling configService.addFolder(${path}, ${model})...`);
+        await this.configService.addFolder(path, model);
+        this.logger.debug(`configService.addFolder completed successfully`);
+        configSuccess = true;
+      } catch (error) {
+        this.logger.debug(`configService.addFolder failed, will still attempt folder lifecycle management: ${error instanceof Error ? error.message : String(error)}`);
+        // Don't return error here - let MonitoredFoldersOrchestrator handle the folder validation and FMDM updates
       }
 
-      // Handle ancestor scenario - remove affected folders
-      const ancestorWarning = validation.warnings.find(w => w.type === 'ancestor');
-      if (ancestorWarning && ancestorWarning.affectedFolders) {
-        this.logger.info(`Removing ${ancestorWarning.affectedFolders.length} descendant folders for ancestor ${path}`);
-        
-        for (const affectedFolder of ancestorWarning.affectedFolders) {
-          try {
-            await this.configService.removeFolder(affectedFolder);
-            this.logger.debug(`Removed descendant folder: ${affectedFolder}`);
-          } catch (error) {
-            this.logger.warn(`Failed to remove descendant folder ${affectedFolder}`, error instanceof Error ? error : new Error(String(error)));
-            // Continue with other folders
-          }
-        }
-      }
-
-      // Add the new folder
-      this.logger.debug(`Calling configService.addFolder(${path}, ${model})...`);
-      await this.configService.addFolder(path, model);
-      this.logger.debug(`configService.addFolder completed successfully`);
-      
-      // Update FMDM with new folder list
-      this.logger.debug(`Fetching updated folder list from configService...`);
-      const configFolders = await this.configService.getFolders();
-      this.logger.debug(`Retrieved ${configFolders.length} folders from configService`);
-      
-      // Convert config folders to FMDM format - let orchestrator manage status
-      const updatedFolders = configFolders.map((folder: any) => ({
-        path: folder.path,
-        model: folder.model,
-        status: 'pending' as const  // New folders start pending (orchestrator will manage lifecycle)
-      }));
-      
-      this.logger.debug(`Updating FMDM with folder list...`);
-      this.fmdmService.updateFolders(updatedFolders);
-      this.logger.debug(`FMDM updated successfully`);
-
-      // Trigger background indexing for the newly added folder
+      // Always trigger folder lifecycle management - this will handle FMDM updates including error states
       if (this.monitoredFoldersOrchestrator) {
         this.logger.debug(`Starting folder lifecycle management for: ${path}`);
         // Don't await - let indexing run in background
+        // The orchestrator will handle FMDM updates including error states
         this.monitoredFoldersOrchestrator.addFolder(path, model).catch((error: unknown) => {
           this.logger.error(`Failed to start folder lifecycle for ${path}`, error instanceof Error ? error : new Error(String(error)));
           this.logger.debug(`Lifecycle error details: ${error instanceof Error ? error.message : String(error)}`);
           if (error instanceof Error && error.stack) {
             this.logger.debug(`Stack trace: ${error.stack}`);
           }
+          // Note: Error state is already handled by orchestrator's FMDM updates
         });
       } else {
         this.logger.warn(`No folder lifecycle manager available - folder ${path} will not be indexed`);

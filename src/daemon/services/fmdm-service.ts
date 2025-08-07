@@ -321,7 +321,6 @@ export class FMDMService implements IFMDMService {
     
     this.logger.debug(`Broadcasting FMDM update to ${this.listeners.size} listeners`);
     
-    // Broadcast to all listeners asynchronously
     this.listeners.forEach(listener => {
       try {
         listener(fmdmCopy);

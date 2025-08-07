@@ -44,6 +44,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   private watchers: Map<string, FileWatcher> = new Map();
   private eventQueues: Map<string, FileWatchEvent[]> = new Map();
   private processingTimers: Map<string, NodeJS.Timeout> = new Map();
+  private changeDetectionCallback?: (folderPath: string, changeCount: number) => void;
 
   constructor(
     private readonly fileParsingService: IFileParsingService,
@@ -52,6 +53,13 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     private readonly configService: IConfigurationService,
     private readonly incrementalIndexer: IncrementalIndexer
   ) {}
+
+  /**
+   * Set callback for when file changes are detected and processed
+   */
+  setChangeDetectionCallback(callback: (folderPath: string, changeCount: number) => void): void {
+    this.changeDetectionCallback = callback;
+  }
 
   async startFileWatching(folderPath: string, options: WatchingOptions = {}): Promise<WatchingResult> {
     const watchId = this.generateWatchId(folderPath);
@@ -349,6 +357,15 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         processedCount: eventQueue.length,
         timestamp: new Date().toISOString()
       });
+      
+      // Notify about changes detected if callback is set
+      if (this.changeDetectionCallback && eventQueue.length > 0) {
+        this.loggingService.info('🔔 Notifying about file changes detected', { 
+          folderPath,
+          changeCount: eventQueue.length 
+        });
+        this.changeDetectionCallback(folderPath, eventQueue.length);
+      }
 
     } catch (error) {
       this.loggingService.error('❌ Failed to process queued events', error instanceof Error ? error : new Error(String(error)), {

@@ -223,21 +223,29 @@ export class DaemonConnector {
         ws.send(JSON.stringify(initMessage));
       });
 
-      ws.on('message', (data) => {
+      const messageHandler = (data: Buffer) => {
         try {
           const message = JSON.parse(data.toString());
           this.log(`Received handshake response: ${message.type}`);
           
-          // Look for any response indicating daemon is alive
-          if (message.type === 'connection.ack' || message.type === 'fmdm.update') {
+          // Look for connection acknowledgment (don't consume fmdm.update)
+          if (message.type === 'connection.ack') {
             clearTimeout(timeoutId);
             handshakeComplete = true;
+            
+            // Remove this message listener so it doesn't compete with application listeners
+            ws.removeListener('message', messageHandler);
+            this.log('Handshake complete, removed connector message listener');
+            
             resolve(ws);
           }
+          // Note: Don't consume fmdm.update here - let the application handle it
         } catch (error) {
           // Ignore parse errors during handshake
         }
-      });
+      };
+      
+      ws.on('message', messageHandler);
 
       ws.on('error', (error) => {
         clearTimeout(timeoutId);
