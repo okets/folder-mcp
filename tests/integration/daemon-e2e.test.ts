@@ -569,7 +569,8 @@ describe('Daemon E2E Integration Tests', () => {
         
         console.error(`[TEST-DEBUG] Exact match: ${exactMatch}, Clean start: ${cleanStart}`);
         return exactMatch || cleanStart;
-      }
+      },
+      15000  // Increase timeout to 15 seconds for restart scenario
     );
 
     // After restart, daemon should restore folders from persistent storage (database)

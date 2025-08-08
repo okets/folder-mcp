@@ -6,6 +6,7 @@ import path from 'path';
 import type { RealTestEnvironment } from '../helpers/real-test-environment';
 import type { EmbeddingVector } from '../../src/types/index.js';
 import { OllamaEmbeddingService } from '../../src/infrastructure/embeddings/ollama-embedding-service.js';
+import { OllamaTestHelper } from '../helpers/ollama-launcher.js';
 
 // Example paragraph for similarity search
 const CLIENT_EMAIL_PARAGRAPH =
@@ -13,17 +14,33 @@ const CLIENT_EMAIL_PARAGRAPH =
 
 // Short text for quick embedding tests
 const SHORT_TEXT = 'Remote work policy guidelines';
+const TEST_MODEL = 'all-MiniLM-L6-v2'; // Same small model as Python
 
 describe('Embedding Real Tests - Ollama Verification', () => {
   let env: RealTestEnvironment;
   let ollamaService: OllamaEmbeddingService;
+  let ollamaAvailable = false;
 
   beforeAll(async () => {
     env = await setupRealTestEnvironment('embedding-real-ollama');
     
+    // Try to ensure Ollama is running
+    ollamaAvailable = await OllamaTestHelper.ensureRunning();
+    
+    if (!ollamaAvailable) {
+      console.warn('⚠️  Ollama could not be started - tests will be skipped');
+      return;
+    }
+
+    // Ensure test model is available
+    const modelReady = await OllamaTestHelper.ensureModel(TEST_MODEL);
+    if (!modelReady) {
+      console.warn(`⚠️  Could not ensure model ${TEST_MODEL} - tests may fail`);
+    }
+    
     // Create dedicated Ollama service for verification
     ollamaService = new OllamaEmbeddingService({
-      model: 'all-MiniLM-L6-v2', // Same small model as Python
+      model: TEST_MODEL,
       timeout: 15000,
       retries: 3,
       baseUrl: 'http://127.0.0.1:11434'
@@ -31,26 +48,22 @@ describe('Embedding Real Tests - Ollama Verification', () => {
     
     try {
       await ollamaService.initialize();
+      ollamaAvailable = true;
     } catch (error) {
-      if (error instanceof Error && (
-        error.message.includes('Ollama API not accessible') ||
-        error.message.includes('fetch failed') ||
-        error.message.includes('ECONNREFUSED')
-      )) {
-        console.warn('⚠️  Ollama not available - tests will be skipped');
-      } else {
-        console.warn(`⚠️  Ollama initialization failed: ${error} - tests will be skipped`);
-      }
+      console.warn(`⚠️  Ollama initialization failed: ${error} - tests will be skipped`);
+      ollamaAvailable = false;
     }
-  });
+  }, 60000); // 60 seconds for model download if needed
 
   afterAll(async () => {
     await env.cleanup();
+    // Stop Ollama if we started it
+    OllamaTestHelper.stop();
   });
 
   it('generates real embeddings for a paragraph and validates vector dimensions', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -68,8 +81,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('generates embeddings for real document files and validates content similarity', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -98,8 +111,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('generates consistent embeddings for the same text', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -118,8 +131,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('handles batch embedding generation for real document content', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -158,8 +171,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('handles different file formats and extracts meaningful embeddings', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -193,8 +206,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('validates embedding service error handling and graceful degradation', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 
@@ -223,8 +236,8 @@ describe('Embedding Real Tests - Ollama Verification', () => {
   });
 
   it('should validate performance characteristics of Ollama embeddings', async () => {
-    if (!ollamaService.isInitialized()) {
-      console.warn('Skipping test - Ollama not available');
+    if (!ollamaAvailable) {
+      console.log('Skipping test - Ollama not available');
       return;
     }
 

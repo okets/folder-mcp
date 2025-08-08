@@ -56,7 +56,14 @@ export class SQLiteVecStorage implements IVectorSearchService {
             modelName: config.modelName,
             modelDimension: config.modelDimension,
             enableWAL: true,
-            enableForeignKeys: true
+            enableForeignKeys: true,
+            logger: config.logger,
+            recoveryOptions: {
+                autoBackup: true,
+                autoRecover: true,
+                maxBackups: 3,
+                backupInterval: 24
+            }
         };
 
         this.dbManager = new DatabaseManager(dbConfig);

@@ -49,6 +49,61 @@ When a test fails, follow this decision tree:
 
 TMOAT is a comprehensive, agent-driven, end-to-end testing framework for the folder-mcp Orchestrated Folder Lifecycle Architecture. It follows a "smoke test first" approach - run one comprehensive test that covers everything, and only drill down if it fails.
 
+## 📊 Automated Test Suite Execution
+
+### Running Full Test Suite (3-Minute Method)
+
+The full automated test suite takes approximately 3 minutes (175-183 seconds) to complete. Due to the long execution time, use this method:
+
+**Background Process Testing Method:**
+```bash
+# Start tests as background process with output to file
+npm test > /tmp/test-results.log 2>&1 &
+
+# Wait for completion (check every 60 seconds)
+sleep 60  # First check at 1 minute
+tail -20 /tmp/test-results.log  # Check if still running
+
+sleep 60  # Second check at 2 minutes
+tail -20 /tmp/test-results.log  # Check if still running
+
+sleep 60  # Third check at 3 minutes
+tail -20 /tmp/test-results.log  # Check if still running
+
+sleep 60  # Final check at 4 minutes (should be done)
+tail -100 /tmp/test-results.log  # View results
+```
+
+**Expected Output:**
+```
+Test Files  74 passed | 1 skipped (75)
+     Tests  889 passed | 2 skipped (891)
+  Duration  ~182s
+```
+
+**Using Desktop Commander:**
+```bash
+# Via Desktop Commander for better process management
+mcp__desktop-commander__start_process --command "npm test > /tmp/test-results.log 2>&1" --timeout_ms 300000
+
+# Check results after ~3 minutes
+tail -100 /tmp/test-results.log
+```
+
+### Quick Test Runs
+
+For faster feedback during development:
+```bash
+# Run specific test file
+npm test -- tests/integration/daemon-e2e.test.ts
+
+# Run with pattern matching
+npm test -- --grep "daemon"
+
+# Run unit tests only (fast)
+npm run test:unit
+```
+
 ## 🤖 Testing Philosophy
 
 1. **Smoke Test First**: Start with one test that exercises the entire system

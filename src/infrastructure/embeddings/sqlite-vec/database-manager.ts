@@ -14,6 +14,7 @@ import {
     QUERIES,
     SCHEMA_VERSION 
 } from './schema.js';
+import { DatabaseRecovery, RecoveryOptions } from './database-recovery.js';
 
 export interface DatabaseConfig {
     folderPath: string;
@@ -23,6 +24,8 @@ export interface DatabaseConfig {
     enableForeignKeys?: boolean;
     cacheSize?: number;
     journalMode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
+    recoveryOptions?: RecoveryOptions;
+    logger?: any; // ILoggingService
 }
 
 export interface DatabaseStats {
@@ -38,6 +41,7 @@ export class DatabaseManager {
     private db: Database.Database | null = null;
     private config: DatabaseConfig;
     private databasePath: string;
+    private recovery: DatabaseRecovery;
 
     constructor(config: DatabaseConfig) {
         this.config = {
@@ -65,11 +69,19 @@ export class DatabaseManager {
         }
         
         this.databasePath = join(folderMcpDir, 'embeddings.db');
+        
+        // Initialize recovery system
+        this.recovery = new DatabaseRecovery(
+            this.databasePath,
+            this.config.logger,
+            this.config.recoveryOptions
+        );
     }
 
     /**
      * Initialize and open the database connection
      * Creates the database file and folder structure if they don't exist
+     * Automatically detects and recovers from corruption
      */
     async initialize(): Promise<void> {
         try {
@@ -77,6 +89,25 @@ export class DatabaseManager {
             const folderMcpDir = dirname(this.databasePath);
             if (!existsSync(folderMcpDir)) {
                 mkdirSync(folderMcpDir, { recursive: true });
+            }
+
+            // Check for corruption before opening
+            if (existsSync(this.databasePath)) {
+                const corruption = await this.recovery.checkCorruption();
+                if (corruption.isCorrupted) {
+                    this.config.logger?.warn(`Database corruption detected: ${corruption.severity} severity`);
+                    
+                    // Attempt automatic recovery
+                    const result = await this.recovery.recover();
+                    if (!result.success) {
+                        throw new Error(`Database recovery failed: ${result.message}`);
+                    }
+                    
+                    this.config.logger?.info(`Database recovery successful: ${result.message}`);
+                    if (result.dataLoss) {
+                        this.config.logger?.warn('Data loss occurred during recovery - reindexing may be required');
+                    }
+                }
             }
 
             // Open database connection
@@ -94,6 +125,16 @@ export class DatabaseManager {
 
             // Store/validate embedding configuration
             await this.validateEmbeddingConfig();
+
+            // Create initial backup if enabled
+            if (this.config.recoveryOptions?.autoBackup !== false) {
+                try {
+                    await this.recovery.createBackup('post-init');
+                    this.config.logger?.info('Created post-initialization database backup');
+                } catch (backupError) {
+                    this.config.logger?.warn('Failed to create initial backup:', backupError);
+                }
+            }
 
         } catch (error) {
             await this.close();
@@ -313,6 +354,35 @@ export class DatabaseManager {
      */
     getFolderPath(): string {
         return this.config.folderPath;
+    }
+
+    /**
+     * Create a manual backup of the database
+     */
+    async createBackup(suffix?: string): Promise<string> {
+        return await this.recovery.createBackup(suffix);
+    }
+
+    /**
+     * Check database for corruption
+     */
+    async checkCorruption() {
+        return await this.recovery.checkCorruption();
+    }
+
+    /**
+     * Manually trigger database recovery
+     */
+    async recoverDatabase() {
+        const result = await this.recovery.recover();
+        
+        // If recovery was successful, reinitialize the database
+        if (result.success && result.action !== 'none') {
+            await this.close();
+            await this.initialize();
+        }
+        
+        return result;
     }
 
     /**

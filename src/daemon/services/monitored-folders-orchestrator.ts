@@ -141,16 +141,17 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
       // Save folder to configuration for persistence across daemon restarts
       try {
-        const configFolders = await this.configService.get('folders.list') || [];
-        const existingFolder = configFolders.find((f: any) => f.path === path);
-        
-        if (!existingFolder) {
-          configFolders.push({ path, model });
-          await this.configService.set('folders.list', configFolders);
-          this.logger.info(`[ORCHESTRATOR] Saved folder to configuration: ${path}`);
-        }
+        // Use ConfigurationComponent's addFolder method instead of direct get/set
+        await this.configService.addFolder(path, model);
+        this.logger.info(`[ORCHESTRATOR] Saved folder to configuration: ${path}`);
       } catch (error) {
-        this.logger.warn(`[ORCHESTRATOR] Failed to save folder to configuration: ${path}`, error as Error);
+        // Check if it's a duplicate folder error (already exists)
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('already exists')) {
+          this.logger.debug(`[ORCHESTRATOR] Folder already in configuration: ${path}`);
+        } else {
+          this.logger.warn(`[ORCHESTRATOR] Failed to save folder to configuration: ${path}`, error as Error);
+        }
         // Don't fail the entire operation if config save fails
       }
       
@@ -229,14 +230,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Remove from configuration
     try {
-      const configFolders = await this.configService.get('folders.list') || [];
-      const updatedFolders = configFolders.filter((f: any) => f.path !== folderPath);
-      if (updatedFolders.length !== configFolders.length) {
-        await this.configService.set('folders.list', updatedFolders);
-        this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
-      }
+      // Use ConfigurationComponent's removeFolder method
+      await this.configService.removeFolder(folderPath);
+      this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
     } catch (error) {
-      this.logger.warn(`[ORCHESTRATOR] Failed to remove folder from configuration: ${folderPath}`, error as Error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('not found')) {
+        this.logger.debug(`[ORCHESTRATOR] Folder not in configuration: ${folderPath}`);
+      } else {
+        this.logger.warn(`[ORCHESTRATOR] Failed to remove folder from configuration: ${folderPath}`, error as Error);
+      }
       // Don't fail the entire operation if config removal fails
     }
     
@@ -260,7 +263,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Get all folders from configuration via configService
     try {
-      const existingFolders = await this.configService.get('folders.list') || [];
+      // Use ConfigurationComponent's getFolders method
+      const existingFolders = await this.configService.getFolders();
       this.logger.info(`Found ${existingFolders.length} folders in configuration to restore`);
       
       if (existingFolders.length > 0) {
@@ -616,8 +620,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Get folder config from configuration to preserve model info
       let folderConfig: FolderConfig;
       try {
-        const configFolders = await this.configService.get('folders.list') || [];
-        const existingConfig = configFolders.find((f: any) => f.path === folderPath);
+        const existingConfig = await this.configService.getFolder(folderPath);
         
         folderConfig = {
           path: folderPath,
@@ -674,12 +677,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
       // Remove from configuration (but don't fail if it's not there)
       try {
-        const configFolders = await this.configService.get('folders.list') || [];
-        const updatedFolders = configFolders.filter((f: any) => f.path !== folderPath);
-        if (updatedFolders.length !== configFolders.length) {
-          await this.configService.set('folders.list', updatedFolders);
-          this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
-        }
+        await this.configService.removeFolder(folderPath);
+        this.logger.info(`[ORCHESTRATOR] Removed folder from configuration: ${folderPath}`);
       } catch (error) {
         this.logger.debug(`[ORCHESTRATOR] Folder not in configuration during cleanup: ${folderPath}`);
       }

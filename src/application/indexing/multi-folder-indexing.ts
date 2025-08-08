@@ -18,6 +18,7 @@ import {
 import { ILoggingService } from '../../di/interfaces.js';
 import { IFolderManager, ResolvedFolderConfig } from '../../domain/folders/index.js';
 import { IMultiFolderStorageProvider } from '../../infrastructure/storage/index.js';
+import { ResourceManager, ResourceLimits } from './resource-manager.js';
 
 /**
  * Multi-folder indexing workflow interface
@@ -68,6 +69,8 @@ export interface MultiFolderIndexingOptions {
   includeFolders?: string[];
   /** Folder paths to exclude */
   excludeFolders?: string[];
+  /** Resource limits for indexing */
+  resourceLimits?: Partial<ResourceLimits>;
 }
 
 /**
@@ -186,6 +189,7 @@ export interface MultiFolderIndexingSummary {
 export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow {
   private folderStatuses: Map<string, FolderIndexingStatus> = new Map();
   private cancellationTokens: Map<string, boolean> = new Map();
+  private resourceManager: ResourceManager | null = null;
 
   private getFolderName(folderPath: string): string {
     return folderPath.split('/').pop() || folderPath;
@@ -200,7 +204,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
   async indexAllFolders(options: MultiFolderIndexingOptions = {}): Promise<MultiFolderIndexingResult> {
     const startTime = Date.now();
-    this.loggingService.info('Starting multi-folder indexing');
+    this.loggingService.info('Starting multi-folder indexing with resource management');
 
     // Get all folders to index
     const allFolders = await this.folderManager.getFolders();
@@ -215,51 +219,103 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
     const folderResults: FolderIndexingResult[] = [];
     const systemErrors: string[] = [];
-    const maxConcurrent = options.maxConcurrentFolders || 3;
+
+    // Initialize resource manager
+    const resourceLimits = {
+      maxConcurrentOperations: options.maxConcurrentFolders || 3,
+      ...options.resourceLimits
+    };
+    this.resourceManager = new ResourceManager(this.loggingService, resourceLimits);
+
+    // Monitor resource usage
+    this.resourceManager.on('stats', (stats) => {
+      if (stats.isThrottled) {
+        this.loggingService.warn('Resource throttling active', {
+          memoryUsedMB: Math.round(stats.memoryUsedMB),
+          cpuPercent: Math.round(stats.cpuPercent),
+          throttleFactor: stats.throttleFactor
+        });
+      }
+    });
 
     try {
-      // Process folders in batches to respect concurrency limits
-      for (let i = 0; i < foldersToIndex.length; i += maxConcurrent) {
-        const batch = foldersToIndex.slice(i, i + maxConcurrent);
+      // Submit all folders to resource manager for controlled execution
+      const indexingPromises = foldersToIndex.map(async (folder) => {
+        const operationId = `index-${folder.path}`;
         
-        const batchPromises = batch.map(folder => 
-          this.indexSingleFolder(folder, options.baseOptions || {})
-        );
-
-        const batchResults = await Promise.allSettled(batchPromises);
-        
-        batchResults.forEach((result, j) => {
-          const folder = batch[j];
-          if (!folder) return; // Skip if folder is undefined
-
-          if (result.status === 'fulfilled') {
-            folderResults.push(result.value);
-          } else {
-            const errorResult: FolderIndexingResult = {
-              folderName: this.getFolderName(folder.path),
-              folderPath: folder.resolvedPath,
-              success: false,
-              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-              processingTime: 0,
-              settingsUsed: this.createFolderSettings(folder)
-            };
-            folderResults.push(errorResult);
-            
-            if (!options.continueOnError) {
-              systemErrors.push(`Failed to index folder ${this.getFolderName(folder.path)}: ${errorResult.error}`);
+        try {
+          // Estimate memory based on folder size (simplified)
+          const estimatedMemoryMB = 50; // Base estimate, could be improved
+          
+          const result = await this.resourceManager!.submitOperation(
+            operationId,
+            folder.path,
+            () => this.indexSingleFolder(folder, options.baseOptions || {}),
+            {
+              priority: 0, // Default priority, could be enhanced
+              estimatedMemoryMB
             }
+          );
+          
+          return result;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          if (errorMessage.includes('Queue is full')) {
+            systemErrors.push(`Queue full for folder ${this.getFolderName(folder.path)}`);
+          } else if (errorMessage.includes('cancelled')) {
+            systemErrors.push(`Indexing cancelled for folder ${this.getFolderName(folder.path)}`);
           }
-        });
-
-        // Break if we hit an error and shouldn't continue
-        if (!options.continueOnError && systemErrors.length > 0) {
-          break;
+          
+          const errorResult: FolderIndexingResult = {
+            folderName: this.getFolderName(folder.path),
+            folderPath: folder.resolvedPath,
+            success: false,
+            error: errorMessage,
+            processingTime: 0,
+            settingsUsed: this.createFolderSettings(folder)
+          };
+          
+          if (!options.continueOnError) {
+            // Cancel remaining operations
+            await this.resourceManager!.cancelAll();
+            throw error;
+          }
+          
+          return errorResult;
         }
-      }
+      });
+
+      // Wait for all operations to complete
+      const results = await Promise.allSettled(indexingPromises);
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          folderResults.push(result.value);
+        } else {
+          const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          systemErrors.push(`Indexing failed: ${errorMessage}`);
+        }
+      });
+      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       systemErrors.push(`Multi-folder indexing failed: ${errorMessage}`);
       this.loggingService.error('Multi-folder indexing failed', error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      // Get final resource stats
+      if (this.resourceManager) {
+        const finalStats = this.resourceManager.getStats();
+        this.loggingService.info('Final resource usage', {
+          memoryUsedMB: Math.round(finalStats.memoryUsedMB),
+          peakMemoryMB: Math.round(finalStats.memoryLimitMB),
+          totalOperations: folderResults.length
+        });
+        
+        // Shutdown resource manager
+        await this.resourceManager.shutdown();
+        this.resourceManager = null;
+      }
     }
 
     const totalProcessingTime = Date.now() - startTime;
@@ -357,6 +413,11 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
   async cancelAllIndexing(): Promise<void> {
     this.loggingService.info('Cancelling all folder indexing operations');
     
+    // Cancel through resource manager if active
+    if (this.resourceManager) {
+      await this.resourceManager.cancelAll();
+    }
+    
     for (const folderName of this.cancellationTokens.keys()) {
       this.cancellationTokens.set(folderName, true);
     }
@@ -364,6 +425,13 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
   async cancelFolderIndexing(folderPath: string): Promise<void> {
     this.loggingService.info(`Cancelling indexing for folder: ${folderPath}`);
+    
+    // Cancel through resource manager if active
+    if (this.resourceManager) {
+      const operationId = `index-${folderPath}`;
+      await this.resourceManager.cancelOperation(operationId);
+    }
+    
     this.cancellationTokens.set(folderPath, true);
   }
 
