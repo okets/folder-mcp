@@ -38,7 +38,9 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
       getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
       removeDocument: vi.fn(() => Promise.resolve()),
       isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
-      buildIndex: vi.fn().mockResolvedValue(void 0) // Add missing buildIndex method
+      buildIndex: vi.fn().mockResolvedValue(void 0), // Add missing buildIndex method
+      loadIndex: vi.fn().mockResolvedValue(void 0), // Fix: Add missing loadIndex method
+      addEmbeddings: vi.fn().mockResolvedValue(void 0) // Add missing addEmbeddings method
     };
     
     // Create mock logger

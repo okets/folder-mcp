@@ -198,6 +198,20 @@ describe('Daemon E2E Integration Tests', () => {
     return fmdmUpdate.fmdm.folders.find(f => f.path === folderPath)!;
   };
 
+  // Fix: Helper to wait for folder to start processing (handles race condition where small folders skip 'indexing')
+  const waitForFolderProcessingStart = async (folderPath: string, timeoutMs = 8000): Promise<FolderConfig> => {
+    const fmdmUpdate = await waitForFMDMUpdate(
+      (fmdm) => {
+        const folder = fmdm.fmdm.folders.find(f => f.path === folderPath);
+        // Accept any processing state: scanning, ready, indexing, or active (for fast folders)
+        return folder && ['scanning', 'ready', 'indexing', 'active'].includes(folder.status);
+      },
+      timeoutMs
+    );
+
+    return fmdmUpdate.fmdm.folders.find(f => f.path === folderPath)!;
+  };
+
   beforeAll(async () => {
     // Clean up any previous test artifacts
     if (existsSync(TEMP_TEST_DIR)) {
@@ -344,11 +358,12 @@ describe('Daemon E2E Integration Tests', () => {
       addFolder(folder3)
     ]);
 
-    // All should start processing independently
+    // Fix: Wait for folders to start processing (scanning OR indexing OR active for small folders)
+    // Some folders may skip directly from scanning to active if they process very quickly
     await Promise.all([
-      waitForFolderStatus(folder1, 'indexing'),
-      waitForFolderStatus(folder2, 'indexing'),
-      waitForFolderStatus(folder3, 'indexing')
+      waitForFolderProcessingStart(folder1),
+      waitForFolderProcessingStart(folder2),
+      waitForFolderProcessingStart(folder3)
     ]);
 
     // All should complete independently
