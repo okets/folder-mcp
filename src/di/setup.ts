@@ -39,6 +39,10 @@ import {
   MultiFolderStorageProvider 
 } from '../infrastructure/storage/multi-folder-storage.js';
 
+// Import file state services
+import { FileStateService } from '../infrastructure/files/file-state-service.js';
+import { SqliteFileStateStorage } from '../infrastructure/storage/sqlite-file-state-storage.js';
+
 // Import workflow services
 import { MultiFolderIndexingWorkflow } from '../application/indexing/multi-folder-indexing.js';
 import { MultiFolderMonitoringWorkflow } from '../application/monitoring/multi-folder-monitoring.js';
@@ -134,6 +138,18 @@ export function setupDependencyInjection(options: {
     const storageFactory = container.resolve(SERVICE_TOKENS.STORAGE_FACTORY) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     return new MultiFolderStorageProvider(folderManager, storageFactory, loggingService);
+  });
+
+  // Register file state services
+  container.registerSingleton(SERVICE_TOKENS.FILE_STATE_STORAGE, () => {
+    const databasePath = join(options.folderPath || homedir(), '.folder-mcp', 'file-states.db');
+    return new SqliteFileStateStorage(databasePath);
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.FILE_STATE_MANAGER, () => {
+    const databasePath = join(options.folderPath || homedir(), '.folder-mcp', 'file-states.db');
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
+    return new FileStateService(databasePath, loggingService);
   });
 
   // Register multi-folder indexing workflow (async because it depends on async IndexingWorkflow)

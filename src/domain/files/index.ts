@@ -24,6 +24,15 @@ export {
   generateFingerprints
 } from './fingerprint.js';
 
+// Export file state management
+export {
+  FileStateManager,
+  FileProcessingState,
+  type FileState,
+  type ProcessingDecision,
+  type IFileStateStorage
+} from './file-state-manager.js';
+
 // Export watching implementations
 export {
   FileWatchingDomainService,

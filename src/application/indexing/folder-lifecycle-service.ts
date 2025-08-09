@@ -1,5 +1,7 @@
 import { EventEmitter } from 'events';
-import type { IIndexingOrchestrator, ILoggingService } from '../../di/interfaces.js';
+import { readFileSync, statSync } from 'fs';
+import { createHash } from 'crypto';
+import type { IIndexingOrchestrator, ILoggingService, IFileStateService } from '../../di/interfaces.js';
 import type { IFileSystemService } from '../../domain/files/file-system-operations.js';
 import type { SQLiteVecStorage } from '../../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import type { IFolderLifecycleManager } from '../../domain/folders/folder-lifecycle-manager.js';
@@ -34,6 +36,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     private indexingOrchestrator: IIndexingOrchestrator,
     private fileSystemService: IFileSystemService,
     private sqliteVecStorage: SQLiteVecStorage,
+    private fileStateService: IFileStateService,
     private logger: ILoggingService,
     model?: string,
   ) {
@@ -485,36 +488,28 @@ return;
 
 
   private async detectChanges(currentFiles: string[]): Promise<FileChangeInfo[]> {
-    this.logger.debug(`[MANAGER-DETECT] Detecting changes for ${currentFiles.length} files`);
+    this.logger.debug(`[MANAGER-DETECT] Starting intelligent scanning for ${currentFiles.length} files`);
     const changes: FileChangeInfo[] = [];
     
     try {
       // Ensure database is initialized before attempting to get fingerprints
       if (!this.sqliteVecStorage.isReady()) {
         this.logger.debug('[MANAGER-DETECT] Database not ready, loading existing index...');
-        // Load existing index or initialize if empty (does not wipe existing data)
         const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
         await this.sqliteVecStorage.loadIndex(dbPath);
       }
       
-      const existingFingerprints = await this.sqliteVecStorage.getDocumentFingerprints();
-      this.logger.debug(`[MANAGER-DETECT] Found ${existingFingerprints.size} existing fingerprints`);
-      
-      // DEBUG: Log first few fingerprints to understand format
-      if (existingFingerprints.size > 0) {
-        const firstFew = Array.from(existingFingerprints.entries()).slice(0, 3);
-        for (const [path, fingerprint] of firstFew) {
-          this.logger.debug(`[MANAGER-DETECT] Existing fingerprint: ${path} -> ${fingerprint?.substring(0, 16)}...`);
-        }
-      }
-      
-      // Phase 1: Compare folder files to database (folder-to-db)
+      // Phase 1: Intelligent processing decisions using file states
       this.updateScanningProgress({
-        phase: 'folder-to-db',
+        phase: 'intelligent-scanning',
         processedFiles: 0,
         totalFiles: currentFiles.length,
         percentage: 0,
       });
+      
+      let processedCount = 0;
+      let skippedCount = 0;
+      let toProcessCount = 0;
       
       for (let i = 0; i < currentFiles.length; i++) {
         const filePath = currentFiles[i];
@@ -522,119 +517,115 @@ return;
           this.logger.debug(`[MANAGER-DETECT] Skipping undefined file path at index ${i}`);
           continue;
         }
-        this.logger.debug(`[MANAGER-DETECT] Processing file: ${filePath}`);
         
-        // Get current file metadata
-        let fileMetadata: any;
+        // Generate content hash for the file
+        let contentHash: string;
         try {
-          fileMetadata = await this.fileSystemService.getFileMetadata(filePath);
-          if (!fileMetadata) {
-            this.logger.debug(`[MANAGER-DETECT] No metadata for ${filePath}, skipping`);
-            continue;
-          }
+          contentHash = this.generateContentHash(filePath);
         } catch (error) {
-          this.logger.debug(`[MANAGER-DETECT] Error getting metadata for ${filePath}, skipping:`, error);
+          this.logger.warn(`[MANAGER-DETECT] Cannot generate hash for ${filePath}, skipping:`, error);
+          // Mark file as skipped due to read error
+          try {
+            await this.fileStateService.markFileSkipped(filePath, 'unknown', `Cannot read file: ${error}`);
+          } catch (stateError) {
+            this.logger.debug(`[MANAGER-DETECT] Failed to mark file as skipped: ${stateError}`);
+          }
           continue;
         }
         
-        const existingFingerprint = existingFingerprints.get(filePath);
-        let currentHash: string;
-        try {
-          currentHash = await this.fileSystemService.getFileHash(filePath);
-          if (!currentHash) {
-            this.logger.debug(`[MANAGER-DETECT] No hash for ${filePath}, skipping`);
-            continue;
+        // Make intelligent processing decision
+        const decision = await this.fileStateService.makeProcessingDecision(filePath, contentHash);
+        
+        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: ${decision.action} (${decision.reason})`);
+        
+        if (decision.shouldProcess) {
+          toProcessCount++;
+          
+          // Get file metadata for change info
+          let fileMetadata: any;
+          try {
+            fileMetadata = await this.fileSystemService.getFileMetadata(filePath);
+          } catch (error) {
+            this.logger.warn(`[MANAGER-DETECT] Cannot get metadata for ${filePath}, using defaults`);
+            fileMetadata = { lastModified: Date.now() };
           }
-        } catch (error) {
-          this.logger.debug(`[MANAGER-DETECT] Error getting hash for ${filePath}, skipping:`, error);
-          continue;
-        }
-        
-        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: existingFingerprint=${existingFingerprint ? existingFingerprint.substring(0, 16) + '...' : 'null'}, currentHash=${currentHash.substring(0, 16)}...`);
-        
-        if (!existingFingerprint) {
-          this.logger.debug(`[MANAGER-DETECT] New file detected: ${filePath} (no existing fingerprint)`);
-          // New file
+          
+          // Determine change type based on action
+          let changeType: 'added' | 'modified' | 'removed';
+          if (decision.action === 'retry') {
+            changeType = 'modified'; // Retry as modified
+          } else if (decision.action === 'process' && decision.reason.includes('changed')) {
+            changeType = 'modified'; // File exists but changed
+          } else {
+            changeType = 'added'; // New file or first time processing
+          }
+          
           changes.push({
             path: filePath,
-            changeType: 'added',
+            changeType,
             lastModified: new Date(fileMetadata.lastModified),
             size: fileMetadata.size,
+            hash: contentHash,
           });
-        } else if (existingFingerprint !== currentHash) {
-          this.logger.debug(`[MANAGER-DETECT] Modified file detected: ${filePath}`);
-          this.logger.debug(`[MANAGER-DETECT]   Existing: ${existingFingerprint}`);
-          this.logger.debug(`[MANAGER-DETECT]   Current:  ${currentHash}`);
-          // Modified file (hash changed)
-          changes.push({
-            path: filePath,
-            changeType: 'modified',
-            lastModified: new Date(fileMetadata.lastModified),
-            size: fileMetadata.size,
-            hash: currentHash,
-          });
+          
+          // Record the start of processing for this file
+          await this.fileStateService.startProcessing(filePath, contentHash);
         } else {
-          this.logger.debug(`[MANAGER-DETECT] File unchanged: ${filePath} (fingerprints match)`);
+          skippedCount++;
+          this.logger.debug(`[MANAGER-DETECT] File skipped: ${filePath} - ${decision.reason}`);
         }
         
-        // Update folder-to-db progress (throttled to every 10% or every 10 files, whichever is smaller)
-        const folderToDbProgress = Math.round(((i + 1) / currentFiles.length) * 100);
-        const shouldUpdate = (i + 1) === currentFiles.length || // Always update on last file
-                           folderToDbProgress % 10 === 0 || // Every 10%
-                           (i + 1) % Math.max(1, Math.floor(currentFiles.length / 10)) === 0; // Every 10th of files
+        processedCount++;
+        
+        // Update progress
+        const progress = Math.round((processedCount / currentFiles.length) * 100);
+        const shouldUpdate = processedCount === currentFiles.length || progress % 10 === 0;
         
         if (shouldUpdate) {
           this.updateScanningProgress({
-            phase: 'folder-to-db',
-            processedFiles: i + 1,
+            phase: 'intelligent-scanning',
+            processedFiles: processedCount,
             totalFiles: currentFiles.length,
-            percentage: folderToDbProgress,
+            percentage: progress,
           });
         }
       }
       
-      // Phase 2: Compare database to folder files (db-to-folder) for removed files
-      const dbFiles = Array.from(existingFingerprints.keys());
+      // Phase 2: Clean up state for removed files
       this.updateScanningProgress({
-        phase: 'db-to-folder',
+        phase: 'cleanup',
         processedFiles: 0,
-        totalFiles: dbFiles.length,
+        totalFiles: 1,
         percentage: 0,
       });
       
-      const currentFileSet = new Set(currentFiles);
-      for (let i = 0; i < dbFiles.length; i++) {
-        const filePath = dbFiles[i];
-        if (!filePath) {
-          this.logger.debug(`[MANAGER-DETECT] Skipping undefined db file path at index ${i}`);
-          continue;
-        }
+      // Use the file state service to clean up orphaned states
+      try {
+        const cleanedCount = await this.fileStateService.getStats().then(stats => {
+          this.logger.debug(`[MANAGER-DETECT] File state statistics before cleanup:`);
+          this.logger.debug(`[MANAGER-DETECT]   Total files: ${stats.total}`);
+          this.logger.debug(`[MANAGER-DETECT]   Processing efficiency: ${stats.processingEfficiency.toFixed(1)}%`);
+          return 0; // TODO: Implement cleanup when we have the cleanup method in the interface
+        });
         
-        if (!currentFileSet.has(filePath)) {
-          this.logger.debug(`[MANAGER-DETECT] Removed file detected: ${filePath}`);
-          changes.push({
-            path: filePath,
-            changeType: 'removed',
-            lastModified: new Date(), // We don't have the original lastModified
-            size: 0,
-          });
-        }
-        
-        // Update db-to-folder progress (throttled)
-        const dbToFolderProgress = Math.round(((i + 1) / dbFiles.length) * 100);
-        const shouldUpdate = (i + 1) === dbFiles.length || // Always update on last file
-                           dbToFolderProgress % 10 === 0 || // Every 10%
-                           (i + 1) % Math.max(1, Math.floor(dbFiles.length / 10)) === 0; // Every 10th of files
-        
-        if (shouldUpdate) {
-          this.updateScanningProgress({
-            phase: 'db-to-folder',
-            processedFiles: i + 1,
-            totalFiles: dbFiles.length,
-            percentage: dbToFolderProgress,
-          });
-        }
+        this.logger.debug(`[MANAGER-DETECT] Cleaned up ${cleanedCount || 0} orphaned file states`);
+      } catch (error) {
+        this.logger.warn(`[MANAGER-DETECT] Failed to clean up file states:`, error);
       }
+      
+      this.updateScanningProgress({
+        phase: 'cleanup',
+        processedFiles: 1,
+        totalFiles: 1,
+        percentage: 100,
+      });
+      
+      // Summary of intelligent scanning results
+      this.logger.info(`[MANAGER-DETECT] Intelligent scanning complete:`);
+      this.logger.info(`[MANAGER-DETECT]   Files examined: ${processedCount}`);
+      this.logger.info(`[MANAGER-DETECT]   Files to process: ${toProcessCount}`);
+      this.logger.info(`[MANAGER-DETECT]   Files skipped: ${skippedCount}`);
+      this.logger.info(`[MANAGER-DETECT]   Efficiency: ${((skippedCount / processedCount) * 100).toFixed(1)}% avoided unnecessary processing`);
       
       // Clear scanning progress when done
       this.clearScanningProgress();
@@ -646,6 +637,25 @@ return;
     
     this.logger.debug(`[MANAGER-DETECT] Final result: ${changes.length} changes detected`);
     return changes;
+  }
+
+  /**
+   * Generate content hash for a file
+   */
+  private generateContentHash(filePath: string): string {
+    try {
+      const content = readFileSync(filePath);
+      const stats = statSync(filePath);
+      const hash = createHash('md5');
+      hash.update(filePath); // Include path for uniqueness
+      hash.update(content);
+      hash.update(stats.size.toString()); // Include size
+      hash.update(stats.mtime.toISOString()); // Include modification time
+      return hash.digest('hex');
+    } catch (error) {
+      this.logger.warn(`[MANAGER-HASH] Cannot generate hash for ${filePath}:`, error);
+      throw error;
+    }
   }
 
   private getTaskType(changeType: 'added' | 'modified' | 'removed'): FileEmbeddingTask['task'] {

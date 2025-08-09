@@ -94,6 +94,24 @@ CREATE TABLE IF NOT EXISTS embedding_config (
 );`;
 
 /**
+ * File processing states table
+ * Tracks processing outcomes for intelligent scanning decisions
+ */
+export const FILE_STATES_TABLE = `
+CREATE TABLE IF NOT EXISTS file_states (
+    file_path TEXT PRIMARY KEY,
+    content_hash TEXT NOT NULL,
+    processing_state TEXT NOT NULL,
+    last_attempt INTEGER NOT NULL,
+    success_timestamp INTEGER,
+    failure_reason TEXT,
+    attempt_count INTEGER DEFAULT 1,
+    chunk_count INTEGER,
+    created_at INTEGER DEFAULT (strftime('%s', 'now')),
+    updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+);`;
+
+/**
  * Schema version tracking table
  * Used to detect when database needs to be rebuilt due to schema changes
  */
@@ -113,7 +131,10 @@ export const INDEXES = [
     'CREATE INDEX IF NOT EXISTS idx_documents_fingerprint ON documents(fingerprint);',
     'CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks(document_id);',
     'CREATE INDEX IF NOT EXISTS idx_documents_needs_reindex ON documents(needs_reindex);',
-    'CREATE INDEX IF NOT EXISTS idx_chunks_content_search ON chunks(content);'
+    'CREATE INDEX IF NOT EXISTS idx_chunks_content_search ON chunks(content);',
+    'CREATE INDEX IF NOT EXISTS idx_file_states_hash ON file_states(content_hash);',
+    'CREATE INDEX IF NOT EXISTS idx_file_states_state ON file_states(processing_state);',
+    'CREATE INDEX IF NOT EXISTS idx_file_states_last_attempt ON file_states(last_attempt);'
 ];
 
 /**
@@ -134,6 +155,7 @@ export function getAllTableStatements(embeddingDimension: number): string[] {
         createEmbeddingsTable(embeddingDimension),
         CHUNK_METADATA_TABLE,
         EMBEDDING_CONFIG_TABLE,
+        FILE_STATES_TABLE,
         SCHEMA_VERSION_TABLE,
         ...INDEXES
     ];
@@ -146,7 +168,7 @@ export const VALIDATION_QUERIES = {
     checkTables: `
         SELECT name FROM sqlite_master 
         WHERE type='table' 
-        AND name IN ('documents', 'chunks', 'embeddings', 'chunk_metadata', 'embedding_config')
+        AND name IN ('documents', 'chunks', 'embeddings', 'chunk_metadata', 'embedding_config', 'file_states')
         ORDER BY name;
     `,
     checkIndexes: `

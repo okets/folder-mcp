@@ -122,12 +122,14 @@ class FolderMCPDaemon {
     // Initialize folder lifecycle manager
     const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
     const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
+    const fileStateService = this.diContainer.resolve(SERVICE_TOKENS.FILE_STATE_MANAGER);
     const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
     
     this.monitoredFoldersOrchestrator = new MonitoredFoldersOrchestrator(
       indexingOrchestrator,
       this.fmdmService!,
       fileSystemService,
+      fileStateService,
       loggingService,
       configComponent // Reuse existing configComponent
     );

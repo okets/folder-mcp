@@ -274,6 +274,50 @@ export interface IErrorRecoveryService {
 }
 
 /**
+ * File state service interface
+ * Handles intelligent file processing decisions
+ */
+export interface IFileStateService {
+  /**
+   * Make processing decision for a file
+   */
+  makeProcessingDecision(filePath: string, contentHash: string): Promise<{
+    shouldProcess: boolean;
+    reason: string;
+    action: 'process' | 'skip' | 'retry' | 'ignore';
+  }>;
+  
+  /**
+   * Record start of processing
+   */
+  startProcessing(filePath: string, contentHash: string): Promise<void>;
+  
+  /**
+   * Record successful processing
+   */
+  markProcessingSuccess(filePath: string, chunkCount: number): Promise<void>;
+  
+  /**
+   * Record processing failure
+   */
+  markProcessingFailure(filePath: string, reason: string, isCorrupted?: boolean): Promise<void>;
+  
+  /**
+   * Mark file as skipped
+   */
+  markFileSkipped(filePath: string, contentHash: string, reason: string): Promise<void>;
+  
+  /**
+   * Get processing statistics
+   */
+  getStats(): Promise<{
+    total: number;
+    byState: Record<string, number>;
+    processingEfficiency: number;
+  }>;
+}
+
+/**
  * Logging service interface
  * Handles structured logging across the application
  */
@@ -507,6 +551,10 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   // Multi-Folder Storage Services
   STORAGE_FACTORY: Symbol('StorageFactory'),
   MULTI_FOLDER_STORAGE_PROVIDER: Symbol('MultiFolderStorageProvider'),
+  
+  // File State Management
+  FILE_STATE_STORAGE: Symbol('FileStateStorage'),
+  FILE_STATE_MANAGER: Symbol('FileStateManager'),
   
   // Multi-Folder Indexing Services
   MULTI_FOLDER_INDEXING_WORKFLOW: Symbol('MultiFolderIndexingWorkflow'),

@@ -7,6 +7,17 @@ import { FolderLifecycleState, FolderProgress } from '../../src/domain/folders/f
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
+import { readFileSync, statSync } from 'fs';
+
+// Mock fs module for generateContentHash
+vi.mock('fs', async () => {
+  const actual = await vi.importActual('fs');
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+    statSync: vi.fn(),
+  };
+});
 
 describe('FolderLifecycleOrchestrator Integration Tests', () => {
   let orchestrator: FolderLifecycleService;
@@ -18,6 +29,16 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
   let testFolderPath: string;
 
   beforeEach(async () => {
+    // Mock filesystem operations for generateContentHash
+    vi.mocked(readFileSync).mockImplementation((filePath) => {
+      // Return different content based on file path for different hashes
+      return Buffer.from(`mock content for ${filePath}`);
+    });
+    vi.mocked(statSync).mockImplementation((filePath) => ({
+      size: 1000 + String(filePath).length, // Different size per file
+      mtime: new Date('2024-01-01'),
+    } as any));
+    
     // Create test directory
     testDir = path.join(os.tmpdir(), `folder-mcp-test-${Date.now()}`);
     testFolderPath = path.join(testDir, 'test-folder');
@@ -104,6 +125,23 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       getDocumentFingerprints: vi.fn().mockResolvedValue(new Map())
     } as any;
 
+    // Create mock file state service that ensures test files get processed
+    const mockFileStateService = {
+      makeProcessingDecision: vi.fn().mockImplementation((filePath: string) => {
+        // For test files, always process them to satisfy test expectations
+        // This covers all test scenarios in this file
+        if (filePath.includes('/test/') || filePath.includes('test-folder') || filePath.includes('test-knowledge-base') || filePath.includes('fixtures') || filePath.includes(testFolderPath)) {
+          return Promise.resolve({ shouldProcess: true, reason: 'Test file needs processing', action: 'process' });
+        }
+        return Promise.resolve({ shouldProcess: false, reason: 'File skipped', action: 'skip' });
+      }),
+      startProcessing: vi.fn().mockResolvedValue(undefined),
+      markProcessingSuccess: vi.fn().mockResolvedValue(undefined),
+      markProcessingFailure: vi.fn().mockResolvedValue(undefined),
+      markFileSkipped: vi.fn().mockResolvedValue(undefined),
+      getStats: vi.fn().mockResolvedValue({ total: 0, byState: {}, processingEfficiency: 100 })
+    };
+
     // Create orchestrator with logger
     orchestrator = new FolderLifecycleService(
       'test-folder-id',
@@ -111,6 +149,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       indexingOrchestrator,
       fileSystemService,
       sqliteVecStorage,
+      mockFileStateService as any, // Added: fileStateService parameter
       mockLogger
     );
   });
@@ -320,6 +359,17 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       // Reset orchestrator state to pending first
       orchestrator.reset();
       expect(orchestrator.getState().status).toBe('pending');
+      
+      // For this second scan, mock the file state service to indicate the file needs an update
+      // Access the file state service through the orchestrator
+      const fileStateService = orchestrator['fileStateService'] as any;
+      vi.spyOn(fileStateService, 'makeProcessingDecision').mockImplementationOnce(() => {
+        return Promise.resolve({ 
+          shouldProcess: true, 
+          reason: 'File content changed', 
+          action: 'retry' // retry action creates 'modified' changeType -> UpdateEmbeddings
+        });
+      });
       
       // Rescan with modified file
       await orchestrator.startScanning();

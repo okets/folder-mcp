@@ -48,9 +48,10 @@ function createFolderLifecycleService(
   indexingOrchestrator: IIndexingOrchestrator,
   fileSystemService: IFileSystemService,
   storage: any,
+  fileStateService: any,
   logger: ILoggingService
 ): IFolderLifecycleManager {
-  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, logger);
+  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger);
 }
 
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
@@ -63,6 +64,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private indexingOrchestrator: IIndexingOrchestrator,
     private fmdmService: FMDMService,
     private fileSystemService: IFileSystemService,
+    private fileStateService: any, // IFileStateService
     private logger: ILoggingService,
     private configService: any // TODO: Add proper type
   ) {
@@ -118,6 +120,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.indexingOrchestrator,
         this.fileSystemService,
         storage,
+        this.fileStateService,
         this.logger
       );
       

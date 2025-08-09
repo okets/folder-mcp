@@ -7,6 +7,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'path';
 import { FolderLifecycleService } from '../../src/application/indexing/folder-lifecycle-service.js';
+import { readFileSync, statSync } from 'fs';
+
+// Mock fs module for generateContentHash
+vi.mock('fs', async () => {
+  const actual = await vi.importActual('fs');
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+    statSync: vi.fn(),
+  };
+});
 
 describe('FolderLifecycleOrchestrator - Basic Integration', () => {
   let orchestrator: FolderLifecycleService;
@@ -16,6 +27,16 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
   let mockStorage: any;
   
   beforeEach(() => {
+    // Mock filesystem operations for generateContentHash
+    vi.mocked(readFileSync).mockImplementation((filePath) => {
+      // Return different content based on file path for different hashes
+      return Buffer.from(`mock content for ${filePath}`);
+    });
+    vi.mocked(statSync).mockImplementation((filePath) => ({
+      size: 1000 + String(filePath).length, // Different size per file
+      mtime: new Date('2024-01-01'),
+    } as any));
+    
     // Create minimal mocks
     mockFmdmService = {
       updateFolderStatus: vi.fn(),
@@ -53,6 +74,22 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
       setLevel: vi.fn()
     };
     
+    // Create mock file state service that ensures test files get processed
+    const mockFileStateService = {
+      makeProcessingDecision: vi.fn().mockImplementation((filePath: string) => {
+        // For test files, always process them to satisfy test expectations
+        if (filePath.includes('/test/') || filePath.includes('test-knowledge-base')) {
+          return Promise.resolve({ shouldProcess: true, reason: 'Test file needs processing', action: 'process' });
+        }
+        return Promise.resolve({ shouldProcess: false, reason: 'File skipped', action: 'skip' });
+      }),
+      startProcessing: vi.fn().mockResolvedValue(undefined),
+      markProcessingSuccess: vi.fn().mockResolvedValue(undefined),
+      markProcessingFailure: vi.fn().mockResolvedValue(undefined),
+      markFileSkipped: vi.fn().mockResolvedValue(undefined),
+      getStats: vi.fn().mockResolvedValue({ total: 0, byState: {}, processingEfficiency: 100 })
+    };
+
     // Create orchestrator - FIXED parameter order
     orchestrator = new FolderLifecycleService(
       'test-basic',
@@ -60,6 +97,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
       mockIndexingOrchestrator,
       mockFileSystemService,    // Fixed: fileSystemService in correct position
       mockStorage,              // Fixed: sqliteVecStorage in correct position  
+      mockFileStateService as any, // Added: fileStateService parameter
       mockLogger                // Fixed: added missing logger parameter
     );
   });
@@ -135,19 +173,32 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
       errors: []
     });
     
-    // Mock existing fingerprints (existing.txt already indexed)
-    mockStorage.getDocumentFingerprints.mockResolvedValue(new Map([
-      ['/test/existing.txt', 'old-hash']
-    ]));
+    // For this test, we need to set up a scenario where the intelligent scanning 
+    // determines one file is new and the other is modified
+    
+    // Mock the file state service to return different decisions for different files
+    const testFileStateService = orchestrator['fileStateService'] as any;
+    testFileStateService.makeProcessingDecision.mockImplementation((filePath: string, contentHash: string) => {
+      if (filePath === '/test/new.txt') {
+        return Promise.resolve({ 
+          shouldProcess: true, 
+          reason: 'New file needs processing', 
+          action: 'process' 
+        });
+      } else if (filePath === '/test/existing.txt') {
+        return Promise.resolve({ 
+          shouldProcess: true, 
+          reason: 'File content changed', 
+          action: 'retry' // retry action results in modified changeType
+        });
+      }
+      return Promise.resolve({ shouldProcess: false, reason: 'File skipped', action: 'skip' });
+    });
     
     // Mock metadata
     mockFileSystemService.getFileMetadata
       .mockResolvedValueOnce({ size: 100, lastModified: Date.now(), isFile: true, isDirectory: false })
       .mockResolvedValueOnce({ size: 100, lastModified: Date.now(), isFile: true, isDirectory: false });
-    
-    mockFileSystemService.getFileHash
-      .mockResolvedValueOnce('new-hash')
-      .mockResolvedValueOnce('updated-hash');
     
     await orchestrator.startScanning();
     

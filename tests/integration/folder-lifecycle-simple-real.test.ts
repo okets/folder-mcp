@@ -9,7 +9,17 @@ import { join } from 'path';
 import { FolderLifecycleService } from '../../src/application/indexing/folder-lifecycle-service.js';
 import { FolderTaskQueue } from '../../src/domain/folders/folder-task-queue.js';
 import { FolderLifecycleStateMachine } from '../../src/domain/folders/folder-lifecycle-state-machine.js';
-import { existsSync, rmSync } from 'fs';
+import { existsSync, rmSync, readFileSync, statSync } from 'fs';
+
+// Mock fs module for generateContentHash
+vi.mock('fs', async () => {
+  const actual = await vi.importActual('fs');
+  return {
+    ...actual,
+    readFileSync: vi.fn(),
+    statSync: vi.fn(),
+  };
+});
 
 describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
   const testKnowledgeBase = join(process.cwd(), 'tests/fixtures/test-knowledge-base');
@@ -21,6 +31,16 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
   let mockStorage: any;
   
   beforeEach(() => {
+    // Mock filesystem operations for generateContentHash
+    vi.mocked(readFileSync).mockImplementation((filePath) => {
+      // Return different content based on file path for different hashes
+      return Buffer.from(`mock content for ${filePath}`);
+    });
+    vi.mocked(statSync).mockImplementation((filePath) => ({
+      size: 1000 + String(filePath).length, // Different size per file
+      mtime: new Date('2024-01-01'),
+    } as any));
+    
     // Create minimal mocks
     mockFmdmService = {
       updateFolderStatus: vi.fn(),
@@ -58,6 +78,22 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
       setLevel: vi.fn()
     };
     
+    // Create mock file state service that ensures test files get processed
+    const mockFileStateService = {
+      makeProcessingDecision: vi.fn().mockImplementation((filePath: string) => {
+        // For test files, always process them to satisfy test expectations
+        if (filePath.includes('/test/') || filePath.includes('test-knowledge-base') || filePath.includes('fixtures')) {
+          return Promise.resolve({ shouldProcess: true, reason: 'Test file needs processing', action: 'process' });
+        }
+        return Promise.resolve({ shouldProcess: false, reason: 'File skipped', action: 'skip' });
+      }),
+      startProcessing: vi.fn().mockResolvedValue(undefined),
+      markProcessingSuccess: vi.fn().mockResolvedValue(undefined),
+      markProcessingFailure: vi.fn().mockResolvedValue(undefined),
+      markFileSkipped: vi.fn().mockResolvedValue(undefined),
+      getStats: vi.fn().mockResolvedValue({ total: 0, byState: {}, processingEfficiency: 100 })
+    };
+
     // Create orchestrator - FIXED parameter order and added logger
     orchestrator = new FolderLifecycleService(
       'test-simple',
@@ -65,6 +101,7 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
       mockIndexingOrchestrator,
       mockFileSystemService,    // Fixed: fileSystemService in correct position
       mockStorage,              // Fixed: sqliteVecStorage in correct position
+      mockFileStateService as any, // Added: fileStateService parameter
       mockLogger                // Fixed: added missing logger parameter
     );
   });

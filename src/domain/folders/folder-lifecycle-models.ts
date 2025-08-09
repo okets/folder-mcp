@@ -40,10 +40,10 @@ export interface FolderProgress {
 }
 
 /**
- * Scanning progress for bidirectional file comparison
+ * Scanning progress for intelligent file processing
  */
 export interface ScanningProgress {
-  phase: 'folder-to-db' | 'db-to-folder';
+  phase: 'folder-to-db' | 'db-to-folder' | 'intelligent-scanning' | 'cleanup';
   processedFiles: number;
   totalFiles: number;
   percentage: number;
