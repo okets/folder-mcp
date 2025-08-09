@@ -154,19 +154,28 @@ def optimize_torch_settings(device: str) -> None:
             logger.info("Applied CUDA optimizations")
             
         elif device == 'mps':
-            # CRITICAL: Enable MPS fallback for unsupported operations
-            # sentence-transformers uses operations not yet implemented in MPS
+            # COMPREHENSIVE MPS OPTIMIZATION: Based on community research
             import os
+            
+            # Core environment variables for MPS stability
             os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
             
-            # MPS-specific optimizations for unified memory architecture
-            # Apple Silicon benefits from larger batch sizes due to unified memory
-            torch.backends.mps.empty_cache()  # Clear any existing cache
+            # Clear MPS cache to ensure consistent state
+            # This addresses the "sometimes works, sometimes fails" issue
+            try:
+                if hasattr(torch.backends.mps, 'empty_cache'):
+                    torch.backends.mps.empty_cache()
+                    logger.debug("✓ MPS cache cleared for consistent initialization")
+                else:
+                    logger.debug("MPS cache clearing not available in this PyTorch version")
+            except Exception as cache_error:
+                logger.debug(f"MPS cache clearing failed (non-critical): {cache_error}")
             
-            # Set optimal memory fraction (Apple Silicon has unified memory)
-            # No explicit setting needed - MPS automatically manages unified memory
+            # Set threading to avoid conflicts (common Apple Silicon issue)
+            torch.set_num_threads(1)
             
-            logger.info("Applied MPS optimizations with CPU fallback enabled")
+            logger.info("Applied comprehensive MPS optimizations for Apple Silicon")
             
         else:
             # CPU optimizations

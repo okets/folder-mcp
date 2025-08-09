@@ -13,6 +13,7 @@ import { FMDMService } from './fmdm-service.js';
 import { SQLiteVecStorage } from '../../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import { FolderConfig } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
+import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -59,6 +60,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private errorFolders = new Map<string, FolderConfig>(); // Track error folders separately
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
   private folderValidationTimer?: NodeJS.Timeout;
+  private resourceManager: ResourceManager;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -69,6 +71,38 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private configService: any // TODO: Add proper type
   ) {
     super();
+    
+    // Initialize resource manager with daemon-appropriate limits
+    const resourceLimits: Partial<ResourceLimits> = {
+      maxConcurrentOperations: 2, // Conservative limit for daemon
+      maxMemoryMB: 512,           // 512MB limit for daemon operations
+      maxCpuPercent: 60,          // 60% CPU limit to leave room for other processes
+      maxQueueSize: 20,           // Reasonable queue size for folders
+      checkIntervalMs: 2000,      // Check every 2 seconds
+      adaptiveThrottling: true    // Enable adaptive throttling
+    };
+    
+    this.resourceManager = new ResourceManager(this.logger, resourceLimits);
+    
+    // Monitor resource usage
+    this.resourceManager.on('stats', (stats: ResourceStats) => {
+      if (stats.isThrottled) {
+        this.logger.warn('[ORCHESTRATOR] Resource throttling active', {
+          memoryUsedMB: Math.round(stats.memoryUsedMB),
+          cpuPercent: Math.round(stats.cpuPercent),
+          throttleFactor: stats.throttleFactor,
+          activeOperations: stats.activeOperations,
+          queuedOperations: stats.queuedOperations
+        });
+      } else if (stats.activeOperations > 0) {
+        this.logger.debug('[ORCHESTRATOR] Resource usage', {
+          memoryUsedMB: Math.round(stats.memoryUsedMB),
+          cpuPercent: Math.round(stats.cpuPercent),
+          activeOperations: stats.activeOperations,
+          queuedOperations: stats.queuedOperations
+        });
+      }
+    });
     
     // Start periodic folder validation (every 30 seconds)
     this.startFolderValidation();
@@ -104,6 +138,30 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       throw error;
     }
     
+    // Submit folder addition operation through resource manager
+    const operationId = `add-folder-${path}`;
+    const estimatedMemoryMB = 100; // Estimated memory for folder addition
+    
+    try {
+      await this.resourceManager.submitOperation(
+        operationId,
+        path,
+        () => this.executeAddFolder(path, model),
+        {
+          priority: 1, // High priority for folder additions
+          estimatedMemoryMB
+        }
+      );
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Resource manager rejected add folder operation: ${path}`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+  
+  /**
+   * Execute the actual folder addition operation
+   */
+  private async executeAddFolder(path: string, model: string): Promise<void> {
     try {
       // Create SQLite storage for this folder
       const storage = new SQLiteVecStorage({
@@ -159,7 +217,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         // Don't fail the entire operation if config save fails
       }
       
-      this.logger.info(`Added folder to monitoring: ${path}`);
+      this.logger.info(`[ORCHESTRATOR] Added folder to monitoring: ${path}`);
     } catch (error) {
       // If folder was added to managers but failed later, make sure it has error status in FMDM
       if (this.folderManagers.has(path)) {
@@ -188,7 +246,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         }
       }
       
-      this.logger.error(`Failed to add folder: ${path}`, error as Error);
+      this.logger.error(`[ORCHESTRATOR] Failed to execute add folder operation: ${path}`, error as Error);
       throw error;
     }
   }
@@ -296,6 +354,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Stop folder validation timer
     this.stopFolderValidation();
+    
+    // Shutdown resource manager first to stop accepting new operations
+    try {
+      this.logger.info('[ORCHESTRATOR] Shutting down resource manager');
+      await this.resourceManager.shutdown();
+      this.logger.info('[ORCHESTRATOR] Resource manager shutdown complete');
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Error shutting down resource manager:', error instanceof Error ? error : new Error(String(error)));
+    }
     
     for (const [path, manager] of this.folderManagers) {
       try {
@@ -475,7 +542,25 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async onChangesDetected(folderPath: string, manager: IFolderLifecycleManager): Promise<void> {
     this.logger.info(`[ORCHESTRATOR] Restarting scan for ${folderPath} due to changes`);
-    await manager.startScanning();
+    
+    // Submit scanning operation through resource manager
+    const operationId = `scan-changes-${folderPath}`;
+    const estimatedMemoryMB = 50; // Estimated memory for scanning operation
+    
+    try {
+      await this.resourceManager.submitOperation(
+        operationId,
+        folderPath,
+        () => manager.startScanning(),
+        {
+          priority: 2, // Lower priority than folder additions but higher than regular operations
+          estimatedMemoryMB
+        }
+      );
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Resource manager rejected scan operation for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      // Don't throw here - just log the error as this is a background operation
+    }
   }
   
   /**

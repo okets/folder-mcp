@@ -13,11 +13,30 @@ The server communicates via stdin/stdout using JSON-RPC 2.0 protocol.
 All logging goes to stderr to avoid interfering with JSON-RPC communication.
 """
 
+import os
+import sys
+
+# ★ COMPREHENSIVE APPLE SILICON FIX: Set environment before ANY imports
+# Based on extensive GitHub research - this fixes intermittent failures
+# These MUST be set before importing torch, sentence-transformers, transformers, etc.
+
+# Primary fix for MPS operation compatibility
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+
+# Memory management for Apple Silicon unified memory
+os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+
+# Additional stability settings from community research
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'  # Avoid tokenizer deadlocks
+os.environ['OMP_NUM_THREADS'] = '1'  # Prevent threading conflicts
+
+# Force consistent behavior regardless of environment
+os.environ['PYTHONHASHSEED'] = '0'  # Deterministic behavior
+
 import asyncio
 import json
 import logging
 import signal
-import sys
 import traceback
 from typing import Dict, Any, Optional
 

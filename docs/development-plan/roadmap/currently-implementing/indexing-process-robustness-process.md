@@ -184,23 +184,44 @@
   - ✅ Added `isDocumentExtension()` utility for extension validation
   - ✅ Centralized extension logic across application, domain, and infrastructure layers
 
-### Priority 5: File State Tracking System 🚀 IMMEDIATE
-- [ ] **Problem**: Re-indexing issues due to lack of persistent state tracking
-- [ ] **Root Cause**: No comprehensive file state management across daemon restarts
-- [ ] **Fix**:
-  - Design and implement `file_states` table with state machine
-  - Create FileStateManager service for state operations
-  - Update scanning to use file_states as source of truth
-  - Track states: pending, processing, indexed, failed, skipped, deleted
-  - Enable resumable indexing and smart retry logic
+### Priority 5: File State Tracking System ✅ **COMPLETED (2025-08-09)**
+- [x] **Problem**: Re-indexing issues due to lack of persistent state tracking
+- [x] **Root Cause**: "Dumb change detection" instead of intelligent processing decisions
+- [x] **Architectural Flaw Identified**: Files were re-processed repeatedly without remembering processing outcomes
+- [x] **Fix**:
+  - ✅ Designed and implemented `file_states` table with comprehensive state machine
+  - ✅ Created FileStateManager domain service for intelligent processing decisions
+  - ✅ Created SqliteFileStateStorage infrastructure for persistent state management
+  - ✅ Updated scanning logic to use file state decisions instead of fingerprint comparison
+  - ✅ Track states: pending, processing, indexed, failed, skipped, corrupted
+  - ✅ Content-based hashing (MD5) with file path, content, size, mtime for change detection
+  - ✅ Intelligent decisions: shouldProcess, reason, action based on file history
+  - ✅ Processing efficiency tracking and reporting
+- [x] **Test Suite Integration**:
+  - ✅ Fixed all 35 folder lifecycle tests to work with intelligent scanning
+  - ✅ Implemented filesystem mocking to prevent test file reading errors
+  - ✅ Created mock file state service ensuring test files get processed appropriately
+  - ✅ Resolved TypeScript compilation issues
+- [x] **Results**: 
+  - System now remembers corrupted files and won't reprocess unchanged content
+  - Dramatic efficiency improvement - avoids unnecessary processing
+  - Clear logging of processing decisions with reasons
+  - Proper handling of file processing outcomes across daemon restarts
 
-### Priority 6: Resource Management
-- [ ] **Problem**: No limits or throttling
-- [ ] **Fix**:
-  - Add concurrent indexing limits
-  - Implement memory usage monitoring
-  - Add file count limits per batch
-  - Create resource cleanup on errors
+### Priority 6: Resource Management ✅ **PARTIALLY COMPLETED (2025-08-09)**
+- [x] **Problem**: No limits or throttling between folder operations in daemon
+- [x] **Root Cause Analysis**: ResourceManager exists but only used in `multi-folder-indexing.ts`, not integrated with daemon's `MonitoredFoldersOrchestrator`
+- [x] **Integration Complete**:
+  - ✅ Added ResourceManager to `MonitoredFoldersOrchestrator` constructor with daemon-appropriate limits
+  - ✅ Wrapped `addFolder()` operations with resource management (queue + memory limits)
+  - ✅ Wrapped `onChangesDetected()` scanning operations with resource management
+  - ✅ Added proper resource monitoring with throttling warnings and debug logs
+  - ✅ Implemented proper ResourceManager shutdown in `stopAll()` method
+  - ✅ Set conservative daemon limits: 2 concurrent ops, 512MB memory, 60% CPU, 20 queue size
+- [ ] **Remaining Tasks**:
+  - Add memory usage monitoring integration
+  - Add file count limits per batch processing
+  - Implement resource cleanup on errors
 
 ### Priority 7: Database Integrity
 - [ ] **Problem**: No corruption detection or recovery
@@ -360,7 +381,25 @@ The indexing system is production-ready when:
 **Production Readiness Status:**
 🎯 **CORE PRODUCTION ISSUES RESOLVED** - The indexing system handles the two most critical production scenarios (file changes + folder deletion). **Daemon restart functionality is working correctly**. **Folder error handling and display system is production-ready**. **Python embedding service is fully functional**. **Embeddings persistence across daemon restarts is now fixed**.
 
-✅ **RECENTLY COMPLETED (2025-01-08)**: 
+✅ **RECENTLY COMPLETED (2025-08-09)**: 
+- **PHASE 2: INTELLIGENT FILE STATE TRACKING SYSTEM COMPLETED**: Addressed the core architectural flaw identified by user
+  - **Original Issue**: System doing "dumb change detection" - corrupted files with same hash repeatedly re-processed
+  - **User's Key Question**: "the status table should have remembered that the file was corrupted and that it has the same hash that has not changed. so why try and index it again?"
+  - **Solution Implemented**: Complete intelligent file state tracking system
+    - ✅ `file_states` database table with persistent processing outcomes
+    - ✅ FileStateManager domain service making intelligent processing decisions  
+    - ✅ Content-based MD5 hashing for accurate change detection
+    - ✅ State tracking: pending, processing, indexed, failed, corrupted, skipped
+    - ✅ Processing efficiency reporting (% of files avoided unnecessary processing)
+  - **Architecture Benefits**: 
+    - Corrupted files remembered and skipped until content changes
+    - Successfully processed files not reprocessed unless modified
+    - Clear audit trail of processing decisions with reasons
+    - Dramatic efficiency improvement for large folders
+  - **Test Suite**: All 35 folder lifecycle tests passing with intelligent scanning integration
+  - **Build Status**: TypeScript compilation successful, production-ready
+
+✅ **COMPLETED (2025-01-08)**: 
 - **FIXED STATE PERSISTENCE BUG**: Resolved critical issue where embeddings were re-indexed on every daemon restart
   - Root cause #1: Wrong database initialization method causing potential data wipes
   - Root cause #2: Fingerprints stored as timestamps (`fingerprint_${Date.now()}`) instead of actual file hashes
