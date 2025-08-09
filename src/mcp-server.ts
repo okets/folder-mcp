@@ -21,6 +21,7 @@ import type { MonitoringWorkflow } from './application/monitoring/index.js';
 import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js';
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
+import { getSupportedExtensions } from './domain/files/supported-extensions.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -390,7 +391,7 @@ export async function main(): Promise<void> {
         const multiFolderMonitoring = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
         const watchingResult = await multiFolderMonitoring.startMonitoringAllFolders({
           baseOptions: {
-            includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            includeFileTypes: getSupportedExtensions(),
             excludePatterns: ['node_modules', '.git', '.folder-mcp'],
             debounceMs: 1000,
             enableBatchProcessing: true,

@@ -18,6 +18,7 @@ import {
 
 import { ILoggingService } from '../../di/interfaces.js';
 import { IFolderManager, ResolvedFolderConfig } from '../../domain/folders/index.js';
+import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 
 /**
  * Multi-folder monitoring workflow interface
@@ -641,7 +642,7 @@ export class MultiFolderMonitoringWorkflow implements IMultiFolderMonitoringWork
 
   private createFolderSettings(folder: ResolvedFolderConfig, baseOptions: WatchingOptions): FolderWatchingSettings {
     return {
-      includeFileTypes: baseOptions.includeFileTypes || ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+      includeFileTypes: baseOptions.includeFileTypes || [...getSupportedExtensions()],
       excludePatterns: [...(baseOptions.excludePatterns || []), ...folder.exclude],
       debounceMs: baseOptions.debounceMs || 1000,
       enableBatchProcessing: baseOptions.enableBatchProcessing || true,

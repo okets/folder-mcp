@@ -174,14 +174,15 @@
   - ✅ Added terminal resize stability for error folder displays
   - ⏸️ Retry logic and advanced recovery strategies (deferred - comprehensive error display implemented)
 
-### Priority 4: Centralized Extension Management 🚀 IMMEDIATE
-- [ ] **Problem**: Supported extensions hardcoded in 17+ files with inconsistencies
-- [ ] **Root Cause**: No single source of truth for supported file types
-- [ ] **Fix**:
-  - Create central `supported-extensions.ts` file
-  - Add validation test ensuring parser exists for each extension
-  - Update all 17 files to use central import
-  - Make configurable via VERSION.json and environment variables
+### Priority 4: Centralized Extension Management ✅ **COMPLETED (2025-08-09)**
+- [x] **Problem**: Supported extensions hardcoded in 17+ files with inconsistencies
+- [x] **Root Cause**: No single source of truth for supported file types
+- [x] **Fix**:
+  - ✅ Created central `src/domain/files/supported-extensions.ts` file
+  - ✅ Added comprehensive unit test `tests/unit/supported-extensions.test.ts`
+  - ✅ Updated all 15+ files to use `getSupportedExtensions()` import
+  - ✅ Added `isDocumentExtension()` utility for extension validation
+  - ✅ Centralized extension logic across application, domain, and infrastructure layers
 
 ### Priority 5: File State Tracking System 🚀 IMMEDIATE
 - [ ] **Problem**: Re-indexing issues due to lack of persistent state tracking

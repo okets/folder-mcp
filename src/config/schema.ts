@@ -2,6 +2,8 @@
 // This file defines all configuration interfaces, validation rules, and defaults
 // to eliminate duplication across the configuration system
 
+import { getSupportedExtensions } from '../domain/files/supported-extensions.js';
+
 // Simplified SystemCapabilities type (moved inline after removing system.ts)
 interface SystemCapabilities {
   detectionEnabled?: boolean;
@@ -417,7 +419,7 @@ export const VALIDATION_RULES: ValidationRule[] = [
   {
     field: 'fileExtensions',
     type: 'array',
-    default: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+    default: getSupportedExtensions(),
     message: 'File extensions must be an array of strings starting with "."',
     fix: 'Specify file extensions as an array, e.g., [".txt", ".pdf"]'
   },
@@ -548,7 +550,7 @@ export const DEFAULT_VALUES = {
   },
   
   files: {
-    extensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'] as string[],
+    extensions: getSupportedExtensions() as string[],
     ignorePatterns: [
       '**/node_modules/**',
       '**/.git/**',

@@ -47,6 +47,7 @@ import {
   PathProvider
 } from '../domain/index.js';
 import { createFileFingerprintGenerator } from '../domain/files/index.js';
+import { getSupportedExtensions, isDocumentExtension } from '../domain/files/supported-extensions.js';
 
 // =============================================================================
 // Configuration Service Implementation
@@ -104,7 +105,7 @@ export class ConfigurationService implements IConfigurationService {
         transport: {} as any, // TODO: Add proper transport config
         ui: {} as any, // TODO: Add proper UI config
         files: {
-          extensions: resolvedConfig.fileExtensions || ['.txt', '.md', '.pdf'],
+          extensions: resolvedConfig.fileExtensions || getSupportedExtensions(),
           ignorePatterns: resolvedConfig.ignorePatterns || ['node_modules/**'],
           maxFileSize: 10485760,
           encoding: 'utf-8'
@@ -186,7 +187,7 @@ export class ConfigurationService implements IConfigurationService {
 // =============================================================================
 
 export class FileParsingService implements IFileParsingService {
-  private readonly supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+  private readonly supportedExtensions = getSupportedExtensions();
 
   constructor(
     private readonly basePath: string,
@@ -276,7 +277,7 @@ export class FileParsingService implements IFileParsingService {
   }
 
   isSupported(fileExtension: string): boolean {
-    return this.supportedExtensions.includes(fileExtension.toLowerCase());
+    return isDocumentExtension(fileExtension);
   }
 
   getSupportedExtensions(): string[] {

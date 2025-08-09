@@ -168,48 +168,76 @@ class EmbeddingHandler:
         try:
             logger.info(f"Loading model {self.model_name} on {self.device}...")
             
-            # FIX: Handle PyTorch meta tensor issue properly
-            # The error "Cannot copy out of meta tensor" suggests we need to use to_empty()
-            # Try different device loading strategies in order of preference
+            # ROBUST FIX: Handle PyTorch meta tensor issue with multiple fallback strategies
+            # The "Cannot copy out of meta tensor" error typically occurs with device transfers
+            # We'll use a comprehensive approach with multiple fallback strategies
             
-            try:
-                # First attempt: Load directly on target device
-                self.model = SentenceTransformer(self.model_name, device=self.device)
-                logger.info(f"Model loaded directly on {self.device}")
-            except Exception as device_error:
-                logger.warning(f"Direct device loading failed: {device_error}")
+            # ULTIMATE FIX: Handle PyTorch meta tensor issue by avoiding device parameter completely
+            # Load without device parameter first, then handle device placement manually
+            
+            strategies = [
+                ("no_device_param", None),
+                ("force_cpu_param", "cpu"),
+            ]
+            
+            for strategy_name, device_param in strategies:
                 try:
-                    # Second attempt: Load on CPU first, then use to_empty() for proper device transfer
-                    logger.info("Attempting CPU load with proper device transfer...")
-                    self.model = SentenceTransformer(self.model_name, device='cpu')
+                    logger.info(f"Attempting strategy '{strategy_name}'")
                     
-                    if self.device != 'cpu':
-                        # Use to_empty() instead of to() to handle meta tensors properly
-                        logger.info(f"Using to_empty() for device transfer to {self.device}")
+                    if strategy_name == "no_device_param":
+                        # Strategy 1: Load without device parameter (let PyTorch decide)
+                        logger.info("Loading model without device parameter to avoid meta tensor issues")
+                        self.model = SentenceTransformer(self.model_name)
+                        
+                        # After successful loading, move to desired device if possible
                         try:
-                            # This is the proper way to handle meta tensors in newer PyTorch
-                            import torch
-                            if hasattr(torch.nn.Module, 'to_empty'):
-                                self.model = self.model.to_empty(device=self.device)
-                                logger.info(f"Model transferred to {self.device} using to_empty()")
+                            if self.device != 'cpu':
+                                import torch
+                                logger.info(f"Post-load: attempting to move model to {self.device}")
+                                
+                                # Try different transfer approaches
+                                if hasattr(torch.nn.Module, 'to_empty'):
+                                    logger.info("Using to_empty() for post-load transfer")
+                                    self.model = self.model.to_empty(device=self.device)
+                                else:
+                                    logger.info("Using to() for post-load transfer") 
+                                    self.model = self.model.to(self.device)
+                                    
+                                logger.info(f"✓ Post-load transfer to {self.device} successful")
                             else:
-                                # Fallback for older PyTorch versions
-                                self.model = self.model.to(self.device)
-                                logger.info(f"Model transferred to {self.device} using to()")
-                        except Exception as transfer_error:
-                            logger.warning(f"Device transfer failed, keeping CPU: {transfer_error}")
-                            self.device = 'cpu'
-                    
-                except Exception as cpu_error:
-                    logger.error(f"CPU loading also failed: {cpu_error}")
-                    raise cpu_error
+                                logger.info("✓ Model loaded on CPU as requested")
+                                
+                        except Exception as post_transfer_error:
+                            logger.warning(f"Post-load transfer failed, keeping model on default device: {post_transfer_error}")
+                            # Don't change self.device - keep the original target for accuracy
+                        
+                        logger.info(f"✓ No-device-param strategy successful")
+                        break
+                        
+                    elif strategy_name == "force_cpu_param":
+                        # Strategy 2: Force CPU with explicit device='cpu' parameter 
+                        logger.info("Loading model with explicit device='cpu' parameter")
+                        self.model = SentenceTransformer(self.model_name, device='cpu')
+                        self.device = 'cpu'  # Update device to reflect reality
+                        logger.info("✓ Force CPU parameter strategy successful")
+                        break
+                        
+                except Exception as strategy_error:
+                    logger.warning(f"Strategy '{strategy_name}' failed: {strategy_error}")
+                    if strategy_name == strategies[-1][0]:  # Last strategy failed
+                        raise strategy_error
+                    continue
+            
+            if self.model is None:
+                raise RuntimeError("All loading strategies failed")
             
             self.model_loaded_event.set()
             logger.info(f"Model {self.model_name} loaded successfully on {self.device}")
             
         except Exception as e:
-            logger.error(f"Failed to load model: {e}")
+            logger.error(f"Failed to load model after all strategies: {e}")
             logger.error(traceback.format_exc())
+            # Don't set model_loaded_event - this signals failure to waiting code
     
     async def generate_embeddings(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """

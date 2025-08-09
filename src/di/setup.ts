@@ -13,6 +13,7 @@ import { IndexingOrchestrator } from '../application/indexing/index.js';
 import { join } from 'path';
 import { homedir } from 'os';
 import { integrateConfigurationServices, registerConfigurationServices, CONFIG_SERVICE_TOKENS } from '../config/di-setup.js';
+import { getSupportedExtensions } from '../domain/files/supported-extensions.js';
 
 // Import domain infrastructure providers
 import { 
@@ -216,7 +217,7 @@ export function setupDependencyInjection(options: {
       overlap: 50,
       batchSize: 32,
       modelName: 'nomic-embed-text',
-      fileExtensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+      fileExtensions: getSupportedExtensions(),
       ignorePatterns: ['node_modules', '.git', '.folder-mcp'],
       maxConcurrentOperations: 4,
       debounceDelay: 1000,
@@ -275,7 +276,7 @@ export function setupDependencyInjection(options: {
       overlap: 50,
       batchSize: 32,
       modelName: 'nomic-embed-text',
-      fileExtensions: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+      fileExtensions: getSupportedExtensions(),
       ignorePatterns: ['node_modules', '.git', '.folder-mcp'],
       maxConcurrentOperations: 4,
       debounceDelay: 1000,

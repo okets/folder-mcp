@@ -12,6 +12,7 @@ import { IIndexingOrchestrator, IFileSystemService, ILoggingService } from '../.
 import { FMDMService } from './fmdm-service.js';
 import { SQLiteVecStorage } from '../../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import { FolderConfig } from '../models/fmdm.js';
+import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -447,7 +448,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         debounceMs: 2000, // 2 second debounce
         enableBatchProcessing: true,
         batchSize: 10,
-        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        includeFileTypes: getSupportedExtensions(),
         excludePatterns: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
       };
       

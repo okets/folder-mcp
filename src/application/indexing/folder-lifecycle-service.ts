@@ -14,6 +14,7 @@ import type {
 } from '../../domain/folders/folder-lifecycle-models.js';
 import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecycle-state-machine.js';
 import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
+import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -141,8 +142,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       const scanResult = await this.fileSystemService.scanFolder(this.folderPath);
       this.logger.debug(`[MANAGER-SCAN] Found ${scanResult.files.length} files in ${this.folderPath}`);
       
-      // Define supported extensions (matching FileParser)
-      const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+      // Define supported extensions from centralized configuration
+      const supportedExtensions = getSupportedExtensions();
       this.logger.debug(`[MANAGER-SCAN] Supported extensions: ${supportedExtensions.join(', ')}`);
       
       // Extract and filter file paths by supported extensions

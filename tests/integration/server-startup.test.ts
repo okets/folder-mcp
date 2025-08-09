@@ -12,6 +12,7 @@ import { setupDependencyInjection } from '../../src/di/setup.js';
 import { SERVICE_TOKENS } from '../../src/di/interfaces.js';
 import type { MonitoringWorkflow } from '../../src/application/monitoring/index.js';
 import type { IndexingWorkflow } from '../../src/application/indexing/index.js';
+import { getSupportedExtensions } from '../../src/domain/files/supported-extensions.js';
 
 describe('MCP Server Multi-Folder Startup Integration', () => {
   let tempDir1: string;
@@ -139,7 +140,7 @@ describe('MCP Server Multi-Folder Startup Integration', () => {
     it('should pass correct file watching configuration for each folder', async () => {
       // Start file watching for first folder with real service
       const result = await monitoringWorkflow.startFileWatching(tempDir1, {
-        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        includeFileTypes: [...getSupportedExtensions()],
         excludePatterns: ['node_modules', '.git', '.folder-mcp'],
         debounceMs: 1000,
         enableBatchProcessing: true,
@@ -201,7 +202,7 @@ async function testMultiFolderStartupLogic(container: any, config: any): Promise
     try {
       const monitoringWorkflow = await container.resolveAsync(SERVICE_TOKENS.MONITORING_WORKFLOW) as MonitoringWorkflow;
       const watchingResult = await monitoringWorkflow.startFileWatching(folder.path, {
-        includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+        includeFileTypes: [...getSupportedExtensions()],
         excludePatterns: ['node_modules', '.git', '.folder-mcp'],
         debounceMs: 1000,
         enableBatchProcessing: true,

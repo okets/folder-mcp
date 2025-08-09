@@ -18,6 +18,7 @@ import {
   PowerPointMetadata 
 } from '../../types/index.js';
 import { FileSystemProvider, PathProvider, DomainLogger } from '../index';
+import { getSupportedExtensions, isDocumentExtension } from './supported-extensions.js';
 
 /**
  * Domain interface for file parsing operations
@@ -32,7 +33,7 @@ export interface FileParsingOperations {
  * File Parser - Core domain logic for file parsing
  */
 export class FileParser implements FileParsingOperations {
-  private readonly supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+  private readonly supportedExtensions = getSupportedExtensions();
   private pdfParse: any = null;
 
   constructor(
@@ -68,7 +69,7 @@ export class FileParser implements FileParsingOperations {
    * Check if file extension is supported
    */
   isSupported(extension: string): boolean {
-    return this.supportedExtensions.includes(extension.toLowerCase());
+    return isDocumentExtension(extension);
   }
 
   /**

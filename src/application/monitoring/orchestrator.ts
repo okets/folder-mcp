@@ -12,6 +12,7 @@ import {
   WatchingStatus,
   SystemHealthResult
 } from './index.js';
+import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 
 // Domain service interfaces
 import { 
@@ -418,7 +419,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
           
           // Use incremental indexer to process the changes
           const result = await this.incrementalIndexer.indexChanges(changes, {
-            includeFileTypes: options.includeFileTypes || ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            includeFileTypes: options.includeFileTypes || [...getSupportedExtensions()],
             excludePatterns: options.excludePatterns || [],
             forceReindex: false // Incremental updates
           });
@@ -474,7 +475,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
           
           // Use incremental indexer to process the change
           const result = await this.incrementalIndexer.indexChanges(changes, {
-            includeFileTypes: ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'],
+            includeFileTypes: [...getSupportedExtensions()],
             excludePatterns: [],
             forceReindex: false // Incremental updates
           });
@@ -516,7 +517,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     }
 
     // Check file extension
-    const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+    const supportedExtensions = getSupportedExtensions();
     const hasValidExtension = supportedExtensions.some(ext => filePath.toLowerCase().endsWith(ext));
     
     return hasValidExtension;

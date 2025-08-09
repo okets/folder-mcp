@@ -6,6 +6,7 @@
  */
 
 import { PathProvider } from '../index';
+import { getSupportedExtensions } from './supported-extensions.js';
 
 /**
  * File change event types
@@ -59,7 +60,7 @@ export interface FileWatchingOperations {
  * File Watcher Logic - Core domain logic for file change processing
  */
 export class FileWatchingDomainService implements FileWatchingOperations {
-  private readonly supportedExtensions: string[] = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+  private readonly supportedExtensions: string[] = [...getSupportedExtensions()];
 
   constructor(private readonly pathProvider: PathProvider) {}
 

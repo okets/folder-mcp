@@ -12,6 +12,7 @@ import {
   IndexingOptions,
   IndexingResult
 } from './index.js';
+import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 
 // Domain service interfaces
 import { 
@@ -39,7 +40,7 @@ export class IncrementalIndexer implements IncrementalIndexing {
 
     try {
       // Get current file state using FileSystemService
-      const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+      const supportedExtensions = [...getSupportedExtensions()];
       const currentFingerprints = await this.fileSystemService.generateFingerprints(
         folderPath, 
         supportedExtensions, 

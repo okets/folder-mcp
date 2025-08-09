@@ -204,7 +204,7 @@ describe('Daemon E2E Integration Tests', () => {
       (fmdm) => {
         const folder = fmdm.fmdm.folders.find(f => f.path === folderPath);
         // Accept any processing state: scanning, ready, indexing, or active (for fast folders)
-        return folder && ['scanning', 'ready', 'indexing', 'active'].includes(folder.status);
+        return folder ? ['scanning', 'ready', 'indexing', 'active'].includes(folder.status) : false;
       },
       timeoutMs
     );
