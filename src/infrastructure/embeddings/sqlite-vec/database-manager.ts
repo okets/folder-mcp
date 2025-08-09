@@ -91,6 +91,15 @@ export class DatabaseManager {
                 mkdirSync(folderMcpDir, { recursive: true });
             }
 
+            // Check for schema version mismatch before corruption check
+            if (existsSync(this.databasePath)) {
+                const needsRebuild = await this.checkSchemaVersion();
+                if (needsRebuild) {
+                    this.config.logger?.warn(`Schema version mismatch detected. Rebuilding database...`);
+                    await this.rebuildDatabase();
+                }
+            }
+
             // Check for corruption before opening
             if (existsSync(this.databasePath)) {
                 const corruption = await this.recovery.checkCorruption();
@@ -238,6 +247,100 @@ export class DatabaseManager {
             // Insert initial configuration
             const insertConfigStmt = this.db.prepare(QUERIES.insertConfig);
             insertConfigStmt.run(this.config.modelName, this.config.modelDimension);
+        }
+        
+        // Store or update schema version
+        await this.storeSchemaVersion();
+    }
+
+    /**
+     * Check if database schema version matches current version
+     * Returns true if database needs to be rebuilt
+     */
+    private async checkSchemaVersion(): Promise<boolean> {
+        try {
+            // Open a temporary connection just to check version
+            const tempDb = new Database(this.databasePath);
+            
+            try {
+                // Check if schema_version table exists
+                const tableExists = tempDb.prepare(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+                ).get();
+                
+                if (!tableExists) {
+                    // Old database without version tracking - needs rebuild
+                    tempDb.close();
+                    return true;
+                }
+                
+                // Get stored version
+                const result = tempDb.prepare('SELECT version FROM schema_version WHERE id = 1').get() as any;
+                const storedVersion = result ? result.version : 0;
+                
+                tempDb.close();
+                
+                // Check if version mismatch
+                if (storedVersion !== SCHEMA_VERSION) {
+                    this.config.logger?.info(`Schema version mismatch: stored=${storedVersion}, current=${SCHEMA_VERSION}`);
+                    return true;
+                }
+                
+                return false;
+            } catch (error) {
+                tempDb.close();
+                // Error checking version - assume rebuild needed
+                return true;
+            }
+        } catch (error) {
+            // Can't open database - will be created fresh
+            return false;
+        }
+    }
+
+    /**
+     * Store current schema version in database
+     */
+    private async storeSchemaVersion(): Promise<void> {
+        if (!this.db) throw new Error('Database not initialized');
+        
+        // Insert or update schema version
+        const stmt = this.db.prepare(`
+            INSERT INTO schema_version (id, version, updated_at) 
+            VALUES (1, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET 
+                version = excluded.version,
+                updated_at = CURRENT_TIMESTAMP
+        `);
+        stmt.run(SCHEMA_VERSION);
+    }
+
+    /**
+     * Rebuild database by deleting and recreating it
+     */
+    private async rebuildDatabase(): Promise<void> {
+        const fs = await import('fs/promises');
+        
+        // Close any existing connection
+        if (this.db) {
+            this.db.close();
+            this.db = null;
+        }
+        
+        // Delete the database file
+        try {
+            await fs.unlink(this.databasePath);
+            this.config.logger?.info(`Deleted old database: ${this.databasePath}`);
+        } catch (error) {
+            this.config.logger?.warn(`Failed to delete database file: ${error}`);
+        }
+        
+        // Delete WAL and SHM files if they exist
+        try {
+            await fs.unlink(`${this.databasePath}-wal`);
+            await fs.unlink(`${this.databasePath}-shm`);
+        } catch {
+            // Ignore errors for these files
         }
     }
 

@@ -5,7 +5,24 @@
  * This schema supports per-folder databases with full document and chunk tracking.
  */
 
-export const SCHEMA_VERSION = 1;
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Read schema version from VERSION.json file
+function getSchemaVersion(): number {
+    try {
+        const versionPath = join(process.cwd(), 'VERSION.json');
+        const versionData = JSON.parse(readFileSync(versionPath, 'utf-8'));
+        return versionData.dbSchemaVersion || 2;
+    } catch (error) {
+        // Fallback to default if VERSION.json is not found
+        console.warn('Could not read VERSION.json, using default schema version');
+        return 2;
+    }
+}
+
+// Schema version from VERSION.json (or fallback)
+export const SCHEMA_VERSION = getSchemaVersion();
 
 /**
  * Core document tracking table
@@ -77,6 +94,18 @@ CREATE TABLE IF NOT EXISTS embedding_config (
 );`;
 
 /**
+ * Schema version tracking table
+ * Used to detect when database needs to be rebuilt due to schema changes
+ */
+export const SCHEMA_VERSION_TABLE = `
+CREATE TABLE IF NOT EXISTS schema_version (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);`;
+
+/**
  * Database performance indexes
  */
 export const INDEXES = [
@@ -105,6 +134,7 @@ export function getAllTableStatements(embeddingDimension: number): string[] {
         createEmbeddingsTable(embeddingDimension),
         CHUNK_METADATA_TABLE,
         EMBEDDING_CONFIG_TABLE,
+        SCHEMA_VERSION_TABLE,
         ...INDEXES
     ];
 }

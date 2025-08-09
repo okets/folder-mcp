@@ -69,11 +69,11 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug(`[MANAGER-DB-INIT] Initializing SQLite database for ${this.folderPath}`);
       
       if (!this.sqliteVecStorage.isReady()) {
-        // Simply call buildIndex with empty arrays - this will initialize the database
-        // without clearing existing data if the database already exists
-        this.logger.debug('[MANAGER-DB-INIT] Database not ready, initializing...');
-        await this.sqliteVecStorage.buildIndex([], []);
-        this.logger.info(`[MANAGER-DB-INIT] SQLite database initialized successfully for ${this.folderPath}`);
+        // Load existing index or initialize if empty (does not wipe existing data)
+        this.logger.debug('[MANAGER-DB-INIT] Database not ready, loading existing index...');
+        const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+        await this.sqliteVecStorage.loadIndex(dbPath);
+        this.logger.info(`[MANAGER-DB-INIT] SQLite database loaded successfully for ${this.folderPath}`);
       } else {
         this.logger.debug(`[MANAGER-DB-INIT] SQLite database already initialized for ${this.folderPath}`);
       }
@@ -141,11 +141,24 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       const scanResult = await this.fileSystemService.scanFolder(this.folderPath);
       this.logger.debug(`[MANAGER-SCAN] Found ${scanResult.files.length} files in ${this.folderPath}`);
       
-      // Extract file paths from file objects
+      // Define supported extensions (matching FileParser)
+      const supportedExtensions = ['.txt', '.md', '.pdf', '.docx', '.xlsx', '.pptx'];
+      this.logger.debug(`[MANAGER-SCAN] Supported extensions: ${supportedExtensions.join(', ')}`);
+      
+      // Extract and filter file paths by supported extensions
       const filePaths = scanResult.files
         .map(file => typeof file === 'string' ? file : file.path || file.filePath || file.absolutePath)
-        .filter((path): path is string => Boolean(path));
-      this.logger.debug(`[MANAGER-SCAN] Extracted ${filePaths.length} file paths`);
+        .filter((path): path is string => {
+          if (!path) return false;
+          // Check if file has a supported extension
+          const ext = path.substring(path.lastIndexOf('.')).toLowerCase();
+          const isSupported = supportedExtensions.includes(ext);
+          if (!isSupported) {
+            this.logger.debug(`[MANAGER-SCAN] Skipping unsupported file: ${path} (extension: ${ext})`);
+          }
+          return isSupported;
+        });
+      this.logger.debug(`[MANAGER-SCAN] Filtered to ${filePaths.length} supported files`);
       
       const changes = await this.detectChanges(filePaths);
       this.logger.debug(`[MANAGER-SCAN] Detected ${changes.length} changes in ${this.folderPath}`);
@@ -287,6 +300,10 @@ return;
       stateTask.startedAt = new Date();
     }
 
+    // Update progress immediately when starting a task
+    // This makes the progress bar more responsive
+    this.updateProgress();
+
     // Start async processing
     const processingPromise = this.processTask(taskId);
     this.pendingIndexingTasks.set(taskId, processingPromise);
@@ -321,11 +338,13 @@ return;
           
           // Ensure database is initialized
           if (!this.sqliteVecStorage.isReady()) {
-            await this.sqliteVecStorage.buildIndex([], []); // Initialize with empty data
+            // Load existing index or initialize if empty (does not wipe existing data)
+            const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+            await this.sqliteVecStorage.loadIndex(dbPath);
           }
           
-          // Store embeddings in SQLite database
-          await this.sqliteVecStorage.buildIndex(fileResult.embeddings, fileResult.metadata);
+          // Store embeddings in SQLite database incrementally
+          await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
           this.logger.info(`[MANAGER-STORE] Successfully stored ${fileResult.embeddings.length} embeddings for ${task.file}`);
         } else {
           this.logger.warn(`[MANAGER-STORE] No embeddings generated for ${task.file}`);
@@ -425,9 +444,22 @@ return;
 
   getProgress(): FolderProgress {
     const stats = this.taskQueue.getStatistics();
-    const percentage = stats.totalTasks > 0 
-      ? Math.round((stats.completedTasks / stats.totalTasks) * 100)
-      : 0;
+    
+    // Calculate percentage based on completed files vs total files
+    // This gives more accurate progress since each file is one task
+    let percentage = 0;
+    
+    if (stats.totalTasks > 0) {
+      // Include in-progress tasks as partially complete (50% weight)
+      // This prevents the progress from appearing stuck while processing large files
+      const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
+      percentage = Math.round((effectiveCompleted / stats.totalTasks) * 100);
+      
+      // Ensure we don't exceed 99% until truly complete
+      if (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) {
+        percentage = 99;
+      }
+    }
 
     return {
       totalTasks: stats.totalTasks,
@@ -458,12 +490,22 @@ return;
     try {
       // Ensure database is initialized before attempting to get fingerprints
       if (!this.sqliteVecStorage.isReady()) {
-        this.logger.debug('[MANAGER-DETECT] Database not ready, initializing...');
-        await this.sqliteVecStorage.buildIndex([], []);
+        this.logger.debug('[MANAGER-DETECT] Database not ready, loading existing index...');
+        // Load existing index or initialize if empty (does not wipe existing data)
+        const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+        await this.sqliteVecStorage.loadIndex(dbPath);
       }
       
       const existingFingerprints = await this.sqliteVecStorage.getDocumentFingerprints();
       this.logger.debug(`[MANAGER-DETECT] Found ${existingFingerprints.size} existing fingerprints`);
+      
+      // DEBUG: Log first few fingerprints to understand format
+      if (existingFingerprints.size > 0) {
+        const firstFew = Array.from(existingFingerprints.entries()).slice(0, 3);
+        for (const [path, fingerprint] of firstFew) {
+          this.logger.debug(`[MANAGER-DETECT] Existing fingerprint: ${path} -> ${fingerprint?.substring(0, 16)}...`);
+        }
+      }
       
       // Phase 1: Compare folder files to database (folder-to-db)
       this.updateScanningProgress({
@@ -507,10 +549,10 @@ return;
           continue;
         }
         
-        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: existingFingerprint=${existingFingerprint ? 'exists' : 'null'}, currentHash=${currentHash.substring(0, 8)}...`);
+        this.logger.debug(`[MANAGER-DETECT] File ${filePath}: existingFingerprint=${existingFingerprint ? existingFingerprint.substring(0, 16) + '...' : 'null'}, currentHash=${currentHash.substring(0, 16)}...`);
         
         if (!existingFingerprint) {
-          this.logger.debug(`[MANAGER-DETECT] New file detected: ${filePath}`);
+          this.logger.debug(`[MANAGER-DETECT] New file detected: ${filePath} (no existing fingerprint)`);
           // New file
           changes.push({
             path: filePath,
@@ -520,6 +562,8 @@ return;
           });
         } else if (existingFingerprint !== currentHash) {
           this.logger.debug(`[MANAGER-DETECT] Modified file detected: ${filePath}`);
+          this.logger.debug(`[MANAGER-DETECT]   Existing: ${existingFingerprint}`);
+          this.logger.debug(`[MANAGER-DETECT]   Current:  ${currentHash}`);
           // Modified file (hash changed)
           changes.push({
             path: filePath,
@@ -529,7 +573,7 @@ return;
             hash: currentHash,
           });
         } else {
-          this.logger.debug(`[MANAGER-DETECT] File unchanged: ${filePath}`);
+          this.logger.debug(`[MANAGER-DETECT] File unchanged: ${filePath} (fingerprints match)`);
         }
         
         // Update folder-to-db progress (throttled to every 10% or every 10 files, whichever is smaller)
@@ -622,6 +666,11 @@ return;
   private updateProgress(): void {
     const progress = this.getProgress();
     this.state.progress = progress;
+    
+    // Log progress updates for debugging
+    if (progress.percentage % 10 === 0 || progress.percentage === 99 || progress.percentage === 100) {
+      this.logger.debug(`[MANAGER-PROGRESS] Indexing progress: ${progress.percentage}% (${progress.completedTasks}/${progress.totalTasks} files complete, ${progress.inProgressTasks} in progress)`);
+    }
     
     // Emit progress update
     this.emit('progressUpdate', progress);

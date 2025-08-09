@@ -28,6 +28,7 @@ export interface VectorMetadata {
     content: string;
     startPosition: number;
     endPosition: number;
+    fileHash?: string;  // MD5 hash of the file for fingerprinting
     pageNumber?: number;
     sectionName?: string;
     sheetName?: string;
@@ -108,6 +109,40 @@ export class SQLiteVecStorage implements IVectorSearchService {
         } catch (error) {
             this.ready = false;
             const errorMessage = `Failed to build vector index: ${error instanceof Error ? error.message : String(error)}`;
+            this.logger?.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+            throw new Error(errorMessage);
+        }
+    }
+
+    /**
+     * Add embeddings incrementally without clearing existing data
+     */
+    async addEmbeddings(embeddings: EmbeddingVectorOrArray[], metadata: VectorMetadata[]): Promise<void> {
+        if (embeddings.length !== metadata.length) {
+            throw new Error(`Embeddings count (${embeddings.length}) must match metadata count (${metadata.length})`);
+        }
+
+        if (embeddings.length === 0) {
+            this.logger?.info('No embeddings to add');
+            return;
+        }
+
+        this.logger?.info(`Adding ${embeddings.length} embeddings to existing index`);
+
+        try {
+            // Initialize database if not already done
+            if (!this.dbManager.isReady()) {
+                await this.dbManager.initialize();
+            }
+
+            // Insert new data without clearing existing data
+            await this.insertEmbeddingsWithMetadata(embeddings, metadata);
+
+            this.ready = true;
+            this.logger?.info(`Successfully added ${embeddings.length} embeddings`);
+
+        } catch (error) {
+            const errorMessage = `Failed to add embeddings: ${error instanceof Error ? error.message : String(error)}`;
             this.logger?.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
             throw new Error(errorMessage);
         }
@@ -271,6 +306,10 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private async insertEmbeddingsWithMetadata(embeddings: EmbeddingVectorOrArray[], metadata: VectorMetadata[]): Promise<void> {
         const db = this.dbManager.getDatabase();
 
+        // Import required modules outside transaction
+        const fs = await import('fs');
+        const crypto = await import('crypto');
+
         // Prepare all statements
         const insertDocStmt = db.prepare(QUERIES.insertDocument);
         const insertChunkStmt = db.prepare(QUERIES.insertChunk);
@@ -291,9 +330,37 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 // Insert document if not already inserted
                 if (!documentMap.has(meta.filePath)) {
+                    // Get the actual file hash to use as fingerprint
+                    let fileHash = '';
+                    
+                    // Check if metadata already contains fileHash (from orchestrator)
+                    if ('fileHash' in meta && meta.fileHash) {
+                        fileHash = meta.fileHash as string;
+                        this.logger?.debug(`Using provided file hash for ${meta.filePath}: ${fileHash}`);
+                    } else {
+                        // Generate hash from file or content
+                        try {
+                            const fileBuffer = fs.readFileSync(meta.filePath);
+                            fileHash = crypto.createHash('md5').update(fileBuffer).digest('hex');
+                            this.logger?.debug(`Generated MD5 hash for ${meta.filePath}: ${fileHash}`);
+                        } catch (error) {
+                            // If we can't read the file, generate a content-based hash from the chunks
+                            const contentHash = crypto.createHash('md5');
+                            // Use the content from this file's chunks to generate a hash
+                            for (let j = i; j < metadata.length; j++) {
+                                const chunkMeta = metadata[j];
+                                if (chunkMeta && chunkMeta.filePath === meta.filePath) {
+                                    contentHash.update(chunkMeta.content);
+                                }
+                            }
+                            fileHash = contentHash.digest('hex');
+                            this.logger?.warn(`Could not read file ${meta.filePath}, using content-based hash: ${fileHash}`);
+                        }
+                    }
+                    
                     const docResult = insertDocStmt.run(
                         meta.filePath,
-                        `fingerprint_${Date.now()}_${i}`, // Generate simple fingerprint
+                        fileHash, // Use actual file hash as fingerprint
                         1000, // Default file size
                         'application/octet-stream', // Default mime type
                         new Date().toISOString()

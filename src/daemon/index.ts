@@ -91,7 +91,7 @@ class FolderMCPDaemon {
     
     // Initialize DI container for indexing services
     this.diContainer = setupDependencyInjection({
-      logLevel: 'info'
+      logLevel: 'debug'
     });
     
     // Setup configuration services in DI container

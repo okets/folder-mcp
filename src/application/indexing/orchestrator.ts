@@ -335,14 +335,28 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
       embeddings = await this.embeddingService.generateEmbeddings(chunks);
       embeddingsCreated = embeddings.length;
-        // Create metadata for each chunk
+      
+      // Calculate file hash for proper fingerprinting
+      let fileHash = '';
+      try {
+        fileHash = await this.fileSystemService.getFileHash(filePath);
+      } catch (error) {
+        // If we can't get the file hash, use content-based hash
+        const crypto = await import('crypto');
+        const contentHash = crypto.createHash('md5').update(parsedContent.content).digest('hex');
+        fileHash = contentHash;
+        this.loggingService.debug('Using content-based hash for file', { filePath, hash: fileHash });
+      }
+      
+      // Create metadata for each chunk
       metadata = chunks.map((chunk, index) => ({
         filePath,
         chunkId: `${filePath}_chunk_${index}`,
         chunkIndex: index,
         content: chunk.content,
         startPosition: chunk.startPosition,
-        endPosition: chunk.endPosition
+        endPosition: chunk.endPosition,
+        fileHash // Include file hash for fingerprinting
       }));
     }
 
