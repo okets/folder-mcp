@@ -197,6 +197,10 @@ export class ResourceManager extends EventEmitter {
         } catch (error) {
             this.logger?.error(`Operation failed: ${operation.id}`, error instanceof Error ? error : new Error(String(error)));
             operation.reject(error);
+            
+            // Perform resource cleanup on operation failure
+            await this.performOperationCleanup(operation, error);
+            
         } finally {
             // Clean up
             this.activeOperations.delete(operation.id);
@@ -419,5 +423,42 @@ export class ResourceManager extends EventEmitter {
                 folderPath: op.folderPath
             }))
         };
+    }
+    
+    /**
+     * Perform cleanup when an operation fails
+     */
+    private async performOperationCleanup(operation: QueuedOperation, error: any): Promise<void> {
+        try {
+            this.logger?.info(`Performing resource cleanup for failed operation: ${operation.id}`, {
+                folderPath: operation.folderPath,
+                estimatedMemoryMB: operation.estimatedMemoryMB,
+                error: error instanceof Error ? error.message : String(error)
+            });
+            
+            // Force garbage collection if memory was allocated
+            if (operation.estimatedMemoryMB > 50 && global.gc) {
+                this.logger?.info(`Triggering garbage collection after failed operation (${operation.estimatedMemoryMB}MB estimated)`);
+                global.gc();
+                
+                // Log memory usage after GC
+                const memUsage = process.memoryUsage();
+                const memoryUsedMB = memUsage.heapUsed / 1024 / 1024;
+                this.logger?.info(`Memory after cleanup GC: ${Math.round(memoryUsedMB)}MB heap used`);
+            }
+            
+            // Log resource statistics after cleanup
+            const stats = this.getStats();
+            this.logger?.info(`Resource cleanup completed for operation: ${operation.id}`, {
+                memoryUsedMB: Math.round(stats.memoryUsedMB),
+                activeOperations: stats.activeOperations,
+                queuedOperations: stats.queuedOperations,
+                isThrottled: stats.isThrottled
+            });
+            
+        } catch (cleanupError) {
+            this.logger?.error(`Error during operation cleanup for ${operation.id}:`, cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)));
+            // Don't throw - cleanup should not fail the parent operation
+        }
     }
 }

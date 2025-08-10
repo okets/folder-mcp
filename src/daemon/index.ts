@@ -256,6 +256,16 @@ class FolderMCPDaemon {
   }
 
   private getDetailedStatus() {
+    // Get memory statistics from monitored folders orchestrator if available
+    let memoryStats = null;
+    if (this.monitoredFoldersOrchestrator) {
+      try {
+        memoryStats = this.monitoredFoldersOrchestrator.getMemoryStatistics();
+      } catch (error) {
+        debug('Error getting memory statistics:', error);
+      }
+    }
+    
     return {
       ...this.getHealthStatus(),
       config: {
@@ -267,7 +277,21 @@ class FolderMCPDaemon {
         running: this.mcpProcess !== null,
         pid: this.mcpProcess?.pid || null
       },
-      memory: process.memoryUsage(),
+      memory: {
+        process: process.memoryUsage(),
+        orchestrator: memoryStats ? {
+          heapUtilizationPercent: Math.round(memoryStats.heapUtilizationPercent * 10) / 10,
+          resourceManager: {
+            memoryUsedMB: Math.round(memoryStats.resourceManager.memoryUsedMB),
+            memoryLimitMB: memoryStats.resourceManager.memoryLimitMB,
+            memoryPercent: Math.round(memoryStats.resourceManager.memoryPercent * 10) / 10,
+            activeOperations: memoryStats.resourceManager.activeOperations,
+            queuedOperations: memoryStats.resourceManager.queuedOperations,
+            isThrottled: memoryStats.resourceManager.isThrottled
+          },
+          folders: memoryStats.folders
+        } : null
+      },
       platform: process.platform,
       nodeVersion: process.version
     };

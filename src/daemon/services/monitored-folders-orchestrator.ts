@@ -61,6 +61,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
+  private memoryMonitoringTimer?: NodeJS.Timeout;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -106,6 +107,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Start periodic folder validation (every 30 seconds)
     this.startFolderValidation();
+    
+    // Start memory usage monitoring (every 10 seconds)
+    this.startMemoryMonitoring();
   }
   
   async addFolder(path: string, model: string): Promise<void> {
@@ -154,6 +158,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       );
     } catch (error) {
       this.logger.error(`[ORCHESTRATOR] Resource manager rejected add folder operation: ${path}`, error instanceof Error ? error : new Error(String(error)));
+      
+      // Perform resource cleanup on operation failure
+      await this.performResourceCleanup(path, 'add_folder_failed');
+      
       throw error;
     }
   }
@@ -247,6 +255,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       this.logger.error(`[ORCHESTRATOR] Failed to execute add folder operation: ${path}`, error as Error);
+      
+      // Perform resource cleanup on execution failure
+      await this.performResourceCleanup(path, 'add_folder_execution_failed');
+      
       throw error;
     }
   }
@@ -354,6 +366,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Stop folder validation timer
     this.stopFolderValidation();
+    
+    // Stop memory monitoring timer
+    this.stopMemoryMonitoring();
     
     // Shutdown resource manager first to stop accepting new operations
     try {
@@ -785,6 +800,244 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
     } catch (error) {
       this.logger.error(`[ORCHESTRATOR] Error during folder cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  
+  /**
+   * Start memory usage monitoring
+   */
+  private startMemoryMonitoring(): void {
+    this.logger.debug('[ORCHESTRATOR] Starting memory usage monitoring');
+    
+    this.memoryMonitoringTimer = setInterval(() => {
+      this.monitorMemoryUsage();
+    }, 10000); // Monitor every 10 seconds
+  }
+  
+  /**
+   * Stop memory monitoring timer
+   */
+  private stopMemoryMonitoring(): void {
+    if (this.memoryMonitoringTimer) {
+      clearInterval(this.memoryMonitoringTimer);
+      delete this.memoryMonitoringTimer;
+      this.logger.debug('[ORCHESTRATOR] Stopped memory monitoring timer');
+    }
+  }
+  
+  /**
+   * Monitor and log memory usage
+   */
+  private monitorMemoryUsage(): void {
+    try {
+      const memUsage = process.memoryUsage();
+      const resourceStats = this.resourceManager.getStats();
+      
+      // Convert bytes to MB for readability
+      const memoryUsedMB = memUsage.heapUsed / 1024 / 1024;
+      const memoryTotalMB = memUsage.heapTotal / 1024 / 1024;
+      const memoryRssMB = memUsage.rss / 1024 / 1024;
+      const memoryExternalMB = memUsage.external / 1024 / 1024;
+      
+      // Calculate memory utilization percentage
+      const heapUtilization = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+      
+      // Record metrics in ResourceManager
+      this.resourceManager.getStats(); // This triggers the internal monitoring
+      
+      // Log memory usage if it's above thresholds or resource manager is active
+      if (resourceStats.activeOperations > 0 || memoryUsedMB > 100) {
+        this.logger.info('[ORCHESTRATOR] Memory usage report', {
+          heap: {
+            used: `${Math.round(memoryUsedMB)}MB`,
+            total: `${Math.round(memoryTotalMB)}MB`,
+            utilization: `${Math.round(heapUtilization)}%`
+          },
+          rss: `${Math.round(memoryRssMB)}MB`,
+          external: `${Math.round(memoryExternalMB)}MB`,
+          resourceManager: {
+            memoryUsedMB: Math.round(resourceStats.memoryUsedMB),
+            memoryLimitMB: resourceStats.memoryLimitMB,
+            memoryPercent: Math.round(resourceStats.memoryPercent),
+            activeOperations: resourceStats.activeOperations,
+            queuedOperations: resourceStats.queuedOperations,
+            isThrottled: resourceStats.isThrottled
+          },
+          folders: {
+            managed: this.folderManagers.size,
+            error: this.errorFolders.size
+          }
+        });
+      } else {
+        // Debug level for normal usage
+        this.logger.debug('[ORCHESTRATOR] Memory usage', {
+          heapUsedMB: Math.round(memoryUsedMB),
+          heapUtilizationPercent: Math.round(heapUtilization),
+          activeFolders: this.folderManagers.size
+        });
+      }
+      
+      // Emit memory warning if usage is high
+      if (memoryUsedMB > 400 || heapUtilization > 85) {
+        this.logger.warn('[ORCHESTRATOR] High memory usage detected', {
+          heapUsedMB: Math.round(memoryUsedMB),
+          heapUtilizationPercent: Math.round(heapUtilization),
+          recommendation: 'Consider reducing concurrent operations or restarting daemon'
+        });
+      }
+      
+      // Force garbage collection if memory usage is very high
+      if (memoryUsedMB > 450 && global.gc) {
+        this.logger.info('[ORCHESTRATOR] Triggering garbage collection due to high memory usage');
+        global.gc();
+        
+        // Log memory usage after GC
+        const postGcUsage = process.memoryUsage();
+        const postGcUsedMB = postGcUsage.heapUsed / 1024 / 1024;
+        const memoryFreedMB = memoryUsedMB - postGcUsedMB;
+        
+        this.logger.info('[ORCHESTRATOR] Garbage collection completed', {
+          memoryFreedMB: Math.round(memoryFreedMB),
+          newHeapUsedMB: Math.round(postGcUsedMB)
+        });
+      }
+      
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Error monitoring memory usage:', error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  
+  /**
+   * Get current memory statistics for external monitoring
+   */
+  getMemoryStatistics(): {
+    process: NodeJS.MemoryUsage;
+    heapUtilizationPercent: number;
+    resourceManager: ResourceStats;
+    folders: {
+      managed: number;
+      error: number;
+    };
+  } {
+    const memUsage = process.memoryUsage();
+    const heapUtilization = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    const resourceStats = this.resourceManager.getStats();
+    
+    return {
+      process: memUsage,
+      heapUtilizationPercent: heapUtilization,
+      resourceManager: resourceStats,
+      folders: {
+        managed: this.folderManagers.size,
+        error: this.errorFolders.size
+      }
+    };
+  }
+  
+  /**
+   * Perform resource cleanup when operations fail
+   * This ensures that partially completed operations don't leave the system in an inconsistent state
+   */
+  private async performResourceCleanup(folderPath: string, reason: string): Promise<void> {
+    this.logger.info(`[ORCHESTRATOR] Performing resource cleanup for ${folderPath} (reason: ${reason})`);
+    
+    try {
+      // 1. Force resource manager to cancel any pending operations for this folder
+      if (this.resourceManager) {
+        try {
+          const operationId = `add-folder-${folderPath}`;
+          const cancelled = await this.resourceManager.cancelOperation(operationId);
+          if (cancelled) {
+            this.logger.info(`[ORCHESTRATOR] Cancelled pending resource manager operation: ${operationId}`);
+          }
+          
+          // Also try to cancel scan operations
+          const scanOperationId = `scan-changes-${folderPath}`;
+          const scanCancelled = await this.resourceManager.cancelOperation(scanOperationId);
+          if (scanCancelled) {
+            this.logger.info(`[ORCHESTRATOR] Cancelled pending scan operation: ${scanOperationId}`);
+          }
+        } catch (error) {
+          this.logger.warn(`[ORCHESTRATOR] Error cancelling resource manager operations for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+      
+      // 2. Stop and clean up any partially created folder manager
+      if (this.folderManagers.has(folderPath)) {
+        try {
+          const manager = this.folderManagers.get(folderPath);
+          if (manager) {
+            this.logger.info(`[ORCHESTRATOR] Stopping partially created folder manager for ${folderPath}`);
+            await manager.stop();
+            this.logger.info(`[ORCHESTRATOR] Folder manager stopped successfully`);
+          }
+          this.folderManagers.delete(folderPath);
+        } catch (error) {
+          this.logger.warn(`[ORCHESTRATOR] Error stopping folder manager during cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+      
+      // 3. Clean up file watching if it was started
+      if (this.monitoringOrchestrator) {
+        try {
+          await this.monitoringOrchestrator.stopFileWatching(folderPath);
+          this.logger.info(`[ORCHESTRATOR] File watching stopped for ${folderPath} during cleanup`);
+        } catch (error) {
+          // This is expected if file watching wasn't started yet
+          this.logger.debug(`[ORCHESTRATOR] File watching cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      
+      // 4. Clean up .folder-mcp directory if it was created
+      try {
+        const folderMcpPath = `${folderPath}/.folder-mcp`;
+        const fs = await import('fs');
+        
+        if (fs.existsSync(folderMcpPath)) {
+          this.logger.info(`[ORCHESTRATOR] Cleaning up .folder-mcp directory during cleanup: ${folderMcpPath}`);
+          await fs.promises.rm(folderMcpPath, { recursive: true, force: true });
+          this.logger.info(`[ORCHESTRATOR] Successfully cleaned up .folder-mcp directory`);
+        }
+      } catch (error) {
+        this.logger.warn(`[ORCHESTRATOR] Error cleaning up .folder-mcp directory for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      }
+      
+      // 5. Remove from configuration if it was added
+      try {
+        await this.configService.removeFolder(folderPath);
+        this.logger.info(`[ORCHESTRATOR] Removed ${folderPath} from configuration during cleanup`);
+      } catch (error) {
+        // This is expected if folder wasn't added to config yet
+        this.logger.debug(`[ORCHESTRATOR] Configuration cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      
+      // 6. Remove from error folders tracking
+      this.errorFolders.delete(folderPath);
+      
+      // 7. Force garbage collection if available to free up memory
+      if (global.gc) {
+        this.logger.debug(`[ORCHESTRATOR] Triggering garbage collection after resource cleanup for ${folderPath}`);
+        global.gc();
+      }
+      
+      // 8. Update FMDM to remove any partially created folder entries
+      this.updateFMDM();
+      
+      // 9. Log final resource statistics after cleanup
+      if (this.resourceManager) {
+        const stats = this.resourceManager.getStats();
+        this.logger.info(`[ORCHESTRATOR] Resource cleanup completed for ${folderPath}`, {
+          reason,
+          activeOperations: stats.activeOperations,
+          queuedOperations: stats.queuedOperations,
+          memoryUsedMB: Math.round(stats.memoryUsedMB),
+          isThrottled: stats.isThrottled
+        });
+      }
+      
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Error during resource cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - cleanup should not fail the parent operation
     }
   }
 }

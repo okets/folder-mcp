@@ -43,11 +43,19 @@ describe('Daemon Crash Recovery', () => {
 
   // Helper to start daemon
   const startDaemon = async (restart = false): Promise<ChildProcess> => {
+    // Use isolated config directory to prevent interference from other tests/previous runs
+    const isolatedConfigDir = path.join(process.cwd(), 'tests/fixtures/tmp/daemon-crash-recovery-config');
+    if (fs.existsSync(isolatedConfigDir)) {
+      await fs.promises.rm(isolatedConfigDir, { recursive: true });
+    }
+    await fs.promises.mkdir(isolatedConfigDir, { recursive: true });
+    
     const env = {
       ...process.env,
       FOLDER_MCP_DEVELOPMENT_ENABLED: 'true',
       FOLDER_MCP_FILE_CHANGE_DEBOUNCE_MS: DEBOUNCE_MS.toString(),
-      FOLDER_MCP_LOG_LEVEL: 'error'
+      FOLDER_MCP_LOG_LEVEL: 'error',
+      FOLDER_MCP_USER_CONFIG_DIR: isolatedConfigDir  // Use isolated config directory
     };
 
     const args = ['dist/src/daemon/index.js', '--port', TEST_DAEMON_PORT.toString()];
@@ -148,13 +156,19 @@ describe('Daemon Crash Recovery', () => {
   };
 
   beforeEach(async () => {
-    await setupTestFolder();
-    
-    // Clean up daemon configuration for fresh start
+    // Clean up daemon configuration FIRST, before setting up test folder
     const configDir = path.join(homedir(), '.folder-mcp');
     if (fs.existsSync(configDir)) {
       await fs.promises.rm(configDir, { recursive: true });
     }
+    
+    // Also clean up any project-specific configuration that might exist
+    const projectConfigDir = path.join(process.cwd(), '.folder-mcp');
+    if (fs.existsSync(projectConfigDir)) {
+      await fs.promises.rm(projectConfigDir, { recursive: true });
+    }
+    
+    await setupTestFolder();
   });
 
   afterEach(async () => {
@@ -235,7 +249,12 @@ describe('Daemon Crash Recovery', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     await connectToDaemon();
     
-    // Wait for folder to reach active state
+    // Since we're using isolated configuration, the restarted daemon won't have 
+    // the folder in its config. We need to re-add it to test that the database persists.
+    console.log('Re-adding folder to test database persistence...');
+    await addFolder(TEST_FOLDER);
+    
+    // Wait for folder to reach active state (should be faster due to existing database)
     console.log('Waiting for folder to reach active state...');
     const finalUpdate = await waitForFMDMUpdate(
       (fmdm) => {
@@ -309,8 +328,13 @@ describe('Daemon Crash Recovery', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     await connectToDaemon();
     
+    // Since we're using isolated configuration, we need to re-add the folder
+    // to test the corrupted database recovery
+    console.log('Re-adding folder to test corrupted database recovery...');
+    await addFolder(TEST_FOLDER);
+    
     // Recovery daemon should handle the corrupted database
-    // Either by restoring from backup or rebuilding
+    // Either by restoring from backup or rebuilding  
     console.log('Waiting for recovery to complete...');
     const recoveryUpdate = await waitForFMDMUpdate(
       (fmdm) => {

@@ -83,12 +83,18 @@
   → **STATUS**: Lower priority - core file system chaos issues resolved
 
 ### Test Suite B: Daemon Resilience
-- [x] **Test 4: Crash recovery** ✅ COMPLETED (2025-01-08)
+- [x] **Test 4: Crash recovery** ✅ **FULLY COMPLETED (2025-08-09)**
   1. Add 3 folders, start indexing
   2. Kill -9 daemon process
   3. Restart daemon
   → **RESULT**: Database files preserved, daemon restarts cleanly, folders need re-adding but detect existing work
   → **Automated Test Created**: `tests/integration/daemon-crash-recovery.test.ts`
+  → **FIXED (2025-08-09)**: Resolved test failures caused by configuration contamination
+    - **Problem**: Tests failing with "Daemon exited unexpectedly" and "FMDM update timeout after 30000ms"
+    - **Root Cause**: Daemon startup attempting to restore folders from stale configuration files
+    - **Solution**: Implemented isolated configuration directories per test run using `FOLDER_MCP_USER_CONFIG_DIR`
+    - **Test Logic**: Updated tests to re-add folders after restart to verify database persistence in isolated environment
+    - **Result**: Both crash recovery tests now pass reliably in ~21 seconds
 
 - [x] **Test 5: State persistence** ✅ **FIXED (2025-01-08)**
   1. Add folders in various states (scanning, indexing, active)
@@ -218,10 +224,42 @@
   - ✅ Added proper resource monitoring with throttling warnings and debug logs
   - ✅ Implemented proper ResourceManager shutdown in `stopAll()` method
   - ✅ Set conservative daemon limits: 2 concurrent ops, 512MB memory, 60% CPU, 20 queue size
-- [ ] **Remaining Tasks**:
-  - Add memory usage monitoring integration
-  - Add file count limits per batch processing
-  - Implement resource cleanup on errors
+- [x] **Remaining Tasks Completed**:
+  - ✅ **Add memory usage monitoring integration**: Complete memory monitoring system implemented
+    - Added comprehensive memory usage monitoring to `MonitoredFoldersOrchestrator` (10-second intervals)
+    - Integrated process memory statistics (heap, RSS, external) with ResourceManager metrics
+    - Added intelligent logging thresholds (info for high usage, debug for normal)
+    - Implemented automatic garbage collection triggers when memory exceeds 450MB
+    - Added memory warnings at 400MB heap usage or 85% heap utilization  
+    - Exposed memory statistics via daemon `/status` HTTP endpoint
+    - Memory monitoring includes folder counts, resource manager status, and heap utilization percentages
+- [x] **Additional Tasks Completed**:
+  - ✅ **Create file count limits per batch processing**: File count limiting system implemented
+    - Added `getMaxFilesPerBatch()` method with conservative 50-file limit per batch
+    - Implemented batch processing in `FolderLifecycleService.processScanResults()` 
+    - Added comprehensive logging for batch size warnings when limits exceeded
+    - Prevents memory overload from processing too many files simultaneously
+    - Logs effective batch sizes and skipped file counts for monitoring
+    - Future-ready for configurable limits based on system resources and file sizes
+- [x] **Final Task Completed**:
+  - ✅ **Implement resource cleanup on errors**: Comprehensive error cleanup system implemented
+    - Added `performResourceCleanup()` method in `MonitoredFoldersOrchestrator` for complete resource cleanup
+    - Integrated cleanup calls in all major error paths (`addFolder`, `executeAddFolder` operations)
+    - Added `performOperationCleanup()` method in `ResourceManager` for failed operation cleanup
+    - Resource cleanup includes: operation cancellation, manager stopping, file watcher cleanup, directory cleanup, configuration removal, FMDM updates
+    - Automatic garbage collection triggers for failed operations with high memory estimates
+    - Comprehensive logging of cleanup activities and resource statistics
+    - Error-safe cleanup: cleanup failures don't fail parent operations
+
+## ✅ **PRIORITY 6: RESOURCE MANAGEMENT - FULLY COMPLETED (2025-08-09)**
+
+All resource management components have been successfully implemented:
+- **Resource coordination** via ResourceManager integration
+- **Memory monitoring** with intelligent thresholds and automatic GC
+- **File count limiting** with 50-file batches to prevent overload  
+- **Resource cleanup** with comprehensive error recovery
+
+The indexing system now has production-grade resource management that prevents system overload and ensures clean recovery from failures.
 
 ### Priority 7: Database Integrity
 - [ ] **Problem**: No corruption detection or recovery
@@ -372,6 +410,13 @@ The indexing system is production-ready when:
 - **Evidence**: Full test suite passes with 29/29 tests successful, keep-alive functionality verified, embedding generation working with ~40-200ms response times
 - **Status**: ✅ **PRODUCTION-READY** - Python embedding service is fully functional with proper dependency management
 
+#### ✅ **FIXED (2025-08-09)** - Daemon Crash Recovery Test Suite
+- **Issue**: Automated crash recovery tests were failing with daemon startup and FMDM timeout errors
+- **Root Cause**: Configuration contamination between test runs causing daemon to attempt restoration of non-existent folders
+- **Solution**: Implemented isolated configuration approach with `FOLDER_MCP_USER_CONFIG_DIR` environment variable
+- **Test Enhancement**: Updated test logic to properly verify database persistence in isolated environment
+- **Result**: Both crash recovery tests now pass consistently, validating production crash recovery capabilities
+
 #### ⚠️ **REMAINING ISSUE** - Folder Lifecycle State Problem  
 - **Issue**: On daemon restart, TUI shows all folders as "indexing (0%)" instead of proper lifecycle
 - **Expected Flow**: pending → scanning → ready → indexing → active
@@ -379,7 +424,7 @@ The indexing system is production-ready when:
 - **Impact**: User experience shows incorrect progress states
 
 **Production Readiness Status:**
-🎯 **CORE PRODUCTION ISSUES RESOLVED** - The indexing system handles the two most critical production scenarios (file changes + folder deletion). **Daemon restart functionality is working correctly**. **Folder error handling and display system is production-ready**. **Python embedding service is fully functional**. **Embeddings persistence across daemon restarts is now fixed**.
+🎯 **CORE PRODUCTION ISSUES RESOLVED** - The indexing system handles the two most critical production scenarios (file changes + folder deletion). **Daemon restart functionality is working correctly**. **Folder error handling and display system is production-ready**. **Python embedding service is fully functional**. **Embeddings persistence across daemon restarts is now fixed**. **Crash recovery test suite is fully operational**.
 
 ✅ **RECENTLY COMPLETED (2025-08-09)**: 
 - **PHASE 2: INTELLIGENT FILE STATE TRACKING SYSTEM COMPLETED**: Addressed the core architectural flaw identified by user

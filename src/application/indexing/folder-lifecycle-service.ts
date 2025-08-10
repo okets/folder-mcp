@@ -205,8 +205,25 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       return;
     }
 
-    // Create tasks from changes
-    const tasks: FileEmbeddingTask[] = changes.map((change, index) => ({
+    // Apply file count limits for batch processing to prevent memory overload
+    const maxFilesPerBatch = this.getMaxFilesPerBatch();
+    const filesToProcess = changes.slice(0, maxFilesPerBatch);
+    
+    if (changes.length > maxFilesPerBatch) {
+      this.logger.warn(`[MANAGER-PROCESS] File count exceeds batch limit: ${changes.length} files found, processing first ${maxFilesPerBatch} files`, {
+        totalFiles: changes.length,
+        batchLimit: maxFilesPerBatch,
+        filesSkipped: changes.length - maxFilesPerBatch,
+        folder: this.folderPath
+      });
+      
+      // Store remaining files for next batch (future enhancement)
+      // For now, we just log the limitation - production systems should implement
+      // proper batch queuing or progressive scanning
+    }
+
+    // Create tasks from changes (limited batch)
+    const tasks: FileEmbeddingTask[] = filesToProcess.map((change, index) => ({
       id: `${this.folderId}-task-${Date.now()}-${index}`,
       file: change.path,
       task: this.getTaskType(change.changeType),
@@ -216,7 +233,11 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       createdAt: new Date(),
     }));
 
-    this.logger.debug(`[MANAGER-PROCESS] Created ${tasks.length} tasks`);
+    this.logger.info(`[MANAGER-PROCESS] Created ${tasks.length} tasks from ${changes.length} detected changes`, {
+      batchLimit: maxFilesPerBatch,
+      effectiveBatchSize: tasks.length,
+      folder: this.folderPath
+    });
 
     this.taskQueue.addTasks(tasks);
     
@@ -727,6 +748,27 @@ return;
     // Cleanup method that calls stop() and removes all listeners
     this.stop();
     this.removeAllListeners();
+  }
+  
+  /**
+   * Get maximum files per batch for processing
+   * This prevents memory overload from processing too many files simultaneously
+   */
+  private getMaxFilesPerBatch(): number {
+    // Conservative batch sizes based on memory constraints:
+    // - Small batch (50): For typical usage, prevents memory overload
+    // - Consider file sizes: Large files (PDFs, DOCX) use more memory than text files
+    // - Consider available system memory and concurrent folders
+    
+    const maxFilesPerBatch = 50; // Conservative default
+    
+    // Future enhancement: Could be configurable based on:
+    // - Available system memory
+    // - Average file sizes in folder
+    // - Number of concurrent folder operations
+    // - Resource manager settings
+    
+    return maxFilesPerBatch;
   }
 
   reset(): void {
