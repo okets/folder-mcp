@@ -63,6 +63,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     const [showAutoCompletion, setShowAutoCompletion] = useState(false);
     const [config, setConfig] = useState<any>(null);
     const [hasValidationError, setHasValidationError] = useState(false);
+    const [hasCompletedWizard, setHasCompletedWizard] = useState(false);
     
     // Get FMDM data to determine if we have configured folders
     const { fmdm, isConnected } = useFMDM();
@@ -85,15 +86,23 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
         
         if (hasConfiguredFolders) {
             // Have folders configured - skip wizard and show main app
+            // Mark as completed since user already has folders (they've been through setup before)
+            if (!hasCompletedWizard) {
+                setHasCompletedWizard(true);
+            }
             loadMainAppFromFMDM(fmdm);
         } else {
-            // No folders configured - ensure wizard is shown
-            // Set showWizard to true since it might have been set to false when daemon wasn't connected
-            setShowWizard(true);
-            // Ensure config is null so AppFullscreen doesn't show
-            setConfig(null);
+            // No folders configured - only show wizard if user hasn't completed it before
+            if (!hasCompletedWizard) {
+                // First time with no folders - show wizard
+                setShowWizard(true);
+                setConfig(null);
+            } else {
+                // User has completed wizard before but removed all folders - stay on main screen with empty folder list
+                loadMainAppFromFMDM(fmdm);
+            }
         }
-    }, [isConnected, fmdm]);
+    }, [isConnected, fmdm, hasCompletedWizard]);
     
     const loadMainAppFromFMDM = (fmdm: FMDM) => {
         // Convert FMDM to config format for backward compatibility
@@ -131,6 +140,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     const handleWizardComplete = (newConfig: any) => {
         setConfig(newConfig);
         setShowWizard(false);
+        setHasCompletedWizard(true); // Mark that user has completed the wizard
     };
     
     const handleAutoCompletionConfirm = async (dir: string, model: string) => {
@@ -153,6 +163,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
             setConfig(newConfig);
             setShowAutoCompletion(false);
             setShowWizard(false);
+            setHasCompletedWizard(true); // Mark that user has completed initial setup
         } catch (error) {
             console.error('Auto-completion failed:', error);
             // Fall back to wizard on error
