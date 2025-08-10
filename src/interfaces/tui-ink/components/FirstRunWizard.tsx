@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import React, { useState, useEffect, useRef } from 'react';
+import { Box, Text, useInput } from 'ink';
 import { join } from 'path';
 import { existsSync, statSync } from 'fs';
 import { GenericListPanel } from './GenericListPanel';
@@ -50,7 +50,6 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
 }
 
 const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
-    const { exit } = useApp();
     const { columns } = useTerminalSize();
     const fmdmOperations = useFMDMOperations();
     const fmdmConnection = useFMDMConnection();
@@ -71,7 +70,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         initialPath,
         initialModel,
         onComplete,
-        exit,
         fmdmOperations
     });
     
@@ -81,7 +79,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             initialPath,
             initialModel,
             onComplete,
-            exit,
             fmdmOperations
         };
     });
@@ -132,7 +129,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
         
         const createWizard = async () => {
             // Get stable references
-            const { initialPath, initialModel, onComplete, exit, fmdmOperations } = stableRefs.current;
+            const { initialPath, initialModel, onComplete, fmdmOperations } = stableRefs.current;
             
             // Handle wizard completion - defined inside useEffect to avoid dependency issues
             const handleWizardComplete = async (result: AddFolderWizardResult) => {
@@ -170,7 +167,9 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
                     initialPath,
                     ...(initialModel ? { initialModel } : {}),
                     onComplete: handleWizardComplete,
-                    onCancel: () => exit(),
+                    onCancel: () => {
+                        process.exit(0);
+                    },
                     fmdmOperations
                 });
                 
@@ -192,10 +191,10 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
     const highlightColor = '#10b981';
     const textColor = '#f3f4f6';
     
-    // Add input handling that works for both error screen and normal wizard
-    useInput((input, key) => {
-        if (key.escape && (!fmdmConnection.connected && !fmdmConnection.connecting)) {
-            // Only handle ESC on error screen, let normal wizard handle its own ESC
+    // Add input handling for ESC key to exit cleanly
+    useInput((_input, key) => {
+        if (key.escape) {
+            // ESC key should always exit the program cleanly
             process.exit(0);
         }
     });
