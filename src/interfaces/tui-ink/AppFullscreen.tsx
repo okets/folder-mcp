@@ -28,9 +28,9 @@ import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFo
 import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
 import { FolderIndexingStatus } from '../../daemon/models/fmdm';
+import { createValidationResult, ValidationState } from './components/core/ValidationState';
 import { spawn } from 'child_process';
 import { join } from 'path';
-import { createValidationResult, ValidationState } from './components/core/ValidationState';
 
 /**
  * Maps folder indexing status to appropriate display color
@@ -66,6 +66,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Check daemon connection first
     const fmdmConnection = useFMDMConnection();
+    const { retryNow } = useFMDM();
     
     // State for showing Add Folder Wizard
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
@@ -201,14 +202,15 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             
             // Give daemon a moment to start before trying to reconnect
             setTimeout(() => {
-                // The FMDM client will automatically try to reconnect
-                console.error('Daemon startup initiated');
+                // Trigger immediate retry after daemon starts
+                retryNow();
+                console.error('Daemon startup initiated, attempting connection');
             }, 1000);
             
         } catch (error) {
             console.error('Failed to start daemon:', error);
         }
-    }, []);
+    }, [retryNow]);
     
     // Countdown effect
     useEffect(() => {
@@ -473,6 +475,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     <Text color="red" bold>⚠ folder-mcp service not running</Text>
                     <Text color="gray">The daemon is required for folder-mcp to function.</Text>
                     <Text color="gray">Please start the daemon and try again.</Text>
+                    
+                    {/* Show retry information if available */}
+                    {fmdmConnection.retryAttempt && (
+                        <Box marginTop={1} flexDirection="column" alignItems="center">
+                            <Text color="cyan">
+                                Attempt {fmdmConnection.retryAttempt} - {fmdmConnection.nextRetryIn ? `Next retry in ${fmdmConnection.nextRetryIn}s` : 'Retrying...'}
+                            </Text>
+                        </Box>
+                    )}
+                    
                     <Box marginTop={1} flexDirection="column" alignItems="center">
                         <Box>
                             <Text color="yellow">Press </Text>

@@ -34,6 +34,7 @@ export interface FMDMContextType {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   ping: () => Promise<void>;
+  retryNow: () => void;
   
   // Model download events
   subscribeToModelDownloads: (listener: (event: ModelDownloadEvent) => void) => () => void;
@@ -160,6 +161,11 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     return client.subscribeToModelDownloads(listener);
   }, [client]);
 
+  // Manual retry
+  const retryNow = useCallback(() => {
+    client.retryNow();
+  }, [client]);
+
   // Computed properties
   const isConnected = connectionStatus.connected;
   const isConnecting = connectionStatus.connecting;
@@ -179,6 +185,7 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     connect,
     disconnect,
     ping,
+    retryNow,
     
     // Model download events
     subscribeToModelDownloads,

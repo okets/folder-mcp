@@ -25,6 +25,8 @@ export interface FMDMConnectionStatus {
   connected: boolean;
   connecting: boolean;
   error?: string;
+  retryAttempt?: number;        // Current attempt number
+  nextRetryIn?: number;         // Seconds until next retry
 }
 
 export interface ModelDownloadEvent {
@@ -47,12 +49,15 @@ export class FMDMClient {
   private modelDownloadListeners = new Set<(event: ModelDownloadEvent) => void>();
   private requests = new Map<string, (response: any) => void>();
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private countdownTimer: NodeJS.Timeout | null = null;
   private isConnected = false;
   private isConnecting = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 50; // Increased for daemon waiting - will retry for ~25 minutes
+  private maxReconnectAttempts = Number.MAX_SAFE_INTEGER; // Infinite retries - never give up
   private daemonConnector: DaemonConnector;
   private isReconnecting = false; // Track if we're in reconnection mode
+  private nextRetryIn = 0; // Countdown in seconds
+  private retryDelayMs = 0; // Current retry delay in milliseconds
   
   constructor() {
     this.daemonConnector = new DaemonConnector({
@@ -249,11 +254,17 @@ export class FMDMClient {
     this.isReconnecting = true;
     
     this.reconnectAttempts++;
-    // Use a more reasonable backoff for daemon discovery: 1s, 2s, 4s, then cap at 10s
-    const delay = Math.min(1000 * Math.pow(2, Math.min(this.reconnectAttempts - 1, 3)), 10000);
+    // Smart backoff: 1s, 2s, 4s, 8s, then cap at 30s for reasonable waiting
+    const delay = Math.min(1000 * Math.pow(2, Math.min(this.reconnectAttempts - 1, 4)), 30000);
+    this.retryDelayMs = delay;
+    this.nextRetryIn = Math.ceil(delay / 1000);
+    
+    // Start countdown timer
+    this.startCountdown();
     
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
+      this.stopCountdown();
       
       // Try to connect without throwing errors
       try {
@@ -262,6 +273,65 @@ export class FMDMClient {
         // Connection failed, scheduleReconnect is already called by connect() method
       }
     }, delay);
+  }
+
+  /**
+   * Start countdown timer that updates retry status every second
+   */
+  private startCountdown(): void {
+    this.stopCountdown(); // Clear any existing timer
+    
+    this.countdownTimer = setInterval(() => {
+      this.nextRetryIn--;
+      
+      // Notify status listeners with updated countdown
+      this.notifyStatusListeners({
+        connected: false,
+        connecting: false,
+        retryAttempt: this.reconnectAttempts,
+        nextRetryIn: Math.max(0, this.nextRetryIn)
+      });
+      
+      // Stop countdown when it reaches 0
+      if (this.nextRetryIn <= 0) {
+        this.stopCountdown();
+      }
+    }, 1000);
+    
+    // Immediately notify with initial countdown
+    this.notifyStatusListeners({
+      connected: false,
+      connecting: false,
+      retryAttempt: this.reconnectAttempts,
+      nextRetryIn: this.nextRetryIn
+    });
+  }
+
+  /**
+   * Stop countdown timer
+   */
+  private stopCountdown(): void {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+  }
+
+  /**
+   * Force immediate retry (for Enter key functionality)
+   */
+  public retryNow(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    this.stopCountdown();
+    
+    // Attempt connection immediately
+    this.connect().catch(() => {
+      // Connection will schedule next retry automatically
+    });
   }
 
   /**
