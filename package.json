@@ -8,6 +8,7 @@
     "folder-mcp": "dist/src/interfaces/cli/folder-mcp.js"
   },
   "scripts": {
+    "preinstall": "node -e \"const v=process.version.slice(1).split('.'); if(+v[0]<20||(+v[0]===20&&+v[1]<0)) throw new Error('Node.js >=20.0.0 required')\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
@@ -25,7 +26,9 @@
     "test:embedding:real-python": "vitest run tests/real-integration/embedding-real.test.ts",
     "test:embedding:real-ollama": "vitest run tests/real-integration/embedding-real-ollama.test.ts",
     "test:embedding:real-comparison": "npm run test:embedding:real-python && npm run test:embedding:real-ollama",
-    "test": "vitest run",
+    "debug:env": "node -e \"console.log('Node:', process.version, '| Platform:', process.platform, '| Arch:', process.arch, '| npm:', process.env.npm_version || 'unknown')\"",
+    "debug:info": "node scripts/debug-info.cjs",
+    "test": "npm run debug:env && vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
@@ -57,6 +60,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/commander": "^2.12.0",

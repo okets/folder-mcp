@@ -1,0 +1,47 @@
+name: 🐛 Bug Report
+description: Report a bug to help us improve folder-mcp
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please include your environment information.
+
+  - type: textarea
+    id: debug-info
+    attributes:
+      label: "Debug Environment Info"
+      description: "Run `npm run debug:info` and paste the output here"
+      placeholder: |
+        Please run: npm run debug:info
+        Then paste the full output here...
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: "Bug Description"
+      description: "Clear description of what happened"
+      placeholder: "Describe the bug..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: "Steps to Reproduce"
+      description: "How can we reproduce this bug?"
+      placeholder: |
+        1. Run command `...`
+        2. See error `...`
+        3. Expected behavior was `...`
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: "Additional Context"
+      description: "Screenshots, logs, or other helpful information"
