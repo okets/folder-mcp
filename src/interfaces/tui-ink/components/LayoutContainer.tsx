@@ -2,8 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext';
 import { ILayoutConstraints } from '../models/types';
-import { useDI } from '../di/DIContext';
-import { ServiceTokens } from '../di/tokens';
+// WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 // Removed useNavigationContext import to prevent re-renders
 
 interface LayoutContainerProps {
@@ -21,18 +20,13 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
     narrowBreakpoint = 100,
     isMainFocused = true
 }) => {
-    const di = useDI();
-    const debugService = di.resolve(ServiceTokens.DebugService);
     // Remove navigation context usage to prevent re-renders
     const isNarrow = availableWidth < narrowBreakpoint;
     const isLowVerticalResolution = availableHeight < 20;
     const isExtremelyLowVerticalResolution = availableHeight < 13;
     
-    // Log layout decisions in debug mode
-    if (debugService.isEnabled()) {
-        debugService.logLayout('LayoutContainer', { width: availableWidth, height: availableHeight });
-        debugService.log('LayoutContainer', `Mode: ${isNarrow ? 'narrow' : 'wide'}`);
-    }
+    // WINDOWS FIX: Removed render-time debug logging to prevent ANSI packet fragmentation
+    // Debug logging during render cycle causes Windows terminal flickering
     
     if (isNarrow) {
         // Narrow layout: Stack panels vertically

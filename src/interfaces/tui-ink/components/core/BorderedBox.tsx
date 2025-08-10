@@ -4,8 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { ILayoutConstraints } from '../../models/types';
 import { LayoutConstraintProvider } from '../../contexts/LayoutContext';
 import { ConstrainedContent } from '../ConstrainedContent';
-import { useDI } from '../../di/DIContext';
-import { ServiceTokens } from '../../di/tokens';
+// WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 
 export interface BorderedBoxProps {
     title: string;
@@ -30,16 +29,12 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     scrollbarElements = [],
     constraints
 }) => {
-    const di = useDI();
-    const debugService = di.resolve(ServiceTokens.DebugService);
     const { theme } = useTheme();
     const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
     
-    // Log border dimensions in debug mode
-    if (debugService.isEnabled()) {
-        debugService.logLayout(`BorderedBox[${title}]`, { width, height });
-    }
+    // WINDOWS FIX: Removed render-time debug logging to prevent ANSI packet fragmentation
+    // Debug logging during render cycle causes Windows terminal flickering
     
     // Calculate exact content width
     // Border chars (|) on each side + 1 space before right border = 3 chars total
