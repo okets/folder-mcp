@@ -76,6 +76,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     // State to preserve folder expansion during terminal resizes
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     
+    // State to track when we're intentionally exiting to prevent daemon error screen
+    const [isExiting, setIsExiting] = useState<boolean>(false);
+    
     // Navigation context for focus management - must be declared before usage
     const navigation = useNavigationContext();
     
@@ -142,6 +145,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     // Create a robust exit function that works properly across platforms
     const robustExit = useCallback(async () => {
         try {
+            // Set exiting flag to prevent daemon error screen from showing during cleanup
+            setIsExiting(true);
             // Run all cleanup handlers first (including WebSocket cleanup)
             await runAllCleanup();
         } catch (error) {
@@ -444,7 +449,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Add input handling that works for both error screen and normal app
     useInput((input, key) => {
-        if (!fmdmConnection.connected && !fmdmConnection.connecting) {
+        if (!fmdmConnection.connected && !fmdmConnection.connecting && !isExiting) {
             // Only handle keys on error screen
             if (key.escape) {
                 robustExit().catch((error) => {
@@ -460,8 +465,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         }
     });
 
-    // Check if daemon is connected - if not, show error screen
-    if (!fmdmConnection.connected && !fmdmConnection.connecting) {
+    // Check if daemon is connected - if not, show error screen (unless we're intentionally exiting)
+    if (!fmdmConnection.connected && !fmdmConnection.connecting && !isExiting) {
         return (
             <Box flexDirection="column" height={rows} width={columns} justifyContent="center" alignItems="center">
                 <Box flexDirection="column" alignItems="center" paddingY={2}>
