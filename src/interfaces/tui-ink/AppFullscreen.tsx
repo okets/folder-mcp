@@ -34,25 +34,16 @@ import { createValidationResult, ValidationState } from './components/core/Valid
 
 /**
  * Maps folder indexing status to appropriate display color
+ * active = green, error = red, everything else = orange
  */
 function getStatusColor(status?: FolderIndexingStatus): string {
     switch (status) {
-        case 'pending':
-            return 'yellow';
-        case 'scanning':
-            return 'cyan';
-        case 'indexing':
-            return 'blue';
-        case 'indexed':
-            return 'green';
         case 'active':
-            return 'green';
-        case 'watching':
-            return 'green';
+            return theme.colors.successGreen;
         case 'error':
-            return 'red';
+            return theme.colors.dangerRed;
         default:
-            return 'yellow'; // Default fallback
+            return theme.colors.warningOrange; // All other statuses use orange
     }
 }
 
