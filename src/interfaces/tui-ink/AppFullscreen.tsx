@@ -296,7 +296,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 // Create ManageFolderItem for each folder
                 const manageFolderItem = createManageFolderItem({
                     folderPath,
-                    model: folder.model || 'nomic-embed-text',
+                    model: (folder.model && folder.model !== 'unknown') ? folder.model : 'nomic-embed-text',
                     isValid: folderValid,
                     folderStatus: folder.status === 'indexing' && folder.progress !== undefined 
                         ? `indexing (${folder.progress}%)`  // Include progress for indexing status

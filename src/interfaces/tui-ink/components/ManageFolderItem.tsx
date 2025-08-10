@@ -767,10 +767,12 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
     // Create custom TextListItem without indentation for status
     class NoIndentTextListItem extends TextListItem {
         private statusText: string;
+        private statusColor: string;
         
-        constructor(icon: string, text: string, isActive: boolean = false, onSelectCallback?: () => void, overflowMode: 'truncate' | 'wrap' = 'wrap') {
+        constructor(icon: string, text: string, color: string, isActive: boolean = false, onSelectCallback?: () => void, overflowMode: 'truncate' | 'wrap' = 'wrap') {
             super(icon, text, isActive, onSelectCallback, overflowMode);
             this.statusText = text;
+            this.statusColor = color;
         }
         
         render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
@@ -789,10 +791,10 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
             
             return (
                 <Text>
-                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
+                    <Text color={this.isActive ? theme.colors.accent : this.statusColor}>
                         {displayIcon}
                     </Text>
-                    <Text color="yellow">
+                    <Text color={this.statusColor}>
                         {' '}{displayText}
                     </Text>
                 </Text>
@@ -803,13 +805,15 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
     const statusLogItem = new NoIndentTextListItem(
         '●',
         folderStatus,
+        statusColor, // Use the same color as in collapsed mode
         false, // Not active
         undefined, // No callback
         'truncate' // Use truncate mode
     );
     
-    // Create child items array - exclude status item when there's a validation error to avoid redundancy
+    // Create child items array - always include status item in open mode
     const childItems: IListItem[] = [
+        statusLogItem,  // Status should always be visible in expanded mode
         modelLogItem
     ];
     
