@@ -50,14 +50,15 @@ function createFolderLifecycleService(
   fileSystemService: IFileSystemService,
   storage: any,
   fileStateService: any,
-  logger: ILoggingService
+  logger: ILoggingService,
+  model?: string
 ): IFolderLifecycleManager {
-  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger);
+  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger, model);
 }
 
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
   private folderManagers = new Map<string, IFolderLifecycleManager>();
-  private errorFolders = new Map<string, FolderConfig>(); // Track error folders separately
+  // Removed errorFolders - redundant, error state is tracked in folderManagers
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
@@ -133,8 +134,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         errorMessage: 'Folder does not exist'
       };
       
-      // Store error folder and update FMDM
-      this.errorFolders.set(path, errorFolderConfig);
+      // Update FMDM with error state
       this.updateFMDM();
       
       const error = new Error(`Folder does not exist: ${path}`);
@@ -171,6 +171,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async executeAddFolder(path: string, model: string): Promise<void> {
     try {
+      // Skip model validation - let indexing fail naturally if model isn't available
+      this.logger.debug(`[ORCHESTRATOR] Creating folder lifecycle for ${path} with model ${model}`);
+      
       // Create SQLite storage for this folder
       const storage = new SQLiteVecStorage({
         folderPath: path,
@@ -187,7 +190,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.fileSystemService,
         storage,
         this.fileStateService,
-        this.logger
+        this.logger,
+        model // Pass the model parameter
       );
       
       // Subscribe to manager events
@@ -227,34 +231,46 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
       this.logger.info(`[ORCHESTRATOR] Added folder to monitoring: ${path}`);
     } catch (error) {
-      // If folder was added to managers but failed later, make sure it has error status in FMDM
-      if (this.folderManagers.has(path)) {
-        const manager = this.folderManagers.get(path);
-        if (manager) {
-          const state = manager.getState();
-          if (state.status !== 'error') {
-            // Force error state update in FMDM
-            const errorFolderConfig: FolderConfig = {
-              path: path,
-              model: model,
-              status: 'error',
-              progress: 0,
-              errorMessage: error instanceof Error ? error.message : String(error)
-            };
-            
-            const currentFolders = this.getCurrentFolderConfigs();
-            const existingIndex = currentFolders.findIndex(f => f.path === path);
-            if (existingIndex >= 0) {
-              currentFolders[existingIndex] = errorFolderConfig;
-            } else {
-              currentFolders.push(errorFolderConfig);
-            }
-            this.fmdmService.updateFolders(currentFolders);
-          }
+      this.logger.error(`[ORCHESTRATOR] Failed to execute add folder operation: ${path}`, error as Error);
+      
+      // Check if this is a Python prerequisite error and format appropriately for FMDM
+      let errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Handle Python prerequisite errors specifically
+      if (errorMessage.includes('Python 3.8+ required for')) {
+        // Error message is already formatted correctly from PythonEmbeddingService
+        this.logger.warn(`[ORCHESTRATOR] Python prerequisite error for ${path}: ${errorMessage}`);
+      } else if (errorMessage.includes('Python embedding dependencies not available')) {
+        // Error message is already formatted correctly from PythonEmbeddingService
+        this.logger.warn(`[ORCHESTRATOR] Python dependency error for ${path}: ${errorMessage}`);
+      } else if (errorMessage.includes('Python process failed to start') || errorMessage.includes('Failed to start Python process')) {
+        // Generic Python process failure - enhance with model information
+        try {
+          const { getModelMetadata } = require('../../interfaces/tui-ink/models/modelMetadata.js');
+          const metadata = getModelMetadata(model);
+          const modelDisplayName = metadata?.displayName || model;
+          errorMessage = `Python 3.8+ required for ${modelDisplayName}`;
+        } catch {
+          // Fallback if metadata is not available
+          errorMessage = `Python 3.8+ required for ${model}`;
         }
+        this.logger.warn(`[ORCHESTRATOR] Enhanced Python error message for ${path}: ${errorMessage}`);
       }
       
-      this.logger.error(`[ORCHESTRATOR] Failed to execute add folder operation: ${path}`, error as Error);
+      // Use FMDM service to update folder status with error message
+      this.fmdmService.updateFolderStatus(path, 'error', errorMessage);
+      
+      // Create error folder config for tracking
+      const errorFolderConfig: FolderConfig = {
+        path: path,
+        model: model,
+        status: 'error',
+        progress: 0,
+        errorMessage: errorMessage
+      };
+      
+      // Update FMDM to ensure error is displayed
+      this.updateFMDM();
       
       // Perform resource cleanup on execution failure
       await this.performResourceCleanup(path, 'add_folder_execution_failed');
@@ -318,9 +334,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
     
     this.folderManagers.delete(folderPath);
-    
-    // Also remove from error folders if it was there
-    this.errorFolders.delete(folderPath);
     
     // Update FMDM after removal
     this.updateFMDM();
@@ -397,7 +410,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
     
     this.folderManagers.clear();
-    this.errorFolders.clear();
   }
   
   /**
@@ -582,10 +594,58 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Handle folder error
    */
   private onFolderError(folderPath: string, error: Error): void {
+    this.logger.error(`[ORCHESTRATOR] Folder error for ${folderPath}:`, error);
+    
+    // Check if this is a Python prerequisite error and format appropriately for FMDM
+    let errorMessage = error.message;
+    
+    // Handle Python prerequisite errors specifically
+    if (errorMessage.includes('Python 3.8+ required for')) {
+      // Error message is already formatted correctly from PythonEmbeddingService
+      this.logger.warn(`[ORCHESTRATOR] Python prerequisite error for ${folderPath}: ${errorMessage}`);
+    } else if (errorMessage.includes('Python embedding dependencies not available')) {
+      // Error message is already formatted correctly from PythonEmbeddingService
+      this.logger.warn(`[ORCHESTRATOR] Python dependency error for ${folderPath}: ${errorMessage}`);
+    } else if (errorMessage.includes('Python process failed to start') || errorMessage.includes('Failed to start Python process')) {
+      // Generic Python process failure - enhance with model information
+      const manager = this.folderManagers.get(folderPath);
+      if (manager) {
+        const state = manager.getState();
+        const model = state.model || 'unknown';
+        
+        try {
+          const { getModelMetadata } = require('../../interfaces/tui-ink/models/modelMetadata.js');
+          const metadata = getModelMetadata(model);
+          const modelDisplayName = metadata?.displayName || model;
+          errorMessage = `Python 3.8+ required for ${modelDisplayName}`;
+        } catch {
+          // Fallback if metadata is not available
+          errorMessage = `Python 3.8+ required for ${model}`;
+        }
+        this.logger.warn(`[ORCHESTRATOR] Enhanced Python error message for ${folderPath}: ${errorMessage}`);
+      }
+    }
+    
+    // Use FMDM service to update folder status with specific error message
+    const manager = this.folderManagers.get(folderPath);
+    if (manager) {
+      const state = manager.getState();
+      const model = state.model || 'unknown';
+      
+      // Create error folder config with enhanced error message
+      const errorFolderConfig: FolderConfig = {
+        path: folderPath,
+        model: model,
+        status: 'error',
+        progress: 0,
+        errorMessage: errorMessage
+      };
+      
+      // Error state is tracked in the folder manager itself
+    }
+    
     // Update FMDM with error state
     this.updateFMDM();
-    
-    // TODO: Implement error recovery strategy
   }
   
   /**
@@ -624,10 +684,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       folders.push(folderConfig);
     }
     
-    // Add error folders (folders that couldn't be created)
-    for (const [path, errorConfig] of this.errorFolders) {
-      folders.push(errorConfig);
-    }
+    // No need to add errorFolders separately - error state is tracked in folderManagers
     
     return folders;
   }
@@ -742,9 +799,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         };
       }
       
-      // Add to error folders tracking
-      this.errorFolders.set(folderPath, folderConfig);
-      
       // Update FMDM to show the folder with error status
       this.updateFMDM();
       
@@ -789,9 +843,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
       // Remove from our tracking
       this.folderManagers.delete(folderPath);
-      
-      // Also remove from error folders if it was there
-      this.errorFolders.delete(folderPath);
       
       // Update FMDM to remove the folder
       this.updateFMDM();
@@ -865,7 +916,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           },
           folders: {
             managed: this.folderManagers.size,
-            error: this.errorFolders.size
+            error: 0
           }
         });
       } else {
@@ -929,7 +980,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       resourceManager: resourceStats,
       folders: {
         managed: this.folderManagers.size,
-        error: this.errorFolders.size
+        error: 0
       }
     };
   }
@@ -1011,8 +1062,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.logger.debug(`[ORCHESTRATOR] Configuration cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
       }
       
-      // 6. Remove from error folders tracking
-      this.errorFolders.delete(folderPath);
+      // 6. Folder removal from managers handled above
       
       // 7. Force garbage collection if available to free up memory
       if (global.gc) {

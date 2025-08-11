@@ -49,6 +49,7 @@ export interface IndexingResult {
 
 export interface IndexingStatus {
   isRunning: boolean;
+  isPaused?: boolean;
   currentFile?: string;
   progress: IndexingProgress;
   startedAt?: Date;

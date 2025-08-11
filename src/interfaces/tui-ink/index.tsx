@@ -6,7 +6,7 @@ import { AppFullscreen } from './AppFullscreen';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AutoCompletionHandler } from './components/AutoCompletionHandler';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
-import { FMDMProvider, useFMDM } from './contexts/FMDMContext';
+import { FMDMProvider, useFMDM, useFMDMOperations } from './contexts/FMDMContext';
 import { FMDM } from '../../daemon/models/fmdm';
 import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
@@ -67,6 +67,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     
     // Get FMDM data to determine if we have configured folders
     const { fmdm, isConnected } = useFMDM();
+    const fmdmOperations = useFMDMOperations();
     
     // FMDM-based first run detection - make decisions based on daemon state
     React.useEffect(() => {
@@ -137,10 +138,12 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
         }
     };
     
-    const handleWizardComplete = (newConfig: any) => {
-        setConfig(newConfig);
+    const handleWizardComplete = async (newConfig: any) => {
+        // The FirstRunWizard already called fmdmOperations.addFolder()
+        // which will update FMDM state via WebSocket
+        setHasCompletedWizard(true);
         setShowWizard(false);
-        setHasCompletedWizard(true); // Mark that user has completed the wizard
+        // FMDM state will update automatically via WebSocket broadcast
     };
     
     const handleAutoCompletionConfirm = async (dir: string, model: string) => {

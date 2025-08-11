@@ -26,6 +26,10 @@ export interface IIndexingOrchestrator {
   isPaused(path: string): boolean;
   getStatistics(): any;
   reset(): void;
+  /**
+   * Test if a model is available and can be loaded
+   */
+  testModelAvailability(modelName: string): Promise<{ available: boolean; error?: string }>;
 }
 
 /**

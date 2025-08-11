@@ -17,6 +17,7 @@ import type {
 import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecycle-state-machine.js';
 import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
+import { EmbeddingErrors } from '../../infrastructure/embeddings/embedding-errors.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -187,8 +188,19 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     }
     
     if (changes.length === 0) {
-      this.logger.debug('[MANAGER-PROCESS] No changes detected, transitioning directly to active');
-      // No changes, transition directly from scanning to active (skip ready state)
+      this.logger.debug('[MANAGER-PROCESS] No changes detected, validating model before transitioning to active');
+      
+      // Validate model before transitioning to active
+      const modelValidation = await this.validateModel();
+      if (!modelValidation.valid) {
+        this.logger.warn(`[MANAGER-PROCESS] Model validation failed: ${modelValidation.errorMessage}`);
+        this.handleError(new Error(modelValidation.errorMessage || 'Model validation failed'), 'Model validation failed');
+        return;
+      }
+      
+      // Model validation passed, transition directly to active since there are no changes
+      this.logger.debug('[MANAGER-PROCESS] Model validation passed, no changes to index, transitioning to active');
+      
       if (this.stateMachine.canTransitionTo('active')) {
         this.stateMachine.transitionTo('active');
         this.updateState({ 
@@ -288,8 +300,19 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     while (this.active && this.state.status === 'indexing') {
       // Check if all tasks are complete
       if (this.isAllTasksComplete()) {
-        this.transitionToActive();
+        await this.transitionToActive();
         break;
+      }
+      
+      // Check if the task queue was cleared (fail-fast scenario)
+      const stats = this.taskQueue.getStatistics();
+      if (stats.pendingTasks === 0 && this.pendingIndexingTasks.size === 0) {
+        // Check if there are failed tasks indicating a model loading error
+        const failedTasks = this.state.fileEmbeddingTasks.filter(t => t.status === 'error');
+        if (failedTasks.length > 0 && failedTasks.some(t => t.errorMessage?.includes('model loading failure'))) {
+          this.logger.warn('[MANAGER-QUEUE] Stopping task processing due to model loading failure');
+          break;
+        }
       }
       
       // Try to start more tasks if we haven't hit the concurrency limit
@@ -354,25 +377,64 @@ return;
     switch (task.task) {
       case 'CreateEmbeddings':
       case 'UpdateEmbeddings':
-        // Process file with IndexingOrchestrator to get embeddings and metadata
-        const fileResult = await this.indexingOrchestrator.processFile(task.file);
-        
-        // Store results in SQLiteVecStorage if we have embeddings
-        if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
-          this.logger.debug(`[MANAGER-STORE] Storing ${fileResult.embeddings.length} embeddings for ${task.file}`);
+        try {
+          // Process file with IndexingOrchestrator to get embeddings and metadata
+          const fileResult = await this.indexingOrchestrator.processFile(task.file);
           
-          // Ensure database is initialized
-          if (!this.sqliteVecStorage.isReady()) {
-            // Load existing index or initialize if empty (does not wipe existing data)
-            const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
-            await this.sqliteVecStorage.loadIndex(dbPath);
+          // Store results in SQLiteVecStorage if we have embeddings
+          if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
+            this.logger.debug(`[MANAGER-STORE] Storing ${fileResult.embeddings.length} embeddings for ${task.file}`);
+            
+            // Ensure database is initialized
+            if (!this.sqliteVecStorage.isReady()) {
+              // Load existing index or initialize if empty (does not wipe existing data)
+              const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+              await this.sqliteVecStorage.loadIndex(dbPath);
+            }
+            
+            // Store embeddings in SQLite database incrementally
+            await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
+            this.logger.info(`[MANAGER-STORE] Successfully stored ${fileResult.embeddings.length} embeddings for ${task.file}`);
+          } else {
+            this.logger.warn(`[MANAGER-STORE] No embeddings generated for ${task.file}`);
+          }
+        } catch (error: any) {
+          // Check if this is a model loading error - if so, fail fast
+          const errorMessage = error.message || '';
+          if (errorMessage.includes('Python embeddings disabled') || 
+              errorMessage.includes('Python 3.8+ required') ||
+              errorMessage.includes('Failed to initialize') ||
+              errorMessage.includes('Model validation failed')) {
+            this.logger.error(`[MANAGER-FAILFAST] Model loading failed, stopping all indexing for ${this.folderPath}: ${errorMessage}`);
+            
+            // Clear all pending tasks to stop processing
+            this.taskQueue.clearAll();
+            
+            // Clear any pending indexing tasks
+            for (const [pendingTaskId] of this.pendingIndexingTasks) {
+              this.pendingIndexingTasks.delete(pendingTaskId);
+            }
+            
+            // Mark all remaining tasks as failed
+            for (const stateTask of this.state.fileEmbeddingTasks) {
+              if (stateTask.status === 'pending' || stateTask.status === 'in-progress') {
+                stateTask.status = 'error';
+                stateTask.errorMessage = 'Stopped due to model loading failure';
+              }
+            }
+            
+            // Transition to error state
+            this.state.status = 'error';
+            this.state.errorMessage = errorMessage;
+            this.emit('stateChange', this.state);
+            this.emit('error', error);
+            
+            // Re-throw the error to be handled by the error handler
+            throw error;
           }
           
-          // Store embeddings in SQLite database incrementally
-          await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
-          this.logger.info(`[MANAGER-STORE] Successfully stored ${fileResult.embeddings.length} embeddings for ${task.file}`);
-        } else {
-          this.logger.warn(`[MANAGER-STORE] No embeddings generated for ${task.file}`);
+          // For other errors, let normal error handling continue
+          throw error;
         }
         break;
         
@@ -434,7 +496,10 @@ return;
     
     // Check if all tasks are complete (this will be handled by the processTaskQueue loop)
     if (this.isAllTasksComplete()) {
-      this.transitionToActive();
+      this.transitionToActive().catch((error) => {
+        this.logger.error('[MANAGER-TASK-COMPLETE] Error during transition to active:', error);
+        this.handleError(error instanceof Error ? error : new Error(String(error)), 'Failed to transition to active after task completion');
+      });
     }
   }
 
@@ -446,8 +511,19 @@ return;
            stats.retryingTasks === 0;
   }
 
-  private transitionToActive(): void {
+  private async transitionToActive(): Promise<void> {
     if (this.stateMachine.canTransitionTo('active')) {
+      this.logger.debug('[MANAGER-TRANSITION] Validating model before transitioning to active after indexing completion');
+      
+      // Validate model before transitioning to active
+      const modelValidation = await this.validateModel();
+      if (!modelValidation.valid) {
+        this.logger.warn(`[MANAGER-TRANSITION] Model validation failed: ${modelValidation.errorMessage}`);
+        // Pass the error message directly without adding a prefix
+        this.handleError(new Error(modelValidation.errorMessage || 'Model validation failed'), modelValidation.errorMessage || 'Model validation failed');
+        return;
+      }
+      
       this.stateMachine.transitionTo('active');
       
       // Set progress to 100% when transitioning to active
@@ -464,6 +540,7 @@ return;
       
       // Emit indexComplete event
       this.emit('indexComplete', this.getState());
+      this.logger.debug('[MANAGER-TRANSITION] Successfully transitioned to active state after model validation');
     }
   }
 
@@ -802,5 +879,78 @@ return;
     
     // Emit state change
     this.emit('stateChange', this.getState());
+  }
+
+  /**
+   * Validate that the model can be loaded for this folder
+   * Lightweight check - just verify Python/Ollama is available, don't create embedding services
+   */
+  private async validateModel(): Promise<{ valid: boolean; errorMessage?: string }> {
+    try {
+      this.logger.debug(`[MANAGER-MODEL-VALIDATION] Lightweight validation for model ${this.model}`);
+      
+      // Determine if this is a Python or Ollama model
+      const isPythonModel = this.model.includes('transformers:') || 
+                           this.model.includes('MiniLM') || 
+                           this.model.includes('mpnet');
+      
+      if (isPythonModel) {
+        // Quick check if Python command exists (< 100ms)
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+        
+        try {
+          // Use the same Python command detection as PythonEmbeddingService
+          const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+          await execAsync(`${pythonCommand} --version`, { timeout: 1000 });
+          this.logger.debug(`[MANAGER-MODEL-VALIDATION] Python available for ${this.model}`);
+          return { valid: true };
+        } catch (error) {
+          const displayName = this.getModelDisplayName(this.model);
+          return { valid: false, errorMessage: EmbeddingErrors.pythonNotFound(displayName) };
+        }
+      } else {
+        // Quick Ollama API ping (< 500ms)
+        try {
+          const response = await fetch('http://127.0.0.1:11434/api/tags', {
+            method: 'GET',
+            signal: AbortSignal.timeout(2000)
+          });
+          
+          if (response.ok) {
+            this.logger.debug(`[MANAGER-MODEL-VALIDATION] Ollama available for ${this.model}`);
+            return { valid: true };
+          } else {
+            const displayName = this.getModelDisplayName(this.model);
+            return { valid: false, errorMessage: `Ollama not running for ${displayName}` };
+          }
+        } catch (error) {
+          const displayName = this.getModelDisplayName(this.model);
+          return { valid: false, errorMessage: `Ollama service not available for ${displayName}` };
+        }
+      }
+      
+    } catch (error) {
+      const modelDisplayName = this.getModelDisplayName(this.model);
+      const errorMessage = error instanceof Error ? error.message : `Model ${modelDisplayName} validation failed`;
+      this.logger.error(`[MANAGER-MODEL-VALIDATION] Validation error:`, error instanceof Error ? error : new Error(String(error)));
+      return { valid: false, errorMessage };
+    }
+  }
+
+  /**
+   * Get model display name from model metadata or fallback to model name
+   */
+  private getModelDisplayName(modelName: string): string {
+    // Import is done here to avoid circular dependencies
+    try {
+      const { getModelMetadata } = require('../../interfaces/tui-ink/models/modelMetadata.js');
+      const metadata = getModelMetadata(modelName);
+      return metadata?.displayName || modelName;
+    } catch (error) {
+      // Fallback to model name if metadata is not available
+      return modelName;
+    }
   }
 }

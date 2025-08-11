@@ -295,24 +295,47 @@ export class ContainerListItem implements IListItem {
             </Box>
         );
         
-        // Step 6.5: Render validation message using TextListItem approach
+        // Step 6.5: Render validation message with proper truncation
         if (hasValidationError && this._validationResult.errorMessage) {
-            // Create a temporary TextListItem for validation display (non-navigable)
+            // Calculate available width for the error message
+            const borderChar = '│ ';
+            const errorIcon = '✗ ';
+            const prefixWidth = borderChar.length + errorIcon.length;
+            const availableWidth = viewport.contentWidth - prefixWidth;
+            
+            // Truncate the error message if needed
+            let displayMessage = this._validationResult.errorMessage;
+            if (displayMessage.length > availableWidth && availableWidth > 3) {
+                displayMessage = displayMessage.substring(0, availableWidth - 1) + '…';
+            }
+            
             const validationDisplay = (
                 <Box key="validation-error">
                     <Text>
                         <Text {...textColorProp(theme.colors.textMuted)}>│ </Text>
-                        <Text {...textColorProp(theme.colors.dangerRed)}>✗ {this._validationResult.errorMessage}</Text>
+                        <Text {...textColorProp(theme.colors.dangerRed)}>✗ {displayMessage}</Text>
                     </Text>
                 </Box>
             );
             elements.push(validationDisplay);
         } else if (hasValidationWarning && this._validationResult.warningMessage) {
+            // Calculate available width for the warning message
+            const borderChar = '│ ';
+            const warningIcon = '! ';
+            const prefixWidth = borderChar.length + warningIcon.length;
+            const availableWidth = viewport.contentWidth - prefixWidth;
+            
+            // Truncate the warning message if needed
+            let displayMessage = this._validationResult.warningMessage;
+            if (displayMessage.length > availableWidth && availableWidth > 3) {
+                displayMessage = displayMessage.substring(0, availableWidth - 1) + '…';
+            }
+            
             const validationDisplay = (
                 <Box key="validation-warning">
                     <Text>
                         <Text {...textColorProp(theme.colors.textMuted)}>│ </Text>
-                        <Text {...textColorProp(theme.colors.warningOrange)}>! {this._validationResult.warningMessage}</Text>
+                        <Text {...textColorProp(theme.colors.warningOrange)}>! {displayMessage}</Text>
                     </Text>
                 </Box>
             );

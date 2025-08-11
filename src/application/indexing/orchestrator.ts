@@ -452,4 +452,51 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       return { success: false, filePath, error: (error as Error).message };
     }
   }
+
+  pauseFolder(path: string): void {
+    const status = this.currentStatus.get(path);
+    if (status) {
+      status.isPaused = true;
+      this.loggingService.info('Folder indexing paused', { path });
+    }
+  }
+
+  resumeFolder(path: string): void {
+    const status = this.currentStatus.get(path);
+    if (status) {
+      status.isPaused = false;
+      this.loggingService.info('Folder indexing resumed', { path });
+    }
+  }
+
+  isPaused(path: string): boolean {
+    const status = this.currentStatus.get(path);
+    return status?.isPaused || false;
+  }
+
+  getStatistics(): any {
+    const allStatuses = Array.from(this.currentStatus.values());
+    return {
+      activeFolders: allStatuses.filter(s => s.isRunning).length,
+      pausedFolders: allStatuses.filter(s => s.isPaused).length,
+      totalFolders: allStatuses.length
+    };
+  }
+
+  reset(): void {
+    this.currentStatus.clear();
+    this.loggingService.info('IndexingOrchestrator reset');
+  }
+
+  /**
+   * Test if a model is available and can be loaded
+   * DEPRECATED: We now let indexing fail naturally and only do lightweight checks before active state
+   */
+  async testModelAvailability(modelName: string): Promise<{ available: boolean; error?: string }> {
+    // Simplified stub - no longer creating expensive embedding services for validation
+    this.loggingService.debug(`[ORCHESTRATOR-MODEL-TEST] Deprecated method called for ${modelName}`);
+    return { available: false, error: 'Model validation has been simplified - use lightweight checks instead' };
+  }
+  
+  // Removed complex helper methods - using lightweight validation instead
 }

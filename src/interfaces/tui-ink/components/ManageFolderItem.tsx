@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { Text } from 'ink';
+import { existsSync } from 'fs';
 import { ContainerListItem } from './core/ContainerListItem';
 import { LogItem } from './core/LogItem';
 import { IListItem } from './core/IListItem';
@@ -14,6 +15,7 @@ import { TextListItem } from './core/TextListItem';
 import { getModelMetadata } from '../models/modelMetadata';
 import { theme } from '../utils/theme';
 import { useModelDownloadEvents, ModelDownloadEvent } from '../contexts/FMDMContext';
+import { formatFolderWithStatus } from '../utils/validationDisplay';
 
 export interface ManageFolderItemOptions {
     folderPath: string;
@@ -23,6 +25,7 @@ export interface ManageFolderItemOptions {
     statusColor?: string;
     onRemove: (folderPath: string) => Promise<void>;
     onError?: (error: string) => void;
+    validationState?: any;
 }
 
 /**
@@ -58,415 +61,59 @@ class ManageFolderContainerItem extends ContainerListItem {
         this.statusColor = statusColor;
     }
     
+    // Override to always enable buttons - we want "Close" and "Remove Folder" to always work
+    // regardless of validation errors (users should be able to close or remove errored folders)
+    get isConfirmEnabled(): boolean {
+        return true;
+    }
+    
     // Override render to update label based on expansion state
     render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
         if (this.isControllingInput) {
-            // Expanded: apply progressive truncation to header path
-            const iconWidth = 2;
-            const availableWidth = maxWidth - iconWidth;
-            const truncatedPath = this.truncatePathWithoutStatus(this.folderPath, availableWidth);
-            (this as any).label = truncatedPath;
+            // Expanded: just show the path without status
+            (this as any).label = this.folderPath;
             return super.render(maxWidth, maxLines);
         } else {
-            // Collapsed: render with yellow status
-            return this.renderCollapsedWithYellowStatus(maxWidth);
-        }
-    }
-    
-    private truncatePathWithoutStatus(path: string, availableWidth: number): string {
-        // If path fits, return as is
-        if (path.length <= availableWidth) {
-            return path;
-        }
-        
-        // Split path into parts
-        const parts = path.split('/').filter(p => p); // Remove empty parts
-        if (parts.length === 0) return '…';
-        
-        let lastPart = parts[parts.length - 1];
-        let parentParts = parts.slice(0, -1);
-        
-        // Try progressively shorter representations
-        // 1. Try removing parent directories one by one, using ../
-        let remainingParts = [...parentParts]; // Copy the array
-        let depth = 0;
-        
-        while (remainingParts.length > 0) {
-            depth++;
-            remainingParts.shift(); // Remove one parent directory
+            // Collapsed: use the standardized validation display pattern
+            const iconWidth = 2; // icon + space
+            const availableWidth = maxWidth - iconWidth;
             
-            // Build representation: ../../../remainingPath/lastPart
-            const remainingPath = remainingParts.length > 0 ? remainingParts.join('/') + '/' : '';
-            const representation = '../'.repeat(depth) + remainingPath + lastPart;
-            
-            if (representation.length <= availableWidth) {
-                return representation;
-            }
-        }
-        
-        // If we get here, try just ../../../lastPart (all parents as ../)
-        if (parentParts.length > 0) {
-            const allParentsAsRelative = '../'.repeat(parentParts.length + 1) + lastPart;
-            if (allParentsAsRelative.length <= availableWidth) {
-                return allParentsAsRelative;
-            }
-        }
-        
-        // 2. Try just the folder name alone (if parent directories were removed)
-        if (parentParts.length > 0 && lastPart && lastPart.length <= availableWidth) {
-            return lastPart;
-        }
-        
-        // 3. Try with single ellipsis: …/lastPart
-        const ellipsisPath = `…/${lastPart}`;
-        if (ellipsisPath.length <= availableWidth) {
-            return ellipsisPath;
-        }
-        
-        // 4. Truncate the folder name itself
-        let currentLastPart = lastPart || '';
-        const originalLength = lastPart ? lastPart.length : 0;
-        
-        while (currentLastPart.length > 0) {
-            const pathTruncated = currentLastPart.length < originalLength;
-            const pathWithEllipsis = pathTruncated ? `…/${currentLastPart}…` : `…/${currentLastPart}`;
-            
-            if (pathWithEllipsis.length <= availableWidth) {
-                return pathWithEllipsis;
-            }
-            
-            currentLastPart = currentLastPart.slice(0, -1);
-        }
-        
-        // Last resort
-        return availableWidth >= 4 ? '…/…' : '…';
-    }
-    
-    private truncatePathFromLeft(path: string, availableWidth: number): { path: string; status: string; } {
-        const fullStatus = this.folderStatus;
-        const statusWithBrackets = ` [${fullStatus}]`;
-        
-        // If everything fits, return as is
-        if (path.length + statusWithBrackets.length <= availableWidth) {
-            return { path, status: fullStatus };
-        }
-        
-        // Split path into parts
-        const parts = path.split('/').filter(p => p); // Remove empty parts
-        if (parts.length === 0) return { path: '…', status: '…' };
-        
-        let lastPart = parts[parts.length - 1];
-        let parentParts = parts.slice(0, -1);
-        
-        // Try progressively shorter representations
-        // 1. Try removing parent directories one by one, using ../
-        let remainingParts = [...parentParts]; // Copy the array
-        let depth = 0;
-        
-        while (remainingParts.length > 0) {
-            depth++;
-            remainingParts.shift(); // Remove one parent directory
-            
-            // Build representation: ../../../remainingPath/lastPart
-            const remainingPath = remainingParts.length > 0 ? remainingParts.join('/') + '/' : '';
-            const representation = '../'.repeat(depth) + remainingPath + lastPart;
-            
-            if (representation.length + statusWithBrackets.length <= availableWidth) {
-                return { path: representation, status: fullStatus };
-            }
-        }
-        
-        // If we get here, try just ../../../lastPart (all parents as ../)
-        if (parentParts.length > 0) {
-            const allParentsAsRelative = '../'.repeat(parentParts.length + 1) + lastPart;
-            if (allParentsAsRelative.length + statusWithBrackets.length <= availableWidth) {
-                return { path: allParentsAsRelative, status: fullStatus };
-            }
-        }
-        
-        // 2. Try with single ellipsis: …/lastPart
-        const ellipsisPath = `…/${lastPart}`;
-        if (ellipsisPath.length + statusWithBrackets.length <= availableWidth) {
-            return { path: ellipsisPath, status: fullStatus };
-        }
-        
-        // 3. Smart truncation - truncate the longer text first, then alternate
-        let currentLastPart = lastPart || '';
-        let currentStatus = fullStatus;
-        const minRequiredChars = 7; // …/… […] minimum
-        let alternateNext = false; // Flag to track when to start alternating
-        const originalLastPartLength = lastPart ? lastPart.length : 0;
-        const originalStatusLength = fullStatus.length;
-        
-        while (true) {
-            // Only add ellipses if the text has been actually truncated
-            const pathTruncated = currentLastPart.length < originalLastPartLength;
-            const statusTruncated = currentStatus.length < originalStatusLength;
-            
-            const pathWithEllipsis = currentLastPart.length > 0 
-                ? (pathTruncated ? `…/${currentLastPart}…` : `…/${currentLastPart}`)
-                : '…/…';
-            const statusWithEllipsis = currentStatus.length > 0 
-                ? (statusTruncated ? `${currentStatus}…` : currentStatus)
-                : '…';
-            const fullText = `${pathWithEllipsis} [${statusWithEllipsis}]`;
-            
-            if (fullText.length <= availableWidth) {
-                return { path: pathWithEllipsis, status: statusWithEllipsis };
-            }
-            
-            // Stop if we can't truncate further
-            if (currentLastPart.length === 0 && currentStatus.length === 0) {
-                break;
-            }
-            
-            // Check if they're now equal length (start alternating)
-            if (currentLastPart.length === currentStatus.length && !alternateNext) {
-                alternateNext = true;
-            }
-            
-            if (alternateNext) {
-                // Alternate between truncating each (keep them balanced)
-                // Use a simple toggle - alternate each iteration
-                const shouldTruncatePath = (currentLastPart.length + currentStatus.length) % 2 === 0;
-                
-                if (shouldTruncatePath && currentLastPart.length > 0) {
-                    currentLastPart = currentLastPart.slice(0, -1);
-                } else if (currentStatus.length > 0) {
-                    currentStatus = currentStatus.slice(0, -1);
-                } else if (currentLastPart.length > 0) {
-                    // Only one left to truncate
-                    currentLastPart = currentLastPart.slice(0, -1);
-                }
-            } else {
-                // Truncate the longer one until they're equal
-                if (currentLastPart.length > currentStatus.length && currentLastPart.length > 0) {
-                    currentLastPart = currentLastPart.slice(0, -1);
-                } else if (currentStatus.length > currentLastPart.length && currentStatus.length > 0) {
-                    currentStatus = currentStatus.slice(0, -1);
-                } else {
-                    // They're equal length now - start alternating
-                    alternateNext = true;
-                    // Don't truncate this iteration, let the alternating logic handle it next time
-                    continue;
-                }
-            }
-        }
-        
-        // 5. Last resort - just show what we can
-        if (availableWidth >= minRequiredChars) {
-            return { path: '…/…', status: '…' };
-        } else {
-            return { path: '…', status: '…' };
-        }
-    }
-
-    private renderCollapsedWithYellowStatus(maxWidth: number): React.ReactElement {
-        // Calculate available width (icon + space = 2, plus potential cursor space)
-        const iconWidth = 2;
-        const cursorWidth = this.isActive ? 0 : 0; // Cursor is handled separately in GenericListPanel
-        const availableWidth = maxWidth - iconWidth - cursorWidth;
-        
-        // Check if we have validation error to show WITH status
-        const validationResult = this.validationResult;
-        const hasValidationError = validationResult.hasError;
-        const hasValidationWarning = validationResult.hasWarning;
-        
-        if (hasValidationError && validationResult.errorMessage) {
-            // Show both status AND validation error message: path [error] ✗ message
-            const errorMessage = validationResult.errorMessage;
-            const statusText = `[${this.folderStatus}]`;
-            const errorIcon = ' ✗ ';
-            
-            // Advanced truncation logic similar to file picker validation
-            return this.renderWithAdvancedTruncation(
+            // Format using the utility function
+            const formatted = formatFolderWithStatus(
                 this.folderPath,
-                statusText,
-                errorIcon + errorMessage,
+                this.folderStatus,
+                this.validationResult,
                 availableWidth,
-                theme.colors.dangerRed
+                this.icon,
+                this.isActive
             );
-        } else if (hasValidationWarning && validationResult.warningMessage) {
-            // Show both status AND validation warning message: path [status] ! message
-            const warningMessage = validationResult.warningMessage;
-            const statusText = `[${this.folderStatus}]`;
-            const warningIcon = ' ! ';
             
-            return this.renderWithAdvancedTruncation(
-                this.folderPath,
-                statusText,
-                warningIcon + warningMessage,
-                availableWidth,
-                theme.colors.warningOrange
-            );
-        } else {
-            // Original status display for non-error cases
-            const { path: truncatedPath, status: truncatedStatus } = this.truncatePathFromLeft(this.folderPath, availableWidth);
-            
+            // Render the formatted output
             return (
                 <Text>
                     <Text color={this.isActive ? theme.colors.accent : 'gray'}>
                         {this.icon}
                     </Text>
                     <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        {' '}{truncatedPath}
+                        {' '}{formatted.truncatedPath}
                     </Text>
-                    {truncatedStatus && (
-                        <>
-                            <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                                {' ['}
-                            </Text>
-                            <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
-                                {truncatedStatus}
-                            </Text>
-                            <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                                {']'}
-                            </Text>
-                        </>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {' ['}
+                    </Text>
+                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
+                        {formatted.statusDisplay}
+                    </Text>
+                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
+                        {']'}
+                    </Text>
+                    {formatted.showValidation && formatted.validationColor && (
+                        <Text color={formatted.validationColor}>
+                            {' '}{formatted.validationDisplay}
+                        </Text>
                     )}
                 </Text>
             );
         }
-    }
-    
-    /**
-     * Advanced truncation for validation display similar to file picker
-     * Format: path [status] ✗ message with intelligent truncation priority
-     */
-    private renderWithAdvancedTruncation(
-        path: string,
-        status: string,
-        validation: string,
-        availableWidth: number,
-        validationColor: string
-    ): React.ReactElement {
-        const pathPrefix = ' '; // Space after icon
-        const statusSpace = ' '; // Space before status
-        const validationSpace = ' '; // Space before validation (already included in validation string)
-        
-        // Calculate minimum required widths
-        const minStatusWidth = status.length;
-        const validationIconWidth = 2; // " ✗" or " !"
-        const minValidationWidth = validationIconWidth;
-        
-        // Total fixed width: space + status + validation icon
-        const fixedWidth = pathPrefix.length + statusSpace.length + minStatusWidth + minValidationWidth;
-        
-        if (availableWidth <= fixedWidth) {
-            // Extremely tight - show minimal display
-            const minPath = availableWidth > fixedWidth + 1 ? '…' : '';
-            return (
-                <Text>
-                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
-                        {this.icon}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        {pathPrefix}{minPath}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        {statusSpace}[
-                    </Text>
-                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
-                        {status.replace(/^\[|\]$/g, '')}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        ]
-                    </Text>
-                    <Text color={validationColor}>
-                        {validation.substring(0, minValidationWidth)}
-                    </Text>
-                </Text>
-            );
-        }
-        
-        // Calculate available width for path and validation message
-        const availableForContent = availableWidth - fixedWidth;
-        
-        // Try different truncation strategies in priority order:
-        
-        // 1. Try to fit full path + full validation
-        const fullValidationWidth = validation.length;
-        if (path.length + fullValidationWidth <= availableForContent) {
-            return (
-                <Text>
-                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
-                        {this.icon}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        {pathPrefix}{path}{statusSpace}[
-                    </Text>
-                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
-                        {status.replace(/^\[|\]$/g, '')}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        ]
-                    </Text>
-                    <Text color={validationColor}>
-                        {validation}
-                    </Text>
-                </Text>
-            );
-        }
-        
-        // 2. Try to fit truncated path + full validation
-        if (fullValidationWidth < availableForContent) {
-            const pathWidth = availableForContent - fullValidationWidth;
-            const truncatedPath = pathWidth >= 3 
-                ? '…' + path.substring(path.length - (pathWidth - 1))
-                : '…';
-            return (
-                <Text>
-                    <Text color={this.isActive ? theme.colors.accent : 'gray'}>
-                        {this.icon}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        {pathPrefix}{truncatedPath}{statusSpace}[
-                    </Text>
-                    <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
-                        {status.replace(/^\[|\]$/g, '')}
-                    </Text>
-                    <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                        ]
-                    </Text>
-                    <Text color={validationColor}>
-                        {validation}
-                    </Text>
-                </Text>
-            );
-        }
-        
-        // 3. Truncate both path and validation message
-        const halfWidth = Math.floor(availableForContent / 2);
-        const pathWidth = Math.max(1, halfWidth);
-        const validationWidth = availableForContent - pathWidth;
-        
-        const truncatedPath = pathWidth >= 3 
-            ? '…' + path.substring(path.length - (pathWidth - 1))
-            : '…';
-        
-        const truncatedValidation = validationWidth > minValidationWidth
-            ? validation.substring(0, validationWidth - 1) + '…'
-            : validation.substring(0, minValidationWidth);
-        
-        return (
-            <Text>
-                <Text color={this.isActive ? theme.colors.accent : 'gray'}>
-                    {this.icon}
-                </Text>
-                <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                    {pathPrefix}{truncatedPath}{statusSpace}[
-                </Text>
-                <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
-                    {status.replace(/^\[|\]$/g, '')}
-                </Text>
-                <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
-                    ]
-                </Text>
-                <Text color={validationColor}>
-                    {truncatedValidation}
-                </Text>
-            </Text>
-        );
     }
 }
 
@@ -812,10 +459,54 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
     );
     
     // Create child items array - always include status item in open mode
-    const childItems: IListItem[] = [
-        statusLogItem,  // Status should always be visible in expanded mode
-        modelLogItem
-    ];
+    const childItems: IListItem[] = [];
+    
+    // Special case: folder doesn't exist (not handled by validation state)
+    if (isValid === false && !existsSync(folderPath)) {
+        // Folder doesn't exist - show this as first item
+        // Custom error item with red text and single space
+        class ErrorTextItem extends TextListItem {
+            private errorText: string;
+            
+            constructor(icon: string, text: string, isActive: boolean = false) {
+                super(icon, text, isActive, undefined, 'truncate');
+                this.errorText = text;
+            }
+            
+            render(maxWidth: number): React.ReactElement | React.ReactElement[] {
+                const displayIcon = this.isActive ? '▶' : this.icon;
+                const iconWidth = displayIcon.length + 1; // icon + space
+                const availableWidth = maxWidth - iconWidth;
+                
+                let displayText = this.errorText;
+                
+                if (this.errorText.length > availableWidth) {
+                    displayText = this.errorText.substring(0, Math.max(0, availableWidth - 1)) + '…';
+                }
+                
+                return (
+                    <Text>
+                        <Text color={this.isActive ? theme.colors.accent : theme.colors.dangerRed}>
+                            {displayIcon}
+                        </Text>
+                        <Text color={theme.colors.dangerRed}>
+                            {' '}{displayText}
+                        </Text>
+                    </Text>
+                );
+            }
+        }
+        
+        const errorItem = new ErrorTextItem('✗', 'Folder no longer exists', false);
+        childItems.push(errorItem);
+    }
+    // Note: We don't manually add validation errors/warnings here because
+    // ContainerListItem automatically renders them from the validationState
+    // that we pass to its constructor (see lines 299-320 in ContainerListItem.tsx)
+    
+    // Add status and model items
+    childItems.push(statusLogItem);  // Status should always be visible in expanded mode
+    childItems.push(modelLogItem);
     
     // Create the main ContainerListItem
     let manageFolderItem: ContainerListItem;
@@ -840,7 +531,7 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
                 }
             }
         },
-        undefined, // No validation state
+        options.validationState, // Pass the validation state for collapsed mode display
         true // useDualButtons - enable dual button mode
     );
     

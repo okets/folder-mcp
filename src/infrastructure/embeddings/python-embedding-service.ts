@@ -15,6 +15,7 @@ import type {
   EmbeddingResult, 
   BatchEmbeddingOperations 
 } from '../../domain/embeddings/index.js';
+import { EmbeddingErrors } from './embedding-errors.js';
 
 /**
  * JSON-RPC 2.0 interfaces for communication
@@ -162,8 +163,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       this.initialized = true;
       console.error('Python embedding service initialized successfully');
       
-    } catch (error) {
-      throw new Error(`Failed to initialize Python embedding service: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to initialize Python embedding service: ${errorMessage}`);
     }
   }
 
@@ -566,6 +568,14 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
       this.pythonProcess.on('error', (error) => {
         console.error('Python process error:', error);
+        
+        // Check for ENOENT (file not found) error specifically
+        if ('code' in error && error.code === 'ENOENT') {
+          const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+          reject(new Error(EmbeddingErrors.pythonNotFound(modelDisplayName)));
+          return;
+        }
+        
         reject(new Error(`Failed to start Python process: ${error.message}`));
       });
 
@@ -576,9 +586,16 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         
         // If process exits before starting successfully, check for known errors
         if (!processStarted) {
+          // Check if Python is missing
+          if (code === 127 || stderrBuffer.includes('python: command not found') || stderrBuffer.includes('No such file or directory')) {
+            const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+            reject(new Error(EmbeddingErrors.pythonNotFound(modelDisplayName)));
+            return;
+          }
           // Check if dependencies are missing
           if (code === 1 && stderrBuffer.includes('dependencies not available')) {
-            reject(new Error('Python embedding dependencies not available'));
+            const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+            reject(new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName)));
             return;
           }
           // Generic startup failure
@@ -904,5 +921,20 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       processId: this.pythonProcess?.pid,
       lastHealthCheck: this.lastHealthCheck
     };
+  }
+
+  /**
+   * Get model display name from model metadata or fallback to model name
+   */
+  private getModelDisplayName(modelName: string): string {
+    // Import is done here to avoid circular dependencies
+    try {
+      const { getModelMetadata } = require('../../interfaces/tui-ink/models/modelMetadata.js');
+      const metadata = getModelMetadata(modelName);
+      return metadata?.displayName || modelName;
+    } catch (error) {
+      // Fallback to model name if metadata is not available
+      return modelName;
+    }
   }
 }

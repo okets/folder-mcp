@@ -272,3 +272,174 @@ export function formatCollapsedValidation(
         ...buildProps({ truncatedLabel: workingLabel !== label ? workingLabel : undefined })
     };
 }
+
+/**
+ * Format folder path with status and validation for collapsed view
+ * Displays as: path [status] ✗/! message
+ * @param path - The folder path
+ * @param status - The folder status (pending, scanning, indexing, active, error)
+ * @param validation - The validation result with error/warning message
+ * @param maxWidth - Maximum width for the entire line
+ * @param icon - The item's icon
+ * @param isActive - Whether the item is currently active/focused
+ * @returns Object with formatted parts for rendering
+ */
+export function formatFolderWithStatus(
+    path: string,
+    status: string,
+    validation: { hasError: boolean; hasWarning: boolean; errorMessage?: string; warningMessage?: string } | null,
+    maxWidth: number,
+    icon: string,
+    isActive: boolean = false
+): {
+    truncatedPath: string;
+    statusDisplay: string;
+    validationDisplay: string;
+    showValidation: boolean;
+    validationColor?: string;
+} {
+    // Calculate base components width
+    const iconWidth = getVisualWidth(`${icon} `);
+    const statusWidth = getVisualWidth(` [${status}]`);
+    const baseWidth = iconWidth + statusWidth;
+    
+    // Determine validation icon and message if present
+    let validationIcon = '';
+    let validationMessage = '';
+    let validationColor: string | undefined;
+    
+    if (validation) {
+        if (validation.hasError && validation.errorMessage) {
+            validationIcon = '✗';
+            validationMessage = validation.errorMessage;
+            validationColor = theme.colors.dangerRed;
+        } else if (validation.hasWarning && validation.warningMessage) {
+            validationIcon = '!';
+            validationMessage = validation.warningMessage;
+            validationColor = theme.colors.warningOrange;
+        }
+    }
+    
+    // If no validation, just handle path and status truncation
+    if (!validationIcon) {
+        const availableForPath = maxWidth - baseWidth;
+        
+        if (getVisualWidth(path) <= availableForPath) {
+            return {
+                truncatedPath: path,
+                statusDisplay: status,
+                validationDisplay: '',
+                showValidation: false
+            };
+        }
+        
+        // Truncate path to fit
+        const truncatedPath = availableForPath > 1 
+            ? '…' + path.substring(path.length - (availableForPath - 1))
+            : '…';
+            
+        return {
+            truncatedPath,
+            statusDisplay: status,
+            validationDisplay: '',
+            showValidation: false
+        };
+    }
+    
+    // With validation - prioritize showing validation icon
+    const minValidationWidth = 2; // Space + icon: " ✗" or " !"
+    const fullValidationWidth = getVisualWidth(` ${validationIcon} ${validationMessage}`);
+    const effectiveMaxWidth = maxWidth - baseWidth;
+    
+    // Try to fit everything
+    if (getVisualWidth(path) + fullValidationWidth <= effectiveMaxWidth) {
+        return {
+            truncatedPath: path,
+            statusDisplay: status,
+            validationDisplay: ` ${validationIcon} ${validationMessage}`,
+            showValidation: true,
+            ...(validationColor ? { validationColor } : {})
+        };
+    }
+    
+    // Try to fit path + icon + truncated message
+    const pathWidth = getVisualWidth(path);
+    if (pathWidth + minValidationWidth <= effectiveMaxWidth) {
+        const remainingForMessage = effectiveMaxWidth - pathWidth - minValidationWidth - 1; // -1 for space after icon
+        
+        if (remainingForMessage >= 1) {
+            const truncatedMsg = truncateValidationMessage(validationMessage, remainingForMessage);
+            if (truncatedMsg) {
+                return {
+                    truncatedPath: path,
+                    statusDisplay: status,
+                    validationDisplay: ` ${validationIcon} ${truncatedMsg}`,
+                    showValidation: true,
+                    ...(validationColor ? { validationColor } : {})
+                };
+            }
+        }
+        
+        // Just show icon
+        return {
+            truncatedPath: path,
+            statusDisplay: status,
+            validationDisplay: ` ${validationIcon}`,
+            showValidation: true,
+            ...(validationColor ? { validationColor } : {})
+        };
+    }
+    
+    // Need to truncate path to make room for validation icon (at minimum)
+    const maxPathWidth = effectiveMaxWidth - minValidationWidth;
+    
+    if (maxPathWidth <= 0) {
+        // Extreme case - no room for anything
+        return {
+            truncatedPath: '…',
+            statusDisplay: status.length > 3 ? status.substring(0, 3) : status,
+            validationDisplay: ` ${validationIcon}`,
+            showValidation: true,
+            ...(validationColor ? { validationColor } : {})
+        };
+    }
+    
+    // Progressive path truncation to fit validation
+    let truncatedPath = path;
+    
+    // Try showing just the folder name (last part of path)
+    const parts = path.split('/').filter(p => p);
+    const folderName = parts[parts.length - 1] || path;
+    
+    if (getVisualWidth(folderName) <= maxPathWidth) {
+        truncatedPath = folderName;
+        
+        // Check if we can fit some message too
+        const remainingForMessage = effectiveMaxWidth - getVisualWidth(truncatedPath) - minValidationWidth - 1;
+        if (remainingForMessage >= 1) {
+            const truncatedMsg = truncateValidationMessage(validationMessage, remainingForMessage);
+            if (truncatedMsg) {
+                return {
+                    truncatedPath,
+                    statusDisplay: status,
+                    validationDisplay: ` ${validationIcon} ${truncatedMsg}`,
+                    showValidation: true,
+                    ...(validationColor ? { validationColor } : {})
+                };
+            }
+        }
+    } else {
+        // Truncate from left with ellipsis
+        truncatedPath = maxPathWidth > 1
+            ? '…' + path.substring(path.length - (maxPathWidth - 1))
+            : '…';
+    }
+    
+    return {
+        truncatedPath,
+        statusDisplay: status,
+        validationDisplay: ` ${validationIcon}`,
+        showValidation: true,
+        ...(validationColor ? { validationColor } : {})
+    };
+}

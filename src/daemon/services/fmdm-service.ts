@@ -56,7 +56,7 @@ export interface IFMDMService {
   /**
    * Update status for a specific folder
    */
-  updateFolderStatus(folderPath: string, status: FolderIndexingStatus): void;
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, errorMessage?: string): void;
   
   /**
    * Update progress for a specific folder
@@ -252,7 +252,7 @@ export class FMDMService implements IFMDMService {
   /**
    * Update status for a specific folder
    */
-  updateFolderStatus(folderPath: string, status: FolderIndexingStatus): void {
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, errorMessage?: string): void {
     const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
     
     if (folderIndex === -1) {
@@ -267,15 +267,30 @@ export class FMDMService implements IFMDMService {
       return;
     }
     
-    this.fmdm.folders[folderIndex] = {
+    const updatedFolder: FolderConfig = {
       path: folder.path,
       model: folder.model,
       status: status
     };
     
+    // Add error message if provided and status is error
+    if (status === 'error' && errorMessage) {
+      updatedFolder.errorMessage = errorMessage;
+    }
+    
+    // Preserve other fields like progress
+    if (folder.progress !== undefined) {
+      updatedFolder.progress = folder.progress;
+    }
+    if (folder.scanningProgress !== undefined) {
+      updatedFolder.scanningProgress = folder.scanningProgress;
+    }
+    
+    this.fmdm.folders[folderIndex] = updatedFolder;
+    
     // Update version and broadcast changes
     this.fmdm.version = this.generateVersion();
-    this.logger.debug(`Updated folder status: ${folderPath} -> ${status}`);
+    this.logger.debug(`Updated folder status: ${folderPath} -> ${status}${errorMessage ? ` (${errorMessage})` : ''}`);
     this.broadcast();
   }
   

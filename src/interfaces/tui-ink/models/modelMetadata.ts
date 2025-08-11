@@ -94,6 +94,15 @@ export const modelMetadata: Record<string, ModelMetadata> = {
         backend: 'folder-mcp',  // Changed from 'transformers.js' to 'folder-mcp'
         description: 'Offline model, no external dependencies'
     },
+    'folder-mcp:all-MiniLM-L6-v2': {
+        name: 'folder-mcp:all-MiniLM-L6-v2',
+        displayName: 'All-MiniLM-L6-v2',
+        languages: ['EN'],
+        params: '23M',
+        gpuRequired: false,
+        backend: 'folder-mcp',
+        description: 'Python-based embeddings model'
+    },
     'all-mpnet-base-v2': {
         name: 'all-mpnet-base-v2',
         displayName: 'All-MPNet Base v2',

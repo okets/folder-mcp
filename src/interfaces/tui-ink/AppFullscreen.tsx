@@ -300,6 +300,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         ? `indexing (${folder.progress}%)`  // Include progress for indexing status
                         : folder.status || 'pending', // Pass the actual status from FMDM
                     statusColor: getStatusColor(folder.status), // Map status to appropriate color
+                    validationState, // Pass the validation state for error/warning display
                     onRemove: async (pathToRemove: string) => {
                         try {
                             await fmdmOperations.removeFolder(pathToRemove);
@@ -313,10 +314,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     }
                 });
                 
-                // Apply validation state to the folder item if there's an error
-                if (validationState) {
-                    manageFolderItem.updateValidation(validationState.result);
-                }
+                // Note: We don't call updateValidation here because the error is already
+                // handled by passing validationState to createManageFolderItem, which:
+                // - Shows it in collapsed mode via formatFolderWithStatus
+                // - Shows it as a child item in expanded mode
                 
                 // Restore expansion state if this folder was previously expanded
                 if (expandedFolders.has(folderPath)) {

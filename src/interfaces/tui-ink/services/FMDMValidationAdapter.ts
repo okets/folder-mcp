@@ -71,7 +71,8 @@ export class FMDMValidationAdapter {
             return createValidationResult(true);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            return createValidationResult(false, `Model validation failed: ${errorMessage}`);
+            // Pass the error message directly without adding a prefix
+            return createValidationResult(false, errorMessage);
         }
     }
 
