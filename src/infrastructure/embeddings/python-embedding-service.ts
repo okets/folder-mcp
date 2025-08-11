@@ -119,9 +119,12 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private restartTimer: NodeJS.Timeout | null = null;
 
   constructor(config?: Partial<PythonEmbeddingConfig>) {
+    // Try to detect the correct Python command for the platform
+    const defaultPythonPath = process.platform === 'win32' ? 'python' : 'python3';
+    
     this.config = {
       modelName: 'all-MiniLM-L6-v2',
-      pythonPath: 'python3',
+      pythonPath: defaultPythonPath,
       scriptPath: join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
       timeout: 30000, // 30 seconds
       maxRetries: 3,

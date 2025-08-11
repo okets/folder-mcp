@@ -77,70 +77,63 @@ export class DaemonRegistry {
    * Find all running daemon processes by scanning process list
    */
   static async findRunningDaemonProcesses(): Promise<number[]> {
-    try {
-      const { spawn } = await import('child_process');
-      
-      return new Promise((resolve) => {
-        // Use ps to find daemon processes
-        const ps = spawn('ps', ['aux'], { stdio: 'pipe' });
-        let output = '';
-        
-        ps.stdout.on('data', (data) => {
-          output += data.toString();
-        });
-        
-        ps.on('close', () => {
-          const lines = output.split('\n');
-          const daemonPids: number[] = [];
-          
-          for (const line of lines) {
-            // Skip empty lines
-            if (!line.trim()) continue;
-            
-            // Look for our daemon process - must be a direct node process
-            // Skip any shell processes or wrappers
-            if (line.includes('dist/src/daemon/index.js') && 
-                !line.includes('grep') && 
-                !line.includes('/bin/sh') &&
-                !line.includes('bash') &&
-                !line.includes('/bin/zsh') &&
-                !line.includes('eval') &&
-                !line.includes('source')) {
-              
-              // Extract the command part (everything after the time columns)
+    const { spawn } = await import('child_process');
+    const isWindows = process.platform === 'win32';
+
+    return new Promise((resolve) => {
+      const command = isWindows ? 'tasklist' : 'ps';
+      const args = isWindows ? [] : ['aux'];
+
+      const ps = spawn(command, args, { stdio: 'pipe' });
+      let output = '';
+
+      ps.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      ps.on('close', () => {
+        const lines = output.split('\n');
+        const daemonPids: number[] = [];
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          if (isWindows) {
+            // Windows-specific logic to parse tasklist output
+            if (line.includes('node.exe') && line.includes('dist\\src\\daemon\\index.js')) {
               const parts = line.trim().split(/\s+/);
-              if (parts.length > 10) {
-                // The command typically starts around column 11
-                const command = parts.slice(10).join(' ');
-                
-                // Check if this is a direct node invocation of our daemon
-                if (command.startsWith('node dist/src/daemon/index.js') ||
-                    command.startsWith('node ./dist/src/daemon/index.js') ||
-                    command.startsWith('/usr/local/bin/node dist/src/daemon/index.js')) {
-                  const pidStr = parts[1];
-                  if (pidStr) {
-                    const pid = parseInt(pidStr, 10);
-                    if (!isNaN(pid)) {
-                      daemonPids.push(pid);
-                    }
-                  }
+              if (parts.length > 1 && parts[1]) {
+                const pid = parseInt(parts[1], 10); // PID is typically the second column in tasklist
+                if (!isNaN(pid)) {
+                  daemonPids.push(pid);
+                }
+              }
+            }
+          } else {
+            // Unix-specific logic to parse ps output
+            if (
+              line.includes('dist/src/daemon/index.js') &&
+              !line.includes('grep') &&
+              !line.includes('/bin/sh') &&
+              !line.includes('bash') &&
+              !line.includes('/bin/zsh') &&
+              !line.includes('eval') &&
+              !line.includes('source')
+            ) {
+              const parts = line.trim().split(/\s+/);
+              if (parts.length > 1 && parts[1]) {
+                const pid = parseInt(parts[1], 10);
+                if (!isNaN(pid)) {
+                  daemonPids.push(pid);
                 }
               }
             }
           }
-          
-          resolve(daemonPids);
-        });
-        
-        ps.on('error', () => {
-          // If ps command fails, return empty array (fallback to file-based check only)
-          resolve([]);
-        });
+        }
+
+        resolve(daemonPids);
       });
-    } catch (error) {
-      // If process scanning fails, return empty array (fallback to file-based check only)
-      return [];
-    }
+    });
   }
 
   /**

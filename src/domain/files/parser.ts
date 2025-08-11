@@ -9,6 +9,7 @@ import * as mammoth from 'mammoth';
 import XLSX from 'xlsx';
 import JSZip from 'jszip';
 import * as xml2js from 'xml2js';
+import { parsePdf } from '../../utils/pdf-parser-wrapper.js';
 import { 
   ParsedContent, 
   TextMetadata, 
@@ -34,7 +35,6 @@ export interface FileParsingOperations {
  */
 export class FileParser implements FileParsingOperations {
   private readonly supportedExtensions = getSupportedExtensions();
-  private pdfParse: any = null;
 
   constructor(
     private readonly fileSystem: FileSystemProvider,
@@ -119,16 +119,11 @@ export class FileParser implements FileParsingOperations {
     const relativePath = this.pathProvider.relative(basePath, filePath);
     const stats = this.fileSystem.statFile(filePath);
     
-    // Lazy load pdf-parse to avoid initialization issues
-    if (!this.pdfParse) {
-      this.pdfParse = (await import('pdf-parse')).default;
-    }
-    
     // Read PDF file as buffer
     const dataBuffer = this.fileSystem.readFileBuffer(filePath);
     
-    // Parse PDF
-    const pdfData = await this.pdfParse(dataBuffer);
+    // Parse PDF using our wrapper
+    const pdfData = await parsePdf(dataBuffer);
     
     // Extract page-by-page content if available
     const pages: string[] = [];

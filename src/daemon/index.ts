@@ -11,7 +11,7 @@
  */
 
 import { createServer, type Server } from 'http';
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, unlinkSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { spawn, type ChildProcess } from 'child_process';
@@ -68,11 +68,17 @@ class FolderMCPDaemon {
     this.startTime = new Date();
   }
 
+  private logToFile(message: string): void {
+    const logFilePath = join(homedir(), '.folder-mcp', 'daemon-error.log');
+    const timestamp = new Date().toISOString();
+    appendFileSync(logFilePath, `[${timestamp}] ${message}\n`, 'utf8');
+  }
+
   async start(): Promise<void> {
     debug('Starting folder-mcp daemon...');
-    
-    // Register daemon with atomic singleton enforcement (discover + register in one atomic operation)
+
     try {
+      debug('Registering daemon in discovery registry...');
       await DaemonRegistry.register({
         pid: process.pid,
         httpPort: this.config.port,
@@ -80,122 +86,128 @@ class FolderMCPDaemon {
         startTime: this.startTime.toISOString(),
         version: '1.0.0' // TODO: Get from package.json
       });
-      debug('Daemon registered in discovery registry');
+      debug('Daemon successfully registered in discovery registry.');
     } catch (error) {
-      debug('Failed to register daemon in discovery registry:', error);
-      throw new Error(`Failed to register daemon: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = `Failed to register daemon in discovery registry: ${error instanceof Error ? error.message : String(error)}`;
+      debug(errorMessage);
+      this.logToFile(errorMessage);
+      throw new Error(errorMessage);
     }
-    
-    // Legacy PID file is no longer needed - DaemonRegistry handles discovery
-    // this.writePidFile();
-    
-    // Initialize DI container for indexing services
-    this.diContainer = setupDependencyInjection({
-      logLevel: 'debug'
-    });
-    
-    // Setup configuration services in DI container
-    const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
-    this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
-    const { join } = await import('path');
-    const { homedir } = await import('os');
-    
-    // Support custom config directory for testing via FOLDER_MCP_USER_CONFIG_DIR
-    const userConfigDir = process.env.FOLDER_MCP_USER_CONFIG_DIR || join(homedir(), '.folder-mcp');
-    const userConfigPath = join(userConfigDir, 'config.yaml');
-    
-    registerConfigurationServices(this.diContainer, {
-      userConfigPath: userConfigPath
-    });
-    
-    // Connect to real configuration system
-    const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
-    await configComponent.load();
-    
-    // Resolve FMDM service from DI container
-    this.fmdmService = this.diContainer.resolve(SERVICE_TOKENS.FMDM_SERVICE);
-    
-    // Initialize multi-folder indexing service from DI container
-    this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
-    debug('Multi-folder indexing service initialized');
-    
-    // Initialize folder lifecycle manager
-    const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
-    const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
-    const fileStateService = this.diContainer.resolve(SERVICE_TOKENS.FILE_STATE_MANAGER);
-    const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
-    
-    this.monitoredFoldersOrchestrator = new MonitoredFoldersOrchestrator(
-      indexingOrchestrator,
-      this.fmdmService!,
-      fileSystemService,
-      fileStateService,
-      loggingService,
-      configComponent // Reuse existing configComponent
-    );
-    debug('Folder lifecycle manager initialized');
-    
-    // Use orchestrator's startAll method to restore folders from configuration
+
     try {
-      debug('Calling orchestrator.startAll() to restore folders from configuration...');
+      debug('Setting up dependency injection container...');
+      this.diContainer = setupDependencyInjection({
+        logLevel: 'debug'
+      });
+      debug('Dependency injection container set up successfully.');
+
+      debug('Loading configuration services...');
+      const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
+      this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
+      const { join } = await import('path');
+      const { homedir } = await import('os');
+
+      const userConfigDir = process.env.FOLDER_MCP_USER_CONFIG_DIR || join(homedir(), '.folder-mcp');
+      const userConfigPath = join(userConfigDir, 'config.yaml');
+
+      registerConfigurationServices(this.diContainer, {
+        userConfigPath: userConfigPath
+      });
+      debug('Configuration services loaded successfully.');
+
+      debug('Loading configuration component...');
+      const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
+      await configComponent.load();
+      debug('Configuration component loaded successfully.');
+
+      debug('Initializing FMDM service...');
+      this.fmdmService = this.diContainer.resolve(SERVICE_TOKENS.FMDM_SERVICE);
+      debug('FMDM service initialized successfully.');
+
+      debug('Initializing multi-folder indexing service...');
+      this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
+      debug('Multi-folder indexing service initialized successfully.');
+
+      debug('Initializing folder lifecycle manager...');
+      const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
+      const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
+      const fileStateService = this.diContainer.resolve(SERVICE_TOKENS.FILE_STATE_MANAGER);
+      const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
+
+      this.monitoredFoldersOrchestrator = new MonitoredFoldersOrchestrator(
+        indexingOrchestrator,
+        this.fmdmService!,
+        fileSystemService,
+        fileStateService,
+        loggingService,
+        configComponent // Reuse existing configComponent
+      );
+      debug('Folder lifecycle manager initialized successfully.');
+
+      debug('Restoring folders from configuration using orchestrator.startAll()...');
       await this.monitoredFoldersOrchestrator!.startAll();
-      debug('Successfully completed orchestrator.startAll()');
+      debug('Folders restored successfully.');
+
+      debug('Initializing WebSocket server...');
+      this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
+      debug('WebSocket server initialized successfully.');
+
+      debug('Initializing validation service...');
+      const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
+      await validationService.initialize();
+      debug('Validation service initialized successfully.');
+
+      debug('Creating WebSocket protocol...');
+      const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
+      const webSocketProtocol = new WebSocketProtocol(
+        validationService,
+        daemonConfigService,
+        this.fmdmService!,
+        loggingService,
+        this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
+      );
+      debug('WebSocket protocol created successfully.');
+
+      debug('Updating WebSocket server with custom protocol...');
+      this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
+      debug('WebSocket server updated successfully.');
+
+      debug('Starting WebSocket server...');
+      const wsPort = this.config.port + 1;
+      await this.webSocketServer!.start(wsPort);
+      debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+
+      debug('Updating FMDM with daemon status...');
+      this.fmdmService!.updateDaemonStatus({
+        pid: process.pid,
+        uptime: Math.floor(process.uptime())
+      });
+      debug(`FMDM updated with daemon status - PID: ${process.pid}, uptime: ${Math.floor(process.uptime())}s`);
+
+      debug('Creating HTTP server...');
+      this.server = createServer(this.handleRequest.bind(this));
+
+      debug('Starting HTTP server...');
+      return new Promise(async (resolve, reject) => {
+        this.server!.listen(this.config.port, this.config.host, async () => {
+          debug(`Daemon listening on http://${this.config.host}:${this.config.port}`);
+          debug(`PID file: ${this.config.pidFile}`);
+          resolve();
+        });
+
+        this.server!.on('error', (error) => {
+          const errorMessage = `Server error: ${error}`;
+          debug(errorMessage);
+          this.logToFile(errorMessage);
+          reject(error);
+        });
+      });
     } catch (error) {
-      debug('Error in orchestrator.startAll():', error instanceof Error ? error.message : error);
-      debug('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      const errorMessage = `Error during daemon startup: ${error instanceof Error ? error.message : String(error)}`;
+      debug(errorMessage);
+      this.logToFile(errorMessage);
+      throw error;
     }
-    
-    // Resolve WebSocket server from DI container
-    this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
-    
-    // Resolve validation service and initialize it
-    const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
-    await validationService.initialize();
-    
-    // Create WebSocket protocol with proper indexing trigger
-    const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
-    const webSocketProtocol = new WebSocketProtocol(
-      validationService,
-      daemonConfigService,
-      this.fmdmService!,
-      loggingService,
-      this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
-    );
-    
-    // Update WebSocket server with custom protocol
-    this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
-    
-    // Start WebSocket server on HTTP port + 1
-    const wsPort = this.config.port + 1;
-    await this.webSocketServer!.start(wsPort);
-    debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
-    
-    // Update FMDM with complete daemon status information
-    this.fmdmService!.updateDaemonStatus({
-      pid: process.pid,
-      uptime: Math.floor(process.uptime())
-    });
-    debug(`Updated FMDM with daemon status - PID: ${process.pid}, uptime: ${Math.floor(process.uptime())}s`);
-    
-    // Create HTTP server
-    this.server = createServer(this.handleRequest.bind(this));
-    
-    // Start listening
-    return new Promise(async (resolve, reject) => {
-      this.server!.listen(this.config.port, this.config.host, async () => {
-        debug(`Daemon listening on http://${this.config.host}:${this.config.port}`);
-        debug(`PID file: ${this.config.pidFile}`);
-        
-        // Registration already completed during singleton check
-        
-        resolve();
-      });
-      
-      this.server!.on('error', (error) => {
-        debug('Server error:', error);
-        reject(error);
-      });
-    });
   }
 
   private async handleRequest(req: any, res: any): Promise<void> {
@@ -606,7 +618,10 @@ the folder-mcp services.
 export { FolderMCPDaemon, type DaemonConfig };
 
 // Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file://${process.argv[1]}` || 
+    import.meta.url.endsWith('/daemon/index.js') || 
+    (process.argv[1] && process.argv[1].endsWith('daemon/index.js')) || 
+    (process.argv[1] && process.argv[1].endsWith('daemon\\index.js'))) {
   main().catch((error) => {
     debug('Fatal error:', error);
     process.exit(1);
