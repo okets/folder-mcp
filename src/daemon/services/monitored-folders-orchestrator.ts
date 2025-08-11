@@ -11,6 +11,7 @@ import { IFolderLifecycleManager } from '../../domain/folders/folder-lifecycle-m
 import { IIndexingOrchestrator, IFileSystemService, ILoggingService } from '../../di/interfaces.js';
 import { FMDMService } from './fmdm-service.js';
 import { SQLiteVecStorage } from '../../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
+import { FileStateService } from '../../infrastructure/files/file-state-service.js';
 import { FolderConfig } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
@@ -68,7 +69,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private indexingOrchestrator: IIndexingOrchestrator,
     private fmdmService: FMDMService,
     private fileSystemService: IFileSystemService,
-    private fileStateService: any, // IFileStateService
     private logger: ILoggingService,
     private configService: any // TODO: Add proper type
   ) {
@@ -182,6 +182,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         logger: this.logger
       });
       
+      // Create per-folder FileStateService using the same database as embeddings
+      const folderDbPath = `${path}/.folder-mcp/embeddings.db`;
+      const folderFileStateService = new FileStateService(folderDbPath, this.logger);
+      
       // Use factory function to create folder lifecycle manager
       const folderManager = createFolderLifecycleService(
         `folder-${Date.now()}`, // Generate unique ID
@@ -189,7 +193,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.indexingOrchestrator,
         this.fileSystemService,
         storage,
-        this.fileStateService,
+        folderFileStateService, // Use per-folder service instead of global
         this.logger,
         model // Pass the model parameter
       );

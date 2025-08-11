@@ -39,9 +39,7 @@ import {
   MultiFolderStorageProvider 
 } from '../infrastructure/storage/multi-folder-storage.js';
 
-// Import file state services
-import { FileStateService } from '../infrastructure/files/file-state-service.js';
-import { SqliteFileStateStorage } from '../infrastructure/storage/sqlite-file-state-storage.js';
+// File state services are now created per-folder, no longer imported globally
 
 // Import workflow services
 import { MultiFolderIndexingWorkflow } from '../application/indexing/multi-folder-indexing.js';
@@ -140,17 +138,8 @@ export function setupDependencyInjection(options: {
     return new MultiFolderStorageProvider(folderManager, storageFactory, loggingService);
   });
 
-  // Register file state services
-  container.registerSingleton(SERVICE_TOKENS.FILE_STATE_STORAGE, () => {
-    const databasePath = join(options.folderPath || homedir(), '.folder-mcp', 'file-states.db');
-    return new SqliteFileStateStorage(databasePath);
-  });
-
-  container.registerSingleton(SERVICE_TOKENS.FILE_STATE_MANAGER, () => {
-    const databasePath = join(options.folderPath || homedir(), '.folder-mcp', 'file-states.db');
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
-    return new FileStateService(databasePath, loggingService);
-  });
+  // NOTE: FileStateService is now created per-folder instead of as global singleton
+  // Each folder creates its own FileStateService instance using its embeddings.db
 
   // Register multi-folder indexing workflow (async because it depends on async IndexingWorkflow)
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, async () => {

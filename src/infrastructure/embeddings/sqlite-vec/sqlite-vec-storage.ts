@@ -60,9 +60,9 @@ export class SQLiteVecStorage implements IVectorSearchService {
             enableForeignKeys: true,
             logger: config.logger,
             recoveryOptions: {
-                autoBackup: true,
-                autoRecover: true,
-                maxBackups: 3,
+                autoBackup: false,  // Disabled: source files are the truth, can reindex anytime
+                autoRecover: true,  // Keep corruption detection for emergency scenarios
+                maxBackups: 0,      // No backups needed
                 backupInterval: 24
             }
         };
