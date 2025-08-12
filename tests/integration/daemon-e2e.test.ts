@@ -685,8 +685,9 @@ describe('Daemon E2E Integration Tests', () => {
       
       // Verify the folder is in error state
       expect(folder?.status).toBe('error');
-      expect(folder?.errorMessage).toBeTruthy();
-      console.error(`[TEST-SUCCESS] Error correctly reported: ${folder?.errorMessage}`);
+      expect(folder?.notification?.type).toBe('error');
+      expect(folder?.notification?.message).toBeTruthy();
+      console.error(`[TEST-SUCCESS] Error correctly reported: ${folder?.notification?.message}`);
       
     } finally {
       ws.removeListener('message', messageHandler);
