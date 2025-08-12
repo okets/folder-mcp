@@ -100,7 +100,10 @@ export class DaemonRegistry {
 
           if (isWindows) {
             // Windows-specific logic to parse tasklist output
-            if (line.includes('node.exe') && line.includes('dist\\src\\daemon\\index.js')) {
+            // Check for both forward and backward slashes to handle different scenarios
+            const daemonPathWin = 'dist\\src\\daemon\\index.js';
+            const daemonPathUnix = 'dist/src/daemon/index.js';
+            if (line.includes('node.exe') && (line.includes(daemonPathWin) || line.includes(daemonPathUnix))) {
               const parts = line.trim().split(/\s+/);
               if (parts.length > 1 && parts[1]) {
                 const pid = parseInt(parts[1], 10); // PID is typically the second column in tasklist

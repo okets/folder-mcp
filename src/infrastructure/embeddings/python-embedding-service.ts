@@ -540,7 +540,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       let stderrBuffer = '';
       let processStarted = false;
 
-      this.pythonProcess = spawn(this.config.pythonPath || 'python3', [
+      // Windows compatibility: Use 'python' on Windows, 'python3' on Unix
+      const defaultPythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+      this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, [
         this.config.scriptPath || join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
         this.config.modelName
       ], {

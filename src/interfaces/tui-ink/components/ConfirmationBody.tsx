@@ -231,12 +231,6 @@ export const ConfirmationBody = ({
         const isCursorLine = cursorLine === globalLineIndex;
         
         // Debug cursor positioning and check for any issues
-        if (process.env.TUI_DEBUG === 'true') {
-            if (isCursorLine || globalLineIndex <= 2 || line.content === '') {
-                const contentDisplay = line.content === '' ? '[EMPTY LINE]' : `"${line.content}"`;
-                console.error(`DEBUG Line ${globalLineIndex}: ${contentDisplay} ${isCursorLine ? '<-- CURSOR' : ''}`);
-            }
-        }
         
         // Determine line prefix - need to include proper indentation for box structure
         // First line continues from header, subsequent lines need full indentation

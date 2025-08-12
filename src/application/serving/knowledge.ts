@@ -5,6 +5,7 @@
  * enhanced search with context, and related content discovery.
  */
 
+import * as path from 'path';
 import { 
   KnowledgeOperations,
   KnowledgeSearchResult,
@@ -370,11 +371,13 @@ export class KnowledgeOperationsService implements KnowledgeOperations {
   }
 
   private getFileName(filePath: string): string {
-    return filePath.split(/[/\\]/).pop() || filePath;
+    // Windows compatibility: Use path.basename for cross-platform compatibility
+    return path.basename(filePath);
   }
 
   private getFileType(filePath: string): string {
-    const extension = filePath.split('.').pop()?.toLowerCase();
+    // Windows compatibility: Use path.extname for cross-platform compatibility
+    const extension = path.extname(filePath).slice(1).toLowerCase();
     return extension || 'unknown';
   }
 

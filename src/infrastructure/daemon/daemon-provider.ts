@@ -95,8 +95,10 @@ export class NodeDaemonProvider implements IDaemonService {
    * Platform-specific signal handling for graceful shutdown
    */
   setupSignalHandlers(): void {
-    // Handle various shutdown signals
-    const shutdownSignals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGQUIT'];
+    // Handle various shutdown signals (Windows only supports SIGTERM and SIGINT)
+    const shutdownSignals: NodeJS.Signals[] = process.platform === 'win32' 
+      ? ['SIGTERM', 'SIGINT']  // Windows-supported signals only
+      : ['SIGTERM', 'SIGINT', 'SIGQUIT'];  // Unix includes SIGQUIT
     
     shutdownSignals.forEach(signal => {
       process.on(signal, async () => {
@@ -111,15 +113,17 @@ export class NodeDaemonProvider implements IDaemonService {
       });
     });
 
-    // Handle configuration reload signal
-    process.on('SIGHUP', async () => {
-      console.log('Received SIGHUP, reloading configuration...');
-      try {
-        await this.reload();
-      } catch (error) {
-        console.error('Error during configuration reload:', error);
-      }
-    });
+    // Handle configuration reload signal (Unix only - SIGHUP doesn't exist on Windows)
+    if (process.platform !== 'win32') {
+      process.on('SIGHUP', async () => {
+        console.log('Received SIGHUP, reloading configuration...');
+        try {
+          await this.reload();
+        } catch (error) {
+          console.error('Error during configuration reload:', error);
+        }
+      });
+    }
 
     // Handle uncaught exceptions and unhandled rejections
     process.on('uncaughtException', async (error) => {

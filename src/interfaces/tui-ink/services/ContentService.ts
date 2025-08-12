@@ -29,19 +29,12 @@ export class ContentService implements IContentService {
         // Change from <= to < to ensure text exactly at maxWidth gets truncated
         // This prevents edge cases where text fits exactly but leaves no margin
         if (textWidth < maxWidth) {
-            if (process.env.DEBUG_TRUNCATE) {
-                console.error(`[ContentService] No truncation needed: "${text}" (${textWidth} < ${maxWidth})`);
-            }
             return text;
         }
 
         const ellipsisWidth = this.measureText(ellipsis);
         const targetWidth = maxWidth - ellipsisWidth;
         
-        if (process.env.DEBUG_TRUNCATE) {
-            console.error(`[ContentService] Truncating: "${text}" (${textWidth} > ${maxWidth})`);
-            console.error(`  Ellipsis width: ${ellipsisWidth}, Target width: ${targetWidth}`);
-        }
         
         if (targetWidth <= 0) {
             return ellipsis.substring(0, Math.max(0, maxWidth));
@@ -60,9 +53,6 @@ export class ContentService implements IContentService {
         }
         
         const truncated = result + ellipsis;
-        if (process.env.DEBUG_TRUNCATE) {
-            console.error(`  Result: "${truncated}" (width: ${this.measureText(truncated)})`);
-        }
         
         return truncated;
     }
