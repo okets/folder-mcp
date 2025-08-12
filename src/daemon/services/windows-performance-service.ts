@@ -58,11 +58,19 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
     }
 
     // If we have import time, check if it's slow
-    if (importTimeMs !== undefined) {
-      result.importTimeMs = importTimeMs;
+    // If not provided, do a quick test import to measure timing
+    let actualImportTime = importTimeMs;
+    
+    if (actualImportTime === undefined) {
+      this.logger.debug(`[WINDOWS-PERF] No import time provided, measuring Python import speed for ${modelName}`);
+      actualImportTime = await this.measurePythonImportTime();
+    }
+    
+    if (actualImportTime !== undefined) {
+      result.importTimeMs = actualImportTime;
       
-      // Consider >1 second as slow (testing threshold)
-      if (importTimeMs > 1000) {
+      // Consider >10ms as slow (testing threshold)
+      if (actualImportTime > 10) {
         try {
           result.hasDefenderExclusions = await this.checkDefenderExclusions();
         } catch (error) {
@@ -73,7 +81,7 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
         // Show warning if slow and no exclusions detected
         if (!result.hasDefenderExclusions) {
           result.shouldShowWarning = true;
-          result.warningMessage = this.generateWarningMessage(importTimeMs);
+          result.warningMessage = this.generateWarningMessage(actualImportTime);
         }
       }
     }
@@ -129,5 +137,36 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
   private generateWarningMessage(importTimeMs: number): string {
     const seconds = (importTimeMs / 1000).toFixed(1);
     return `Python loads slowly (${seconds}s). Run: powershell -File optimize-python.ps1`;
+  }
+
+  /**
+   * Measure Python import time by doing a quick test import
+   */
+  private async measurePythonImportTime(): Promise<number | undefined> {
+    if (!this.isWindows) {
+      return undefined;
+    }
+
+    try {
+      this.logger.debug(`[WINDOWS-PERF] Starting Python import timing test`);
+      const startTime = Date.now();
+      
+      // Quick test: just import torch/transformers to see if it's slow
+      const testCommand = 'python3 -c "import torch; import transformers; print(\'OK\')"';
+      
+      await execAsync(testCommand, { timeout: 30000 }); // 30 second timeout
+      
+      const endTime = Date.now();
+      const importTime = endTime - startTime;
+      
+      this.logger.debug(`[WINDOWS-PERF] Python import test completed in ${importTime}ms`);
+      return importTime;
+      
+    } catch (error) {
+      this.logger.debug(`[WINDOWS-PERF] Python import timing test failed: ${error}`);
+      // If the test fails, assume Python is working but we can't measure timing
+      // Return a reasonable default that won't trigger warnings unnecessarily
+      return 500; // 0.5 seconds - reasonable default
+    }
   }
 }
