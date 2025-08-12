@@ -604,7 +604,17 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
           
           // Enhanced dependency checking for better Windows error messages
           if (code === 1) {
-            // Check for multiple dependency-related error patterns
+            // Check for the new DEPENDENCY_ERROR pattern from Python script
+            if (stderrBuffer.includes('DEPENDENCY_ERROR:')) {
+              const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+              // Extract specific missing packages from the error message
+              const match = stderrBuffer.match(/DEPENDENCY_ERROR: Missing packages: (.+)/);
+              const missingPackages = match ? match[1] : 'unknown packages';
+              reject(new Error(EmbeddingErrors.specificPythonDependenciesMissing(modelDisplayName, missingPackages || 'unknown packages')));
+              return;
+            }
+            
+            // Fallback: Check for legacy dependency-related error patterns
             if (stderrBuffer.includes('dependencies not available') || 
                 stderrBuffer.includes('Required dependencies not available') ||
                 stderrBuffer.includes('jsonrpclib-pelix not available') ||

@@ -27,6 +27,19 @@ export class EmbeddingErrors {
   }
   
   /**
+   * Error when Python is installed but specific ML packages are missing
+   */
+  static specificPythonDependenciesMissing(modelDisplayName: string, missingPackages: string): string {
+    const platform = process.platform;
+    const pipCmd = platform === 'win32' ? 'pip' : 'pip3';
+    
+    if (platform === 'win32') {
+      return `Missing Python packages: ${missingPackages}. Please run: ${pipCmd} install ${missingPackages.replace(/,/g, '')} (Note: PyTorch download is ~2GB)`;
+    }
+    return `Missing Python packages: ${missingPackages}. Please run: ${pipCmd} install ${missingPackages.replace(/,/g, '')}`;
+  }
+  
+  /**
    * Error when trying to use Ollama models but the service isn't running
    */
   static ollamaNotRunning(modelDisplayName: string): string {

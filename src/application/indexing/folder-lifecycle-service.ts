@@ -188,7 +188,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     }
     
     if (changes.length === 0) {
-      this.logger.debug('[MANAGER-PROCESS] No changes detected, validating model before transitioning to active');
+      this.logger.debug('[MANAGER-PROCESS] No changes detected, validating model and embeddings before transitioning to active');
       
       // Validate model before transitioning to active
       const modelValidation = await this.validateModel();
@@ -198,8 +198,17 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         return;
       }
       
-      // Model validation passed, transition directly to active since there are no changes
-      this.logger.debug('[MANAGER-PROCESS] Model validation passed, no changes to index, transitioning to active');
+      // CRITICAL FIX: Verify embeddings actually exist before transitioning to active
+      // This prevents silent failures where files are processed but embeddings weren't created
+      const embeddingValidation = await this.validateEmbeddingsExist();
+      if (!embeddingValidation.valid) {
+        this.logger.error(`[MANAGER-PROCESS] Embedding validation failed: ${embeddingValidation.errorMessage}`);
+        this.handleError(new Error(embeddingValidation.errorMessage || 'No embeddings found despite files being processed'), 'Embedding validation failed');
+        return;
+      }
+      
+      // Both model and embedding validation passed, safe to transition to active
+      this.logger.debug('[MANAGER-PROCESS] Model and embedding validation passed, transitioning to active');
       
       if (this.stateMachine.canTransitionTo('active')) {
         this.stateMachine.transitionTo('active');
@@ -936,6 +945,120 @@ return;
       const errorMessage = error instanceof Error ? error.message : `Model ${modelDisplayName} validation failed`;
       this.logger.error(`[MANAGER-MODEL-VALIDATION] Validation error:`, error instanceof Error ? error : new Error(String(error)));
       return { valid: false, errorMessage };
+    }
+  }
+
+  /**
+   * Validate that embeddings actually exist in the database
+   * This prevents silent failures where files are marked as processed but no embeddings were created
+   */
+  private async validateEmbeddingsExist(): Promise<{ valid: boolean; errorMessage?: string }> {
+    try {
+      this.logger.debug(`[MANAGER-EMBEDDING-VALIDATION] Checking if embeddings exist in database`);
+      
+      // Get actual embedding count and file state count from the database
+      const embeddingCount = await this.getEmbeddingCount();
+      const fileStateCount = await this.getFileStateCount();
+      
+      if (fileStateCount === 0) {
+        // No files have been seen yet, this is a fresh scan - valid to have no embeddings
+        this.logger.debug(`[MANAGER-EMBEDDING-VALIDATION] No file states found, fresh scan - validation passed`);
+        return { valid: true };
+      }
+      
+      // Check if database is ready
+      if (!this.sqliteVecStorage.isReady()) {
+        this.logger.debug('[MANAGER-EMBEDDING-VALIDATION] Database not ready, attempting to load...');
+        const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+        await this.sqliteVecStorage.loadIndex(dbPath);
+      }
+      
+      this.logger.debug(`[MANAGER-EMBEDDING-VALIDATION] File states: ${fileStateCount}, Embeddings: ${embeddingCount}`);
+      
+      if (fileStateCount > 0 && embeddingCount === 0) {
+        // We have files that have been tracked but no embeddings exist
+        const modelDisplayName = this.getModelDisplayName(this.model);
+        return { 
+          valid: false, 
+          errorMessage: `Files detected for processing but no embeddings created. This usually indicates Python dependency issues. ${EmbeddingErrors.pythonDependenciesMissing(modelDisplayName)}`
+        };
+      }
+      
+      this.logger.debug(`[MANAGER-EMBEDDING-VALIDATION] Embeddings validation passed: ${embeddingCount} embeddings found`);
+      return { valid: true };
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Embedding validation failed';
+      this.logger.error(`[MANAGER-EMBEDDING-VALIDATION] Validation error:`, error instanceof Error ? error : new Error(String(error)));
+      return { valid: false, errorMessage: `Embedding validation failed: ${errorMessage}` };
+    }
+  }
+
+  /**
+   * Get the actual count of embeddings in the database
+   */
+  private async getEmbeddingCount(): Promise<number> {
+    try {
+      // Access the SQLite database directly to count embeddings
+      const Database = (await import('better-sqlite3')).default;
+      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+      
+      // Check if database file exists
+      const fs = await import('fs');
+      if (!fs.existsSync(dbPath)) {
+        this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Database file does not exist: ${dbPath}`);
+        return 0;
+      }
+      
+      const db = new Database(dbPath, { readonly: true });
+      
+      try {
+        // Count embeddings in the embeddings table
+        const result = db.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
+        return result.count;
+      } catch (error) {
+        this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error querying embeddings table:`, error);
+        return 0;
+      } finally {
+        db.close();
+      }
+    } catch (error) {
+      this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error accessing database:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get the count of file states in the database
+   */
+  private async getFileStateCount(): Promise<number> {
+    try {
+      // Access the SQLite database directly to count file states
+      const Database = (await import('better-sqlite3')).default;
+      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+      
+      // Check if database file exists
+      const fs = await import('fs');
+      if (!fs.existsSync(dbPath)) {
+        this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Database file does not exist: ${dbPath}`);
+        return 0;
+      }
+      
+      const db = new Database(dbPath, { readonly: true });
+      
+      try {
+        // Count file states in the file_states table
+        const result = db.prepare('SELECT COUNT(*) as count FROM file_states').get() as { count: number };
+        return result.count;
+      } catch (error) {
+        this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error querying file_states table:`, error);
+        return 0;
+      } finally {
+        db.close();
+      }
+    } catch (error) {
+      this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error accessing database:`, error);
+      return 0;
     }
   }
 

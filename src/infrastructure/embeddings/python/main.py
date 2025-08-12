@@ -16,6 +16,43 @@ All logging goes to stderr to avoid interfering with JSON-RPC communication.
 import os
 import sys
 
+# ★ CRITICAL: Check all dependencies BEFORE any imports that might fail
+# This ensures we catch missing packages and report them properly to Node.js
+def check_dependencies():
+    """Check all required dependencies before importing anything that might fail"""
+    missing_packages = []
+    
+    # Check core ML packages
+    try:
+        import torch
+    except ImportError:
+        missing_packages.append("torch")
+    
+    try:
+        import sentence_transformers
+    except ImportError:
+        missing_packages.append("sentence-transformers")
+    
+    try:
+        import transformers
+    except ImportError:
+        missing_packages.append("transformers")
+    
+    # Check JSON-RPC communication package
+    try:
+        import jsonrpclib
+    except ImportError:
+        missing_packages.append("jsonrpclib-pelix")
+    
+    if missing_packages:
+        # Output specific error that Node.js can detect and parse
+        error_msg = f"DEPENDENCY_ERROR: Missing packages: {', '.join(missing_packages)}"
+        print(error_msg, file=sys.stderr, flush=True)
+        sys.exit(1)
+
+# Run dependency check immediately
+check_dependencies()
+
 # ★ COMPREHENSIVE APPLE SILICON FIX: Set environment before ANY imports
 # Based on extensive GitHub research - this fixes intermittent failures
 # These MUST be set before importing torch, sentence-transformers, transformers, etc.
@@ -49,13 +86,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-try:
-    from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
-    from jsonrpclib import jsonrpc
-    JSONRPC_AVAILABLE = True
-except ImportError:
-    JSONRPC_AVAILABLE = False
-    logger.error("jsonrpclib-pelix not available. Please install: pip install jsonrpclib-pelix")
+# Now we can safely import jsonrpclib since we already checked it exists
+from jsonrpclib.SimpleJSONRPCServer import SimpleJSONRPCServer
+from jsonrpclib import jsonrpc
 
 import os
 # Add the current directory to Python path so we can import our modules
@@ -475,10 +508,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Check dependencies
-    if not JSONRPC_AVAILABLE:
-        logger.error("Required dependencies not available")
-        sys.exit(1)
-    
+    # Dependencies already checked at startup
     # Run the server
     asyncio.run(main())
