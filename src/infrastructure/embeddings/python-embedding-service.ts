@@ -154,7 +154,14 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       // Perform initial health check
       const health = await this.healthCheck();
       if (health.status === 'unhealthy') {
-        throw new Error('Python embedding service failed health check');
+        // Provide more context about what the health check revealed
+        const details = [];
+        if (!health.model_loaded) details.push('model not loaded');
+        if (!health.gpu_available) details.push('no GPU acceleration');
+        if (health.memory_usage_mb === 0) details.push('no memory usage detected');
+        
+        const contextInfo = details.length > 0 ? ` (${details.join(', ')})` : '';
+        throw new Error(`Python embedding service failed health check${contextInfo}. This usually indicates missing Python dependencies.`);
       }
 
       // Start periodic health checks
@@ -594,14 +601,25 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
             reject(new Error(EmbeddingErrors.pythonNotFound(modelDisplayName)));
             return;
           }
-          // Check if dependencies are missing
-          if (code === 1 && stderrBuffer.includes('dependencies not available')) {
-            const modelDisplayName = this.getModelDisplayName(this.config.modelName);
-            reject(new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName)));
-            return;
+          
+          // Enhanced dependency checking for better Windows error messages
+          if (code === 1) {
+            // Check for multiple dependency-related error patterns
+            if (stderrBuffer.includes('dependencies not available') || 
+                stderrBuffer.includes('Required dependencies not available') ||
+                stderrBuffer.includes('jsonrpclib-pelix not available') ||
+                stderrBuffer.includes('sentence-transformers') ||
+                stderrBuffer.includes('torch') ||
+                stderrBuffer.includes('ImportError') ||
+                stderrBuffer.includes('ModuleNotFoundError')) {
+              const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+              reject(new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName)));
+              return;
+            }
           }
-          // Generic startup failure
-          reject(new Error(`Python process failed to start: exit code ${code}`));
+          
+          // Generic startup failure with more context
+          reject(new Error(`Python process failed to start: exit code ${code}. stderr: ${stderrBuffer.slice(0, 200)}`));
           return;
         }
         

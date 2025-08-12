@@ -8,14 +8,22 @@ export class EmbeddingErrors {
    * Error when Python is not installed or not found in PATH
    */
   static pythonNotFound(modelDisplayName: string): string {
-    return `Python 3.8+ not found`;
+    const platform = process.platform;
+    if (platform === 'win32') {
+      return `Python 3.8+ not found. Please install from python.org or Microsoft Store, then restart folder-mcp`;
+    }
+    return `Python 3.8+ not found. Please install Python and ensure it's in your PATH`;
   }
   
   /**
    * Error when Python is installed but required ML packages are missing
    */
   static pythonDependenciesMissing(modelDisplayName: string): string {
-    return `Missing Python packages (torch, sentence-transformers)`;
+    const platform = process.platform;
+    if (platform === 'win32') {
+      return `Missing Python packages. Please run: pip install torch sentence-transformers jsonrpclib-pelix`;
+    }
+    return `Missing Python packages. Please run: pip3 install torch sentence-transformers jsonrpclib-pelix`;
   }
   
   /**
