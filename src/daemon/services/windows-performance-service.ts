@@ -61,8 +61,8 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
     if (importTimeMs !== undefined) {
       result.importTimeMs = importTimeMs;
       
-      // Consider >10 seconds as slow
-      if (importTimeMs > 10000) {
+      // Consider >1 second as slow (testing threshold)
+      if (importTimeMs > 1000) {
         try {
           result.hasDefenderExclusions = await this.checkDefenderExclusions();
         } catch (error) {
