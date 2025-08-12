@@ -581,6 +581,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async onIndexComplete(folderPath: string, state: any): Promise<void> {
     this.logger.info(`[ORCHESTRATOR] Indexing complete for ${folderPath}, starting file watching`);
+    
+    // Check for Windows performance issues when folder becomes active after indexing
+    await this.checkWindowsPerformanceForFolder(folderPath, state.model);
+    
     await this.startFileWatchingForFolder(folderPath);
     
     // Update FMDM
