@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, useContext } from 'react';
+import React, { useState, useCallback, memo, useContext, useMemo } from 'react';
 import { Box, Text, Key } from 'ink';
 import { BorderedBox } from './core/BorderedBox';
 import { LogItem } from './core/LogItem';
@@ -54,62 +54,67 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     // Selective re-trigger for item state changes that aren't reflected in props
     const [itemUpdateTrigger, setItemUpdateTrigger] = useState(0);
     
-    // Calculate content width for items  
-    const panelWidth = width || columns - 2;
-    const borderOverhead = 6; // Back to reasonable margin - the issue is BorderedBox border rendering, not text
-    const itemMaxWidth = panelWidth - borderOverhead;
+    // Simple update trigger - keep memoization optimizations but restore re-render functionality
+    const triggerUpdate = useCallback(() => {
+        setItemUpdateTrigger(prev => prev + 1);
+    }, []);
     
+    // Memoize expensive width calculations  
+    const { panelWidth, itemMaxWidth } = useMemo(() => {
+        const calcPanelWidth = width || columns - 2;
+        const borderOverhead = 6; // Back to reasonable margin - the issue is BorderedBox border rendering, not text
+        const calcItemMaxWidth = calcPanelWidth - borderOverhead;
+        return { panelWidth: calcPanelWidth, itemMaxWidth: calcItemMaxWidth };
+    }, [width, columns]);
     
-    
-    // Calculate dynamic height based on content if no height specified
-    let actualHeight: number;
-    let maxLines: number;
-    
-    if (height) {
-        // Fixed height mode - respect the height given by parent
-        actualHeight = height;
-        const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
-        maxLines = Math.max(1, actualHeight - boxOverhead);
-    } else {
-        // Dynamic height mode - calculate based on content but respect terminal limits
-        // First pass: calculate total content lines needed
-        let totalRequiredLines = 0;
-        
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (!item) continue;
-            
-            const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
-            totalRequiredLines += itemLines;
-            
-        }
-        
-        // Calculate box overhead correctly based on BorderedBox implementation
-        const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
-        const idealHeight = totalRequiredLines + boxOverhead;
-        
-        
-        // Respect terminal height - leave space for shell, prompt, etc.
-        // For very small terminals, use most of the space; for larger ones, leave more breathing room
-        let breathingRoom;
-        if (rows <= 15) {
-            breathingRoom = Math.max(2, Math.floor(rows * 0.2)); // Use 80% of very small terminals
+    // Memoize expensive height calculations to prevent re-computation on every render
+    const { actualHeight, maxLines } = useMemo(() => {
+        if (height) {
+            // Fixed height mode - respect the height given by parent
+            const calcActualHeight = height;
+            const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
+            const calcMaxLines = Math.max(1, calcActualHeight - boxOverhead);
+            return { actualHeight: calcActualHeight, maxLines: calcMaxLines };
         } else {
-            breathingRoom = Math.min(10, Math.floor(rows * 0.3)); // Leave up to 30% on larger terminals, max 10 rows
+            // Dynamic height mode - calculate based on content but respect terminal limits
+            // First pass: calculate total content lines needed
+            let totalRequiredLines = 0;
+            
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (!item) continue;
+                
+                const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
+                totalRequiredLines += itemLines;
+            }
+            
+            // Calculate box overhead correctly based on BorderedBox implementation
+            const boxOverhead = 2 + (subtitle ? 1 : 0); // 2 for borders + 1 for subtitle if present
+            const idealHeight = totalRequiredLines + boxOverhead;
+            
+            // Respect terminal height - leave space for shell, prompt, etc.
+            // For very small terminals, use most of the space; for larger ones, leave more breathing room
+            let breathingRoom;
+            if (rows <= 15) {
+                breathingRoom = Math.max(2, Math.floor(rows * 0.2)); // Use 80% of very small terminals
+            } else {
+                breathingRoom = Math.min(10, Math.floor(rows * 0.3)); // Leave up to 30% on larger terminals, max 10 rows
+            }
+            const maxTerminalHeight = Math.max(5, rows - breathingRoom); // Minimum 5 rows for usability
+            
+            if (idealHeight <= maxTerminalHeight) {
+                // Content fits in terminal - show all without scrolling
+                const calcMaxLines = Math.max(1, totalRequiredLines);
+                const calcActualHeight = idealHeight;
+                return { actualHeight: calcActualHeight, maxLines: calcMaxLines };
+            } else {
+                // Content too large - use scrolling
+                const calcActualHeight = maxTerminalHeight;
+                const calcMaxLines = Math.max(1, calcActualHeight - boxOverhead);
+                return { actualHeight: calcActualHeight, maxLines: calcMaxLines };
+            }
         }
-        const maxTerminalHeight = Math.max(5, rows - breathingRoom); // Minimum 5 rows for usability
-        
-        if (idealHeight <= maxTerminalHeight) {
-            // Content fits in terminal - show all without scrolling
-            maxLines = Math.max(1, totalRequiredLines);
-            actualHeight = idealHeight;
-        } else {
-            // Content too large - use scrolling
-            actualHeight = maxTerminalHeight;
-            maxLines = Math.max(1, actualHeight - boxOverhead);
-        }
-        
-    }
+    }, [height, subtitle, items, itemMaxWidth, rows]);
     
     
     
@@ -224,12 +229,17 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         ? itemLinePositions[selectedIndex]?.start 
         : 0;
     
-    const scrollbar = showScrollbar ? calculateScrollbar({
-        totalItems: totalContentLines,
-        visibleItems: Math.min(visibleLines, maxLines),
-        scrollOffset: scrollbarLineOffset,
-        ...(typeof selectedLinePosition === 'number' ? { selectedIndex: selectedLinePosition } : {}),
-    }) : [];
+    // Memoize expensive scrollbar calculation to prevent re-computation
+    const scrollbar = useMemo(() => {
+        if (!showScrollbar) return [];
+        
+        return calculateScrollbar({
+            totalItems: totalContentLines,
+            visibleItems: Math.min(visibleLines, maxLines),
+            scrollOffset: scrollbarLineOffset,
+            ...(typeof selectedLinePosition === 'number' ? { selectedIndex: selectedLinePosition } : {}),
+        });
+    }, [showScrollbar, totalContentLines, visibleLines, maxLines, scrollbarLineOffset, selectedLinePosition]);
     
     // Handle input
     const handleInput = useCallback((input: string, key: Key): boolean => {
@@ -247,10 +257,9 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             const handled = selectedItem.handleInput(input, key);
             
             // CRITICAL TUI PATTERN: Only trigger re-render when item reports state change
-            // The item's handleInput() should return true ONLY when its internal state changed
-            // This prevents unnecessary panel re-renders that cause terminal flickering
+            // The memoization will prevent expensive recalculations
             if (handled) {
-                setItemUpdateTrigger(prev => prev + 1); // Force re-render to show state change
+                triggerUpdate();
             }
             return handled;
         }
@@ -259,20 +268,20 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         if (key.return && selectedItem?.onEnter) {
             selectedItem.onEnter();
             // Trigger re-render for items that change internal state (like expanding)
-            setItemUpdateTrigger(prev => prev + 1);
+            triggerUpdate();
             return true;
         } else if (key.rightArrow && selectedItem) {
             // Right arrow expands (if item supports it)
             if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
                 selectedItem.onExpand();
                 // Trigger re-render for expansion
-                setItemUpdateTrigger(prev => prev + 1);
+                triggerUpdate();
                 return true;
             } else if (selectedItem.onEnter) {
                 // Fallback to onEnter for items that don't have onExpand
                 selectedItem.onEnter();
                 // Trigger re-render for items that change internal state
-                setItemUpdateTrigger(prev => prev + 1);
+                triggerUpdate();
                 return true;
             }
         } else if (key.leftArrow && selectedItem) {
@@ -281,7 +290,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                 const didCollapse = selectedItem.onCollapse();
                 if (didCollapse) {
                     // Trigger re-render for collapse
-                    setItemUpdateTrigger(prev => prev + 1);
+                    triggerUpdate();
                     return true;
                 }
                 return false;
@@ -292,7 +301,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                 const didCollapse = selectedItem.onCollapse();
                 if (didCollapse) {
                     // Trigger re-render for collapse
-                    setItemUpdateTrigger(prev => prev + 1);
+                    triggerUpdate();
                     return true;
                 }
             }
@@ -300,7 +309,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
             return false;
         }
         return false;
-    }, [items, selectedIndex, onInput, setItemUpdateTrigger]);
+    }, [items, selectedIndex, onInput, triggerUpdate]);
     
     // Determine key bindings based on selected item
     const selectedItem = items[selectedIndex];
