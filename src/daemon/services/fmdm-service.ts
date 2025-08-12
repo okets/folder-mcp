@@ -167,7 +167,27 @@ export class FMDMService implements IFMDMService {
    * Update folders and broadcast changes
    */
   updateFolders(folders: FolderConfig[]): void {
+    // Preserve existing notifications when updating folders
+    const existingNotifications = new Map<string, { message: string; type: 'error' | 'warning' | 'info' }>();
+    
+    // Save existing notifications before replacing folders
+    for (const folder of this.fmdm.folders) {
+      if (folder.notification) {
+        existingNotifications.set(folder.path, folder.notification);
+      }
+    }
+    
+    // Update folders array
     this.fmdm.folders = [...folders]; // Create a copy
+    
+    // Restore notifications for folders that still exist
+    for (const folder of this.fmdm.folders) {
+      const existingNotification = existingNotifications.get(folder.path);
+      if (existingNotification) {
+        folder.notification = existingNotification;
+      }
+    }
+    
     this.fmdm.version = this.generateVersion();
     this.logger.debug(`FMDM folders updated: ${folders.length} folders`);
     this.broadcast();
@@ -278,9 +298,12 @@ export class FMDMService implements IFMDMService {
       status: status
     };
     
-    // Add notification if provided
+    // Add notification if provided, or preserve existing notification
     if (notification) {
       updatedFolder.notification = notification;
+    } else if (folder.notification) {
+      // Preserve existing notification when none is explicitly provided
+      updatedFolder.notification = folder.notification;
     }
     
     // Preserve other fields like progress

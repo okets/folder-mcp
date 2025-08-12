@@ -287,10 +287,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 let validationState: ValidationState | undefined = undefined;
                 if (folder.notification) {
                     // Use the notification system
+                    const errorMessage = folder.notification.type === 'error' ? folder.notification.message : undefined;
+                    const warningMessage = folder.notification.type === 'warning' ? folder.notification.message : undefined;
+                    
                     validationState = {
                         result: createValidationResult(
                             folder.notification.type !== 'error', // valid if not error
-                            folder.notification.message
+                            errorMessage,
+                            warningMessage
                         ),
                         notification: folder.notification // Pass notification for formatFolderWithStatus
                     };
