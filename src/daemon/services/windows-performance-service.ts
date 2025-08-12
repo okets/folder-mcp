@@ -68,9 +68,9 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
     
     if (actualImportTime !== undefined) {
       result.importTimeMs = actualImportTime;
-      
-      // Consider >10ms as slow (testing threshold)
-      if (actualImportTime > 10) {
+
+      // Consider >15s as slow
+      if (actualImportTime > 15000) {
         try {
           result.hasDefenderExclusions = await this.checkDefenderExclusions();
         } catch (error) {
@@ -136,7 +136,7 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
 
   private generateWarningMessage(importTimeMs: number): string {
     const seconds = (importTimeMs / 1000).toFixed(1);
-    return `Python loads slowly (${seconds}s). Run: powershell -File optimize-python.ps1`;
+    return `Python loads slowly (${seconds}s). Run as admin: powershell -ExecutionPolicy Bypass -File "${process.cwd()}\\scripts\\optimize-python.ps1"`;
   }
 
   /**
