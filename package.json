@@ -13,6 +13,8 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "config": "tsx src/interfaces/cli/folder-mcp.ts config",
+    "daemon": "node dist/src/daemon/index.js",
+    "daemon:restart": "node dist/src/daemon/index.js --restart",
     "tuidemo": "tsx src/interfaces/tui-ink-demo/index.tsx",
     "tui": "tsx src/interfaces/tui-ink/index.tsx",
     "lint": "eslint src tests --ext .ts,.tsx",
