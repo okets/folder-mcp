@@ -24,7 +24,10 @@ interface FolderConfig {
   model: string;
   status: 'pending' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
   progress?: number;
-  errorMessage?: string;
+  notification?: {
+    message: string;
+    type: 'error' | 'warning' | 'info';
+  };
 }
 
 interface FMDMUpdate {
@@ -642,9 +645,9 @@ describe('Daemon E2E Integration Tests', () => {
         if (message.type === 'fmdm.update') {
           fmdmUpdates.push({
             timestamp: Date.now(),
-            folders: message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, errorMessage: f.errorMessage }))
+            folders: message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, notification: f.notification }))
           });
-          console.error(`[TEST-DEBUG-FMDM] FMDM Update #${fmdmUpdates.length}: ${JSON.stringify(message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, error: f.errorMessage })))}`);
+          console.error(`[TEST-DEBUG-FMDM] FMDM Update #${fmdmUpdates.length}: ${JSON.stringify(message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, notification: f.notification })))}`);
         }
       } catch (e) {
         // Ignore parse errors
@@ -674,7 +677,7 @@ describe('Daemon E2E Integration Tests', () => {
         (fmdm) => {
           const folder = fmdm.fmdm.folders.find(f => f.path === nonExistentFolder);
           const elapsed = Date.now() - startTime;
-          console.error(`[TEST-DEBUG] After ${elapsed}ms - Folder check: ${folder ? `found with status '${folder.status}'${folder.errorMessage ? ` and error '${folder.errorMessage}'` : ''}` : 'not found yet'}`);
+          console.error(`[TEST-DEBUG] After ${elapsed}ms - Folder check: ${folder ? `found with status '${folder.status}'${folder.notification ? ` and notification '${folder.notification.message}'` : ''}` : 'not found yet'}`);
           return folder !== undefined; // Wait for any status
         },
         20000  // Increased timeout to 20 seconds
