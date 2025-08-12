@@ -40,6 +40,7 @@ class ManageFolderContainerItem extends ContainerListItem {
     private folderPath: string;
     private folderStatus: string;
     private statusColor: string;
+    private notification?: { message: string; type: 'error' | 'warning' | 'info' };
     
     constructor(
         icon: string,
@@ -59,6 +60,7 @@ class ManageFolderContainerItem extends ContainerListItem {
         this.folderPath = folderPath;
         this.folderStatus = folderStatus;
         this.statusColor = statusColor;
+        this.notification = validationState?.notification;
     }
     
     // Override to always enable buttons - we want "Close" and "Remove Folder" to always work
@@ -79,10 +81,14 @@ class ManageFolderContainerItem extends ContainerListItem {
             const availableWidth = maxWidth - iconWidth;
             
             // Format using the utility function
+            const validationWithNotification = { ...this.validationResult };
+            if (this.notification) {
+                (validationWithNotification as any).notification = this.notification;
+            }
             const formatted = formatFolderWithStatus(
                 this.folderPath,
                 this.folderStatus,
-                this.validationResult,
+                validationWithNotification,
                 availableWidth,
                 this.icon,
                 this.isActive

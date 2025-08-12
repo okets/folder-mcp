@@ -49,6 +49,11 @@ export interface IFMDMService {
   setAvailableModels(models: string[]): void;
   
   /**
+   * Update notification for a specific folder
+   */
+  updateFolderNotification(folderPath: string, notification: { message: string; type: 'error' | 'warning' | 'info' } | null): void;
+  
+  /**
    * Get connection count
    */
   getConnectionCount(): number;
@@ -56,7 +61,7 @@ export interface IFMDMService {
   /**
    * Update status for a specific folder
    */
-  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, errorMessage?: string): void;
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, notification?: { message: string; type: 'error' | 'warning' | 'info' } | null): void;
   
   /**
    * Update progress for a specific folder
@@ -252,7 +257,7 @@ export class FMDMService implements IFMDMService {
   /**
    * Update status for a specific folder
    */
-  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, errorMessage?: string): void {
+  updateFolderStatus(folderPath: string, status: FolderIndexingStatus, notification?: { message: string; type: 'error' | 'warning' | 'info' } | null): void {
     const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
     
     if (folderIndex === -1) {
@@ -273,9 +278,9 @@ export class FMDMService implements IFMDMService {
       status: status
     };
     
-    // Add error message if provided and status is error
-    if (status === 'error' && errorMessage) {
-      updatedFolder.errorMessage = errorMessage;
+    // Add notification if provided
+    if (notification) {
+      updatedFolder.notification = notification;
     }
     
     // Preserve other fields like progress
@@ -290,7 +295,7 @@ export class FMDMService implements IFMDMService {
     
     // Update version and broadcast changes
     this.fmdm.version = this.generateVersion();
-    this.logger.debug(`Updated folder status: ${folderPath} -> ${status}${errorMessage ? ` (${errorMessage})` : ''}`);
+    this.logger.debug(`Updated folder status: ${folderPath} -> ${status}${notification ? ` (${notification.message})` : ''}`);
     this.broadcast();
   }
   
@@ -352,6 +357,40 @@ export class FMDMService implements IFMDMService {
   async refresh(): Promise<void> {
     this.logger.debug('Refreshing FMDM from configuration');
     await this.loadFoldersFromConfig();
+  }
+  
+  /**
+   * Update notification for a specific folder
+   */
+  updateFolderNotification(folderPath: string, notification: { message: string; type: 'error' | 'warning' | 'info' } | null): void {
+    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    
+    if (folderIndex === -1) {
+      this.logger.warn(`Attempted to update notification for unknown folder: ${folderPath}`);
+      return;
+    }
+    
+    // Update the folder notification
+    const folder = this.fmdm.folders[folderIndex];
+    if (!folder) {
+      this.logger.error(`Folder at index ${folderIndex} is unexpectedly undefined`);
+      return;
+    }
+    
+    // Update folder with notification (remove notification field if null)
+    const updatedFolder = { ...folder };
+    if (notification) {
+      updatedFolder.notification = notification;
+    } else {
+      // Remove notification field if setting to null
+      delete updatedFolder.notification;
+    }
+    this.fmdm.folders[folderIndex] = updatedFolder;
+    
+    // Update version and broadcast changes
+    this.fmdm.version = this.generateVersion();
+    this.logger.debug(`Updated folder notification: ${folderPath}`, { notification });
+    this.broadcast();
   }
   
   /**

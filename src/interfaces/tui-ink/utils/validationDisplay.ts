@@ -278,7 +278,7 @@ export function formatCollapsedValidation(
  * Displays as: path [status] ✗/! message
  * @param path - The folder path
  * @param status - The folder status (pending, scanning, indexing, active, error)
- * @param validation - The validation result with error/warning message
+ * @param validation - The validation result with error/warning message or notification
  * @param maxWidth - Maximum width for the entire line
  * @param icon - The item's icon
  * @param isActive - Whether the item is currently active/focused
@@ -287,7 +287,7 @@ export function formatCollapsedValidation(
 export function formatFolderWithStatus(
     path: string,
     status: string,
-    validation: { hasError: boolean; hasWarning: boolean; errorMessage?: string; warningMessage?: string } | null,
+    validation: { hasError: boolean; hasWarning: boolean; errorMessage?: string; warningMessage?: string; notification?: { message: string; type: 'error' | 'warning' | 'info' } } | null,
     maxWidth: number,
     icon: string,
     isActive: boolean = false
@@ -309,7 +309,20 @@ export function formatFolderWithStatus(
     let validationColor: string | undefined;
     
     if (validation) {
-        if (validation.hasError && validation.errorMessage) {
+        // Priority order: notification -> errorMessage -> warningMessage (for backward compatibility)
+        if (validation.notification) {
+            validationMessage = validation.notification.message;
+            if (validation.notification.type === 'error') {
+                validationIcon = '✗';
+                validationColor = theme.colors.dangerRed;
+            } else if (validation.notification.type === 'warning') {
+                validationIcon = '!';
+                validationColor = theme.colors.warningOrange;
+            } else { // 'info'
+                validationIcon = 'i';
+                validationColor = 'cyan';
+            }
+        } else if (validation.hasError && validation.errorMessage) {
             validationIcon = '✗';
             validationMessage = validation.errorMessage;
             validationColor = theme.colors.dangerRed;

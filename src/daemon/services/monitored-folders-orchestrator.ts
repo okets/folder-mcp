@@ -15,6 +15,7 @@ import { FileStateService } from '../../infrastructure/files/file-state-service.
 import { FolderConfig } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
+import { WindowsPerformanceService, IWindowsPerformanceService } from './windows-performance-service.js';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -64,15 +65,20 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
   private memoryMonitoringTimer?: NodeJS.Timeout;
+  private windowsPerformanceService: IWindowsPerformanceService;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
     private fmdmService: FMDMService,
     private fileSystemService: IFileSystemService,
     private logger: ILoggingService,
-    private configService: any // TODO: Add proper type
+    private configService: any, // TODO: Add proper type
+    windowsPerformanceService?: IWindowsPerformanceService
   ) {
     super();
+    
+    // Initialize Windows performance service (default if not provided)
+    this.windowsPerformanceService = windowsPerformanceService || new WindowsPerformanceService(this.logger);
     
     // Initialize resource manager with daemon-appropriate limits
     const resourceLimits: Partial<ResourceLimits> = {
@@ -131,7 +137,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         model: model,
         status: 'error',
         progress: 0,
-        errorMessage: 'Folder does not exist'
+        notification: this.createErrorNotification('Folder does not exist')
       };
       
       // Update FMDM directly with the error folder state
@@ -171,7 +177,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         model: model,
         status: 'error',
         progress: 0,
-        errorMessage: errorMessage
+        notification: this.createErrorNotification(errorMessage)
       };
       
       // Update FMDM directly with the error folder state
@@ -307,7 +313,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         model: model,
         status: 'error',
         progress: 0,
-        errorMessage: errorMessage
+        notification: this.createErrorNotification(errorMessage)
       };
       
       // Update FMDM directly with the error folder state
@@ -528,10 +534,46 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } else {
       // No tasks, already in active state
       this.logger.info(`[ORCHESTRATOR] No tasks for ${folderPath}, already active`);
+      
+      // Check for Windows performance issues when folder becomes active
+      await this.checkWindowsPerformanceForFolder(folderPath, state.model);
     }
     
     // Update FMDM when indexing starts or folder becomes active
     this.updateFMDM();
+  }
+  
+  /**
+   * Helper to create error notification from error message
+   */
+  private createErrorNotification(message: string): { message: string; type: 'error' } {
+    return { message, type: 'error' };
+  }
+  
+  /**
+   * Check Windows performance issues for a folder that uses Python models
+   */
+  private async checkWindowsPerformanceForFolder(folderPath: string, model?: string): Promise<void> {
+    if (!model) {
+      return; // No model information available
+    }
+    
+    try {
+      const performanceResult = await this.windowsPerformanceService.detectPerformanceIssues(model);
+      
+      if (performanceResult.shouldShowWarning && performanceResult.warningMessage) {
+        this.logger.info(`[ORCHESTRATOR] Windows performance warning for ${folderPath}: ${performanceResult.warningMessage}`);
+        
+        // Set notification in FMDM for this folder
+        this.fmdmService.updateFolderNotification(folderPath, {
+          message: performanceResult.warningMessage,
+          type: 'warning'
+        });
+      }
+    } catch (error) {
+      // Don't fail the folder activation if performance check fails
+      this.logger.debug(`[ORCHESTRATOR] Windows performance check failed for ${folderPath}`, { error: error instanceof Error ? error.message : String(error) });
+    }
   }
   
   /**
@@ -694,7 +736,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         model: model,
         status: 'error',
         progress: 0,
-        errorMessage: errorMessage
+        notification: this.createErrorNotification(errorMessage)
       };
       
       // Error state is tracked in the folder manager itself
@@ -717,7 +759,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         path,
         model: state.model || 'unknown', 
         status: state.status,
-        ...(state.errorMessage && { errorMessage: state.errorMessage })
+        ...(state.errorMessage && { notification: this.createErrorNotification(state.errorMessage) })
       };
       
       // Add indexing progress (for indexing phase and completed active folders)
@@ -843,7 +885,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           path: folderPath,
           model: existingConfig?.model || 'nomic-embed-text', // Fallback to default model
           status: 'error',
-          errorMessage: errorMessage
+          notification: this.createErrorNotification(errorMessage)
         };
       } catch (error) {
         // If we can't get the config, create a minimal one
@@ -851,7 +893,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           path: folderPath,
           model: 'nomic-embed-text', // Default model
           status: 'error',
-          errorMessage: errorMessage
+          notification: this.createErrorNotification(errorMessage)
         };
       }
       

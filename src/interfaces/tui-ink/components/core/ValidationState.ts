@@ -13,6 +13,7 @@ export interface ValidationResult {
 export interface ValidationState {
     result: ValidationResult;
     onValidationChange?: (result: ValidationResult) => void;
+    notification?: { message: string; type: 'error' | 'warning' | 'info' }; // For new notification system
 }
 
 export const createValidationResult = (

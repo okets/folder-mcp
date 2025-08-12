@@ -27,7 +27,10 @@ export interface FolderConfig {
     totalFiles: number;
     percentage: number;
   }; // Optional scanning progress during scanning phase
-  errorMessage?: string; // Optional error message when status is 'error'
+  notification?: {
+    message: string;
+    type: 'error' | 'warning' | 'info';
+  }; // Optional notification for user guidance (errors, warnings, info, etc.)
 }
 
 /**
