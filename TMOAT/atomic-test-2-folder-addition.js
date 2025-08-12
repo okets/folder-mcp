@@ -7,6 +7,7 @@
 
 import WebSocket from 'ws';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -17,9 +18,20 @@ console.log('='.repeat(50));
 
 const ws = new WebSocket('ws://127.0.0.1:31850');
 
-// Test folder path
-const testFolderPath = path.resolve(__dirname, '../tests/fixtures/tmp/smoke-small');
+// Create a new test folder for this test to avoid conflicts with existing folders
+const testFolderName = `atomic-test-${Date.now()}`;
+const testFolderPath = path.resolve(__dirname, `../tests/fixtures/tmp/${testFolderName}`);
 console.log(`📁 Test folder: ${testFolderPath}`);
+
+// Create test folder with sample content
+try {
+    fs.mkdirSync(testFolderPath, { recursive: true });
+    fs.writeFileSync(path.join(testFolderPath, 'test-document.txt'), 'This is a test document for TMOAT atomic test 2.');
+    console.log('✅ Created test folder with sample content');
+} catch (error) {
+    console.error('❌ Failed to create test folder:', error);
+    process.exit(1);
+}
 
 let folderStates = [];
 let addedFolderId = null;
@@ -122,6 +134,17 @@ ws.on('error', (err) => {
 
 ws.on('close', () => {
     console.log('🔌 Connection closed');
+    
+    // Clean up test folder
+    try {
+        if (fs.existsSync(testFolderPath)) {
+            fs.rmSync(testFolderPath, { recursive: true });
+            console.log('🧹 Cleaned up test folder');
+        }
+    } catch (error) {
+        console.warn('⚠️  Failed to clean up test folder:', error.message);
+    }
+    
     process.exit(0);
 });
 

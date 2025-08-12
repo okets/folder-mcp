@@ -105,8 +105,12 @@ describe('FolderLifecycleService', () => {
       mockFileSystemService,
       mockSqliteVecStorage,
       mockFileStateService as any,
-      mockLogger
+      mockLogger,
+      'test-model' // Added: valid test model to avoid validation issues
     );
+
+    // Mock the validateModel method to prevent actual model validation
+    vi.spyOn(orchestrator as any, 'validateModel').mockResolvedValue({ valid: true });
   });
 
   describe('Initialization', () => {
@@ -202,8 +206,8 @@ describe('FolderLifecycleService', () => {
       expect(state.fileEmbeddingTasks[0]?.task).toBe('RemoveEmbeddings');
     });
 
-    it('should transition to active if no changes detected', () => {
-      orchestrator.processScanResults([]);
+    it('should transition to active if no changes detected', async () => {
+      await orchestrator.processScanResults([]);
       
       const state = orchestrator.getState();
       expect(state.status).toBe('active');
@@ -306,11 +310,11 @@ describe('FolderLifecycleService', () => {
       expect(orchestrator.isActive()).toBe(true);
     });
 
-    it('should check completion correctly', () => {
+    it('should check completion correctly', async () => {
       expect(orchestrator.isComplete()).toBe(false);
       
       // Process empty scan results to go to active
-      orchestrator.processScanResults([]);
+      await orchestrator.processScanResults([]);
       expect(orchestrator.isComplete()).toBe(true);
     });
   });

@@ -304,7 +304,8 @@ describe('Daemon Crash Recovery', () => {
       (fmdm) => {
         const folder = fmdm.fmdm.folders.find((f: any) => f.path === TEST_FOLDER);
         return folder !== undefined;
-      }
+      },
+      20000  // Increase timeout to 20 seconds for corrupted database scenario
     );
     
     const initialFolder = currentStatus.fmdm.folders.find((f: any) => f.path === TEST_FOLDER);

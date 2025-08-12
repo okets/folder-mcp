@@ -150,8 +150,12 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       fileSystemService,
       sqliteVecStorage,
       mockFileStateService as any, // Added: fileStateService parameter
-      mockLogger
+      mockLogger,
+      'test-model' // Added: valid test model to avoid validation issues
     );
+
+    // Mock the validateModel method to prevent actual model validation
+    vi.spyOn(orchestrator as any, 'validateModel').mockResolvedValue({ valid: true });
   });
 
   afterEach(async () => {

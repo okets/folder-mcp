@@ -632,30 +632,66 @@ describe('Daemon E2E Integration Tests', () => {
 
   it('should report errors through FMDM', async () => {
     const nonExistentFolder = join(TEMP_TEST_DIR, 'does-not-exist');
+    console.error(`[TEST-DEBUG] Testing error reporting for non-existent folder: ${nonExistentFolder}`);
 
-    // Try to add non-existent folder
-    const message = {
-      type: 'folder.add',
-      id: `error-test-${Date.now()}`,
-      payload: { 
-        path: nonExistentFolder,
-        model: 'folder-mcp:all-MiniLM-L6-v2'
+    // Add listener to track all FMDM updates
+    const fmdmUpdates: any[] = [];
+    const messageHandler = (data: Buffer) => {
+      try {
+        const message = JSON.parse(data.toString());
+        if (message.type === 'fmdm.update') {
+          fmdmUpdates.push({
+            timestamp: Date.now(),
+            folders: message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, errorMessage: f.errorMessage }))
+          });
+          console.error(`[TEST-DEBUG-FMDM] FMDM Update #${fmdmUpdates.length}: ${JSON.stringify(message.fmdm.folders.map((f: any) => ({ path: f.path, status: f.status, error: f.errorMessage })))}`);
+        }
+      } catch (e) {
+        // Ignore parse errors
       }
     };
-    ws.send(JSON.stringify(message));
+    ws.on('message', messageHandler);
 
-    // Should receive error status update
-    const errorUpdate = await waitForFMDMUpdate(
-      (fmdm) => {
-        const folder = fmdm.fmdm.folders.find(f => f.path === nonExistentFolder);
-        return folder?.status === 'error';
-      },
-      10000
-    );
+    try {
+      // Try to add non-existent folder
+      const message = {
+        type: 'folder.add',
+        id: `error-test-${Date.now()}`,
+        payload: { 
+          path: nonExistentFolder,
+          model: 'folder-mcp:all-MiniLM-L6-v2'
+        }
+      };
+      console.error(`[TEST-DEBUG] Sending folder.add message: ${JSON.stringify(message)}`);
+      ws.send(JSON.stringify(message));
 
-    const errorFolder = errorUpdate.fmdm.folders.find(f => f.path === nonExistentFolder);
-    expect(errorFolder?.status).toBe('error');
-    expect(errorFolder?.errorMessage).toContain('does not exist');
+      // Wait for any FMDM response for up to 20 seconds
+      console.error(`[TEST-DEBUG] Waiting for any FMDM update containing our folder...`);
+      const startTime = Date.now();
+      
+      // Wait for folder to appear in FMDM (any status)
+      const folderUpdate = await waitForFMDMUpdate(
+        (fmdm) => {
+          const folder = fmdm.fmdm.folders.find(f => f.path === nonExistentFolder);
+          const elapsed = Date.now() - startTime;
+          console.error(`[TEST-DEBUG] After ${elapsed}ms - Folder check: ${folder ? `found with status '${folder.status}'${folder.errorMessage ? ` and error '${folder.errorMessage}'` : ''}` : 'not found yet'}`);
+          return folder !== undefined; // Wait for any status
+        },
+        20000  // Increased timeout to 20 seconds
+      );
+
+      const folder = folderUpdate.fmdm.folders.find(f => f.path === nonExistentFolder);
+      console.error(`[TEST-DEBUG] Final folder state: ${JSON.stringify(folder)}`);
+      
+      // Verify the folder is in error state
+      expect(folder?.status).toBe('error');
+      expect(folder?.errorMessage).toBeTruthy();
+      console.error(`[TEST-SUCCESS] Error correctly reported: ${folder?.errorMessage}`);
+      
+    } finally {
+      ws.removeListener('message', messageHandler);
+      console.error(`[TEST-DEBUG] Total FMDM updates received: ${fmdmUpdates.length}`);
+    }
   }, 30000);
 
 

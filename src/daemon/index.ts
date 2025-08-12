@@ -493,7 +493,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void>
   throw new Error(`Process ${pid} did not exit within ${timeoutMs}ms`);
 }
 
-async function stopExistingDaemon(daemonInfo: any): Promise<void> {
+async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
   debug(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
   
   try {
@@ -560,20 +560,35 @@ the folder-mcp services.
   
   // Handle restart BEFORE any other operations
   if (restartFlag) {
-    debug('Restart flag detected, checking for existing daemon...');
-    const status = await isDaemonRunning();
-    if (status.running) {
-      const daemonInfo = await DaemonRegistry.discover();
-      if (daemonInfo) {
-        debug(`Found existing daemon (PID: ${daemonInfo.pid}), stopping it...`);
-        await stopExistingDaemon(daemonInfo);
-        debug('Existing daemon stopped, waiting for cleanup...');
+    debug('Restart flag detected, checking for running daemon processes...');
+    
+    // Use comprehensive process scanning instead of registry file check
+    const runningDaemonPids = await DaemonRegistry.findRunningDaemonProcesses();
+    const otherDaemonPids = runningDaemonPids.filter(pid => pid !== process.pid);
+    
+    if (otherDaemonPids.length > 0) {
+      for (const daemonPid of otherDaemonPids) {
+        debug(`Found running daemon process (PID: ${daemonPid}), stopping it...`);
         
-        // Wait to ensure the process is fully terminated and registry is cleaned
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Create minimal daemon info for stopping
+        const daemonInfo = { pid: daemonPid };
+        await stopExistingDaemon(daemonInfo);
+        debug(`Stopped daemon process PID: ${daemonPid}`);
       }
+      
+      debug('All existing daemon processes stopped, waiting for cleanup...');
+      
+      // Wait to ensure processes are fully terminated
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force cleanup the registry
+      debug('Force cleaning registry after restart...');
+      await DaemonRegistry.cleanup();
+      
+      // Wait a bit more to ensure cleanup is complete
+      await new Promise(resolve => setTimeout(resolve, 500));
     } else {
-      debug('No existing daemon found to restart');
+      debug('No existing daemon processes found to restart');
     }
   }
   

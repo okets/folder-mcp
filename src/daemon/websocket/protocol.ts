@@ -102,7 +102,7 @@ export class WebSocketProtocol {
       // Enhanced validation with detailed error reporting
       const validationResult = validateClientMessage(rawMessage);
       if (!validationResult.valid) {
-        this.logger.warn(`Invalid message from client ${clientId}`, { 
+        this.logger.warn(`[PROTOCOL] Invalid message from client ${clientId}`, { 
           message: rawMessage,
           errorCode: validationResult.errorCode,
           errorMessage: validationResult.errorMessage

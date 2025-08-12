@@ -17,3 +17,5 @@ As for our python offerings, I want to offer few, but I don’t want to download
 1. can we run the daemon using 'npm run daemon' instead of 'node dist/src/daemon/index.js'? how will the --restart flag work?
 
 2. why is it that the text on the screen cannot be selected lately? even if nothing on the screen refreshes, the selection from the TUI is nearly impossible as the text is being refreshed. but why? no char changes occured.
+I have a feeling it has to do with the flickering issues we have on windows terminals.
+research ho we can reduce full rerenders on ink while keeping integrity and not missing any screen update.

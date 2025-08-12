@@ -35,7 +35,7 @@ export class TMOATWebSocketClient {
                 // Initialize connection
                 this.send({
                     type: 'connection.init',
-                    clientType: 'tmoat'
+                    clientType: 'cli'  // Use supported client type per daemon requirements
                 });
                 
                 resolve();

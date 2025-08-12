@@ -134,8 +134,11 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         errorMessage: 'Folder does not exist'
       };
       
-      // Update FMDM with error state
-      this.updateFMDM();
+      // Update FMDM directly with the error folder state
+      // Since the folder doesn't exist in FMDM yet, we need to add it directly
+      const currentFolders = this.getCurrentFolderConfigs();
+      currentFolders.push(errorFolderConfig);
+      this.fmdmService.updateFolders(currentFolders);
       
       const error = new Error(`Folder does not exist: ${path}`);
       this.logger.error(`Failed to add folder: ${path}`, error);
@@ -159,6 +162,35 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } catch (error) {
       this.logger.error(`[ORCHESTRATOR] Resource manager rejected add folder operation: ${path}`, error instanceof Error ? error : new Error(String(error)));
       
+      // Extract error message
+      let errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Create error folder config for FMDM
+      const errorFolderConfig: FolderConfig = {
+        path: path,
+        model: model,
+        status: 'error',
+        progress: 0,
+        errorMessage: errorMessage
+      };
+      
+      // Update FMDM directly with the error folder state
+      // Get current folders from FMDM (not just from managers)
+      const currentFMDM = this.fmdmService.getFMDM();
+      const currentFolders = [...currentFMDM.folders];
+      
+      // Check if folder already exists in current folders
+      const existingIndex = currentFolders.findIndex(f => f.path === path);
+      if (existingIndex >= 0) {
+        // Update existing folder
+        currentFolders[existingIndex] = errorFolderConfig;
+      } else {
+        // Add new folder with error status
+        currentFolders.push(errorFolderConfig);
+      }
+      
+      this.fmdmService.updateFolders(currentFolders);
+      
       // Perform resource cleanup on operation failure
       await this.performResourceCleanup(path, 'add_folder_failed');
       
@@ -181,6 +213,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         modelDimension: 384, // TODO: Get from model config
         logger: this.logger
       });
+      
+      // Ensure .folder-mcp directory exists before creating FileStateService
+      const fs = await import('fs');
+      const folderMcpDir = `${path}/.folder-mcp`;
+      if (!fs.existsSync(folderMcpDir)) {
+        fs.mkdirSync(folderMcpDir, { recursive: true });
+        this.logger.debug(`[ORCHESTRATOR] Created .folder-mcp directory: ${folderMcpDir}`);
+      }
       
       // Create per-folder FileStateService using the same database as embeddings
       const folderDbPath = `${path}/.folder-mcp/embeddings.db`;
@@ -261,9 +301,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.logger.warn(`[ORCHESTRATOR] Enhanced Python error message for ${path}: ${errorMessage}`);
       }
       
-      // Use FMDM service to update folder status with error message
-      this.fmdmService.updateFolderStatus(path, 'error', errorMessage);
-      
       // Create error folder config for tracking
       const errorFolderConfig: FolderConfig = {
         path: path,
@@ -273,8 +310,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         errorMessage: errorMessage
       };
       
-      // Update FMDM to ensure error is displayed
-      this.updateFMDM();
+      // Update FMDM directly with the error folder state
+      // We need to add it directly since it may not exist in FMDM yet
+      // Get current folders from FMDM (not just from managers)
+      const currentFMDM = this.fmdmService.getFMDM();
+      const currentFolders = [...currentFMDM.folders];
+      
+      // Check if folder already exists in current folders
+      const existingIndex = currentFolders.findIndex(f => f.path === path);
+      if (existingIndex >= 0) {
+        // Update existing folder
+        currentFolders[existingIndex] = errorFolderConfig;
+      } else {
+        // Add new folder with error status
+        currentFolders.push(errorFolderConfig);
+      }
+      
+      this.fmdmService.updateFolders(currentFolders);
       
       // Perform resource cleanup on execution failure
       await this.performResourceCleanup(path, 'add_folder_execution_failed');
@@ -1075,7 +1127,18 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       // 8. Update FMDM to remove any partially created folder entries
-      this.updateFMDM();
+      // BUT: Don't remove error folders that were intentionally added to FMDM
+      // Check if the folder is already in FMDM with error status
+      const currentFMDM = this.fmdmService.getFMDM();
+      const folderInFMDM = currentFMDM.folders.find(f => f.path === folderPath);
+      
+      if (!folderInFMDM || folderInFMDM.status !== 'error') {
+        // Only update FMDM if folder is not in error state
+        // (error state folders should remain visible to the user)
+        this.updateFMDM();
+      } else {
+        this.logger.debug(`[ORCHESTRATOR] Keeping error folder ${folderPath} in FMDM during cleanup`);
+      }
       
       // 9. Log final resource statistics after cleanup
       if (this.resourceManager) {
