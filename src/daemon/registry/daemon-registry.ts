@@ -81,39 +81,63 @@ export class DaemonRegistry {
     const isWindows = process.platform === 'win32';
 
     return new Promise((resolve) => {
-      const command = isWindows ? 'tasklist' : 'ps';
-      const args = isWindows ? [] : ['aux'];
+      if (isWindows) {
+        // Use wmic on Windows to get command line information
+        const wmic = spawn('wmic', ['process', 'where', 'name="node.exe"', 'get', 'commandline,processid'], { stdio: 'pipe' });
+        let output = '';
 
-      const ps = spawn(command, args, { stdio: 'pipe' });
-      let output = '';
+        wmic.stdout.on('data', (data) => {
+          output += data.toString();
+        });
 
-      ps.stdout.on('data', (data) => {
-        output += data.toString();
-      });
+        wmic.on('close', () => {
+          const lines = output.split('\n');
+          const daemonPids: number[] = [];
 
-      ps.on('close', () => {
-        const lines = output.split('\n');
-        const daemonPids: number[] = [];
+          for (const line of lines) {
+            if (!line.trim()) continue;
 
-        for (const line of lines) {
-          if (!line.trim()) continue;
-
-          if (isWindows) {
-            // Windows-specific logic to parse tasklist output
             // Check for both forward and backward slashes to handle different scenarios
             const daemonPathWin = 'dist\\src\\daemon\\index.js';
             const daemonPathUnix = 'dist/src/daemon/index.js';
-            if (line.includes('node.exe') && (line.includes(daemonPathWin) || line.includes(daemonPathUnix))) {
+            if (line.includes(daemonPathWin) || line.includes(daemonPathUnix)) {
+              // Extract PID from the line (last number in the line)
               const parts = line.trim().split(/\s+/);
-              if (parts.length > 1 && parts[1]) {
-                const pid = parseInt(parts[1], 10); // PID is typically the second column in tasklist
-                if (!isNaN(pid)) {
-                  daemonPids.push(pid);
+              if (parts.length > 0) {
+                const pidStr = parts[parts.length - 1];
+                if (pidStr) {
+                  const pid = parseInt(pidStr, 10);
+                  if (!isNaN(pid)) {
+                    daemonPids.push(pid);
+                  }
                 }
               }
             }
-          } else {
-            // Unix-specific logic to parse ps output
+          }
+
+          resolve(daemonPids);
+        });
+
+        wmic.on('error', () => {
+          // Fallback to empty array if wmic fails
+          resolve([]);
+        });
+      } else {
+        // Unix-specific logic using ps
+        const ps = spawn('ps', ['aux'], { stdio: 'pipe' });
+        let output = '';
+
+        ps.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        ps.on('close', () => {
+          const lines = output.split('\n');
+          const daemonPids: number[] = [];
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
             if (
               line.includes('dist/src/daemon/index.js') &&
               !line.includes('grep') &&
@@ -132,10 +156,10 @@ export class DaemonRegistry {
               }
             }
           }
-        }
 
-        resolve(daemonPids);
-      });
+          resolve(daemonPids);
+        });
+      }
     });
   }
 
