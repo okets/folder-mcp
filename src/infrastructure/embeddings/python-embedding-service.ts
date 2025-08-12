@@ -154,14 +154,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       // Perform initial health check
       const health = await this.healthCheck();
       if (health.status === 'unhealthy') {
-        // Provide more context about what the health check revealed
-        const details = [];
-        if (!health.model_loaded) details.push('model not loaded');
-        if (!health.gpu_available) details.push('no GPU acceleration');
-        if (health.memory_usage_mb === 0) details.push('no memory usage detected');
-        
-        const contextInfo = details.length > 0 ? ` (${details.join(', ')})` : '';
-        throw new Error(`Python embedding service failed health check${contextInfo}. This usually indicates missing Python dependencies.`);
+        // Health check failed - this usually means Python dependencies are missing
+        // Provide a clear, actionable error message instead of technical details
+        const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+        throw new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName));
       }
 
       // Start periodic health checks
@@ -564,6 +560,22 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         // Still log to console for debugging
         if (message.trim()) {
           console.error(`Python[stderr]: ${message.trim()}`);
+        }
+        
+        // Immediately check for dependency errors and reject early
+        if (message.includes('DEPENDENCY_ERROR:')) {
+          const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+          const match = message.match(/DEPENDENCY_ERROR: Missing packages: (.+)/);
+          const missingPackages = match ? match[1] : 'unknown packages';
+          reject(new Error(EmbeddingErrors.specificPythonDependenciesMissing(modelDisplayName, missingPackages)));
+          return;
+        }
+        
+        // Also catch import errors directly from stderr
+        if (message.includes('ModuleNotFoundError') || message.includes('ImportError')) {
+          const modelDisplayName = this.getModelDisplayName(this.config.modelName);
+          reject(new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName)));
+          return;
         }
       });
 
