@@ -69,9 +69,10 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
     const fmdmConnection = useFMDMConnection();
     const configuredFolders = useConfiguredFolders();
     
-    // We now use rows-1 for all platforms in AppFullscreen for better positioning
-    // So we don't need the marginTop push-down fix anymore on any platform
-    const needsTopMargin = 0; // No margin needed - better use of screen space
+    // Windows uses rows-1 in AppFullscreen (to prevent jitter), so no margin needed
+    // macOS/Linux use full rows, so they need marginTop to prevent top row cutoff
+    const isWindows = process.platform === 'win32';
+    const needsTopMargin = isWindows ? 0 : 1;
     
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
     

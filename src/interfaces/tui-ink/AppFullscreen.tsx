@@ -601,9 +601,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
     
-    // Use rows-1 for all platforms for better positioning and to prevent issues
-    // This provides consistent behavior and better screen utilization across all platforms
-    const effectiveRows = rows-1;
+    // Windows needs rows-1 to prevent jittering on large terminals
+    // Other platforms can use full rows with proper cursor positioning
+    const isWindows = process.platform === 'win32';
+    const effectiveRows = isWindows ? rows - 1 : rows;
     const availableHeight = effectiveRows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
     return (
