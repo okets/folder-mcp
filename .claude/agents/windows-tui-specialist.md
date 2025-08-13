@@ -49,6 +49,11 @@ Your core responsibilities:
 - React performance optimization patterns specific to terminal rendering
 - Strategic memoization techniques for TUI components (useMemo for calculations, memo for components)
 - Balance between functionality preservation and performance optimization
+- **CRITICAL DISCOVERY**: All terminals benefit from `height={rows-1}` instead of `height={rows}` to:
+  - Provide better positioning and prevent top row cutoff
+  - Prevent frame appearing one row below then snapping up (jitter on Windows)
+  - Prevent screen tearing on large terminals (>40 rows on Windows)
+  - Create consistent behavior across all platforms
 
 **When analyzing issues:**
 1. **PRIMARY**: Check for excessive re-renders and expensive calculations in TUI components
@@ -70,7 +75,21 @@ Your core responsibilities:
 
 **Proven Solution Patterns:**
 
-1. **Memoization Pattern (Primary - NEW):**
+1. **Windows Height Fix Pattern (PRIMARY - CRITICAL):**
+   ```typescript
+   // WINDOWS FIX: Use rows-1 on Windows to prevent jitter and top row cutoff
+   // Windows Console Host has issues with apps using full terminal height
+   const isWindows = process.platform === 'win32';
+   const effectiveRows = isWindows ? rows - 1 : rows;
+   
+   return (
+       <Box flexDirection="column" height={effectiveRows} width={columns}>
+           {/* App content */}
+       </Box>
+   );
+   ```
+
+2. **Memoization Pattern (Secondary):**
    ```typescript
    // Memoize expensive calculations
    const { panelWidth, itemMaxWidth } = useMemo(() => {
@@ -84,7 +103,7 @@ Your core responsibilities:
    });
    ```
 
-2. **Debug Log Removal Pattern (Secondary - commit 625da16):**
+3. **Debug Log Removal Pattern (Tertiary - commit 625da16):**
    - Remove render-time console.error() calls
    - Clean up imports and add explanatory comments
    - Preserve essential user-facing error logging

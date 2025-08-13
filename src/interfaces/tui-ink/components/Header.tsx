@@ -69,6 +69,10 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
     const fmdmConnection = useFMDMConnection();
     const configuredFolders = useConfiguredFolders();
     
+    // We now use rows-1 for all platforms in AppFullscreen for better positioning
+    // So we don't need the marginTop push-down fix anymore on any platform
+    const needsTopMargin = 0; // No margin needed - better use of screen space
+    
     const [daemonStatus, setDaemonStatus] = useState<DaemonStatus>({ running: false });
     
     // Check daemon status every 2 seconds
@@ -190,7 +194,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         if (availableWidth >= totalLength) {
             // Full display with status and optional animation
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                     {exitAnimationStatus ? (
@@ -206,7 +210,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         } else if (availableWidth >= (appName.length + separator.length + resolution.length + 2)) {
             // Fall back to resolution display
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                     <Text color={frameColor}>{separator}</Text>
@@ -216,7 +220,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         } else if (availableWidth >= appName.length) {
             // Just app name with spinner, no resolution
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                 </Box>
@@ -225,7 +229,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
             // Very narrow - truncate app name
             const truncatedName = appName.substring(0, availableWidth - 1) + '…';
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>{truncatedName}</Text>
                 </Box>
             );
@@ -286,7 +290,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         
         
         return (
-            <Box flexDirection="column" marginTop={1}>
+            <Box flexDirection="column" marginTop={needsTopMargin}>
                 <Text color={frameColor}>{topBorder}</Text>
                 <Box>
                     <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
@@ -343,7 +347,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         
         
         return (
-            <Box flexDirection="column" marginTop={1}>
+            <Box flexDirection="column" marginTop={needsTopMargin}>
                 <Text color={frameColor}>{topBorder}</Text>
                 <Box>
                     <Text color={frameColor}>{theme.symbols.border.vertical} 📁 </Text>
@@ -368,7 +372,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         if (appName.length + 2 <= availableForText) {
             // Can fit full app name with spinner
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>📁 </Text>
                     <Text color={logoTextColor} bold>folder-mcp</Text>
                 </Box>
@@ -376,7 +380,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
         } else if (appName.length <= availableForText) {
             // Can fit full app name without spinner
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>
                         📁 <Text color={logoTextColor} bold>folder-mcp</Text>
                     </Text>
@@ -392,7 +396,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
             }
             
             return (
-                <Box marginTop={1}>
+                <Box marginTop={needsTopMargin}>
                     <Text color={frameColor}>{displayText}</Text>
                 </Box>
             );

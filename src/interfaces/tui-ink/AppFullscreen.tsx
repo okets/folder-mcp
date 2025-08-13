@@ -560,8 +560,11 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
 
     // Check if daemon is connected - if not, show error screen (unless we're intentionally exiting)
     if (!fmdmConnection.connected && !fmdmConnection.connecting && !isExiting) {
+        // Apply same height approach to error screen for consistency
+        const effectiveRows = rows;
+        
         return (
-            <Box flexDirection="column" height={rows} width={columns} justifyContent="center" alignItems="center">
+            <Box flexDirection="column" height={effectiveRows} width={columns} justifyContent="center" alignItems="center">
                 <Box flexDirection="column" alignItems="center" paddingY={2}>
                     <Text color="red" bold>⚠ folder-mcp service not running</Text>
                     <Text color="gray">The daemon is required for folder-mcp to function.</Text>
@@ -597,10 +600,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const isLowResolution = rows < 25;
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
-    const availableHeight = rows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
+    
+    // Use rows-1 for all platforms for better positioning and to prevent issues
+    // This provides consistent behavior and better screen utilization across all platforms
+    const effectiveRows = rows-1;
+    const availableHeight = effectiveRows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
     
     return (
-        <Box flexDirection="column" height={rows} width={columns}>
+        <Box flexDirection="column" height={effectiveRows} width={columns}>
             <Header themeName={themeContext.themeName} />
             
             <LayoutContainer
