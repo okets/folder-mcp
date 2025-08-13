@@ -114,7 +114,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                 return { actualHeight: calcActualHeight, maxLines: calcMaxLines };
             }
         }
-    }, [height, subtitle, items, itemMaxWidth, rows]);
+    }, [height, subtitle, items, itemMaxWidth, rows, itemUpdateTrigger]);
     
     
     
