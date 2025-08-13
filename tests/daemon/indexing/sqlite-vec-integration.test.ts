@@ -41,9 +41,28 @@ describe('SQLiteVecStorage Daemon Integration', () => {
   });
   
   afterEach(async () => {
-    // Cleanup test folder
-    if (existsSync(testFolder)) {
-      rmSync(testFolder, { recursive: true, force: true });
+    // Close database connections first to release file locks on Windows
+    try {
+      if (diContainer) {
+        // Get the vector search service and close its database connections
+        const vectorService = await diContainer.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
+        if (vectorService && typeof vectorService.close === 'function') {
+          await vectorService.close();
+        }
+        
+        // Get the file state storage and close its database connections
+        try {
+          const fileStateStorage = await diContainer.resolveAsync(SERVICE_TOKENS.FILE_STATE_STORAGE);
+          if (fileStateStorage && typeof fileStateStorage.close === 'function') {
+            fileStateStorage.close();
+          }
+        } catch (error) {
+          // FILE_STATE_STORAGE might not be directly available
+        }
+      }
+    } catch (error) {
+      // Ignore cleanup errors but log them for debugging
+      console.warn('Error closing database connections in test cleanup:', error);
     }
     
     // Stop daemon if running
@@ -52,6 +71,30 @@ describe('SQLiteVecStorage Daemon Integration', () => {
         await daemon.stop();
       } catch (error) {
         // Ignore cleanup errors
+      }
+    }
+    
+    // Small delay to allow Windows to release file handles
+    if (process.platform === 'win32') {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Cleanup test folder
+    if (existsSync(testFolder)) {
+      try {
+        rmSync(testFolder, { recursive: true, force: true });
+      } catch (error) {
+        // On Windows, retry once after additional delay if files are still locked
+        if (process.platform === 'win32') {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            rmSync(testFolder, { recursive: true, force: true });
+          } catch (retryError) {
+            console.warn(`Failed to cleanup test folder ${testFolder}:`, retryError);
+          }
+        } else {
+          console.warn(`Failed to cleanup test folder ${testFolder}:`, error);
+        }
       }
     }
   });
