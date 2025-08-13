@@ -114,6 +114,30 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     // Clear task queue
     this.taskQueue.clearAll();
     
+    // Close SQLite database connections to release file locks (critical for Windows cleanup)
+    try {
+      if (this.sqliteVecStorage && this.sqliteVecStorage.isReady()) {
+        this.logger.debug(`[MANAGER-STOP] Closing SQLite VecStorage connection for ${this.folderPath}`);
+        await this.sqliteVecStorage.close();
+        this.logger.info(`[MANAGER-STOP] SQLite VecStorage connection closed for ${this.folderPath}`);
+      }
+    } catch (error) {
+      this.logger.warn(`[MANAGER-STOP] Error closing SQLite VecStorage for ${this.folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      // Don't fail the stop operation if database closing fails
+    }
+    
+    // Also close FileStateService database connection
+    try {
+      if (this.fileStateService) {
+        this.logger.debug(`[MANAGER-STOP] Closing FileStateService database connection for ${this.folderPath}`);
+        this.fileStateService.close();
+        this.logger.info(`[MANAGER-STOP] FileStateService database connection closed for ${this.folderPath}`);
+      }
+    } catch (error) {
+      this.logger.warn(`[MANAGER-STOP] Error closing FileStateService database for ${this.folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      // Don't fail the stop operation if database closing fails
+    }
+    
     // Emit final state
     this.emit('stateChange', this.getState());
   }
@@ -830,9 +854,9 @@ return;
     this.on('progressUpdate', callback);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     // Cleanup method that calls stop() and removes all listeners
-    this.stop();
+    await this.stop();
     this.removeAllListeners();
   }
   
@@ -999,29 +1023,49 @@ return;
    */
   private async getEmbeddingCount(): Promise<number> {
     try {
-      // Access the SQLite database directly to count embeddings
-      const Database = (await import('better-sqlite3')).default;
-      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+      // Don't create new connections if service is inactive
+      if (!this.active) {
+        this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Service inactive, returning 0`);
+        return 0;
+      }
       
       // Check if database file exists
       const fs = await import('fs');
+      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
       if (!fs.existsSync(dbPath)) {
         this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Database file does not exist: ${dbPath}`);
         return 0;
       }
       
-      const db = new Database(dbPath, { readonly: true });
-      
-      try {
-        // Count embeddings in the embeddings table
-        const result = db.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
-        return result.count;
-      } catch (error) {
-        this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error querying embeddings table:`, error);
-        return 0;
-      } finally {
-        db.close();
+      // Use existing database connection if available
+      if (this.sqliteVecStorage && this.sqliteVecStorage.isReady()) {
+        try {
+          // Use the existing connection through SQLiteVecStorage
+          const stats = await this.sqliteVecStorage.getStats();
+          return stats.embeddingCount || 0;
+        } catch (error) {
+          this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error using existing connection:`, error);
+        }
       }
+      
+      // Fallback: create temporary readonly connection only if service is active
+      if (this.active) {
+        const Database = (await import('better-sqlite3')).default;
+        const db = new Database(dbPath, { readonly: true });
+        
+        try {
+          // Count embeddings in the embeddings table
+          const result = db.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
+          return result.count;
+        } catch (error) {
+          this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error querying embeddings table:`, error);
+          return 0;
+        } finally {
+          db.close();
+        }
+      }
+      
+      return 0;
     } catch (error) {
       this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error accessing database:`, error);
       return 0;
@@ -1033,29 +1077,49 @@ return;
    */
   private async getFileStateCount(): Promise<number> {
     try {
-      // Access the SQLite database directly to count file states
-      const Database = (await import('better-sqlite3')).default;
-      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+      // Don't create new connections if service is inactive
+      if (!this.active) {
+        this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Service inactive, returning 0`);
+        return 0;
+      }
       
       // Check if database file exists
       const fs = await import('fs');
+      const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
       if (!fs.existsSync(dbPath)) {
         this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Database file does not exist: ${dbPath}`);
         return 0;
       }
       
-      const db = new Database(dbPath, { readonly: true });
-      
-      try {
-        // Count file states in the file_states table
-        const result = db.prepare('SELECT COUNT(*) as count FROM file_states').get() as { count: number };
-        return result.count;
-      } catch (error) {
-        this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error querying file_states table:`, error);
-        return 0;
-      } finally {
-        db.close();
+      // Use existing database connection if available
+      if (this.fileStateService) {
+        try {
+          // Use the existing connection through FileStateService
+          const stats = await this.fileStateService.getStats();
+          return stats.total || 0;
+        } catch (error) {
+          this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error using existing connection:`, error);
+        }
       }
+      
+      // Fallback: create temporary readonly connection only if service is active
+      if (this.active) {
+        const Database = (await import('better-sqlite3')).default;
+        const db = new Database(dbPath, { readonly: true });
+        
+        try {
+          // Count file states in the file_states table
+          const result = db.prepare('SELECT COUNT(*) as count FROM file_states').get() as { count: number };
+          return result.count;
+        } catch (error) {
+          this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error querying file_states table:`, error);
+          return 0;
+        } finally {
+          db.close();
+        }
+      }
+      
+      return 0;
     } catch (error) {
       this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error accessing database:`, error);
       return 0;

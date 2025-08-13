@@ -319,6 +319,11 @@ export interface IFileStateService {
     byState: Record<string, number>;
     processingEfficiency: number;
   }>;
+  
+  /**
+   * Close database connections
+   */
+  close(): void;
 }
 
 /**

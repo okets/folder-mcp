@@ -350,6 +350,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     await manager.stop();
     
+    // On Windows, add a small delay to ensure database connections are fully released
+    // This prevents "EBUSY: resource busy or locked" errors when deleting the .folder-mcp directory
+    const isWindows = process.platform === 'win32';
+    if (isWindows) {
+      this.logger.debug(`[ORCHESTRATOR] Windows detected - waiting for database locks to be released...`);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2000ms delay for Windows file lock release
+    }
+    
     // Stop file watching if it was started
     if (this.monitoringOrchestrator) {
       try {
@@ -925,6 +933,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Stop the manager
       await manager.stop();
       
+      // On Windows, add a small delay to ensure database connections are fully released
+      // This prevents "EBUSY: resource busy or locked" errors when deleting the .folder-mcp directory
+      const isWindows = process.platform === 'win32';
+      if (isWindows) {
+        this.logger.debug(`[ORCHESTRATOR] Windows detected - waiting for database locks to be released...`);
+        await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+      }
+      
       // Stop file watching if it was started
       if (this.monitoringOrchestrator) {
         try {
@@ -1123,6 +1139,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
             this.logger.info(`[ORCHESTRATOR] Stopping partially created folder manager for ${folderPath}`);
             await manager.stop();
             this.logger.info(`[ORCHESTRATOR] Folder manager stopped successfully`);
+            
+            // On Windows, add a small delay to ensure database connections are fully released
+            const isWindows = process.platform === 'win32';
+            if (isWindows) {
+              this.logger.debug(`[ORCHESTRATOR] Windows detected - waiting for database locks to be released during cleanup...`);
+              await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
+            }
           }
           this.folderManagers.delete(folderPath);
         } catch (error) {
