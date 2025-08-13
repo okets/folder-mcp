@@ -74,8 +74,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const [wizardInstance, setWizardInstance] = useState<any>(null);
     const [wizardLoading, setWizardLoading] = useState(false);
     
-    // State to preserve folder expansion during terminal resizes
+    // State to preserve folder expansion and child selection during terminal resizes and re-renders
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+    const [folderChildState, setFolderChildState] = useState<Map<string, { selectedIndex: number; childExpanded?: boolean }>>(new Map());
     
     // State to track when we're intentionally exiting to prevent daemon error screen
     const [isExiting, setIsExiting] = useState<boolean>(false);
@@ -331,6 +332,26 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 // Restore expansion state if this folder was previously expanded
                 if (expandedFolders.has(folderPath)) {
                     manageFolderItem.onEnter(); // Expand the item
+                    
+                    // Also restore child selection state if available
+                    const childState = folderChildState.get(folderPath);
+                    if (childState) {
+                        // Restore child selection after a short delay to ensure the item is fully expanded
+                        setTimeout(() => {
+                            if (manageFolderItem.isControllingInput) {
+                                // Access the private _childSelectedIndex property via type assertion
+                                (manageFolderItem as any)._childSelectedIndex = childState.selectedIndex;
+                                
+                                // If the child (model selector) was expanded, try to expand it
+                                if (childState.childExpanded && childState.selectedIndex < manageFolderItem.childItems.length) {
+                                    const childItem = manageFolderItem.childItems[childState.selectedIndex];
+                                    if (childItem && 'onEnter' in childItem && typeof childItem.onEnter === 'function') {
+                                        childItem.onEnter();
+                                    }
+                                }
+                            }
+                        }, 0);
+                    }
                 }
                 
                 // Override the onEnter and onExit methods to track expansion state
@@ -343,12 +364,56 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 };
                 
                 manageFolderItem.onExit = () => {
+                    // Save current child selection state before exiting
+                    if (manageFolderItem.isControllingInput) {
+                        const selectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
+                        const selectedChild = manageFolderItem.childItems[selectedIndex];
+                        const childExpanded = selectedChild && selectedChild.isControllingInput;
+                        
+                        setFolderChildState(prev => {
+                            const newMap = new Map(prev);
+                            const stateUpdate: { selectedIndex: number; childExpanded?: boolean } = { selectedIndex };
+                            if (childExpanded) {
+                                stateUpdate.childExpanded = true;
+                            }
+                            newMap.set(folderPath, stateUpdate);
+                            return newMap;
+                        });
+                    }
+                    
                     originalOnExit();
                     setExpandedFolders(prev => {
                         const newSet = new Set(prev);
                         newSet.delete(folderPath);
                         return newSet;
                     });
+                };
+                
+                // Override navigation methods to track child state changes
+                const originalHandleInput = manageFolderItem.handleInput.bind(manageFolderItem);
+                manageFolderItem.handleInput = (input: string, key: any) => {
+                    const wasChildExpanded = manageFolderItem.childItems.some(child => child.isControllingInput);
+                    const oldSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
+                    
+                    const result = originalHandleInput(input, key);
+                    
+                    // If navigation changed, update stored state
+                    const newSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
+                    const isChildExpanded = manageFolderItem.childItems.some(child => child.isControllingInput);
+                    
+                    if (manageFolderItem.isControllingInput && (oldSelectedIndex !== newSelectedIndex || wasChildExpanded !== isChildExpanded)) {
+                        setFolderChildState(prev => {
+                            const newMap = new Map(prev);
+                            const stateUpdate: { selectedIndex: number; childExpanded?: boolean } = { selectedIndex: newSelectedIndex };
+                            if (isChildExpanded) {
+                                stateUpdate.childExpanded = true;
+                            }
+                            newMap.set(folderPath, stateUpdate);
+                            return newMap;
+                        });
+                    }
+                    
+                    return result;
                 };
                 
                 items.push(manageFolderItem);
@@ -393,7 +458,23 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         items.push(addFolderButton);
         
         return items;
-    }, [currentFolders, showAddFolderWizard, wizardInstance, wizardLoading, fmdmOperations]); // Updated dependencies
+    }, [
+        // Use stable string identifier that only changes when folder structure or non-progress data changes
+        JSON.stringify(currentFolders?.map(f => ({
+            path: f.path,
+            model: f.model,
+            hasError: f.notification?.type === 'error',
+            errorMessage: f.notification?.type === 'error' ? f.notification.message : undefined,
+            hasWarning: f.notification?.type === 'warning',
+            warningMessage: f.notification?.type === 'warning' ? f.notification.message : undefined,
+            // Only include status if it's not indexing (to prevent recreation on progress updates)
+            status: f.status === 'indexing' ? 'indexing' : f.status
+        })) || []),
+        showAddFolderWizard, 
+        wizardInstance, 
+        wizardLoading, 
+        fmdmOperations
+    ]); // Stable dependencies that exclude progress updates
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();
