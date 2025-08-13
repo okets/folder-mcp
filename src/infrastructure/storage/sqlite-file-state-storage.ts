@@ -96,15 +96,31 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     constructor(databasePath: string) {
         this.db = new Database(databasePath);
         
-        // Enable foreign keys and WAL mode for better performance
-        this.db.pragma('foreign_keys = ON');
-        this.db.pragma('journal_mode = WAL');
-        
-        // Create table and indexes
-        this.initializeSchema();
-        
-        // Prepare statements
-        this.prepareStatements();
+        try {
+            // Enable foreign keys and WAL mode for better performance
+            this.db.pragma('foreign_keys = ON');
+            this.db.pragma('journal_mode = WAL');
+            
+            // Create table and indexes
+            this.initializeSchema();
+            
+            // Prepare statements
+            this.prepareStatements();
+        } catch (error) {
+            // If database initialization fails (e.g., corrupted database),
+            // close the connection to prevent Windows file locking issues
+            try {
+                this.db.close();
+            } catch (closeError) {
+                // Ignore close errors, we're already in an error state
+            }
+            
+            // Re-throw the original error with context
+            if (error instanceof Error) {
+                throw new Error(`Failed to initialize database ${databasePath}: ${error.message}`);
+            }
+            throw error;
+        }
     }
 
     private initializeSchema(): void {
