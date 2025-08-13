@@ -12,7 +12,7 @@ import { statusItems } from '../models/sampleData';
 export const StatusPanelData: React.FC<{ 
     width?: number; 
     height?: number 
-}> = ({ width, height }) => {
+}> = React.memo(({ width, height }) => {
     const navigation = useNavigationContext();
     const { columns } = useTerminalSize();
     const effectiveHeight = height || 20;
@@ -45,4 +45,4 @@ export const StatusPanelData: React.FC<{
             })}
         />
     );
-};
+});

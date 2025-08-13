@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 interface AnimationContextValue {
     animationsPaused: boolean;
@@ -14,8 +14,14 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setAnimationsPaused(prev => !prev);
     }, []);
     
+    // Memoize context value to prevent unnecessary re-renders
+    const contextValue = useMemo(() => ({
+        animationsPaused,
+        toggleAnimations
+    }), [animationsPaused, toggleAnimations]);
+    
     return (
-        <AnimationContext.Provider value={{ animationsPaused, toggleAnimations }}>
+        <AnimationContext.Provider value={contextValue}>
             {children}
         </AnimationContext.Provider>
     );

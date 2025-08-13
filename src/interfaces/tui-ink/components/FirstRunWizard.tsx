@@ -49,7 +49,7 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
     return { path: process.cwd() };
 }
 
-const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
+const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, cliDir, cliModel }) => {
     const { columns } = useTerminalSize();
     const fmdmOperations = useFMDMOperations();
     const fmdmConnection = useFMDMConnection();
@@ -298,12 +298,12 @@ const WizardContent: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliM
             />
         </Box>
     );
-};
+});
 
-export const FirstRunWizard: React.FC<FirstRunWizardProps> = ({ onComplete, cliDir, cliModel }) => {
+export const FirstRunWizard: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, cliDir, cliModel }) => {
     return (
         <AnimationProvider>
             <WizardContent onComplete={onComplete} cliDir={cliDir} cliModel={cliModel} />
         </AnimationProvider>
     );
-};
+});

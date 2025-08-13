@@ -87,19 +87,27 @@ export const Header: React.FC<HeaderProps> = React.memo(({ themeName, status, ex
                 const pid = parseInt(pidStr, 10);
                 
                 if (isNaN(pid)) {
-                    setDaemonStatus({ running: false });
+                    setDaemonStatus(prev => prev.running ? { running: false } : prev);
                     return;
                 }
                 
                 // Check if process is actually running
                 try {
                     process.kill(pid, 0); // Doesn't actually kill, just checks if process exists
-                    setDaemonStatus({ running: true, pid });
+                    setDaemonStatus(prev => {
+                        // Only update if status actually changed
+                        if (prev.running && prev.pid === pid) return prev;
+                        return { running: true, pid };
+                    });
                 } catch {
-                    setDaemonStatus({ running: false });
+                    setDaemonStatus(prev => {
+                        // Only update if status actually changed
+                        if (!prev.running) return prev;
+                        return { running: false };
+                    });
                 }
             } catch (error) {
-                setDaemonStatus({ running: false });
+                setDaemonStatus(prev => prev.running ? { running: false } : prev);
             }
         };
         

@@ -11,7 +11,7 @@ import { buildProps } from '../utils/conditionalProps';
 export const ConfigurationPanelData: React.FC<{
     width?: number;
     height?: number;
-}> = ({ width, height }) => {
+}> = React.memo(({ width, height }) => {
     const navigation = useNavigationContext();
     const configItems = createConfigurationPanelItems();
     
@@ -29,4 +29,4 @@ export const ConfigurationPanelData: React.FC<{
             priority={50}
         />
     );
-};
+});

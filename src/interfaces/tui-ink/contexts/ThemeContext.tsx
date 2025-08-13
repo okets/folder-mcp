@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 
 export interface Theme {
     name: string;
@@ -243,7 +243,7 @@ export const ThemeProvider: React.FC<{
     const [themeName, setThemeName] = useState<ThemeName>(initialTheme);
     const theme = themes[themeName];
     
-    const setTheme = async (name: ThemeName) => {
+    const setTheme = useCallback(async (name: ThemeName) => {
         if (themes[name]) {
             setThemeName(name);
             // Call the optional callback for persistence
@@ -251,10 +251,17 @@ export const ThemeProvider: React.FC<{
                 await onThemeChange(name);
             }
         }
-    };
+    }, [onThemeChange]);
     
+    // Memoize context value to prevent unnecessary re-renders
+    const contextValue = useMemo(() => ({
+        theme,
+        themeName,
+        setTheme
+    }), [themeName, setTheme]); // Use themeName instead of theme to avoid object recreation
+
     return (
-        <ThemeContext.Provider value={{ theme, themeName, setTheme }}>
+        <ThemeContext.Provider value={contextValue}>
             {children}
         </ThemeContext.Provider>
     );

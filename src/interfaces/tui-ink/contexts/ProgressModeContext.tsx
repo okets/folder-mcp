@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 
 interface ProgressModeContextType {
     progressMode: 'short' | 'long';
@@ -26,10 +26,13 @@ interface ProgressModeProviderProps {
 export const ProgressModeProvider: React.FC<ProgressModeProviderProps> = ({ width, children }) => {
     // Determine mode based on panel width
     // Need at least 50 chars for long mode to look good
-    const progressMode = width >= 50 ? 'long' : 'short';
+    const progressMode: 'short' | 'long' = width >= 50 ? 'long' : 'short';
+    
+    // Memoize context value to prevent unnecessary re-renders
+    const contextValue = useMemo(() => ({ progressMode }), [progressMode]);
     
     return (
-        <ProgressModeContext.Provider value={{ progressMode }}>
+        <ProgressModeContext.Provider value={contextValue}>
             {children}
         </ProgressModeContext.Provider>
     );

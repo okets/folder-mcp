@@ -459,22 +459,22 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         
         return items;
     }, [
-        // Use stable string identifier that only changes when folder structure or non-progress data changes
+        // Stable dependencies for folder items
         JSON.stringify(currentFolders?.map(f => ({
             path: f.path,
             model: f.model,
             hasError: f.notification?.type === 'error',
             errorMessage: f.notification?.type === 'error' ? f.notification.message : undefined,
-            hasWarning: f.notification?.type === 'warning',
+            hasWarning: f.notification?.type === 'warning', 
             warningMessage: f.notification?.type === 'warning' ? f.notification.message : undefined,
             // Only include status if it's not indexing (to prevent recreation on progress updates)
             status: f.status === 'indexing' ? 'indexing' : f.status
         })) || []),
-        showAddFolderWizard, 
-        wizardInstance, 
-        wizardLoading, 
+        showAddFolderWizard,
+        wizardInstance,
+        wizardLoading,
         fmdmOperations
-    ]); // Stable dependencies that exclude progress updates
+    ]);
     
     // Use theme context - this component now requires a theme provider
     const themeContext = useTheme();

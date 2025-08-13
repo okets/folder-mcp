@@ -170,7 +170,8 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
   const isConnected = connectionStatus.connected;
   const isConnecting = connectionStatus.connecting;
 
-  const contextValue: FMDMContextType = {
+  // Memoize context value to prevent unnecessary re-renders of all consumers
+  const contextValue: FMDMContextType = React.useMemo(() => ({
     // State
     fmdm,
     connectionStatus,
@@ -193,7 +194,21 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     // Utility
     isConnected,
     isConnecting
-  };
+  }), [
+    fmdm,
+    connectionStatus,
+    validateFolder,
+    addFolder,
+    removeFolder,
+    getModels,
+    connect,
+    disconnect,
+    ping,
+    retryNow,
+    subscribeToModelDownloads,
+    isConnected,
+    isConnecting
+  ]);
 
   return (
     <FMDMContext.Provider value={contextValue}>
@@ -234,12 +249,14 @@ export const useFMDMConnection = (): FMDMConnectionStatus => {
  */
 export const useFMDMOperations = () => {
   const { validateFolder, addFolder, removeFolder, getModels } = useFMDM();
-  return {
+  
+  // Memoize operations object to prevent unnecessary re-renders
+  return React.useMemo(() => ({
     validateFolder,
     addFolder,
     removeFolder,
     getModels
-  };
+  }), [validateFolder, addFolder, removeFolder, getModels]);
 };
 
 /**
