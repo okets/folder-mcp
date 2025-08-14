@@ -91,22 +91,34 @@ Write-Output "GPU Debug Results for RTX 3080:" | Add-Content -Path "WINDOWS-TEST
 Get-Content "gpu-debug.log" | Add-Content -Path "WINDOWS-TEST-SUMMARY.md"
 ```
 
-### 4.4 Apply Windows GPU Fix (If Needed)
-If the debug shows RTX 3080 is not detected as NVIDIA, apply the fix:
+### 4.4 Apply Windows GPU Fix (RECOMMENDED)
+The RTX 3080 detection fix has been implemented. Update to the latest code:
+```powershell
+git pull origin phase-8-task-11.5
+npm run build
+```
+
+**Fix Applied**: Enhanced GPU detection now checks all controllers and handles Windows VRAM units correctly.
+
+**Alternative**: If needed, the manual fix script is still available:
 ```powershell
 node scripts/fix-windows-gpu-detection.js
 npm run build
 ```
 
-**Expected Result**: Should see "✅ Windows GPU detection fix applied successfully"
-
-### 4.5 Re-test GPU Detection
-After applying the fix, test again:
+### 4.5 Test Fixed GPU Detection
+After updating the code, test the fix:
 ```powershell
-node scripts/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug-fixed.log"
+node scripts/test-rtx-detection.cjs 2>&1 | Tee-Object -FilePath "gpu-test-results.log"
 ```
 
-**Expected Result**: Should now show RTX 3080 detected as NVIDIA with proper VRAM.
+**Expected Result**: 
+```
+✅ SUCCESS: RTX 3080 Laptop GPU detected correctly!
+- GPU Type: nvidia ✓
+- Model: RTX 3080 ✓ 
+- VRAM: 8GB ✓ (converted from 8192 MB)
+```
 
 ## Step 5: Run TMOAT Tests
 
