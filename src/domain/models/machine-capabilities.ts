@@ -69,12 +69,8 @@ export class MachineCapabilitiesDetector {
       if (graphics.controllers && graphics.controllers.length > 0) {
         // Sort controllers to prioritize discrete GPUs over integrated
         const sortedControllers = graphics.controllers.sort((a, b) => {
-          const aIsDiscrete = (a.model || '').toLowerCase().includes('nvidia') || 
-                             (a.model || '').toLowerCase().includes('amd') ||
-                             (a.model || '').toLowerCase().includes('radeon');
-          const bIsDiscrete = (b.model || '').toLowerCase().includes('nvidia') || 
-                             (b.model || '').toLowerCase().includes('amd') ||
-                             (b.model || '').toLowerCase().includes('radeon');
+          const aIsDiscrete = this.isDiscreteGPU(a.model || '', a.vendor || '');
+          const bIsDiscrete = this.isDiscreteGPU(b.model || '', b.vendor || '');
           
           if (aIsDiscrete && !bIsDiscrete) return -1;
           if (!aIsDiscrete && bIsDiscrete) return 1;
@@ -109,14 +105,8 @@ export class MachineCapabilitiesDetector {
           }
         }
 
-        // Enhanced NVIDIA detection for Windows RTX cards
-        const isNvidia = name.toLowerCase().includes('nvidia') || 
-                        vendor.toLowerCase().includes('nvidia') ||
-                        name.toLowerCase().includes('rtx') ||
-                        name.toLowerCase().includes('gtx') ||
-                        name.toLowerCase().includes('geforce');
-                        
-        if (isNvidia) {
+        // Enhanced GPU vendor detection
+        if (this.isNvidiaGPU(name, vendor)) {
           const result: GPUCapabilities = {
             type: 'nvidia',
             name
@@ -129,15 +119,17 @@ export class MachineCapabilitiesDetector {
             result.vramGB = vramGB;
           }
           return result;
-        } else if (name.toLowerCase().includes('amd') || vendor.toLowerCase().includes('amd') || 
-                   name.toLowerCase().includes('radeon')) {
+        } else if (this.isAmdGPU(name, vendor)) {
           const result: GPUCapabilities = {
             type: 'amd',
             name,
             rocmSupport: await this.detectROCmSupport()
           };
-          if (vramGB > 0) {
-            result.vramGB = vramGB;
+          
+          // Enhanced VRAM detection for AMD (integrated vs discrete)
+          const amdVramGB = await this.detectAmdVRAM(name, vramGB);
+          if (amdVramGB > 0) {
+            result.vramGB = amdVramGB;
           }
           return result;
         } else if (name.toLowerCase().includes('apple') || name.toLowerCase().includes('metal')) {
@@ -231,10 +223,115 @@ export class MachineCapabilitiesDetector {
     }
   }
 
+
+  // Enhanced GPU detection helper methods
+  private isDiscreteGPU(model: string, vendor: string): boolean {
+    const modelLower = model.toLowerCase();
+    const vendorLower = vendor.toLowerCase();
+    
+    // NVIDIA discrete GPU patterns
+    if (this.isNvidiaGPU(model, vendor)) return true;
+    
+    // AMD discrete GPU patterns
+    if (this.isAmdGPU(model, vendor)) {
+      // Additional check: exclude integrated AMD graphics
+      const integratedPatterns = ['vega 8', 'vega 11', 'vega 3', 'graphics'];
+      return !integratedPatterns.some(pattern => modelLower.includes(pattern));
+    }
+    
+    return false;
+  }
+
+  private isNvidiaGPU(model: string, vendor: string): boolean {
+    const modelLower = model.toLowerCase();
+    const vendorLower = vendor.toLowerCase();
+    
+    // Vendor-based detection
+    if (vendorLower.includes('nvidia')) return true;
+    
+    // Model-based detection for NVIDIA cards
+    const nvidiaPatterns = [
+      'rtx', 'gtx', 'geforce', 'quadro', 'tesla', 'titan'
+    ];
+    
+    return nvidiaPatterns.some(pattern => modelLower.includes(pattern));
+  }
+
+  private isAmdGPU(model: string, vendor: string): boolean {
+    const modelLower = model.toLowerCase();
+    const vendorLower = vendor.toLowerCase();
+    
+    // Vendor-based detection (including legacy ATI)
+    if (vendorLower.includes('amd') || 
+        vendorLower.includes('advanced micro devices') ||
+        vendorLower.includes('ati technologies')) {
+      return true;
+    }
+    
+    // Model-based detection for AMD/Radeon cards
+    const amdPatterns = [
+      'radeon', 'rx ', 'vega', 'rdna', 'navi',
+      'firepro', 'fury', 'nano'
+    ];
+    
+    // More specific patterns to avoid false positives
+    const amdSpecificPatterns = [
+      ' r9 ', ' r7 ', ' r5 ', // Space-bounded to avoid matching "UHD" etc.
+      'radeon hd', 'radeon r9', 'radeon r7', 'radeon r5' // Full context patterns
+    ];
+    
+    return amdPatterns.some(pattern => modelLower.includes(pattern)) ||
+           amdSpecificPatterns.some(pattern => modelLower.includes(pattern));
+  }
+
+  private async detectAmdVRAM(modelName: string, reportedVramGB: number): Promise<number> {
+    const modelLower = modelName.toLowerCase();
+    
+    // For integrated AMD graphics, use estimated shared memory allocation
+    const integratedPatterns = ['vega 8', 'vega 11', 'vega 3', 'graphics'];
+    const isIntegrated = integratedPatterns.some(pattern => modelLower.includes(pattern)) ||
+                        (reportedVramGB === 0 && modelLower.includes('radeon'));
+    
+    if (isIntegrated) {
+      try {
+        // Estimate shared memory allocation for integrated AMD graphics
+        const memory = await si.mem();
+        const totalRAMGB = Math.round(memory.total / (1024 * 1024 * 1024));
+        
+        // Conservative estimate: 1-2GB for integrated graphics based on system RAM
+        if (totalRAMGB >= 32) return 2; // High-end system
+        if (totalRAMGB >= 16) return 1; // Mid-range system
+        return 1; // Low-end system, still allocate 1GB minimum
+      } catch {
+        return 1; // Fallback for integrated
+      }
+    }
+    
+    // For discrete AMD GPUs, use the reported VRAM if available
+    if (reportedVramGB > 0) {
+      return reportedVramGB;
+    }
+    
+    // Fallback: estimate based on known AMD GPU model names
+    if (modelLower.includes('rx 7900')) return 20; // RX 7900 XTX/XT
+    if (modelLower.includes('rx 7800')) return 16; // RX 7800 XT
+    if (modelLower.includes('rx 7700')) return 12; // RX 7700 XT
+    if (modelLower.includes('rx 7600')) return 8;  // RX 7600
+    if (modelLower.includes('rx 6900')) return 16; // RX 6900 XT
+    if (modelLower.includes('rx 6800')) return 16; // RX 6800 XT
+    if (modelLower.includes('rx 6700')) return 12; // RX 6700 XT
+    if (modelLower.includes('rx 6600')) return 8;  // RX 6600 XT/6600
+    if (modelLower.includes('rx 580')) return 8;   // RX 580
+    if (modelLower.includes('rx 570')) return 4;   // RX 570
+    
+    return 0; // Unknown AMD GPU
+  }
+
   private async detectROCmSupport(): Promise<boolean> {
     try {
-      // This would require additional detection logic for ROCm
-      // For now, return false - can be enhanced later
+      // Basic ROCm detection for Windows (simplified)
+      // In a full implementation, this would check for ROCm installation
+      // For now, return false as ROCm is primarily Linux-focused
       return false;
     } catch {
       return false;

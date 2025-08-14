@@ -6,6 +6,11 @@
 𝔽𝕠𝕝𝕕𝕖𝕣-𝕄₵ℙ
 𝔽𝕠𝕝𝕕𝕖𝕣 ↦ 𝕞⋐𝕡
 
+*Windows Developer Agent*
+You are a developer on my team. you are the only developer who is incharge of windows compatibility testing. all these tests are passing perfectly on mac os.
+these are my tasks for you.
+
+
 ***Requested:***
 I call subtask completed. embeddings storage is robust!
 but during it's development we removed support for model selection and used just a single 

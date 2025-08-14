@@ -1,6 +1,12 @@
-# Windows Testing Guide - RTX 3080 Validation
+# Windows Testing Guide - GPU Validation
 
-**IMPORTANT: This guide is for a Windows machine with RTX 3080 GPU. Follow every step exactly.**
+**IMPORTANT: This guide is for Windows machines with NVIDIA GPUs. For AMD GPUs, see [AMD-WINDOWS-TESTING-GUIDE.md](./AMD-WINDOWS-TESTING-GUIDE.md).**
+
+## GPU-Specific Guides
+
+- **NVIDIA GPUs** (RTX 3080, GTX series, etc.): Continue with this guide
+- **AMD GPUs** (RX series, Vega, integrated): Use [AMD-WINDOWS-TESTING-GUIDE.md](./AMD-WINDOWS-TESTING-GUIDE.md)
+- **Intel iGPU only**: This guide works but will show limited performance
 
 ## Step 1: Initial Setup
 
