@@ -67,7 +67,7 @@ Then STOP and report the build-error.log contents.
 
 ### 4.1 Run GPU Debug Script (CRITICAL for RTX 3080)
 ```powershell
-node tmp/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug.log"
+node scripts/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug.log"
 ```
 
 **Purpose**: This investigates why RTX 3080 shows as `gpu: 'none'` instead of `gpu: 'nvidia'`
@@ -94,7 +94,7 @@ Get-Content "gpu-debug.log" | Add-Content -Path "WINDOWS-TEST-SUMMARY.md"
 ### 4.4 Apply Windows GPU Fix (If Needed)
 If the debug shows RTX 3080 is not detected as NVIDIA, apply the fix:
 ```powershell
-node tmp/fix-windows-gpu-detection.js
+node scripts/fix-windows-gpu-detection.js
 npm run build
 ```
 
@@ -103,7 +103,7 @@ npm run build
 ### 4.5 Re-test GPU Detection
 After applying the fix, test again:
 ```powershell
-node tmp/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug-fixed.log"
+node scripts/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug-fixed.log"
 ```
 
 **Expected Result**: Should now show RTX 3080 detected as NVIDIA with proper VRAM.
