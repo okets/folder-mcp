@@ -240,7 +240,8 @@ describe('Model System TMOAT', () => {
       });
     });
 
-    it('includes Ollama models in Manual mode only', async () => {
+    it('excludes Ollama models from curated evaluation (architectural separation)', async () => {
+      // After architectural fix: Ollama models are NOT in curated catalog
       const manualCriteria: EvaluationCriteria = {
         languages: ['en'],
         mode: 'manual'
@@ -249,14 +250,15 @@ describe('Model System TMOAT', () => {
       const manualScores = compatibilityEvaluator.evaluateModelCompatibility(mockCapabilities, manualCriteria);
       const ollamaModels = manualScores.filter(s => s.model.id.startsWith('ollama:'));
       
-      expect(ollamaModels.length).toBeGreaterThan(0);
+      // Ollama models should NOT be in curated evaluation anymore
+      expect(ollamaModels.length).toBe(0);
       
-      // Verify Ollama models from catalog
-      const graniteModel = ollamaModels.find(s => s.model.id.includes('granite-embedding'));
-      const arcticModel = ollamaModels.find(s => s.model.id.includes('snowflake-arctic'));
+      // Instead, we should only have GPU and CPU models
+      const gpuModels = manualScores.filter(s => s.model.id.startsWith('folder-mcp:') && !s.model.id.includes('lite'));
+      const cpuModels = manualScores.filter(s => s.model.id.startsWith('folder-mcp-lite:'));
       
-      expect(graniteModel).toBeDefined();
-      expect(arcticModel).toBeDefined();
+      expect(gpuModels.length).toBeGreaterThan(0);
+      expect(cpuModels.length).toBeGreaterThan(0);
 
       console.log('✅ Manual mode inclusion:', {
         mode: 'manual',
@@ -296,15 +298,21 @@ describe('Model System TMOAT', () => {
       expect(recommendation.alternatives.length).toBeLessThanOrEqual(5);
       expect(recommendation.evaluationCriteria.mode).toBe('manual');
 
-      // Should include Ollama models in alternatives or primary
+      // After architectural fix: Only curated models (GPU/CPU) in selection service
       const allOptions = [recommendation.primaryChoice, ...recommendation.alternatives];
       const hasOllamaModels = allOptions.some(score => score.model.id.startsWith('ollama:'));
-      expect(hasOllamaModels).toBe(true);
+      expect(hasOllamaModels).toBe(false); // Ollama excluded from curated selection
 
-      console.log('✅ Manual mode options:', {
+      // Should have GPU and CPU models instead
+      const hasGpuModels = allOptions.some(score => score.model.id.startsWith('folder-mcp:') && !score.model.id.includes('lite'));
+      const hasCpuModels = allOptions.some(score => score.model.id.startsWith('folder-mcp-lite:'));
+      expect(hasGpuModels || hasCpuModels).toBe(true);
+
+      console.log('✅ Manual mode options (curated only):', {
         primary: recommendation.primaryChoice.model.displayName,
         totalOptions: allOptions.length,
-        ollamaCount: allOptions.filter(opt => opt.model.id.startsWith('ollama:')).length
+        gpuCount: allOptions.filter(opt => opt.model.id.startsWith('folder-mcp:') && !opt.model.id.includes('lite')).length,
+        cpuCount: allOptions.filter(opt => opt.model.id.startsWith('folder-mcp-lite:')).length
       });
     });
 

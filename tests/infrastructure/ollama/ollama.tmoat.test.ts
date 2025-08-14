@@ -119,33 +119,26 @@ describe('Ollama Detection TMOAT', () => {
         // Verify granite model language support
         const graniteModel = result.models.find(m => m.id.includes('granite-embedding'));
         if (graniteModel) {
-          const languageCount = Object.keys(graniteModel.languagePerformance).length;
-          expect(languageCount).toBeGreaterThanOrEqual(10); // Should support 12 languages
-          
-          // Check for key languages
-          expect(graniteModel.languagePerformance['en']).toBeDefined();
-          expect(graniteModel.languagePerformance['zh']).toBeDefined();
-          expect(graniteModel.languagePerformance['ja']).toBeDefined();
+          // After architectural fix: Basic models have no language performance data
+          expect(graniteModel.id).toBe('ollama:granite-embedding:278m');
+          expect(graniteModel.displayName).toContain('Granite');
+          expect((graniteModel as any).languagePerformance).toBeUndefined();
         }
 
         // Verify arctic model language support  
         const arcticModel = result.models.find(m => m.id.includes('arctic-embed'));
         if (arcticModel) {
-          const languageCount = Object.keys(arcticModel.languagePerformance).length;
-          expect(languageCount).toBeGreaterThanOrEqual(5); // Should support 6 languages
-          
-          // Check for European language focus
-          expect(arcticModel.languagePerformance['en']).toBeDefined();
-          if (arcticModel.languagePerformance['en']) {
-            expect(arcticModel.languagePerformance['en']).toBeGreaterThan(0.9); // High English performance
-          }
+          // After architectural fix: Basic models have no language performance data
+          expect(arcticModel.id).toContain('arctic');
+          expect(arcticModel.displayName).toContain('Arctic');
+          expect((arcticModel as any).languagePerformance).toBeUndefined();
         }
 
-        console.log('✅ Model catalog verification:', {
+        console.log('✅ Basic model detection (no language data):', {
           modelsFound: result.models.length,
-          granite: graniteModel ? Object.keys(graniteModel.languagePerformance).length : 0,
-          arctic: arcticModel ? Object.keys(arcticModel.languagePerformance).length : 0,
-          catalogDataCorrect: true
+          graniteFound: !!graniteModel,
+          arcticFound: !!arcticModel,
+          basicInfoOnly: true
         });
       } else {
         console.log('ℹ️ Ollama not running - catalog verification skipped:', {
@@ -197,7 +190,7 @@ describe('Ollama Detection TMOAT', () => {
       expect(cjkRecommendations.reasons.length).toBeGreaterThan(0);
       
       // Should recommend Granite for CJK
-      const hasGranite = cjkRecommendations.recommended.some(m => m.id.includes('granite'));
+      const hasGranite = cjkRecommendations.recommended.some(m => m.includes('granite'));
       expect(hasGranite).toBe(true);
 
       // Test English/European language recommendations
@@ -205,13 +198,13 @@ describe('Ollama Detection TMOAT', () => {
       expect(enRecommendations.recommended.length).toBeGreaterThan(0);
       
       // Should recommend Arctic for European languages
-      const hasArctic = enRecommendations.recommended.some(m => m.id.includes('arctic'));
+      const hasArctic = enRecommendations.recommended.some(m => m.includes('arctic'));
       expect(hasArctic).toBe(true);
 
       console.log('✅ Model recommendations:', {
-        cjkModels: cjkRecommendations.recommended.map(m => m.displayName),
+        cjkModels: cjkRecommendations.recommended,
         cjkReasons: cjkRecommendations.reasons[0],
-        enModels: enRecommendations.recommended.map(m => m.displayName),
+        enModels: enRecommendations.recommended,
         intelligentRecommendations: hasGranite && hasArctic
       });
     });
@@ -271,69 +264,50 @@ describe('Ollama Detection TMOAT', () => {
   });
 
   describe('Integration with Curated Models', () => {
-    it('correctly matches detected models with catalog entries', async () => {
-      // Test model matching logic with synthetic data
-      const catalogModels = [
-        { 
-          id: 'ollama:granite-embedding:278m',
-          modelName: 'granite-embedding:278m',
-          displayName: 'Test Granite',
-          languagePerformance: { en: 0.95, zh: 0.80 }
-        },
-        {
-          id: 'ollama:missing-model:1b', 
-          modelName: 'missing-model:1b',
-          displayName: 'Test Missing',
-          languagePerformance: { en: 0.90 }
-        }
-      ];
-
+    it('converts detected models to basic info without catalog dependencies', async () => {
+      // After architectural fix: Pure runtime detection without catalog matching
       const detectedModels: OllamaModelInfo[] = [
         { name: 'granite-embedding:278m', tag: '278m', size: 500000000, digest: 'test1' }
       ];
 
-      // Use private method to test matching
-      const matched = (detector as any).matchDetectedWithCatalog(detectedModels, catalogModels);
+      // Use private method to test basic model conversion
+      const basicModels = (detector as any).convertToBasicModels(detectedModels);
       
-      expect(matched.length).toBe(1);
-      expect(matched[0].id).toBe('ollama:granite-embedding:278m');
+      expect(basicModels.length).toBe(1);
+      expect(basicModels[0].id).toBe('ollama:granite-embedding:278m');
+      expect(basicModels[0].displayName).toBe('Granite Embedding (278M)');
+      expect(basicModels[0].description).toContain('User-managed Ollama model');
       
-      console.log('✅ Model matching:', {
-        catalogModels: catalogModels.length,
+      console.log('✅ Basic model conversion (pure runtime):', {
         detectedModels: detectedModels.length,
-        matchedModels: matched.length,
-        correctMatching: matched.length === 1 && matched[0].id.includes('granite')
+        basicModels: basicModels.length,
+        sampleModel: {
+          id: basicModels[0].id,
+          displayName: basicModels[0].displayName,
+          hasBasicInfoOnly: !('languagePerformance' in basicModels[0])
+        }
       });
     });
 
-    it('generates correct install commands for missing models', async () => {
-      const catalogModels = [
-        { 
-          modelName: 'granite-embedding:278m',
-          requirements: { installCommand: 'ollama pull granite-embedding:278m' }
-        },
-        {
-          modelName: 'missing-model:1b',
-          requirements: { installCommand: 'ollama pull missing-model:1b' }
-        }
-      ];
-
-      const detectedModels: OllamaModelInfo[] = [
-        { name: 'granite-embedding:278m', tag: '278m', size: 500000000, digest: 'test1' }
-      ];
-
-      // Use private method to test command generation
-      const commands = (detector as any).getMissingModelCommands(catalogModels, detectedModels);
+    it('provides basic installation guidance without catalog dependencies', async () => {
+      // After architectural fix: OllamaDetector provides basic guidance only
       
-      expect(commands.length).toBe(1);
-      expect(commands[0]).toContain('missing-model:1b');
-      expect(commands[0]).toContain('ollama pull');
+      // When Ollama is not running, should provide basic install commands
+      const offlineResult = await detector.detectModels('manual');
+      expect(offlineResult.installCommands.length).toBeGreaterThan(0);
+      expect(offlineResult.installCommands.some((cmd: string) => cmd.includes('https://ollama.ai/download'))).toBe(true);
       
-      console.log('✅ Install commands:', {
-        catalogModels: catalogModels.length,
-        detectedModels: detectedModels.length,
-        missingCommands: commands.length,
-        exampleCommand: commands[0] || 'none needed'
+      // Test basic install command generation
+      const basicCommands = (detector as any).getBasicInstallCommands();
+      expect(basicCommands.length).toBeGreaterThan(0);
+      expect(basicCommands.some((cmd: string) => cmd.includes('ollama serve'))).toBe(true);
+      expect(basicCommands.some((cmd: string) => cmd.includes('ollama pull'))).toBe(true);
+      
+      console.log('✅ Basic install guidance (no catalog dependency):', {
+        offlineInstallCommands: offlineResult.installCommands.length,
+        basicCommands: basicCommands.length,
+        hasDownloadUrl: offlineResult.installCommands.some((cmd: string) => cmd.includes('ollama.ai')),
+        hasServeCommand: basicCommands.some((cmd: string) => cmd.includes('serve'))
       });
     });
   });

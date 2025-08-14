@@ -17,8 +17,6 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
     // Mock machine capabilities for testing
     mockCapabilities = {
       cpu: {
-        manufacturer: 'Apple',
-        brand: 'Apple M3',
         cores: 8,
         architecture: 'arm64',
         features: ['AVX2', 'FMA']
@@ -29,17 +27,13 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
         swapGB: 0
       },
       gpu: {
-        type: 'integrated',
+        type: 'apple',
         name: 'Apple M3 GPU',
         vramGB: 16, // Unified memory
-        cudaVersion: null,
         metalSupport: true
       },
-      platform: {
-        type: 'darwin',
-        version: '14.0.0',
-        arch: 'arm64'
-      }
+      platform: 'darwin',
+      detectedAt: new Date()
     };
   });
 
@@ -92,7 +86,7 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
       console.log('✅ Evaluator Ollama exclusion:', {
         totalModels: allModels.length,
-        ollamaModelsFound: allModels.filter(m => m.id.startsWith('ollama:')).length,
+        ollamaModelsFound: allModels.filter((m: any) => m.id.startsWith('ollama:')).length,
         supportedLanguages: languages.length,
         sampleLanguages: languages.slice(0, 10)
       });
