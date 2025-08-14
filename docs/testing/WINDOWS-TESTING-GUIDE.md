@@ -63,9 +63,54 @@ npm run build 2>&1 | Out-File -FilePath "build-error.log"
 ```
 Then STOP and report the build-error.log contents.
 
-## Step 4: Run TMOAT Tests
+## Step 4: Debug GPU Detection Issue
 
-### 4.1 Run All TMOAT Tests
+### 4.1 Run GPU Debug Script (CRITICAL for RTX 3080)
+```powershell
+node tmp/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug.log"
+```
+
+**Purpose**: This investigates why RTX 3080 shows as `gpu: 'none'` instead of `gpu: 'nvidia'`
+
+### 4.2 Check Debug Output
+Look for these critical lines in the output:
+```
+Controllers analysis:
+  Controller 0:
+    model: "NVIDIA GeForce RTX 3080"
+    vendor: "NVIDIA"
+    vram: [NUMBER]
+```
+
+**CRITICAL**: If model/vendor don't contain "NVIDIA" or "RTX", that's why detection fails.
+
+### 4.3 Share Debug Results
+Save the debug output - we may need to fix the detection logic based on this:
+```powershell
+Write-Output "GPU Debug Results for RTX 3080:" | Add-Content -Path "WINDOWS-TEST-SUMMARY.md"
+Get-Content "gpu-debug.log" | Add-Content -Path "WINDOWS-TEST-SUMMARY.md"
+```
+
+### 4.4 Apply Windows GPU Fix (If Needed)
+If the debug shows RTX 3080 is not detected as NVIDIA, apply the fix:
+```powershell
+node tmp/fix-windows-gpu-detection.js
+npm run build
+```
+
+**Expected Result**: Should see "✅ Windows GPU detection fix applied successfully"
+
+### 4.5 Re-test GPU Detection
+After applying the fix, test again:
+```powershell
+node tmp/debug-gpu-detection.js 2>&1 | Tee-Object -FilePath "gpu-debug-fixed.log"
+```
+
+**Expected Result**: Should now show RTX 3080 detected as NVIDIA with proper VRAM.
+
+## Step 5: Run TMOAT Tests
+
+### 5.1 Run All TMOAT Tests
 ```powershell
 npm test -- tests/**/*.tmoat.test.ts 2>&1 | Tee-Object -FilePath "tmoat-results.log"
 ```
@@ -73,14 +118,14 @@ npm test -- tests/**/*.tmoat.test.ts 2>&1 | Tee-Object -FilePath "tmoat-results.
 **Expected Duration**: 6-8 minutes
 **Expected Result**: 4 test files, 49 tests passed
 
-### 4.2 Check Test Results
+### 5.2 Check Test Results
 Look at the bottom of output for:
 ```
 Test Files  4 passed (4)
-     Tests  49 passed (49)
+     Tests  49 tests passed (49)
 ```
 
-## Step 5: Hardware Detection Test
+## Step 6: Hardware Detection Test
 
 ### 5.1 Run Specific Hardware Test
 ```powershell
