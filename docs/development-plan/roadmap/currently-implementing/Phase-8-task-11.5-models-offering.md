@@ -222,13 +222,65 @@ npm test -- tests/**/*.tmoat.test.ts
 # - onnx.tmoat.test.ts (Xenova integration)
 # - model-download-management.tmoat.test.ts (FMDM + global downloads)
 # - ollama.tmoat.test.ts (Manual mode detection)
+# - intelligent-recommendations.tmoat.test.ts (Architecture fixes)
 # All tests autonomous - no manual intervention needed
+```
+
+#### Sprint A5: Intelligent Recommendations Architecture Fixes
+**Critical architectural issues discovered during backend development**
+
+**Sub-tasks:**
+1. **Remove Ollama from Curated Models Configuration**
+   - Delete entire `ollamaModels` section from curated-models.json (lines 484-553)
+   - Ollama models violate runtime-only detection principle (should not be in static config)
+   - Keep only GPU models (Python/HuggingFace) and CPU models (ONNX) in curated catalog
+   - Location: `src/config/curated-models.json`
+
+2. **Update ModelCompatibilityEvaluator for Clean Architecture**
+   - Remove all references to `catalog.ollamaModels.knownModels` in evaluator code
+   - Update `getAllAvailableModels()` to exclude Ollama catalog models (line 122)
+   - Update `getModelById()` to exclude Ollama models (line 328)
+   - Update `getSupportedLanguages()` to exclude Ollama language data (line 341)
+   - Location: `src/domain/models/model-evaluator.ts`
+
+3. **Implement Hardware as Binary Filter (Not Scored)**
+   - Convert `evaluateHardwareCompatibility()` to return only boolean compatibility
+   - Remove hardware scoring from total score calculation (lines 140-148)
+   - Use hardware compatibility as go/no-go gate before any scoring occurs
+   - Maintain hardware reasoning for user feedback without contributing points
+   - Location: `src/domain/models/model-evaluator.ts`
+
+4. **Fix Scoring Weights Distribution**
+   - **Language Compatibility: 60%** (0-60 points, currently 0-20 at line 154)
+   - **Accuracy (MTEB): 32%** (0-32 points, currently 0-10 at lines 164-167)
+   - **Speed: 8%** (0-8 points, currently 0-10 at lines 158-161)
+   - **Total: 100 points maximum** (proper language prioritization)
+   - Location: `src/domain/models/model-evaluator.ts`
+
+5. **Pure Runtime Ollama Detection**
+   - Ollama models get basic info only: `{id, modelName, displayName}` from `/api/tags`
+   - No predefined language capabilities (user responsibility for power-user feature)
+   - Simple list for manual mode selection only (no scoring or compatibility evaluation)
+   - Location: `src/infrastructure/ollama/ollama-detector.ts`
+
+**TMOAT Verification:**
+```typescript
+// tests/domain/models/intelligent-recommendations.tmoat.test.ts
+describe('Intelligent Recommendations Architecture TMOAT', () => {
+  it('loads curated-models.json without ollamaModels section');
+  it('ModelCompatibilityEvaluator excludes all Ollama references');
+  it('hardware acts as binary filter (not scored in total)');
+  it('language gets 60 points, accuracy 32 points, speed 8 points (100 total)');
+  it('Ollama detection provides basic info only (no language capabilities)');
+  it('assisted mode never includes Ollama models (runtime-only for manual)');
+  it('scoring prioritizes language fit over hardware/speed performance');
+});
 ```
 
 ---
 
 ### 👤 Phase B: TUI Integration (Manual Testing Required - 1-2 days)
-**Only begin after ALL 4 TMOAT test suites pass**
+**Only begin after ALL 5 TMOAT test suites pass**
 
 #### Sprint B1: Enhanced AddFolderWizard with Model Selection
 **Integrate with completed backend services**
@@ -257,11 +309,12 @@ npm test -- tests/**/*.tmoat.test.ts
 
 **STOP 1: Phase A Backend Completion**
 ```bash
-# Must pass ALL 4 TMOAT suites:
+# Must pass ALL 5 TMOAT suites:
 npm test -- tests/domain/models/model-system.tmoat.test.ts
 npm test -- tests/infrastructure/embeddings/onnx/onnx.tmoat.test.ts  
 npm test -- tests/application/model-download-management.tmoat.test.ts
 npm test -- tests/infrastructure/ollama/ollama.tmoat.test.ts
+npm test -- tests/domain/models/intelligent-recommendations.tmoat.test.ts
 
 # Expected: All tests pass autonomously
 # Expected: curated-models.json loads correctly with 100+ languages
