@@ -67,17 +67,61 @@ export class MachineCapabilitiesDetector {
       const graphics = await si.graphics();
       
       if (graphics.controllers && graphics.controllers.length > 0) {
-        const primaryGPU = graphics.controllers[0];
-        if (!primaryGPU) {
+        // Find the best discrete GPU (prioritize NVIDIA/AMD over integrated/virtual)
+        let bestGPU = null;
+        let bestScore = -1;
+        
+        for (const controller of graphics.controllers) {
+          const name = controller.model || 'Unknown GPU';
+          const vendor = controller.vendor || '';
+          
+          // Score GPUs: discrete > integrated > virtual
+          let score = 0;
+          if (name.toLowerCase().includes('nvidia') || vendor.toLowerCase().includes('nvidia') ||
+              name.toLowerCase().includes('amd') || vendor.toLowerCase().includes('amd') ||
+              name.toLowerCase().includes('radeon')) {
+            score = 100; // Discrete GPU
+          } else if (name.toLowerCase().includes('intel') || vendor.toLowerCase().includes('intel')) {
+            score = 50; // Integrated GPU
+          } else if (name.toLowerCase().includes('apple') || name.toLowerCase().includes('metal')) {
+            score = 75; // Apple unified memory
+          } else {
+            score = 10; // Virtual/unknown
+          }
+          
+          if (score > bestScore) {
+            bestScore = score;
+            bestGPU = controller;
+          }
+        }
+        
+        if (!bestGPU) {
           return { type: 'none' };
         }
         
-        const name = primaryGPU.model || 'Unknown GPU';
-        const vramBytes = primaryGPU.vram || 0;
-        const vramGB = vramBytes > 0 ? Math.round(vramBytes / (1024 * 1024 * 1024)) : 0;
+        const name = bestGPU.model || 'Unknown GPU';
+        const vramRaw = bestGPU.vram || 0;
+        
+        // Handle Windows VRAM units: often in MB, not bytes
+        let vramGB = 0;
+        if (vramRaw > 0) {
+          if (vramRaw > 1000000000) {
+            // Likely bytes
+            vramGB = Math.round(vramRaw / (1024 * 1024 * 1024));
+          } else if (vramRaw > 100000) {
+            // Likely KB
+            vramGB = Math.round(vramRaw / (1024 * 1024));
+          } else if (vramRaw > 100) {
+            // Likely MB (common on Windows)
+            vramGB = Math.round(vramRaw / 1024);
+          } else {
+            // Likely already in GB
+            vramGB = Math.round(vramRaw);
+          }
+        }
 
         // Detect GPU type based on vendor and model
-        if (name.toLowerCase().includes('nvidia') || primaryGPU.vendor?.toLowerCase().includes('nvidia')) {
+        if (name.toLowerCase().includes('nvidia') || bestGPU.vendor?.toLowerCase().includes('nvidia')) {
           const result: GPUCapabilities = {
             type: 'nvidia',
             name
@@ -90,7 +134,7 @@ export class MachineCapabilitiesDetector {
             result.vramGB = vramGB;
           }
           return result;
-        } else if (name.toLowerCase().includes('amd') || primaryGPU.vendor?.toLowerCase().includes('amd')) {
+        } else if (name.toLowerCase().includes('amd') || bestGPU.vendor?.toLowerCase().includes('amd')) {
           const result: GPUCapabilities = {
             type: 'amd',
             name,
