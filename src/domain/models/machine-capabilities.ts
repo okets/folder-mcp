@@ -62,57 +62,46 @@ export class MachineCapabilitiesDetector {
     return capabilities;
   }
 
-  private async detectGPU(): Promise<GPUCapabilities> {
+    private async detectGPU(): Promise<GPUCapabilities> {
     try {
       const graphics = await si.graphics();
       
       if (graphics.controllers && graphics.controllers.length > 0) {
-        // Find the best discrete GPU (prioritize NVIDIA/AMD over integrated/virtual)
-        let bestGPU = null;
-        let bestScore = -1;
-        
-        for (const controller of graphics.controllers) {
-          const name = controller.model || 'Unknown GPU';
-          const vendor = controller.vendor || '';
+        // Sort controllers to prioritize discrete GPUs over integrated
+        const sortedControllers = graphics.controllers.sort((a, b) => {
+          const aIsDiscrete = (a.model || '').toLowerCase().includes('nvidia') || 
+                             (a.model || '').toLowerCase().includes('amd') ||
+                             (a.model || '').toLowerCase().includes('radeon');
+          const bIsDiscrete = (b.model || '').toLowerCase().includes('nvidia') || 
+                             (b.model || '').toLowerCase().includes('amd') ||
+                             (b.model || '').toLowerCase().includes('radeon');
           
-          // Score GPUs: discrete > integrated > virtual
-          let score = 0;
-          if (name.toLowerCase().includes('nvidia') || vendor.toLowerCase().includes('nvidia') ||
-              name.toLowerCase().includes('amd') || vendor.toLowerCase().includes('amd') ||
-              name.toLowerCase().includes('radeon')) {
-            score = 100; // Discrete GPU
-          } else if (name.toLowerCase().includes('intel') || vendor.toLowerCase().includes('intel')) {
-            score = 50; // Integrated GPU
-          } else if (name.toLowerCase().includes('apple') || name.toLowerCase().includes('metal')) {
-            score = 75; // Apple unified memory
-          } else {
-            score = 10; // Virtual/unknown
-          }
-          
-          if (score > bestScore) {
-            bestScore = score;
-            bestGPU = controller;
-          }
-        }
+          if (aIsDiscrete && !bIsDiscrete) return -1;
+          if (!aIsDiscrete && bIsDiscrete) return 1;
+          return 0;
+        });
         
-        if (!bestGPU) {
+        const primaryGPU = sortedControllers[0];
+        if (!primaryGPU) {
           return { type: 'none' };
         }
         
-        const name = bestGPU.model || 'Unknown GPU';
-        const vramRaw = bestGPU.vram || 0;
+        const name = primaryGPU.model || 'Unknown GPU';
+        const vendor = primaryGPU.vendor || '';
+        const vramRaw = primaryGPU.vram || 0;
         
-        // Handle Windows VRAM units: often in MB, not bytes
+        // Enhanced VRAM detection for Windows
         let vramGB = 0;
         if (vramRaw > 0) {
+          // Windows may report VRAM in different units
           if (vramRaw > 1000000000) {
             // Likely bytes
             vramGB = Math.round(vramRaw / (1024 * 1024 * 1024));
-          } else if (vramRaw > 100000) {
-            // Likely KB
+          } else if (vramRaw > 1000000) {
+            // Likely KB 
             vramGB = Math.round(vramRaw / (1024 * 1024));
-          } else if (vramRaw > 100) {
-            // Likely MB (common on Windows)
+          } else if (vramRaw > 1000) {
+            // Likely MB
             vramGB = Math.round(vramRaw / 1024);
           } else {
             // Likely already in GB
@@ -120,8 +109,14 @@ export class MachineCapabilitiesDetector {
           }
         }
 
-        // Detect GPU type based on vendor and model
-        if (name.toLowerCase().includes('nvidia') || bestGPU.vendor?.toLowerCase().includes('nvidia')) {
+        // Enhanced NVIDIA detection for Windows RTX cards
+        const isNvidia = name.toLowerCase().includes('nvidia') || 
+                        vendor.toLowerCase().includes('nvidia') ||
+                        name.toLowerCase().includes('rtx') ||
+                        name.toLowerCase().includes('gtx') ||
+                        name.toLowerCase().includes('geforce');
+                        
+        if (isNvidia) {
           const result: GPUCapabilities = {
             type: 'nvidia',
             name
@@ -134,7 +129,8 @@ export class MachineCapabilitiesDetector {
             result.vramGB = vramGB;
           }
           return result;
-        } else if (name.toLowerCase().includes('amd') || bestGPU.vendor?.toLowerCase().includes('amd')) {
+        } else if (name.toLowerCase().includes('amd') || vendor.toLowerCase().includes('amd') || 
+                   name.toLowerCase().includes('radeon')) {
           const result: GPUCapabilities = {
             type: 'amd',
             name,
