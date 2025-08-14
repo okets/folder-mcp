@@ -1048,8 +1048,8 @@ Python Layer:
 **Implementation Details**: See comprehensive implementation in [Phase-8-Task-10-Python-Embeddings.md](Phase-8-Task-10-Python-Embeddings.md)
 
 ### Task 11: SQLite-vec Embeddings Storage Implementation  
-**Status**: 🚧 In Progress  
-**Discovered**: 2025-07-30  
+**Status**: ✅ COMPLETED  
+**Completion Date**: 2025-01-14  
 **Dependencies**: Task 10 (Python Embeddings System)  
 **What**: Implement SQLite-vec based embedding storage to replace mock VectorSearchService and JSON file storage, with complete TUI progress reporting integration.
 
@@ -1060,6 +1060,8 @@ Python Layer:
 - Incremental updates and file monitoring integration
 - Zero dependencies (SQLite-vec is self-contained)
 - Complete folder addition flow with status reporting to ManageFolderItem
+
+**Outcome**: Successfully implemented SQLite-vec storage with robust error handling, cross-platform support, and comprehensive E2E testing. All 905 tests passing.
 
 **Key Design Decisions**:
 - **Disposable Embeddings**: No migration needed - embeddings can be recreated from source files
@@ -1106,6 +1108,45 @@ Python Layer:
 **Implementation Plan**: See detailed linear plan in [Phase-8-Task-11-SQLite-vec-Embeddings.md](Phase-8-Task-11-SQLite-vec-Embeddings.md)
 
 **Progress Reporting Architecture**: The final Phase 10 of Task 11 implements complete progress reporting from the moment a folder is added through the TUI, ensuring users see real-time feedback during the SQLite-vec indexing process. This includes FMDM interface extensions, WebSocket progress events, FolderProgressService coordination, IndexingOrchestrator integration, and dynamic ManageFolderItem status updates.
+
+**Implementation Details**: See comprehensive implementation in [Phase-8-Task-11-SQLite-vec-Embeddings.md](Phase-8-Task-11-SQLite-vec-Embeddings.md)
+
+### Task 11.5: Multi-Source Model Offering System
+**Status**: 📋 PLANNED  
+**Dependencies**: Task 11 (SQLite-vec Embeddings) ✅ COMPLETED  
+**Priority**: **HIGH** - Critical for user experience and flexibility
+
+**What**: Implement comprehensive model selection system with multiple sources and intelligent recommendations.
+
+**Why**: Users need flexibility in choosing embedding models based on:
+- Hardware capabilities (GPU vs CPU)
+- Language requirements (English-only vs multilingual)
+- Performance needs (speed vs quality)
+- Available resources (memory, disk space)
+
+**Key Features**:
+1. **Three Model Sources**:
+   - GPU models (Python/HuggingFace) - Auto-download
+   - CPU models (ONNX Runtime) - CDN download with verification
+   - Ollama models - User-managed, detected dynamically (Manual mode only)
+
+2. **Smart Setup Modes**:
+   - **Assisted Mode**: Recommends best model based on languages and hardware
+   - **Manual Mode**: Full control, access to all models including Ollama
+
+3. **Smooth Onboarding**:
+   - Cached machine capabilities for instant detection (<3 seconds)
+   - Pre-loaded model recommendations
+   - Clear performance expectations
+
+4. **Resilient Downloads**:
+   - Auto-redownload deleted models
+   - Global status updates for all folders using a model
+   - Progress tracking with cancellation support
+
+**Implementation Plan**: See detailed sprint plan in [Phase-8-task-11.5-models-offering.md](Phase-8-task-11.5-models-offering.md)
+
+**Estimated Duration**: 9-10 days (6 sprints with safety stops)
 
 ### Task 12: MCP Endpoints Migration to Daemon-Centric Architecture
 **Status**: ⏳ Waiting  
