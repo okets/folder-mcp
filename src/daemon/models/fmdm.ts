@@ -37,14 +37,15 @@ export interface FolderConfig {
  * Indexing status for a monitored folder
  */
 export type FolderIndexingStatus = 
-  | 'pending'      // Not yet started indexing
-  | 'scanning'     // Scanning for files
-  | 'ready'        // Ready to start indexing (has tasks queued)
-  | 'indexing'     // Currently indexing files
-  | 'indexed'      // Indexing completed successfully
-  | 'active'       // Active and watching for changes
-  | 'error'        // Error occurred during indexing
-  | 'watching';    // Actively watching for file changes
+  | 'pending'           // Not yet started indexing
+  | 'downloading-model' // Downloading required model
+  | 'scanning'          // Scanning for files
+  | 'ready'             // Ready to start indexing (has tasks queued)
+  | 'indexing'          // Currently indexing files
+  | 'indexed'           // Indexing completed successfully
+  | 'active'            // Active and watching for changes
+  | 'error'             // Error occurred during indexing
+  | 'watching';         // Actively watching for file changes
 
 /**
  * Current daemon process status information

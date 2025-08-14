@@ -67,6 +67,16 @@ export interface IFMDMService {
    * Update progress for a specific folder
    */
   updateFolderProgress(folderPath: string, progressPercentage: number): void;
+  
+  /**
+   * Get all folders using a specific model
+   */
+  getFoldersUsingModel(modelId: string): string[];
+  
+  /**
+   * Update model download status for all folders using a model
+   */
+  updateModelDownloadStatus(modelId: string, status: 'downloading' | 'completed' | 'failed', progressPercentage?: number): void;
 }
 
 /**
@@ -414,6 +424,86 @@ export class FMDMService implements IFMDMService {
     this.fmdm.version = this.generateVersion();
     this.logger.debug(`Updated folder notification: ${folderPath}`, { notification });
     this.broadcast();
+  }
+  
+  /**
+   * Get all folders using a specific model
+   */
+  getFoldersUsingModel(modelId: string): string[] {
+    return this.fmdm.folders
+      .filter(folder => folder.model === modelId)
+      .map(folder => folder.path);
+  }
+  
+  /**
+   * Update model download status for all folders using a model
+   */
+  updateModelDownloadStatus(modelId: string, status: 'downloading' | 'completed' | 'failed', progressPercentage?: number): void {
+    const affectedFolders = this.getFoldersUsingModel(modelId);
+    
+    if (affectedFolders.length === 0) {
+      this.logger.debug(`No folders using model ${modelId} for status update`);
+      return;
+    }
+    
+    let folderStatus: FolderIndexingStatus;
+    let notification: { message: string; type: 'error' | 'warning' | 'info' } | null = null;
+    
+    switch (status) {
+      case 'downloading':
+        folderStatus = 'downloading-model';
+        notification = {
+          message: `Downloading model ${modelId}${progressPercentage ? ` (${progressPercentage}%)` : ''}`,
+          type: 'info'
+        };
+        break;
+      case 'completed':
+        folderStatus = 'pending'; // Ready to start indexing
+        notification = {
+          message: `Model ${modelId} downloaded successfully`,
+          type: 'info'
+        };
+        break;
+      case 'failed':
+        folderStatus = 'error';
+        notification = {
+          message: `Failed to download model ${modelId}`,
+          type: 'error'
+        };
+        break;
+    }
+    
+    // Update all affected folders
+    let updated = false;
+    for (const folderPath of affectedFolders) {
+      const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+      if (folderIndex !== -1) {
+        const folder = this.fmdm.folders[folderIndex];
+        if (folder) {
+          const updatedFolder: any = {
+            ...folder,
+            status: folderStatus,
+            notification
+          };
+          
+          // Only set progress if we have a value
+          if (status === 'downloading' && progressPercentage !== undefined) {
+            updatedFolder.progress = progressPercentage;
+          } else if (folder.progress !== undefined) {
+            updatedFolder.progress = folder.progress;
+          }
+          
+          this.fmdm.folders[folderIndex] = updatedFolder;
+          updated = true;
+        }
+      }
+    }
+    
+    if (updated) {
+      this.fmdm.version = this.generateVersion();
+      this.logger.debug(`Updated model download status for ${affectedFolders.length} folders using ${modelId}: ${status}`);
+      this.broadcast();
+    }
   }
   
   /**

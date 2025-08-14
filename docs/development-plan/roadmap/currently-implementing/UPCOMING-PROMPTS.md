@@ -6,35 +6,27 @@
 𝔽𝕠𝕝𝕕𝕖𝕣-𝕄₵ℙ
 𝔽𝕠𝕝𝕕𝕖𝕣 ↦ 𝕞⋐𝕡
 
-***after indexing process is perfected, I want to work on the available models lists:***
-- I want to discuss the list of sentence transformers we are about to offer. We need to list existing ollama sentence transformers the user might have installed.
-As for our python offerings, I want to offer few, but I don’t want to download all of them, just cache them as they first download.
-- Validation error on the FMDM when a chosen model was deleted (llama only our models can be re-downloaded).
-
-
-***Next:***
-I call subtask 
- completed. embeddings storage is robust!
-  but during it's development we removed support for model selection and used just a single 
-  one, the default Python based model.
-  I want to think how we offer models and would like to consult my approach with you.
-  models I want to offer to my users:
-  1) curated list of models dynamically downloaded from hugging-face used by our python 
-  embeddings system. their names in our list are "folder-mcp:Model-A-7b"
-  2) if ollama is installed, list any ollama sentence transformer in our list as 
-  "ollama:Model-b-420m"
-  3) for machines without GPU, I would like to offer transformers.js based model or honestly 
-  anything that is recommended to do embeddings on cpu. I really need good recommendation here.
-  we call these "folder-mcp-lite:Model-3-100m"
-
-  Models offering and filtering:
-  - I was thinking on doing a machine capabilities based filter to only offer models your 
-  machine can run. so we should check for gpu,memory...etc and offer only models that can run 
-  or warn about slowness. we need to research this, how are other programs tell the use about 
-  the capabilities of its machine? does hugging-face have APIs or guidlines for that?
-  - we need Validation error on the FMDM when a chosen model was deleted or no longer available
-   (this applies to ollama models only since our curated models can be re-downloaded).
-  - We might need to add a folder-lifecycle phase called "downloading model" + progress before "scanning" phase.
+***Requested:***
+I call subtask completed. embeddings storage is robust!
+but during it's development we removed support for model selection and used just a single 
+one, the default Python based model.
+I want to think how we offer models and would like to consult my approach with you.
+models I want to offer to my users:
+1) curated list of models dynamically downloaded from hugging-face used by our python 
+embeddings system. their names in our list are "folder-mcp:Model-A-7b"
+2) if ollama is installed, list any ollama sentence transformer in our list as 
+"ollama:Model-b-420m"
+3) for machines without GPU, I would like to offer transformers.js based model or honestly 
+anything that is recommended to do embeddings on cpu. I really need good recommendation here.
+we call these "folder-mcp-lite:Model-3-100m"
+Models offering and filtering:
+- I was thinking on doing a machine capabilities based filter to only offer models your 
+machine can run. so we should check for gpu,memory...etc and offer only models that can run 
+or warn about slowness. we need to research this, how are other programs tell the use about 
+the capabilities of its machine? does hugging-face have APIs or guidlines for that?
+- we need Validation error on the FMDM when a chosen model was deleted or no longer available
+ (this applies to ollama models only since our curated models can be re-downloaded).
+- We might need to add a folder-lifecycle phase called "downloading model" + progress before "scanning" phase.
 
 ------------------------------------------------------
 
@@ -62,11 +54,6 @@ since we are curating our models, we would need to create a configurable json fi
 
 also, I applrove ONYX, I think we tried it few weeks ago, we might have some foundation for it.
 
-
-
-
-
-
 ---------------------------------------
 1. a cpu capabilities check should be done even for machines with gpu. sometimes the CPU has more memory and can run better models. (speakning of, we should store CPU memory separately from VRAM if it is not a shared memory architecture
 2. I don't think we should scan the folder to detect language. I think we sould change the AddFolderWizard flow to have two setup modes:
@@ -92,24 +79,34 @@ Assisted:
 ╰───────────────────────────────────────────────────────────────────╯
 
 ---------------------------------------
-1. create the plan in a Phase-8-task-11.5-models-offering.md under /Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing
+CONVERT PLAN TO SPRINTS
+Create the plan in a PAHSE_NUM_STEP_NUM.md under /Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing
 - the plan should have small sprints with measurable progress and user safety stops after TUI changes.
 - each change should be led by a user story and with clear user interface impact.
 - sub tasks should be prioritized and groupped to acomodate to the previous requirement.
 - backend changes can be verified using the agent led TMAOT method.
-2. add task 11.5 to /Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-8-Unified-Application-Flow-plan.md ,mark task 11 as complete
+
+---------------------------------------
+REVIEW PLAN
+1. Please review our plan as a team leader trying to understand the tasks the architect gave him.
+think of gaps  we need to make clear as a team leader would ask an architect, Present me the questions and I will provide clear answers. 
 
 
-sprint 5:
-- the FMDM hould update for all folders using a downloaded model with the new status.
-- deleted models should auto downloaded again.
-
-sprint 6:
-- ollama models will not be automatically picked, they will only be available in "manual" mode.
-
-general note, we need to properly cache machine capabilities and make the onboarding process very smooth.
+***Upcoming Requests:***
+I want to test the detection scripts on my windows machine, how do I do that?
 
 
---------------REVIEW PLAN
-now please review our plan as a team leader trying to understand the tasks the architect gave him. think of gaps  we need to make clear such as matching capabilities to a curated list of models, where do we get a list of best models and realize their capabilities?  
-this is just one gap, there are few more questions a team leader would ask, we need to provide clear answers. 
+
+******************CHANGE OUTPUT STYLE*****************************************
+/output-style:new I want an output style that ...
+
+---
+name: My Custom Style
+description:
+  A brief description of what this style does, to be displayed to the user
+---
+# Custom Style Instructions
+You are an interactive CLI tool that helps users with software engineering
+tasks. [Your custom instructions here...]
+## Specific Behaviors
+[Define how the assistant should behave in this style...]
