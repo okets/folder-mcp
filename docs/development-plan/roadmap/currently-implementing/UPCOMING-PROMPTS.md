@@ -6,6 +6,10 @@
 𝔽𝕠𝕝𝕕𝕖𝕣-𝕄₵ℙ
 𝔽𝕠𝕝𝕕𝕖𝕣 ↦ 𝕞⋐𝕡
 
+***What Is TMOAT?***
+C:\Thinking Homes\folder-mcp\TMOAT
+
+TMOAT is a agent led testing method. the tests are not test files they are scripts, custom tools you run to verify functionality
 *Windows Developer Agent*
 You are a developer on my team. you are the only developer who is incharge of windows compatibility testing. all these tests are passing perfectly on mac os.
 these are my tasks for you.
