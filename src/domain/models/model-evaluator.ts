@@ -1,6 +1,5 @@
-import { readFileSync } from 'fs';
-import path from 'path';
 import { MachineCapabilities, GPUCapabilities } from './machine-capabilities.js';
+import curatedModelsData from '../../config/curated-models.json';
 
 export interface CuratedModel {
   id: string;
@@ -75,17 +74,7 @@ export class ModelCompatibilityEvaluator {
   private catalog: ModelCatalog;
 
   constructor() {
-    this.catalog = this.loadModelCatalog();
-  }
-
-  private loadModelCatalog(): ModelCatalog {
-    try {
-      const catalogPath = path.join(__dirname, '../../config/curated-models.json');
-      const catalogContent = readFileSync(catalogPath, 'utf-8');
-      return JSON.parse(catalogContent);
-    } catch (error) {
-      throw new Error(`Failed to load curated models catalog: ${error}`);
-    }
+    this.catalog = curatedModelsData as ModelCatalog;
   }
 
   evaluateModelCompatibility(

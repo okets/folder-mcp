@@ -11,23 +11,116 @@ import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
 import { IListItem } from './core/IListItem';
-import { getPythonModels, ModelInfo } from '../services/ModelListService';
+import { ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
-import { DestructiveConfirmationWrapper, useDestructiveConfirmation } from './DestructiveConfirmationWrapper';
 import { theme } from '../utils/theme';
+
+/**
+ * Language code to display name mapping for comprehensive language support
+ * Pre-sorted by English name with English first, then alphabetically
+ * Only English names to avoid Unicode TUI issues
+ */
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+    'en': 'English',
+    'af': 'Afrikaans',
+    'sq': 'Albanian',
+    'am': 'Amharic',
+    'ar': 'Arabic',
+    'hy': 'Armenian',
+    'az': 'Azerbaijani',
+    'eu': 'Basque',
+    'be': 'Belarusian',
+    'bn': 'Bengali',
+    'bg': 'Bulgarian',
+    'ca': 'Catalan',
+    'zh': 'Chinese',
+    'zh-tw': 'Chinese Traditional',
+    'hr': 'Croatian',
+    'cs': 'Czech',
+    'da': 'Danish',
+    'nl': 'Dutch',
+    'et': 'Estonian',
+    'fil': 'Filipino',
+    'fi': 'Finnish',
+    'fr': 'French',
+    'gl': 'Galician',
+    'ka': 'Georgian',
+    'de': 'German',
+    'el': 'Greek',
+    'gu': 'Gujarati',
+    'ha': 'Hausa',
+    'he': 'Hebrew',
+    'hi': 'Hindi',
+    'hu': 'Hungarian',
+    'is': 'Icelandic',
+    'id': 'Indonesian',
+    'ga': 'Irish',
+    'it': 'Italian',
+    'ja': 'Japanese',
+    'kn': 'Kannada',
+    'kk': 'Kazakh',
+    'km': 'Khmer',
+    'ko': 'Korean',
+    'ku': 'Kurdish',
+    'lo': 'Lao',
+    'lv': 'Latvian',
+    'lt': 'Lithuanian',
+    'mk': 'Macedonian',
+    'ms': 'Malay',
+    'ml': 'Malayalam',
+    'mr': 'Marathi',
+    'mn': 'Mongolian',
+    'my': 'Myanmar',
+    'ne': 'Nepali',
+    'no': 'Norwegian',
+    'ps': 'Pashto',
+    'fa': 'Persian',
+    'pl': 'Polish',
+    'pt': 'Portuguese',
+    'pa': 'Punjabi',
+    'ro': 'Romanian',
+    'ru': 'Russian',
+    'sr': 'Serbian',
+    'si': 'Sinhala',
+    'sk': 'Slovak',
+    'sl': 'Slovenian',
+    'so': 'Somali',
+    'es': 'Spanish',
+    'sw': 'Swahili',
+    'sv': 'Swedish',
+    'ta': 'Tamil',
+    'te': 'Telugu',
+    'th': 'Thai',
+    'tr': 'Turkish',
+    'uk': 'Ukrainian',
+    'ur': 'Urdu',
+    'uz': 'Uzbek',
+    'vi': 'Vietnamese',
+    'cy': 'Welsh',
+    'xh': 'Xhosa',
+    'yo': 'Yoruba',
+};
+
+function getLanguageDisplayName(code: string): string {
+    return LANGUAGE_DISPLAY_NAMES[code] || code.toUpperCase();
+}
 
 export interface AddFolderWizardResult {
     path: string;
     model: string;
+    mode: 'assisted' | 'manual';
+    languages: string[];
 }
 
 export interface AddFolderWizardOptions {
     initialPath?: string;
     initialModel?: string;
+    initialMode?: 'assisted' | 'manual';
+    initialLanguages?: string[];
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
     fmdmOperations?: any;
@@ -137,7 +230,6 @@ class AddFolderContainerItem extends ContainerListItem {
         
         if (this.currentValidationResult.hasError || this.currentValidationResult.hasWarning) {
             const validationIcon = this.currentValidationResult.hasError ? '✗' : '!';
-            const validationColor = this.currentValidationResult.hasError ? 'red' : 'yellow';
             const validationMessage = this.currentValidationResult.errorMessage || this.currentValidationResult.warningMessage || '';
             
             
@@ -199,6 +291,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     const {
         initialPath = process.cwd(),
         initialModel, // Will be set dynamically from daemon
+        initialMode = 'assisted', // Default to assisted mode
+        initialLanguages = ['en'], // Default to English
         onComplete,
         onCancel,
         fmdmOperations
@@ -266,6 +360,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     
     // Track wizard state
     let selectedPath = initialPath;
+    let selectedMode = initialMode;
+    let selectedLanguages = [...initialLanguages];
     // selectedModel is already declared above with dynamic daemon fetching
     
     // Initialize FMDM validation if operations are provided
@@ -289,7 +385,6 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         
         // For now, we'll extract folder info from the daemon validation warnings
         // This assumes the daemon validation includes affectedFolders info
-        const folderCount = 1; // We can't get exact count without the detailed info
         
         return {
             level: 'warning',
@@ -341,9 +436,97 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Create child items
     const childItems: IListItem[] = [];
     
-    // Step 1: Folder selection
+    // Step 1: Mode selection
+    const modeOptions: SelectionOption[] = [
+        {
+            value: 'assisted',
+            label: 'Assisted (Recommended)',
+            details: {
+                'Description': 'Let us choose the best model for your needs'
+            }
+        },
+        {
+            value: 'manual',
+            label: 'Manual (Advanced)',
+            details: {
+                'Description': 'Browse all available models including Ollama'
+            }
+        }
+    ];
+    
+    const modeSelector = new SelectionListItem(
+        '⁃',
+        'Choose configuration mode',
+        modeOptions,
+        [selectedMode], // Pre-select the initial mode
+        false, // Will be managed by ContainerListItem
+        'radio', // Single selection
+        'vertical', // Vertical layout for detailed display
+        async (values) => {
+            if (values.length > 0 && values[0]) {
+                selectedMode = values[0] as 'assisted' | 'manual';
+            }
+        },
+        undefined, // minSelections
+        undefined, // maxSelections
+        false, // autoSwitchLayout
+        true, // showDetails - Enable column display
+        ['Description'] // Column headers
+    );
+    childItems.push(modeSelector);
+    
+    // Step 2: Language selection - Load from curated models catalog (single source of truth)
+    const { ModelCompatibilityEvaluator } = await import('../../../domain/models/model-evaluator');
+    const modelEvaluator = new ModelCompatibilityEvaluator();
+    const supportedLanguageCodes = modelEvaluator.getSupportedLanguages();
+    
+    // Pre-sorted language order: English first, then alphabetically by English name
+    const languageOrder = [
+        'en', 'af', 'sq', 'am', 'ar', 'hy', 'az', 'eu', 'be', 'bn', 'bg', 'ca',
+        'zh', 'zh-tw', 'hr', 'cs', 'da', 'nl', 'et', 'fil', 'fi', 'fr', 'gl',
+        'ka', 'de', 'el', 'gu', 'ha', 'he', 'hi', 'hu', 'is', 'id', 'ga', 'it',
+        'ja', 'kn', 'kk', 'km', 'ko', 'ku', 'lo', 'lv', 'lt', 'mk', 'ms', 'ml',
+        'mr', 'mn', 'my', 'ne', 'no', 'ps', 'fa', 'pl', 'pt', 'pa', 'ro', 'ru',
+        'sr', 'si', 'sk', 'sl', 'so', 'es', 'sw', 'sv', 'ta', 'te', 'th', 'tr',
+        'uk', 'ur', 'uz', 'vi', 'cy', 'xh', 'yo'
+    ];
+    
+    // Filter pre-sorted languages by what's available in curated models (no runtime sorting needed)
+    const supportedSet = new Set(supportedLanguageCodes);
+    const languageOptions: SelectionOption[] = languageOrder
+        .filter(code => supportedSet.has(code))
+        .map(code => {
+            const languageName = getLanguageDisplayName(code);
+            
+            return {
+                value: code,
+                label: languageName
+            };
+        });
+    
+    const languageSelector = new SelectionListItem(
+        '⁃',
+        'Select document languages',
+        languageOptions,
+        [...selectedLanguages], // Pre-select the initial languages (copy array)
+        false, // Will be managed by ContainerListItem
+        'checkbox', // Multi-selection
+        'vertical', // Vertical layout
+        async (values) => {
+            selectedLanguages = [...values];
+            // Update the selectedValues property of the component to maintain state
+            languageSelector.selectedValues = [...values];
+        },
+        1, // minSelections - at least one language required
+        undefined, // maxSelections - no maximum
+        false, // autoSwitchLayout
+        false // showDetails - Simplified to single column display
+    );
+    childItems.push(languageSelector);
+    
+    // Step 3: Folder selection
     folderPicker = new FilePickerListItem(
-        '■',
+        '⁃',
         'Select folder to index',
         initialPath,
         false, // Will be managed by ContainerListItem
@@ -381,7 +564,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     
     childItems.push(folderPicker);
     
-    // Step 2: Model selection with dynamically fetched Python models
+    // Step 4: Model selection with dynamically fetched Python models
     const modelOptions: SelectionOption[] = pythonModels.map(model => ({
         value: model.name,
         label: model.recommended ? `${model.displayName}` : model.displayName,
@@ -398,7 +581,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     const initialModelSelection = selectedModel ? [selectedModel] : [];
     
     const modelSelector = new SelectionListItem(
-        'м',
+        '⁃',
         'Choose embedding model',
         modelOptions,
         initialModelSelection, // Show the model even if invalid
@@ -446,7 +629,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         currentValidation,
         childItems,
         false, // Not active initially
-        async (results) => {
+        async () => {
             // Check for ancestor scenarios requiring destructive confirmation
             if (currentValidation.hasWarning && currentValidation.warningMessage?.includes('replace monitoring')) {
                 const destructiveConfig = await createAncestorDestructiveConfig(selectedPath);
@@ -462,9 +645,16 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 return;
             }
             
+            if (selectedLanguages.length === 0) {
+                console.error('No languages selected for wizard completion');
+                return;
+            }
+            
             const result: AddFolderWizardResult = {
                 path: selectedPath,
-                model: selectedModel
+                model: selectedModel,
+                mode: selectedMode,
+                languages: selectedLanguages
             };
             onComplete(result);
         },

@@ -279,31 +279,124 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-### 👤 Phase B: TUI Integration (Manual Testing Required - 1-2 days)
+### 👤 Phase B: TUI Integration (Manual Testing Required - 2 days)
 **Only begin after ALL 5 TMOAT test suites pass**
 
-#### Sprint B1: Enhanced AddFolderWizard with Model Selection
-**Integrate with completed backend services**
+#### Sprint B1: Basic Selection Components (0.5-1 day)
+**Goal**: Add mode and language selection steps to wizard
+**Dependencies**: Clean Phase A backend completion
+**Risk**: Low - uses existing SelectionListItem
 
 **Sub-tasks:**
-1. **Add Model Selection Screens to Wizard**
-   - Mode selection: "Assisted (Recommended)" vs "Manual (Advanced)"  
-   - Language selection: Checkboxes for user's languages
-   - Model recommendation: Show recommended model with performance data from catalog
-   - Use model-selection-service.ts from Sprint A1
-   - Location: `src/interfaces/tui-ink/components/AddFolderWizard.tsx`
+1. **Add Mode Selection Step**
+   - **Component**: `SelectionListItem` in radio mode
+   - **Options**: 
+     - "Assisted (Recommended)" - Let us choose the best model for your needs
+     - "Manual (Advanced)" - Browse all available models including Ollama
+   - **Default**: 'assisted' pre-selected
+   - **Location**: Update `AddFolderWizard.tsx`
 
-2. **Display Rich Model Information**
-   - Performance: "Expected speed: 200 tokens/sec" from catalog
-   - Languages: "Strong support: EN (0.95), ES (0.90), Fair: ZH (0.80)" from catalog  
-   - Memory: "Requires: 4GB VRAM or 2GB RAM" from catalog
-   - Context: "Supports up to 8192 tokens" for BGE-M3
-   - Manual mode: Show Ollama models with "🦙 User Managed" indicator
+2. **Add Language Selection Step**
+   - **Component**: `SelectionListItem` in checkbox mode with vertical layout
+   - **Options**: Common languages with native names (English/English, Spanish/Español, etc.)
+   - **Default**: English pre-selected
+   - **Location**: Update `AddFolderWizard.tsx`
 
-3. **Handle Model Selection Flow**
-   - Save selected model to folder configuration
-   - Pass to indexing orchestrator for immediate use
-   - Handle user cancellation/back navigation gracefully
+3. **Basic Wizard Navigation**
+   - Step-by-step navigation between mode and language selection
+   - Back/forward navigation handling
+   - Selection state preservation
+
+**Testing**: Manual TUI test for step navigation and selection
+
+---
+
+#### Sprint B2: Model Selection with Compatibility (1 day)
+**Goal**: Implement model selection with dual column configurations
+**Dependencies**: Sprint B1, ModelSelectionService working
+**Risk**: Medium - complex backend integration
+
+**Sub-tasks:**
+1. **Integrate ModelSelectionService**
+   - Call `ModelSelectionService.recommendModels()` with selected languages/mode
+   - Handle async model recommendation loading
+   - Error handling for backend service failures
+
+2. **Implement Assisted Mode Model Selection**
+   - **Columns**: `['Speed', 'Accuracy', 'Languages', 'Memory', 'Type']`
+   - Show only compatible curated models, sorted by score
+   - No compatibility column (all models work)
+   - Primary recommendation marked with [Recommended] and pre-selected
+   - No Ollama models shown
+
+3. **Implement Manual Mode Model Selection**
+   - **Columns**: `['Compatibility', 'Speed', 'Accuracy', 'Languages', 'Memory', 'Type']`
+   - Show ALL models (compatible + incompatible + Ollama)
+   - **Compatibility States**:
+     - `√ Supported` - Curated models that will work
+     - `! Needs GPU` / `! Needs 4GB VRAM` - Specific hardware requirements not met
+     - `* User Managed` - Ollama models (user responsibility)
+   - Alphabetical sorting, no pre-selection
+
+4. **Add OllamaDetector Integration**
+   - Integrate `OllamaDetector.detectModels('manual')` for manual mode
+   - Handle offline Ollama scenarios gracefully
+   - Show Ollama models with "* User Managed" and "-" for unknown data
+
+**Testing**: Manual TUI test both assisted and manual modes with different hardware scenarios
+
+---
+
+#### Sprint B3: Complete Wizard Integration (0.5 day)
+**Goal**: Replace old wizard flow with new 4-step flow
+**Dependencies**: Sprint B1 + B2
+**Risk**: Low - mostly cleanup and integration
+
+**Sub-tasks:**
+1. **Remove Old Model Selection Logic**
+   - Delete hardcoded model selection from current wizard
+   - Clean up old model-related validation code
+   - Update wizard flow to use new 4-step process: Folder → Mode → Languages → Model
+
+2. **Update Wizard Completion Handler**
+   - Extract final selections from all steps
+   - Update completion handler to use new model selection format
+   - Integrate with existing folder configuration system
+   - Pass selected model to indexing orchestrator
+
+3. **Integration Testing**
+   - Test complete wizard flow end-to-end
+   - Verify integration with existing validation system
+   - Handle edge cases (no models found, backend errors)
+
+**Testing**: Full end-to-end wizard flow testing
+
+---
+
+#### Sprint B4: Polish & Edge Cases (0.5 day)
+**Goal**: Handle error scenarios and polish UX
+**Dependencies**: Sprint B3
+**Risk**: Low - refinement work
+
+**Sub-tasks:**
+1. **Error Scenario Handling**
+   - Handle offline Ollama scenarios gracefully
+   - Handle no compatible models found scenario
+   - Backend service failure recovery
+   - Clear error messages for all failure modes
+
+2. **UX Polish**
+   - Improve loading states during model detection
+   - Add helpful progress indicators
+   - Smooth transitions between wizard steps
+   - Final visual polish and consistency
+
+3. **Edge Case Testing**
+   - Test with various hardware configurations
+   - Test language combinations that have no recommended models
+   - Test rapid navigation through wizard steps
+
+**Testing**: Error scenario testing, full system integration, edge case validation
 
 ### 🛑 **USER SAFETY STOPS**
 
@@ -323,31 +416,88 @@ npm test -- tests/domain/models/intelligent-recommendations.tmoat.test.ts
 # No manual intervention needed - fully autonomous backend
 ```
 
-**STOP 2: TUI Model Selection Flow**
+**STOP 2: Sprint B1 Completion - Basic Selection Components**
 ```bash
-npm run build
-npm run tui
-# Add new folder → Test model selection wizard:
-# ✅ Assisted mode shows: BGE-M3, E5-Large, MiniLM (NO Ollama)
-# ✅ Manual mode shows: BGE-M3, E5-Large, MiniLM, Granite, Arctic (WITH Ollama)
-# ✅ Language selection affects recommendations (CJK → BGE-M3, EU → MiniLM)
-# ✅ Performance data displays correctly from curated-models.json
-# ✅ Model selection saves and persists
-# ✅ Capability detection is instant (<3 seconds, cached)
+npm run build && npm run tui
+# Test: Mode selection works (radio selection)
+# ✅ "Assisted (Recommended)" vs "Manual (Advanced)" options display
+# ✅ Assisted mode pre-selected by default
+# ✅ Radio selection navigation works with arrow keys
+
+# Test: Language selection works (checkbox multi-select)  
+# ✅ Common languages with native names display
+# ✅ English pre-selected by default
+# ✅ Multi-select checkbox behavior works
+# ✅ Vertical layout displays properly
+
+# Test: Navigation between steps (back/forward)
+# ✅ Can navigate from mode to language selection
+# ✅ Back navigation preserves previous selections
+# ✅ Selection state preserved during navigation
 ```
 
-**STOP 3: Complete System Integration**
+**STOP 3: Sprint B2 Completion - Model Selection with Compatibility**
 ```bash
-# Full end-to-end validation:
+# Test: Assisted mode shows filtered models only
+# ✅ Only compatible curated models shown
+# ✅ Columns: Speed, Accuracy, Languages, Memory, Type (no Compatibility)
+# ✅ Primary recommendation shows [Recommended] and pre-selected
+# ✅ No Ollama models visible
+# ✅ Models sorted by recommendation score
+
+# Test: Manual mode shows all models with warnings
+# ✅ ALL models shown (compatible + incompatible + Ollama)
+# ✅ Columns: Compatibility, Speed, Accuracy, Languages, Memory, Type
+# ✅ Compatible models show "√ Supported"
+# ✅ Incompatible models show "! Needs GPU" etc.
+# ✅ Ollama models show "* User Managed" with "-" for unknown data
+# ✅ Alphabetical sorting, no pre-selection
+
+# Test: ModelSelectionService integration
+# ✅ Language selection affects recommendations
+# ✅ Backend service calls work correctly
+# ✅ Error handling for service failures
+```
+
+**STOP 4: Sprint B3 Completion - Complete Wizard Integration**  
+```bash
+# Test: Complete 4-step wizard flow
+# ✅ Folder → Mode → Languages → Model flow works
+# ✅ Old hardcoded model selection removed
+# ✅ Selected model saves to folder configuration
+# ✅ Wizard completion handler updated
+# ✅ Integration with indexing orchestrator works
+
+# Test: End-to-end functionality
+# ✅ Complete wizard saves all selections properly
+# ✅ Indexing starts with chosen model
+# ✅ Edge cases handled (no models, backend errors)
+```
+
+**STOP 5: Sprint B4 Completion - Polish & System Integration**
+```bash
+# Test: Error scenario handling
+# ✅ Offline Ollama handled gracefully with clear messages
+# ✅ No compatible models scenario shows helpful guidance
+# ✅ Backend service failures recover properly
+# ✅ All error messages are clear and actionable
+
+# Test: UX Polish
+# ✅ Loading states during model detection show progress
+# ✅ Smooth transitions between wizard steps
+# ✅ Visual consistency across all components
+# ✅ Professional polish and user-friendly experience
+
+# Test: Full end-to-end system integration
 # 1. Clear cache: rm -rf ~/.cache/folder-mcp ~/.folder-mcp
-# 2. Launch TUI: npm run tui
+# 2. Launch TUI: npm run tui  
 # 3. Verify fresh capability detection (first run)
 # 4. Add folder → Assisted → Select languages → Accept recommendation
 # 5. Verify indexing starts with selected model
 # 6. Delete model manually: rm -rf ~/.cache/torch/sentence_transformers/[model]
 # 7. Trigger re-indexing → Verify auto-redownload works
 # 8. Add second folder → Manual → Verify Ollama models appear
-# 9. Test model switching scenarios
+# 9. Test rapid wizard navigation and edge cases
 # ✅ All scenarios work smoothly with proper error handling
 ```
 
@@ -364,8 +514,10 @@ npm run tui
 6. **Ollama Detection** - Manual mode integration with specific model targeting
 
 ### 👤 **Phase B Deliverables (Manual Testing)**
-1. **Enhanced AddFolderWizard** - Mode selection, language selection, rich model display
-2. **Visual Model Information** - Performance expectations, language support, memory requirements
+1. **Sprint B1**: Mode and language selection components using SelectionListItem
+2. **Sprint B2**: Model selection with dual column configurations and compatibility warnings  
+3. **Sprint B3**: Complete 4-step wizard integration (Folder → Mode → Languages → Model)
+4. **Sprint B4**: Polished UX with error handling and edge case management
 
 ## Success Criteria
 
@@ -379,10 +531,10 @@ npm run tui
 7. **Comprehensive Language Support**: 100+ languages with documented performance scores
 
 ### 👤 **TUI Success Criteria (Manual Testing - Phase B)**
-1. **Intuitive Mode Selection**: Clear "Assisted (Recommended)" vs "Manual (Advanced)" choice
-2. **Rich Model Display**: Performance expectations, language support, memory requirements shown
-3. **Smooth Wizard Flow**: Back/forward navigation, selection persistence, graceful cancellation
-4. **Visual Progress Indication**: Model download progress visible across affected folders
+1. **Sprint B1 Success**: Mode and language selection components work smoothly with proper navigation
+2. **Sprint B2 Success**: Dual-mode model selection with clear compatibility warnings and rich data display
+3. **Sprint B3 Success**: Complete 4-step wizard flow replaces old system and integrates properly
+4. **Sprint B4 Success**: Professional UX with comprehensive error handling and edge case management
 
 ---
 
@@ -395,8 +547,15 @@ npm run tui
 ✅ **Clear file structure** and implementation locations specified
 
 ### **Phase B: TUI Integration** (After all backend tests pass)
-✅ **Backend services** ready for TUI integration  
-✅ **Manual test protocols** defined with specific validation steps  
-✅ **User safety stops** established at key milestones
+✅ **4 Sprint structure** defined with clear goals, dependencies, and risk levels
+✅ **Detailed testing protocols** defined for each sprint with specific validation steps
+✅ **User safety stops** established at each sprint completion milestone  
+✅ **Sprint-by-sprint deliverables** clearly defined for systematic implementation
 
-**Next Step**: Begin Sprint A1 - Machine Capabilities Detection & Model Evaluator implementation!
+**Phase B Sprint Structure**:
+- **Sprint B1** (0.5-1 day): Basic selection components - Low risk foundation work
+- **Sprint B2** (1 day): Model selection with compatibility - Medium risk backend integration  
+- **Sprint B3** (0.5 day): Complete wizard integration - Low risk cleanup and integration
+- **Sprint B4** (0.5 day): Polish & edge cases - Low risk refinement work
+
+**Next Step**: Begin Phase A backend implementation, then proceed with Phase B sprints!
