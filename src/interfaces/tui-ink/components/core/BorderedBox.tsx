@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { ILayoutConstraints } from '../../models/types';
 import { LayoutConstraintProvider } from '../../contexts/LayoutContext';
 import { ConstrainedContent } from '../ConstrainedContent';
+import { ContentService } from '../../services/ContentService';
 // WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 
 export interface BorderedBoxProps {
@@ -32,6 +33,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     const { theme } = useTheme();
     const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
+    const contentService = new ContentService();
     
     // WINDOWS FIX: Removed render-time debug logging to prevent ANSI packet fragmentation
     // Debug logging during render cycle causes Windows terminal flickering
@@ -53,25 +55,72 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
         overflow: 'truncate'
     };
     
-    // Create top border with embedded title
+    // Create top border with embedded title and proper truncation
     const createTopBorder = () => {
         if (focused) {
-            // Total content: title + 2 spaces around title + 2 corner chars = title.length + 4
-            const padding = Math.max(0, width - title.length - 5);
-            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
+            // Structure: ╭─ TITLE ─[padding]─╮
+            // Components: topLeft(1) + "─ "(2) + TITLE + " "(1) + padding + topRight(1)
+            const fixedChars = 5; // topLeft + "─ " + " " + topRight
+            const availableForTitle = width - fixedChars;
+            
+            if (availableForTitle <= 0) {
+                // Not enough space for any title, just show border
+                return `${border.topLeft}${border.horizontal.repeat(Math.max(0, width - 2))}${border.topRight}`;
+            }
+            
+            // Truncate title if needed
+            const displayTitle = contentService.truncateText(title, availableForTitle);
+            const titleWidth = contentService.measureText(displayTitle);
+            const paddingWidth = Math.max(0, width - fixedChars - titleWidth);
+            const padding = border.horizontal.repeat(paddingWidth);
+            
+            return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding}${border.topRight}`;
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
-            // Check if we have enough space for title + tab indicator
-            const totalContentLength = title.length + tabText.length + 6;
+            const tabTextWidth = contentService.measureText(tabText);
             
-            if (width >= totalContentLength + 1) {
-                // Enough space for both title and tab indicator
-                const padding = Math.max(0, width - totalContentLength - 1);
-                return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+            // Structure: ╭─ TITLE ─[padding]─ ⁽ᵗᵃᵇ⁾ ╮
+            // Components: topLeft(1) + "─ "(2) + TITLE + " "(1) + padding + " "(1) + tabText + " "(1) + topRight(1)
+            const fixedCharsWithTab = 7 + tabTextWidth; // topLeft + "─ " + " " + " " + tabText + " " + topRight
+            
+            if (width >= fixedCharsWithTab) {
+                // Enough space for tab indicator
+                const availableForTitle = width - fixedCharsWithTab;
+                
+                if (availableForTitle > 0) {
+                    // Truncate title if needed
+                    const displayTitle = contentService.truncateText(title, availableForTitle);
+                    const titleWidth = contentService.measureText(displayTitle);
+                    const paddingWidth = Math.max(0, width - fixedCharsWithTab - titleWidth);
+                    const padding = border.horizontal.repeat(paddingWidth);
+                    
+                    return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding} ${tabText} ${border.topRight}`;
+                } else {
+                    // No space for title, just show tab
+                    // Structure: ╭─[padding]─ ⁽ᵗᵃᵇ⁾ ╮
+                    const fixedForTabOnly = 5 + tabTextWidth; // topLeft + "─" + " " + tabText + " " + topRight
+                    const paddingWidth = Math.max(0, width - fixedForTabOnly);
+                    const padding = border.horizontal.repeat(paddingWidth);
+                    
+                    return `${border.topLeft}${border.horizontal}${padding} ${tabText} ${border.topRight}`;
+                }
             } else {
-                // Not enough space for tab indicator, just show title
-                const padding = Math.max(0, width - title.length - 5);
-                return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
+                // Not enough space for tab indicator, show title only
+                // Structure: ╭─ TITLE ─[padding]─╮ (same as focused)
+                const fixedChars = 5; // topLeft + "─ " + " " + topRight
+                const availableForTitle = width - fixedChars;
+                
+                if (availableForTitle > 0) {
+                    const displayTitle = contentService.truncateText(title, availableForTitle);
+                    const titleWidth = contentService.measureText(displayTitle);
+                    const paddingWidth = Math.max(0, width - fixedChars - titleWidth);
+                    const padding = border.horizontal.repeat(paddingWidth);
+                    
+                    return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding}${border.topRight}`;
+                } else {
+                    // No space for anything, just border
+                    return `${border.topLeft}${border.horizontal.repeat(Math.max(0, width - 2))}${border.topRight}`;
+                }
             }
         }
     };

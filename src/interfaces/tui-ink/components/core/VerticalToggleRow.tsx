@@ -258,7 +258,7 @@ export class VerticalToggleRow {
         }
         
         // Apply precise truncation to free exactly the space needed
-        const result = this.applyPreciseTruncation(currentLabel, currentOptionLabels, spaceNeeded);
+        const result = this.applyPreciseTruncation(currentLabel, currentOptionLabels, spaceNeeded, availableSpace);
         
         // Create truncation map for rendering
         const optionTruncations = new Map<string, string>();
@@ -282,15 +282,17 @@ export class VerticalToggleRow {
     private applyPreciseTruncation(
         currentLabel: string,
         currentOptionLabels: string[],
-        spaceNeeded: number
+        spaceNeeded: number,
+        availableSpace: number
     ): { label: string; optionLabels: string[] } {
+        
         
         let remainingSpaceToFree = spaceNeeded;
         let newLabel = currentLabel;
         let newOptionLabels = [...currentOptionLabels];
         
-        // Phase 1: Label truncation until minimum viable
-        const minLabelLength = 6; // "Choose" = 6 chars, minimum viable
+        // Phase 1: Label truncation until reasonable minimum
+        const minLabelLength = 5; // "Choo…" = reasonable minimum before moving to options
         const currentLabelLength = this.contentService.measureText(newLabel);
         
         if (currentLabelLength > minLabelLength && remainingSpaceToFree > 0) {
@@ -347,7 +349,7 @@ export class VerticalToggleRow {
         }
         
         // Phase 3: All options equal length, truncate simultaneously
-        const minOptionLength = 3; // "A…" = 2 chars + ellipsis
+        const minOptionLength = 2; // "A…" = 1 char + ellipsis minimum
         
         if (remainingSpaceToFree > 0) {
             const optionLengths = newOptionLabels.map(label => this.contentService.measureText(label));
@@ -370,9 +372,85 @@ export class VerticalToggleRow {
             }
         }
         
-        // Phase 4: Remove label entirely if we still need space
+        // Phase 3.5: Final option truncation - get all options down to 2 chars minimum first
+        if (remainingSpaceToFree > 0) {
+            const optionLengths = newOptionLabels.map(label => this.contentService.measureText(label));
+            const minOptionLength = Math.min(...optionLengths);
+            
+            // Continue truncating options until all are at 2 chars (1 char + ellipsis)
+            if (minOptionLength > 2) {
+                const truncationNeeded = minOptionLength - 2;
+                const totalOptionsToTruncate = newOptionLabels.filter(label => 
+                    this.contentService.measureText(label) > 2).length;
+                const spaceToFree = Math.min(remainingSpaceToFree, truncationNeeded * totalOptionsToTruncate);
+                
+                // Truncate all options down to 2 chars
+                newOptionLabels = newOptionLabels.map(label => {
+                    const labelLength = this.contentService.measureText(label);
+                    if (labelLength > 2) {
+                        return this.contentService.truncateText(label, 2);
+                    }
+                    return label;
+                });
+                
+                remainingSpaceToFree -= spaceToFree;
+            }
+        }
+        
+        // Phase 3.6: Final label truncation - after options exhausted, truncate label as needed
+        while (remainingSpaceToFree > 0) {
+            const labelLength = this.contentService.measureText(newLabel);
+            
+            if (labelLength > 0) {
+                const newLabelLength = Math.max(0, labelLength - 1);
+                if (newLabelLength === 0) {
+                    newLabel = '';
+                } else {
+                    newLabel = this.contentService.truncateText(newLabel, newLabelLength);
+                }
+                remainingSpaceToFree -= 1;
+            } else {
+                break;
+            }
+        }
+        
+        // Phase 4: Remove label entirely if we still need space (last resort)
         if (remainingSpaceToFree > 0 && newLabel.length > 0) {
             newLabel = '';
+        }
+        
+        // Final verification: Ensure result actually fits in available space
+        const finalLabelSpace = this.contentService.measureText(newLabel);
+        const finalOptionsSpace = newOptionLabels.reduce((sum, optLabel) => 
+            sum + this.contentService.measureText(optLabel), 0);
+        const finalTotalSpace = finalLabelSpace + finalOptionsSpace;
+        
+        // Final correction: If result still doesn't fit, force it to fit
+        if (finalTotalSpace > availableSpace) {
+            const excessSpace = finalTotalSpace - availableSpace;
+            
+            // First try to remove from label completely if it would solve the problem
+            if (finalLabelSpace > 0 && finalLabelSpace >= excessSpace) {
+                const targetLabelLength = Math.max(0, finalLabelSpace - excessSpace);
+                if (targetLabelLength === 0) {
+                    newLabel = '';
+                } else {
+                    newLabel = this.contentService.truncateText(newLabel, targetLabelLength);
+                }
+            } else {
+                // Remove label completely and truncate options further
+                newLabel = '';
+                const remainingExcess = excessSpace - finalLabelSpace;
+                
+                if (remainingExcess > 0 && newOptionLabels.length > 0) {
+                    const reductionPerOption = Math.ceil(remainingExcess / newOptionLabels.length);
+                    newOptionLabels = newOptionLabels.map(optLabel => {
+                        const currentLength = this.contentService.measureText(optLabel);
+                        const targetLength = Math.max(1, currentLength - reductionPerOption);
+                        return this.contentService.truncateText(optLabel, targetLength);
+                    });
+                }
+            }
         }
         
         return {
