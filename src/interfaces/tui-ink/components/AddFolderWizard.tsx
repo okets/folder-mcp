@@ -10,6 +10,7 @@ import { Text, Key } from 'ink';
 import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { VerticalToggleRowListItem } from './core/VerticalToggleRow';
 import { IListItem } from './core/IListItem';
 import { ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
@@ -185,12 +186,17 @@ class AddFolderContainerItem extends ContainerListItem {
                     return true;
                 }
             } else if (activeChild && !activeChild.isControllingInput) {
-                // We're on a collapsed child item - jump to Cancel button
-                (this as any)._focusedButton = 'cancel';
-                (this as any)._childSelectedIndex = -1;
-                return true;
+                // REFINED FIX: Only allow VerticalToggleRow to expand on left arrow, others jump to Cancel
+                if (activeChild.constructor.name === 'VerticalToggleRowListItem' && activeChild.onExpand) {
+                    // Let parent ContainerListItem handle the left arrow to call onExpand
+                    return super.handleInput(input, key);
+                } else {
+                    // We're on a collapsed child item - jump to Cancel button for navigation
+                    (this as any)._focusedButton = 'cancel';
+                    (this as any)._childSelectedIndex = -1;
+                    return true;
+                }
             }
-            // If child is expanded (isControllingInput), let parent handle it normally
         }
         
         // For all other keys, use parent's handling
@@ -436,42 +442,27 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Create child items
     const childItems: IListItem[] = [];
     
-    // Step 1: Mode selection
-    const modeOptions: SelectionOption[] = [
+    // Step 1: Mode selection - Using VerticalToggleRow for cleaner UI
+    const modeToggleOptions = [
         {
             value: 'assisted',
-            label: 'Assisted (Recommended)',
-            details: {
-                'Description': 'Let us choose the best model for your needs'
-            }
+            label: 'Assisted (Recommended)'
         },
         {
             value: 'manual',
-            label: 'Manual (Advanced)',
-            details: {
-                'Description': 'Browse all available models including Ollama'
-            }
+            label: 'Manual (Advanced)'
         }
     ];
     
-    const modeSelector = new SelectionListItem(
+    const modeSelector = new VerticalToggleRowListItem(
         '⁃',
         'Choose configuration mode',
-        modeOptions,
-        [selectedMode], // Pre-select the initial mode
+        modeToggleOptions,
+        selectedMode, // Pre-select the initial mode
         false, // Will be managed by ContainerListItem
-        'radio', // Single selection
-        'vertical', // Vertical layout for detailed display
-        async (values) => {
-            if (values.length > 0 && values[0]) {
-                selectedMode = values[0] as 'assisted' | 'manual';
-            }
-        },
-        undefined, // minSelections
-        undefined, // maxSelections
-        false, // autoSwitchLayout
-        true, // showDetails - Enable column display
-        ['Description'] // Column headers
+        (value: string) => {
+            selectedMode = value as 'assisted' | 'manual';
+        }
     );
     childItems.push(modeSelector);
     

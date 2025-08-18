@@ -135,10 +135,11 @@ export interface IListItem extends ISelfConstrainedItem {
     validateValue?(): void;
     
     /**
-     * Called when item should expand (right arrow)
-     * Used by expandable items like LogItem
+     * Called when item should expand (right arrow or left arrow for some items)
+     * Used by expandable items like LogItem and toggle items like VerticalToggleRow
+     * @param key - The key that triggered the expansion (optional for backwards compatibility)
      */
-    onExpand?(): void;
+    onExpand?(key?: Key): void;
     
     /**
      * Called when item should collapse (left arrow or escape)
