@@ -125,6 +125,7 @@ export interface AddFolderWizardOptions {
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
     fmdmOperations?: any;
+    onModeChange?: (mode: 'assisted' | 'manual') => void;
 }
 
 /**
@@ -159,6 +160,25 @@ class AddFolderContainerItem extends ContainerListItem {
         this.currentValidationResult = result;
         // Also update parent's validation
         super.updateValidation(result);
+    }
+    
+    /**
+     * Update child items dynamically for mode switching
+     */
+    updateChildItems(newChildItems: IListItem[]): void {
+        // Clear existing children
+        while ((this as any)._childItems.length > 0) {
+            this.removeChild((this as any)._childItems[0]);
+        }
+        
+        // Add new children
+        newChildItems.forEach(child => this.addChild(child));
+        
+        // Reset selection to first item
+        (this as any)._childSelectedIndex = 0;
+        
+        // Call onEnter to properly initialize the new children
+        this.onEnter();
     }
     
     // Override handleInput to customize left arrow behavior
@@ -326,7 +346,6 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             }
             }
         } catch (error) {
-            console.error('Failed to get models from daemon, using fallback list:', error);
             // Fallback to hardcoded list if daemon call fails
             pythonModels = [{
                 name: 'folder-mcp:all-MiniLM-L6-v2',
@@ -368,7 +387,28 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     let selectedPath = initialPath;
     let selectedMode = initialMode;
     let selectedLanguages = [...initialLanguages];
-    // selectedModel is already declared above with dynamic daemon fetching
+    
+    // Separate model state for each mode to handle incompatible selections
+    let assistedSelectedModel: string | undefined; 
+    let manualSelectedModel: string | undefined;
+    
+    // Initialize model selections based on initial model and availability
+    if (selectedModel && pythonModels.length > 0) {
+        const isCuratedModel = pythonModels.some(m => m.name === selectedModel);
+        if (isCuratedModel) {
+            // Initial model is curated - can be used in both modes
+            assistedSelectedModel = selectedModel;
+            manualSelectedModel = selectedModel;
+        } else {
+            // Initial model is likely Ollama - only valid for manual mode
+            manualSelectedModel = selectedModel;
+            assistedSelectedModel = pythonModels[0]?.name; // Default to first curated
+        }
+    } else {
+        // No initial model or no models available - set defaults
+        assistedSelectedModel = pythonModels[0]?.name; // Default recommended for assisted
+        manualSelectedModel = undefined; // No default for manual
+    }
     
     // Initialize FMDM validation if operations are provided
     // Since we're already past the app-level daemon connection check, we know we're connected
@@ -413,7 +453,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             return;
         }
         
-        const modelToValidate = model || selectedModel;
+        // Use provided model or current mode's selected model
+        const modelToValidate = model || (selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel);
         if (!modelToValidate) {
             currentValidation = createValidationResult(false, 'Please select an embedding model');
             if (containerWizard) {
@@ -439,8 +480,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         }
     };
     
-    // Create child items
-    const childItems: IListItem[] = [];
+    // Create child items - will be replaced by buildChildItemsForMode after all components are defined
+    let childItems: IListItem[] = [];
     
     // Step 1: Mode selection - Using VerticalToggleRow for cleaner UI
     const modeToggleOptions = [
@@ -454,17 +495,15 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         }
     ];
     
+    // Create mode selector with no initial callback - will be set after container exists
     const modeSelector = new VerticalToggleRowListItem(
         '⁃',
         'Choose configuration mode',
         modeToggleOptions,
         selectedMode, // Pre-select the initial mode
         false, // Will be managed by ContainerListItem
-        (value: string) => {
-            selectedMode = value as 'assisted' | 'manual';
-        }
+        undefined // No callback yet - will be set after container is created
     );
-    childItems.push(modeSelector);
     
     // Step 2: Language selection - Load from curated models catalog (single source of truth)
     const { ModelCompatibilityEvaluator } = await import('../../../domain/models/model-evaluator');
@@ -513,7 +552,6 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         false, // autoSwitchLayout
         false // showDetails - Simplified to single column display
     );
-    childItems.push(languageSelector);
     
     // Step 3: Folder selection
     folderPicker = new FilePickerListItem(
@@ -553,56 +591,123 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
     );
     
-    childItems.push(folderPicker);
+    // Step 4: Create separate model selectors for assisted and manual modes
     
-    // Step 4: Model selection with dynamically fetched Python models
-    const modelOptions: SelectionOption[] = pythonModels.map(model => ({
+    // Assisted mode model selector - curated models only with recommendation column
+    const assistedModelOptions: SelectionOption[] = pythonModels.map(model => ({
         value: model.name,
         label: model.recommended ? `${model.displayName}` : model.displayName,
         details: {
-            'Backend': model.backend,
-            'Type': 'Sentence Transformer',
-            'Status': 'Available'
+            'Recommendation': model.recommended ? 'Recommended' : 'Available',
+            'Speed': 'High',
+            'Accuracy': 'Excellent',
+            'Languages': '100+',
+            'Type': 'Curated'
         }
     }));
     
-    
-    // For display purposes, we'll show the invalid model in the selection even if it's not in options
-    // This helps users understand what model was attempted
-    const initialModelSelection = selectedModel ? [selectedModel] : [];
-    
-    const modelSelector = new SelectionListItem(
+    const assistedModelSelector = new SelectionListItem(
         '⁃',
         'Choose embedding model',
-        modelOptions,
-        initialModelSelection, // Show the model even if invalid
+        assistedModelOptions,
+        assistedSelectedModel ? [assistedSelectedModel] : [],
         false, // Will be managed by ContainerListItem
         'radio', // Single selection
         'vertical', // Vertical layout for detailed display
         async (values) => {
             if (values.length > 0 && values[0]) {
-                selectedModel = values[0];
+                assistedSelectedModel = values[0];
                 // Clear model validation error when user selects a valid model
                 modelValidationError = null;
-                modelSelector._validationMessage = null;
+                assistedModelSelector._validationMessage = null;
                 // Trigger validation when model changes
-                await validateAndUpdateContainer(selectedPath, selectedModel);
+                await validateAndUpdateContainer(selectedPath, assistedSelectedModel);
             }
         },
         undefined, // minSelections
         undefined, // maxSelections
         false, // autoSwitchLayout
         true, // showDetails - Enable column display
-        ['Backend', 'Type', 'Status'] // Column headers
+        ['Recommendation', 'Speed', 'Accuracy', 'Languages', 'Type'] // Assisted mode columns
     );
-    childItems.push(modelSelector);
+    
+    // Manual mode model selector - all models including Ollama with compatibility column
+    const manualModelOptions: SelectionOption[] = pythonModels.map(model => ({
+        value: model.name,
+        label: model.displayName,
+        details: {
+            'Compatibility': '√ Supported',
+            'Speed': 'High',
+            'Accuracy': 'Excellent', 
+            'Languages': '100+',
+            'Type': 'Curated'
+        }
+    }));
+    // Note: Ollama models will be added to manualModelOptions in Sprint B2
+    
+    const manualModelSelector = new SelectionListItem(
+        '⁃',
+        'Choose embedding model',
+        manualModelOptions,
+        manualSelectedModel ? [manualSelectedModel] : [],
+        false, // Will be managed by ContainerListItem
+        'radio', // Single selection
+        'vertical', // Vertical layout for detailed display
+        async (values) => {
+            if (values.length > 0 && values[0]) {
+                manualSelectedModel = values[0];
+                // Clear model validation error when user selects a valid model
+                modelValidationError = null;
+                manualModelSelector._validationMessage = null;
+                // Trigger validation when model changes
+                await validateAndUpdateContainer(selectedPath, manualSelectedModel);
+            }
+        },
+        undefined, // minSelections
+        undefined, // maxSelections
+        false, // autoSwitchLayout
+        true, // showDetails - Enable column display
+        ['Compatibility', 'Speed', 'Accuracy', 'Languages', 'Type'] // Manual mode columns
+    );
     
     // Set validation error if model doesn't exist using validation message
     if (modelValidationError) {
-        // Create a validation message for the model selector
+        // Create a validation message for the appropriate model selector based on mode
         const modelValidationMessage = createValidationMessage(ValidatedListItemValidationState.Error, modelValidationError);
-        modelSelector._validationMessage = modelValidationMessage;
+        if (selectedMode === 'assisted') {
+            assistedModelSelector._validationMessage = modelValidationMessage;
+        } else {
+            manualModelSelector._validationMessage = modelValidationMessage;
+        }
     }
+    
+    // Helper function to build child items based on selected mode
+    const buildChildItemsForMode = (mode: 'assisted' | 'manual'): IListItem[] => {
+        const items: IListItem[] = [];
+        
+        // Always include mode selector
+        items.push(modeSelector);
+        
+        // Conditional language selector (assisted mode only)
+        if (mode === 'assisted') {
+            items.push(languageSelector);
+        }
+        
+        // Always include folder picker
+        items.push(folderPicker);
+        
+        // Mode-specific model selector
+        if (mode === 'assisted') {
+            items.push(assistedModelSelector);
+        } else {
+            items.push(manualModelSelector);
+        }
+        
+        return items;
+    };
+    
+    // Initialize child items with current mode
+    childItems = buildChildItemsForMode(selectedMode);
     
     // Set up validation state
     const validationState: ValidationState = {
@@ -630,22 +735,23 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 }
             }
             
-            // Wizard completed - extract final values
-            if (!selectedModel) {
-                console.error('No model selected for wizard completion');
+            // Wizard completed - extract final values based on current mode
+            const finalSelectedModel = selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel;
+            
+            if (!finalSelectedModel) {
                 return;
             }
             
-            if (selectedLanguages.length === 0) {
-                console.error('No languages selected for wizard completion');
+            // For assisted mode, language selection is required; for manual mode, it's not used
+            if (selectedMode === 'assisted' && selectedLanguages.length === 0) {
                 return;
             }
             
             const result: AddFolderWizardResult = {
                 path: selectedPath,
-                model: selectedModel,
+                model: finalSelectedModel,
                 mode: selectedMode,
-                languages: selectedLanguages
+                languages: selectedMode === 'assisted' ? selectedLanguages : [] // Empty for manual mode
             };
             onComplete(result);
         },
@@ -659,6 +765,38 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         { text: 'Add Folder', isDestructive: false },
         { text: 'Cancel', isDestructive: false }
     );
+    
+    // Now that container exists, set up the proper mode selection callback
+    modeSelector.updateOnSelectionChange(async (value: string) => {
+        const oldMode = selectedMode;
+        selectedMode = value as 'assisted' | 'manual';
+        
+        // Only trigger changes if mode actually changed
+        if (oldMode !== selectedMode) {
+            // Handle mode-specific state changes
+            if (selectedMode === 'assisted') {
+                selectedLanguages = ['en'];
+                languageSelector.selectedValues = ['en'];
+                if (assistedSelectedModel) {
+                    await validateAndUpdateContainer(selectedPath, assistedSelectedModel);
+                }
+            } else {
+                selectedLanguages = [];
+                if (manualSelectedModel) {
+                    await validateAndUpdateContainer(selectedPath, manualSelectedModel);
+                }
+            }
+            
+            // Update the container's children immediately
+            const newChildItems = buildChildItemsForMode(selectedMode);
+            containerWizard.updateChildItems(newChildItems);
+            
+            // Call the onModeChange callback to trigger React re-render
+            if (options.onModeChange) {
+                options.onModeChange(selectedMode);
+            }
+        }
+    });
     
     // Perform initial validation now that containerWizard is created
     // This ensures the validation state is properly initialized with both folder and model
