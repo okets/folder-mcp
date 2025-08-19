@@ -16,3 +16,33 @@ folders:
 # Development settings
 development:
   enabled: false
+
+# Memory monitoring configuration
+memoryMonitor:
+  enabled: false
+
+# Logging configuration
+logging:
+  level: info
+  componentLevels: {}
+  transports:
+    console:
+      enabled: true
+      level: info
+      format: text
+    file:
+      enabled: false
+      level: debug
+      format: json
+      filename: ~/.folder-mcp/logs/daemon.log
+  rotation:
+    enabled: false
+    maxSize: 50MB
+    maxFiles: 5
+    rotateOnStartup: false
+  performance:
+    enableMonitoring: false
+    maxLatencyMs: 100
+    alertThreshold: 1000
+    sampleRate: 0.1
+  enableMetrics: false

@@ -572,10 +572,10 @@ export class LoggingService implements ILoggingService {
     if (context) {
       // Properly serialize context objects to avoid [object Object]
       const contextStr = typeof context === 'object' ? JSON.stringify(context, null, 2) : String(context);
-      // ISSUE: This uses console.log which goes to stdout - breaks MCP protocol!
-      console.log(`${prefix} [${timestamp}] ${message} ${contextStr}`);
+      // Fixed: Use console.error to send to stderr instead of stdout (MCP protocol requirement)
+      console.error(`${prefix} [${timestamp}] ${message} ${contextStr}`);
     } else {
-      console.log(`${prefix} [${timestamp}] ${message}`);
+      console.error(`${prefix} [${timestamp}] ${message}`);
     }
   }
 

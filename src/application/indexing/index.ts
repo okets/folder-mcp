@@ -54,6 +54,7 @@ export interface IndexingStatus {
   progress: IndexingProgress;
   startedAt?: Date;
   estimatedCompletion?: Date;
+  lastProgressLogTime?: number;
 }
 
 export interface IndexingProgress {

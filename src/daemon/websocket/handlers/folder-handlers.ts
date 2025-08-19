@@ -18,6 +18,7 @@ import { IDaemonConfigurationService } from '../../services/configuration-servic
 import { IDaemonFolderValidationService } from '../../services/folder-validation-service.js';
 import { ModelHandlers } from './model-handlers.js';
 import { IMonitoredFoldersOrchestrator } from '../../services/monitored-folders-orchestrator.js';
+import { RequestLogger } from '../../../domain/daemon/request-logger.js';
 
 /**
  * FMDM service interface for folder handlers
@@ -31,6 +32,8 @@ export interface IFMDMServiceForHandlers {
  * Folder action handlers for WebSocket protocol
  */
 export class FolderHandlers {
+  private requestLogger: RequestLogger;
+
   constructor(
     private configService: IDaemonConfigurationService,
     private fmdmService: IFMDMServiceForHandlers,
@@ -38,12 +41,14 @@ export class FolderHandlers {
     private modelHandlers: ModelHandlers,
     private logger: ILoggingService,
     private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
-  ) {}
+  ) {
+    this.requestLogger = new RequestLogger(this.logger);
+  }
 
   /**
    * Handle folder add request
    */
-  async handleAddFolder(message: WSClientMessage): Promise<ActionResponseMessage> {
+  async handleAddFolder(message: WSClientMessage, clientId?: string): Promise<ActionResponseMessage> {
     if (!isFolderAddMessage(message)) {
       throw new Error('Invalid folder add message');
     }
@@ -51,7 +56,20 @@ export class FolderHandlers {
     const { path, model } = message.payload;
     const { id } = message;
 
-    this.logger.info(`[FOLDER] Adding folder: ${path} (model: ${model})`);
+    // Start request tracking
+    const requestId = this.requestLogger.startRequest(
+      'folder_add',
+      { 
+        messageId: id,
+        folderPath: path,
+        model,
+        payloadSize: JSON.stringify(message.payload).length 
+      },
+      {
+        triggerType: 'user',
+        ...(clientId && { clientId })
+      }
+    );
 
     try {
       // Validate model first (before folder validation)
@@ -60,6 +78,10 @@ export class FolderHandlers {
       
       if (!isModelSupported) {
         const errorMessage = `Unsupported model: ${model}. Supported models: ${supportedModels.join(', ')}`;
+        this.requestLogger.completeRequest(requestId, 'failure', {
+          errorCode: 'UNSUPPORTED_MODEL',
+          errorMessage
+        });
         this.logger.warn(`Cannot add folder ${path}: ${errorMessage}`);
         return createActionResponse(id, false, errorMessage);
       }
@@ -89,10 +111,21 @@ export class FolderHandlers {
         this.logger.warn(`No folder lifecycle manager available - folder ${path} will not be indexed`);
       }
 
-      return createActionResponse(id, true);
+      const response = createActionResponse(id, true);
+      this.requestLogger.completeRequest(requestId, 'success', {
+        responseSize: JSON.stringify(response).length,
+        performanceMetrics: {
+          processingTime: Date.now() - (this.requestLogger.getActiveRequest(requestId)?.context.timestamp.getTime() || Date.now())
+        }
+      });
+      return response;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      this.requestLogger.completeRequest(requestId, 'failure', {
+        errorCode: 'FOLDER_ADD_ERROR',
+        errorMessage
+      });
       this.logger.error(`[FOLDER] Failed to add folder ${path}: ${errorMessage}`);
       return createActionResponse(id, false, `Failed to add folder: ${errorMessage}`);
     }
@@ -101,7 +134,7 @@ export class FolderHandlers {
   /**
    * Handle folder remove request
    */
-  async handleRemoveFolder(message: WSClientMessage): Promise<ActionResponseMessage> {
+  async handleRemoveFolder(message: WSClientMessage, clientId?: string): Promise<ActionResponseMessage> {
     if (!isFolderRemoveMessage(message)) {
       throw new Error('Invalid folder remove message');
     }
@@ -109,7 +142,19 @@ export class FolderHandlers {
     const { path } = message.payload;
     const { id } = message;
 
-    this.logger.info(`[FOLDER] Removing folder: ${path}`);
+    // Start request tracking
+    const requestId = this.requestLogger.startRequest(
+      'folder_remove',
+      { 
+        messageId: id,
+        folderPath: path,
+        payloadSize: JSON.stringify(message.payload).length 
+      },
+      {
+        triggerType: 'user',
+        ...(clientId && { clientId })
+      }
+    );
 
     try {
       await this.configService.removeFolder(path);
@@ -146,10 +191,21 @@ export class FolderHandlers {
       
       this.fmdmService.updateFolders(updatedFolders);
 
-      return createActionResponse(id, true);
+      const response = createActionResponse(id, true);
+      this.requestLogger.completeRequest(requestId, 'success', {
+        responseSize: JSON.stringify(response).length,
+        performanceMetrics: {
+          processingTime: Date.now() - (this.requestLogger.getActiveRequest(requestId)?.context.timestamp.getTime() || Date.now())
+        }
+      });
+      return response;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      this.requestLogger.completeRequest(requestId, 'failure', {
+        errorCode: 'FOLDER_REMOVE_ERROR',
+        errorMessage
+      });
       this.logger.error(`[FOLDER] Failed to remove folder ${path}: ${errorMessage}`);
       return createActionResponse(id, false, `Failed to remove folder: ${errorMessage}`);
     }

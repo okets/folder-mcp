@@ -18,7 +18,7 @@ export class MCPTransport {
   ) {
     // Write log to stderr only
     process.stderr.write('[INFO] Initializing MCP stdio transport\n');
-    this.logger.info('Initializing MCP stdio transport');
+    this.logger.debug('Initializing MCP stdio transport');
     
     // Create the standard transport
     this.transport = new StdioServerTransport();
@@ -36,9 +36,9 @@ export class MCPTransport {
    */
   async connect(): Promise<void> {
     try {
-      this.logger.info('Connecting MCP transport');
+      this.logger.debug('Connecting MCP transport');
       // StdioServerTransport doesn't require explicit connection
-      this.logger.info('MCP transport connected successfully');
+      this.logger.debug('MCP transport connected successfully');
     } catch (error) {
       this.logger.error('Failed to connect MCP transport', error instanceof Error ? error : new Error(String(error)));
       throw error;
@@ -50,9 +50,9 @@ export class MCPTransport {
    */
   async disconnect(): Promise<void> {
     try {
-      this.logger.info('Disconnecting MCP transport');
+      this.logger.debug('Disconnecting MCP transport');
       // Cleanup if needed
-      this.logger.info('MCP transport disconnected');
+      this.logger.debug('MCP transport disconnected');
     } catch (error) {
       this.logger.error('Error disconnecting MCP transport', error instanceof Error ? error : new Error(String(error)));
       throw error;

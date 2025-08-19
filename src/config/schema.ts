@@ -182,6 +182,9 @@ export interface LocalConfig {
       cpuTracking?: boolean;
       diskTracking?: boolean;
     };
+    memoryMonitor?: {
+      enabled?: boolean;
+    };
     shutdownTimeout?: number;
     shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT' | 'SIGUSR2';
     reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
@@ -640,6 +643,9 @@ export const DEFAULT_VALUES = {
       cpuTracking: true,
       diskTracking: false
     },
+    memoryMonitor: {
+      enabled: false
+    },
     shutdownTimeout: 10000,
     shutdownSignal: 'SIGTERM' as const,
     reloadSignal: 'SIGHUP' as const
@@ -745,6 +751,7 @@ export function getDaemonDefaults() {
     healthCheck: { ...DEFAULT_VALUES.daemon.healthCheck },
     autoRestart: { ...DEFAULT_VALUES.daemon.autoRestart },
     performance: { ...DEFAULT_VALUES.daemon.performance },
+    memoryMonitor: { ...DEFAULT_VALUES.daemon.memoryMonitor },
     shutdownTimeout: DEFAULT_VALUES.daemon.shutdownTimeout,
     shutdownSignal: DEFAULT_VALUES.daemon.shutdownSignal,
     reloadSignal: DEFAULT_VALUES.daemon.reloadSignal

@@ -16,6 +16,9 @@ import { FolderConfig } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
 import { WindowsPerformanceService, IWindowsPerformanceService } from './windows-performance-service.js';
+import { IntelligentMemoryMonitor, MemoryAlert, MemoryBaseline } from '../../domain/daemon/intelligent-memory-monitor.js';
+import { SimpleSystemMonitor } from '../../infrastructure/daemon/simple-system-monitor.js';
+import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/daemon/system-performance-telemetry.js';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -64,7 +67,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
-  private memoryMonitoringTimer?: NodeJS.Timeout;
+  private intelligentMemoryMonitor?: IntelligentMemoryMonitor;
+  private systemPerformanceTelemetry?: SystemPerformanceTelemetry;
   private windowsPerformanceService: IWindowsPerformanceService;
   
   constructor(
@@ -111,12 +115,102 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         });
       }
     });
+
+    // Initialize intelligent memory monitor (only if enabled in configuration)
+    const memoryMonitorEnabled = this.configService?.get?.('daemon.memoryMonitor.enabled') ?? 
+                                 this.configService?.get?.('memoryMonitor.enabled') ?? 
+                                 false;
+    
+    if (memoryMonitorEnabled) {
+      const systemMonitor = new SimpleSystemMonitor(this.logger);
+      this.intelligentMemoryMonitor = new IntelligentMemoryMonitor(systemMonitor, this.logger);
+      this.logger.info('[ORCHESTRATOR] Intelligent memory monitoring enabled via configuration');
+      
+      // Initialize system performance telemetry
+      this.systemPerformanceTelemetry = new SystemPerformanceTelemetry(
+        this.logger,
+        systemMonitor,
+        this.indexingOrchestrator
+      );
+      this.logger.info('[ORCHESTRATOR] System performance telemetry initialized');
+      
+      // Set up intelligent memory monitoring event handlers
+      this.intelligentMemoryMonitor.on('baselineEstablished', (baseline: MemoryBaseline) => {
+      this.logger.info('[ORCHESTRATOR] Memory baseline established - monitoring for genuine issues', {
+        baselineHeapMB: Math.round(baseline.heapUsedMB),
+        baselineUtilization: Math.round(baseline.heapUtilizationPercent),
+        sampleCount: baseline.sampleCount,
+        isStable: baseline.isStable
+      });
+    });
+
+    this.intelligentMemoryMonitor.on('memoryAlert', (alert: MemoryAlert) => {
+      // Memory alerts are now handled with full context and recommendations
+      const logData = {
+        level: alert.level,
+        currentMemoryMB: Math.round(alert.heapUsedMB),
+        baselineDeviationMB: Math.round(alert.baselineDeviation),
+        growthRateMBPerHour: Math.round(alert.growthRateMBPerHour * 100) / 100,
+        trend: alert.trend,
+        recommendations: alert.recommendations,
+        systemMemoryMB: alert.systemContext.totalSystemMemoryMB,
+        activeFolders: this.folderManagers.size
+      };
+
+      if (alert.level === 'critical') {
+        this.logger.error('[ORCHESTRATOR] CRITICAL memory situation detected', undefined, logData);
+        
+        // Force garbage collection for critical alerts
+        if (global.gc) {
+          this.logger.info('[ORCHESTRATOR] Triggering garbage collection due to critical memory alert');
+          global.gc();
+        }
+      } else if (alert.level === 'elevated') {
+        this.logger.warn('[ORCHESTRATOR] Elevated memory usage detected', logData);
+      }
+      });
+      
+      // Set up system performance telemetry event handlers
+      if (this.systemPerformanceTelemetry) {
+        this.systemPerformanceTelemetry.on('snapshot', (snapshot: PerformanceSnapshot) => {
+          // Snapshots are automatically logged by the telemetry service
+          // We can add additional processing here if needed
+        });
+        
+        this.systemPerformanceTelemetry.on('healthAlert', (issue: string, severity: 'warning' | 'critical') => {
+          if (severity === 'critical') {
+            this.logger.error(`[ORCHESTRATOR] Critical system health alert: ${issue}`);
+          } else {
+            this.logger.warn(`[ORCHESTRATOR] System health warning: ${issue}`);
+          }
+        });
+        
+        this.systemPerformanceTelemetry.on('performanceDegradation', (metric: string, currentValue: number, baselineValue: number) => {
+          const degradationPercent = Math.round(((currentValue - baselineValue) / baselineValue) * 100);
+          this.logger.warn(`[ORCHESTRATOR] Performance degradation detected`, {
+            metric,
+            currentValue: Math.round(currentValue),
+            baselineValue: Math.round(baselineValue),
+            degradationPercent: `${degradationPercent}%`
+          });
+        });
+      }
+    } else {
+      this.logger.debug('[ORCHESTRATOR] Intelligent memory monitoring disabled via configuration');
+    }
     
     // Start periodic folder validation (every 30 seconds)
     this.startFolderValidation();
     
-    // Start memory usage monitoring (every 10 seconds)
-    this.startMemoryMonitoring();
+    // Start intelligent memory monitoring (only if enabled)
+    if (this.intelligentMemoryMonitor) {
+      this.intelligentMemoryMonitor.startMonitoring();
+    }
+    
+    // Start system performance telemetry (only if monitoring is enabled)
+    if (this.systemPerformanceTelemetry) {
+      this.systemPerformanceTelemetry.startTelemetry();
+    }
   }
   
   async addFolder(path: string, model: string): Promise<void> {
@@ -414,8 +508,37 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   getManager(folderPath: string): IFolderLifecycleManager | undefined {
     return this.folderManagers.get(folderPath);
   }
+
+  /**
+   * Record connection event for telemetry
+   */
+  recordConnection(duration?: number, isError = false): void {
+    if (this.systemPerformanceTelemetry) {
+      this.systemPerformanceTelemetry.recordConnection(duration, isError);
+    }
+  }
+
+  /**
+   * Record query performance for telemetry
+   */
+  recordQuery(durationMs: number, cacheHit = false): void {
+    if (this.systemPerformanceTelemetry) {
+      this.systemPerformanceTelemetry.recordQuery(durationMs, cacheHit);
+    }
+  }
+
+  /**
+   * Get performance telemetry statistics
+   */
+  getTelemetryStatistics(): any {
+    if (this.systemPerformanceTelemetry) {
+      return this.systemPerformanceTelemetry.getStatistics();
+    }
+    return null;
+  }
   
   async startAll(): Promise<void> {
+    const startupStartTime = Date.now();
     this.logger.info('Starting all configured folders...');
     
     // Get all folders from configuration via configService
@@ -442,16 +565,33 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } catch (error) {
       this.logger.error('Error loading folders from configuration during startAll:', error as Error);
     }
+    
+    // Log startup performance telemetry
+    const startupDuration = Date.now() - startupStartTime;
+    this.logger.info('Orchestrator startup completed', {
+      startupDurationMs: startupDuration,
+      foldersManaged: this.folderManagers.size,
+      telemetryEnabled: !!this.systemPerformanceTelemetry,
+      memoryMonitorEnabled: !!this.intelligentMemoryMonitor
+    });
   }
   
   async stopAll(): Promise<void> {
+    const shutdownStartTime = Date.now();
     this.logger.info(`Stopping all ${this.folderManagers.size} folder managers`);
     
     // Stop folder validation timer
     this.stopFolderValidation();
     
-    // Stop memory monitoring timer
-    this.stopMemoryMonitoring();
+    // Stop intelligent memory monitoring (only if enabled)
+    if (this.intelligentMemoryMonitor) {
+      this.intelligentMemoryMonitor.stopMonitoring();
+    }
+    
+    // Stop system performance telemetry (only if enabled)
+    if (this.systemPerformanceTelemetry) {
+      this.systemPerformanceTelemetry.stopTelemetry();
+    }
     
     // Shutdown resource manager first to stop accepting new operations
     try {
@@ -480,6 +620,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
     
     this.folderManagers.clear();
+    
+    // Log shutdown performance telemetry
+    const shutdownDuration = Date.now() - shutdownStartTime;
+    this.logger.info('Orchestrator shutdown completed', {
+      shutdownDurationMs: shutdownDuration,
+      previouslyManagedFolders: 0, // folderManagers was cleared
+      telemetryWasEnabled: !!this.systemPerformanceTelemetry,
+      memoryMonitorWasEnabled: !!this.intelligentMemoryMonitor
+    });
   }
   
   /**
@@ -973,107 +1122,26 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   /**
-   * Start memory usage monitoring
+   * Get intelligent memory monitoring statistics
    */
-  private startMemoryMonitoring(): void {
-    this.logger.debug('[ORCHESTRATOR] Starting memory usage monitoring');
-    
-    this.memoryMonitoringTimer = setInterval(() => {
-      this.monitorMemoryUsage();
-    }, 10000); // Monitor every 10 seconds
-  }
-  
-  /**
-   * Stop memory monitoring timer
-   */
-  private stopMemoryMonitoring(): void {
-    if (this.memoryMonitoringTimer) {
-      clearInterval(this.memoryMonitoringTimer);
-      delete this.memoryMonitoringTimer;
-      this.logger.debug('[ORCHESTRATOR] Stopped memory monitoring timer');
+  getIntelligentMemoryStatistics(): {
+    baselineEstablished: boolean;
+    samplesCollected: number;
+    currentHeapUsedMB: number;
+    currentHeapUtilization: number;
+    baselineDeviation?: number;
+    monitoringDuration: number;
+  } {
+    if (!this.intelligentMemoryMonitor) {
+      return {
+        baselineEstablished: false,
+        samplesCollected: 0,
+        currentHeapUsedMB: 0,
+        currentHeapUtilization: 0,
+        monitoringDuration: 0
+      };
     }
-  }
-  
-  /**
-   * Monitor and log memory usage
-   */
-  private monitorMemoryUsage(): void {
-    try {
-      const memUsage = process.memoryUsage();
-      const resourceStats = this.resourceManager.getStats();
-      
-      // Convert bytes to MB for readability
-      const memoryUsedMB = memUsage.heapUsed / 1024 / 1024;
-      const memoryTotalMB = memUsage.heapTotal / 1024 / 1024;
-      const memoryRssMB = memUsage.rss / 1024 / 1024;
-      const memoryExternalMB = memUsage.external / 1024 / 1024;
-      
-      // Calculate memory utilization percentage
-      const heapUtilization = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-      
-      // Record metrics in ResourceManager
-      this.resourceManager.getStats(); // This triggers the internal monitoring
-      
-      // Log memory usage if it's above thresholds or resource manager is active
-      if (resourceStats.activeOperations > 0 || memoryUsedMB > 100) {
-        this.logger.info('[ORCHESTRATOR] Memory usage report', {
-          heap: {
-            used: `${Math.round(memoryUsedMB)}MB`,
-            total: `${Math.round(memoryTotalMB)}MB`,
-            utilization: `${Math.round(heapUtilization)}%`
-          },
-          rss: `${Math.round(memoryRssMB)}MB`,
-          external: `${Math.round(memoryExternalMB)}MB`,
-          resourceManager: {
-            memoryUsedMB: Math.round(resourceStats.memoryUsedMB),
-            memoryLimitMB: resourceStats.memoryLimitMB,
-            memoryPercent: Math.round(resourceStats.memoryPercent),
-            activeOperations: resourceStats.activeOperations,
-            queuedOperations: resourceStats.queuedOperations,
-            isThrottled: resourceStats.isThrottled
-          },
-          folders: {
-            managed: this.folderManagers.size,
-            error: 0
-          }
-        });
-      } else {
-        // Debug level for normal usage
-        this.logger.debug('[ORCHESTRATOR] Memory usage', {
-          heapUsedMB: Math.round(memoryUsedMB),
-          heapUtilizationPercent: Math.round(heapUtilization),
-          activeFolders: this.folderManagers.size
-        });
-      }
-      
-      // Emit memory warning if usage is high
-      if (memoryUsedMB > 400 || heapUtilization > 85) {
-        this.logger.warn('[ORCHESTRATOR] High memory usage detected', {
-          heapUsedMB: Math.round(memoryUsedMB),
-          heapUtilizationPercent: Math.round(heapUtilization),
-          recommendation: 'Consider reducing concurrent operations or restarting daemon'
-        });
-      }
-      
-      // Force garbage collection if memory usage is very high
-      if (memoryUsedMB > 450 && global.gc) {
-        this.logger.info('[ORCHESTRATOR] Triggering garbage collection due to high memory usage');
-        global.gc();
-        
-        // Log memory usage after GC
-        const postGcUsage = process.memoryUsage();
-        const postGcUsedMB = postGcUsage.heapUsed / 1024 / 1024;
-        const memoryFreedMB = memoryUsedMB - postGcUsedMB;
-        
-        this.logger.info('[ORCHESTRATOR] Garbage collection completed', {
-          memoryFreedMB: Math.round(memoryFreedMB),
-          newHeapUsedMB: Math.round(postGcUsedMB)
-        });
-      }
-      
-    } catch (error) {
-      this.logger.error('[ORCHESTRATOR] Error monitoring memory usage:', error instanceof Error ? error : new Error(String(error)));
-    }
+    return this.intelligentMemoryMonitor.getStatistics();
   }
   
   /**

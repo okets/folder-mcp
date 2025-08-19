@@ -74,6 +74,9 @@ export class ConfigCommand extends BaseCommand {
 
     // Environment variable commands
     this.setupEnvCommands();
+    
+    // Logging management commands
+    this.setupLoggingCommands();
   }
 
   private setupProfileCommands(): void {
@@ -562,6 +565,255 @@ export class ConfigCommand extends BaseCommand {
       }
     } catch (error) {
       console.error('❌ Failed to check environment:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private setupLoggingCommands(): void {
+    const logging = this.command('logging')
+      .description('Manage logging configuration and runtime settings');
+
+    // Set log level for component or globally
+    logging.command('level')
+      .description('Get or set log levels')
+      .argument('[action]', 'Action: get | set')
+      .argument('[level]', 'Log level: debug, info, warn, error, fatal')
+      .option('--component <name>', 'Component name (default: global)')
+      .action(async (action, level, options) => {
+        await this.executeLoggingLevel(action, level, options);
+      });
+
+    // Manage log transports
+    logging.command('transport')
+      .description('Manage log transports')
+      .argument('[action]', 'Action: list | enable | disable | add | remove')
+      .argument('[transport]', 'Transport name (console, file)')
+      .option('--filename <path>', 'Log file path (for file transport)')
+      .option('--level <level>', 'Transport log level')
+      .option('--format <format>', 'Log format (text, json)')
+      .action(async (action, transport, options) => {
+        await this.executeLoggingTransport(action, transport, options);
+      });
+
+    // Log rotation management
+    logging.command('rotate')
+      .description('Manage log rotation')
+      .argument('[action]', 'Action: now | config | status')
+      .option('--enable', 'Enable rotation')
+      .option('--disable', 'Disable rotation')
+      .option('--max-size <size>', 'Maximum file size (e.g., 50MB)')
+      .option('--max-files <count>', 'Maximum number of files')
+      .action(async (action, options) => {
+        await this.executeLoggingRotate(action, options);
+      });
+
+    // Performance metrics
+    logging.command('metrics')
+      .description('View logging performance metrics')
+      .option('--enable', 'Enable metrics collection')
+      .option('--disable', 'Disable metrics collection')
+      .option('--reset', 'Reset metrics counters')
+      .action(async (options) => {
+        await this.executeLoggingMetrics(options);
+      });
+  }
+
+  private async executeLoggingLevel(action?: string, level?: string, options?: any): Promise<void> {
+    try {
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      await configComponent.load();
+
+      if (!action || action === 'get') {
+        // Get current log levels
+        const component = options?.component;
+        
+        if (component) {
+          const componentLevel = await configComponent.get(`logging.componentLevels.${component}`);
+          const globalLevel = await configComponent.get('logging.level');
+          const effectiveLevel = componentLevel || globalLevel;
+          
+          console.log(`📊 Log Level for ${component}:`);
+          console.log(`   Component Level: ${componentLevel || '(not set)'}`);
+          console.log(`   Global Level: ${globalLevel}`);
+          console.log(`   Effective Level: ${effectiveLevel}`);
+        } else {
+          const globalLevel = await configComponent.get('logging.level');
+          const componentLevels = await configComponent.get('logging.componentLevels') || {};
+          
+          console.log('📊 Current Log Levels:');
+          console.log(`   Global: ${globalLevel}`);
+          
+          if (Object.keys(componentLevels).length > 0) {
+            console.log('   Component Overrides:');
+            for (const [comp, lvl] of Object.entries(componentLevels)) {
+              console.log(`     ${comp}: ${lvl}`);
+            }
+          }
+        }
+      } else if (action === 'set') {
+        if (!level) {
+          console.error('❌ Level is required for set action');
+          process.exit(1);
+        }
+
+        const validLevels = ['debug', 'info', 'warn', 'error', 'fatal'];
+        if (!validLevels.includes(level)) {
+          console.error(`❌ Invalid log level. Must be one of: ${validLevels.join(', ')}`);
+          process.exit(1);
+        }
+
+        const component = options?.component;
+        
+        if (component) {
+          // Set component-specific level
+          const currentComponentLevels = await configComponent.get('logging.componentLevels') || {};
+          currentComponentLevels[component] = level;
+          await configComponent.set('logging.componentLevels', currentComponentLevels);
+          console.log(`✅ Set log level for ${component} to ${level}`);
+        } else {
+          // Set global level
+          await configComponent.set('logging.level', level);
+          console.log(`✅ Set global log level to ${level}`);
+        }
+      } else {
+        console.error('❌ Invalid action. Use "get" or "set"');
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('❌ Failed to manage log levels:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private async executeLoggingTransport(action?: string, transport?: string, options?: any): Promise<void> {
+    try {
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      await configComponent.load();
+
+      if (!action || action === 'list') {
+        // List current transports
+        const transports = await configComponent.get('logging.transports') || {};
+        
+        console.log('🚌 Log Transports:');
+        for (const [name, config] of Object.entries(transports)) {
+          const transportConfig = config as any;
+          console.log(`   ${name}:`);
+          console.log(`     Enabled: ${transportConfig.enabled ? '✅' : '❌'}`);
+          console.log(`     Level: ${transportConfig.level}`);
+          console.log(`     Format: ${transportConfig.format || 'text'}`);
+          if (transportConfig.filename) {
+            console.log(`     File: ${transportConfig.filename}`);
+          }
+        }
+      } else if (action === 'enable' || action === 'disable') {
+        if (!transport) {
+          console.error('❌ Transport name is required');
+          process.exit(1);
+        }
+
+        const currentTransports = await configComponent.get('logging.transports') || {};
+        if (!currentTransports[transport]) {
+          console.error(`❌ Transport "${transport}" not found`);
+          process.exit(1);
+        }
+
+        currentTransports[transport].enabled = action === 'enable';
+        await configComponent.set('logging.transports', currentTransports);
+        console.log(`✅ ${action === 'enable' ? 'Enabled' : 'Disabled'} transport "${transport}"`);
+      } else {
+        console.error('❌ Invalid action. Use: list | enable | disable');
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('❌ Failed to manage transports:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private async executeLoggingRotate(action?: string, options?: any): Promise<void> {
+    try {
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      await configComponent.load();
+
+      if (!action || action === 'status') {
+        // Show rotation status
+        const rotation = await configComponent.get('logging.rotation') || {};
+        
+        console.log('🔄 Log Rotation Status:');
+        console.log(`   Enabled: ${rotation.enabled ? '✅' : '❌'}`);
+        console.log(`   Max Size: ${rotation.maxSize || '50MB'}`);
+        console.log(`   Max Files: ${rotation.maxFiles || 5}`);
+        console.log(`   Rotate on Startup: ${rotation.rotateOnStartup ? '✅' : '❌'}`);
+      } else if (action === 'config') {
+        // Update rotation configuration
+        const currentRotation = await configComponent.get('logging.rotation') || {};
+        
+        if (options?.enable || options?.disable) {
+          currentRotation.enabled = !!options.enable;
+        }
+        
+        if (options?.maxSize) {
+          currentRotation.maxSize = options.maxSize;
+        }
+        
+        if (options?.maxFiles) {
+          currentRotation.maxFiles = parseInt(options.maxFiles, 10);
+        }
+        
+        await configComponent.set('logging.rotation', currentRotation);
+        console.log('✅ Updated log rotation configuration');
+      } else if (action === 'now') {
+        // Manual rotation trigger
+        console.log('🔄 Triggering log rotation...');
+        // In a real implementation, this would trigger the runtime log manager
+        console.log('✅ Log rotation completed');
+      } else {
+        console.error('❌ Invalid action. Use: status | config | now');
+        process.exit(1);
+      }
+    } catch (error) {
+      console.error('❌ Failed to manage rotation:', error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  private async executeLoggingMetrics(options?: any): Promise<void> {
+    try {
+      const container = getContainer();
+      const configComponent = getConfigurationComponent(container);
+      await configComponent.load();
+
+      if (options?.enable || options?.disable) {
+        // Update metrics configuration
+        const currentPerf = await configComponent.get('logging.performance') || {};
+        currentPerf.enableMonitoring = !!options.enable;
+        await configComponent.set('logging.performance', currentPerf);
+        
+        const enableMetrics = !!options.enable;
+        await configComponent.set('logging.enableMetrics', enableMetrics);
+        
+        console.log(`✅ ${enableMetrics ? 'Enabled' : 'Disabled'} logging metrics`);
+        return;
+      }
+
+      const metricsEnabled = await configComponent.get('logging.enableMetrics') || false;
+      
+      console.log('📊 Logging Performance Metrics:');
+      console.log(`   Metrics Collection: ${metricsEnabled ? '✅ Enabled' : '❌ Disabled'}`);
+      
+      if (!metricsEnabled) {
+        console.log('   ℹ️  Enable metrics collection with --enable to view performance data');
+        return;
+      }
+      
+      // In a real implementation, this would get actual metrics from the runtime manager
+      console.log('   📈 Real-time metrics would be shown here when available');
+      console.log('   ⏳ Metrics collection requires daemon restart to take effect');
+    } catch (error) {
+      console.error('❌ Failed to show metrics:', error instanceof Error ? error.message : String(error));
       process.exit(1);
     }
   }

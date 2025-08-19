@@ -45,9 +45,18 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
-    this.loggingService.info('Starting folder indexing', { folderPath: path, options });
+    
+    // Generate unique indexing ID for progress tracking
+    const indexingId = `idx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.loggingService.info('Starting folder indexing', { 
+      folderPath: path, 
+      options,
+      indexingId,
+      timestamp: new Date().toISOString()
+    });
 
-    // Initialize status tracking
+    // Initialize status tracking with performance metrics
     const status: IndexingStatus = {
       isRunning: true,
       progress: {
@@ -68,14 +77,25 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       status.isRunning = false;
       // processingTime is already calculated in executeIndexingWorkflow
       
+      // Get database size information for completion logging
+      const dbStats = await this.getDatabaseStats(path);
+      
       this.loggingService.info('Folder indexing completed', { 
-        folderPath: path, 
+        folderPath: path,
+        indexingId,
         result: {
           filesProcessed: result.filesProcessed,
           chunksGenerated: result.chunksGenerated,
           embeddingsCreated: result.embeddingsCreated,
           processingTime: result.processingTime
-        }
+        },
+        performanceMetrics: {
+          averageFileProcessingTime: result.filesProcessed > 0 ? result.processingTime / result.filesProcessed : 0,
+          filesPerSecond: result.processingTime > 0 ? (result.filesProcessed * 1000) / result.processingTime : 0,
+          chunksPerFile: result.filesProcessed > 0 ? result.chunksGenerated / result.filesProcessed : 0
+        },
+        databaseStats: dbStats,
+        timestamp: new Date().toISOString()
       });
 
       return result;
@@ -399,7 +419,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       ? Math.round((progress.processedFiles / progress.totalFiles) * 100)
       : 0;
       
-    // Estimate completion time based on current progress
+    // Calculate performance telemetry
+    let performanceMetrics = {};
     if (progress.processedFiles > 0 && status.startedAt) {
       const elapsed = Date.now() - status.startedAt.getTime();
       const rate = progress.processedFiles / elapsed;
@@ -407,6 +428,38 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       const estimatedRemainingTime = remaining / rate;
       
       status.estimatedCompletion = new Date(Date.now() + estimatedRemainingTime);
+      
+      // Performance telemetry
+      performanceMetrics = {
+        averageFileProcessingTimeMs: elapsed / progress.processedFiles,
+        filesPerSecond: (progress.processedFiles * 1000) / elapsed,
+        chunksPerFile: progress.processedFiles > 0 ? progress.processedChunks / progress.processedFiles : 0,
+        estimatedRemainingTimeMs: estimatedRemainingTime,
+        elapsedTimeMs: elapsed
+      };
+    }
+
+    // Log progress with performance telemetry for significant milestones
+    const shouldLogProgress = 
+      progress.percentage % 10 === 0 || // Every 10%
+      progress.processedFiles === 1 || // First file
+      progress.processedFiles === progress.totalFiles || // Completion
+      Date.now() - (status.lastProgressLogTime || 0) > 30000; // Every 30 seconds
+
+    if (shouldLogProgress) {
+      this.loggingService.info('Indexing progress update', {
+        progress: {
+          processedFiles: progress.processedFiles,
+          totalFiles: progress.totalFiles,
+          percentage: progress.percentage,
+          processedChunks: progress.processedChunks
+        },
+        performanceMetrics,
+        estimatedCompletion: status.estimatedCompletion?.toISOString(),
+        currentFile: status.currentFile
+      });
+      
+      status.lastProgressLogTime = Date.now();
     }
   }
 
@@ -498,5 +551,68 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     return { available: false, error: 'Model validation has been simplified - use lightweight checks instead' };
   }
   
+  /**
+   * Get database statistics for completion logging
+   */
+  private async getDatabaseStats(folderPath: string): Promise<{
+    totalFiles: number;
+    totalChunks: number;
+    totalEmbeddings: number;
+    indexReady: boolean;
+    embeddingServiceInitialized: boolean;
+  }> {
+    try {
+      // Get current status for the folder
+      const status = this.currentStatus.get(folderPath);
+      const progress = status?.progress || { 
+        totalFiles: 0, 
+        processedFiles: 0, 
+        totalChunks: 0, 
+        processedChunks: 0 
+      };
+
+      // Check vector index readiness
+      let indexReady = false;
+      try {
+        indexReady = this.vectorSearchService.isReady();
+      } catch (error) {
+        // Vector index status not available
+        this.loggingService.debug('Vector index readiness check failed', { error: (error as Error).message });
+      }
+
+      // Check embedding service initialization
+      let embeddingServiceInitialized = false;
+      try {
+        embeddingServiceInitialized = this.embeddingService.isInitialized();
+      } catch (error) {
+        // Embedding service status not available
+        this.loggingService.debug('Embedding service status check failed', { error: (error as Error).message });
+      }
+
+      return {
+        totalFiles: progress.processedFiles,
+        totalChunks: progress.processedChunks,
+        totalEmbeddings: progress.processedChunks, // Assuming 1:1 ratio for now
+        indexReady,
+        embeddingServiceInitialized
+      };
+
+    } catch (error) {
+      this.loggingService.debug('Failed to get database statistics', { error: (error as Error).message });
+      
+      // Return basic stats if detailed stats fail
+      const status = this.currentStatus.get(folderPath);
+      const progress = status?.progress || { processedFiles: 0, processedChunks: 0 };
+      
+      return {
+        totalFiles: progress.processedFiles,
+        totalChunks: progress.processedChunks,
+        totalEmbeddings: progress.processedChunks,
+        indexReady: false,
+        embeddingServiceInitialized: false
+      };
+    }
+  }
+
   // Removed complex helper methods - using lightweight validation instead
 }
