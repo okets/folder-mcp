@@ -10,6 +10,8 @@ interface RegisteredHandler {
     handler: InputHandler;
     priority: number;
     keyBindings: IKeyBinding[];
+    acceptsTextInput?: boolean;  // Does this handler accept single character text input?
+    navigationOnly?: boolean;    // Only handles navigation keys (arrows, enter, escape, tab)?
 }
 
 /**
@@ -60,13 +62,16 @@ export class InputContextService implements IInputContextService {
         elementId: string, 
         handler: InputHandler, 
         priority: number,
-        keyBindings?: IKeyBinding[]
+        keyBindings?: IKeyBinding[],
+        options?: { acceptsTextInput?: boolean; navigationOnly?: boolean }
     ): void {
         this.handlers.set(elementId, {
             elementId,
             handler,
             priority,
-            keyBindings: keyBindings || []
+            keyBindings: keyBindings || [],
+            ...(options?.acceptsTextInput !== undefined && { acceptsTextInput: options.acceptsTextInput }),
+            ...(options?.navigationOnly !== undefined && { navigationOnly: options.navigationOnly })
         });
         this.notifyChange();
     }
@@ -91,8 +96,11 @@ export class InputContextService implements IInputContextService {
         const allHandlers = Array.from(this.handlers.values())
             .sort((a, b) => b.priority - a.priority);
         
-        // Try each handler in priority order
-        for (const handler of allHandlers) {
+        // OPTIMIZATION: Quick check to avoid calling handlers for irrelevant input
+        const relevantHandlers = this.filterRelevantHandlers(allHandlers, input, key);
+        
+        // Try each relevant handler in priority order
+        for (const handler of relevantHandlers) {
             try {
                 if (handler.handler(input, key)) {
                     return true; // Input was handled
@@ -103,6 +111,37 @@ export class InputContextService implements IInputContextService {
         }
         
         return false; // No handler consumed the input
+    }
+    
+    /**
+     * Filter handlers to only those that might care about this input
+     * This prevents calling handlers for irrelevant keys
+     */
+    private filterRelevantHandlers(handlers: RegisteredHandler[], input: string, key: Key): RegisteredHandler[] {
+        // Navigation keys - all handlers might care
+        const isNavigationKey = key.upArrow || key.downArrow || key.leftArrow || key.rightArrow ||
+                               key.return || key.escape || key.tab || key.backspace || key.delete ||
+                               key.pageUp || key.pageDown;
+        
+        // Modifier keys - all handlers might care  
+        const hasModifier = key.ctrl || key.meta || key.shift;
+        
+        // Special characters
+        const isSpecialChar = input === ' ' || input === '\t' || input === '\r' || input === '\n';
+        
+        if (isNavigationKey || hasModifier || isSpecialChar) {
+            // Let all handlers try these keys
+            return handlers;
+        }
+        
+        // For single character input (letters, numbers)
+        if (input.length === 1) {
+            // Only call handlers that accept text input or don't specify
+            return handlers.filter(h => h.acceptsTextInput !== false);
+        }
+        
+        // For other input, let all handlers try
+        return handlers;
     }
     
     /**

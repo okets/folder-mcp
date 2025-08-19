@@ -419,6 +419,55 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     let containerWizard: AddFolderContainerItem;
     let folderPicker: FilePickerListItem;
     
+    // Data model for change detection - only validate when this changes
+    interface WizardDataModel {
+        path: string;
+        mode: 'assisted' | 'manual';
+        model: string | undefined;
+        languages: string[];
+    }
+    
+    // Track last validated state to detect changes
+    let lastValidatedData: string | null = null;
+    
+    // Helper to get current data model
+    const getCurrentDataModel = (): WizardDataModel => ({
+        path: selectedPath,
+        mode: selectedMode,
+        model: selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel,
+        languages: selectedLanguages
+    });
+    
+    // Check if data model has changed since last validation
+    const hasDataChanged = (): boolean => {
+        const currentData = JSON.stringify(getCurrentDataModel());
+        if (lastValidatedData === null || currentData !== lastValidatedData) {
+            return true;
+        }
+        return false;
+    };
+    
+    // Update data model and validate only if changed
+    const updateDataModelAndValidate = async () => {
+        if (!hasDataChanged()) {
+            return; // No data change, skip validation
+        }
+        
+        const dataModel = getCurrentDataModel();
+        if (!dataModel.model) {
+            // No model selected yet
+            currentValidation = createValidationResult(false, 'Please select an embedding model');
+            if (containerWizard) {
+                containerWizard.updateValidationResult(currentValidation);
+            }
+            return;
+        }
+        
+        // Data changed, validate
+        await validateAndUpdateContainer(dataModel.path, dataModel.model);
+        lastValidatedData = JSON.stringify(dataModel);
+    };
+    
     // Create destructive config for ancestor scenarios using FMDM validation
     const createAncestorDestructiveConfig = async (folderPath: string): Promise<IDestructiveConfig | undefined> => {
         if (!validationService) return undefined;
@@ -543,9 +592,18 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         'checkbox', // Multi-selection
         'vertical', // Vertical layout
         async (values) => {
-            selectedLanguages = [...values];
-            // Update the selectedValues property of the component to maintain state
-            languageSelector.selectedValues = [...values];
+            const newLanguages = [...values];
+            // Only update if languages actually changed
+            const oldLanguages = JSON.stringify(selectedLanguages);
+            const currentLanguages = JSON.stringify(newLanguages);
+            
+            if (oldLanguages !== currentLanguages) {
+                selectedLanguages = newLanguages;
+                // Update the selectedValues property of the component to maintain state
+                languageSelector.selectedValues = newLanguages;
+                // Validate only if data model changed
+                await updateDataModelAndValidate();
+            }
         },
         1, // minSelections - at least one language required
         undefined, // maxSelections - no maximum
@@ -561,34 +619,17 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         false, // Will be managed by ContainerListItem
         'folder', // folder mode only
         async (newPath) => {
-            selectedPath = newPath;
-            // Trigger real-time validation of both folder and model
-            await validateAndUpdateContainer(newPath, selectedModel);
+            // Only update if path actually changed
+            if (newPath !== selectedPath) {
+                selectedPath = newPath;
+                // Validate only if data model changed
+                await updateDataModelAndValidate();
+            }
         },
         undefined, // filterPatterns
-        async () => {
-            // onChange callback - sync validation to container with both folder and model
-            if (validationService && containerWizard) {
-                // Check if we have a model validation error first
-                if (modelValidationError) {
-                    // Keep the model validation error
-                    containerWizard.updateValidationResult(createValidationResult(false, modelValidationError));
-                } else if (selectedModel) {
-                    let validationResult: ValidationResult;
-                    if (validationService.validateFolderAndModel) {
-                        validationResult = await validationService.validateFolderAndModel(selectedPath, selectedModel);
-                    } else {
-                        validationResult = await validationService.validateFolderPath(selectedPath);
-                    }
-                    containerWizard.updateValidationResult(validationResult);
-                } else {
-                    // No model selected
-                    containerWizard.updateValidationResult(createValidationResult(false, 'Please select an embedding model'));
-                }
-            }
-        }, // onChange - keep container validation in sync
+        undefined, // No onChange - we only validate on actual path changes
         false, // showHiddenFiles
-        validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
+        undefined // No validation service - handled by data model
     );
     
     // Step 4: Create separate model selectors for assisted and manual modes
@@ -616,12 +657,16 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         'vertical', // Vertical layout for detailed display
         async (values) => {
             if (values.length > 0 && values[0]) {
-                assistedSelectedModel = values[0];
-                // Clear model validation error when user selects a valid model
-                modelValidationError = null;
-                assistedModelSelector._validationMessage = null;
-                // Trigger validation when model changes
-                await validateAndUpdateContainer(selectedPath, assistedSelectedModel);
+                const newModel = values[0];
+                // Only update if model actually changed
+                if (newModel !== assistedSelectedModel) {
+                    assistedSelectedModel = newModel;
+                    // Clear model validation error when user selects a valid model
+                    modelValidationError = null;
+                    assistedModelSelector._validationMessage = null;
+                    // Validate only if data model changed
+                    await updateDataModelAndValidate();
+                }
             }
         },
         undefined, // minSelections
@@ -655,12 +700,16 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         'vertical', // Vertical layout for detailed display
         async (values) => {
             if (values.length > 0 && values[0]) {
-                manualSelectedModel = values[0];
-                // Clear model validation error when user selects a valid model
-                modelValidationError = null;
-                manualModelSelector._validationMessage = null;
-                // Trigger validation when model changes
-                await validateAndUpdateContainer(selectedPath, manualSelectedModel);
+                const newModel = values[0];
+                // Only update if model actually changed
+                if (newModel !== manualSelectedModel) {
+                    manualSelectedModel = newModel;
+                    // Clear model validation error when user selects a valid model
+                    modelValidationError = null;
+                    manualModelSelector._validationMessage = null;
+                    // Validate only if data model changed
+                    await updateDataModelAndValidate();
+                }
             }
         },
         undefined, // minSelections
@@ -769,27 +818,26 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Now that container exists, set up the proper mode selection callback
     modeSelector.updateOnSelectionChange(async (value: string) => {
         const oldMode = selectedMode;
-        selectedMode = value as 'assisted' | 'manual';
+        const newMode = value as 'assisted' | 'manual';
         
         // Only trigger changes if mode actually changed
-        if (oldMode !== selectedMode) {
+        if (oldMode !== newMode) {
+            selectedMode = newMode;
+            
             // Handle mode-specific state changes
             if (selectedMode === 'assisted') {
                 selectedLanguages = ['en'];
                 languageSelector.selectedValues = ['en'];
-                if (assistedSelectedModel) {
-                    await validateAndUpdateContainer(selectedPath, assistedSelectedModel);
-                }
             } else {
                 selectedLanguages = [];
-                if (manualSelectedModel) {
-                    await validateAndUpdateContainer(selectedPath, manualSelectedModel);
-                }
             }
             
             // Update the container's children immediately
             const newChildItems = buildChildItemsForMode(selectedMode);
             containerWizard.updateChildItems(newChildItems);
+            
+            // Validate only if data model changed (includes mode + model + languages)
+            await updateDataModelAndValidate();
             
             // Call the onModeChange callback to trigger React re-render
             if (options.onModeChange) {
@@ -798,26 +846,16 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         }
     });
     
-    // Perform initial validation now that containerWizard is created
-    // This ensures the validation state is properly initialized with both folder and model
+    // Perform initial validation using data model approach
     try {
         // Check model validation first
         if (modelValidationError) {
             const modelErrorResult = createValidationResult(false, modelValidationError);
             containerWizard.updateValidationResult(modelErrorResult);
-            // Also update the current validation state
             currentValidation = modelErrorResult;
         } else {
-            await validateAndUpdateContainer(selectedPath, selectedModel);
-            // Initial validation completed
-            
-            // Also set the validation on the folder picker so it shows immediately
-            if (currentValidation.hasWarning || currentValidation.hasError) {
-                const state = currentValidation.hasError ? ValidatedListItemValidationState.Error : ValidatedListItemValidationState.Warning;
-                const message = currentValidation.errorMessage || currentValidation.warningMessage || '';
-                const validationMessage = createValidationMessage(state, message);
-                folderPicker.setValidationMessage(validationMessage);
-            }
+            // Use data model validation approach for initial validation
+            await updateDataModelAndValidate();
         }
     } catch (error) {
         // If validation fails, set a basic error state
