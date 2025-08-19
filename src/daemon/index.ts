@@ -26,15 +26,37 @@ import { SERVICE_TOKENS } from '../di/interfaces.js';
 import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
 
-// Create a simple debug logger
-const debug = (message: string, ...args: any[]) => {
-  const timestamp = new Date().toISOString();
-  if (args.length > 0) {
-    console.error(`[${timestamp}] [DAEMON] ${message}`, ...args);
-  } else {
-    console.error(`[${timestamp}] [DAEMON] ${message}`);
+// Log level configuration
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+const LOG_LEVELS: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+// Get log level from environment or default to 'info'
+const currentLogLevel = (process.env.DAEMON_LOG_LEVEL?.toLowerCase() || 'info') as LogLevel;
+const currentLogLevelValue = LOG_LEVELS[currentLogLevel] ?? LOG_LEVELS.info;
+
+// Create a logger with level support
+const log = (level: LogLevel, message: string, ...args: any[]) => {
+  if (LOG_LEVELS[level] >= currentLogLevelValue) {
+    const timestamp = new Date().toISOString();
+    const levelStr = level.toUpperCase().padEnd(5);
+    if (args.length > 0) {
+      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`, ...args);
+    } else {
+      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`);
+    }
   }
 };
+
+// Convenience methods
+const debug = (message: string, ...args: any[]) => log('debug', message, ...args);
+const info = (message: string, ...args: any[]) => log('info', message, ...args);
+const warn = (message: string, ...args: any[]) => log('warn', message, ...args);
+const logError = (message: string, ...args: any[]) => log('error', message, ...args);
 
 interface DaemonConfig {
   port: number;
@@ -75,7 +97,7 @@ class FolderMCPDaemon {
   }
 
   async start(): Promise<void> {
-    debug('Starting folder-mcp daemon...');
+    info(`Starting folder-mcp daemon on port ${this.config.port}`);
 
     try {
       debug('Registering daemon in discovery registry...');
@@ -86,10 +108,10 @@ class FolderMCPDaemon {
         startTime: this.startTime.toISOString(),
         version: '1.0.0' // TODO: Get from package.json
       });
-      debug('Daemon successfully registered in discovery registry.');
+      debug('Daemon registered in discovery registry');
     } catch (error) {
       const errorMessage = `Failed to register daemon in discovery registry: ${error instanceof Error ? error.message : String(error)}`;
-      debug(errorMessage);
+      logError(errorMessage);
       this.logToFile(errorMessage);
       throw new Error(errorMessage);
     }
@@ -97,11 +119,11 @@ class FolderMCPDaemon {
     try {
       debug('Setting up dependency injection container...');
       this.diContainer = setupDependencyInjection({
-        logLevel: 'debug'
+        logLevel: currentLogLevel
       });
-      debug('Dependency injection container set up successfully.');
+      debug('Dependency injection container ready');
 
-      debug('Loading configuration services...');
+      debug('Loading configuration...');
       const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
       this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
       const { join } = await import('path');
@@ -113,22 +135,16 @@ class FolderMCPDaemon {
       registerConfigurationServices(this.diContainer, {
         userConfigPath: userConfigPath
       });
-      debug('Configuration services loaded successfully.');
+      debug('Configuration loaded');
 
-      debug('Loading configuration component...');
       const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
       await configComponent.load();
-      debug('Configuration component loaded successfully.');
 
-      debug('Initializing FMDM service...');
+      debug('Initializing services...');
       this.fmdmService = this.diContainer.resolve(SERVICE_TOKENS.FMDM_SERVICE);
-      debug('FMDM service initialized successfully.');
 
-      debug('Initializing multi-folder indexing service...');
       this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
-      debug('Multi-folder indexing service initialized successfully.');
 
-      debug('Initializing folder lifecycle manager...');
       const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
       const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
       const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
@@ -140,22 +156,21 @@ class FolderMCPDaemon {
         loggingService,
         configComponent // Reuse existing configComponent
       );
-      debug('Folder lifecycle manager initialized successfully.');
+      debug('Services initialized');
 
-      debug('Restoring folders from configuration using orchestrator.startAll()...');
+      debug('Restoring monitored folders...');
       await this.monitoredFoldersOrchestrator!.startAll();
-      debug('Folders restored successfully.');
+      const folders = this.fmdmService!.getFMDM().folders;
+      if (folders.length > 0) {
+        info(`Monitoring ${folders.length} folder${folders.length > 1 ? 's' : ''}`);
+      }
 
       debug('Initializing WebSocket server...');
       this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
-      debug('WebSocket server initialized successfully.');
-
-      debug('Initializing validation service...');
+      
       const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
       await validationService.initialize();
-      debug('Validation service initialized successfully.');
 
-      debug('Creating WebSocket protocol...');
       const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
       const webSocketProtocol = new WebSocketProtocol(
         validationService,
@@ -164,47 +179,40 @@ class FolderMCPDaemon {
         loggingService,
         this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
       );
-      debug('WebSocket protocol created successfully.');
-
-      debug('Updating WebSocket server with custom protocol...');
+      
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
-      debug('WebSocket server updated successfully.');
 
-      debug('Starting WebSocket server...');
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
-      debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+      info(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
 
-      debug('Updating FMDM with daemon status...');
       this.fmdmService!.updateDaemonStatus({
         pid: process.pid,
         uptime: Math.floor(process.uptime())
       });
-      debug(`FMDM updated with daemon status - PID: ${process.pid}, uptime: ${Math.floor(process.uptime())}s`);
+      debug(`Daemon status updated - PID: ${process.pid}`);
 
-      debug('Creating HTTP server...');
       this.server = createServer(this.handleRequest.bind(this));
 
-      debug('Starting HTTP server...');
       return new Promise(async (resolve, reject) => {
         this.server!.listen(this.config.port, this.config.host, async () => {
-          debug(`Daemon listening on http://${this.config.host}:${this.config.port}`);
+          info(`Daemon ready (PID: ${process.pid})`);
           debug(`PID file: ${this.config.pidFile}`);
           resolve();
         });
 
-        this.server!.on('error', (error) => {
-          const errorMessage = `Server error: ${error}`;
-          debug(errorMessage);
+        this.server!.on('error', (err) => {
+          const errorMessage = `Server error: ${err}`;
+          logError(errorMessage);
           this.logToFile(errorMessage);
-          reject(error);
+          reject(err);
         });
       });
-    } catch (error) {
-      const errorMessage = `Error during daemon startup: ${error instanceof Error ? error.message : String(error)}`;
-      debug(errorMessage);
+    } catch (err) {
+      const errorMessage = `Error during daemon startup: ${err instanceof Error ? err.message : String(err)}`;
+      logError(errorMessage);
       this.logToFile(errorMessage);
-      throw error;
+      throw err;
     }
   }
 
@@ -246,7 +254,7 @@ class FolderMCPDaemon {
       res.end(JSON.stringify(response, null, 2));
       
     } catch (error) {
-      debug('Request error:', error);
+      logError('Request error:', error);
       res.writeHead(500);
       res.end(JSON.stringify({ 
         error: 'Internal server error',
@@ -272,7 +280,7 @@ class FolderMCPDaemon {
       try {
         memoryStats = this.monitoredFoldersOrchestrator.getMemoryStatistics();
       } catch (error) {
-        debug('Error getting memory statistics:', error);
+        warn('Error getting memory statistics:', error);
       }
     }
     
@@ -312,7 +320,7 @@ class FolderMCPDaemon {
       writeFileSync(this.config.pidFile, process.pid.toString(), 'utf8');
       debug(`PID file written: ${this.config.pidFile} (PID: ${process.pid})`);
     } catch (error) {
-      debug('Failed to write PID file:', error);
+      logError('Failed to write PID file:', error);
       throw error;
     }
   }
@@ -324,12 +332,12 @@ class FolderMCPDaemon {
         debug('PID file removed');
       }
     } catch (error) {
-      debug('Failed to remove PID file:', error);
+      warn('Failed to remove PID file:', error);
     }
   }
 
   async stop(): Promise<void> {
-    debug('Stopping daemon...');
+    info('Stopping daemon...');
     
     // Stop WebSocket server
     if (this.webSocketServer) {
@@ -363,10 +371,10 @@ class FolderMCPDaemon {
       await DaemonRegistry.cleanup();
       debug('Discovery registry cleaned up');
     } catch (error) {
-      debug('Failed to cleanup discovery registry:', error);
+      warn('Failed to cleanup discovery registry:', error);
     }
     
-    debug('Daemon stopped');
+    info('Daemon stopped');
   }
 
   // TODO: Future Phase 5 - Connect SQLite-vec storage to daemon indexing pipeline
@@ -378,24 +386,24 @@ class FolderMCPDaemon {
   // Setup graceful shutdown
   setupShutdownHandlers(): void {
     const shutdown = async (signal: string) => {
-      debug(`Received ${signal}, shutting down gracefully...`);
+      info(`Received ${signal}, shutting down gracefully...`);
       try {
         await this.stop();
         process.exit(0);
       } catch (error) {
-        debug('Error during shutdown:', error);
+        logError('Error during shutdown:', error);
         process.exit(1);
       }
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('uncaughtException', (error) => {
-      debug('Uncaught exception:', error);
+    process.on('uncaughtException', (err) => {
+      logError('Uncaught exception:', err);
       this.stop().finally(() => process.exit(1));
     });
     process.on('unhandledRejection', (reason) => {
-      debug('Unhandled rejection:', reason);
+      logError('Unhandled rejection:', reason);
       this.stop().finally(() => process.exit(1));
     });
     
@@ -415,11 +423,11 @@ class FolderMCPDaemon {
    */
   async startFolderIndexing(folderPath: string): Promise<void> {
     if (!this.fmdmService || !this.monitoredFoldersOrchestrator) {
-      debug(`Cannot start indexing: services not initialized`);
+      warn(`Cannot start indexing: services not initialized`);
       return;
     }
 
-    debug(`Starting indexing for folder: ${folderPath}`);
+    info(`[INDEXING] Started indexing: ${folderPath}`);
     
     try {
       // Get folder configuration
@@ -428,17 +436,17 @@ class FolderMCPDaemon {
       const folderConfig = folders.find((f: any) => f.path === folderPath);
       
       if (!folderConfig) {
-        debug(`Folder not found in configuration: ${folderPath}`);
+        warn(`Folder not found in configuration: ${folderPath}`);
         return;
       }
       
       // Start lifecycle management for this folder
       await this.monitoredFoldersOrchestrator.addFolder(folderConfig.path, folderConfig.model);
       
-      debug(`Started lifecycle management for folder: ${folderPath}`);
+      debug(`Lifecycle management started for: ${folderPath}`);
       
     } catch (error) {
-      debug(`Indexing error for folder ${folderPath}:`, error);
+      logError(`[INDEXING] Failed for ${folderPath}:`, error instanceof Error ? error.message : String(error));
       debug(`Error details:`, {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : 'No stack trace',
@@ -449,7 +457,7 @@ class FolderMCPDaemon {
       try {
         this.fmdmService.updateFolderStatus(folderPath, 'error');
       } catch (statusError) {
-        debug(`Failed to update folder status after error:`, statusError);
+        warn(`Failed to update folder status after error:`, statusError);
       }
       
       // Don't re-throw the error - this prevents daemon crash
@@ -494,7 +502,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void>
 }
 
 async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
-  debug(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
+  info(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
   
   try {
     // Try graceful shutdown first (SIGTERM)
@@ -502,19 +510,19 @@ async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
     
     // Wait up to 5 seconds for graceful shutdown
     await waitForProcessExit(daemonInfo.pid, 5000);
-    debug('Existing daemon stopped gracefully');
+    info('Existing daemon stopped gracefully');
     
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
       // Process already dead
-      debug('Existing daemon already stopped');
+      info('Existing daemon already stopped');
     } else {
       // Graceful shutdown failed, try force kill
-      debug('Graceful shutdown failed, force killing...');
+      warn('Graceful shutdown failed, force killing...');
       try {
         process.kill(daemonInfo.pid, 'SIGKILL');
         await waitForProcessExit(daemonInfo.pid, 2000);
-        debug('Existing daemon force killed');
+        info('Existing daemon force killed');
       } catch (killError) {
         throw new Error(`Failed to stop existing daemon: ${killError}`);
       }
@@ -560,7 +568,7 @@ the folder-mcp services.
   
   // Handle restart BEFORE any other operations
   if (restartFlag) {
-    debug('Restart flag detected, checking for running daemon processes...');
+    info('Restart flag detected, checking for running daemon processes...');
     
     // Use comprehensive process scanning instead of registry file check
     const runningDaemonPids = await DaemonRegistry.findRunningDaemonProcesses();
@@ -568,15 +576,15 @@ the folder-mcp services.
     
     if (otherDaemonPids.length > 0) {
       for (const daemonPid of otherDaemonPids) {
-        debug(`Found running daemon process (PID: ${daemonPid}), stopping it...`);
+        info(`Found running daemon process (PID: ${daemonPid}), stopping it...`);
         
         // Create minimal daemon info for stopping
         const daemonInfo = { pid: daemonPid };
         await stopExistingDaemon(daemonInfo);
-        debug(`Stopped daemon process PID: ${daemonPid}`);
+        info(`Stopped daemon process PID: ${daemonPid}`);
       }
       
-      debug('All existing daemon processes stopped, waiting for cleanup...');
+      info('All existing daemon processes stopped, waiting for cleanup...');
       
       // Wait to ensure processes are fully terminated
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -588,7 +596,7 @@ the folder-mcp services.
       // Wait a bit more to ensure cleanup is complete
       await new Promise(resolve => setTimeout(resolve, 500));
     } else {
-      debug('No existing daemon processes found to restart');
+      info('No existing daemon processes found to restart');
     }
   }
   
@@ -610,7 +618,7 @@ the folder-mcp services.
   // Check if daemon is already running (after restart handling)
   const status = await isDaemonRunning();
   if (status.running && !restartFlag) {
-    debug(`Daemon already running with PID ${status.pid}`);
+    logError(`Daemon already running with PID ${status.pid}`);
     process.exit(1);
   }
   
@@ -620,9 +628,9 @@ the folder-mcp services.
   
   try {
     await daemon.start();
-    debug('Daemon started successfully');
-  } catch (error) {
-    debug('Failed to start daemon:', error);
+    // Success message already logged by daemon.start()
+  } catch (err) {
+    logError('Failed to start daemon:', err);
     process.exit(1);
   }
 }
@@ -635,8 +643,8 @@ if (import.meta.url === `file://${process.argv[1]}` ||
     import.meta.url.endsWith('/daemon/index.js') || 
     (process.argv[1] && process.argv[1].endsWith('daemon/index.js')) || 
     (process.argv[1] && process.argv[1].endsWith('daemon\\index.js'))) {
-  main().catch((error) => {
-    debug('Fatal error:', error);
+  main().catch((err) => {
+    logError('Fatal error:', err);
     process.exit(1);
   });
 }

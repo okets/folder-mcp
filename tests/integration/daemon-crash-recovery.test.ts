@@ -77,7 +77,7 @@ describe('Daemon Crash Recovery', () => {
       daemon.stderr?.on('data', (data) => {
         const output = data.toString();
         console.error(`[DAEMON-${restart ? 'RESTART' : 'INITIAL'}]:`, output);
-        if (output.includes('Daemon started successfully')) {
+        if (output.includes('Daemon ready')) {
           clearTimeout(timeout);
           resolve(undefined);
         }

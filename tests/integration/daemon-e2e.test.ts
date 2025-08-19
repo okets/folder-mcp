@@ -248,7 +248,7 @@ describe('Daemon E2E Integration Tests', () => {
       }, 8000); // Optimized from 10s to 8s
 
       daemonProcess.stderr?.on('data', (data) => {
-        if (data.toString().includes('Daemon started successfully')) {
+        if (data.toString().includes('Daemon ready')) {
           clearTimeout(timeout);
           resolve(undefined);
         }
@@ -528,7 +528,7 @@ describe('Daemon E2E Integration Tests', () => {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Daemon restart timeout')), 5000); // Further optimized to 5s
       daemonProcess.stderr?.on('data', (data) => {
-        if (data.toString().includes('Daemon started successfully')) {
+        if (data.toString().includes('Daemon ready')) {
           clearTimeout(timeout);
           resolve(undefined);
         }

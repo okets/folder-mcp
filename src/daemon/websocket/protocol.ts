@@ -118,7 +118,10 @@ export class WebSocketProtocol {
       }
 
       const message = rawMessage as WSClientMessage;
-      this.logger.debug(`Processing message from ${clientId}: ${message.type}`);
+      // Skip logging for ping messages
+      if (message.type !== 'ping') {
+        this.logger.debug(`Processing message from ${clientId}: ${message.type}`);
+      }
 
       // Route message based on type
       switch (message.type) {
@@ -179,10 +182,8 @@ export class WebSocketProtocol {
     
     // Notify that client is connected (so server can send initial FMDM)
     if (this.onClientConnected) {
-      this.logger.debug(`[PROTOCOL] Calling onClientConnected callback for client ${clientId}`);
+      this.logger.debug(`Calling onClientConnected callback for client ${clientId}`);
       this.onClientConnected(clientId);
-    } else {
-      this.logger.error(`[PROTOCOL] onClientConnected callback not set for client ${clientId}`);
     }
     
     return createConnectionAck(clientId);
@@ -205,12 +206,6 @@ export class WebSocketProtocol {
 
     try {
       const result = await this.validationService.validate(path);
-      
-      this.logger.debug(`Validation result for ${path}:`, {
-        valid: result.isValid,
-        errorCount: result.errors.length,
-        warningCount: result.warnings.length
-      });
 
       return createValidationResponse(
         id,
@@ -241,7 +236,7 @@ export class WebSocketProtocol {
     }
 
     const { id } = message;
-    this.logger.debug(`Responding to ping from client: ${id}`);
+    // Don't log ping/pong - they're just heartbeats
     
     return createPongResponse(id);
   }
