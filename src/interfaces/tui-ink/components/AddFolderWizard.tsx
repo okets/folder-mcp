@@ -12,13 +12,93 @@ import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
 import { VerticalToggleRowListItem } from './core/VerticalToggleRow';
 import { IListItem } from './core/IListItem';
-import { ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
 import { theme } from '../utils/theme';
+import { 
+    ModelRecommendMessage, 
+    ModelRecommendResponseMessage, 
+    ModelCompatibilityScore 
+} from '../../../daemon/websocket/message-types';
+
+/**
+ * WebSocket client interface for daemon communication
+ */
+interface WebSocketClient {
+    connect(url: string): Promise<void>;
+    send(message: any): void;
+    onMessage(callback: (data: any) => void): void;
+    close(): void;
+    isConnected(): boolean;
+}
+
+/**
+ * Simple WebSocket client implementation for Node.js environment
+ */
+class SimpleWebSocketClient implements WebSocketClient {
+    private ws: any = null; // Using any to avoid WebSocket type issues in Node.js
+    private messageCallbacks: Array<(data: any) => void> = [];
+
+    async connect(url: string): Promise<void> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Import WebSocket dynamically using ES modules
+                console.error(`🔗 Creating WebSocket connection to ${url}`);
+                const { default: WebSocket } = await import('ws');
+                this.ws = new WebSocket(url);
+                
+                this.ws.onopen = () => {
+                    resolve();
+                };
+                
+                this.ws.onerror = (error: any) => {
+                    reject(new Error(`WebSocket connection failed: ${error.message}`));
+                };
+                
+                this.ws.onmessage = (event: any) => {
+                    console.error('🔔 Raw WebSocket message received:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.error('🔔 Parsed WebSocket data:', JSON.stringify(data, null, 2));
+                        this.messageCallbacks.forEach(callback => callback(data));
+                    } catch (error) {
+                        console.error('Failed to parse WebSocket message:', error);
+                    }
+                };
+                
+                this.ws.onclose = () => {
+                    this.ws = null;
+                };
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    send(message: any): void {
+        if (this.ws && this.ws.readyState === 1) { // 1 = WebSocket.OPEN
+            this.ws.send(JSON.stringify(message));
+        }
+    }
+
+    onMessage(callback: (data: any) => void): void {
+        this.messageCallbacks.push(callback);
+    }
+
+    close(): void {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
+
+    isConnected(): boolean {
+        return this.ws !== null && this.ws.readyState === 1; // 1 = WebSocket.OPEN
+    }
+}
 
 /**
  * Language code to display name mapping for comprehensive language support
@@ -324,64 +404,24 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         fmdmOperations
     } = options;
 
-    // Get models from daemon to determine the correct default
+    // Initialize WebSocket client for daemon communication
+    const wsClient = new SimpleWebSocketClient();
+    let isConnected = false;
+    
+    // Try to connect to daemon
+    try {
+        await wsClient.connect('ws://127.0.0.1:31850');
+        isConnected = true;
+        console.error('✅ WebSocket connected to daemon successfully');
+    } catch (error) {
+        console.error('❌ Failed to connect to daemon:', error);
+        isConnected = false;
+    }
+    
+    // Initialize model state
     let selectedModel = initialModel;
-    let pythonModels: ModelInfo[] = [];
-    
-    if (fmdmOperations && fmdmOperations.getModels) {
-        try {
-            const { models } = await fmdmOperations.getModels();
-            // Convert daemon models to ModelInfo format
-            pythonModels = models.map((modelName: string) => ({
-                name: modelName,
-                displayName: modelName.replace('folder-mcp:', '') + ' (Recommended)',
-                backend: 'python' as const,
-                recommended: true
-            }));
-            
-            // Use first model from daemon as default if no initial model provided
-            if (!initialModel && pythonModels.length > 0) {
-                if (!initialModel && pythonModels.length > 0) {
-                selectedModel = pythonModels[0]?.name;
-            }
-            }
-        } catch (error) {
-            // Fallback to hardcoded list if daemon call fails
-            pythonModels = [{
-                name: 'folder-mcp:all-MiniLM-L6-v2',
-                displayName: 'All-MiniLM-L6-v2 (Recommended)',
-                backend: 'python',
-                recommended: true
-            }];
-            if (!initialModel && pythonModels.length > 0) {
-                selectedModel = pythonModels[0]?.name;
-            }
-        }
-    } else {
-        // Fallback if no FMDM operations available
-        pythonModels = [{
-            name: 'folder-mcp:all-MiniLM-L6-v2',
-            displayName: 'All-MiniLM-L6-v2 (Recommended)',
-            backend: 'python',
-            recommended: true
-        }];
-        selectedModel = pythonModels[0]?.name;
-    }
-    
-    // Validate that initialModel exists in the list
+    let currentModels: ModelCompatibilityScore[] = [];
     let modelValidationError: string | null = null;
-    
-    
-    if (selectedModel && pythonModels.length > 0) {
-        const modelExists = pythonModels.some(m => m.name === selectedModel);
-        if (!modelExists) {
-            modelValidationError = `Model "${selectedModel}" is not available. Please select from the list.`;
-            // Don't change selectedModel - keep it to show the error
-        }
-    } else if (!selectedModel && pythonModels.length > 0) {
-        // If no model selected, use first available
-        selectedModel = pythonModels[0]?.name;
-    }
     
     // Track wizard state
     let selectedPath = initialPath;
@@ -392,23 +432,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     let assistedSelectedModel: string | undefined; 
     let manualSelectedModel: string | undefined;
     
-    // Initialize model selections based on initial model and availability
-    if (selectedModel && pythonModels.length > 0) {
-        const isCuratedModel = pythonModels.some(m => m.name === selectedModel);
-        if (isCuratedModel) {
-            // Initial model is curated - can be used in both modes
-            assistedSelectedModel = selectedModel;
-            manualSelectedModel = selectedModel;
-        } else {
-            // Initial model is likely Ollama - only valid for manual mode
-            manualSelectedModel = selectedModel;
-            assistedSelectedModel = pythonModels[0]?.name; // Default to first curated
-        }
-    } else {
-        // No initial model or no models available - set defaults
-        assistedSelectedModel = pythonModels[0]?.name; // Default recommended for assisted
-        manualSelectedModel = undefined; // No default for manual
-    }
+    // Model selection will be initialized after getting recommendations from daemon
+    // This is deferred until we get the actual model compatibility data
     
     // Initialize FMDM validation if operations are provided
     // Since we're already past the app-level daemon connection check, we know we're connected
@@ -601,6 +626,10 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 selectedLanguages = newLanguages;
                 // Update the selectedValues property of the component to maintain state
                 languageSelector.selectedValues = newLanguages;
+                
+                // Trigger model re-evaluation for current mode
+                await updateModelOptions(selectedMode, newLanguages);
+                
                 // Validate only if data model changed
                 await updateDataModelAndValidate();
             }
@@ -635,17 +664,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Step 4: Create separate model selectors for assisted and manual modes
     
     // Assisted mode model selector - curated models only with recommendation column
-    const assistedModelOptions: SelectionOption[] = pythonModels.map(model => ({
-        value: model.name,
-        label: model.recommended ? `${model.displayName}` : model.displayName,
-        details: {
-            'Recommendation': model.recommended ? 'Recommended' : 'Available',
-            'Speed': 'High',
-            'Accuracy': 'Excellent',
-            'Languages': '100+',
-            'Type': 'Curated'
-        }
-    }));
+    // Initially empty, will be populated by daemon recommendations
+    let assistedModelOptions: SelectionOption[] = [];
     
     const assistedModelSelector = new SelectionListItem(
         '⁃',
@@ -673,22 +693,12 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         undefined, // maxSelections
         false, // autoSwitchLayout
         true, // showDetails - Enable column display
-        ['Recommendation', 'Speed', 'Accuracy', 'Languages', 'Type'] // Assisted mode columns
+        ['Match', 'Recommendation', 'Speed', 'Languages', 'Type', 'Size', 'Local Copy'] // Assisted mode columns
     );
     
     // Manual mode model selector - all models including Ollama with compatibility column
-    const manualModelOptions: SelectionOption[] = pythonModels.map(model => ({
-        value: model.name,
-        label: model.displayName,
-        details: {
-            'Compatibility': '√ Supported',
-            'Speed': 'High',
-            'Accuracy': 'Excellent', 
-            'Languages': '100+',
-            'Type': 'Curated'
-        }
-    }));
-    // Note: Ollama models will be added to manualModelOptions in Sprint B2
+    // Initially empty, will be populated by daemon recommendations
+    let manualModelOptions: SelectionOption[] = [];
     
     const manualModelSelector = new SelectionListItem(
         '⁃',
@@ -716,8 +726,156 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         undefined, // maxSelections
         false, // autoSwitchLayout
         true, // showDetails - Enable column display
-        ['Compatibility', 'Speed', 'Accuracy', 'Languages', 'Type'] // Manual mode columns
+        ['Match', 'Compatibility', 'Speed', 'Languages', 'Type', 'Size', 'Local Copy'] // Manual mode columns
     );
+    
+    // Model recommendation and dynamic update functionality
+    let requestIdCounter = 0;
+    const pendingRequests = new Map<string, (response: any) => void>();
+    
+    // Set up WebSocket message handler for model recommendations
+    if (isConnected) {
+        wsClient.onMessage((message: any) => {
+            console.error('📥 Received WebSocket message:', JSON.stringify(message, null, 2));
+            if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
+                console.error(`✅ Found matching request for ID: ${message.id}`);
+                const resolver = pendingRequests.get(message.id);
+                if (resolver) {
+                    resolver(message);
+                    pendingRequests.delete(message.id);
+                } else {
+                    console.error('❌ No resolver found for request ID');
+                }
+            } else {
+                console.error(`❌ Message doesn't match expected format or request ID not found: type=${message.type}, id=${message.id}, hasPendingRequest=${message.id ? pendingRequests.has(message.id) : false}`);
+            }
+        });
+    } else {
+        console.error('❌ Not setting up message handler because not connected');
+    }
+    
+    // Function to request model recommendations from daemon
+    const requestModelRecommendations = async (languages: string[], mode: 'assisted' | 'manual'): Promise<ModelCompatibilityScore[]> => {
+        console.error(`🔍 Requesting model recommendations - Languages: [${languages.join(', ')}], Mode: ${mode}`);
+        
+        if (!isConnected) {
+            console.error('❌ Not connected to daemon - returning empty list');
+            return [];
+        }
+        
+        const requestId = `model-recommend-${++requestIdCounter}`;
+        
+        const message: ModelRecommendMessage = {
+            type: 'models.recommend',
+            id: requestId,
+            payload: {
+                languages,
+                mode
+            }
+        };
+        
+        console.error(`📤 Sending WebSocket message:`, JSON.stringify(message, null, 2));
+        
+        return new Promise((resolve, reject) => {
+            // Set up response handler
+            pendingRequests.set(requestId, (response: ModelRecommendResponseMessage) => {
+                console.error(`📥 Received model recommendation response:`, JSON.stringify(response, null, 2));
+                if (response.data) {
+                    console.error(`✅ Found ${response.data.models.length} models`);
+                    resolve(response.data.models);
+                } else {
+                    console.error('❌ No data in response - returning empty list');
+                    resolve([]);
+                }
+            });
+            
+            // Send request
+            wsClient.send(message);
+            
+            // Set timeout for request
+            setTimeout(() => {
+                if (pendingRequests.has(requestId)) {
+                    console.error(`⏰ Request ${requestId} timed out after 5 seconds`);
+                    pendingRequests.delete(requestId);
+                    resolve([]); // Fallback to empty list on timeout
+                }
+            }, 5000); // 5 second timeout
+        });
+    };
+    
+    // Function to update model options for a specific mode
+    const updateModelOptions = async (mode: 'assisted' | 'manual', languages: string[]) => {
+        console.error(`🔄 Updating model options for ${mode} mode with languages: [${languages.join(', ')}]`);
+        try {
+            const models = await requestModelRecommendations(languages, mode);
+            currentModels = models;
+            console.error(`📋 Converting ${models.length} models to SelectionOptions`);
+            
+            // Sort models by score (highest first)
+            const sortedModels = models.sort((a, b) => b.score - a.score);
+            
+            // Convert ModelCompatibilityScore to SelectionOption
+            const options: SelectionOption[] = sortedModels.map(model => ({
+                value: model.modelId,
+                label: model.displayName,
+                details: {
+                    ...(mode === 'assisted' ? {
+                        'Recommendation': model.details.recommendation || 
+                            (model.score >= 80 ? 'Good' : 
+                             model.score >= 60 ? 'Alternative' : 
+                             'Available')
+                    } : {
+                        'Compatibility': model.compatibility === 'supported' ? '√ Supported' : 
+                                       model.compatibility === 'needs_gpu' ? '⚠ Needs GPU' : 
+                                       model.compatibility === 'needs_vram' ? '⚠ Needs VRAM' : 
+                                       model.compatibility === 'incompatible' ? '✗ Incompatible' : '? User Managed'
+                    }),
+                    'Speed': model.details.speed,
+                    'Match': `${Math.round(model.score)}%`,
+                    'Languages': model.details.languages,
+                    'Type': model.details.type,
+                    'Size': model.details.size,
+                    'Local Copy': model.details.localCopy ? '√' : '✗'
+                }
+            }));
+            
+            // Update the appropriate model selector
+            if (mode === 'assisted') {
+                console.error(`🎯 Updating assisted model selector with ${options.length} options`);
+                assistedModelOptions = options;
+                assistedModelSelector.updateOptions(options);
+                
+                // Auto-select recommended model if none selected
+                if (!assistedSelectedModel && models.length > 0) {
+                    const recommendedModel = models.find(m => m.details.recommendation);
+                    const modelToSelect = recommendedModel ? recommendedModel.modelId : models[0]?.modelId;
+                    if (modelToSelect) {
+                        console.error(`✨ Auto-selecting assisted model: ${modelToSelect}`);
+                        assistedSelectedModel = modelToSelect;
+                        assistedModelSelector.selectValue(modelToSelect);
+                    }
+                }
+            } else {
+                console.error(`⚙️ Updating manual model selector with ${options.length} options`);
+                manualModelOptions = options;
+                manualModelSelector.updateOptions(options);
+                
+                // Auto-select first compatible model if none selected
+                if (!manualSelectedModel && models.length > 0) {
+                    const compatibleModel = models.find(m => m.compatibility === 'supported');
+                    const modelToSelect = compatibleModel ? compatibleModel.modelId : models[0]?.modelId;
+                    if (modelToSelect) {
+                        console.error(`✨ Auto-selecting manual model: ${modelToSelect}`);
+                        manualSelectedModel = modelToSelect;
+                        manualModelSelector.selectValue(modelToSelect);
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error(`Failed to update model options for ${mode} mode:`, error);
+        }
+    };
     
     // Set validation error if model doesn't exist using validation message
     if (modelValidationError) {
@@ -836,6 +994,9 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             const newChildItems = buildChildItemsForMode(selectedMode);
             containerWizard.updateChildItems(newChildItems);
             
+            // Trigger model re-evaluation for new mode
+            await updateModelOptions(selectedMode, selectedLanguages);
+            
             // Validate only if data model changed (includes mode + model + languages)
             await updateDataModelAndValidate();
             
@@ -845,6 +1006,14 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             }
         }
     });
+    
+    // Load initial model recommendations for the current mode
+    console.error(`🚀 Loading initial model recommendations for ${selectedMode} mode with languages: [${selectedLanguages.join(', ')}]`);
+    try {
+        await updateModelOptions(selectedMode, selectedLanguages);
+    } catch (error) {
+        console.error('❌ Failed to load initial model recommendations:', error);
+    }
     
     // Perform initial validation using data model approach
     try {
@@ -863,6 +1032,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             containerWizard.updateValidationResult(createValidationResult(false, 'Validation service unavailable'));
         }
     }
+    
+    // TODO: Add WebSocket cleanup when wizard completes/cancels
     
     return containerWizard;
 }

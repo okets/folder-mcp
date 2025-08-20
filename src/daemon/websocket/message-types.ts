@@ -257,6 +257,8 @@ export interface ModelCompatibilityScore {
     accuracy: string;
     languages: string;
     type: string;
+    size: string;
+    localCopy: boolean; // true if model is downloaded locally, false if needs download
     recommendation?: string; // For assisted mode
   };
 }

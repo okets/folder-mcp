@@ -25,6 +25,7 @@ import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
 import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
+import { ModelCacheChecker } from './services/model-cache-checker.js';
 
 // Log level configuration
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -183,6 +184,10 @@ class FolderMCPDaemon {
       );
       
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
+
+      // Check curated models BEFORE starting WebSocket server
+      info('Checking installed models...');
+      await this.initializeCuratedModels(loggingService);
 
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
@@ -384,6 +389,48 @@ class FolderMCPDaemon {
   // - Daemon orchestrates indexing workflow
   // - FMDM broadcasts status changes
   // - TUI displays status updates
+
+  /**
+   * Initialize curated models by checking their installation status
+   */
+  private async initializeCuratedModels(loggingService: any): Promise<void> {
+    try {
+      const checker = new ModelCacheChecker(loggingService);
+      const result = await checker.checkCuratedModels();
+      
+      this.fmdmService!.setCuratedModelInfo(result.models, result.status);
+      
+      const gpuCount = result.models.filter(m => m.type === 'gpu' && m.installed).length;
+      const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
+      
+      info(`Model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      if (result.status.error) {
+        info(`Note: ${result.status.error}`);
+      }
+    } catch (error) {
+      // Non-critical - set defaults and continue
+      logError('Model check failed (non-critical):', error);
+      
+      // Set all models as not installed as fallback
+      const defaultModels = [
+        // GPU models
+        { id: 'folder-mcp:bge-m3', installed: false, type: 'gpu' as const },
+        { id: 'folder-mcp:multilingual-e5-large', installed: false, type: 'gpu' as const },
+        { id: 'folder-mcp:paraphrase-multilingual-minilm', installed: false, type: 'gpu' as const },
+        // CPU models
+        { id: 'folder-mcp-lite:xenova-multilingual-e5-small', installed: false, type: 'cpu' as const },
+        { id: 'folder-mcp-lite:xenova-multilingual-e5-large', installed: false, type: 'cpu' as const }
+      ];
+      
+      this.fmdmService!.setCuratedModelInfo(defaultModels, {
+        pythonAvailable: false,
+        gpuModelsCheckable: false,
+        error: 'Model check failed',
+        checkedAt: new Date().toISOString()
+      });
+    }
+  }
 
   // Setup graceful shutdown
   setupShutdownHandlers(): void {

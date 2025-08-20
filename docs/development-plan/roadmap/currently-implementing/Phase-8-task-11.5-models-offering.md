@@ -1,7 +1,7 @@
 # Phase 8 Task 11.5: Multi-Source Model Offering System
 
-**Status**: 📋 PLANNED  
-**Start Date**: TBD  
+**Status**: 🚀 IN PROGRESS - AddFolderWizard Live, Model Download & Indexing Remaining  
+**Start Date**: Completed  
 **Dependencies**: Task 11 (SQLite-vec Embeddings) ✅ COMPLETED  
 **Test Strategy**: Agent-led TMOAT verification for backend, Manual TUI testing for UI
 
@@ -65,9 +65,9 @@ Implement a comprehensive model selection system that offers users GPU models (P
 
 ## Reorganized Implementation Plan
 
-### 🤖 Phase A: Autonomous Backend Implementation (3-4 days)
+### 🤖 Phase A: Autonomous Backend Implementation ✅ COMPLETED
 
-#### Sprint A1: Machine Capabilities Detection & Model Evaluator
+#### Sprint A1: Machine Capabilities Detection & Model Evaluator ✅ COMPLETED
 **✅ curated-models.json COMPLETED - Ready for implementation**
 
 **Sub-tasks:**
@@ -107,7 +107,7 @@ describe('Model System TMOAT', () => {
 });
 ```
 
-#### Sprint A2: ONNX Runtime Integration 
+#### Sprint A2: ONNX Runtime Integration ✅ COMPLETED
 **✅ Xenova models specified in curated-models.json**
 
 **Sub-tasks:**
@@ -142,8 +142,9 @@ describe('ONNX System TMOAT', () => {
 });
 ```
 
-#### Sprint A3: FMDM Integration & Model Download Management
+#### Sprint A3: FMDM Integration & Model Download Management 🚧 PARTIALLY COMPLETE
 **✅ Model selection logic completed in Sprint A1**
+**❌ REMAINING: Model download progress tracking for FMDM**
 
 **Sub-tasks:**
 1. **Extend FMDM with Model Status Broadcasting**
@@ -179,7 +180,7 @@ describe('Model Download Management TMOAT', () => {
 });
 ```
 
-#### Sprint A4: Ollama Detection & Manual Mode Integration
+#### Sprint A4: Ollama Detection & Manual Mode Integration ✅ COMPLETED
 **✅ Target models specified in curated-models.json**
 
 **Sub-tasks:**
@@ -226,7 +227,7 @@ npm test -- tests/**/*.tmoat.test.ts
 # All tests autonomous - no manual intervention needed
 ```
 
-#### Sprint A5: Intelligent Recommendations Architecture Fixes
+#### Sprint A5: Intelligent Recommendations Architecture Fixes ✅ COMPLETED
 **Critical architectural issues discovered during backend development**
 
 **Sub-tasks:**
@@ -279,10 +280,9 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-### 👤 Phase B: TUI Integration (Manual Testing Required - 2 days)
-**Only begin after ALL 5 TMOAT test suites pass**
+### 👤 Phase B: TUI Integration ✅ COMPLETED
 
-#### Sprint B1: Basic Selection Components (0.5-1 day)
+#### Sprint B1: Basic Selection Components ✅ COMPLETED
 **Goal**: Add mode and language selection steps to wizard
 **Dependencies**: Clean Phase A backend completion
 **Risk**: Low - uses existing SelectionListItem
@@ -311,7 +311,7 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-#### Sprint B2: Model Selection with Compatibility (1 day)
+#### Sprint B2: Model Selection with Compatibility ✅ COMPLETED
 **Goal**: Implement model selection with dual column configurations
 **Dependencies**: Sprint B1, ModelSelectionService working
 **Risk**: Medium - complex backend integration
@@ -347,7 +347,7 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-#### Sprint B3: Complete Wizard Integration (0.5 day)
+#### Sprint B3: Complete Wizard Integration ✅ COMPLETED
 **Goal**: Replace old wizard flow with new 4-step flow
 **Dependencies**: Sprint B1 + B2
 **Risk**: Low - mostly cleanup and integration
@@ -373,7 +373,7 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-#### Sprint B4: Polish & Edge Cases (0.5 day)
+#### Sprint B4: Polish & Edge Cases ✅ COMPLETED
 **Goal**: Handle error scenarios and polish UX
 **Dependencies**: Sprint B3
 **Risk**: Low - refinement work
@@ -397,6 +397,45 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
    - Test rapid navigation through wizard steps
 
 **Testing**: Error scenario testing, full system integration, edge case validation
+
+---
+
+## 🚧 REMAINING WORK: Next Development Sprint
+
+### Remaining Task 1: Model Download Progress Tracking
+**Goal**: Add download progress (0-100%) to FMDM for all folders awaiting model download
+
+**Implementation needed:**
+1. **Extend FMDM with Download Progress**
+   - Add `downloadProgress?: number` field to `FolderConfig` interface
+   - Update 'downloading-model' status to include progress percentage
+   - Broadcast progress updates to ALL folders using the same model
+
+2. **Implement Global Model Download Manager** 
+   - Track download progress for model downloads
+   - Update all affected folders during download progress
+   - Prevent duplicate downloads for same model across folders
+   - Location: `src/application/models/model-download-manager.ts`
+
+3. **Update FMDM Service Integration**
+   - Broadcast download progress via WebSocket to TUI clients
+   - Show progress in AddFolderWizard during "Downloading Model" phase
+   - Location: Update `src/daemon/services/fmdm-service.ts`
+
+### Remaining Task 2: Use Selected Model for Indexing
+**Goal**: Connect wizard's selected model to actual indexing process instead of hardcoded models
+
+**Implementation needed:**
+1. **Update Indexing Orchestrator**
+   - Accept model parameter from folder configuration  
+   - Use selected model from wizard instead of hardcoded 'BAAI/bge-m3'
+   - Check model availability before starting indexing
+   - Trigger download if model missing, then resume indexing
+
+2. **Connect Wizard to Indexing**
+   - Pass selected model from wizard completion to folder configuration
+   - Update folder creation to include model information
+   - Integrate with existing indexing orchestrator flow
 
 ### 🛑 **USER SAFETY STOPS**
 
@@ -521,41 +560,49 @@ npm run build && npm run tui
 
 ## Success Criteria
 
-### ✅ **Backend Success Criteria (Autonomous - Phase A)**
-1. **Fast Capability Detection**: <3 seconds with 1-hour caching (NodeCache)
-2. **Accurate Model Recommendations**: Language-aware scoring using curated-models.json data
-3. **Complete Ollama Filtering**: Assisted mode NEVER shows Ollama, Manual mode ALWAYS shows Ollama
-4. **Global Download Management**: Multiple folders using same model update together, no duplicates
-5. **Auto-Redownload**: Deleted models detected and redownloaded before indexing
-6. **ONNX Integration**: Xenova models download and work correctly with expected performance
-7. **Comprehensive Language Support**: 100+ languages with documented performance scores
+### ✅ **Backend Success Criteria (Autonomous - Phase A) - COMPLETED**
+1. ✅ **Fast Capability Detection**: <3 seconds with 1-hour caching (NodeCache)
+2. ✅ **Accurate Model Recommendations**: Language-aware scoring using curated-models.json data
+3. ✅ **Complete Ollama Filtering**: Assisted mode NEVER shows Ollama, Manual mode ALWAYS shows Ollama
+4. 🚧 **Global Download Management**: Multiple folders using same model update together, no duplicates (NEEDS PROGRESS TRACKING)
+5. 🚧 **Auto-Redownload**: Deleted models detected and redownloaded before indexing (NEEDS INDEXING INTEGRATION)
+6. ✅ **ONNX Integration**: Xenova models download and work correctly with expected performance
+7. ✅ **Comprehensive Language Support**: 100+ languages with documented performance scores
 
-### 👤 **TUI Success Criteria (Manual Testing - Phase B)**
-1. **Sprint B1 Success**: Mode and language selection components work smoothly with proper navigation
-2. **Sprint B2 Success**: Dual-mode model selection with clear compatibility warnings and rich data display
-3. **Sprint B3 Success**: Complete 4-step wizard flow replaces old system and integrates properly
-4. **Sprint B4 Success**: Professional UX with comprehensive error handling and edge case management
+### ✅ **TUI Success Criteria (Manual Testing - Phase B) - COMPLETED**
+1. ✅ **Sprint B1 Success**: Mode and language selection components work smoothly with proper navigation
+2. ✅ **Sprint B2 Success**: Dual-mode model selection with clear compatibility warnings and rich data display
+3. ✅ **Sprint B3 Success**: Complete 4-step wizard flow replaces old system and integrates properly
+4. ✅ **Sprint B4 Success**: Professional UX with comprehensive error handling and edge case management
+
+### 🚧 **Remaining Success Criteria**
+1. **Download Progress Tracking**: FMDM shows download progress (0-100%) for all folders awaiting model
+2. **Selected Model Indexing**: Wizard's selected model used for actual indexing instead of hardcoded model
 
 ---
 
-## 🚀 **Ready for Implementation**
+## 🚀 **CURRENT STATUS: AddFolderWizard Live & Functional**
 
-### **Phase A: Autonomous Backend** (Start immediately)
+### ✅ **Phase A: Autonomous Backend** - COMPLETED
 ✅ **curated-models.json** complete with 100+ languages and real performance data  
 ✅ **Research findings** integrated for all model recommendations  
-✅ **TMOAT test scenarios** defined for autonomous verification  
-✅ **Clear file structure** and implementation locations specified
+✅ **Model system working**: Live model recommendations in TUI  
+✅ **Backend services complete**: ModelSelectionService, ModelCacheChecker, FMDM integration
 
-### **Phase B: TUI Integration** (After all backend tests pass)
-✅ **4 Sprint structure** defined with clear goals, dependencies, and risk levels
-✅ **Detailed testing protocols** defined for each sprint with specific validation steps
-✅ **User safety stops** established at each sprint completion milestone  
-✅ **Sprint-by-sprint deliverables** clearly defined for systematic implementation
+### ✅ **Phase B: TUI Integration** - COMPLETED
+✅ **AddFolderWizard live and functional** with real model recommendations
+✅ **4-step wizard flow**: Mode → Languages → Model → Folder selection
+✅ **Dual-mode compatibility**: Assisted (curated only) vs Manual (includes Ollama)
+✅ **Real-time model evaluation**: Connected to backend services via WebSocket
 
-**Phase B Sprint Structure**:
-- **Sprint B1** (0.5-1 day): Basic selection components - Low risk foundation work
-- **Sprint B2** (1 day): Model selection with compatibility - Medium risk backend integration  
-- **Sprint B3** (0.5 day): Complete wizard integration - Low risk cleanup and integration
-- **Sprint B4** (0.5 day): Polish & edge cases - Low risk refinement work
+**Completed Sprint Structure**:
+- ✅ **Sprint B1**: Basic selection components - Mode and language selection working
+- ✅ **Sprint B2**: Model selection with compatibility - Live model recommendations with compatibility warnings
+- ✅ **Sprint B3**: Complete wizard integration - 4-step wizard replaces old system
+- ✅ **Sprint B4**: Polish & edge cases - Professional UX with error handling
 
-**Next Step**: Begin Phase A backend implementation, then proceed with Phase B sprints!
+### 🚧 **Next Steps**: Final Integration Tasks
+1. **Model Download Progress**: Add progress tracking to FMDM for downloading models
+2. **Selected Model Indexing**: Use wizard's selected model for actual indexing process
+
+**Status**: AddFolderWizard is live, recommending real models, and ready for the final integration tasks!

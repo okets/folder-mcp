@@ -21,6 +21,7 @@ import { RequestLogger } from '../../../domain/daemon/request-logger.js';
 import { createStructuredLogger, CorrelationIdManager } from '../../../infrastructure/logging/message-formatting.js';
 import { ModelSelectionService } from '../../../application/models/model-selection-service.js';
 import { OllamaDetector } from '../../../infrastructure/ollama/ollama-detector.js';
+import { IFMDMService } from '../../services/fmdm-service.js';
 
 
 /**
@@ -33,7 +34,8 @@ export class ModelHandlers {
   constructor(
     private logger: ILoggingService,
     private modelSelectionService: ModelSelectionService,
-    private ollamaDetector: OllamaDetector
+    private ollamaDetector: OllamaDetector,
+    private fmdmService: IFMDMService
   ) {
     this.requestLogger = new RequestLogger(this.logger);
     this.structuredLogger = createStructuredLogger(this.logger, 'model-handler');
@@ -201,24 +203,33 @@ export class ModelHandlers {
     try {
       // Get machine capabilities and model recommendations
       const machineCapabilities = await this.modelSelectionService.getMachineCapabilities();
-      const recommendation = await this.modelSelectionService.recommendModels({
-        languages,
-        mode,
-        maxAlternatives: mode === 'assisted' ? 3 : 10
-      });
+      const recommendation = mode === 'assisted' 
+        ? await this.modelSelectionService.getAssistedModeRecommendation(languages)
+        : await this.modelSelectionService.getManualModeOptions(languages);
 
       // Convert compatibility scores to WebSocket format
       const models: ModelCompatibilityScore[] = [];
       
       // Add all scored models (compatible and incompatible for manual mode)
       const allScores = [recommendation.primaryChoice, ...recommendation.alternatives];
-      for (const score of allScores) {
-        if (!score) continue;
-        
+      const scoresToProcess = allScores.filter(score => {
+        if (!score) return false;
         // Skip incompatible models in assisted mode
-        if (mode === 'assisted' && !score.hardwareCompatible) {
-          continue;
-        }
+        if (mode === 'assisted' && !score.hardwareCompatible) return false;
+        return true;
+      });
+
+      // Check local copy status for all models in parallel
+      const localCopyChecks = await Promise.all(
+        scoresToProcess.map(score => this.checkLocalCopy(score.model))
+      );
+
+      // Build model list with local copy status
+      for (let i = 0; i < scoresToProcess.length; i++) {
+        const score = scoresToProcess[i];
+        const isLocalCopy = localCopyChecks[i] || false; // Ensure boolean
+
+        if (!score) continue; // Extra safety check
 
         models.push({
           modelId: score.model.id,
@@ -231,6 +242,8 @@ export class ModelHandlers {
             accuracy: this.formatAccuracy(score.model),
             languages: this.formatLanguageCount(score.model),
             type: this.formatModelType(score.model),
+            size: this.formatModelSize(score.model),
+            localCopy: isLocalCopy,
             ...(mode === 'assisted' && score === recommendation.primaryChoice && { recommendation: 'Recommended' })
           }
         });
@@ -250,7 +263,9 @@ export class ModelHandlers {
                 speed: '-',
                 accuracy: '-',
                 languages: '-',
-                type: 'Ollama'
+                type: 'Ollama',
+                size: this.formatModelSize(ollamaModel),
+                localCopy: true // Ollama models are already downloaded if they're detected
               }
             });
           }
@@ -259,6 +274,9 @@ export class ModelHandlers {
           this.logger.warn('Ollama detection failed (this is OK):', error);
         }
       }
+
+      // Add any additional locally cached models not already in the recommendations
+      await this.addCachedModelsNotInRecommendations(models, languages, mode);
 
       // Build response
       const response = createModelRecommendResponse(
@@ -366,14 +384,87 @@ export class ModelHandlers {
   }
 
   /**
+   * Check if a model is available locally - now uses FMDM cache!
+   */
+  private async checkLocalCopy(model: any): Promise<boolean> {
+    const modelId = model.id;
+    
+    // For Ollama models - they are installed if detected
+    if (model.source === 'ollama') {
+      return true; // Ollama models are by definition installed if they're detected
+    }
+    
+    // For curated models - instant FMDM lookup (no Python spawning!)
+    const fmdm = this.fmdmService.getFMDM();
+    const modelInfo = fmdm.curatedModels.find(m => m.id === modelId);
+    
+    if (modelInfo) {
+      return modelInfo.installed;
+    }
+    
+    // Fallback for unknown models (shouldn't happen with our curated list)
+    if (modelId.includes('xenova')) {
+      // Quick filesystem check for ONNX models not in FMDM
+      try {
+        const { ONNXDownloader } = await import('../../../infrastructure/embeddings/onnx/onnx-downloader.js');
+        const downloader = new ONNXDownloader();
+        return await downloader.isModelAvailable(modelId);
+      } catch {
+        return false;
+      }
+    }
+    
+    // For GPU models not in FMDM - assume not installed (avoids Python spawning)
+    return false;
+  }
+
+  private formatModelSize(model: any): string {
+    // Handle curated models (modelSizeMB property)
+    if (model.modelSizeMB) {
+      const sizeInMB = model.modelSizeMB;
+      if (sizeInMB >= 1024) {
+        const sizeInGB = sizeInMB / 1024;
+        return `${sizeInGB.toFixed(1)}GB`;
+      }
+      return `${sizeInMB}MB`;
+    }
+    
+    // Handle Ollama models (size property in bytes)
+    if (model.size) {
+      const sizeInBytes = model.size;
+      const sizeInGB = sizeInBytes / (1024 * 1024 * 1024);
+      const sizeInMB = sizeInBytes / (1024 * 1024);
+      
+      if (sizeInGB >= 1) {
+        return `${sizeInGB.toFixed(1)}GB`;
+      }
+      return `${Math.round(sizeInMB)}MB`;
+    }
+    
+    return '-';
+  }
+
+  /**
    * Get supported models - single source of truth for all model lists
    */
   getSupportedModels(): string[] {
-    // Single hardcoded model for now - this is the authoritative list
-    // All other components (TUI, validation) must get models from this endpoint
-    return [
-      'folder-mcp:all-MiniLM-L6-v2'
+    // Get models by trying to get each one by ID from a known list
+    // This is a temporary approach until we add a proper method to expose catalog models
+    const knownModelIds = [
+      'folder-mcp:bge-m3',
+      'folder-mcp:multilingual-e5-large', 
+      'folder-mcp:paraphrase-multilingual-minilm',
+      'folder-mcp-lite:xenova-multilingual-e5-small',
+      'folder-mcp-lite:xenova-multilingual-e5-large'
     ];
+    
+    // Filter to only include models that actually exist in the catalog
+    const supportedModels = knownModelIds.filter(id => {
+      const model = this.modelSelectionService.getModelById(id);
+      return model !== undefined;
+    });
+    
+    return supportedModels;
   }
 
   /**
@@ -381,5 +472,83 @@ export class ModelHandlers {
    */
   isModelSupported(model: string): boolean {
     return this.getSupportedModels().includes(model);
+  }
+
+  /**
+   * Get model display name by ID for better error messages
+   */
+  getModelDisplayName(modelId: string): string {
+    const model = this.modelSelectionService.getModelById(modelId);
+    return model ? model.displayName : modelId;
+  }
+
+  /**
+   * Get supported models with display names for error messages
+   */
+  getSupportedModelsWithNames(): { id: string; displayName: string }[] {
+    const supportedIds = this.getSupportedModels();
+    return supportedIds.map(id => ({
+      id,
+      displayName: this.getModelDisplayName(id)
+    }));
+  }
+
+  /**
+   * Add any locally cached models that aren't already in the recommendations
+   */
+  private async addCachedModelsNotInRecommendations(
+    models: ModelCompatibilityScore[],
+    languages: string[],
+    mode: 'assisted' | 'manual'
+  ): Promise<void> {
+    // Get all supported models
+    const allSupportedModelIds = this.getSupportedModels();
+    const alreadyIncludedIds = new Set(models.map(m => m.modelId));
+    
+    // Find models not already in the recommendations
+    const notIncludedIds = allSupportedModelIds.filter(id => !alreadyIncludedIds.has(id));
+    
+    if (notIncludedIds.length === 0) {
+      return; // No additional models to check
+    }
+
+    // Check which of these models are locally cached
+    const cachedModelChecks = await Promise.all(
+      notIncludedIds.map(async (modelId) => {
+        const model = this.modelSelectionService.getModelById(modelId);
+        if (!model) return null;
+        
+        const isLocalCopy = await this.checkLocalCopy(model);
+        return isLocalCopy ? { modelId, model } : null;
+      })
+    );
+
+    // Add cached models to the list
+    for (const cachedModel of cachedModelChecks) {
+      if (!cachedModel) continue;
+
+      const { model } = cachedModel;
+      
+      // Get basic machine capabilities for simple compatibility scoring
+      const machineCapabilities = await this.modelSelectionService.getMachineCapabilities();
+      
+      // Create a basic score for cached models (they get lower priority than recommendations)
+      // but still provide useful information
+      models.push({
+        modelId: model.id,
+        displayName: model.displayName,
+        score: 0, // No scoring since they're not in top recommendations
+        compatibility: 'supported', // Assume supported since they were previously downloaded
+        details: {
+          speed: this.formatSpeed(model),
+          accuracy: this.formatAccuracy(model),
+          languages: this.formatLanguageCount(model),
+          type: this.formatModelType(model),
+          size: this.formatModelSize(model),
+          localCopy: true, // These are all locally cached
+          recommendation: 'Previously Downloaded' // Special indicator
+        }
+      });
+    }
   }
 }

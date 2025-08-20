@@ -414,7 +414,8 @@ export function setupDependencyInjection(options: {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     const modelSelectionService = container.resolve(SERVICE_TOKENS.MODEL_SELECTION_SERVICE) as any;
     const ollamaDetector = container.resolve(SERVICE_TOKENS.OLLAMA_DETECTOR) as any;
-    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector);
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector, fmdmService);
   });
 
   // Register Folder Handlers

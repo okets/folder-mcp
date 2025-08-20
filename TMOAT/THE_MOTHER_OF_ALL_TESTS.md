@@ -737,14 +737,15 @@ The expanded TMOAT test suite now includes atomic tests for comprehensive system
 8. **Offline Changes Test**: Validates detection of file changes made while daemon was offline
 9. **Database Recovery Test**: Verifies system rebuilds database when `.folder-mcp` directory is deleted
 
-### Model Recommendation System (Tests 10-16)
-10. **Assisted Mode English Test**: Single language recommendation with auto-selection
-11. **Assisted Mode Multi-Language Test**: Multiple languages affect recommendation scoring  
-12. **Manual Mode Compatibility Test**: Shows compatible + incompatible + Ollama models
-13. **Ollama Detection Test**: Power user models detected when available
-14. **Language Impact Analysis**: Compare recommendations across language sets
-15. **Machine Capability Detection**: GPU/CPU/RAM detection for compatibility scoring
-16. **Model Endpoint Error Handling**: Invalid requests handled gracefully
+### Model Recommendation System (Tests 10-17)
+10. **Model Cache FMDM Test**: Verifies curated models checked at daemon startup (before WebSocket), stored in FMDM with installation status, wizard loads instantly (no Python spawning). Run: `node TMOAT/atomic-test-10-model-cache-fmdm.js`
+11. **Assisted Mode English Test**: Single language recommendation with auto-selection
+12. **Assisted Mode Multi-Language Test**: Multiple languages affect recommendation scoring  
+13. **Manual Mode Compatibility Test**: Shows compatible + incompatible + Ollama models
+14. **Ollama Detection Test**: Power user models detected when available
+15. **Language Impact Analysis**: Compare recommendations across language sets
+16. **Machine Capability Detection**: GPU/CPU/RAM detection for compatibility scoring
+17. **Model Endpoint Error Handling**: Invalid requests handled gracefully
 
 ### Test Execution
 ```bash
@@ -759,6 +760,39 @@ node tmp/test-model-recommendation-endpoints.js
 ```
 
 Each atomic test is self-contained and validates specific functionality with real WebSocket communication to the daemon.
+
+### Atomic Test 10: Model Cache FMDM Test Details
+
+**Critical Performance Fix Test**
+
+This test validates the solution to the "slow Add Folder Wizard" issue:
+
+**Problem Solved**: Wizard was spawning 3+ Python processes every time it opened to check GPU model cache status
+
+**Solution Tested**: 
+- ✅ Curated models checked ONCE at daemon startup (before WebSocket starts)
+- ✅ Results stored in FMDM with installation status for all 5 expected models
+- ✅ ModelCheckStatus tracks Python availability and any errors
+- ✅ Wizard now loads instantly using FMDM data (no Python spawning)
+
+**Test Execution**:
+```bash
+# Run the model cache FMDM test
+node TMOAT/atomic-test-10-model-cache-fmdm.js
+
+# Expected results:
+# - Daemon startup: ~12 seconds (includes one-time model checking)
+# - All 5 curated models present in FMDM
+# - Model check status with Python availability info
+# - Test passes: "🎉 All tests passed! Model caching in FMDM is working correctly"
+```
+
+**Expected Models Verified**:
+- `folder-mcp:bge-m3` (gpu)
+- `folder-mcp:multilingual-e5-large` (gpu) 
+- `folder-mcp:paraphrase-multilingual-minilm` (gpu)
+- `folder-mcp-lite:xenova-multilingual-e5-small` (cpu)
+- `folder-mcp-lite:xenova-multilingual-e5-large` (cpu)
 
 ## 🎯 Success Criteria Summary
 

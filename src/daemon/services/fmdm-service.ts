@@ -6,7 +6,7 @@
  * client connection tracking.
  */
 
-import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ConnectionInfo, ClientConnection } from '../models/fmdm.js';
+import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ConnectionInfo, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 
 /**
@@ -47,6 +47,11 @@ export interface IFMDMService {
    * Set available models list
    */
   setAvailableModels(models: string[]): void;
+
+  /**
+   * Set curated model information with status
+   */
+  setCuratedModelInfo(models: CuratedModelInfo[], status: ModelCheckStatus): void;
   
   /**
    * Update notification for a specific folder
@@ -117,7 +122,9 @@ export class FMDMService implements IFMDMService {
         count: 0,
         clients: []
       },
-      models: this.getDefaultModels()
+      models: this.getDefaultModels(),
+      curatedModels: [] // Will be populated during daemon startup
+      // modelCheckStatus omitted initially - will be set when models are checked
     };
   }
   
@@ -274,6 +281,16 @@ export class FMDMService implements IFMDMService {
     this.fmdm.version = this.generateVersion();
     
     this.logger.debug(`FMDM models updated: ${models.length} models available`);
+    this.broadcast();
+  }
+
+  setCuratedModelInfo(models: CuratedModelInfo[], status: ModelCheckStatus): void {
+    this.fmdm.curatedModels = [...models];
+    this.fmdm.modelCheckStatus = status;
+    this.fmdm.version = this.generateVersion();
+    
+    const installedCount = models.filter(m => m.installed).length;
+    this.logger.debug(`FMDM curated models updated: ${installedCount}/${models.length} models installed`);
     this.broadcast();
   }
   

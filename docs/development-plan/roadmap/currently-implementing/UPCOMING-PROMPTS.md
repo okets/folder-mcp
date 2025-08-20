@@ -120,3 +120,15 @@ tasks. [Your custom instructions here...]
 ## Specific Behaviors
 [Define how the assistant should behave in this style...]
 
+Our AddFolderWizard is now live and active.
+we have diviated from the sprints we were working on in '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-8-task-11.5-models-offering.md'
+instead, we focused on making the add folder wizard live, recommending real models, setting up real folders, validating real data.
+what is left?
+- downloading a model and showing progress through the FMDM for all folders awaiting this model to download. (add folder phase - "Downloading Model" before scanning phase)
+don't forget to update the FMDM to reflect the model-downloaded boolean and report download progress.
+- index using the selected model, not just the fixed one we used before.
+that is it.
+we need to update the sprints retroactively to reflect these changes:
+mark what was done as complete and the remaining tasks as the next development sprint.
+leave the testing sprints as is.
+then commit.

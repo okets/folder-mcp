@@ -10,7 +10,9 @@ export interface FMDM {
   folders: FolderConfig[];
   daemon: DaemonStatus;
   connections: ConnectionInfo;
-  models: string[];
+  models: string[]; // Legacy - will be deprecated
+  curatedModels: CuratedModelInfo[]; // Enhanced model tracking
+  modelCheckStatus?: ModelCheckStatus; // Status of model checks
 }
 
 /**
@@ -70,4 +72,23 @@ export interface ClientConnection {
   id: string;
   type: 'tui' | 'cli' | 'web';
   connectedAt: string;
+}
+
+/**
+ * Information about a curated model's installation status
+ */
+export interface CuratedModelInfo {
+  id: string;           // e.g., 'folder-mcp:bge-m3'
+  installed: boolean;   // Whether model is downloaded/cached locally
+  type: 'gpu' | 'cpu';  // Model type - GPU (HuggingFace) or CPU (ONNX)
+}
+
+/**
+ * Status information about the model checking process
+ */
+export interface ModelCheckStatus {
+  pythonAvailable: boolean;      // Whether Python is available for GPU model checks
+  gpuModelsCheckable: boolean;   // Whether GPU models could be checked
+  error?: string;                // Error message if checks failed
+  checkedAt: string;            // ISO timestamp of when check was performed
 }

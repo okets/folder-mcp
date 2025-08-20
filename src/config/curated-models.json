@@ -197,6 +197,7 @@
           "ps": 0.48
         },
         "mtebScore": 66.0,
+        "contextWindow": 512,
         "requirements": {
           "prefixes": true,
           "cpu": {
@@ -288,6 +289,8 @@
         "dimensions": 384,
         "modelSizeMB": 120,
         "quantization": "int8",
+        "mtebScore": 57.0,
+        "contextWindow": 512,
         "languagePerformance": {
           "en": 0.83,
           "zh": 0.63,
@@ -390,6 +393,8 @@
         "dimensions": 1024,
         "modelSizeMB": 550,
         "quantization": "int8",
+        "mtebScore": 64.0,
+        "contextWindow": 512,
         "languagePerformance": {
           "en": 0.97,
           "zh": 0.71,

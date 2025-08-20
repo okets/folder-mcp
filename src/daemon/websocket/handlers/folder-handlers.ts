@@ -77,7 +77,11 @@ export class FolderHandlers {
       const isModelSupported = this.modelHandlers.isModelSupported(model);
       
       if (!isModelSupported) {
-        const errorMessage = `Unsupported model: ${model}. Supported models: ${supportedModels.join(', ')}`;
+        const selectedModelName = this.modelHandlers.getModelDisplayName(model);
+        const supportedModelsWithNames = this.modelHandlers.getSupportedModelsWithNames();
+        const supportedNames = supportedModelsWithNames.map(m => m.displayName).join(', ');
+        
+        const errorMessage = `Model "${selectedModelName}" is not available. Available models: ${supportedNames}`;
         this.requestLogger.completeRequest(requestId, 'failure', {
           errorCode: 'UNSUPPORTED_MODEL',
           errorMessage

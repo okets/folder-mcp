@@ -153,29 +153,41 @@ export class ModelCompatibilityEvaluator {
       };
     }
 
-    // Language Performance: 60% weight (0-60 points)
+    // Get optimal weights based on use case
+    const weights = this.getOptimalWeights(criteria.languages);
+    reasons.push(`Scoring weights: MTEB ${weights.mteb}%, Context ${weights.context}%, Language ${weights.language}%, Speed ${weights.speed}%`);
+
+    // Language Performance: Variable weight based on use case
     const langScore = this.evaluateLanguagePerformance(model, criteria.languages);
     languageScore = langScore.averageScore;
-    const languagePoints = langScore.averageScore * 60; // 60% weight
+    const languagePoints = langScore.averageScore * weights.language;
     score += languagePoints;
-    reasons.push(`Language compatibility: ${(langScore.averageScore * 100).toFixed(0)}%`);
+    reasons.push(`Language compatibility: ${(langScore.averageScore * 100).toFixed(0)}% (${weights.language}% weight)`);
 
-    // Accuracy (MTEB): 32% weight (0-32 points)
+    // MTEB Performance: Variable weight based on use case  
     if (model.mtebScore) {
-      const accuracyPoints = (model.mtebScore / 80) * 32; // 32% weight, normalized from MTEB scores
-      score += accuracyPoints;
-      reasons.push(`Accuracy: MTEB ${model.mtebScore}`);
+      const mtebNormalized = (model.mtebScore / 80) * 100; // Normalize to 0-100
+      const mtebPoints = mtebNormalized * (weights.mteb / 100);
+      score += mtebPoints;
+      reasons.push(`MTEB performance: ${model.mtebScore}% (${weights.mteb}% weight)`);
     }
 
-    // Speed: 8% weight (0-8 points) - Use best available speed benchmark
+    // Context Length: Very important for document processing
+    const contextScore = this.getContextLengthScore(model.contextWindow || 256);
+    const contextPoints = contextScore * (weights.context / 100);
+    score += contextPoints;
+    reasons.push(`Context length: ${model.contextWindow || 256} tokens = ${contextScore}/100 (${weights.context}% weight)`);
+
+    // Speed: Tie-breaker only
     const gpuSpeed = model.requirements?.gpu?.expectedTokensPerSec;
     const cpuSpeed = model.requirements?.cpu?.expectedTokensPerSec;
     const bestSpeed = Math.max(gpuSpeed || 0, cpuSpeed || 0);
     
     if (bestSpeed > 0) {
-      const speedPoints = Math.min(bestSpeed / 300, 1) * 8; // 8% weight, normalized to ~300 tokens/sec max
+      const speedScore = Math.min(bestSpeed / 500, 1) * 100; // Normalize to 0-100
+      const speedPoints = speedScore * (weights.speed / 100);
       score += speedPoints;
-      reasons.push(`Speed: ${bestSpeed} tokens/sec`);
+      reasons.push(`Speed: ${bestSpeed} tokens/sec (${weights.speed}% weight)`);
     }
 
     // Determine recommended use
@@ -207,45 +219,53 @@ export class ModelCompatibilityEvaluator {
     let score = 0;
     let compatible = false;
 
-    // Check if this is a GPU model
-    if (this.catalog.gpuModels.models.includes(model)) {
+    // Check if this is a GPU model by checking if it exists in GPU catalog
+    const isGpuModel = this.catalog.gpuModels.models.some(gpuModel => gpuModel.id === model.id);
+    if (isGpuModel) {
       const gpuReq = model.requirements?.gpu;
       if (gpuReq && capabilities.gpu.type !== 'none') {
         const requiredVRAM = gpuReq.minVRAM || 4096; // Default 4GB requirement
         const availableVRAM = capabilities.gpu.vramGB || 0;
 
-        if (availableVRAM * 1024 >= requiredVRAM) {
+        // Apply 20% safety margin for GPU VRAM (system stability)
+        const requiredWithMargin = requiredVRAM * 1.2;
+        if (availableVRAM * 1024 >= requiredWithMargin) {
           compatible = true;
           score += 15; // High score for GPU compatibility
-          reasons.push(`GPU compatible: ${availableVRAM}GB VRAM available`);
+          reasons.push(`GPU compatible: ${availableVRAM}GB VRAM available (need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin)`);
         } else {
-          reasons.push(`Insufficient VRAM: need ${requiredVRAM/1024}GB, have ${availableVRAM}GB`);
+          reasons.push(`Insufficient VRAM: need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin, have ${availableVRAM}GB`);
         }
       } else if (capabilities.gpu.type === 'none') {
         // Fall back to CPU requirements
         const cpuReq = model.requirements?.cpu;
         if (cpuReq) {
           const requiredRAM = cpuReq.minRAM || cpuReq.recRAM || 2048;
-          if (capabilities.memory.availableRAMGB * 1024 >= requiredRAM) {
+          // Apply 25% safety margin for CPU RAM (system stability)
+          const requiredWithMargin = requiredRAM * 1.25;
+          if (capabilities.memory.availableRAMGB * 1024 >= requiredWithMargin) {
             compatible = true;
             score += 8; // Lower score for CPU fallback
-            reasons.push(`CPU fallback: ${capabilities.memory.availableRAMGB}GB RAM available`);
+            reasons.push(`CPU fallback: ${capabilities.memory.availableRAMGB}GB RAM available (need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin)`);
           } else {
-            reasons.push(`Insufficient RAM: need ${requiredRAM/1024}GB`);
+            reasons.push(`Insufficient RAM: need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin`);
           }
         }
       }
     }
     
-    // Check if this is a CPU/ONNX model
-    else if (this.catalog.cpuModels.models.includes(model)) {
+    // Check if this is a CPU/ONNX model by checking if it exists in CPU catalog
+    const isCpuModel = this.catalog.cpuModels.models.some(cpuModel => cpuModel.id === model.id);
+    if (!isGpuModel && isCpuModel) {
       const cpuReq = model.requirements?.cpu;
       if (cpuReq) {
         const requiredRAM = cpuReq.minRAM || 512;
-        if (capabilities.memory.availableRAMGB * 1024 >= requiredRAM) {
+        // Apply 25% safety margin for CPU RAM (system stability)
+        const requiredWithMargin = requiredRAM * 1.25;
+        if (capabilities.memory.availableRAMGB * 1024 >= requiredWithMargin) {
           compatible = true;
           score += 12; // Good score for CPU compatibility
-          reasons.push(`CPU optimized: ${capabilities.memory.availableRAMGB}GB RAM available`);
+          reasons.push(`CPU optimized: ${capabilities.memory.availableRAMGB}GB RAM available (need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin)`);
 
           // Bonus for CPU features
           if (cpuReq.optimalCpuFeatures) {
@@ -260,7 +280,7 @@ export class ModelCompatibilityEvaluator {
             }
           }
         } else {
-          reasons.push(`Insufficient RAM: need ${requiredRAM/1024}GB`);
+          reasons.push(`Insufficient RAM: need ${(requiredWithMargin/1024).toFixed(1)}GB with safety margin`);
         }
       } else {
         // Assume minimal requirements for ONNX models
@@ -333,5 +353,53 @@ export class ModelCompatibilityEvaluator {
     }
 
     return Array.from(languages).sort();
+  }
+
+  /**
+   * Get optimal scoring weights based on language selection and use case
+   */
+  private getOptimalWeights(languages: string[]): {
+    mteb: number;
+    context: number;
+    language: number;
+    speed: number;
+  } {
+    const isEnglishOnly = languages.length === 1 && languages[0] === 'en';
+    const isMultilingual = languages.length > 1;
+    
+    if (isEnglishOnly) {
+      return {
+        mteb: 50,      // Most important - direct retrieval performance
+        context: 40,   // Critical for documents
+        language: 5,   // Minor (already filtered)
+        speed: 5       // Tie-breaker
+      };
+    } else if (isMultilingual) {
+      return {
+        mteb: 35,      // Less reliable for non-English
+        context: 45,   // Even more critical for multilingual
+        language: 15,  // Cross-language stability matters
+        speed: 5       // Still just tie-breaker
+      };
+    } else { // Single non-English
+      return {
+        mteb: 30,      // Often English-biased
+        context: 45,   // Critical for non-English documents
+        language: 20,  // Important for quality
+        speed: 5       // Tie-breaker
+      };
+    }
+  }
+
+  /**
+   * Score models based on context window size for document processing
+   */
+  private getContextLengthScore(contextWindow: number): number {
+    // Scoring buckets based on real-world document sizes
+    if (contextWindow >= 8192) return 100; // Full documents, PDFs
+    if (contextWindow >= 2048) return 75;  // Long chunks
+    if (contextWindow >= 512) return 50;   // Decent chunks
+    if (contextWindow >= 256) return 25;   // Minimal viable
+    return 10; // 128 tokens = barely usable for documents
   }
 }
