@@ -56,6 +56,10 @@ import { ModelHandlers } from '../daemon/websocket/handlers/model-handlers.js';
 import { WebSocketProtocol } from '../daemon/websocket/protocol.js';
 import { FMDMWebSocketServer } from '../daemon/websocket/server.js';
 
+// Import model services
+import { ModelSelectionService } from '../application/models/model-selection-service.js';
+import { OllamaDetector } from '../infrastructure/ollama/ollama-detector.js';
+
 /**
  * Setup the dependency injection container with all services
  */
@@ -396,14 +400,31 @@ export function setupDependencyInjection(options: {
     return new DaemonFolderValidationService(daemonConfigService, loggingService);
   });
 
+  // Register Model Selection Services
+  container.registerSingleton(SERVICE_TOKENS.MODEL_SELECTION_SERVICE, () => {
+    return new ModelSelectionService();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.OLLAMA_DETECTOR, () => {
+    return new OllamaDetector();
+  });
+
+  // Register Model Handlers
+  container.registerSingleton(SERVICE_TOKENS.MODEL_HANDLERS, () => {
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    const modelSelectionService = container.resolve(SERVICE_TOKENS.MODEL_SELECTION_SERVICE) as any;
+    const ollamaDetector = container.resolve(SERVICE_TOKENS.OLLAMA_DETECTOR) as any;
+    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector);
+  });
+
   // Register Folder Handlers
   container.registerSingleton('FolderHandlers' as any, () => {
     const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
     const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
     const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
+    const modelHandlers = container.resolve(SERVICE_TOKENS.MODEL_HANDLERS) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     
-    const modelHandlers = new ModelHandlers(loggingService);
     return new FolderHandlers(daemonConfigService, fmdmService, validationService, modelHandlers, loggingService);
   });
 
@@ -413,8 +434,9 @@ export function setupDependencyInjection(options: {
     const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
     const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    const modelHandlers = container.resolve(SERVICE_TOKENS.MODEL_HANDLERS) as any;
     
-    return new WebSocketProtocol(validationService, daemonConfigService, fmdmService, loggingService);
+    return new WebSocketProtocol(validationService, daemonConfigService, fmdmService, loggingService, modelHandlers);
   });
 
   // Register WebSocket server

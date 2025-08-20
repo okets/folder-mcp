@@ -1,5 +1,12 @@
 import { MachineCapabilities, GPUCapabilities } from './machine-capabilities.js';
-import curatedModelsData from '../../config/curated-models.json';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export interface CuratedModel {
   id: string;
@@ -71,10 +78,23 @@ export interface EvaluationCriteria {
 }
 
 export class ModelCompatibilityEvaluator {
-  private catalog: ModelCatalog;
+  private catalog!: ModelCatalog;
 
   constructor() {
-    this.catalog = curatedModelsData as ModelCatalog;
+    // Load catalog synchronously using dynamic import
+    this.loadCatalogSync();
+  }
+
+  private loadCatalogSync(): void {
+    try {
+      const catalogPath = join(__dirname, '../../config/curated-models.json');
+      const jsonContent = readFileSync(catalogPath, 'utf-8');
+      this.catalog = JSON.parse(jsonContent) as ModelCatalog;
+    } catch (error) {
+      const errorMessage = `Failed to load curated-models.json: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(`[DAEMON] ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
   }
 
   evaluateModelCompatibility(

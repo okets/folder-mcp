@@ -649,4 +649,76 @@ export class SelectionListItem implements IListItem {
             return 3; // Header + "Select one:" line + horizontal options line
         }
     }
+    
+    /**
+     * Update the options list dynamically and adjust selection state
+     * @param newOptions New array of selection options
+     */
+    updateOptions(newOptions: SelectionOption[]): void {
+        this.options = newOptions;
+        
+        // Reset focused index if out of bounds
+        if (this._focusedIndex >= newOptions.length) {
+            this._focusedIndex = Math.max(0, newOptions.length - 1);
+        }
+        
+        // Update working selected values to remove any that no longer exist
+        this._workingSelectedValues = this._workingSelectedValues.filter(
+            value => newOptions.some(opt => opt.value === value)
+        );
+        
+        // Update actual selected values
+        this._selectedValues = [...this._workingSelectedValues];
+        this.selectedValues = [...this._workingSelectedValues];
+        
+        // Validate the new selection
+        this.validateSelection();
+    }
+    
+    /**
+     * Programmatically select a value (useful for auto-selection)
+     * @param value The value to select
+     */
+    selectValue(value: string): void {
+        // Check if the value exists in options
+        const optionExists = this.options.some(opt => opt.value === value);
+        if (!optionExists) {
+            return; // Value doesn't exist, ignore
+        }
+        
+        if (this.mode === 'radio') {
+            // Radio mode: replace selection
+            this._selectedValues = [value];
+            this._workingSelectedValues = [value];
+            this.selectedValues = [value];
+            
+            // Update focused index to the selected option
+            const optionIndex = this.options.findIndex(opt => opt.value === value);
+            if (optionIndex !== -1) {
+                this._focusedIndex = optionIndex;
+            }
+        } else {
+            // Checkbox mode: add to selection if not already present
+            if (!this._selectedValues.includes(value)) {
+                // Check maximum selections constraint
+                if (this.maxSelections && this._selectedValues.length >= this.maxSelections) {
+                    this._validationError = `Maximum ${this.maxSelections} selection${this.maxSelections > 1 ? 's' : ''} allowed`;
+                    return; // Can't add more selections
+                }
+                
+                this._selectedValues.push(value);
+                this._workingSelectedValues.push(value);
+                this.selectedValues.push(value);
+            }
+        }
+        
+        // Clear validation error and re-validate
+        this._validationError = null;
+        this.validateSelection();
+        
+        // Call onValueChange if provided
+        if (this.onValueChange) {
+            this.onValueChange([...this._selectedValues]);
+        }
+    }
 }

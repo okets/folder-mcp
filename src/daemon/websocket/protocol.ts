@@ -15,6 +15,7 @@ import {
   ConnectionAckMessage,
   ErrorMessage,
   ModelListResponseMessage,
+  ModelRecommendResponseMessage,
   ValidationResult,
   isValidClientMessage,
   validateClientMessage,
@@ -23,6 +24,7 @@ import {
   isConnectionInitMessage,
   isPingMessage,
   isModelListMessage,
+  isModelRecommendMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
@@ -37,6 +39,8 @@ import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
 import { IMonitoredFoldersOrchestrator } from '../services/monitored-folders-orchestrator.js';
+import { ModelSelectionService } from '../../application/models/model-selection-service.js';
+import { OllamaDetector } from '../../infrastructure/ollama/ollama-detector.js';
 
 /**
  * Folder validation service interface
@@ -68,10 +72,10 @@ export class WebSocketProtocol {
     private configService: IDaemonConfigurationService,
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService,
+    modelHandlers: ModelHandlers,
     private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
   ) {
-    // Create model handlers first
-    this.modelHandlers = new ModelHandlers(this.logger);
+    this.modelHandlers = modelHandlers;
     
     // Create folder handlers with proper interfaces, including model handlers
     this.folderHandlers = new FolderHandlers(
@@ -143,11 +147,14 @@ export class WebSocketProtocol {
         case 'models.list':
           return await this.modelHandlers.handleModelList(message);
 
+        case 'models.recommend':
+          return await this.modelHandlers.handleModelRecommend(message, clientId);
+
         default:
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }

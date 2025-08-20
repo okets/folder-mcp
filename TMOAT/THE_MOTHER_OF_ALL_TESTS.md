@@ -467,6 +467,17 @@ ws.send(JSON.stringify({
 ✓ Clear error message
 ✓ Daemon doesn't crash
 
+**Step 8.5: Test Model Recommendation Endpoints (Phase 8 Task 11.5)**
+```bash
+# Run dedicated model recommendation test suite
+node tmp/test-model-recommendation-endpoints.js
+```
+✓ Assisted mode returns only compatible models
+✓ Manual mode includes incompatible and Ollama models
+✓ Language changes affect recommendation scoring
+✓ Machine capabilities detected correctly
+✓ Error handling for invalid requests
+
 **Step 9: Cleanup**
 ```bash
 rm -rf /Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/*
@@ -484,6 +495,7 @@ rm -rf /Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/*
 | 5-6 | Offline changes | 🟢 PASS | Manual only (complex scenario) |
 | 7 | Folder removal | 🟢 PASS | Covered by integration tests |
 | 8 | Error handling | 🟢 PASS | `tests/integration/error-recovery.test.ts` |
+| 8.5 | Model recommendations | 🟡 NEW | Phase 8 Task 11.5 - manual test only |
 
 **Overall**: 🟢 **SYSTEM READY TO SHIP**
 
@@ -725,6 +737,15 @@ The expanded TMOAT test suite now includes atomic tests for comprehensive system
 8. **Offline Changes Test**: Validates detection of file changes made while daemon was offline
 9. **Database Recovery Test**: Verifies system rebuilds database when `.folder-mcp` directory is deleted
 
+### Model Recommendation System (Tests 10-16)
+10. **Assisted Mode English Test**: Single language recommendation with auto-selection
+11. **Assisted Mode Multi-Language Test**: Multiple languages affect recommendation scoring  
+12. **Manual Mode Compatibility Test**: Shows compatible + incompatible + Ollama models
+13. **Ollama Detection Test**: Power user models detected when available
+14. **Language Impact Analysis**: Compare recommendations across language sets
+15. **Machine Capability Detection**: GPU/CPU/RAM detection for compatibility scoring
+16. **Model Endpoint Error Handling**: Invalid requests handled gracefully
+
 ### Test Execution
 ```bash
 # Run complete atomic test suite
@@ -732,6 +753,9 @@ node TMOAT/run-smoke-test.js
 
 # Run individual atomic test
 node TMOAT/atomic-test-N-description.js
+
+# Run model recommendation endpoint tests (Phase 8 Task 11.5)
+node tmp/test-model-recommendation-endpoints.js
 ```
 
 Each atomic test is self-contained and validates specific functionality with real WebSocket communication to the daemon.

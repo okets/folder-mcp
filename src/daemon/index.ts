@@ -172,11 +172,13 @@ class FolderMCPDaemon {
       await validationService.initialize();
 
       const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
+      const modelHandlers = this.diContainer.resolve(SERVICE_TOKENS.MODEL_HANDLERS);
       const webSocketProtocol = new WebSocketProtocol(
         validationService,
         daemonConfigService,
         this.fmdmService!,
         loggingService,
+        modelHandlers,
         this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
       );
       

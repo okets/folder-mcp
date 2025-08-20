@@ -79,6 +79,18 @@ export interface ModelListMessage extends WSClientMessageBase {
 }
 
 /**
+ * Model recommendation request message
+ */
+export interface ModelRecommendMessage extends WSClientMessageBase {
+  type: 'models.recommend';
+  id: string; // Required for correlation
+  payload: {
+    languages: string[];
+    mode: 'assisted' | 'manual';
+  };
+}
+
+/**
  * Union type for all client messages
  */
 export type WSClientMessage = 
@@ -87,7 +99,8 @@ export type WSClientMessage =
   | FolderAddMessage
   | FolderRemoveMessage
   | PingMessage
-  | ModelListMessage;
+  | ModelListMessage
+  | ModelRecommendMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -231,6 +244,43 @@ export interface ModelListResponseMessage extends WSServerMessageBase {
 }
 
 /**
+ * Model compatibility score for recommendations
+ */
+export interface ModelCompatibilityScore {
+  modelId: string;
+  displayName: string;
+  score: number;
+  compatibility: 'supported' | 'needs_gpu' | 'needs_vram' | 'incompatible' | 'user_managed';
+  compatibilityReason?: string | undefined;
+  details: {
+    speed: string;
+    accuracy: string;
+    languages: string;
+    type: string;
+    recommendation?: string; // For assisted mode
+  };
+}
+
+/**
+ * Model recommendation response message
+ */
+export interface ModelRecommendResponseMessage extends WSServerMessageBase {
+  type: 'models.recommend.response';
+  id: string; // Matches request ID
+  data: {
+    mode: 'assisted' | 'manual';
+    models: ModelCompatibilityScore[];
+    recommendation?: string; // Recommended model ID for assisted mode
+    machineCapabilities: {
+      hasGPU: boolean;
+      gpuMemoryGB?: number;
+      cpuCores: number;
+      ramGB: number;
+    };
+  };
+}
+
+/**
  * Union type for all server messages
  */
 export type WSServerMessage = 
@@ -244,7 +294,8 @@ export type WSServerMessage =
   | ModelDownloadProgressMessage
   | ModelDownloadCompleteMessage
   | ModelDownloadErrorMessage
-  | ModelListResponseMessage;
+  | ModelListResponseMessage
+  | ModelRecommendResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -278,11 +329,11 @@ export function validateClientMessage(message: any): MessageValidationResult {
       valid: false,
       errorCode: 'MISSING_TYPE',
       errorMessage: 'Message must have a "type" field of type string',
-      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list']
+      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend']
     };
   }
 
-  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list'];
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend'];
   
   switch (message.type) {
     case 'connection.init':
@@ -300,12 +351,25 @@ export function validateClientMessage(message: any): MessageValidationResult {
     case 'folder.remove':
     case 'ping':
     case 'models.list':
+    case 'models.recommend':
       if (typeof message.id !== 'string' || message.id.length === 0) {
         return {
           valid: false,
           errorCode: 'MISSING_ID',
           errorMessage: `Message type "${message.type}" requires a non-empty "id" field for correlation`
         };
+      }
+      // Additional validation for models.recommend
+      if (message.type === 'models.recommend') {
+        if (!message.payload || 
+            !Array.isArray(message.payload.languages) ||
+            !['assisted', 'manual'].includes(message.payload.mode)) {
+          return {
+            valid: false,
+            errorCode: 'INVALID_PAYLOAD',
+            errorMessage: 'models.recommend requires payload with languages array and mode (assisted|manual)'
+          };
+        }
       }
       return { valid: true };
     
@@ -374,6 +438,17 @@ export function isPingMessage(message: WSClientMessage): message is PingMessage 
  */
 export function isModelListMessage(message: WSClientMessage): message is ModelListMessage {
   return message.type === 'models.list' && typeof message.id === 'string';
+}
+
+/**
+ * Type guard for model recommendation messages
+ */
+export function isModelRecommendMessage(message: WSClientMessage): message is ModelRecommendMessage {
+  return message.type === 'models.recommend' && 
+         typeof message.id === 'string' &&
+         message.payload &&
+         Array.isArray(message.payload.languages) &&
+         ['assisted', 'manual'].includes(message.payload.mode);
 }
 
 // =============================================================================
@@ -469,6 +544,33 @@ export function createModelListResponse(
       models,
       backend,
       ...(cached && { cached })
+    }
+  };
+}
+
+/**
+ * Create a model recommendation response message
+ */
+export function createModelRecommendResponse(
+  id: string,
+  mode: 'assisted' | 'manual',
+  models: ModelCompatibilityScore[],
+  machineCapabilities: {
+    hasGPU: boolean;
+    gpuMemoryGB?: number;
+    cpuCores: number;
+    ramGB: number;
+  },
+  recommendation?: string
+): ModelRecommendResponseMessage {
+  return {
+    type: 'models.recommend.response',
+    id,
+    data: {
+      mode,
+      models,
+      machineCapabilities,
+      ...(recommendation && { recommendation })
     }
   };
 }

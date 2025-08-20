@@ -604,6 +604,11 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   FMDM_SERVICE: Symbol('FMDMService'),
   DAEMON_CONFIGURATION_SERVICE: Symbol('DaemonConfigurationService'),
   DAEMON_FOLDER_VALIDATION_SERVICE: Symbol('DaemonFolderValidationService'),
+  
+  // Model Selection Services
+  MODEL_SELECTION_SERVICE: Symbol('ModelSelectionService'),
+  OLLAMA_DETECTOR: Symbol('OllamaDetector'),
+  MODEL_HANDLERS: Symbol('ModelHandlers'),
 } as const;
 
 /**
