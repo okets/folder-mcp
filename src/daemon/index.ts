@@ -395,7 +395,10 @@ class FolderMCPDaemon {
    */
   private async initializeCuratedModels(loggingService: any): Promise<void> {
     try {
-      const checker = new ModelCacheChecker(loggingService);
+      // Use factories module to avoid direct instantiation
+      const { createPythonEmbeddingService, createONNXDownloader } = await import('./factories/model-factories.js');
+      
+      const checker = new ModelCacheChecker(loggingService, createPythonEmbeddingService, createONNXDownloader);
       const result = await checker.checkCuratedModels();
       
       this.fmdmService!.setCuratedModelInfo(result.models, result.status);

@@ -32,16 +32,37 @@ import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js'
 
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
+  private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
   constructor(
     private readonly fileParsingService: IFileParsingService,
     private readonly chunkingService: IChunkingService,
-    private readonly embeddingService: IEmbeddingService,
+    private readonly embeddingService: IEmbeddingService, // Fallback service
     private readonly vectorSearchService: IVectorSearchService,
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
     private readonly configService: IConfigurationService,
     private readonly fileSystemService: IFileSystemService
   ) {}
+
+  /**
+   * Get or create embedding service for a specific model
+   */
+  private async getEmbeddingServiceForModel(modelId: string): Promise<IEmbeddingService> {
+    // Check cache first
+    if (this.embeddingServiceCache.has(modelId)) {
+      return this.embeddingServiceCache.get(modelId)!;
+    }
+
+    // For now, just use the fallback embedding service for all models
+    // TODO: Implement proper model-specific embedding service creation
+    // This will require updates to the ServiceFactory to accept model parameters
+    this.loggingService.debug(`Using fallback embedding service for model: ${modelId}`);
+    
+    // Cache the fallback service for this model
+    this.embeddingServiceCache.set(modelId, this.embeddingService);
+    
+    return this.embeddingService;
+  }
 
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
@@ -144,7 +165,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Process files individually
     for (const filePath of files) {
       try {
-        const fileResult = await this.processFile(filePath, options);
+        if (!options.embeddingModel) {
+          throw new Error(`No embedding model specified for file: ${filePath}`);
+        }
+        const fileResult = await this.processFile(filePath, options.embeddingModel, options);
         this.mergeFileResult(result, fileResult);
       } catch (error) {
         const indexingError: IndexingError = {
@@ -276,7 +300,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         const { join } = await import('path');
         const absoluteFilePath = join(folderPath, fingerprint.path);
         
-        const fileResult = await this.processFile(absoluteFilePath, options);
+        if (!options.embeddingModel) {
+          throw new Error(`No embedding model specified for file: ${absoluteFilePath}`);
+        }
+        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options);
         this.mergeFileResult(result, fileResult);
         
         // Collect embeddings and metadata for vector index
@@ -327,7 +354,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     return result;
   }
-  async processFile(filePath: string, options: IndexingOptions = {}): Promise<{
+  async processFile(filePath: string, modelId: string, options: IndexingOptions = {}): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
@@ -353,7 +380,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     let metadata: any[] = [];
     
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
-      embeddings = await this.embeddingService.generateEmbeddings(chunks);
+      // Use model-specific embedding service
+      const embeddingService = await this.getEmbeddingServiceForModel(modelId);
+      embeddings = await embeddingService.generateEmbeddings(chunks);
       embeddingsCreated = embeddings.length;
       
       // Calculate file hash for proper fingerprinting

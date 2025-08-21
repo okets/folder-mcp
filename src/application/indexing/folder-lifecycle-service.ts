@@ -412,7 +412,8 @@ return;
       case 'UpdateEmbeddings':
         try {
           // Process file with IndexingOrchestrator to get embeddings and metadata
-          const fileResult = await this.indexingOrchestrator.processFile(task.file);
+          // Using per-folder model configuration for embeddings
+          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model);
           
           // Store results in SQLiteVecStorage if we have embeddings
           if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {

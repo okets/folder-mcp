@@ -333,7 +333,7 @@ describe('FolderLifecycleService', () => {
       // Simulate task processing
       await orchestrator.processTask(taskId);
       
-      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalledWith('/test/file.pdf');
+      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalledWith('/test/file.pdf', 'test-model');
     });
   });
 

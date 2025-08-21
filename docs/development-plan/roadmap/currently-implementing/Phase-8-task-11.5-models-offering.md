@@ -425,17 +425,29 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 ### Remaining Task 2: Use Selected Model for Indexing
 **Goal**: Connect wizard's selected model to actual indexing process instead of hardcoded models
 
-**Implementation needed:**
-1. **Update Indexing Orchestrator**
-   - Accept model parameter from folder configuration  
-   - Use selected model from wizard instead of hardcoded 'BAAI/bge-m3'
-   - Check model availability before starting indexing
-   - Trigger download if model missing, then resume indexing
+**ARCHITECTURE DECISION**: Keep IndexingOrchestrator as singleton, pass model as parameter to processFile()
 
-2. **Connect Wizard to Indexing**
-   - Pass selected model from wizard completion to folder configuration
-   - Update folder creation to include model information
-   - Integrate with existing indexing orchestrator flow
+**Implementation needed:**
+1. **Update IndexingOrchestrator Interface**
+   - Modify `processFile(filePath: string)` to `processFile(filePath: string, modelId: string)`
+   - Update IIndexingOrchestrator interface in `src/di/interfaces.ts`
+   - Model parameter is required - no default/optional behavior
+
+2. **Update IndexingOrchestrator Implementation**
+   - Accept required model parameter in processFile method
+   - Dynamically create embedding service based on model parameter
+   - Cache embedding services per model to avoid recreation overhead
+   - Handle model switching gracefully
+
+3. **Update FolderLifecycleService**
+   - Pass selected model from folder configuration to `processFile(task.file, this.model)`
+   - Remove TODO comment about architecture limitation
+   - Ensure model is propagated correctly through the indexing pipeline
+
+4. **Connect Wizard to Indexing**
+   - Verify model is properly stored in folder configuration
+   - Ensure model selection from wizard reaches the indexing orchestrator
+   - Test end-to-end flow from wizard → folder config → indexing
 
 ### 🛑 **USER SAFETY STOPS**
 

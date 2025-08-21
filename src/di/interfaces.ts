@@ -19,7 +19,7 @@ import { SystemCapabilities } from '../config/schema.js';
  */
 export interface IIndexingOrchestrator {
   indexFolder(path: string, options?: any): Promise<any>;
-  processFile(filePath: string): Promise<any>;
+  processFile(filePath: string, modelId: string): Promise<any>;
   removeFile(filePath: string): Promise<any>;
   pauseFolder(path: string): void;
   resumeFolder(path: string): void;

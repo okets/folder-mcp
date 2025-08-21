@@ -161,7 +161,7 @@ describe('Daemon E2E Integration Tests', () => {
       id: `add-${Date.now()}`,
       payload: { 
         path: folderPath,
-        model: 'folder-mcp:all-MiniLM-L6-v2'  // Default model
+        model: 'folder-mcp:paraphrase-multilingual-minilm'  // Default model (384 dimensions)
       }
     };
     ws.send(JSON.stringify(message));

@@ -120,15 +120,16 @@ tasks. [Your custom instructions here...]
 ## Specific Behaviors
 [Define how the assistant should behave in this style...]
 
-Our AddFolderWizard is now live and active.
-we have diviated from the sprints we were working on in '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-8-task-11.5-models-offering.md'
-instead, we focused on making the add folder wizard live, recommending real models, setting up real folders, validating real data.
-what is left?
-- downloading a model and showing progress through the FMDM for all folders awaiting this model to download. (add folder phase - "Downloading Model" before scanning phase)
-don't forget to update the FMDM to reflect the model-downloaded boolean and report download progress.
-- index using the selected model, not just the fixed one we used before.
-that is it.
-we need to update the sprints retroactively to reflect these changes:
-mark what was done as complete and the remaining tasks as the next development sprint.
-leave the testing sprints as is.
-then commit.
+
+
+
+
+
+
+10 tests are still failing in two test files: tests/integration/daemon-e2e.test.ts & tests/integration/daemon-crash-recovery.test.ts
+The tests started failing after we switched to a selectable model for each folder.
+We need to fix the core issues first.
+Before this we used one fixed model for all indexing.
+Both the model's status, download state and progress is updated in the FMDM.
+The folder's status in the fmdm should also reflect the selected model's status by adding a new state, "downloading model" that comes before the scanning phase when a model was chosen but isn't ready yet.
+This can be because the user chose a new model he didn't use before or because the local copy of the model was deleted since the last indexing (failsafe for model availability).

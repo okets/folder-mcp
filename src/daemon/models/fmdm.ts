@@ -23,6 +23,7 @@ export interface FolderConfig {
   model: string;
   status: FolderIndexingStatus;
   progress?: number; // Optional indexing progress percentage (0-100)
+  downloadProgress?: number; // Optional model download progress percentage (0-100)
   scanningProgress?: {
     phase: 'folder-to-db' | 'db-to-folder' | 'intelligent-scanning' | 'cleanup';
     processedFiles: number;

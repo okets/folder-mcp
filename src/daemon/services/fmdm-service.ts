@@ -503,10 +503,16 @@ export class FMDMService implements IFMDMService {
             notification
           };
           
-          // Only set progress if we have a value
+          // Set download progress for model downloads
           if (status === 'downloading' && progressPercentage !== undefined) {
-            updatedFolder.progress = progressPercentage;
-          } else if (folder.progress !== undefined) {
+            updatedFolder.downloadProgress = progressPercentage;
+          } else if (status === 'completed' || status === 'failed') {
+            // Clear download progress when done
+            delete updatedFolder.downloadProgress;
+          }
+          
+          // Preserve existing progress if it exists
+          if (folder.progress !== undefined) {
             updatedFolder.progress = folder.progress;
           }
           

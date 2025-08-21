@@ -144,7 +144,7 @@ describe('Daemon Crash Recovery', () => {
       id: `add-${Date.now()}`,
       payload: { 
         path: folderPath,
-        model: 'folder-mcp:all-MiniLM-L6-v2'
+        model: 'folder-mcp:paraphrase-multilingual-minilm'
       }
     };
     ws?.send(JSON.stringify(message));

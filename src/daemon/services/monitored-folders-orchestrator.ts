@@ -19,6 +19,10 @@ import { WindowsPerformanceService, IWindowsPerformanceService } from './windows
 import { IntelligentMemoryMonitor, MemoryAlert, MemoryBaseline } from '../../domain/daemon/intelligent-memory-monitor.js';
 import { SimpleSystemMonitor } from '../../infrastructure/daemon/simple-system-monitor.js';
 import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/daemon/system-performance-telemetry.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -45,6 +49,42 @@ export interface IMonitoredFoldersOrchestrator {
    * Get manager for a specific folder
    */
   getManager(folderPath: string): IFolderLifecycleManager | undefined;
+}
+
+// Helper function to get model dimensions from curated models
+function getModelDimensions(modelId: string): number {
+  try {
+    // Load curated models JSON dynamically - ES module compatible
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const curatedModelsPath = path.join(__dirname, '../../config/curated-models.json');
+    const curatedModelsContent = fs.readFileSync(curatedModelsPath, 'utf-8');
+    const curatedModels = JSON.parse(curatedModelsContent);
+    
+    // Check GPU models
+    const gpuModel = curatedModels.gpuModels.models.find((m: any) => m.id === modelId);
+    if (gpuModel) {
+      if (!gpuModel.dimensions) {
+        throw new Error(`Model ${modelId} found in curated models but missing dimensions property`);
+      }
+      return gpuModel.dimensions;
+    }
+    
+    // Check CPU models
+    const cpuModel = curatedModels.cpuModels.models.find((m: any) => m.id === modelId);
+    if (cpuModel) {
+      if (!cpuModel.dimensions) {
+        throw new Error(`Model ${modelId} found in curated models but missing dimensions property`);
+      }
+      return cpuModel.dimensions;
+    }
+    
+    // Model not found in curated list - this is an error
+    throw new Error(`Model ${modelId} not found in curated models. Cannot determine dimensions.`);
+  } catch (error) {
+    // Re-throw with context about model dimension lookup
+    throw new Error(`Failed to get dimensions for model ${modelId}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 // Factory function to create FolderLifecycleService instances
@@ -306,11 +346,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Skip model validation - let indexing fail naturally if model isn't available
       this.logger.debug(`[ORCHESTRATOR] Creating folder lifecycle for ${path} with model ${model}`);
       
+      // Get the actual model dimensions from curated models
+      const modelDimension = getModelDimensions(model);
+      this.logger.debug(`[ORCHESTRATOR] Model ${model} has dimension ${modelDimension}`);
+      
       // Create SQLite storage for this folder
       const storage = new SQLiteVecStorage({
         folderPath: path,
         modelName: model,
-        modelDimension: 384, // TODO: Get from model config
+        modelDimension: modelDimension,
         logger: this.logger
       });
       

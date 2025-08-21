@@ -83,7 +83,7 @@ export class ModelSelectionService {
       languages,
       mode: 'assisted',
       prioritizeAccuracy: true, // Assisted mode prioritizes reliability
-      maxAlternatives: 4 // Show more alternatives including CPU models
+      maxAlternatives: 2 // Limit alternatives for assisted mode
     });
   }
 

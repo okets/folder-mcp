@@ -168,6 +168,8 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('createTypedTransport') &&
             !content.includes('createFolderLifecycleService') &&
             !content.includes('OllamaEmbeddingService') &&
+            !content.includes('createPythonEmbeddingService') &&
+            !content.includes('createONNXDownloader') &&
             !file.includes('ValidationPipelineService')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);
         }

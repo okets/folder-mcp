@@ -10,6 +10,10 @@ import { ILoggingService } from '../../di/interfaces.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 
+// Factory functions for dependency injection
+export type PythonEmbeddingServiceFactory = (config: any) => PythonEmbeddingService;
+export type ONNXDownloaderFactory = () => ONNXDownloader;
+
 /**
  * Result of checking all curated models
  */
@@ -24,7 +28,13 @@ export interface ModelCheckResult {
 export class ModelCacheChecker {
   private readonly CHECK_TIMEOUT = 5000; // 5 seconds max for GPU checks
   
-  constructor(private logger: ILoggingService) {}
+  constructor(
+    private logger: ILoggingService,
+    private pythonEmbeddingServiceFactory?: PythonEmbeddingServiceFactory,
+    private onnxDownloaderFactory?: ONNXDownloaderFactory
+  ) {
+    // Factories are optional and will use external creation if not provided
+  }
 
   /**
    * Check all curated models - CPU models always, GPU models with timeout
@@ -78,7 +88,18 @@ export class ModelCacheChecker {
    */
   private async checkCPUModels(): Promise<CuratedModelInfo[]> {
     const models: CuratedModelInfo[] = [];
-    const onnxDownloader = new ONNXDownloader();
+    
+    // Skip CPU model check if factory not provided
+    if (!this.onnxDownloaderFactory) {
+      this.logger.debug('ONNX downloader factory not provided, skipping CPU model checks');
+      return this.getCuratedCPUModelIds().map(id => ({
+        id,
+        installed: false,
+        type: 'cpu' as const
+      }));
+    }
+    
+    const onnxDownloader = this.onnxDownloaderFactory();
     
     // Get curated CPU model IDs
     const cpuModelIds = this.getCuratedCPUModelIds();
@@ -145,8 +166,14 @@ export class ModelCacheChecker {
     let pythonService: PythonEmbeddingService | null = null;
     
     try {
+      // Skip GPU model check if factory not provided
+      if (!this.pythonEmbeddingServiceFactory) {
+        this.logger.debug('Python embedding service factory not provided, skipping GPU model checks');
+        return this.getDefaultGPUModels();
+      }
+      
       // Create single Python service for all GPU checks
-      pythonService = new PythonEmbeddingService({
+      pythonService = this.pythonEmbeddingServiceFactory({
         modelName: 'BAAI/bge-m3', // Any valid HuggingFace model ID works
         pythonPath: 'python3',
         timeout: 3000 // Shorter timeout for initialization
