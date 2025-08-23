@@ -735,6 +735,9 @@ class EmbeddingHandler:
             }
         
         try:
+            # Reset keep-alive timer for model downloads to prevent shutdown
+            self._reset_keep_alive_timer()
+            
             # Check if already cached
             if self.is_model_cached(model_name):
                 return {

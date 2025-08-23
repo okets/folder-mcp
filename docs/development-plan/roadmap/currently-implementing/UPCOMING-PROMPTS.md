@@ -174,14 +174,22 @@ We need to work systematically towards a well defined, measurable goal that can 
 
 
 
-────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────
 
-────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────
 follow this TMOAT procedure to verify success:
 1. Run a daemon in the background. monitor it's output byt dumping it to a file you can read later in the investigation stage.
 2. use the websocket API to remove the project's folder from indexing.
 3. verify that ...
 
-────────────────────────────────────────────────────────────────────────
-I restarted the daemon. it triggered a full re-indexing.
-It might also be that the "scanning" phase is reporting "indexing" but more likely we have a bug in the scanning phase causing all files to be re-indexed when the daemon restarts instead of just processing the changed/new files.
+────────────────────────────────────────────────────────────────────
+
+I remind you that we don't go and blindly change code hoping we fixed an issue. you as an agent can run bash commands and access the daemon's websocket using scripts. we are on a correct course task and should be very careful!
+Be a good TMOAT agent!
+
+
+
+Please erase all local models. I want to see how fast each takes myself.
+
+1. the model is downloading behind the scenes. but the TUI shows something timed out before it downloads.[Image #1]
+2. We invested effort in download progress and progress simulation for model downloading. can't we show a live status update the way we do for indexing?

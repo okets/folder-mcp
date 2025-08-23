@@ -221,15 +221,15 @@ export class ModelDownloadManager implements IModelDownloadManager {
     this.logger.info(`[MODEL-DOWNLOAD] Starting download of ${huggingfaceId} via Python embedding service`);
     
     try {
-      // Start progress simulation while download is happening
-      const progressInterval = this.startProgressSimulation(modelId);
+      // Set up real-time progress callback to replace simulation
+      this.pythonEmbeddingService!.setDownloadProgressCallback((progress: number) => {
+        this.logger.debug(`[MODEL-DOWNLOAD] Real progress for ${modelId}: ${progress}%`);
+        this.updateModelDownloadState(modelId, true, progress);
+      });
       
       try {
         // Call the Python service to download the model
         const result = await this.pythonEmbeddingService.downloadModel(huggingfaceId!);
-        
-        // Stop progress simulation
-        clearInterval(progressInterval);
         
         this.logger.debug(`[MODEL-DOWNLOAD] Download result for ${modelId}: success=${result.success}, progress=${result.progress}`);
         
@@ -245,9 +245,12 @@ export class ModelDownloadManager implements IModelDownloadManager {
         this.updateModelDownloadState(modelId, false, 100);
         
       } catch (downloadError) {
-        // Stop progress simulation on error
-        clearInterval(progressInterval);
+        // Clear the progress callback on error
+        this.pythonEmbeddingService!.setDownloadProgressCallback(() => {});
         throw downloadError;
+      } finally {
+        // Always clear the progress callback after download completes/fails
+        this.pythonEmbeddingService!.setDownloadProgressCallback(() => {});
       }
       
     } catch (error) {
@@ -273,35 +276,6 @@ export class ModelDownloadManager implements IModelDownloadManager {
     }
   }
   
-  /**
-   * Start progress simulation for model download
-   * Provides visual feedback while download is happening
-   */
-  private startProgressSimulation(modelId: string): NodeJS.Timeout {
-    let currentProgress = 5; // Start at 5% to show immediate feedback
-    
-    const interval = setInterval(() => {
-      // Simulate realistic download progress (slower at start, faster in middle, slower at end)
-      let increment: number;
-      if (currentProgress < 20) {
-        increment = Math.random() * 3 + 1; // 1-4% per update at start
-      } else if (currentProgress < 80) {
-        increment = Math.random() * 5 + 2; // 2-7% per update in middle
-      } else {
-        increment = Math.random() * 2 + 0.5; // 0.5-2.5% per update near end
-      }
-      
-      currentProgress = Math.min(90, currentProgress + increment); // Cap at 90% to leave room for actual completion
-      
-      // Update FMDM with simulated progress
-      this.updateModelDownloadState(modelId, true, Math.round(currentProgress));
-      
-      this.logger.debug(`[MODEL-DOWNLOAD] Progress simulation for ${modelId}: ${Math.round(currentProgress)}%`);
-      
-    }, 800); // Update every 800ms for smooth but not overwhelming updates
-    
-    return interval;
-  }
   
   /**
    * Update model download state in FMDM

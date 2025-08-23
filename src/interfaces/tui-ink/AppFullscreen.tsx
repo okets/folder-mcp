@@ -306,9 +306,14 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     folderPath,
                     model: (folder.model && folder.model !== 'unknown') ? folder.model : 'nomic-embed-text',
                     isValid: folderValid,
-                    folderStatus: folder.status === 'indexing' && folder.progress !== undefined 
-                        ? `indexing (${folder.progress}%)`  // Include progress for indexing status
-                        : folder.status || 'pending', // Pass the actual status from FMDM
+                    folderStatus: (() => {
+                        if (folder.status === 'indexing' && folder.progress !== undefined) {
+                            return `indexing (${folder.progress}%)`;
+                        } else if (folder.status === 'downloading-model' && folder.downloadProgress !== undefined) {
+                            return `downloading-model (${folder.downloadProgress}%)`;
+                        }
+                        return folder.status || 'pending';
+                    })(), // Include progress for both indexing and downloading-model statuses
                     statusColor: getStatusColor(folder.status), // Map status to appropriate color
                     validationState, // Pass the validation state for error/warning display
                     onRemove: async (pathToRemove: string) => {

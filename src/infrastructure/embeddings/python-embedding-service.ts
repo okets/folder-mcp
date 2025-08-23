@@ -118,6 +118,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private restartAttempts = 0;
   private lastRestartTime = 0;
   private restartTimer: NodeJS.Timeout | null = null;
+  private downloadProgressCallback?: (progress: number) => void;
 
   constructor(config?: Partial<PythonEmbeddingConfig>) {
     // Try to detect the correct Python command for the platform
@@ -495,7 +496,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         await Promise.race([exitPromise, timeoutPromise]);
 
         // Force kill if still running
-        if (!this.pythonProcess.killed) {
+        if (this.pythonProcess && !this.pythonProcess.killed) {
           this.pythonProcess.kill('SIGKILL');
         }
 
@@ -563,6 +564,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       this.pythonProcess.stderr?.on('data', (data) => {
         const message = data.toString();
         stderrBuffer += message;
+        // Extract download progress from HuggingFace progress bars
+        this.extractDownloadProgress(message);
+        
         // Still log to console for debugging
         if (message.trim()) {
           console.error(`Python[stderr]: ${message.trim()}`);
@@ -856,7 +860,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Force kill if still alive
-        if (!this.pythonProcess.killed) {
+        if (this.pythonProcess && !this.pythonProcess.killed) {
           this.pythonProcess.kill('SIGKILL');
         }
       }
@@ -919,7 +923,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       const response = await this.sendJsonRpcRequest('download_model', {
         model_name: modelName,
         request_id: `download_${this.nextRequestId++}`
-      });
+      }, 300000); // 5 minutes timeout for model downloads
 
       return response;
     } catch (error) {
@@ -985,4 +989,48 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       return modelName;
     }
   }
+
+  /**
+   * Set callback for download progress updates
+   */
+  setDownloadProgressCallback(callback: (progress: number) => void): void {
+    this.downloadProgressCallback = callback;
+  }
+
+  /**
+   * Extract download progress from HuggingFace stderr output
+   * Looks for patterns like: "Fetching 30 files:  57%|█████▋    | 17/30 [00:00<00:00, 38.85it/s]"
+   */
+  private extractDownloadProgress(message: string): void {
+    if (!this.downloadProgressCallback) {
+      return;
+    }
+
+    // Look for HuggingFace progress patterns
+    const progressMatches = [
+      // Pattern: "Fetching X files: 57%|progress bar| Y/X [time, speed]"
+      /Fetching \d+ files:\s+(\d+)%/,
+      // Pattern: "57%|█████▋    | 17/30"  
+      /(\d+)%\|[█▋\s]*\|\s*\d+\/\d+/,
+      // Pattern: just "57%" at start of line
+      /^\s*(\d+)%/
+    ];
+
+    for (const pattern of progressMatches) {
+      const match = message.match(pattern);
+      if (match) {
+        const progress = parseInt(match[1]!);
+        if (progress >= 0 && progress <= 100) {
+          // Only report progress changes to avoid spam
+          if (!this.lastReportedProgress || Math.abs(progress - this.lastReportedProgress) >= 1) {
+            this.downloadProgressCallback(progress);
+            this.lastReportedProgress = progress;
+          }
+          break; // Found progress, no need to check other patterns
+        }
+      }
+    }
+  }
+
+  private lastReportedProgress?: number;
 }

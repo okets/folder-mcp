@@ -26,15 +26,35 @@ You will need a TMOAT Script to add and remove folders consistently and clean up
 use a pre- downloaded GPU model only at this stage.
 once it works with this, and I will verify this entire flow using the TUI, we will proceed to downloading a new model.
 
-*Step 2, verifying GPU model downloading:* [in progress]
-1. Clear the model cache: rm -rf ~/.cache/torch/sentence_transformers/
+*Step 2, verifying GPU model downloading:* [Completed]
+1. Clear the model cache: rm -rf ~/.cache/huggingface/hub/models
 2. Add a the project's folder to be indexed using "MiniLM-L12 (Fast)" model
 3. Watch the download progress reporting in the FMDM, see that it enters the "downloading model" state, reporting progress properly, then moves on to scanning, indexing and finally active.
 I will verify this entire flow using the TUI once you are done with the previous steps.
 
-
-*Step 3, verifying CPU, ONYX model downloading and indexing:* [Not Started]
+*Step 3, verifying CPU, ONNX model downloading and indexing:* [Next]
 1. Add a new folder to be indexed using the downloaded "○ E5-Large ONNX (High Accuracy)" model.
 2. Add a the project's folder to be indexed using "MiniLM-L12 (Fast)" model
 3. Watch the download progress reporting in the FMDM, see that it enters the "downloading model" state, reporting progress properly, then moves on to scanning, indexing and finally active.
-I will verify this entire flow using the TUI once you are done with the previous steps.
+
+*step 4, fix daemon takes long time to load, TUI windows waiting for a daemon to load*
+Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
+TUI wait "ascii screenshot":
+                            ⚠ folder-mcp service not running
+                    The daemon is required for folder-mcp to function.
+                          Please start the daemon and try again.
+
+                               Attempt 4 - Next retry in 2s
+
+                             Press enter to start the service
+                                     Press esc to exit
+
+1. run a daemon instance in the background and monitor it's logs.
+2. analyze what actions are delaying the startup process.
+3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
+
+*Step 5, setting default model automatically:* [Not Started]
+All models are working perfectly at this stage. now we need to set the default one.
+1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
+check for GPU and memory availability.
+We have a recommendation engine in place that can help with this decision. but it should be done once per daemon instance. the hardware doesn't change frequently, so this is a reasonable approach.
