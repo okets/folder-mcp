@@ -400,54 +400,162 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
 
 ---
 
-## 🚧 REMAINING WORK: Next Development Sprint
+## 🚧 REMAINING WORK: FMDM Dual-State Model Design Implementation
 
-### Remaining Task 1: Model Download Progress Tracking
-**Goal**: Add download progress (0-100%) to FMDM for all folders awaiting model download
+### Overview: Fix Model Download Flow with Clean Module Boundaries
 
-**Implementation needed:**
-1. **Extend FMDM with Download Progress**
-   - Add `downloadProgress?: number` field to `FolderConfig` interface
-   - Update 'downloading-model' status to include progress percentage
-   - Broadcast progress updates to ALL folders using the same model
+The failing integration tests reveal that our model download flow needs proper integration between the **CuratedModels section** (global model state) and the **Folders section** (per-folder state) in the FMDM.
 
-2. **Implement Global Model Download Manager** 
-   - Track download progress for model downloads
-   - Update all affected folders during download progress
-   - Prevent duplicate downloads for same model across folders
-   - Location: `src/application/models/model-download-manager.ts`
+### FMDM Dual-State Architecture
 
-3. **Update FMDM Service Integration**
-   - Broadcast download progress via WebSocket to TUI clients
-   - Show progress in AddFolderWizard during "Downloading Model" phase
-   - Location: Update `src/daemon/services/fmdm-service.ts`
+```mermaid
+graph TB
+    subgraph "FMDM Structure"
+        subgraph "CuratedModels Section (Global State)"
+            CM[CuratedModelInfo Array]
+            CM --> M1["Model: folder-mcp:bge-m3<br/>installed: false<br/>downloading: true<br/>downloadProgress: 45%"]
+            CM --> M2["Model: folder-mcp:minilm<br/>installed: true<br/>downloading: false"]
+            CM --> M3["Model: folder-mcp:e5-large<br/>installed: false<br/>downloading: false"]
+        end
+        
+        subgraph "Folders Section (Per-Folder State)"
+            F[FolderConfig Array]
+            F --> F1["Folder: /docs/legal<br/>model: folder-mcp:bge-m3<br/>status: downloading-model<br/>downloadProgress: 45%"]
+            F --> F2["Folder: /docs/finance<br/>model: folder-mcp:bge-m3<br/>status: downloading-model<br/>downloadProgress: 45%"]
+            F --> F3["Folder: /docs/marketing<br/>model: folder-mcp:minilm<br/>status: scanning"]
+        end
+    end
+    
+    M1 -.->|"Same progress<br/>Single source of truth"| F1
+    M1 -.->|"Same progress"| F2
+    M2 -.->|"Model ready"| F3
+```
 
-### Remaining Task 2: Use Selected Model for Indexing
-**Goal**: Connect wizard's selected model to actual indexing process instead of hardcoded models
+### Enhanced FMDM Interfaces
 
-**ARCHITECTURE DECISION**: Keep IndexingOrchestrator as singleton, pass model as parameter to processFile()
+```typescript
+// Enhanced CuratedModelInfo with download state
+interface CuratedModelInfo {
+  id: string;                    // e.g., 'folder-mcp:bge-m3'
+  installed: boolean;             // Is model downloaded/cached locally
+  type: 'gpu' | 'cpu';           // Model type
+  
+  // NEW fields for download tracking
+  downloading?: boolean;          // Currently downloading
+  downloadProgress?: number;      // 0-100 percentage
+  downloadError?: string;         // Error message if download failed
+  lastChecked?: string;          // ISO timestamp of last availability check
+}
 
-**Implementation needed:**
-1. **Update IndexingOrchestrator Interface**
-   - Modify `processFile(filePath: string)` to `processFile(filePath: string, modelId: string)`
-   - Update IIndexingOrchestrator interface in `src/di/interfaces.ts`
-   - Model parameter is required - no default/optional behavior
+// FolderConfig with clarified semantics
+interface FolderConfig {
+  path: string;
+  model: string;
+  status: FolderIndexingStatus;   // Now includes 'downloading-model'
+  progress?: number;              // INDEXING progress (0-100)
+  downloadProgress?: number;      // MODEL DOWNLOAD progress (0-100) - mirrors CuratedModelInfo
+  scanningProgress?: {...};
+  notification?: {...};
+}
+```
 
-2. **Update IndexingOrchestrator Implementation**
-   - Accept required model parameter in processFile method
-   - Dynamically create embedding service based on model parameter
-   - Cache embedding services per model to avoid recreation overhead
-   - Handle model switching gracefully
+### Module Boundaries & Responsibilities
 
-3. **Update FolderLifecycleService**
-   - Pass selected model from folder configuration to `processFile(task.file, this.model)`
-   - Remove TODO comment about architecture limitation
-   - Ensure model is propagated correctly through the indexing pipeline
+```mermaid
+graph LR
+    subgraph "Model Management Layer"
+        MDM[ModelDownloadManager]
+        MCC[ModelCacheChecker]
+        MDM --> |"Updates"| CMS[CuratedModels State]
+    end
+    
+    subgraph "Folder Management Layer"
+        MFO[MonitoredFoldersOrchestrator]
+        FLS[FolderLifecycleService]
+        MFO --> |"Updates"| FS[Folders State]
+    end
+    
+    subgraph "FMDM Service (Central State)"
+        FMDM[FMDMService]
+        CMS --> FMDM
+        FS --> FMDM
+    end
+    
+    MDM -.->|"Queries model state"| FMDM
+    MFO -.->|"Queries model state"| FMDM
+    
+    subgraph "Clients"
+        TUI[TUI Client]
+        CLI[CLI Client]
+    end
+    
+    FMDM -->|"Broadcasts"| TUI
+    FMDM -->|"Broadcasts"| CLI
+```
 
-4. **Connect Wizard to Indexing**
-   - Verify model is properly stored in folder configuration
-   - Ensure model selection from wizard reaches the indexing orchestrator
-   - Test end-to-end flow from wizard → folder config → indexing
+### State Flow with Module Boundaries
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant MFO as MonitoredFoldersOrchestrator
+    participant FMDM as FMDMService
+    participant MDM as ModelDownloadManager
+    participant Python as Python/ONNX Service
+    
+    User->>MFO: addFolder("/docs", "folder-mcp:bge-m3")
+    MFO->>FMDM: Query model state
+    FMDM-->>MFO: Model not installed
+    
+    MFO->>FMDM: Update folder status="downloading-model"
+    MFO->>MDM: Request model download
+    
+    loop Download Progress
+        MDM->>Python: Download chunk
+        Python-->>MDM: Progress update
+        MDM->>FMDM: Update curatedModels[model].downloadProgress
+        FMDM->>FMDM: Mirror to folders[].downloadProgress
+        FMDM-->>User: Broadcast FMDM update
+    end
+    
+    MDM->>FMDM: Update curatedModels[model].installed=true
+    FMDM->>MFO: Notify model ready
+    MFO->>FMDM: Update folder status="scanning"
+    MFO->>MFO: Start folder scanning
+```
+
+### Implementation Tasks
+
+#### Task 1: Enhance FMDM Interfaces
+- Add download tracking fields to `CuratedModelInfo`
+- Update TypeScript interfaces in `/src/daemon/models/fmdm.ts`
+- Clarify semantics in comments (indexing vs download progress)
+
+#### Task 2: Create ModelDownloadManager Service
+- **Location**: `/src/daemon/services/model-download-manager.ts`
+- **Responsibilities**:
+  - Check if model is installed via FMDM query
+  - Initiate downloads and prevent duplicates
+  - Track download progress and update CuratedModels section
+  - Handle download failures gracefully
+
+#### Task 3: Update MonitoredFoldersOrchestrator
+- Add model availability check in `executeAddFolder()`
+- Set folder status to 'downloading-model' when model not ready
+- Query FMDM for model state instead of direct checks
+- Mirror download progress from CuratedModels to folders
+
+#### Task 4: Enhanced FMDMService State Management
+- Implement state mirroring between CuratedModels and Folders
+- Add atomic update methods for consistency
+- Ensure broadcasts contain both model and folder state
+- Add query methods for model availability checks
+
+#### Task 5: Fix Integration Tests
+- Update tests to handle 'downloading-model' status
+- Mock model download states appropriately
+- Test both successful downloads and failure scenarios
+- Verify state consistency between CuratedModels and Folders
 
 ### 🛑 **USER SAFETY STOPS**
 

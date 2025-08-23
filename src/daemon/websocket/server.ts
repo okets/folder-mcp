@@ -84,18 +84,11 @@ export class FMDMWebSocketServer {
     // Subscribe to FMDM updates
     this.log('debug', `Subscribing to FMDM updates`);
     this.fmdmUnsubscribe = this.fmdmService.subscribe((fmdm: FMDM) => {
-      // Check if this update contains progress information
-      const hasProgress = fmdm.folders.some(f => f.progress !== undefined);
-      // Only log progress updates at info level if significant
-      if (hasProgress) {
-        const progressFolders = fmdm.folders.filter(f => f.progress !== undefined);
-        // Log progress at intervals (every 10%)
-        progressFolders.forEach(f => {
-          if (f.progress && (f.progress % 10 === 0 || f.progress === 100)) {
-            this.log('info', `[INDEXING] Progress: ${f.path} (${f.progress}%)`);
-          }
-        });
-      }
+      // Log progress for folders that have it
+      const progressFolders = fmdm.folders.filter(f => f.progress !== undefined);
+      progressFolders.forEach(f => {
+        this.log('info', `[INDEXING] Progress: ${f.path} (${f.progress}%)`);
+      });
       
       // Store latest FMDM state
       this.latestFMDM = fmdm;
@@ -299,7 +292,6 @@ export class FMDMWebSocketServer {
    */
   public broadcastFMDM(fmdm: FMDM): void {
     const message = createFMDMUpdateMessage(fmdm);
-
     let successCount = 0;
     
     this.clients.forEach(({ ws }) => {

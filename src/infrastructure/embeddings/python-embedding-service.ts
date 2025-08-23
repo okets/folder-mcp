@@ -522,6 +522,12 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    * Start the Python process
    */
   private async startPythonProcess(): Promise<void> {
+    // Check if process is already running
+    if (this.pythonProcess && !this.pythonProcess.killed) {
+      console.error(`Python process already running for model: ${this.config.modelName}`);
+      return;
+    }
+    
     return new Promise((resolve, reject) => {
       console.error(`Starting Python process: ${this.config.pythonPath} ${this.config.scriptPath} ${this.config.modelName}`);
 

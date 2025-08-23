@@ -79,7 +79,6 @@ export class WebSocketProtocol {
     
     // Create folder handlers with proper interfaces, including model handlers
     this.folderHandlers = new FolderHandlers(
-      this.configService,
       this.fmdmService,
       this.validationService,
       this.modelHandlers,

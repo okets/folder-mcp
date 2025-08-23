@@ -67,6 +67,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
     
+    // Embedding model MUST be provided - no fallback to reveal configuration issues
+    if (!options.embeddingModel) {
+      throw new Error(`No embedding model specified in indexing options. This indicates a configuration flow issue that must be fixed.`);
+    }
+    
     // Generate unique indexing ID for progress tracking
     const indexingId = `idx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -150,6 +155,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
   async indexFiles(files: string[], options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
+    
+    // Embedding model MUST be provided - no fallback to reveal configuration issues
+    if (!options.embeddingModel) {
+      throw new Error(`No embedding model specified in indexing options. This indicates a configuration flow issue that must be fixed.`);
+    }
+    
     this.loggingService.info('Starting file indexing', { fileCount: files.length, options });
 
     const result: IndexingResult = {

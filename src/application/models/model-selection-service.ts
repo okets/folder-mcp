@@ -108,6 +108,10 @@ export class ModelSelectionService {
     return this.capabilitiesDetector.detectCapabilities();
   }
 
+  getEvaluator(): ModelCompatibilityEvaluator {
+    return this.compatibilityEvaluator;
+  }
+
   clearCapabilitiesCache(): void {
     this.capabilitiesDetector.clearCache();
   }

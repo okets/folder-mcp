@@ -459,17 +459,21 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         
         return items;
     }, [
-        // Stable dependencies for folder items
-        JSON.stringify(currentFolders?.map(f => ({
-            path: f.path,
-            model: f.model,
-            hasError: f.notification?.type === 'error',
-            errorMessage: f.notification?.type === 'error' ? f.notification.message : undefined,
-            hasWarning: f.notification?.type === 'warning', 
-            warningMessage: f.notification?.type === 'warning' ? f.notification.message : undefined,
-            // Only include status if it's not indexing (to prevent recreation on progress updates)
-            status: f.status === 'indexing' ? 'indexing' : f.status
-        })) || []),
+        // Stable dependencies for folder items - include progress and notification message for real-time updates
+        JSON.stringify(currentFolders?.map(f => {
+            const deps = {
+                path: f.path,
+                model: f.model,
+                hasError: f.notification?.type === 'error',
+                errorMessage: f.notification?.type === 'error' ? f.notification.message : undefined,
+                hasWarning: f.notification?.type === 'warning', 
+                warningMessage: f.notification?.type === 'warning' ? f.notification.message : undefined,
+                status: f.status,
+                progress: f.progress, // Include progress to enable real-time progress updates
+                infoMessage: f.notification?.type === 'info' ? f.notification.message : undefined // Include info notification for progress messages
+            };
+            return deps;
+        }) || []),
         showAddFolderWizard,
         wizardInstance,
         wizardLoading,

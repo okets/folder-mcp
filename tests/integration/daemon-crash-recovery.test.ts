@@ -12,6 +12,7 @@ import * as path from 'path';
 import { homedir } from 'os';
 import WebSocket from 'ws';
 import { DaemonConnector } from '../../src/interfaces/tui-ink/daemon-connector.js';
+import { getSmallestModelId } from './helpers/model-setup.js';
 
 describe('Daemon Crash Recovery', () => {
   const TEST_FOLDER = path.join(process.cwd(), 'tests/fixtures/tmp/crash-recovery-test');
@@ -22,6 +23,7 @@ describe('Daemon Crash Recovery', () => {
   let daemonProcess: ChildProcess | null = null;
   let ws: WebSocket | null = null;
   let daemonConnector: DaemonConnector | null = null;
+  let testModelId: string; // Auto-discovered test model
 
   // Helper to create test folder with content
   const setupTestFolder = async () => {
@@ -144,7 +146,7 @@ describe('Daemon Crash Recovery', () => {
       id: `add-${Date.now()}`,
       payload: { 
         path: folderPath,
-        model: 'folder-mcp:paraphrase-multilingual-minilm'
+        model: testModelId  // Use auto-discovered test model
       }
     };
     ws?.send(JSON.stringify(message));
@@ -156,6 +158,13 @@ describe('Daemon Crash Recovery', () => {
   };
 
   beforeEach(async () => {
+    // Get test model ID (daemon will handle download if needed)
+    if (!testModelId) {
+      console.log('[TEST] Getting test model ID...');
+      testModelId = getSmallestModelId();
+      console.log(`[TEST] Will use test model: ${testModelId}`);
+    }
+    
     // Clean up daemon configuration FIRST, before setting up test folder
     const configDir = path.join(homedir(), '.folder-mcp');
     if (fs.existsSync(configDir)) {
@@ -169,7 +178,7 @@ describe('Daemon Crash Recovery', () => {
     }
     
     await setupTestFolder();
-  });
+  }); // Default timeout should be sufficient with fixed cache detection
 
   afterEach(async () => {
     // Close WebSocket
@@ -210,8 +219,33 @@ describe('Daemon Crash Recovery', () => {
     console.log('Connecting to daemon...');
     await connectToDaemon();
     
+    // Wait for curated models to be loaded
+    await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.curatedModels && fmdm.fmdm.curatedModels.length > 0,
+      10000
+    );
+    
     console.log('Adding folder for indexing...');
     await addFolder(TEST_FOLDER);
+    
+    // Check if model needs downloading
+    const initialFmdm = await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.folders.some((f: any) => f.path === TEST_FOLDER),
+      2000
+    );
+    
+    const initialFolder = initialFmdm.fmdm.folders.find((f: any) => f.path === TEST_FOLDER);
+    if (initialFolder?.status === 'downloading-model') {
+      console.log('[TEST] Model download in progress, waiting for completion...');
+      // Wait for model download to complete
+      await waitForFMDMUpdate(
+        (fmdm) => {
+          const f = fmdm.fmdm.folders.find((fold: any) => fold.path === TEST_FOLDER);
+          return f && f.status !== 'downloading-model';
+        },
+        60000 // 60s for model download
+      );
+    }
     
     // Wait for indexing to start
     console.log('Waiting for indexing to start...');
@@ -249,6 +283,12 @@ describe('Daemon Crash Recovery', () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     await connectToDaemon();
     
+    // Wait for curated models to be loaded in restarted daemon
+    await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.curatedModels && fmdm.fmdm.curatedModels.length > 0,
+      10000
+    );
+    
     // Since we're using isolated configuration, the restarted daemon won't have 
     // the folder in its config. We need to re-add it to test that the database persists.
     console.log('Re-adding folder to test database persistence...');
@@ -264,10 +304,10 @@ describe('Daemon Crash Recovery', () => {
       30000
     );
     
-    const folder = finalUpdate.fmdm.folders.find((f: any) => f.path === TEST_FOLDER);
-    expect(folder).toBeDefined();
-    expect(folder.status).toBe('active');
-    expect(folder.progress).toBe(100);
+    const finalFolder = finalUpdate.fmdm.folders.find((f: any) => f.path === TEST_FOLDER);
+    expect(finalFolder).toBeDefined();
+    expect(finalFolder.status).toBe('active');
+    expect(finalFolder.progress).toBe(100);
     
     // Verify database persists
     const dbPath = path.join(TEST_FOLDER, '.folder-mcp', 'embeddings.db');
@@ -292,6 +332,12 @@ describe('Daemon Crash Recovery', () => {
     
     console.log('Connecting to daemon...');
     await connectToDaemon();
+    
+    // Wait for curated models to be loaded
+    await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.curatedModels && fmdm.fmdm.curatedModels.length > 0,
+      10000
+    );
     
     console.log('Adding folder with corrupted database...');
     await addFolder(TEST_FOLDER);
@@ -328,6 +374,12 @@ describe('Daemon Crash Recovery', () => {
     if (ws) ws.close();
     await new Promise(resolve => setTimeout(resolve, 1000));
     await connectToDaemon();
+    
+    // Wait for curated models to be loaded in recovery daemon
+    await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.curatedModels && fmdm.fmdm.curatedModels.length > 0,
+      10000
+    );
     
     // Since we're using isolated configuration, we need to re-add the folder
     // to test the corrupted database recovery

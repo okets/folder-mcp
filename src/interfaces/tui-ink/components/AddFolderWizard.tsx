@@ -46,7 +46,7 @@ class SimpleWebSocketClient implements WebSocketClient {
         return new Promise(async (resolve, reject) => {
             try {
                 // Import WebSocket dynamically using ES modules
-                console.error(`🔗 Creating WebSocket connection to ${url}`);
+                // Creating WebSocket connection
                 const { default: WebSocket } = await import('ws');
                 this.ws = new WebSocket(url);
                 
@@ -59,10 +59,8 @@ class SimpleWebSocketClient implements WebSocketClient {
                 };
                 
                 this.ws.onmessage = (event: any) => {
-                    console.error('🔔 Raw WebSocket message received:', event.data);
                     try {
                         const data = JSON.parse(event.data);
-                        console.error('🔔 Parsed WebSocket data:', JSON.stringify(data, null, 2));
                         this.messageCallbacks.forEach(callback => callback(data));
                     } catch (error) {
                         console.error('Failed to parse WebSocket message:', error);
@@ -412,9 +410,9 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     try {
         await wsClient.connect('ws://127.0.0.1:31850');
         isConnected = true;
-        console.error('✅ WebSocket connected to daemon successfully');
+        // WebSocket connected to daemon successfully
     } catch (error) {
-        console.error('❌ Failed to connect to daemon:', error);
+        // Failed to connect to daemon
         isConnected = false;
     }
     
@@ -736,30 +734,22 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     // Set up WebSocket message handler for model recommendations
     if (isConnected) {
         wsClient.onMessage((message: any) => {
-            console.error('📥 Received WebSocket message:', JSON.stringify(message, null, 2));
             if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
-                console.error(`✅ Found matching request for ID: ${message.id}`);
                 const resolver = pendingRequests.get(message.id);
                 if (resolver) {
                     resolver(message);
                     pendingRequests.delete(message.id);
-                } else {
-                    console.error('❌ No resolver found for request ID');
                 }
-            } else {
-                console.error(`❌ Message doesn't match expected format or request ID not found: type=${message.type}, id=${message.id}, hasPendingRequest=${message.id ? pendingRequests.has(message.id) : false}`);
             }
         });
-    } else {
-        console.error('❌ Not setting up message handler because not connected');
     }
     
     // Function to request model recommendations from daemon
     const requestModelRecommendations = async (languages: string[], mode: 'assisted' | 'manual'): Promise<ModelCompatibilityScore[]> => {
-        console.error(`🔍 Requesting model recommendations - Languages: [${languages.join(', ')}], Mode: ${mode}`);
+        // Requesting model recommendations
         
         if (!isConnected) {
-            console.error('❌ Not connected to daemon - returning empty list');
+            // Not connected to daemon - returning empty list
             return [];
         }
         
@@ -774,17 +764,17 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             }
         };
         
-        console.error(`📤 Sending WebSocket message:`, JSON.stringify(message, null, 2));
+        // Send WebSocket message
         
         return new Promise((resolve, reject) => {
             // Set up response handler
             pendingRequests.set(requestId, (response: ModelRecommendResponseMessage) => {
-                console.error(`📥 Received model recommendation response:`, JSON.stringify(response, null, 2));
+                // Received model recommendation response
                 if (response.data) {
-                    console.error(`✅ Found ${response.data.models.length} models`);
+                    // Found models
                     resolve(response.data.models);
                 } else {
-                    console.error('❌ No data in response - returning empty list');
+                    // No data in response - returning empty list
                     resolve([]);
                 }
             });
@@ -795,7 +785,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             // Set timeout for request
             setTimeout(() => {
                 if (pendingRequests.has(requestId)) {
-                    console.error(`⏰ Request ${requestId} timed out after 5 seconds`);
+                    // Request timed out after 5 seconds
                     pendingRequests.delete(requestId);
                     resolve([]); // Fallback to empty list on timeout
                 }
@@ -805,11 +795,11 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     
     // Function to update model options for a specific mode
     const updateModelOptions = async (mode: 'assisted' | 'manual', languages: string[]) => {
-        console.error(`🔄 Updating model options for ${mode} mode with languages: [${languages.join(', ')}]`);
+        // Updating model options
         try {
             const models = await requestModelRecommendations(languages, mode);
             currentModels = models;
-            console.error(`📋 Converting ${models.length} models to SelectionOptions`);
+            // Converting models to SelectionOptions
             
             // Sort models by score (highest first)
             const sortedModels = models.sort((a, b) => b.score - a.score);
@@ -841,7 +831,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             
             // Update the appropriate model selector
             if (mode === 'assisted') {
-                console.error(`🎯 Updating assisted model selector with ${options.length} options`);
+                // Updating assisted model selector
                 assistedModelOptions = options;
                 assistedModelSelector.updateOptions(options);
                 
@@ -850,13 +840,13 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                     const recommendedModel = models.find(m => m.details.recommendation);
                     const modelToSelect = recommendedModel ? recommendedModel.modelId : models[0]?.modelId;
                     if (modelToSelect) {
-                        console.error(`✨ Auto-selecting assisted model: ${modelToSelect}`);
+                        // Auto-selecting assisted model
                         assistedSelectedModel = modelToSelect;
                         assistedModelSelector.selectValue(modelToSelect);
                     }
                 }
             } else {
-                console.error(`⚙️ Updating manual model selector with ${options.length} options`);
+                // Updating manual model selector
                 manualModelOptions = options;
                 manualModelSelector.updateOptions(options);
                 
@@ -865,7 +855,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                     const compatibleModel = models.find(m => m.compatibility === 'supported');
                     const modelToSelect = compatibleModel ? compatibleModel.modelId : models[0]?.modelId;
                     if (modelToSelect) {
-                        console.error(`✨ Auto-selecting manual model: ${modelToSelect}`);
+                        // Auto-selecting manual model
                         manualSelectedModel = modelToSelect;
                         manualModelSelector.selectValue(modelToSelect);
                     }
@@ -873,7 +863,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             }
             
         } catch (error) {
-            console.error(`Failed to update model options for ${mode} mode:`, error);
+            // Failed to update model options
         }
     };
     
@@ -1008,11 +998,11 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     });
     
     // Load initial model recommendations for the current mode
-    console.error(`🚀 Loading initial model recommendations for ${selectedMode} mode with languages: [${selectedLanguages.join(', ')}]`);
+    // Loading initial model recommendations
     try {
         await updateModelOptions(selectedMode, selectedLanguages);
     } catch (error) {
-        console.error('❌ Failed to load initial model recommendations:', error);
+        // Failed to load initial model recommendations
     }
     
     // Perform initial validation using data model approach

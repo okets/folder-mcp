@@ -12,13 +12,14 @@ import { IIndexingOrchestrator, IFileSystemService, ILoggingService } from '../.
 import { FMDMService } from './fmdm-service.js';
 import { SQLiteVecStorage } from '../../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 import { FileStateService } from '../../infrastructure/files/file-state-service.js';
-import { FolderConfig } from '../models/fmdm.js';
+import { FolderConfig, FolderIndexingStatus } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
 import { WindowsPerformanceService, IWindowsPerformanceService } from './windows-performance-service.js';
 import { IntelligentMemoryMonitor, MemoryAlert, MemoryBaseline } from '../../domain/daemon/intelligent-memory-monitor.js';
 import { SimpleSystemMonitor } from '../../infrastructure/daemon/simple-system-monitor.js';
 import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/daemon/system-performance-telemetry.js';
+import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -110,6 +111,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private intelligentMemoryMonitor?: IntelligentMemoryMonitor;
   private systemPerformanceTelemetry?: SystemPerformanceTelemetry;
   private windowsPerformanceService: IWindowsPerformanceService;
+  private modelDownloadManager: IModelDownloadManager;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -117,12 +119,19 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private fileSystemService: IFileSystemService,
     private logger: ILoggingService,
     private configService: any, // TODO: Add proper type
-    windowsPerformanceService?: IWindowsPerformanceService
+    windowsPerformanceService?: IWindowsPerformanceService,
+    modelDownloadManager?: IModelDownloadManager
   ) {
     super();
     
     // Initialize Windows performance service (default if not provided)
     this.windowsPerformanceService = windowsPerformanceService || new WindowsPerformanceService(this.logger);
+    
+    // Initialize Model Download Manager (default if not provided)
+    this.modelDownloadManager = modelDownloadManager || new ModelDownloadManager(this.logger, this.fmdmService);
+    
+    // Wire Python embedding service to model download manager
+    this.initializePythonEmbeddingService();
     
     // Initialize resource manager with daemon-appropriate limits
     const resourceLimits: Partial<ResourceLimits> = {
@@ -339,13 +348,146 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   /**
+   * Start lifecycle management for a folder already in FMDM (during daemon startup)
+   */
+  private async startFolderLifecycle(path: string, model: string): Promise<void> {
+    try {
+      this.logger.debug(`[ORCHESTRATOR] Starting lifecycle for FMDM folder ${path} with model ${model}`);
+      
+      // Check if model is available through FMDM
+      const fmdm = this.fmdmService.getFMDM();
+      const modelInfo = fmdm.curatedModels.find(m => m.id === model);
+      
+      if (!modelInfo) {
+        throw new Error(`Model ${model} not found in curated models`);
+      }
+      
+      // If model is not installed, set folder to downloading state and trigger download
+      if (!modelInfo.installed) {
+        this.logger.info(`[ORCHESTRATOR] Model ${model} not installed, initiating download`);
+        
+        // Update folder status to downloading-model
+        this.fmdmService.updateFolderStatus(path, 'downloading-model', {
+          message: `Downloading model ${model}`,
+          type: 'info'
+        });
+        
+        // Request model download (non-blocking)
+        this.modelDownloadManager.requestModelDownload(model)
+          .then(() => {
+            this.logger.info(`[ORCHESTRATOR] Model ${model} download completed, starting folder scanning`);
+            // After download completes, transition folder to scanning
+            this.startFolderScanning(path, model, false); // Don't save to config during startup
+          })
+          .catch((error) => {
+            this.logger.error(`[ORCHESTRATOR] Model ${model} download failed`, error instanceof Error ? error : new Error(String(error)));
+            this.fmdmService.updateFolderStatus(path, 'error', {
+              message: `Failed to download model: ${error instanceof Error ? error.message : String(error)}`,
+              type: 'error'
+            });
+          });
+        
+        // Return early - folder will start scanning after model downloads
+        return;
+      }
+      
+      // Model is already installed, proceed with folder setup
+      await this.startFolderScanning(path, model, false); // Don't save to config during startup
+      
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`[ORCHESTRATOR] Failed to start lifecycle for folder ${path}`, errorObj);
+      
+      // Update FMDM with error status
+      this.fmdmService.updateFolderStatus(path, 'error', {
+        message: errorObj.message,
+        type: 'error'
+      });
+      
+      throw errorObj;
+    }
+  }
+
+  /**
    * Execute the actual folder addition operation
    */
   private async executeAddFolder(path: string, model: string): Promise<void> {
     try {
-      // Skip model validation - let indexing fail naturally if model isn't available
       this.logger.debug(`[ORCHESTRATOR] Creating folder lifecycle for ${path} with model ${model}`);
       
+      // Check if model is available through FMDM
+      const fmdm = this.fmdmService.getFMDM();
+      const modelInfo = fmdm.curatedModels.find(m => m.id === model);
+      
+      if (!modelInfo) {
+        throw new Error(`Model ${model} not found in curated models`);
+      }
+      
+      // If model is not installed, set folder to downloading state and trigger download
+      if (!modelInfo.installed) {
+        this.logger.info(`[ORCHESTRATOR] Model ${model} not installed, initiating download`);
+        this.logger.debug(`[ORCHESTRATOR] Model info: installed=${modelInfo.installed}, type=${modelInfo.type}`);
+        
+        // CRITICAL: Add folder to FMDM FIRST before any status updates
+        this.logger.debug(`[ORCHESTRATOR] Adding folder to FMDM: ${path}`);
+        this.addFolderToFMDM(path, model, 'pending');
+        
+        // Now update folder status to downloading-model (folder exists in FMDM)
+        this.logger.debug(`[ORCHESTRATOR] Updating folder status to downloading-model`);
+        this.fmdmService.updateFolderStatus(path, 'downloading-model', {
+          message: `Downloading model ${model}`,
+          type: 'info'
+        });
+        
+        // Request model download (non-blocking)
+        this.logger.debug(`[ORCHESTRATOR] Requesting model download for ${model}`);
+        this.modelDownloadManager.requestModelDownload(model)
+          .then(() => {
+            this.logger.info(`[ORCHESTRATOR] Model ${model} download completed successfully`);
+            this.logger.debug(`[ORCHESTRATOR] Starting folder scanning after successful download`);
+            // After download completes, transition folder to scanning
+            this.startFolderScanning(path, model);
+          })
+          .catch((error) => {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.logger.error(`[ORCHESTRATOR] Model ${model} download failed: ${errorMsg}`);
+            this.logger.debug(`[ORCHESTRATOR] Updating folder status to error due to download failure`);
+            this.fmdmService.updateFolderStatus(path, 'error', {
+              message: `Failed to download model: ${errorMsg}`,
+              type: 'error'
+            });
+          });
+        
+        // Return early - folder will start scanning after model downloads
+        return;
+      }
+      
+      // Model is already installed, add folder to FMDM and proceed with folder setup
+      this.addFolderToFMDM(path, model, 'pending');
+      await this.startFolderScanning(path, model);
+      
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`[ORCHESTRATOR] Failed to add folder ${path}`, errorObj);
+      
+      // Ensure folder is in FMDM before updating status
+      this.addFolderToFMDM(path, model, 'error');
+      
+      // Update FMDM with error status and message
+      this.fmdmService.updateFolderStatus(path, 'error', {
+        message: errorObj.message,
+        type: 'error'
+      });
+      
+      throw errorObj;
+    }
+  }
+  
+  /**
+   * Start folder scanning after model is available
+   */
+  private async startFolderScanning(path: string, model: string, saveToConfig: boolean = true): Promise<void> {
+    try {
       // Get the actual model dimensions from curated models
       const modelDimension = getModelDimensions(model);
       this.logger.debug(`[ORCHESTRATOR] Model ${model} has dimension ${modelDimension}`);
@@ -401,25 +543,29 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         await this.startFileWatchingForFolder(path);
       }
       
-      // Save folder to configuration for persistence across daemon restarts
-      try {
-        // Use ConfigurationComponent's addFolder method instead of direct get/set
-        await this.configService.addFolder(path, model);
-        this.logger.info(`[ORCHESTRATOR] Saved folder to configuration: ${path}`);
-      } catch (error) {
-        // Check if it's a duplicate folder error (already exists)
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('already exists')) {
-          this.logger.debug(`[ORCHESTRATOR] Folder already in configuration: ${path}`);
-        } else {
-          this.logger.warn(`[ORCHESTRATOR] Failed to save folder to configuration: ${path}`, error as Error);
+      // Save folder to configuration for persistence across daemon restarts (if requested)
+      if (saveToConfig) {
+        try {
+          // Use ConfigurationComponent's addFolder method instead of direct get/set
+          await this.configService.addFolder(path, model);
+          this.logger.info(`[ORCHESTRATOR] Saved folder to configuration: ${path}`);
+        } catch (error) {
+          // Check if it's a duplicate folder error (already exists)
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          if (errorMessage.includes('already exists')) {
+            this.logger.debug(`[ORCHESTRATOR] Folder already in configuration: ${path}`);
+          } else {
+            this.logger.warn(`[ORCHESTRATOR] Failed to save folder to configuration: ${path}`, error as Error);
+          }
+          // Don't fail the entire operation if config save fails
         }
-        // Don't fail the entire operation if config save fails
+      } else {
+        this.logger.debug(`[ORCHESTRATOR] Skipping config save for startup folder: ${path}`);
       }
       
       this.logger.info(`[ORCHESTRATOR] Added folder to monitoring: ${path}`);
     } catch (error) {
-      this.logger.error(`[ORCHESTRATOR] Failed to execute add folder operation: ${path}`, error as Error);
+      this.logger.error(`[ORCHESTRATOR] Failed to start folder scanning: ${path}`, error as Error);
       
       // Check if this is a Python prerequisite error and format appropriately for FMDM
       let errorMessage = error instanceof Error ? error.message : String(error);
@@ -478,35 +624,79 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       throw error;
     }
   }
+
+  /**
+   * Add folder to FMDM with initial status
+   * This ensures the folder appears in FMDM before any status updates
+   */
+  private addFolderToFMDM(path: string, model: string, status: FolderIndexingStatus): void {
+    try {
+      // Get current FMDM folders
+      const currentFMDM = this.fmdmService.getFMDM();
+      const currentFolders = [...currentFMDM.folders];
+      
+      // Check if folder already exists
+      const existingIndex = currentFolders.findIndex(f => f.path === path);
+      
+      const folderConfig = {
+        path,
+        model,
+        status,
+        progress: 0
+      };
+      
+      if (existingIndex >= 0) {
+        // Update existing folder
+        currentFolders[existingIndex] = folderConfig;
+        this.logger.debug(`[ORCHESTRATOR] Updated existing folder in FMDM: ${path}`);
+      } else {
+        // Add new folder
+        currentFolders.push(folderConfig);
+        this.logger.debug(`[ORCHESTRATOR] Added new folder to FMDM: ${path}`);
+      }
+      
+      // Update FMDM with the new folder list
+      this.fmdmService.updateFolders(currentFolders);
+      
+    } catch (error) {
+      this.logger.error(`[ORCHESTRATOR] Failed to add folder to FMDM: ${path}`, error as Error);
+    }
+  }
   
   async removeFolder(folderPath: string): Promise<void> {
     const manager = this.folderManagers.get(folderPath);
     if (!manager) {
       this.logger.warn(`No manager found for folder: ${folderPath}`);
-      return;
+      // Even without a manager, we need to:
+      // 1. Remove from configuration
+      // 2. Update FMDM to reflect removal
+      // This handles error state folders or folders that failed to start
+    } else {
+      await manager.stop();
     }
     
-    await manager.stop();
-    
-    // On Windows, add a small delay to ensure database connections are fully released
-    // This prevents "EBUSY: resource busy or locked" errors when deleting the .folder-mcp directory
-    const isWindows = process.platform === 'win32';
-    if (isWindows) {
-      this.logger.debug(`[ORCHESTRATOR] Windows detected - waiting for database locks to be released...`);
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2000ms delay for Windows file lock release
-    }
-    
-    // Stop file watching if it was started
-    if (this.monitoringOrchestrator) {
-      try {
-        await this.monitoringOrchestrator.stopFileWatching(folderPath);
-        this.logger.info(`Stopped file watching for removed folder: ${folderPath}`);
-      } catch (error) {
-        this.logger.warn(`Failed to stop file watching for ${folderPath}`, error as Error);
+    // Only do Windows delay and file watching cleanup if there was a manager
+    if (manager) {
+      // On Windows, add a small delay to ensure database connections are fully released
+      // This prevents "EBUSY: resource busy or locked" errors when deleting the .folder-mcp directory
+      const isWindows = process.platform === 'win32';
+      if (isWindows) {
+        this.logger.debug(`[ORCHESTRATOR] Windows detected - waiting for database locks to be released...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2000ms delay for Windows file lock release
+      }
+      
+      // Stop file watching if it was started
+      if (this.monitoringOrchestrator) {
+        try {
+          await this.monitoringOrchestrator.stopFileWatching(folderPath);
+          this.logger.info(`Stopped file watching for removed folder: ${folderPath}`);
+        } catch (error) {
+          this.logger.warn(`Failed to stop file watching for ${folderPath}`, error as Error);
+        }
       }
     }
     
-    // Clean up .folder-mcp directory and its contents
+    // Clean up .folder-mcp directory and its contents (even without manager)
     try {
       const folderMcpPath = `${folderPath}/.folder-mcp`;
       const fs = await import('fs');
@@ -526,7 +716,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't fail the entire removal process if cleanup fails
     }
     
-    // Remove from configuration
+    // Remove from configuration (even without manager)
     try {
       // Use ConfigurationComponent's removeFolder method
       await this.configService.removeFolder(folderPath);
@@ -541,9 +731,20 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't fail the entire operation if config removal fails
     }
     
-    this.folderManagers.delete(folderPath);
+    // Only delete from managers if it existed
+    if (manager) {
+      this.folderManagers.delete(folderPath);
+      this.logger.debug(`[ORCHESTRATOR-REMOVE] Deleted manager for ${folderPath}, remaining managers: ${this.folderManagers.size}`);
+    } else {
+      // For error state folders without managers, we need to explicitly remove from FMDM
+      this.logger.debug(`[ORCHESTRATOR-REMOVE] No manager to delete, removing error folder from FMDM directly`);
+      const currentFMDM = this.fmdmService.getFMDM();
+      const filteredFolders = currentFMDM.folders.filter(f => f.path !== folderPath);
+      this.fmdmService.updateFolders(filteredFolders);
+    }
     
-    // Update FMDM after removal
+    // Update FMDM after removal - ALWAYS do this
+    this.logger.debug(`[ORCHESTRATOR-REMOVE] Calling updateFMDM after folder removal`);
     this.updateFMDM();
     
     this.logger.info(`Removed folder from monitoring: ${folderPath}`);
@@ -585,29 +786,36 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     const startupStartTime = Date.now();
     this.logger.info('Starting all configured folders...');
     
-    // Get all folders from configuration via configService
-    try {
-      // Use ConfigurationComponent's getFolders method
-      const existingFolders = await this.configService.getFolders();
-      this.logger.info(`Found ${existingFolders.length} folders in configuration to restore`);
+    // Get current FMDM state to see which folders are already loaded
+    const currentFMDM = this.fmdmService.getFMDM();
+    const fmdmFolders = currentFMDM.folders.map(f => f.path);
+    this.logger.debug(`FMDM already contains ${fmdmFolders.length} folders: ${fmdmFolders.join(', ')}`);
+    
+    // Start lifecycle management for folders already in FMDM
+    if (fmdmFolders.length > 0) {
+      this.logger.info(`Starting lifecycle management for ${fmdmFolders.length} folders already in FMDM`);
       
-      if (existingFolders.length > 0) {
-        // Start lifecycle management for all existing folders
-        for (const folder of existingFolders) {
-          try {
-            this.logger.info(`Restoring folder: ${folder.path} with model: ${folder.model}`);
-            await this.addFolder(folder.path, folder.model);
-          } catch (error) {
-            this.logger.error(`Failed to restore folder ${folder.path}:`, error as Error);
-            // Continue with other folders even if one fails
+      for (const folderConfig of currentFMDM.folders) {
+        try {
+          // Skip folders that already have managers (shouldn't happen but safety check)
+          if (this.folderManagers.has(folderConfig.path)) {
+            this.logger.debug(`Manager already exists for ${folderConfig.path}, skipping`);
+            continue;
           }
+          
+          this.logger.info(`Starting lifecycle for FMDM folder: ${folderConfig.path} with model: ${folderConfig.model}`);
+          
+          // Start folder lifecycle without adding to config (it's already there)
+          await this.startFolderLifecycle(folderConfig.path, folderConfig.model);
+          
+        } catch (error) {
+          this.logger.error(`Failed to start lifecycle for FMDM folder ${folderConfig.path}:`, error as Error);
+          // Continue with other folders even if one fails
         }
-        this.logger.info(`Completed restoring ${existingFolders.length} folders from configuration`);
-      } else {
-        this.logger.info('No folders found in configuration to restore');
       }
-    } catch (error) {
-      this.logger.error('Error loading folders from configuration during startAll:', error as Error);
+      this.logger.info(`Completed starting lifecycle for ${fmdmFolders.length} FMDM folders`);
+    } else {
+      this.logger.info('No folders found in FMDM to start lifecycle management');
     }
     
     // Log startup performance telemetry
@@ -849,7 +1057,11 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         enableBatchProcessing: true,
         batchSize: 10,
         includeFileTypes: getSupportedExtensions(),
-        excludePatterns: ['**/node_modules/**', '**/.git/**', '**/.folder-mcp/**']
+        excludePatterns: [
+          '**/node_modules/**', 
+          '**/.git/**', 
+          '**/.folder-mcp/**'
+        ]
       };
       
       const watchResult = await this.monitoringOrchestrator.startFileWatching(folderPath, watchingOptions);
@@ -970,8 +1182,25 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Add indexing progress (for indexing phase and completed active folders)
       if (state.status === 'indexing') {
         folderConfig.progress = state.progress?.percentage;
+        // Add progress message as notification for better UX
+        if (state.progressMessage) {
+          folderConfig.notification = {
+            message: state.progressMessage,
+            type: 'info'
+          };
+        }
       } else if (state.status === 'active') {
         folderConfig.progress = 100; // Active folders are 100% complete
+        // Clear progress notification when active - should not show "Processing X files" anymore
+        // Only clear info notifications (progress), keep error/warning notifications
+        if (folderConfig.notification?.type === 'info') {
+          delete folderConfig.notification;
+        }
+      } else {
+        // Clear progress notification for other states
+        if (folderConfig.notification?.type === 'info' && !state.errorMessage) {
+          delete folderConfig.notification;
+        }
       }
       
       // Add scanning progress (only for scanning phase)
@@ -997,6 +1226,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private updateFMDM(): void {
     const folders = this.getCurrentFolderConfigs();
+    
+    this.logger.debug(`[ORCHESTRATOR-FMDM] Updating FMDM with ${folders.length} folders`);
     
     // Update FMDM with all folder states
     this.fmdmService.updateFolders(folders);
@@ -1336,6 +1567,35 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } catch (error) {
       this.logger.error(`[ORCHESTRATOR] Error during resource cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
       // Don't throw - cleanup should not fail the parent operation
+    }
+  }
+  
+  /**
+   * Initialize Python embedding service for model downloads
+   * Uses the same factory pattern as the daemon's model cache checker
+   */
+  private async initializePythonEmbeddingService(): Promise<void> {
+    try {
+      this.logger.debug('[ORCHESTRATOR] Initializing Python embedding service for model downloads...');
+      
+      // Import factory function (same as daemon uses)
+      const { createPythonEmbeddingService } = await import('../factories/model-factories.js');
+      
+      // Create Python embedding service with default config
+      const pythonService = createPythonEmbeddingService({
+        modelName: 'BAAI/bge-m3', // Default model for initialization
+        batchSize: 32,
+        maxSequenceLength: 512
+      });
+      
+      // Wire the service to the model download manager
+      this.modelDownloadManager.setPythonEmbeddingService(pythonService);
+      
+      this.logger.info('[ORCHESTRATOR] Python embedding service wired to model download manager');
+      
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Failed to initialize Python embedding service for downloads:', error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - this is not a fatal error, just means model downloads won't work
     }
   }
 }

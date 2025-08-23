@@ -8,6 +8,7 @@
 import { CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
+import { getSupportedGpuModelIds, getModelById } from '../../config/model-registry.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 
 // Factory functions for dependency injection
@@ -26,7 +27,7 @@ export interface ModelCheckResult {
  * Service to check curated model installation status
  */
 export class ModelCacheChecker {
-  private readonly CHECK_TIMEOUT = 5000; // 5 seconds max for GPU checks
+  private readonly CHECK_TIMEOUT = 15000; // 15 seconds max for GPU checks - needed for Python initialization
   
   constructor(
     private logger: ILoggingService,
@@ -46,7 +47,7 @@ export class ModelCacheChecker {
       gpuModelsCheckable: false,
       checkedAt: new Date().toISOString()
     };
-
+    
     try {
       // Always check CPU/ONNX models first (fast, no Python required)
       const cpuModels = await this.checkCPUModels();
@@ -224,11 +225,14 @@ export class ModelCacheChecker {
    * Get curated GPU model mappings (our ID -> HuggingFace ID)
    */
   private getCuratedGPUModelMappings(): Array<{ id: string; huggingfaceId: string }> {
-    return [
-      { id: 'folder-mcp:bge-m3', huggingfaceId: 'BAAI/bge-m3' },
-      { id: 'folder-mcp:multilingual-e5-large', huggingfaceId: 'intfloat/multilingual-e5-large' },
-      { id: 'folder-mcp:paraphrase-multilingual-minilm', huggingfaceId: 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2' }
-    ];
+    const gpuModelIds = getSupportedGpuModelIds();
+    return gpuModelIds.map(id => {
+      const model = getModelById(id);
+      if (!model) {
+        throw new Error(`Model not found in registry: ${id}`);
+      }
+      return { id, huggingfaceId: model.huggingfaceId };
+    });
   }
 
   /**

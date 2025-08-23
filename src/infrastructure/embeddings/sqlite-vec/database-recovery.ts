@@ -99,10 +99,8 @@ export class DatabaseRecovery {
             // Check if we can read basic schema
             try {
                 const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-                if (!tables || tables.length === 0) {
-                    errors.push('No tables found in database');
-                    severity = 'severe';
-                }
+                // NOTE: Empty databases (no tables) are NOT corrupted - they're just newly created
+                // Only flag as corruption if we can't read the schema master table at all
             } catch (schemaError) {
                 errors.push(`Cannot read schema: ${schemaError instanceof Error ? schemaError.message : 'unknown'}`);
                 severity = 'critical';

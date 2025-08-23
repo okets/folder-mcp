@@ -10,7 +10,7 @@ theme: "auto"  # Options: light, dark, auto
 folders:
   defaults:
     embeddings:
-      model: nomic-embed-text
+      model: "{{DEFAULT_MODEL}}"
       batchSize: 32
 
 # Development settings

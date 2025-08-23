@@ -9,6 +9,7 @@
 import { IConfigManager, ValidationResult } from '../domain/config/IConfigManager';
 import { ValidationRegistry } from './ValidationRegistry.js';
 import { ValidationPipelineService } from './validation/ValidationPipelineService.js';
+import { getDefaultModelId, getSupportedGpuModelIds, getSupportedCpuModelIds } from './model-registry.js';
 import { existsSync } from 'fs';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
@@ -56,7 +57,7 @@ export class ConfigurationComponent {
     private initializeDefaults(): void {
         // Core application defaults
         this.defaults.set('theme', 'auto');
-        this.defaults.set('folders.defaults.embeddings.model', 'nomic-embed-text');
+        this.defaults.set('folders.defaults.embeddings.model', getDefaultModelId());
         this.defaults.set('folders.defaults.embeddings.batchSize', 32);
         this.defaults.set('server.port', 3000);
         this.defaults.set('server.host', 'localhost');
@@ -74,6 +75,26 @@ export class ConfigurationComponent {
         // Development settings
         this.defaults.set('development.enabled', false);
         this.defaults.set('development.logLevel', 'info');
+    }
+    
+    /**
+     * Process configuration template values (replaces {{DEFAULT_MODEL}} etc.)
+     */
+    private processConfigTemplates(value: any): any {
+        if (typeof value === 'string' && value === '{{DEFAULT_MODEL}}') {
+            return getDefaultModelId();
+        }
+        if (typeof value === 'object' && value !== null) {
+            if (Array.isArray(value)) {
+                return value.map(item => this.processConfigTemplates(item));
+            }
+            const processed: any = {};
+            for (const [key, val] of Object.entries(value)) {
+                processed[key] = this.processConfigTemplates(val);
+            }
+            return processed;
+        }
+        return value;
     }
     
     /**
@@ -138,7 +159,7 @@ export class ConfigurationComponent {
         
         // Return value if it exists, otherwise return default
         if (value !== undefined) {
-            return value;
+            return this.processConfigTemplates(value);
         }
         
         return this.getDefault(path);
@@ -382,7 +403,7 @@ export class ConfigurationComponent {
         // Handle both old (embeddings.model) and new (direct model) structure
         return folders.map(folder => ({
             path: folder.path,
-            model: folder.model || folder.embeddings?.model || 'nomic-embed-text'
+            model: folder.model || folder.embeddings?.model || getDefaultModelId()
         }));
     }
     
@@ -492,15 +513,6 @@ export class ConfigurationComponent {
      * Get supported models list
      */
     getSupportedModels(): string[] {
-        return [
-            'nomic-embed-text',
-            'mxbai-embed-large',
-            'all-minilm',
-            'sentence-transformers',
-            'ollama:nomic-embed-text',
-            'ollama:mxbai-embed-large',
-            'ollama:all-minilm',
-            'transformers:all-MiniLM-L6-v2'
-        ];
+        return [...getSupportedGpuModelIds(), ...getSupportedCpuModelIds()];
     }
 }

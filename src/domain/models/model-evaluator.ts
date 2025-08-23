@@ -126,7 +126,7 @@ export class ModelCompatibilityEvaluator {
     return models;
   }
 
-  private scoreModel(
+  scoreModel(
     model: CuratedModel,
     capabilities: MachineCapabilities,
     criteria: EvaluationCriteria

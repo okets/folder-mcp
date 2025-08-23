@@ -124,12 +124,64 @@ tasks. [Your custom instructions here...]
 
 
 
+We are working on '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/TASK-11.5-COURSE-CORRECTION.md'
+if you would like to understand what task 11.5 was, this is the documentation:
+'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-8-task-11.5-models-offering.md'
+We continue our session after fixing few issues using this method:
+'/Users/hanan/Projects/folder-mcp/TMOAT/debugging-methodology.md'
+We will continue our session with me telling you issues I see during my QA and you fixing them one by one until the course is aligned and task 11.5 is fully completed
 
 
-10 tests are still failing in two test files: tests/integration/daemon-e2e.test.ts & tests/integration/daemon-crash-recovery.test.ts
-The tests started failing after we switched to a selectable model for each folder.
-We need to fix the core issues first.
-Before this we used one fixed model for all indexing.
-Both the model's status, download state and progress is updated in the FMDM.
-The folder's status in the fmdm should also reflect the selected model's status by adding a new state, "downloading model" that comes before the scanning phase when a model was chosen but isn't ready yet.
-This can be because the user chose a new model he didn't use before or because the local copy of the model was deleted since the last indexing (failsafe for model availability).
+──────────────────────────────────────────────────────────────────────────────────
+our next issue is related the the folder lifecycle FMDM reporting.
+This is the behavior I observe:
+1. adding a folder using the AddFolderWizard. choosing a model that is already downloaded. [Image #1]
+2. it shows "indexing 3%" for a while [Image #2] then shows "active" [Image #3] seems like the progress reporting is a bit broken.
+
+the next thing I am going to QA is adding a big model we haven't downloaded before and would like to see the progress reported correctly.
+Your task is to review the folder lifecycle process and how it reports progress to the FMDM.
+You can write TMOAT scripts to gain better understanding than just reading code but
+don't make any changes to the codebase until we have a good understanding of the
+issues.
+
+
+────────────────────────────────────────────────────────────────────────
+*****BE A GOOD TMOAT AGENT*****
+I would actually like this task to be tested hands-on.
+You need to think like a human engineer. break this into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
+While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
+we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
+We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
+We can design end to end flows and see exactly where they fail. we have full visibility.
+I would actually like this task to be tested hands-on.
+You need to think like a human engineer. break this into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
+While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
+we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
+We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
+We can design end to end flows and see exactly where they fail. we have full visibility.
+
+Now, let's redefine the task at hand:
+We need to understand where in the folder lifecycle process the problems resides.
+We fix issues in the order they appear in the folder lifecycle, fixing "downloading model" issues before "indexing" issues for example.
+We need to work systematically towards a well defined, measurable goal that can be performed end-to-end by an AI agent.
+You will need a TMOAT Script to add and remove folders consistently and clean up between test iterations. see if you can utilize the existing TMOAT script that already does this.
+
+Now, let's redefine the task at hand:
+We need to understand where in the folder lifecycle process the problems resides.
+We fix issues in the order they appear in the folder lifecycle, fixing "downloading model" issues before "indexing" issues for example.
+We need to work systematically towards a well defined, measurable goal that can be performed end-to-end by an AI agent.
+
+
+
+
+────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────
+follow this TMOAT procedure to verify success:
+1. Run a daemon in the background. monitor it's output byt dumping it to a file you can read later in the investigation stage.
+2. use the websocket API to remove the project's folder from indexing.
+3. verify that ...
+
+────────────────────────────────────────────────────────────────────────
+I restarted the daemon. it triggered a full re-indexing.
+It might also be that the "scanning" phase is reporting "indexing" but more likely we have a bug in the scanning phase causing all files to be re-indexed when the daemon restarts instead of just processing the changed/new files.

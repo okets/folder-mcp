@@ -448,23 +448,9 @@ export class ModelHandlers {
    * Get supported models - single source of truth for all model lists
    */
   getSupportedModels(): string[] {
-    // Get models by trying to get each one by ID from a known list
-    // This is a temporary approach until we add a proper method to expose catalog models
-    const knownModelIds = [
-      'folder-mcp:bge-m3',
-      'folder-mcp:multilingual-e5-large', 
-      'folder-mcp:paraphrase-multilingual-minilm',
-      'folder-mcp-lite:xenova-multilingual-e5-small',
-      'folder-mcp-lite:xenova-multilingual-e5-large'
-    ];
-    
-    // Filter to only include models that actually exist in the catalog
-    const supportedModels = knownModelIds.filter(id => {
-      const model = this.modelSelectionService.getModelById(id);
-      return model !== undefined;
-    });
-    
-    return supportedModels;
+    // Use FMDM curated models as the single source of truth
+    const fmdm = this.fmdmService.getFMDM();
+    return fmdm.curatedModels.map(model => model.id);
   }
 
   /**
@@ -478,8 +464,16 @@ export class ModelHandlers {
    * Get model display name by ID for better error messages
    */
   getModelDisplayName(modelId: string): string {
+    // Try getting from modelSelectionService first
     const model = this.modelSelectionService.getModelById(modelId);
-    return model ? model.displayName : modelId;
+    if (model) {
+      return model.displayName;
+    }
+    
+    // For curated models, get displayName from curated-models.json via FMDM
+    // This requires loading curated-models.json to get the displayName field
+    // For now, fall back to the model ID as the display name
+    return modelId;
   }
 
   /**
@@ -532,13 +526,20 @@ export class ModelHandlers {
       // Get basic machine capabilities for simple compatibility scoring
       const machineCapabilities = await this.modelSelectionService.getMachineCapabilities();
       
-      // Create a basic score for cached models (they get lower priority than recommendations)
-      // but still provide useful information
+      // Actually evaluate cached models to get proper scores
+      const evaluator = this.modelSelectionService.getEvaluator();
+      const score = evaluator.scoreModel(model, machineCapabilities, {
+        languages,
+        mode,
+        prioritizeAccuracy: mode === 'assisted'
+      });
+      
       models.push({
         modelId: model.id,
         displayName: model.displayName,
-        score: 0, // No scoring since they're not in top recommendations
-        compatibility: 'supported', // Assume supported since they were previously downloaded
+        score: score.score, // Use actual calculated score
+        compatibility: score.hardwareCompatible ? 'supported' : this.getCompatibilityStatus(score),
+        compatibilityReason: score.hardwareCompatible ? undefined : score.reasons.join(', '),
         details: {
           speed: this.formatSpeed(model),
           accuracy: this.formatAccuracy(model),

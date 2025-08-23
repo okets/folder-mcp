@@ -6,7 +6,7 @@
  * client connection tracking.
  */
 
-import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ConnectionInfo, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
+import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 
 /**
@@ -82,6 +82,12 @@ export interface IFMDMService {
    * Update model download status for all folders using a model
    */
   updateModelDownloadStatus(modelId: string, status: 'downloading' | 'completed' | 'failed', progressPercentage?: number): void;
+  
+  /**
+   * Initialize curated models by checking their installation status
+   * This should be called after FMDM service creation to populate curated models
+   */
+  initializeCuratedModels(): Promise<void>;
 }
 
 /**
@@ -97,6 +103,8 @@ export interface IFMDMConfigurationService {
 export class FMDMService implements IFMDMService {
   private fmdm: FMDM;
   private listeners: Set<(fmdm: FMDM) => void> = new Set();
+  private modelsInitialized = false;
+  private modelsInitializing = false;
   
   constructor(
     private configService: IFMDMConfigurationService,
@@ -105,6 +113,25 @@ export class FMDMService implements IFMDMService {
     // Initialize with default FMDM
     this.fmdm = this.buildInitialFMDM();
     this.logger.debug('FMDM Service initialized');
+    
+    // Trigger immediate model initialization (non-blocking)
+    this.triggerModelInitialization();
+  }
+  
+  /**
+   * Trigger model initialization (non-blocking)
+   */
+  private triggerModelInitialization(): void {
+    if (!this.modelsInitializing && !this.modelsInitialized) {
+      this.modelsInitializing = true;
+      this.initializeCuratedModels()
+        .then(() => {
+          this.logger.debug('Curated models initialized in constructor');
+        })
+        .catch((error) => {
+          this.logger.warn('Failed to initialize curated models in constructor:', error);
+        });
+    }
   }
   
   /**
@@ -184,26 +211,11 @@ export class FMDMService implements IFMDMService {
    * Update folders and broadcast changes
    */
   updateFolders(folders: FolderConfig[]): void {
-    // Preserve existing notifications when updating folders
-    const existingNotifications = new Map<string, { message: string; type: 'error' | 'warning' | 'info' }>();
+    // Don't preserve notifications - orchestrator is the authoritative source
+    // The old code was preserving stale notifications and overwriting fresh ones from orchestrator
     
-    // Save existing notifications before replacing folders
-    for (const folder of this.fmdm.folders) {
-      if (folder.notification) {
-        existingNotifications.set(folder.path, folder.notification);
-      }
-    }
-    
-    // Update folders array
+    // Update folders array with current data from orchestrator
     this.fmdm.folders = [...folders]; // Create a copy
-    
-    // Restore notifications for folders that still exist
-    for (const folder of this.fmdm.folders) {
-      const existingNotification = existingNotifications.get(folder.path);
-      if (existingNotification) {
-        folder.notification = existingNotification;
-      }
-    }
     
     this.fmdm.version = this.generateVersion();
     this.logger.debug(`FMDM folders updated: ${folders.length} folders`);
@@ -384,12 +396,12 @@ export class FMDMService implements IFMDMService {
    */
   private broadcast(): void {
     if (this.listeners.size === 0) {
+      this.logger.debug(`[FMDM-BROADCAST] No listeners, skipping broadcast`);
       return;
     }
     
     const fmdmCopy = this.getFMDM(); // Get fresh copy with updated uptime
-    
-    this.logger.debug(`Broadcasting FMDM update to ${this.listeners.size} listeners`);
+    this.logger.debug(`[FMDM-BROADCAST] Broadcasting FMDM update to ${this.listeners.size} listeners (${fmdmCopy.folders.length} folders)`);
     
     this.listeners.forEach(listener => {
       try {
@@ -475,11 +487,9 @@ export class FMDMService implements IFMDMService {
         };
         break;
       case 'completed':
-        folderStatus = 'pending'; // Ready to start indexing
-        notification = {
-          message: `Model ${modelId} downloaded successfully`,
-          type: 'info'
-        };
+        folderStatus = 'pending'; // Ready to start scanning
+        // No notification needed - folder will immediately transition to scanning
+        notification = null;
         break;
       case 'failed':
         folderStatus = 'error';
@@ -546,6 +556,55 @@ export class FMDMService implements IFMDMService {
       listenerCount: this.listeners.size,
       uptime: this.fmdm.daemon.uptime
     };
+  }
+  
+  /**
+   * Initialize curated models by checking their installation status
+   * This method loads curated-models.json and checks which models are actually installed
+   */
+  async initializeCuratedModels(): Promise<void> {
+    try {
+      this.logger.debug('Initializing curated models...');
+      
+      // Import model factories and ModelCacheChecker
+      const { createPythonEmbeddingService, createONNXDownloader } = await import('../factories/model-factories.js');
+      const { ModelCacheChecker } = await import('./model-cache-checker.js');
+      
+      const checker = new ModelCacheChecker(this.logger, createPythonEmbeddingService, createONNXDownloader);
+      const result = await checker.checkCuratedModels();
+      
+      this.setCuratedModelInfo(result.models, result.status);
+      
+      const gpuCount = result.models.filter(m => m.type === 'gpu' && m.installed).length;
+      const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
+      
+      this.logger.info(`Model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      if (result.status.error) {
+        this.logger.info(`Note: ${result.status.error}`);
+      }
+      
+      // Mark models as initialized
+      this.modelsInitialized = true;
+      this.modelsInitializing = false;
+      
+    } catch (error) {
+      // Critical error - model initialization failed completely
+      this.logger.error('Model initialization failed:', error instanceof Error ? error : new Error(String(error)));
+      
+      // Leave curated models empty on failure - no hardcoded fallbacks
+      // The curated-models.json file is the single source of truth
+      this.setCuratedModelInfo([], {
+        pythonAvailable: false,
+        gpuModelsCheckable: false,
+        error: 'Model initialization failed',
+        checkedAt: new Date().toISOString()
+      });
+      
+      // Mark models as initialized even on error (empty state)
+      this.modelsInitialized = true;
+      this.modelsInitializing = false;
+    }
   }
 }
 

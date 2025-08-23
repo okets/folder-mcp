@@ -22,8 +22,8 @@ export interface FolderConfig {
   path: string;
   model: string;
   status: FolderIndexingStatus;
-  progress?: number; // Optional indexing progress percentage (0-100)
-  downloadProgress?: number; // Optional model download progress percentage (0-100)
+  progress?: number;              // INDEXING progress percentage (0-100) - files being processed
+  downloadProgress?: number;      // MODEL DOWNLOAD progress percentage (0-100) - mirrors CuratedModelInfo.downloadProgress
   scanningProgress?: {
     phase: 'folder-to-db' | 'db-to-folder' | 'intelligent-scanning' | 'cleanup';
     processedFiles: number;
@@ -76,12 +76,18 @@ export interface ClientConnection {
 }
 
 /**
- * Information about a curated model's installation status
+ * Information about a curated model's installation status and download state
  */
 export interface CuratedModelInfo {
   id: string;           // e.g., 'folder-mcp:bge-m3'
   installed: boolean;   // Whether model is downloaded/cached locally
   type: 'gpu' | 'cpu';  // Model type - GPU (HuggingFace) or CPU (ONNX)
+  
+  // Download tracking fields
+  downloading?: boolean;          // Currently downloading
+  downloadProgress?: number;      // 0-100 percentage
+  downloadError?: string;         // Error message if download failed
+  lastChecked?: string;          // ISO timestamp of last availability check
 }
 
 /**

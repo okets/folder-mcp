@@ -9,29 +9,24 @@ from typing import List, Optional, Dict, Any
 
 def get_supported_models() -> List[str]:
     """
-    Get supported models from system configuration.
+    Get supported models from curated-models.json registry.
     
     Returns:
-        List of supported model names
+        List of supported model names (huggingface IDs)
     """
-    config_path = os.path.join(os.path.dirname(__file__), '../../../../..', 'system-configuration.json')
+    config_path = os.path.join(os.path.dirname(__file__), '../../../../config', 'curated-models.json')
     
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-        
-        models = config.get('embeddings', {}).get('python', {}).get('supportedModels', [])
-        if models:
-            return models
-    except Exception as e:
-        # Log error but continue with fallback
-        print(f"Warning: Failed to read model configuration: {e}")
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
     
-    # Fallback list if config unavailable or empty
-    return [
-        'all-MiniLM-L6-v2',
-        'all-mpnet-base-v2'
-    ]
+    # Extract huggingfaceId from GPU models (Python uses these)
+    models = []
+    gpu_models = config.get('gpuModels', {}).get('models', [])
+    for model in gpu_models:
+        if 'huggingfaceId' in model:
+            models.append(model['huggingfaceId'])
+    
+    return models
 
 
 def validate_model(model_name: str) -> bool:
@@ -59,7 +54,7 @@ def get_default_model() -> str:
         Default model name
     """
     models = get_supported_models()
-    return models[0] if models else 'all-MiniLM-L6-v2'
+    return models[0]
 
 
 def get_model_info(model_name: Optional[str] = None) -> dict:

@@ -91,6 +91,7 @@ export class DatabaseManager {
                 mkdirSync(folderMcpDir, { recursive: true });
             }
 
+
             // Check for schema version mismatch before corruption check
             if (existsSync(this.databasePath)) {
                 const needsRebuild = await this.checkSchemaVersion();
@@ -131,6 +132,7 @@ export class DatabaseManager {
 
             // Initialize schema
             await this.initializeSchema();
+
 
             // Store/validate embedding configuration
             await this.validateEmbeddingConfig();
@@ -263,6 +265,17 @@ export class DatabaseManager {
             const tempDb = new Database(this.databasePath);
             
             try {
+                // First check if this is a completely fresh database (no tables at all)
+                const allTables = tempDb.prepare(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).all();
+                
+                if (allTables.length === 0) {
+                    // Fresh database with no tables - allow normal initialization
+                    tempDb.close();
+                    return false;
+                }
+                
                 // Check if schema_version table exists
                 const tableExists = tempDb.prepare(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
@@ -315,6 +328,7 @@ export class DatabaseManager {
         stmt.run(SCHEMA_VERSION);
     }
 
+
     /**
      * Rebuild database by deleting and recreating it
      */
@@ -326,6 +340,10 @@ export class DatabaseManager {
             this.db.close();
             this.db = null;
         }
+        
+        // Add a small delay to ensure all pending database operations complete
+        // This prevents race conditions with concurrent embedding operations
+        await new Promise(resolve => setTimeout(resolve, 100));
         
         // Delete the database file
         try {
@@ -343,6 +361,7 @@ export class DatabaseManager {
             // Ignore errors for these files
         }
     }
+
 
     /**
      * Get the database connection

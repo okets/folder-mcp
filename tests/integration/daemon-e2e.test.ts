@@ -5,13 +5,14 @@
  * Uses real daemon WebSocket communication instead of DI container replication.
  */
 
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { join } from 'path';
 import { homedir } from 'os';
 import { existsSync, rmSync, mkdirSync, copyFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import WebSocket from 'ws';
 import { DaemonConnector } from '../../src/interfaces/tui-ink/daemon-connector.js';
+import { getSmallestModelId } from './helpers/model-setup.js';
 
 // Test configuration - no hardcoded ports needed with auto-discovery
 const TEST_DAEMON_PORT = 8765; // Used for spawning daemon, connector will auto-discover
@@ -22,8 +23,9 @@ const DEBOUNCE_MS = 200; // Fast debouncing for tests - optimized from 1000ms to
 interface FolderConfig {
   path: string;
   model: string;
-  status: 'pending' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
+  status: 'pending' | 'downloading-model' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
   progress?: number;
+  downloadProgress?: number;
   notification?: {
     message: string;
     type: 'error' | 'warning' | 'info';
@@ -37,6 +39,7 @@ interface FMDMUpdate {
     daemon: any;
     connections: any;
     models: string[];
+    curatedModels?: any[]; // Added for model checking
   };
 }
 
@@ -44,11 +47,12 @@ describe('Daemon E2E Integration Tests', () => {
   let daemonProcess: ChildProcess;
   let ws: WebSocket;
   let daemonConnector: DaemonConnector;
+  let testModelId: string; // Auto-discovered test model
   
   // Test helpers
   const createTempFolder = (name: string): string => {
     // Add timestamp to ensure unique folder names across test runs
-    const uniqueName = `${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const uniqueName = `${name}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     const tempPath = join(TEMP_TEST_DIR, uniqueName);
     if (existsSync(tempPath)) {
       rmSync(tempPath, { recursive: true });
@@ -161,9 +165,10 @@ describe('Daemon E2E Integration Tests', () => {
       id: `add-${Date.now()}`,
       payload: { 
         path: folderPath,
-        model: 'folder-mcp:paraphrase-multilingual-minilm'  // Default model (384 dimensions)
+        model: testModelId  // Use auto-discovered test model
       }
     };
+    
     ws.send(JSON.stringify(message));
     
     // Wait for folder to be added to FMDM
@@ -193,6 +198,11 @@ describe('Daemon E2E Integration Tests', () => {
     const fmdmUpdate = await waitForFMDMUpdate(
       (fmdm) => {
         const folder = fmdm.fmdm.folders.find(f => f.path === folderPath);
+        // In tests, skip downloading-model state unless explicitly waiting for it
+        if (folder?.status === 'downloading-model' && status !== 'downloading-model') {
+          // Model download in progress, keep waiting for next state
+          return false;
+        }
         return folder?.status === status;
       },
       finalTimeout
@@ -216,6 +226,11 @@ describe('Daemon E2E Integration Tests', () => {
   };
 
   beforeAll(async () => {
+    // Get the test model ID (daemon will handle download if needed)
+    console.error('[TEST] Getting test model ID...');
+    testModelId = getSmallestModelId();
+    console.error(`[TEST] Will use test model: ${testModelId}`);
+    
     // Clean up any previous test artifacts
     if (existsSync(TEMP_TEST_DIR)) {
       rmSync(TEMP_TEST_DIR, { recursive: true });
@@ -228,7 +243,7 @@ describe('Daemon E2E Integration Tests', () => {
       rmSync(configDir, { recursive: true });
     }
 
-    // Start daemon with test configuration (no port coordination needed)
+    // Start daemon with test configuration (no test mode, using real model)
     const env = {
       ...process.env,
       FOLDER_MCP_DEVELOPMENT_ENABLED: 'true',
@@ -245,7 +260,7 @@ describe('Daemon E2E Integration Tests', () => {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Daemon startup timeout'));
-      }, 8000); // Optimized from 10s to 8s
+      }, 20000); // 20s to allow for model checking
 
       daemonProcess.stderr?.on('data', (data) => {
         if (data.toString().includes('Daemon ready')) {
@@ -266,7 +281,22 @@ describe('Daemon E2E Integration Tests', () => {
 
     // Connect to daemon using auto-discovery
     await connectToDaemon();
-  }, 20000); // Optimized from 30s to 20s
+    
+    // Wait for FMDM to have curated models loaded
+    console.error('[TEST] Waiting for curated models to be loaded...');
+    await waitForFMDMUpdate(
+      (fmdm) => {
+        // Check that we have curated models loaded
+        const hasModels = !!(fmdm.fmdm.curatedModels && fmdm.fmdm.curatedModels.length > 0);
+        if (hasModels) {
+          console.error(`[TEST] Found ${fmdm.fmdm.curatedModels!.length} curated models`);
+        }
+        return hasModels;
+      },
+      10000
+    );
+    console.error('[TEST] Curated models loaded successfully');
+  }, 30000); // 30 second timeout should be sufficient with fixed cache detection
 
   afterAll(async () => {
     // Clean up WebSocket
@@ -314,6 +344,19 @@ describe('Daemon E2E Integration Tests', () => {
     // Add folder to daemon
     await addFolder(testFolder);
 
+    // Check if model needs downloading
+    const initialFmdm = await waitForFMDMUpdate(
+      (fmdm) => fmdm.fmdm.folders.some(f => f.path === testFolder),
+      2000
+    );
+    
+    const folder = initialFmdm.fmdm.folders.find(f => f.path === testFolder);
+    if (folder?.status === 'downloading-model') {
+      console.error('[TEST] Model download in progress, waiting for completion...');
+      // Wait for model download to complete
+      await waitForFolderStatus(testFolder, 'scanning', 60000); // 60s for model download
+    }
+    
     // Wait for completion (folder might go directly to 'active' for small folders)
     const activeFolder = await waitForFolderStatus(testFolder, 'active');
     expect(activeFolder.status).toBe('active');
@@ -662,7 +705,7 @@ describe('Daemon E2E Integration Tests', () => {
         id: `error-test-${Date.now()}`,
         payload: { 
           path: nonExistentFolder,
-          model: 'folder-mcp:all-MiniLM-L6-v2'
+          model: testModelId  // Use auto-discovered test model
         }
       };
       console.error(`[TEST-DEBUG] Sending folder.add message: ${JSON.stringify(message)}`);

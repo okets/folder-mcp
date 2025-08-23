@@ -1,6 +1,6 @@
 {
   "model": {
-    "name": "nomic-embed-text",
+    "name": "{{DEFAULT_MODEL}}",
     "batchSize": 32,
     "chunkSize": 1000,
     "overlap": 10,
@@ -143,7 +143,7 @@
       ],
       "embeddings": {
         "backend": "auto",
-        "model": "nomic-embed-text"
+        "model": "{{DEFAULT_MODEL}}"
       },
       "performance": {
         "batchSize": 32,
@@ -166,13 +166,6 @@
   },
   "embeddings": {
     "python": {
-      "supportedModels": [
-        "all-MiniLM-L6-v2",
-        "all-mpnet-base-v2",
-        "all-MiniLM-L12-v2",
-        "all-distilroberta-v1",
-        "paraphrase-MiniLM-L6-v2"
-      ],
       "processManagement": {
         "crawlingPauseMinutes": 1,
         "keepAliveMinutes": 5,

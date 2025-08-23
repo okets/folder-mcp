@@ -23,6 +23,7 @@ import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../config/model-registry.js';
 import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
 import { ModelCacheChecker } from './services/model-cache-checker.js';
@@ -159,6 +160,13 @@ class FolderMCPDaemon {
       );
       debug('Services initialized');
 
+      // Check curated models FIRST, before loading folders
+      info('Checking installed models...');
+      await this.initializeCuratedModels(loggingService);
+      
+      debug('Loading configured folders into FMDM...');
+      await this.fmdmService!.loadFoldersFromConfig();
+      
       debug('Restoring monitored folders...');
       await this.monitoredFoldersOrchestrator!.startAll();
       const folders = this.fmdmService!.getFMDM().folders;
@@ -167,7 +175,7 @@ class FolderMCPDaemon {
       }
 
       debug('Initializing WebSocket server...');
-      this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
+      this.webSocketServer = await this.diContainer.resolveAsync(SERVICE_TOKENS.WEBSOCKET_SERVER);
       
       const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
       await validationService.initialize();
@@ -184,10 +192,6 @@ class FolderMCPDaemon {
       );
       
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
-
-      // Check curated models BEFORE starting WebSocket server
-      info('Checking installed models...');
-      await this.initializeCuratedModels(loggingService);
 
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
@@ -416,14 +420,9 @@ class FolderMCPDaemon {
       logError('Model check failed (non-critical):', error);
       
       // Set all models as not installed as fallback
-      const defaultModels = [
-        // GPU models
-        { id: 'folder-mcp:bge-m3', installed: false, type: 'gpu' as const },
-        { id: 'folder-mcp:multilingual-e5-large', installed: false, type: 'gpu' as const },
-        { id: 'folder-mcp:paraphrase-multilingual-minilm', installed: false, type: 'gpu' as const },
-        // CPU models
-        { id: 'folder-mcp-lite:xenova-multilingual-e5-small', installed: false, type: 'cpu' as const },
-        { id: 'folder-mcp-lite:xenova-multilingual-e5-large', installed: false, type: 'cpu' as const }
+      const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+      const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+      const defaultModels = [...gpuModels, ...cpuModels
       ];
       
       this.fmdmService!.setCuratedModelInfo(defaultModels, {

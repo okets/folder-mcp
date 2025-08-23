@@ -493,6 +493,7 @@ export function createActionResponse(
   error?: string
 ): ActionResponseMessage {
   return {
+    type: 'action.response',
     id,
     success,
     ...(error && { error })
@@ -628,7 +629,7 @@ export const VALIDATION_ERRORS = {
 } as const;
 
 export const VALIDATION_WARNINGS = {
-  ANCESTOR: (path: string, affectedFolders: string[]) => createValidationWarning(
+  ANCESTOR: (_path: string, affectedFolders: string[]) => createValidationWarning(
     'ancestor',
     `This folder is an ancestor of ${affectedFolders.length} existing folder${affectedFolders.length > 1 ? 's' : ''}`,
     affectedFolders

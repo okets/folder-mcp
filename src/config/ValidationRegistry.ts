@@ -6,6 +6,7 @@
  */
 
 import { validators } from '../interfaces/tui-ink/utils/validators.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds, isValidModelId } from './model-registry.js';
 import { existsSync, statSync } from 'fs';
 
 export interface ValidationResult {
@@ -76,17 +77,7 @@ export class ValidationRegistry {
         this.registerRule('folders.defaults.embeddings.model', {
             validate: (value: string) => {
                 if (!value || value.trim() === '') return false;
-                const supportedModels = [
-                    'nomic-embed-text',
-                    'mxbai-embed-large',
-                    'all-minilm',
-                    'sentence-transformers',
-                    'ollama:nomic-embed-text',
-                    'ollama:mxbai-embed-large',
-                    'ollama:all-minilm',
-                    'transformers:all-MiniLM-L6-v2'
-                ];
-                return supportedModels.includes(value);
+                return isValidModelId(value);
             },
             message: 'Must be a supported embedding model'
         });

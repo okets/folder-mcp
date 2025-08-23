@@ -288,6 +288,14 @@ export class SQLiteVecStorage implements IVectorSearchService {
     }
 
     /**
+     * Get direct database access for advanced queries
+     * Used for operations that need custom SQL queries
+     */
+    getDatabaseManager() {
+        return this.dbManager;
+    }
+
+    /**
      * Clear all data from the index
      */
     private async clearIndex(): Promise<void> {

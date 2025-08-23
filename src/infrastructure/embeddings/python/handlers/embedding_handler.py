@@ -821,20 +821,18 @@ class EmbeddingHandler:
             import os
             from pathlib import Path
             
-            # Check default sentence-transformers cache directory
-            cache_dir = Path.home() / '.cache' / 'torch' / 'sentence_transformers'
+            # Check new HuggingFace hub cache directory (current location)
+            hub_cache_dir = Path.home() / '.cache' / 'huggingface' / 'hub'
+            # HuggingFace uses 'models--' prefix and replaces '/' with '--'
+            hub_model_dir = hub_cache_dir / f"models--{model_name.replace('/', '--')}"
             
-            # Model directory name (sentence-transformers replaces '/' with '_')
-            model_dir = cache_dir / model_name.replace('/', '_')
-            
-            # Check if model directory exists and contains required files
-            if model_dir.exists() and (model_dir / 'config.json').exists():
-                return True
-                
-            # Alternative: try to check if model files exist by looking for common files
-            common_files = ['config.json', 'pytorch_model.bin', 'tokenizer.json']
-            if model_dir.exists() and any((model_dir / f).exists() for f in common_files):
-                return True
+            # Check if model exists in HuggingFace hub cache
+            if hub_model_dir.exists():
+                # Check for snapshot directory which contains the actual model files
+                snapshots = hub_model_dir / 'snapshots'
+                if snapshots.exists() and any(snapshots.iterdir()):
+                    logger.info(f"Model {model_name} found in HuggingFace hub cache")
+                    return True
                 
             return False
         except Exception as e:
