@@ -20,6 +20,8 @@ import { IntelligentMemoryMonitor, MemoryAlert, MemoryBaseline } from '../../dom
 import { SimpleSystemMonitor } from '../../infrastructure/daemon/simple-system-monitor.js';
 import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/daemon/system-performance-telemetry.js';
 import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
+import { FolderIndexingQueue } from './folder-indexing-queue.js';
+import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -112,6 +114,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private systemPerformanceTelemetry?: SystemPerformanceTelemetry;
   private windowsPerformanceService: IWindowsPerformanceService;
   private modelDownloadManager: IModelDownloadManager;
+  private folderIndexingQueue: FolderIndexingQueue;
+  private modelFactory: UnifiedModelFactory;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -129,6 +133,18 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Initialize Model Download Manager (default if not provided)
     this.modelDownloadManager = modelDownloadManager || new ModelDownloadManager(this.logger, this.fmdmService);
+    
+    // Initialize the sequential folder indexing queue
+    this.folderIndexingQueue = new FolderIndexingQueue(this.logger);
+    
+    // Initialize the unified model factory
+    this.modelFactory = new UnifiedModelFactory(this.logger);
+    
+    // Set the model factory in the queue
+    this.folderIndexingQueue.setModelFactory(this.modelFactory);
+    
+    // Subscribe to queue events for FMDM updates
+    this.setupQueueEventHandlers();
     
     // Wire Python embedding service to model download manager
     this.initializePythonEmbeddingService();
@@ -533,15 +549,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Update FMDM for initial pending state
       this.updateFMDM();
       
-      // Start scanning
-      await folderManager.startScanning();
+      // Add folder to the sequential indexing queue instead of starting directly
+      // The queue will handle model loading/unloading and sequential processing
+      await this.folderIndexingQueue.addFolder(path, model, folderManager);
       
-      // Check if folder is already active and start file watching if needed
-      const folderState = folderManager.getState();
-      if (folderState.status === 'active') {
-        this.logger.info(`[ORCHESTRATOR] Folder ${path} is already active, starting file watching immediately`);
-        await this.startFileWatchingForFolder(path);
-      }
+      // Note: File watching will be started when the folder completes indexing
+      // This is handled in the subscribeFolderEvents method
       
       // Save folder to configuration for persistence across daemon restarts (if requested)
       if (saveToConfig) {
@@ -664,6 +677,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   async removeFolder(folderPath: string): Promise<void> {
+    // First, try to remove from the queue if it's pending
+    const removedFromQueue = this.folderIndexingQueue.removeFolder(folderPath);
+    if (removedFromQueue) {
+      this.logger.info(`[ORCHESTRATOR] Removed folder from indexing queue: ${folderPath}`);
+    }
+    
     const manager = this.folderManagers.get(folderPath);
     if (!manager) {
       this.logger.warn(`No manager found for folder: ${folderPath}`);
@@ -835,6 +854,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     // Stop folder validation timer
     this.stopFolderValidation();
     
+    // Stop the folder indexing queue first
+    // This will stop current processing and clear the queue
+    try {
+      this.logger.info('[ORCHESTRATOR] Stopping folder indexing queue');
+      await this.folderIndexingQueue.stop();
+      this.logger.info('[ORCHESTRATOR] Folder indexing queue stopped');
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Error stopping folder indexing queue:', error instanceof Error ? error : new Error(String(error)));
+    }
+    
     // Stop intelligent memory monitoring (only if enabled)
     if (this.intelligentMemoryMonitor) {
       this.intelligentMemoryMonitor.stopMonitoring();
@@ -872,6 +901,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
     
     this.folderManagers.clear();
+    
+    // Clear the model factory cache to ensure clean shutdown
+    try {
+      this.logger.info('[ORCHESTRATOR] Clearing model factory cache');
+      this.modelFactory.clearCache();
+      this.logger.info('[ORCHESTRATOR] Model factory cache cleared');
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Error clearing model factory cache:', error instanceof Error ? error : new Error(String(error)));
+    }
     
     // Log shutdown performance telemetry
     const shutdownDuration = Date.now() - shutdownStartTime;
@@ -1570,6 +1608,58 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     }
   }
   
+  /**
+   * Setup event handlers for the folder indexing queue
+   */
+  private setupQueueEventHandlers(): void {
+    // Handle queue events for FMDM updates
+    this.folderIndexingQueue.on('queue:added', (folder) => {
+      this.logger.debug(`[ORCHESTRATOR] Folder added to queue: ${folder.folderPath}`);
+      this.updateFMDM();
+    });
+
+    this.folderIndexingQueue.on('queue:started', (folder) => {
+      this.logger.info(`[ORCHESTRATOR] Started processing folder: ${folder.folderPath}`);
+      this.updateFMDM();
+    });
+
+    this.folderIndexingQueue.on('queue:model-loading', (folder, progress) => {
+      this.logger.debug(`[ORCHESTRATOR] Model loading for ${folder.folderPath}: ${progress.stage}`);
+      
+      // Update FMDM with model loading progress
+      if (progress.stage === 'downloading' && progress.progress !== undefined) {
+        this.fmdmService.updateFolderStatus(folder.folderPath, 'downloading-model', {
+          message: `Downloading model: ${progress.progress}%`,
+          type: 'info'
+        });
+      }
+    });
+
+    this.folderIndexingQueue.on('queue:model-loaded', (folder, modelId) => {
+      this.logger.info(`[ORCHESTRATOR] Model loaded for ${folder.folderPath}: ${modelId}`);
+      this.updateFMDM();
+    });
+
+    this.folderIndexingQueue.on('queue:completed', (folder) => {
+      this.logger.info(`[ORCHESTRATOR] Completed processing folder: ${folder.folderPath}`);
+      this.updateFMDM();
+    });
+
+    this.folderIndexingQueue.on('queue:failed', (folder, error) => {
+      this.logger.error(`[ORCHESTRATOR] Failed to process folder ${folder.folderPath}:`, error);
+      
+      // Update FMDM with error status
+      this.fmdmService.updateFolderStatus(folder.folderPath, 'error', {
+        message: error.message,
+        type: 'error'
+      });
+    });
+
+    this.folderIndexingQueue.on('queue:empty', () => {
+      this.logger.debug('[ORCHESTRATOR] Indexing queue is empty');
+    });
+  }
+
   /**
    * Initialize Python embedding service for model downloads
    * Uses the same factory pattern as the daemon's model cache checker

@@ -1144,4 +1144,29 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   }
 
   private lastReportedProgress?: number;
+
+  /**
+   * Request the Python process to unload the current model from memory
+   * This frees up GPU/CPU memory without shutting down the process
+   */
+  async requestModelUnload(): Promise<void> {
+    if (!this.pythonProcess) {
+      console.error('[PYTHON-EMBEDDING] No process to unload model from');
+      return;
+    }
+
+    try {
+      console.error('[PYTHON-EMBEDDING] Requesting model unload');
+      
+      // Send unload_model command to Python process
+      const response = await this.sendJsonRpcRequest('unload_model', {});
+      
+      console.error('[PYTHON-EMBEDDING] Model unloaded successfully');
+      return response;
+      
+    } catch (error) {
+      console.error('[PYTHON-EMBEDDING] Failed to unload model:', error);
+      throw new Error(`Failed to unload model: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 }

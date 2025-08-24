@@ -32,37 +32,35 @@ once it works with this, and I will verify this entire flow using the TUI, we wi
 3. Watch the download progress reporting in the FMDM, see that it enters the "downloading model" state, reporting progress properly, then moves on to scanning, indexing and finally active.
 I will verify this entire flow using the TUI once you are done with the previous steps.
 
-*Step 3, verifying CPU, ONNX model downloading and indexing:* [Next]
-
+*Step 3, create unified model interface and sequential processing:* [Completed]
 **Issue discovered**: Multi-model support broke our system because only Python models have priority queues and orchestration. ONNX and Ollama models have no priority system or keep-alive management.
 
 **Solution**: Implement sequential folder indexing with unified model interface. ONE FOLDER INDEXES AT A TIME - this eliminates memory competition and complex orchestration.
 
-*Step 3A: Create unified model interface and sequential processing*
 1. Define IEmbeddingModel interface that ALL model types implement (Python, ONNX, Ollama)
 2. Create FolderIndexingQueue in daemon - process one folder at a time
 3. Create PythonModelBridge implementing the interface (wraps existing Python service)
 4. Test: Verify Python models still work through the bridge with project folder
 
-*Step 3B: Rebuild ONNX service with proper implementation*
+*Step 4, rebuild ONNX service with proper implementation:* [Current]
 1. Fix ONNX implementation (currently broken) with new interface
 2. Implement proper model loading/unloading
 3. Add simple priority handling (immediate flag for semantic search)
 4. Test: Download "○ E5-Large ONNX (High Accuracy)" model and verify it works properly
 
-*Step 3C: Sequential indexing verification*
+*Step 5, sequential indexing verification:* [Not-Started]
 1. Add 2 folders with different models (Python and ONNX)
 2. Verify they index sequentially - only ONE at a time
 3. Second folder should show status "pending" until first completes
 4. Monitor FMDM state changes through the queue
 
-*Step 3D: Semantic search priority with sequential indexing*
+*Step 6, semantic search priority with sequential indexing:* [Not-Started]
 1. While folder A is indexing, trigger semantic search on folder B (different model)
 2. Verify: A pauses → B's model loads → search completes → A resumes with its model
 3. Test daemon logs show model load/unload and pause/resume events
 4. Verify semantic search gets immediate priority regardless of model type
 
-*step 4, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
+*Step 7, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
 Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
 TUI wait "ascii screenshot":
                             ⚠ folder-mcp service not running
@@ -83,7 +81,7 @@ TUI wait "ascii screenshot":
 2. analyze what actions are delaying the startup process (should be improved now).
 3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
 
-*Step 5, Remove duplicate metadata JSON storage:* [Not-Started]
+*Step 8, Remove duplicate metadata JSON storage:* [Not-Started]
 We discovered an incomplete migration from file-based caching to SQLite storage, causing duplicate data storage:
 1. JSON files in `.folder-mcp/metadata/` contain the same chunk data that's already in the SQLite database
 2. These files are created during indexing but never actually used (except for fingerprint tracking in IncrementalIndexer)
@@ -103,7 +101,7 @@ Testing:
 4. Test incremental indexing still detects changes without the JSON cache
 5. Ensure search endpoints can retrieve chunks from SQLite only
 
-*Step 6, setting default model automatically:* [Not-Started]
+*Step 9, setting default model automatically:* [Not-Started]
 All models are working perfectly at this stage with sequential processing. now we need to set the default one.
 1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
 2. Check for GPU and memory availability.
@@ -111,7 +109,7 @@ All models are working perfectly at this stage with sequential processing. now w
 4. Register chosen default with FolderIndexingQueue.
 We have a recommendation engine in place that can help with this decision. but it should be done once per daemon instance. the hardware doesn't change frequently, so this is a reasonable approach.
 
-*Step 7, verify model picking robustness using TMOAT*
+*Step 10, verify model picking robustness using TMOAT*
 - Create a set of test cases that cover various hardware configurations (e.g., different GPU/CPU combinations, memory sizes).
 - For each test case, use the TMOAT method to simulate the folder indexing process.
 - Verify that the correct model is selected based on the machine's capabilities.
@@ -119,7 +117,7 @@ We have a recommendation engine in place that can help with this decision. but i
 2. verify that models re-download if they are not present locally when trying to load them.
 3. **Sequential processing**: verify only ONE model loads at a time, others wait in queue.
 
-*Step 8, sequential processing robustness verification* [Not-Started]
+*Step 11, sequential processing robustness verification* [Not-Started]
 TMOAT comprehensive test of the sequential indexing system:
 1. Setup test scenario:
    - Folder A: Python model (all-MiniLM-L6-v2)
@@ -139,7 +137,7 @@ TMOAT comprehensive test of the sequential indexing system:
    - Test daemon restart with active queue
    - Test model download failure (should skip folder, continue queue)
 
-*Step 9, performance and resource verification* [Not-Started]
+*Step 12, performance and resource verification* [Not-Started]
 Final verification of the sequential system:
 1. Monitor memory usage stays predictable (only one model at a time)
 2. Test edge cases: Out of memory during model load (should fail gracefully)
