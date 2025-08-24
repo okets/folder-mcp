@@ -426,6 +426,8 @@ class StdioJSONRPCServer:
             elif method == 'is_model_cached':
                 result = self.embedding_server.is_model_cached(params)
             elif method == 'shutdown':
+                # Note: Shutdown method is preserved for explicit shutdown requests
+                # but keep-alive timeout no longer triggers shutdown
                 result = await self.embedding_server.shutdown(params)
                 # Signal shutdown after sending response
                 asyncio.create_task(self._delayed_shutdown())
