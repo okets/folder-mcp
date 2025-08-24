@@ -119,6 +119,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private lastRestartTime = 0;
   private restartTimer: NodeJS.Timeout | null = null;
   private downloadProgressCallback?: (progress: number) => void;
+  
+  // Service degradation state for graceful failure handling
+  private isDegraded = false;
+  private degradationReason: string | null = null;
 
   constructor(config?: Partial<PythonEmbeddingConfig>) {
     // Try to detect the correct Python command for the platform
@@ -207,6 +211,19 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    * Generate embeddings for multiple chunks
    */
   async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
+    // Check if service is degraded
+    if (this.isDegraded) {
+      console.error(`Embedding request rejected: Service is degraded (${this.degradationReason})`);
+      // Return empty embeddings to allow system to continue without crashing
+      return chunks.map((chunk, index) => ({
+        vector: Array(384).fill(0), // Zero vector as placeholder
+        dimensions: 384,
+        model: this.config.modelName,
+        createdAt: new Date().toISOString(),
+        chunkId: `degraded_${index}`
+      }));
+    }
+    
     if (!this.initialized) {
       await this.initialize();
     }
@@ -776,18 +793,66 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         // If health check indicates the process is unhealthy and auto-restart is enabled
         if (health.status === 'unhealthy' && this.config.autoRestart && !this.isShuttingDown) {
           console.error('Python process unhealthy, triggering restart...');
-          await this.restartProcess();
+          
+          // Don't let restartProcess throw and crash - handle gracefully
+          try {
+            await this.restartProcess();
+            // If restart succeeded, clear degradation
+            this.isDegraded = false;
+            this.degradationReason = null;
+            this.restartAttempts = 0; // Reset counter on successful restart
+          } catch (restartError) {
+            console.error('Restart failed, entering degraded mode:', restartError);
+            this.enterDegradedMode('Python embedding service restart failed');
+          }
+        } else if (health.status === 'healthy' && this.isDegraded) {
+          // Service recovered from degradation
+          console.error('Python service recovered from degradation');
+          this.isDegraded = false;
+          this.degradationReason = null;
         }
       } catch (error) {
         console.error('Health check failed:', error);
         
         // If health check completely fails, consider restarting
         if (this.config.autoRestart && !this.isShuttingDown && this.restartAttempts < this.config.maxRestartAttempts) {
-          console.error('Health check failed completely, triggering restart...');
-          await this.restartProcess();
+          console.error('Health check failed completely, attempting restart...');
+          
+          try {
+            await this.restartProcess();
+            // If restart succeeded, clear degradation
+            this.isDegraded = false;
+            this.degradationReason = null;
+            this.restartAttempts = 0;
+          } catch (restartError) {
+            console.error('Restart after health check failure failed:', restartError);
+            this.enterDegradedMode('Python service unavailable after multiple restart attempts');
+          }
+        } else if (this.restartAttempts >= this.config.maxRestartAttempts) {
+          // Max attempts reached, enter degraded mode
+          this.enterDegradedMode('Maximum restart attempts exceeded');
         }
       }
     }, this.config.healthCheckInterval);
+  }
+  
+  /**
+   * Enter degraded mode when Python service is unavailable
+   */
+  private enterDegradedMode(reason: string): void {
+    if (!this.isDegraded) {
+      console.error(`ENTERING DEGRADED MODE: ${reason}`);
+      console.error('The daemon will continue running but embeddings will be unavailable');
+      this.isDegraded = true;
+      this.degradationReason = reason;
+      
+      // Clear any pending requests
+      for (const [id, pending] of this.pendingRequests) {
+        clearTimeout(pending.timeout);
+        pending.reject(new Error(`Service degraded: ${reason}`));
+      }
+      this.pendingRequests.clear();
+    }
   }
   
   /**
@@ -821,21 +886,34 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   }
   
   /**
-   * Schedule a process restart with delay
+   * Schedule a process restart with exponential backoff
    */
   private scheduleRestart(): void {
     if (this.restartTimer) {
       clearTimeout(this.restartTimer);
     }
     
-    const delay = this.config.restartDelay * Math.min(this.restartAttempts + 1, 5); // Exponential backoff, max 5x
+    // Exponential backoff with jitter to prevent thundering herd
+    // Base delay: 2s, 4s, 8s, 16s, 32s (capped at 32s)
+    const baseDelay = this.config.restartDelay;
+    const exponentialDelay = baseDelay * Math.pow(2, Math.min(this.restartAttempts, 4));
+    // Add jitter: ±25% randomization
+    const jitter = exponentialDelay * (0.75 + Math.random() * 0.5);
+    const delay = Math.round(jitter);
+    
     console.error(`Scheduling restart in ${delay}ms (attempt ${this.restartAttempts + 1}/${this.config.maxRestartAttempts})`);
+    console.error(`Exponential backoff: base=${baseDelay}ms, calculated=${exponentialDelay}ms, with jitter=${delay}ms`);
     
     this.restartTimer = setTimeout(async () => {
       try {
         await this.restartProcess();
+        // Success is handled inside restartProcess
       } catch (error) {
         console.error('Failed to restart Python process:', error);
+        // If we still have attempts left, it will be rescheduled from within restartProcess
+        if (this.restartAttempts >= this.config.maxRestartAttempts) {
+          this.enterDegradedMode('Maximum restart attempts exceeded');
+        }
       }
     }, delay);
   }
@@ -880,10 +958,43 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       // Start new process
       await this.startPythonProcess();
       
-      // Perform health check
-      const health = await this.healthCheck();
-      if (health.status === 'unhealthy') {
-        throw new Error('Restarted process failed health check');
+      // CRITICAL FIX: Give Python process time to fully initialize before health check
+      // The model loading and server initialization can take several seconds
+      const initWaitTime = 5000; // 5 seconds for model loading
+      console.error(`Waiting ${initWaitTime}ms for Python process to initialize...`);
+      await new Promise(resolve => setTimeout(resolve, initWaitTime));
+      
+      // Now perform health check with retries
+      let healthCheckAttempts = 0;
+      const maxHealthCheckAttempts = 3;
+      let health: HealthCheckResponse | null = null;
+      
+      while (healthCheckAttempts < maxHealthCheckAttempts) {
+        healthCheckAttempts++;
+        console.error(`Health check attempt ${healthCheckAttempts}/${maxHealthCheckAttempts}...`);
+        
+        try {
+          health = await this.healthCheck();
+          if (health.status === 'healthy') {
+            console.error('Health check passed!');
+            break;
+          }
+          console.error(`Health check returned unhealthy status, model_loaded: ${health.model_loaded}`);
+        } catch (error) {
+          console.error(`Health check attempt ${healthCheckAttempts} failed:`, error);
+        }
+        
+        // Wait before next attempt (unless it's the last attempt)
+        if (healthCheckAttempts < maxHealthCheckAttempts && (!health || health.status === 'unhealthy')) {
+          const retryWait = 2000 * healthCheckAttempts; // Increasing wait time
+          console.error(`Waiting ${retryWait}ms before next health check...`);
+          await new Promise(resolve => setTimeout(resolve, retryWait));
+        }
+      }
+      
+      // Check final health status
+      if (!health || health.status === 'unhealthy') {
+        throw new Error(`Restarted process failed health check after ${maxHealthCheckAttempts} attempts`);
       }
       
       this.initialized = true;

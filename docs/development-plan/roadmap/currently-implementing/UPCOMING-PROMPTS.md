@@ -189,7 +189,6 @@ Be a good TMOAT agent!
 
 
 
-Please erase all local models. I want to see how fast each takes myself.
-
-1. the model is downloading behind the scenes. but the TUI shows something timed out before it downloads.[Image #1]
-2. We invested effort in download progress and progress simulation for model downloading. can't we show a live status update the way we do for indexing?
+────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────
+***Next Issue:***

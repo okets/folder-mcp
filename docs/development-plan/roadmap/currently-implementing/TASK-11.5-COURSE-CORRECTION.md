@@ -37,7 +37,7 @@ I will verify this entire flow using the TUI once you are done with the previous
 2. Add a the project's folder to be indexed using "MiniLM-L12 (Fast)" model
 3. Watch the download progress reporting in the FMDM, see that it enters the "downloading model" state, reporting progress properly, then moves on to scanning, indexing and finally active.
 
-*step 4, fix daemon takes long time to load, TUI windows waiting for a daemon to load*
+*step 4, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
 Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
 TUI wait "ascii screenshot":
                             ⚠ folder-mcp service not running
@@ -53,7 +53,27 @@ TUI wait "ascii screenshot":
 2. analyze what actions are delaying the startup process.
 3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
 
-*Step 5, setting default model automatically:* [Not Started]
+*Step 5, Remove duplicate metadata JSON storage:* [Not-Started]
+We discovered an incomplete migration from file-based caching to SQLite storage, causing duplicate data storage:
+1. JSON files in `.folder-mcp/metadata/` contain the same chunk data that's already in the SQLite database
+2. These files are created during indexing but never actually used (except for fingerprint tracking in IncrementalIndexer)
+3. This wastes disk space and creates confusion about the source of truth
+
+Tasks:
+1. Stop creating metadata JSON files in `src/application/indexing/orchestrator.ts` and `src/application/indexing/pipeline.ts`
+2. Remove the `saveToCache(..., 'metadata')` calls - the data is already saved to SQLite
+3. Update IncrementalIndexer to use the SQLite database for fingerprint tracking instead of JSON cache
+4. task validation: Remove the project's folder from indexing list, then re-add it. check if the metadata folder was created.
+5. Update tests to not expect metadata JSON files
+
+Testing:
+1. Remove the project's folder from indexing list
+2. Index the project's folder and verify NO JSON files are created in `.folder-mcp/metadata/`
+3. Verify all chunk data is properly stored in SQLite: `sqlite3 .folder-mcp/embeddings.db "SELECT COUNT(*) FROM chunks;"`
+4. Test incremental indexing still detects changes without the JSON cache
+5. Ensure search endpoints can retrieve chunks from SQLite only
+
+*Step 6, setting default model automatically:* [Not-Started]
 All models are working perfectly at this stage. now we need to set the default one.
 1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
 check for GPU and memory availability.
