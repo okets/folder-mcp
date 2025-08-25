@@ -66,8 +66,16 @@ export class ONNXDownloader {
       throw new Error(`Model ${modelId} not found in catalog`);
     }
 
-    if (!model.downloadInfo?.url) {
-      throw new Error(`Model ${modelId} does not have download URL in catalog`);
+    // Build download URL for ONNX models from Hugging Face
+    let downloadUrl: string;
+    if (model.downloadInfo?.url) {
+      downloadUrl = model.downloadInfo.url;
+    } else if (model.huggingfaceId) {
+      // For ONNX models from Xenova, build the Hugging Face URL
+      // Format: https://huggingface.co/Xenova/multilingual-e5-large/resolve/main/onnx/model_quantized.onnx
+      downloadUrl = `https://huggingface.co/${model.huggingfaceId}/resolve/main/onnx/model_quantized.onnx`;
+    } else {
+      throw new Error(`Model ${modelId} does not have download URL or Hugging Face ID in catalog`);
     }
 
     // Ensure cache directory exists
@@ -100,7 +108,7 @@ export class ONNXDownloader {
     await fs.mkdir(modelDir, { recursive: true });
 
     // Download the model
-    console.log(`📥 Downloading ${model.displayName} from ${model.downloadInfo.url}`);
+    console.log(`📥 Downloading ${model.displayName} from ${downloadUrl}`);
     
     const downloadOptions = {
       ...options,
@@ -109,7 +117,7 @@ export class ONNXDownloader {
     };
 
     await this.downloadFile(
-      model.downloadInfo.url,
+      downloadUrl,
       modelFile,
       model,
       downloadOptions

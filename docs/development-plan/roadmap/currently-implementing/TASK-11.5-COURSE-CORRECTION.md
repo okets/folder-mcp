@@ -42,25 +42,65 @@ I will verify this entire flow using the TUI once you are done with the previous
 3. Create PythonModelBridge implementing the interface (wraps existing Python service)
 4. Test: Verify Python models still work through the bridge with project folder
 
-*Step 4, rebuild ONNX service with proper implementation:* [Current]
-1. Fix ONNX implementation (currently broken) with new interface
-2. Implement proper model loading/unloading
-3. Add simple priority handling (immediate flag for semantic search)
-4. Test: Download "○ E5-Large ONNX (High Accuracy)" model and verify it works properly
+*Step 4, urgent model ID fixes for ONNX system:* [Completed]
+**Issue discovered**: ONNX models cannot be found due to model ID mismatch between the curated registry and the codebase expectations.
 
-*Step 5, sequential indexing verification:* [Not-Started]
+**Root cause**: 
+- Test/code expects: `e5-small-onnx`, `e5-large-onnx`
+- Registry contains: `folder-mcp-lite:xenova-multilingual-e5-small`, `folder-mcp-lite:xenova-multilingual-e5-large`
+- Model catalog structure changed from flat array to nested `gpuModels` and `cpuModels` objects
+
+**Urgent fixes required**:
+1. Standardize model ID references across the codebase
+2. Update model type detection in FolderIndexingQueue to recognize `folder-mcp-lite:*` as ONNX models
+3. Fix any hardcoded references to old model IDs
+4. Verify ONNXDownloader and ONNXEmbeddingService can find models with new IDs
+5. Test: Successfully download and initialize `folder-mcp-lite:xenova-multilingual-e5-small`
+
+*Step 5, rebuild ONNX service with proper implementation:* [Completed]
+note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder-mcp/onnx-models/'
+1. Create ONNXModelBridge implementing IEmbeddingModel interface
+2. Integrate ONNXModelBridge with UnifiedModelFactory
+3. Implement proper model loading/unloading for ONNX
+4. Add simple priority handling (immediate flag for semantic search)
+5. Test: Download and use "folder-mcp-lite:xenova-multilingual-e5-large" model for indexing
+
+*Step 6, sequential indexing verification:* [Not-Started]
 1. Add 2 folders with different models (Python and ONNX)
 2. Verify they index sequentially - only ONE at a time
 3. Second folder should show status "pending" until first completes
 4. Monitor FMDM state changes through the queue
 
-*Step 6, semantic search priority with sequential indexing:* [Not-Started]
+*Step 7, semantic search priority with sequential indexing:* [Not-Started]
 1. While folder A is indexing, trigger semantic search on folder B (different model)
 2. Verify: A pauses → B's model loads → search completes → A resumes with its model
 3. Test daemon logs show model load/unload and pause/resume events
 4. Verify semantic search gets immediate priority regardless of model type
 
-*Step 7, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
+*Step 8, rename model ID prefixes to hardware-based convention* [Not-Started]
+**Simple refactor**: Change model ID prefixes to be hardware/provider-based for clarity.
+
+**Old prefixes**:
+- `folder-mcp:` → GPU/Python models
+- `folder-mcp-lite:` → ONNX/CPU models
+
+**New prefixes**:
+- `gpu:` → Python models requiring GPU (e.g., `gpu:bge-m3`)
+- `cpu:` → ONNX models optimized for CPU (e.g., `cpu:xenova-multilingual-e5-small`)
+- `ollama:` → Ollama models (e.g., `ollama:nomic-embed-text`)
+
+**Tasks**:
+1. Search and replace in `src/config/curated-models.json`:
+   - Replace `"folder-mcp:` with `"gpu:`
+   - Replace `"folder-mcp-lite:` with `"cpu:`
+2. Update any hardcoded model ID references in the codebase
+3. Update model type detection logic to use new prefixes
+4. TMOAT verification:
+   - Add folder with `gpu:all-MiniLM-L6-v2`
+   - Add folder with `cpu:xenova-multilingual-e5-small`
+   - Verify both models are correctly identified and loaded
+
+*Step 9, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
 Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
 TUI wait "ascii screenshot":
                             ⚠ folder-mcp service not running
@@ -81,7 +121,7 @@ TUI wait "ascii screenshot":
 2. analyze what actions are delaying the startup process (should be improved now).
 3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
 
-*Step 8, Remove duplicate metadata JSON storage:* [Not-Started]
+*Step 10, Remove duplicate metadata JSON storage:* [Not-Started]
 We discovered an incomplete migration from file-based caching to SQLite storage, causing duplicate data storage:
 1. JSON files in `.folder-mcp/metadata/` contain the same chunk data that's already in the SQLite database
 2. These files are created during indexing but never actually used (except for fingerprint tracking in IncrementalIndexer)
@@ -101,7 +141,7 @@ Testing:
 4. Test incremental indexing still detects changes without the JSON cache
 5. Ensure search endpoints can retrieve chunks from SQLite only
 
-*Step 9, setting default model automatically:* [Not-Started]
+*Step 11, setting default model automatically:* [Not-Started]
 All models are working perfectly at this stage with sequential processing. now we need to set the default one.
 1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
 2. Check for GPU and memory availability.
@@ -109,7 +149,7 @@ All models are working perfectly at this stage with sequential processing. now w
 4. Register chosen default with FolderIndexingQueue.
 We have a recommendation engine in place that can help with this decision. but it should be done once per daemon instance. the hardware doesn't change frequently, so this is a reasonable approach.
 
-*Step 10, verify model picking robustness using TMOAT*
+*Step 12, verify model picking robustness using TMOAT* [Not-Started]
 - Create a set of test cases that cover various hardware configurations (e.g., different GPU/CPU combinations, memory sizes).
 - For each test case, use the TMOAT method to simulate the folder indexing process.
 - Verify that the correct model is selected based on the machine's capabilities.
@@ -117,12 +157,12 @@ We have a recommendation engine in place that can help with this decision. but i
 2. verify that models re-download if they are not present locally when trying to load them.
 3. **Sequential processing**: verify only ONE model loads at a time, others wait in queue.
 
-*Step 11, sequential processing robustness verification* [Not-Started]
+*Step 13, sequential processing robustness verification* [Not-Started]
 TMOAT comprehensive test of the sequential indexing system:
 1. Setup test scenario:
-   - Folder A: Python model (all-MiniLM-L6-v2)
-   - Folder B: ONNX model (E5-Large)  
-   - Folder C: Different Python model (all-mpnet-base-v2)
+   - Folder A: Python model (gpu:all-MiniLM-L6-v2)
+   - Folder B: ONNX model (cpu:xenova-multilingual-e5-small)  
+   - Folder C: Different Python model (gpu:all-mpnet-base-v2)
 2. Add all three folders simultaneously to daemon
 3. Verify sequential processing:
    - Only Folder A starts indexing immediately
@@ -137,7 +177,7 @@ TMOAT comprehensive test of the sequential indexing system:
    - Test daemon restart with active queue
    - Test model download failure (should skip folder, continue queue)
 
-*Step 12, performance and resource verification* [Not-Started]
+*Step 14, performance and resource verification* [Not-Started]
 Final verification of the sequential system:
 1. Monitor memory usage stays predictable (only one model at a time)
 2. Test edge cases: Out of memory during model load (should fail gracefully)

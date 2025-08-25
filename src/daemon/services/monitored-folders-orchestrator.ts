@@ -24,6 +24,7 @@ import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -148,6 +149,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Wire Python embedding service to model download manager
     this.initializePythonEmbeddingService();
+    
+    // Wire ONNX downloader to model download manager
+    this.initializeONNXDownloader();
     
     // Initialize resource manager with daemon-appropriate limits
     const resourceLimits: Partial<ResourceLimits> = {
@@ -1686,6 +1690,32 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } catch (error) {
       this.logger.error('[ORCHESTRATOR] Failed to initialize Python embedding service for downloads:', error instanceof Error ? error : new Error(String(error)));
       // Don't throw - this is not a fatal error, just means model downloads won't work
+    }
+  }
+
+  /**
+   * Initialize ONNX downloader for CPU model downloads
+   */
+  private async initializeONNXDownloader(): Promise<void> {
+    try {
+      this.logger.debug('[ORCHESTRATOR] Initializing ONNX downloader for CPU model downloads...');
+      
+      // Import the ONNX downloader
+      const { ONNXDownloader } = await import('../../infrastructure/embeddings/onnx/onnx-downloader.js');
+      
+      // Create ONNX downloader with default cache directory
+      const onnxDownloader = new ONNXDownloader({
+        cacheDirectory: path.join(os.homedir(), '.cache', 'folder-mcp', 'onnx-models')
+      });
+      
+      // Wire the downloader to the model download manager
+      this.modelDownloadManager.setONNXDownloader(onnxDownloader);
+      
+      this.logger.info('[ORCHESTRATOR] ONNX downloader wired to model download manager');
+      
+    } catch (error) {
+      this.logger.error('[ORCHESTRATOR] Failed to initialize ONNX downloader:', error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - this is not a fatal error, just means CPU model downloads won't work
     }
   }
 }

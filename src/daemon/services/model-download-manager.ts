@@ -52,6 +52,11 @@ export interface IModelDownloadManager {
    * Set the Python embedding service (for dependency injection)
    */
   setPythonEmbeddingService(service: PythonEmbeddingService): void;
+  
+  /**
+   * Set the ONNX downloader (for dependency injection)
+   */
+  setONNXDownloader(downloader: ONNXDownloader): void;
 }
 
 /**
@@ -268,11 +273,25 @@ export class ModelDownloadManager implements IModelDownloadManager {
       throw new Error('ONNX downloader not available for CPU model download');
     }
     
-    // For now, just check if model is available since ONNX downloader doesn't have progress callback yet
-    // TODO: Add progress callback support to ONNX downloader
+    // Check if model is already available
     const isAvailable = await this.onnxDownloader.isModelAvailable(modelId);
     if (!isAvailable) {
-      await this.onnxDownloader.downloadModel(modelId);
+      this.logger.info(`[MODEL-DOWNLOAD] Starting ONNX model download: ${modelId}`);
+      
+      // Download with progress callback for real-time updates
+      await this.onnxDownloader.downloadModel(modelId, {
+        onProgress: (progress) => {
+          this.logger.debug(`[MODEL-DOWNLOAD] ONNX progress for ${modelId}: ${progress.progress}%`);
+          this.updateModelDownloadState(modelId, progress.status === 'downloading', progress.progress);
+        },
+        verifySize: true
+      });
+      
+      // Update to 100% on success
+      this.logger.info(`[MODEL-DOWNLOAD] Successfully downloaded ONNX model ${modelId}`);
+      this.updateModelDownloadState(modelId, false, 100);
+    } else {
+      this.logger.debug(`[MODEL-DOWNLOAD] ONNX model ${modelId} already cached`);
     }
   }
   

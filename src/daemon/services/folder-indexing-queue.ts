@@ -425,12 +425,22 @@ export class FolderIndexingQueue extends EventEmitter {
    * This is a simplified version - in reality would check against curated models
    */
   private getModelType(modelId: string): 'python' | 'onnx' | 'ollama' {
-    if (modelId.includes('onnx') || modelId.includes('ONNX')) {
+    // Check prefixes according to our model ID convention:
+    // - folder-mcp-lite: = CPU/ONNX models
+    // - folder-mcp: = GPU/Python models  
+    // - ollama: = Ollama models
+    if (modelId.startsWith('folder-mcp-lite:')) {
       return 'onnx';
-    } else if (modelId.includes('ollama')) {
+    } else if (modelId.startsWith('folder-mcp:')) {
+      return 'python';
+    } else if (modelId.startsWith('ollama:')) {
       return 'ollama';
+    } else if (modelId.includes('onnx') || modelId.includes('ONNX')) {
+      // Fallback for explicit onnx in name
+      return 'onnx';
     } else {
-      return 'python'; // Default to Python models
+      // Default to Ollama for backward compatibility
+      return 'ollama';
     }
   }
 

@@ -43,8 +43,9 @@ export class ONNXEmbeddingService {
     }
     this.modelConfig = modelConfig;
 
-    if (!this.modelConfig.downloadInfo) {
-      throw new Error(`Model ${this.options.modelId} does not have ONNX download information`);
+    // ONNX models from Xenova use huggingfaceId, not downloadInfo
+    if (!this.modelConfig.downloadInfo && !this.modelConfig.huggingfaceId) {
+      throw new Error(`Model ${this.options.modelId} does not have ONNX download information or Hugging Face ID`);
     }
 
     try {
@@ -162,8 +163,13 @@ export class ONNXEmbeddingService {
   }
 
   private async ensureModelDownloaded(): Promise<string> {
-    if (!this.modelConfig || !this.modelConfig.downloadInfo) {
-      throw new Error('No download information available for model');
+    if (!this.modelConfig) {
+      throw new Error('Model configuration not loaded');
+    }
+    
+    // ONNX models from Xenova use huggingfaceId for download location
+    if (!this.modelConfig.downloadInfo && !this.modelConfig.huggingfaceId) {
+      throw new Error('No download information or Hugging Face ID available for model');
     }
 
     const modelDir = path.join(this.cacheDir, this.modelConfig.huggingfaceId!.replace('/', '_'));
