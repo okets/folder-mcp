@@ -13,7 +13,7 @@ import path from 'path';
 
 export interface CacheDirectoryStructure {
   baseDir: string;
-  metadata: string;
+  sqliteDatabase: string; // SQLite database replaces metadata directory
   embeddings?: string;
   vectors?: string;
   outlines?: string;
@@ -60,12 +60,12 @@ export class CacheTestHelper {
 
     const structure: CacheDirectoryStructure = {
       baseDir: this.cacheBaseDir,
-      metadata: path.join(this.cacheBaseDir, 'metadata')
+      sqliteDatabase: path.join(this.cacheBaseDir, 'documents.db')
     };
 
-    // Always create metadata directory
-    if (!existsSync(structure.metadata)) {
-      await fs.mkdir(structure.metadata, { recursive: true });
+    // Create SQLite database file (in real implementation, this would be a proper database)
+    if (!existsSync(structure.sqliteDatabase)) {
+      await fs.writeFile(structure.sqliteDatabase, 'Mock SQLite database for testing');
     }
 
     // Create requested subdirectories
@@ -173,7 +173,7 @@ export class CacheTestHelper {
   async validateCacheStructure(expectedSubdirectories: string[]): Promise<CacheValidationResult> {
     const result: CacheValidationResult = {
       exists: existsSync(this.cacheBaseDir),
-      structure: { baseDir: this.cacheBaseDir, metadata: path.join(this.cacheBaseDir, 'metadata') },
+      structure: { baseDir: this.cacheBaseDir, sqliteDatabase: path.join(this.cacheBaseDir, 'documents.db') },
       subdirectories: [],
       files: [],
       totalSize: 0,
@@ -211,13 +211,14 @@ export class CacheTestHelper {
         }
       }
 
-      // Always check metadata directory
-      const metadataPath = path.join(this.cacheBaseDir, 'metadata');
-      if (!existsSync(metadataPath)) {
-        result.errors.push('Metadata directory does not exist');
+      // Always check SQLite database
+      const sqlitePath = path.join(this.cacheBaseDir, 'documents.db');
+      if (!existsSync(sqlitePath)) {
+        result.errors.push('SQLite database does not exist');
         result.isValid = false;
       } else {
-        result.subdirectories.push('metadata');
+        // SQLite database exists
+        result.files.push('documents.db');
       }
 
     } catch (error) {
@@ -233,10 +234,10 @@ export class CacheTestHelper {
    */
   async testCachePersistence(testData: any): Promise<boolean> {
     const testKey = 'persistence-test';
-    const testSubdir = 'metadata';
+    const testSubdir = 'temp'; // Use temp directory instead of metadata
 
     try {
-      // Save test data
+      // Save test data to temp subdirectory
       await this.saveToCache(testSubdir, testKey, testData);
 
       // Verify data exists

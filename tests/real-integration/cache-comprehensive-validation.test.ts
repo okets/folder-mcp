@@ -315,7 +315,7 @@ describe('Comprehensive Cache Validation Tests', () => {
     // Verify all structures were created
     for (const [structureName, structure] of Object.entries(structures)) {
       expect(existsSync(structure.baseDir)).toBe(true);
-      expect(existsSync(structure.metadata)).toBe(true);
+      expect(existsSync(structure.sqliteDatabase)).toBe(true);
       console.log(`✅ ${structureName} cache structure created`);
     }
     

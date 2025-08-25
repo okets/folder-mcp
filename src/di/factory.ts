@@ -186,7 +186,7 @@ export class ServiceFactory implements IServiceFactory {
 
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-      container.resolve(SERVICE_TOKENS.CACHE),
+      container.resolve(SERVICE_TOKENS.FILE_STATE_STORAGE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       indexingOrchestrator
     );

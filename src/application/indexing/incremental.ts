@@ -17,12 +17,16 @@ import { getSupportedExtensions } from '../../domain/files/supported-extensions.
 // Domain service interfaces
 import { 
   IFileSystemService,
-  ICacheService,
   ILoggingService 
 } from '../../di/interfaces.js';
 
 // Domain types
 import { FileFingerprint } from '../../types/index.js';
+import { 
+  FileState, 
+  FileProcessingState, 
+  IFileStateStorage 
+} from '../../domain/files/file-state-manager.js';
 
 // Import the main orchestrator for actual processing
 import { IndexingOrchestrator } from './orchestrator.js';
@@ -30,7 +34,7 @@ import { IndexingOrchestrator } from './orchestrator.js';
 export class IncrementalIndexer implements IncrementalIndexing {
   constructor(
     private readonly fileSystemService: IFileSystemService,
-    private readonly cacheService: ICacheService,
+    private readonly fileStateStorage: IFileStateStorage,
     private readonly loggingService: ILoggingService,
     private readonly indexingOrchestrator: IndexingOrchestrator
   ) {}
@@ -47,7 +51,7 @@ export class IncrementalIndexer implements IncrementalIndexing {
         []
       );
       
-      // Get previous file state from cache (simplified approach)
+      // Get previous file state from SQLite storage
       const previousFingerprints = await this.loadPreviousFingerprints(folderPath);
       
       // Compare states to detect changes
@@ -106,13 +110,15 @@ export class IncrementalIndexer implements IncrementalIndexing {
 
   private async loadPreviousFingerprints(folderPath: string): Promise<FileFingerprint[]> {
     try {
-      // Try to load previous fingerprints from cache
-      // Using a simplified approach since loadPreviousIndex isn't available
-      const cacheKey = 'previous_fingerprints';
-      const cached = await this.cacheService.loadFromCache<FileFingerprint[]>(cacheKey, 'metadata');
-      return cached || [];
+      // Get all successfully indexed files from SQLite storage
+      const indexedFiles = await this.fileStateStorage.getFilesByState(FileProcessingState.INDEXED);
+      
+      // Convert FileState to FileFingerprint format
+      return indexedFiles
+        .filter((state: FileState) => state.filePath.startsWith(folderPath)) // Only files from this folder
+        .map((state: FileState) => this.fileStateToFingerprint(state));
     } catch (error) {
-      this.loggingService.warn('Failed to load previous fingerprints', { error });
+      this.loggingService.warn('Failed to load previous fingerprints from SQLite storage', { error });
       return [];
     }
   }
@@ -211,6 +217,18 @@ export class IncrementalIndexer implements IncrementalIndexing {
       }
     };
   }
+
+  /**
+   * Convert FileState to FileFingerprint format for compatibility with existing change detection
+   */
+  private fileStateToFingerprint(state: FileState): FileFingerprint {
+    return {
+      path: state.filePath,
+      hash: state.contentHash,
+      size: 0, // Not tracked in FileState, but not critical for change detection
+      modified: new Date(state.lastAttempt).toISOString()
+    };
+  }
 }
 
 /**
@@ -218,13 +236,13 @@ export class IncrementalIndexer implements IncrementalIndexing {
  */
 export function createIncrementalIndexer(
   fileSystemService: IFileSystemService,
-  cacheService: ICacheService,
+  fileStateStorage: IFileStateStorage,
   loggingService: ILoggingService,
   indexingOrchestrator: IndexingOrchestrator
 ): IncrementalIndexer {
   return new IncrementalIndexer(
     fileSystemService,
-    cacheService,
+    fileStateStorage,
     loggingService,
     indexingOrchestrator
   );

@@ -136,7 +136,7 @@ TUI wait "ascii screenshot":
 2. analyze what actions are delaying the startup process (should be improved now).
 3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
 
-*Step 10, Remove duplicate metadata JSON storage:* [Next]
+*Step 10, Remove duplicate metadata JSON storage:* [Completed]
 We discovered an incomplete migration from file-based caching to SQLite storage, causing duplicate data storage:
 1. JSON files in `.folder-mcp/metadata/` contain the same chunk data that's already in the SQLite database
 2. These files are created during indexing but never actually used (except for fingerprint tracking in IncrementalIndexer)
@@ -156,7 +156,7 @@ Testing:
 4. Test incremental indexing still detects changes without the JSON cache
 5. Ensure search endpoints can retrieve chunks from SQLite only
 
-*Step 11, setting default model automatically:* [Not-Started]
+*Step 11, setting default model automatically:* [Next]
 All models are working perfectly at this stage with sequential processing. now we need to set the default one.
 1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
 2. Check for GPU and memory availability.

@@ -328,17 +328,10 @@ export class IndexingPipeline {
   private async cachingStage(chunks: TextChunk[], context: PipelineContext): Promise<void> {
     const startTime = Date.now();
     
-    const cacheKey = context.metadata.hash;
-    const cacheData = {
-      filePath: context.filePath,
-      content: chunks.map(c => c.content).join('\n'),
-      metadata: context.metadata,
-      chunks: chunks
-    };
+    // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
+    // No need for duplicate caching - chunks are already saved via VectorSearchService
     
-    await this.cacheService.saveToCache(cacheKey, cacheData, 'metadata');
-
-    this.loggingService.debug('Content cached', { 
+    this.loggingService.debug('Content processed (no duplicate caching)', { 
       filePath: context.filePath, 
       processingTime: Date.now() - startTime 
     });

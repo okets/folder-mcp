@@ -323,9 +323,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           allMetadata.push(...fileResult.metadata);
         }
 
-        status.progress.processedFiles++;
-        this.updateProgress(status);
-
       } catch (error) {
         const indexingError: IndexingError = {
           filePath: fingerprint.path,
@@ -339,7 +336,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.error('File processing failed', error instanceof Error ? error : new Error(String(error)), { 
           filePath: fingerprint.path 
         });
-      }    }
+      }
+
+      // Update progress after each file attempt (success or failure)
+      status.progress.processedFiles++;
+      this.updateProgress(status);    }
 
     // 4. Build vector index if embeddings were created
     if (result.embeddingsCreated > 0) {
@@ -420,13 +421,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       }));
     }
 
-    // Cache the processed content using available cache methods
-    const cacheKey = this.generateCacheKey(filePath);
-    await this.cacheService.saveToCache(cacheKey, {
-      parsedContent,
-      chunks,
-      processedAt: new Date().toISOString()
-    }, 'metadata');    return {
+    // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
+    // No need for duplicate caching - chunks are already saved via VectorSearchService
+    
+    return {
       chunksGenerated: chunks.length,
       embeddingsCreated,
       bytes: parsedContent.content.length,

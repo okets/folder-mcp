@@ -155,14 +155,15 @@ describe('Status Endpoint Real Tests', () => {
     const cacheContents = await validateCacheContents(cacheDir, knowledgeBasePath);
     
     expect(cacheContents.hasIndexFile).toBe(true);
-    expect(cacheContents.hasMetadataCache).toBe(true);
+    // Note: Metadata is now stored in SQLite database, not JSON cache
+    expect(cacheContents.hasSQLiteDatabase).toBe(true);
     expect(cacheContents.embeddingCount).toBeGreaterThan(0);
     expect(cacheContents.documentCount).toBeGreaterThan(0);
     
     console.log(`📂 Cache Directory Validation:`);
     console.log(`   📍 Cache location: ${cacheDir}`);
     console.log(`   📊 Index file exists: ${cacheContents.hasIndexFile}`);
-    console.log(`   🗃️ Metadata cache exists: ${cacheContents.hasMetadataCache}`);
+    console.log(`   🗃️ SQLite database exists: ${cacheContents.hasSQLiteDatabase}`);
     console.log(`   🧠 Embedding vectors: ${cacheContents.embeddingCount}`);
     console.log(`   📄 Cached documents: ${cacheContents.documentCount}`);
     
@@ -387,20 +388,8 @@ async function createMockCacheDirectory(cacheDir: string) {
     embeddings: 150
   }, null, 2));
   
-  await fs.writeFile(path.join(cacheDir, 'metadata.json'), JSON.stringify({
-    documentMetadata: {
-      'competitive_analysis.md': {
-        size: 4832,
-        type: 'markdown',
-        modified: new Date().toISOString()
-      },
-      'market_research.md': {
-        size: 7654,
-        type: 'markdown', 
-        modified: new Date().toISOString()
-      }
-    }
-  }, null, 2));
+  // Create mock SQLite database file (metadata is now stored in SQLite)
+  await fs.writeFile(path.join(cacheDir, 'documents.db'), 'Mock SQLite database content');
   
   // Create embeddings directory
   const embeddingsDir = path.join(cacheDir, 'embeddings');
@@ -419,7 +408,7 @@ async function createMockCacheDirectory(cacheDir: string) {
 async function validateCacheContents(cacheDir: string, knowledgeBasePath: string) {
   const validation = {
     hasIndexFile: false,
-    hasMetadataCache: false,
+    hasSQLiteDatabase: false,
     embeddingCount: 0,
     documentCount: 0
   };
@@ -434,9 +423,9 @@ async function validateCacheContents(cacheDir: string, knowledgeBasePath: string
     validation.embeddingCount = indexContent.embeddings || 0;
   }
   
-  // Check metadata cache
-  const metadataFile = path.join(cacheDir, 'metadata.json');
-  validation.hasMetadataCache = existsSync(metadataFile);
+  // Check SQLite database (metadata is now stored in SQLite)
+  const sqliteFile = path.join(cacheDir, 'documents.db');
+  validation.hasSQLiteDatabase = existsSync(sqliteFile);
   
   return validation;
 }
