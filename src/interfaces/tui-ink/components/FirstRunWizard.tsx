@@ -103,11 +103,11 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                 const { getPythonModels } = await import('../services/ModelListService');
                 const supportedModels = getPythonModels().map(model => model.name);
                 
-                // Also check if model is missing the folder-mcp: prefix
-                const normalizedModel = cliModel.startsWith('folder-mcp:') ? cliModel : `folder-mcp:${cliModel}`;
+                // Also check if model is missing the gpu: prefix
+                const normalizedModel = cliModel.startsWith('gpu:') ? cliModel : `gpu:${cliModel}`;
                 
                 if (!supportedModels.includes(normalizedModel)) {
-                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.map(m => m.replace('folder-mcp:', '')).join(', ')}`;
+                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.map(m => m.replace('gpu:', '')).join(', ')}`;
                 }
             }
             

@@ -143,7 +143,7 @@ logger.info('Model validation request', {
   requestId: 'req_1234567890',
   clientId: 'client-abc123',
   trigger: 'folder_add_validation',
-  requestedModel: 'folder-mcp:all-MiniLM-L6-v2'
+  requestedModel: 'gpu:all-MiniLM-L6-v2'
 });
 
 // Include outcome:
@@ -177,7 +177,7 @@ logger.info('Model validation completed', {
 logger.info('Folder indexing started', {
   path: '/path/to/folder',
   estimatedFiles: 1247,
-  model: 'folder-mcp:all-MiniLM-L6-v2',
+  model: 'gpu:all-MiniLM-L6-v2',
   indexingId: 'idx_789012345'
 });
 

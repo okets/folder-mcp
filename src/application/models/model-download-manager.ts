@@ -106,7 +106,7 @@ export class GlobalModelDownloadManager {
       }
 
       // Check ONNX models
-      if (modelId.startsWith('folder-mcp-lite:')) {
+      if (modelId.startsWith('cpu:')) {
         return await this.onnxDownloader.isModelAvailable(modelId);
       }
 
@@ -198,9 +198,9 @@ export class GlobalModelDownloadManager {
       console.log(`📥 Starting download of ${model.displayName} for ${requestingFolders.length} folders`);
 
       // Download based on model type
-      if (modelId.startsWith('folder-mcp-lite:')) {
+      if (modelId.startsWith('cpu:')) {
         await this.downloadONNXModel(modelId, activeDownload);
-      } else if (modelId.startsWith('folder-mcp:')) {
+      } else if (modelId.startsWith('gpu:')) {
         await this.downloadGPUModel(modelId, activeDownload);
       } else {
         throw new Error(`Unknown model type for ${modelId}`);

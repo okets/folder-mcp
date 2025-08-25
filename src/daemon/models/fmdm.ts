@@ -79,7 +79,7 @@ export interface ClientConnection {
  * Information about a curated model's installation status and download state
  */
 export interface CuratedModelInfo {
-  id: string;           // e.g., 'folder-mcp:bge-m3'
+  id: string;           // e.g., 'gpu:bge-m3'
   installed: boolean;   // Whether model is downloaded/cached locally
   type: 'gpu' | 'cpu';  // Model type - GPU (HuggingFace) or CPU (ONNX)
   

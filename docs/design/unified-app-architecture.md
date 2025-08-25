@@ -1236,7 +1236,7 @@ folder-mcp diagnose
 System Information:
   OS: macOS 14.2.1 (arm64)
   Node: v20.11.0
-  folder-mcp: v1.0.0
+  gpu: v1.0.0
 
 Services:
   ✅ Ollama: Running (localhost:11434)

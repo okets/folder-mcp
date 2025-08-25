@@ -9,7 +9,7 @@
     "downloadMethod": "huggingface-auto",
     "models": [
       {
-        "id": "folder-mcp:bge-m3",
+        "id": "gpu:bge-m3",
         "displayName": "BGE-M3 (Comprehensive)",
         "description": "Leading multilingual model, 100+ languages, 8192 token context",
         "isDefault": true,
@@ -111,7 +111,7 @@
         }
       },
       {
-        "id": "folder-mcp:multilingual-e5-large",
+        "id": "gpu:multilingual-e5-large",
         "displayName": "E5-Large (Production)",
         "description": "Microsoft's proven multilingual model for production use",
         "huggingfaceId": "intfloat/multilingual-e5-large",
@@ -211,7 +211,7 @@
         }
       },
       {
-        "id": "folder-mcp:paraphrase-multilingual-minilm",
+        "id": "gpu:paraphrase-multilingual-minilm",
         "displayName": "MiniLM-L12 (Fast)",
         "description": "Fast multilingual model, 50+ languages, resource-friendly",
         "huggingfaceId": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -282,7 +282,7 @@
     "baseUrl": "https://huggingface.co/Xenova",
     "models": [
       {
-        "id": "folder-mcp-lite:xenova-multilingual-e5-small",
+        "id": "cpu:xenova-multilingual-e5-small",
         "displayName": "E5-Small ONNX (Most Popular)",
         "description": "171k downloads/month, 100 languages, CPU-optimized",
         "huggingfaceId": "Xenova/multilingual-e5-small",
@@ -386,7 +386,7 @@
         }
       },
       {
-        "id": "folder-mcp-lite:xenova-multilingual-e5-large",
+        "id": "cpu:xenova-multilingual-e5-large",
         "displayName": "E5-Large ONNX (High Accuracy)",
         "description": "Full accuracy ONNX conversion, 1024 dimensions",
         "huggingfaceId": "Xenova/multilingual-e5-large",

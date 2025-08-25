@@ -239,7 +239,7 @@ async function runPhase3_TUIFolderAddition() {
     // 3.2 Select working GPU model (replicate user's QA scenario)
     const fmdm = global.testFmdmService.getFMDM();
     // Use MiniLM-L12 which is already cached and should work
-    const miniLMModel = fmdm.curatedModels.find(m => m.id === 'folder-mcp:paraphrase-multilingual-minilm');
+    const miniLMModel = fmdm.curatedModels.find(m => m.id === 'gpu:paraphrase-multilingual-minilm');
     
     if (!miniLMModel) {
       // Fallback to first GPU model

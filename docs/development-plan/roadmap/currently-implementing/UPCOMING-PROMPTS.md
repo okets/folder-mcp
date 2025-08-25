@@ -22,12 +22,12 @@ one, the default Python based model.
 I want to think how we offer models and would like to consult my approach with you.
 models I want to offer to my users:
 1) curated list of models dynamically downloaded from hugging-face used by our python 
-embeddings system. their names in our list are "folder-mcp:Model-A-7b"
+embeddings system. their names in our list are "gpu:Model-A-7b"
 2) if ollama is installed, list any ollama sentence transformer in our list as 
 "ollama:Model-b-420m"
 3) for machines without GPU, I would like to offer transformers.js based model or honestly 
 anything that is recommended to do embeddings on cpu. I really need good recommendation here.
-we call these "folder-mcp-lite:Model-3-100m"
+we call these "cpu:Model-3-100m"
 Models offering and filtering:
 - I was thinking on doing a machine capabilities based filter to only offer models your 
 machine can run. so we should check for gpu,memory...etc and offer only models that can run 
@@ -41,7 +41,7 @@ the capabilities of its machine? does hugging-face have APIs or guidlines for th
 
 your plan is a bit confusing. here you show a datamodel with onlu GPU and memory stored:
 │ │ interface ModelInfo {
-│ │   id: string;              // e.g., "folder-mcp:all-MiniLM-L6-v2"
+│ │   id: string;              // e.g., "gpu:all-MiniLM-L6-v2"
 │ │   name: string;            // Display name                      
 │ │   provider: string;        // "python", "ollama", "onnx" 
 │ │   dimensions: number;      // Embedding vector size 

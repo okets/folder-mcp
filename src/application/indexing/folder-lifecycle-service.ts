@@ -991,12 +991,12 @@ return;
       this.logger.debug(`[MANAGER-MODEL-VALIDATION] Lightweight validation for model ${this.model}`);
       
       // Determine model type based on prefix convention:
-      // - folder-mcp: = GPU models (use Python service)
-      // - folder-mcp-lite: = CPU models (use ONNX, runs locally, no service needed)
+      // - gpu: = GPU models (use Python service)
+      // - cpu: = CPU models (use ONNX, runs locally, no service needed)
       // - ollama: = External Ollama models
       // - Others = Default to Ollama for backward compatibility
       
-      if (this.model.startsWith('folder-mcp:')) {
+      if (this.model.startsWith('gpu:')) {
         // GPU models - need Python service
         const { exec } = await import('child_process');
         const { promisify } = await import('util');
@@ -1013,7 +1013,7 @@ return;
           return { valid: false, errorMessage: EmbeddingErrors.pythonNotFound(displayName) };
         }
         
-      } else if (this.model.startsWith('folder-mcp-lite:')) {
+      } else if (this.model.startsWith('cpu:')) {
         // CPU models - run locally via ONNX, no external service needed
         this.logger.debug(`[MANAGER-MODEL-VALIDATION] CPU/ONNX model ${this.model} - no service validation needed`);
         return { valid: true };

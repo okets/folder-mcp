@@ -388,7 +388,7 @@ async function testTMOATScenario() {
                     
                     // Simulate embedding vector (384 dimensions like all-MiniLM-L6-v2)
                     const embedding = Buffer.from(new Float32Array(384).fill(0.1 * chunkId));
-                    embeddingInsert.run(chunkKey, embedding, 'folder-mcp:all-MiniLM-L6-v2', 384);
+                    embeddingInsert.run(chunkKey, embedding, 'gpu:all-MiniLM-L6-v2', 384);
                 }
             }
         });
@@ -442,7 +442,7 @@ async function testTMOATScenario() {
                 const fs = await import('fs');
                 if (existsSync(folderMcpDir)) {
                     const contents = fs.readdirSync(folderMcpDir);
-                    console.log(`Contents still in .folder-mcp: ${contents.join(', ')}`);
+                    console.log(`Contents still in .gpu: ${contents.join(', ')}`);
                     
                     for (const file of contents) {
                         const filePath = path.join(folderMcpDir, file);

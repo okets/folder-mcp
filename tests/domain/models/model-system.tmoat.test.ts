@@ -136,7 +136,7 @@ describe('Model System TMOAT', () => {
       };
 
       const scores = compatibilityEvaluator.evaluateModelCompatibility(mockCapabilities, criteria);
-      const bgeM3Score = scores.find(s => s.model.id === 'folder-mcp:bge-m3');
+      const bgeM3Score = scores.find(s => s.model.id === 'gpu:bge-m3');
       
       expect(bgeM3Score).toBeDefined();
       expect(bgeM3Score!.languageScore).toBeGreaterThan(0.62);
@@ -158,7 +158,7 @@ describe('Model System TMOAT', () => {
       };
 
       const scores = compatibilityEvaluator.evaluateModelCompatibility(mockCapabilities, criteria);
-      const miniLMScore = scores.find(s => s.model.id === 'folder-mcp:paraphrase-multilingual-minilm');
+      const miniLMScore = scores.find(s => s.model.id === 'gpu:paraphrase-multilingual-minilm');
       
       expect(miniLMScore).toBeDefined();
       expect(miniLMScore!.languageScore).toBeGreaterThan(0.80);
@@ -189,7 +189,7 @@ describe('Model System TMOAT', () => {
       };
 
       const scores = compatibilityEvaluator.evaluateModelCompatibility(lowVRAMCapabilities, criteria);
-      const gpuModels = scores.filter(s => s.model.id.startsWith('folder-mcp:'));
+      const gpuModels = scores.filter(s => s.model.id.startsWith('gpu:'));
       
       // Check all models for appropriate behavior with insufficient VRAM
       const allScores = compatibilityEvaluator.evaluateModelCompatibility(lowVRAMCapabilities, criteria);
@@ -254,8 +254,8 @@ describe('Model System TMOAT', () => {
       expect(ollamaModels.length).toBe(0);
       
       // Instead, we should only have GPU and CPU models
-      const gpuModels = manualScores.filter(s => s.model.id.startsWith('folder-mcp:') && !s.model.id.includes('lite'));
-      const cpuModels = manualScores.filter(s => s.model.id.startsWith('folder-mcp-lite:'));
+      const gpuModels = manualScores.filter(s => s.model.id.startsWith('gpu:') && !s.model.id.includes('lite'));
+      const cpuModels = manualScores.filter(s => s.model.id.startsWith('cpu:'));
       
       expect(gpuModels.length).toBeGreaterThan(0);
       expect(cpuModels.length).toBeGreaterThan(0);
@@ -304,21 +304,21 @@ describe('Model System TMOAT', () => {
       expect(hasOllamaModels).toBe(false); // Ollama excluded from curated selection
 
       // Should have GPU and CPU models instead
-      const hasGpuModels = allOptions.some(score => score.model.id.startsWith('folder-mcp:') && !score.model.id.includes('lite'));
-      const hasCpuModels = allOptions.some(score => score.model.id.startsWith('folder-mcp-lite:'));
+      const hasGpuModels = allOptions.some(score => score.model.id.startsWith('gpu:') && !score.model.id.includes('lite'));
+      const hasCpuModels = allOptions.some(score => score.model.id.startsWith('cpu:'));
       expect(hasGpuModels || hasCpuModels).toBe(true);
 
       console.log('✅ Manual mode options (curated only):', {
         primary: recommendation.primaryChoice.model.displayName,
         totalOptions: allOptions.length,
-        gpuCount: allOptions.filter(opt => opt.model.id.startsWith('folder-mcp:') && !opt.model.id.includes('lite')).length,
-        cpuCount: allOptions.filter(opt => opt.model.id.startsWith('folder-mcp-lite:')).length
+        gpuCount: allOptions.filter(opt => opt.model.id.startsWith('gpu:') && !opt.model.id.includes('lite')).length,
+        cpuCount: allOptions.filter(opt => opt.model.id.startsWith('cpu:')).length
       });
     });
 
     it('validates model selection against current hardware', async () => {
       // Test with a model that should work
-      const bgeValidation = await selectionService.validateModelSelection('folder-mcp:bge-m3');
+      const bgeValidation = await selectionService.validateModelSelection('gpu:bge-m3');
       expect(bgeValidation.valid).toBe(true);
       expect(bgeValidation.issues.length).toBe(0);
 
@@ -335,7 +335,7 @@ describe('Model System TMOAT', () => {
     });
 
     it('provides performance information for models', () => {
-      const bgeInfo = selectionService.getModelPerformanceInfo('folder-mcp:bge-m3');
+      const bgeInfo = selectionService.getModelPerformanceInfo('gpu:bge-m3');
       
       expect(bgeInfo.model).toBeDefined();
       expect(bgeInfo.expectedSpeed).toBeDefined();
@@ -355,7 +355,7 @@ describe('Model System TMOAT', () => {
 
   describe('Language Support Verification', () => {
     it('supports documented language performance scores', () => {
-      const bgeModel = compatibilityEvaluator.getModelById('folder-mcp:bge-m3');
+      const bgeModel = compatibilityEvaluator.getModelById('gpu:bge-m3');
       expect(bgeModel).toBeDefined();
       
       if (!bgeModel) {

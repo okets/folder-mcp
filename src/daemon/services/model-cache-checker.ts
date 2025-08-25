@@ -216,8 +216,8 @@ export class ModelCacheChecker {
    */
   private getCuratedCPUModelIds(): string[] {
     return [
-      'folder-mcp-lite:xenova-multilingual-e5-small',
-      'folder-mcp-lite:xenova-multilingual-e5-large'
+      'cpu:xenova-multilingual-e5-small',
+      'cpu:xenova-multilingual-e5-large'
     ];
   }
 

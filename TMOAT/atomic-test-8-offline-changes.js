@@ -23,7 +23,7 @@ const testFolderPath = path.resolve(__dirname, '../tests/fixtures/tmp/smoke-larg
 const folderMcpPath = path.join(testFolderPath, '.folder-mcp');
 
 console.log(`📁 Test folder: ${testFolderPath}`);
-console.log(`🗂️  .folder-mcp: ${folderMcpPath}`);
+console.log(`🗂️  .gpu: ${folderMcpPath}`);
 
 let testPhase = 'setup'; // setup -> initial-add -> wait-active -> go-offline -> make-changes -> go-online -> verify-detection
 let addedFolderId = null;
@@ -59,7 +59,7 @@ async function setupInitialFolder() {
             id: folderId,
             payload: {
                 path: testFolderPath,
-                model: 'folder-mcp:all-MiniLM-L6-v2'
+                model: 'gpu:all-MiniLM-L6-v2'
             }
         }));
         
@@ -152,7 +152,7 @@ async function goBackOnline() {
                     id: onlineFolderId,
                     payload: {
                         path: testFolderPath,
-                        model: 'folder-mcp:all-MiniLM-L6-v2'
+                        model: 'gpu:all-MiniLM-L6-v2'
                     }
                 }));
                 

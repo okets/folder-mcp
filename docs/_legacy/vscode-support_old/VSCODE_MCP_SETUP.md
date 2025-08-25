@@ -54,7 +54,7 @@ For the full VSCode MCP experience with tool sets and enhanced features:
         "C:\\ThinkingHomes\\test-folder"
       ],
       "env": {
-        "DEBUG": "folder-mcp:*"
+        "DEBUG": "gpu:*"
       },
       "dev": {
         "watch": "dist/**/*.js",
@@ -138,7 +138,7 @@ Search results and document content can be:
 Enable debug logging by setting the `DEBUG` environment variable:
 ```json
 "env": {
-  "DEBUG": "folder-mcp:*"
+  "DEBUG": "gpu:*"
 }
 ```
 

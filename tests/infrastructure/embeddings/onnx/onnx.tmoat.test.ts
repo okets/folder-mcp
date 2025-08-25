@@ -14,7 +14,7 @@ import {
 
 describe('ONNX System TMOAT', () => {
   const testCacheDir = path.join(process.cwd(), 'tests', 'fixtures', 'tmp', 'onnx-cache');
-  const testModelId = 'folder-mcp-lite:xenova-multilingual-e5-small';
+  const testModelId = 'cpu:xenova-multilingual-e5-small';
   
   let downloader: ONNXDownloader;
   let embeddingService: ONNXEmbeddingService;

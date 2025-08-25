@@ -19,11 +19,11 @@ import WebSocket from 'ws';
 
 // Expected curated models
 const EXPECTED_CURATED_MODELS = [
-  { id: 'folder-mcp:bge-m3', type: 'gpu' },
-  { id: 'folder-mcp:multilingual-e5-large', type: 'gpu' },
-  { id: 'folder-mcp:paraphrase-multilingual-minilm', type: 'gpu' },
-  { id: 'folder-mcp-lite:xenova-multilingual-e5-small', type: 'cpu' },
-  { id: 'folder-mcp-lite:xenova-multilingual-e5-large', type: 'cpu' }
+  { id: 'gpu:bge-m3', type: 'gpu' },
+  { id: 'gpu:multilingual-e5-large', type: 'gpu' },
+  { id: 'gpu:paraphrase-multilingual-minilm', type: 'gpu' },
+  { id: 'cpu:xenova-multilingual-e5-small', type: 'cpu' },
+  { id: 'cpu:xenova-multilingual-e5-large', type: 'cpu' }
 ];
 
 async function testModelCacheFMDM() {

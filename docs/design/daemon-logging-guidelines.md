@@ -48,7 +48,7 @@ logger.debug('WebSocket connection established', {
 });
 
 logger.debug('Model cache lookup', {
-  model: 'folder-mcp:all-MiniLM-L6-v2',
+  model: 'gpu:all-MiniLM-L6-v2',
   cacheHit: true,
   lookupTime: 0.003
 });
@@ -101,7 +101,7 @@ logger.warn('Indexing performance degraded', {
 });
 
 logger.warn('Model download required', {
-  model: 'folder-mcp:all-MiniLM-L6-v2',
+  model: 'gpu:all-MiniLM-L6-v2',
   downloadSize: '400MB',
   estimatedTime: '2-5 minutes'
 });
@@ -130,7 +130,7 @@ logger.error('Folder indexing failed', {
 
 logger.error('Invalid model configuration', {
   model: 'invalid-model-name',
-  supportedModels: ['folder-mcp:all-MiniLM-L6-v2'],
+  supportedModels: ['gpu:all-MiniLM-L6-v2'],
   action: 'falling back to default model'
 });
 ```

@@ -265,7 +265,7 @@ async function runQuickSmokeTest() {
 { type: 'connection.init', clientType: 'cli' }
 
 // Add folder (CRITICAL: Use correct model name)
-{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'folder-mcp:all-MiniLM-L6-v2' }}
+{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'gpu:all-MiniLM-L6-v2' }}
 
 // Remove folder  
 { type: 'folder.remove', payload: { path: '/path/to/folder' }}
@@ -276,7 +276,7 @@ async function runQuickSmokeTest() {
 
 **CRITICAL WebSocket Requirements:**
 - **Client Type**: Must be 'cli', 'tui', or 'web' (NOT 'tmoat-smoke-test')
-- **Model Name**: Must use 'folder-mcp:all-MiniLM-L6-v2' (NOT 'nomic-embed-text')
+- **Model Name**: Must use 'gpu:all-MiniLM-L6-v2' (NOT 'nomic-embed-text')
 - **Connection Init**: Always send connection.init first before any other messages
 
 ### 4. State Validation Points
@@ -378,7 +378,7 @@ await client.addFolder('tests/fixtures/tmp/smoke-large');
 //   type: 'folder.add', 
 //   payload: { 
 //     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/smoke-small',
-//     model: 'folder-mcp:all-MiniLM-L6-v2' 
+//     model: 'gpu:all-MiniLM-L6-v2' 
 //   }
 // }));
 ```
@@ -459,7 +459,7 @@ ws.send(JSON.stringify({
   type: 'folder.add', 
   payload: { 
     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/does-not-exist',
-    model: 'folder-mcp:all-MiniLM-L6-v2' 
+    model: 'gpu:all-MiniLM-L6-v2' 
   }
 }));
 ```
@@ -788,11 +788,11 @@ node TMOAT/atomic-test-10-model-cache-fmdm.js
 ```
 
 **Expected Models Verified**:
-- `folder-mcp:bge-m3` (gpu)
-- `folder-mcp:multilingual-e5-large` (gpu) 
-- `folder-mcp:paraphrase-multilingual-minilm` (gpu)
-- `folder-mcp-lite:xenova-multilingual-e5-small` (cpu)
-- `folder-mcp-lite:xenova-multilingual-e5-large` (cpu)
+- `gpu:bge-m3` (gpu)
+- `gpu:multilingual-e5-large` (gpu) 
+- `gpu:paraphrase-multilingual-minilm` (gpu)
+- `cpu:xenova-multilingual-e5-small` (cpu)
+- `cpu:xenova-multilingual-e5-large` (cpu)
 
 ## 🎯 Success Criteria Summary
 

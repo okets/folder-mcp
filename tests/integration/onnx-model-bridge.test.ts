@@ -54,7 +54,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should create ONNX model through unified factory', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -70,13 +70,13 @@ describe('ONNX Model Bridge Integration', () => {
   });
 
   it('should detect ONNX model type from model ID', () => {
-    const modelType = UnifiedModelFactory.getModelTypeFromId('folder-mcp-lite:xenova-multilingual-e5-small');
+    const modelType = UnifiedModelFactory.getModelTypeFromId('cpu:xenova-multilingual-e5-small');
     expect(modelType).toBe('onnx');
   });
 
   it('should load ONNX model with progress tracking', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir,
       batchSize: 16
@@ -106,7 +106,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should generate embeddings for text chunks', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -154,7 +154,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should generate single embedding', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -173,7 +173,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should process batch with progress', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir,
       batchSize: 2
@@ -208,7 +208,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should calculate similarity between vectors', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -236,7 +236,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should unload model and free resources', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -256,7 +256,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should handle immediate/priority requests', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -291,7 +291,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should estimate processing time', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };
@@ -307,7 +307,7 @@ describe('ONNX Model Bridge Integration', () => {
 
   it('should cache model instances in factory', async () => {
     const config: EmbeddingModelConfig = {
-      modelId: 'folder-mcp-lite:xenova-multilingual-e5-small',
+      modelId: 'cpu:xenova-multilingual-e5-small',
       modelType: 'onnx',
       cacheDirectory: testCacheDir
     };

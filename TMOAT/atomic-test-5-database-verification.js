@@ -48,7 +48,7 @@ ws.on('open', () => {
             id: folderId,
             payload: {
                 path: testFolderPath,
-                model: 'folder-mcp:all-MiniLM-L6-v2'
+                model: 'gpu:all-MiniLM-L6-v2'
             }
         }));
         

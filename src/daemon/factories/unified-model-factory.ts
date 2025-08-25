@@ -91,12 +91,12 @@ export class UnifiedModelFactory implements IEmbeddingModelFactory {
    */
   static getModelTypeFromId(modelId: string): 'python' | 'onnx' | 'ollama' {
     // Check prefixes according to our model ID convention:
-    // - folder-mcp-lite: = CPU/ONNX models
-    // - folder-mcp: = GPU/Python models  
+    // - cpu: = CPU/ONNX models
+    // - gpu: = GPU/Python models  
     // - ollama: = Ollama models
-    if (modelId.startsWith('folder-mcp-lite:')) {
+    if (modelId.startsWith('cpu:')) {
       return 'onnx';
-    } else if (modelId.startsWith('folder-mcp:')) {
+    } else if (modelId.startsWith('gpu:')) {
       return 'python';
     } else if (modelId.startsWith('ollama:')) {
       return 'ollama';
