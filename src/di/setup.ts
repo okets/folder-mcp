@@ -129,8 +129,8 @@ export function setupDependencyInjection(options: {
   // Register storage factory
   container.registerSingleton(SERVICE_TOKENS.STORAGE_FACTORY, () => {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
-    const createVectorSearchService = (cacheDir: string) => {
-      return serviceFactory.createVectorSearchService(cacheDir);
+    const createVectorSearchService = async (cacheDir: string) => {
+      return await serviceFactory.createVectorSearchService(cacheDir);
     };
     return new StorageFactory(createVectorSearchService, loggingService);
   });
@@ -268,8 +268,8 @@ export function setupDependencyInjection(options: {
   // Register vector search and error recovery services
   const cacheDir = options.folderPath ? `${options.folderPath}/.folder-mcp` : `${process.cwd()}/.folder-mcp`;
   
-  container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, () => {
-    return serviceFactory.createVectorSearchService(cacheDir);
+  container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, async () => {
+    return await serviceFactory.createVectorSearchService(cacheDir);
   });
 
   container.registerSingleton(SERVICE_TOKENS.ERROR_RECOVERY, () => {

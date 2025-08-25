@@ -254,6 +254,18 @@ class FolderMCPDaemon {
         case '/status':
           response = this.getDetailedStatus();
           break;
+
+        case '/api/folders':
+          if (req.method === 'POST') {
+            response = await this.addFolder(req);
+          } else if (req.method === 'GET') {
+            response = await this.listFolders();
+          } else {
+            res.writeHead(405);
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+          break;
           
         default:
           res.writeHead(404);
@@ -325,6 +337,134 @@ class FolderMCPDaemon {
       nodeVersion: process.version
     };
   }
+
+  /**
+   * Add folder for indexing via API
+   */
+  private async addFolder(req: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', (chunk: any) => {
+        body += chunk.toString();
+      });
+      
+      req.on('end', async () => {
+        try {
+          const { path, modelId, name } = JSON.parse(body);
+          
+          if (!path || !modelId) {
+            resolve({ error: 'Missing required fields: path, modelId' });
+            return;
+          }
+
+          // Use existing FMDM system 
+          if (this.fmdmService) {
+            try {
+              // Get current folders from FMDM
+              const currentFmdm = this.fmdmService.getFMDM();
+              const currentFolders = [...currentFmdm.folders];
+              
+              // Check if folder already exists
+              const existingFolder = currentFolders.find(f => f.path === path);
+              if (existingFolder) {
+                resolve({
+                  success: true,
+                  message: `Folder ${path} already configured with model ${existingFolder.model}`,
+                  folderId: path,
+                  status: existingFolder.status
+                });
+                return;
+              }
+              
+              // Add new folder to the list
+              const folderConfig = {
+                path: path,
+                model: modelId,
+                status: 'pending' as const
+              };
+              
+              currentFolders.push(folderConfig);
+              
+              // Update FMDM with new folder list
+              this.fmdmService.updateFolders(currentFolders);
+              
+              info(`[API] Added folder ${path} with model ${modelId} to FMDM`);
+              
+              resolve({
+                success: true,
+                message: `Folder ${path} added for indexing with model ${modelId}`,
+                folderId: path,
+                status: 'pending'
+              });
+              
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              resolve({ 
+                error: `Failed to add folder: ${errorMsg}`
+              });
+            }
+          } else {
+            resolve({ error: 'FMDM service not initialized' });
+          }
+          
+        } catch (error) {
+          resolve({ 
+            error: 'Invalid JSON or processing error',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      });
+    });
+  }
+
+  /**
+   * List folders being indexed
+   */
+  private async listFolders(): Promise<any> {
+    if (this.fmdmService) {
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        const configuredFolders = fmdm.folders || [];
+        
+        const folders = configuredFolders?.map((folder: any, index: number) => ({
+          id: folder.path,
+          path: folder.path,
+          modelId: folder.model,
+          status: folder.status || 'pending',
+          priority: 'normal'
+        })) || [];
+
+        return {
+          folders,
+          queueStatus: {
+            isProcessing: folders.length > 0,
+            currentModel: folders.length > 0 ? folders[0]?.modelId : null,
+            totalFolders: folders.length
+          }
+        };
+      } catch (error) {
+        return {
+          error: `Failed to list folders: ${error instanceof Error ? error.message : String(error)}`,
+          folders: [],
+          queueStatus: {
+            isProcessing: false,
+            currentModel: null,
+            totalFolders: 0
+          }
+        };
+      }
+    }
+    
+    return {
+      folders: [],
+      queueStatus: {
+        isProcessing: false,
+        currentModel: null,
+        totalFolders: 0
+      }
+    };
+  }
+
 
   private writePidFile(): void {
     try {

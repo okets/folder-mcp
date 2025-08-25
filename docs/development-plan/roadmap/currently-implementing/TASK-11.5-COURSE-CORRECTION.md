@@ -71,11 +71,26 @@ note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder
 3. Second folder should show status "pending" until first completes
 4. Monitor FMDM state changes through the queue
 
-*Step 7, semantic search priority with sequential indexing:* [Not-Started]
-1. While folder A is indexing, trigger semantic search on folder B (different model)
-2. Verify: A pauses → B's model loads → search completes → A resumes with its model
-3. Test daemon logs show model load/unload and pause/resume events
-4. Verify semantic search gets immediate priority regardless of model type
+*Step 7, semantic search priority with sequential indexing:* [Completed]
+**Critical**: Search queries MUST be embedded with the same model used to index that folder.
+
+1. Implement basic vector storage and search (see step-7-details.md for implementation)
+2. Wire semantic search to use real embeddings with immediate=true flag
+3. Add pause/resume capability to FolderIndexingQueue for priority interruption
+4. TMOAT Test A: Search on same folder being indexed (same model, no switch)
+5. TMOAT Test B: While folder A indexes, search folder B (different model, requires switch)
+6. Verify in daemon logs: pause → model switch → search → resume sequence
+7. Create test script to automate validation of priority mechanism
+
+**Success**: Semantic search interrupts indexing, switches models if needed, completes <2s, resumes indexing.
+**Details**: See docs/development-plan/roadmap/currently-implementing/step-7-semantic-search-details.md
+
+**COMPLETED**: ✅ Step 7 implementation successful:
+- BasicVectorSearchService with cosine similarity implemented
+- MCP endpoints wired to use real embeddings with priority queue
+- FolderIndexingQueue with pause/resume capability added
+- TMOAT validation test created and passing
+- Daemon connectivity and basic search functionality verified
 
 *Step 8, rename model ID prefixes to hardware-based convention* [Not-Started]
 **Simple refactor**: Change model ID prefixes to be hardware/provider-based for clarity.

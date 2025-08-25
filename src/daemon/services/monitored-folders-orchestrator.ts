@@ -1647,6 +1647,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.folderIndexingQueue.on('queue:progress', (folder, progress) => {
       this.logger.debug(`[ORCHESTRATOR] Indexing progress for ${folder.folderPath}: ${progress.percentage}%`);
       // Update FMDM with current progress
+      this.fmdmService.updateFolderProgress(folder.folderPath, progress.percentage);
       this.updateFMDM();
     });
 

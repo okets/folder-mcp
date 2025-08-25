@@ -20,7 +20,7 @@ export interface IStorageFactory {
    * @param folder Folder configuration
    * @returns Vector search service instance
    */
-  createStorage(folder: ResolvedFolderConfig): IVectorSearchService;
+  createStorage(folder: ResolvedFolderConfig): Promise<IVectorSearchService>;
 }
 
 /**
@@ -141,7 +141,7 @@ export interface FolderStorageStats {
  */
 export class StorageFactory implements IStorageFactory {
   constructor(
-    private createVectorSearchService: (cacheDir: string) => IVectorSearchService,
+    private createVectorSearchService: (cacheDir: string) => Promise<IVectorSearchService>,
     private loggingService: ILoggingService
   ) {}
 
@@ -149,14 +149,14 @@ export class StorageFactory implements IStorageFactory {
     return folderPath.split('/').pop() || folderPath;
   }
 
-  createStorage(folder: ResolvedFolderConfig): IVectorSearchService {
+  async createStorage(folder: ResolvedFolderConfig): Promise<IVectorSearchService> {
     // Create folder-specific cache directory
     const folderCacheDir = join(folder.resolvedPath, '.folder-mcp', 'storage');
     
     this.loggingService.debug(`Creating storage for folder: ${this.getFolderName(folder.path)} at ${folderCacheDir}`);
     
     // Create the vector search service for this folder
-    const storage = this.createVectorSearchService(folderCacheDir);
+    const storage = await this.createVectorSearchService(folderCacheDir);
     
     return storage;
   }
@@ -236,7 +236,7 @@ export class MultiFolderStorageProvider implements IMultiFolderStorageProvider {
     this.loggingService.debug(`Adding storage for folder: ${folder.path}`);
     
     // Create storage service for this folder
-    const storage = this.storageFactory.createStorage(folder);
+    const storage = await this.storageFactory.createStorage(folder);
     
     // Store the mapping
     this.folderStorages.set(folder.path, storage);

@@ -72,6 +72,9 @@ export class MCPEndpoints implements IMCPEndpoints {
   // Multi-folder support
   private readonly folderManager: any; // IFolderManager
   private readonly multiFolderStorageProvider: any; // IMultiFolderStorageProvider
+  
+  // Priority system support
+  private readonly folderIndexingQueue: any; // FolderIndexingQueue
 
   constructor(
     folderPath: string,
@@ -82,7 +85,8 @@ export class MCPEndpoints implements IMCPEndpoints {
     fileSystem: IFileSystem,
     logger: ILoggingService,
     folderManager: any,
-    multiFolderStorageProvider: any
+    multiFolderStorageProvider: any,
+    folderIndexingQueue?: any
   ) {
     this.folderPath = folderPath;
     this.vectorSearchService = vectorSearchService;
@@ -93,6 +97,17 @@ export class MCPEndpoints implements IMCPEndpoints {
     this.logger = logger;
     this.folderManager = folderManager;
     this.multiFolderStorageProvider = multiFolderStorageProvider;
+    this.folderIndexingQueue = folderIndexingQueue;
+  }
+
+  /**
+   * Record MCP call for keep-alive tracking
+   * This extends the indexing pause by 3 minutes from each call
+   */
+  private recordMcpActivity(): void {
+    if (this.folderIndexingQueue && typeof this.folderIndexingQueue.recordMcpCall === 'function') {
+      this.folderIndexingQueue.recordMcpCall();
+    }
   }
 
   /**
@@ -102,6 +117,9 @@ export class MCPEndpoints implements IMCPEndpoints {
   async search(request: SearchRequest): Promise<SearchResponse> {
     try {
       this.logger.debug('MCP Search endpoint called', request);
+      
+      // Record MCP activity for 3-minute keep-alive window
+      this.recordMcpActivity();
 
       const maxTokens = request.max_tokens || 4000;
       const results: SearchResult[] = [];
@@ -112,40 +130,59 @@ export class MCPEndpoints implements IMCPEndpoints {
       if (request.mode === 'semantic') {
         this.logger.debug('Performing semantic search with query:', request.query);
         
-        // Generate query embedding
-        const queryEmbedding = await this.embeddingService.generateQueryEmbedding(request.query);
-        this.logger.debug('Generated query embedding with dimensions:', Array.isArray(queryEmbedding) ? queryEmbedding.length : 0);
+        // Step 7: Priority semantic search with model switching
+        this.logger.info('SEARCH_PRIORITY: Processing semantic search request');
         
-        // Perform multi-folder vector search
-        try {
-          let vectorResults;
-          
-          if (request.filters?.folder) {
-            // Search specific folder
-            this.logger.debug('Searching specific folder:', request.filters.folder);
-            vectorResults = await this.multiFolderStorageProvider.search(
-              queryEmbedding,
-              {
-                limit: (request as any).limit || 10,
-                threshold: 0.1,
-                includeMetadata: true,
-                folderName: request.filters.folder
-              }
-            );
-          } else {
-            // Search all folders
-            this.logger.debug('Searching all folders');
-            vectorResults = await this.multiFolderStorageProvider.search(
-              queryEmbedding,
-              {
-                limit: (request as any).limit || 10,
-                threshold: 0.1,
-                includeMetadata: true
-              }
-            );
+        const limit = (request as any).limit || 10;
+        let vectorResults;
+        
+        // Get the target folder and its model ID
+        let targetFolderPath = request.filters?.folder;
+        let modelId = 'all-MiniLM-L6-v2'; // Default model for basic testing
+        
+        if (targetFolderPath && this.folderManager) {
+          // Get the folder config to determine which model was used for indexing
+          const folderConfig = await this.folderManager.getFolderByPath(targetFolderPath);
+          if (folderConfig) {
+            modelId = folderConfig.modelId || modelId;
+            this.logger.debug(`SEARCH_PRIORITY: Using model ${modelId} for folder ${targetFolderPath}`);
           }
+        }
+        
+        // Perform priority search with model switching if FolderIndexingQueue is available
+        if (this.folderIndexingQueue) {
+          this.logger.info(`SEARCH_PRIORITY: Using priority queue with model ${modelId}`);
           
-          this.logger.debug('Vector search results count:', vectorResults.length);
+          vectorResults = await this.folderIndexingQueue.processSemanticSearch(
+            modelId,
+            async (model: any) => {
+              // Generate query embedding with the correct model
+              const queryEmbedding = await model.generateSingleEmbedding(request.query, true); // immediate=true
+              this.logger.debug('SEARCH_PRIORITY: Generated query embedding with dimensions:', queryEmbedding.vector.length);
+              
+              // Search using the multi-folder storage provider
+              if (targetFolderPath) {
+                return await this.multiFolderStorageProvider.search(queryEmbedding, limit, targetFolderPath);
+              } else {
+                return await this.multiFolderStorageProvider.search(queryEmbedding, limit);
+              }
+            }
+          );
+        } else {
+          // Fallback to direct embedding service (for testing without daemon)
+          this.logger.debug('SEARCH_PRIORITY: Using direct embedding service (no priority queue)');
+          const queryEmbedding = await this.embeddingService.generateQueryEmbedding(request.query);
+          
+          if (targetFolderPath) {
+            vectorResults = await this.multiFolderStorageProvider.search(queryEmbedding, limit, targetFolderPath);
+          } else {
+            vectorResults = await this.multiFolderStorageProvider.search(queryEmbedding, limit);
+          }
+        }
+        
+        // Process search results
+        try {
+          this.logger.info(`SEARCH_PRIORITY: Search completed with ${vectorResults.length} results`);
           
           for (const result of vectorResults) {
             // Create search result with proper metadata including folder attribution
@@ -282,6 +319,8 @@ export class MCPEndpoints implements IMCPEndpoints {
    */
   async getDocumentOutline(request: GetDocumentOutlineRequest): Promise<GetDocumentOutlineResponse> {
     try {
+      // Record MCP activity for 3-minute keep-alive window
+      this.recordMcpActivity();
       this.logger.debug('MCP GetDocumentOutline endpoint called', request);
 
       // Handle both 'document_id' and 'filePath' for compatibility
@@ -317,6 +356,8 @@ export class MCPEndpoints implements IMCPEndpoints {
    */
   async getDocumentData(request: GetDocumentDataRequest): Promise<GetDocumentDataResponse> {
     try {
+      // Record MCP activity for 3-minute keep-alive window
+      this.recordMcpActivity();
       this.logger.debug('MCP GetDocumentData endpoint called', request);
 
       // Handle both 'document_id' and 'filePath' for compatibility
@@ -436,6 +477,8 @@ export class MCPEndpoints implements IMCPEndpoints {
    */
   async listFolders(): Promise<ListFoldersResponse> {
     try {
+      // Record MCP activity for 3-minute keep-alive window
+      this.recordMcpActivity();
       this.logger.debug('MCP ListFolders endpoint called');
 
       // Use multi-folder configuration

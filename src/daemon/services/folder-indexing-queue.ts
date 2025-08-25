@@ -56,6 +56,11 @@ export class FolderIndexingQueue extends EventEmitter {
   private isPaused = false;
   private pauseReason?: string;
   private modelFactory: any; // Will be injected
+  
+  // Keep-alive mechanism for active agent sessions (rolling 3-minute window)
+  private lastMcpCallTime: Date | null = null;
+  private keepAliveTimeout: NodeJS.Timeout | null = null;
+  private readonly KEEP_ALIVE_DURATION_MS = 180000; // 3 minutes after last MCP call
 
   constructor(
     private logger: ILoggingService
@@ -68,6 +73,37 @@ export class FolderIndexingQueue extends EventEmitter {
    */
   setModelFactory(factory: any): void {
     this.modelFactory = factory;
+  }
+
+  /**
+   * Record an MCP call to maintain keep-alive window
+   * This extends the pause period by 3 minutes from the last call
+   */
+  recordMcpCall(): void {
+    this.lastMcpCallTime = new Date();
+    this.logger.debug(`[QUEUE] MCP call recorded, extending keep-alive window to 3 minutes`);
+    
+    // Clear existing timeout
+    if (this.keepAliveTimeout) {
+      clearTimeout(this.keepAliveTimeout);
+    }
+    
+    // If not already paused for agent activity, pause now
+    if (!this.isPaused || this.pauseReason !== 'agent-active') {
+      this.pause('agent-active');
+    }
+    
+    // Set new timeout to resume after 3 minutes of inactivity
+    this.keepAliveTimeout = setTimeout(() => {
+      this.logger.info(`[QUEUE] Keep-alive period expired (3min since last MCP call), resuming indexing`);
+      this.lastMcpCallTime = null;
+      this.keepAliveTimeout = null;
+      
+      // Only resume if we're paused for agent activity
+      if (this.isPaused && this.pauseReason === 'agent-active') {
+        this.resume();
+      }
+    }, this.KEEP_ALIVE_DURATION_MS);
   }
 
   /**
@@ -144,11 +180,15 @@ export class FolderIndexingQueue extends EventEmitter {
   }
 
   /**
-   * Pause the queue (for semantic search priority)
+   * Pause the queue (for semantic search priority or agent keep-alive)
    */
   async pause(reason: string): Promise<void> {
     if (this.isPaused) {
-      this.logger.debug(`[QUEUE] Already paused: ${this.pauseReason}`);
+      // Allow upgrading pause reason (e.g., semantic-search -> agent-active)
+      if (reason !== this.pauseReason) {
+        this.logger.debug(`[QUEUE] Upgrading pause reason from '${this.pauseReason}' to '${reason}'`);
+        this.pauseReason = reason;
+      }
       return;
     }
 
@@ -157,8 +197,9 @@ export class FolderIndexingQueue extends EventEmitter {
     this.logger.info(`[QUEUE] Queue paused: ${reason}`);
     this.emit('queue:paused', reason);
 
-    // If a model is loaded and we're pausing for a different model, unload it
-    if (this.currentModel && this.currentFolder) {
+    // Only unload models for semantic search (not for agent keep-alive)
+    // Agent keep-alive wants models to stay loaded for quick responses
+    if (this.currentModel && this.currentFolder && reason !== 'agent-active') {
       this.logger.info(`[QUEUE] Unloading model ${this.currentModelId} for pause`);
       await this.unloadCurrentModel();
     }
@@ -187,6 +228,7 @@ export class FolderIndexingQueue extends EventEmitter {
   /**
    * Process a semantic search request with immediate priority
    * This will pause the queue, load the required model, and process the search
+   * After completion, starts a 3-minute keep-alive window for agent responsiveness
    */
   async processSemanticSearch(
     modelId: string,
@@ -194,8 +236,8 @@ export class FolderIndexingQueue extends EventEmitter {
   ): Promise<any> {
     this.logger.info(`[QUEUE] Processing semantic search with model: ${modelId}`);
 
-    // Pause regular indexing
-    await this.pause('semantic-search');
+    // Record this MCP call for keep-alive tracking
+    this.recordMcpCall();
 
     try {
       // Load the required model if different from current
@@ -207,13 +249,14 @@ export class FolderIndexingQueue extends EventEmitter {
       // Execute the search
       const result = await searchFunction(this.currentModel!);
       
-      this.logger.info(`[QUEUE] Semantic search completed`);
+      this.logger.info(`[QUEUE] Semantic search completed, keep-alive window active for 3 minutes`);
       return result;
 
-    } finally {
-      // Resume normal processing
-      this.resume();
+    } catch (error) {
+      this.logger.error(`[QUEUE] Semantic search failed:`, error instanceof Error ? error : new Error(String(error)));
+      throw error;
     }
+    // Note: No finally block - we rely on keep-alive timeout to resume indexing
   }
 
   /**
@@ -455,6 +498,12 @@ export class FolderIndexingQueue extends EventEmitter {
    */
   async stop(): Promise<void> {
     this.logger.info('[QUEUE] Stopping folder indexing queue');
+    
+    // Clear keep-alive timeout
+    if (this.keepAliveTimeout) {
+      clearTimeout(this.keepAliveTimeout);
+      this.keepAliveTimeout = null;
+    }
     
     // Clear the queue
     this.queue = [];

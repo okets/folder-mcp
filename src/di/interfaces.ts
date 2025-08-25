@@ -462,7 +462,7 @@ export interface IServiceFactory {
   /**
    * Create vector search service
    */
-  createVectorSearchService(cacheDir: string): IVectorSearchService;
+  createVectorSearchService(cacheDir: string): Promise<IVectorSearchService>;
   
   /**
    * Create cache service
