@@ -65,7 +65,7 @@ note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder
 4. Add simple priority handling (immediate flag for semantic search)
 5. Test: Download and use "folder-mcp-lite:xenova-multilingual-e5-large" model for indexing
 
-*Step 6, sequential indexing verification:* [Not-Started]
+*Step 6, sequential indexing verification:* [Completed]
 1. Add 2 folders with different models (Python and ONNX)
 2. Verify they index sequentially - only ONE at a time
 3. Second folder should show status "pending" until first completes

@@ -354,13 +354,9 @@ export class ONNXModelBridge implements IEmbeddingModel {
     try {
       await this.unload();
       
-      // Clean up downloader if needed
-      if (this.downloader) {
-        // Downloader doesn't have dispose, but we can null it
-        this.downloader = null as any;
-      }
-      
-      this.evaluator = null as any;
+      // Note: We don't null the downloader and evaluator here
+      // because the bridge instance might be reused.
+      // The downloader and evaluator are stateless and can be reused.
       
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error));

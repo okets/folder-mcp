@@ -39,6 +39,7 @@ export interface FolderIndexingQueueEvents {
   'queue:model-loading': (folder: QueuedFolder, progress: ModelLoadProgress) => void;
   'queue:model-loaded': (folder: QueuedFolder, modelId: string) => void;
   'queue:model-unloaded': (modelId: string) => void;
+  'queue:progress': (folder: QueuedFolder, progress: any) => void;
   'queue:completed': (folder: QueuedFolder) => void;
   'queue:failed': (folder: QueuedFolder, error: Error) => void;
   'queue:empty': () => void;
@@ -403,6 +404,11 @@ export class FolderIndexingQueue extends EventEmitter {
         }
 
         const state = folder.manager.getState();
+        
+        // Emit progress updates while indexing
+        if (state.status === 'indexing' && state.progress) {
+          this.emit('queue:progress', folder, state.progress);
+        }
         
         if (state.status === 'active' || state.status === 'ready') {
           resolve();
