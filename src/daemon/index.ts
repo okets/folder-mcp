@@ -159,10 +159,13 @@ class FolderMCPDaemon {
         configComponent // Reuse existing configComponent
       );
       debug('Services initialized');
+      
+      // Set up cache update callback for model downloads
+      this.setupModelCacheUpdateCallback(configComponent);
 
-      // Check curated models FIRST, before loading folders
-      info('Checking installed models...');
-      await this.initializeCuratedModels(loggingService);
+      // Load cached model status FIRST (fast startup)
+      info('Loading cached model status...');
+      await this.loadCachedModelStatus(loggingService, configComponent);
       
       debug('Loading configured folders into FMDM...');
       await this.fmdmService!.loadFoldersFromConfig();
@@ -196,6 +199,17 @@ class FolderMCPDaemon {
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
       info(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+
+      // Schedule background model status refresh (non-blocking)
+      setImmediate(async () => {
+        try {
+          info('Refreshing model status in background...');
+          await this.refreshModelStatusInBackground(loggingService, configComponent);
+          info('Model status refreshed successfully');
+        } catch (error) {
+          logError('Background model check failed (non-critical):', error);
+        }
+      });
 
       this.fmdmService!.updateDaemonStatus({
         pid: process.pid,
@@ -572,6 +586,154 @@ class FolderMCPDaemon {
         checkedAt: new Date().toISOString()
       });
     }
+  }
+
+  /**
+   * Load cached model status from configuration (fast startup)
+   */
+  private async loadCachedModelStatus(loggingService: any, configComponent: any): Promise<void> {
+    try {
+      const cachedStatus = await configComponent.get('modelStatusCache');
+      
+      if (cachedStatus && cachedStatus.lastChecked) {
+        // Use cached model status
+        const models = Object.entries(cachedStatus.models || {}).map(([id, info]: [string, any]) => ({
+          id,
+          installed: info.installed,
+          type: id.startsWith('gpu:') ? 'gpu' as const : 'cpu' as const
+        }));
+        
+        this.fmdmService!.setCuratedModelInfo(models, {
+          pythonAvailable: cachedStatus.pythonAvailable,
+          gpuModelsCheckable: cachedStatus.gpuModelsCheckable,
+          checkedAt: cachedStatus.lastChecked
+        });
+        
+        const gpuCount = models.filter(m => m.type === 'gpu' && m.installed).length;
+        const cpuCount = models.filter(m => m.type === 'cpu' && m.installed).length;
+        
+        info(`Using cached model status: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      } else {
+        // No cache available - set defaults
+        const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+        const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+        const defaultModels = [...gpuModels, ...cpuModels];
+        
+        this.fmdmService!.setCuratedModelInfo(defaultModels, {
+          pythonAvailable: false,
+          gpuModelsCheckable: false,
+          checkedAt: new Date().toISOString()
+        });
+        
+        info('No cached model status found - using defaults');
+      }
+    } catch (error) {
+      // Fallback to defaults
+      logError('Failed to load cached model status:', error);
+      const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+      const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+      const defaultModels = [...gpuModels, ...cpuModels];
+      
+      this.fmdmService!.setCuratedModelInfo(defaultModels, {
+        pythonAvailable: false,
+        gpuModelsCheckable: false,
+        checkedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Refresh model status in background and update cache
+   */
+  private async refreshModelStatusInBackground(loggingService: any, configComponent: any): Promise<void> {
+    try {
+      // Use existing model checking logic
+      const { createPythonEmbeddingService, createONNXDownloader } = await import('./factories/model-factories.js');
+      
+      const checker = new ModelCacheChecker(loggingService, createPythonEmbeddingService, createONNXDownloader);
+      const result = await checker.checkCuratedModels();
+      
+      // Update in-memory FMDM
+      this.fmdmService!.setCuratedModelInfo(result.models, result.status);
+      
+      // Save to cache for next startup
+      const cacheData = {
+        lastChecked: new Date().toISOString(),
+        models: {} as Record<string, { installed: boolean; checkedAt: string }>,
+        pythonAvailable: result.status.pythonAvailable,
+        gpuModelsCheckable: result.status.gpuModelsCheckable
+      };
+      
+      // Convert models array to cache format
+      for (const model of result.models) {
+        cacheData.models[model.id] = {
+          installed: model.installed,
+          checkedAt: new Date().toISOString()
+        };
+      }
+      
+      await configComponent.set('modelStatusCache', cacheData);
+      
+      const gpuCount = result.models.filter(m => m.type === 'gpu' && m.installed).length;
+      const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
+      
+      debug(`Background model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      if (result.status.error) {
+        debug(`Note: ${result.status.error}`);
+      }
+    } catch (error) {
+      // Background check failed - cache remains unchanged
+      logError('Background model check failed:', error);
+    }
+  }
+
+  /**
+   * Set up model cache update callback for download manager
+   */
+  private setupModelCacheUpdateCallback(configComponent: any): void {
+    if (!this.monitoredFoldersOrchestrator) {
+      return;
+    }
+    
+    const modelDownloadManager = this.monitoredFoldersOrchestrator.getModelDownloadManager();
+    
+    // Create callback that updates the cache when a model is downloaded
+    const cacheUpdateCallback = async (modelId: string): Promise<void> => {
+      try {
+        // Get current cache or create new one
+        const currentCache = await configComponent.get('modelStatusCache') || {
+          lastChecked: new Date().toISOString(),
+          models: {},
+          pythonAvailable: false,
+          gpuModelsCheckable: false
+        };
+        
+        // Update the specific model as installed
+        currentCache.models[modelId] = {
+          installed: true,
+          checkedAt: new Date().toISOString()
+        };
+        
+        // Save updated cache
+        await configComponent.set('modelStatusCache', currentCache);
+        
+        // Also update in-memory FMDM
+        const fmdm = this.fmdmService!.getFMDM();
+        const model = fmdm.curatedModels.find(m => m.id === modelId);
+        if (model) {
+          model.installed = true;
+        }
+        
+        debug(`[CACHE-UPDATE] Updated cache for downloaded model: ${modelId}`);
+      } catch (error) {
+        logError(`[CACHE-UPDATE] Failed to update cache for ${modelId}:`, error);
+      }
+    };
+    
+    // Set the callback
+    modelDownloadManager.setCacheUpdateCallback(cacheUpdateCallback);
+    debug('Model cache update callback configured');
   }
 
   // Setup graceful shutdown

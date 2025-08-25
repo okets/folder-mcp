@@ -57,6 +57,11 @@ export interface IModelDownloadManager {
    * Set the ONNX downloader (for dependency injection)
    */
   setONNXDownloader(downloader: ONNXDownloader): void;
+  
+  /**
+   * Set cache update callback (called when model download completes successfully)
+   */
+  setCacheUpdateCallback(callback: (modelId: string) => Promise<void>): void;
 }
 
 /**
@@ -66,6 +71,7 @@ export class ModelDownloadManager implements IModelDownloadManager {
   private activeDownloads: Map<string, DownloadRequest> = new Map();
   private pythonEmbeddingService?: PythonEmbeddingService;
   private onnxDownloader?: ONNXDownloader;
+  private cacheUpdateCallback?: (modelId: string) => Promise<void>;
   
   constructor(
     private logger: ILoggingService,
@@ -84,6 +90,13 @@ export class ModelDownloadManager implements IModelDownloadManager {
    */
   setONNXDownloader(downloader: ONNXDownloader): void {
     this.onnxDownloader = downloader;
+  }
+  
+  /**
+   * Set cache update callback (called when model download completes successfully)
+   */
+  setCacheUpdateCallback(callback: (modelId: string) => Promise<void>): void {
+    this.cacheUpdateCallback = callback;
   }
   
   async requestModelDownload(modelId: string): Promise<void> {
@@ -173,6 +186,17 @@ export class ModelDownloadManager implements IModelDownloadManager {
       this.logger.debug(`[MODEL-DOWNLOAD] Download succeeded, marking as installed for ${modelId}`);
       this.updateModelDownloadState(modelId, false, 100, true);
       this.logger.info(`[MODEL-DOWNLOAD] Successfully downloaded model ${modelId}`);
+      
+      // Update cache if callback is available
+      if (this.cacheUpdateCallback) {
+        try {
+          await this.cacheUpdateCallback(modelId);
+          this.logger.debug(`[MODEL-DOWNLOAD] Cache updated for ${modelId}`);
+        } catch (error) {
+          // Cache update is non-critical
+          this.logger.warn(`[MODEL-DOWNLOAD] Failed to update cache for ${modelId}:`, error);
+        }
+      }
       
     } catch (error) {
       // Update FMDM to show error

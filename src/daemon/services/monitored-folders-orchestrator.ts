@@ -53,6 +53,11 @@ export interface IMonitoredFoldersOrchestrator {
    * Get manager for a specific folder
    */
   getManager(folderPath: string): IFolderLifecycleManager | undefined;
+  
+  /**
+   * Get the model download manager (for setting cache callbacks)
+   */
+  getModelDownloadManager(): IModelDownloadManager;
 }
 
 // Helper function to get model dimensions from curated models
@@ -775,6 +780,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   
   getManager(folderPath: string): IFolderLifecycleManager | undefined {
     return this.folderManagers.get(folderPath);
+  }
+  
+  /**
+   * Get the model download manager (for setting cache callbacks)
+   */
+  getModelDownloadManager(): IModelDownloadManager {
+    return this.modelDownloadManager;
   }
 
   /**

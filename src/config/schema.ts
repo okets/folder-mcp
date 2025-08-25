@@ -54,6 +54,17 @@ export interface FileConfig {
   encoding: string;
 }
 
+// Model status cache configuration  
+export interface ModelStatusCache {
+  lastChecked: string;
+  models: Record<string, {
+    installed: boolean;
+    checkedAt: string;
+  }>;
+  pythonAvailable: boolean;
+  gpuModelsCheckable: boolean;
+}
+
 // UI/UX configuration (only in runtime config)
 export interface UIConfig {
   fullScreen: boolean;
@@ -219,6 +230,9 @@ export interface LocalConfig {
     }>;
   };
   
+  // Model status cache
+  modelStatusCache?: ModelStatusCache;
+  
   // Metadata
   version?: string;
   createdAt?: string;
@@ -303,6 +317,7 @@ export interface RuntimeConfig {
     encoding: string;
   };
   cache: CacheConfig;
+  modelStatusCache?: ModelStatusCache;
   metadata: RuntimeMetadata;
 }
 

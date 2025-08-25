@@ -115,7 +115,7 @@ note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder
    - Add folder with `cpu:xenova-multilingual-e5-small`
    - Verify both models are correctly identified and loaded
 
-*Step 9, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Next]
+*Step 9, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Completed]
 Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
 TUI wait "ascii screenshot":
                             ⚠ folder-mcp service not running
@@ -136,7 +136,7 @@ TUI wait "ascii screenshot":
 2. analyze what actions are delaying the startup process (should be improved now).
 3. based on the previous step, we should decide: If the delayed startup can't be avoided we should come up with a better TUI wait screen. I prefer optimizing the startup process.
 
-*Step 10, Remove duplicate metadata JSON storage:* [Not-Started]
+*Step 10, Remove duplicate metadata JSON storage:* [Next]
 We discovered an incomplete migration from file-based caching to SQLite storage, causing duplicate data storage:
 1. JSON files in `.folder-mcp/metadata/` contain the same chunk data that's already in the SQLite database
 2. These files are created during indexing but never actually used (except for fingerprint tracking in IncrementalIndexer)

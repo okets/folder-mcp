@@ -31,7 +31,7 @@ describe('DaemonRegistry', () => {
           for (const line of lines) {
             if (line.includes('dist/src/daemon/index.js') && !line.includes('grep')) {
               const parts = line.trim().split(/\s+/);
-              const pid = parseInt(parts[1], 10);
+              const pid = parts[1] ? parseInt(parts[1], 10) : NaN;
               if (!isNaN(pid) && pid !== process.pid) {
                 try {
                   process.kill(pid, 'SIGKILL');
