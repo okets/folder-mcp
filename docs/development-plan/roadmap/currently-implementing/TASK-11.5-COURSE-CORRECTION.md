@@ -92,7 +92,7 @@ note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder
 - TMOAT validation test created and passing
 - Daemon connectivity and basic search functionality verified
 
-*Step 8, rename model ID prefixes to hardware-based convention* [Not-Started]
+*Step 8, rename model ID prefixes to hardware-based convention* [Completed]
 **Simple refactor**: Change model ID prefixes to be hardware/provider-based for clarity.
 
 **Old prefixes**:
@@ -115,7 +115,7 @@ note: to reset downloaded models between TMOAT tests run 'rm -rf ~/.cache/folder
    - Add folder with `cpu:xenova-multilingual-e5-small`
    - Verify both models are correctly identified and loaded
 
-*Step 9, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Not-Started]
+*Step 9, fix daemon takes long time to load, TUI windows waiting for a daemon to load* [Next]
 Since we started working on task 11.5, the daemon takes long time to load. the TUI terminal keeps retrying a connection until it responds:
 TUI wait "ascii screenshot":
                             ⚠ folder-mcp service not running

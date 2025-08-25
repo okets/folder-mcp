@@ -7,6 +7,8 @@
 
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
+import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
+import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
 
 /**
  * Singleton registry for PythonEmbeddingService instances
@@ -84,8 +86,22 @@ export function getPythonEmbeddingServiceStatus(): { [key: string]: any } {
 }
 
 /**
+ * Factory function for creating ModelCompatibilityEvaluator
+ */
+export function createModelCompatibilityEvaluator(): ModelCompatibilityEvaluator {
+  return new ModelCompatibilityEvaluator();
+}
+
+/**
  * Factory function for creating ONNXDownloader
  */
-export function createONNXDownloader(): ONNXDownloader {
-  return new ONNXDownloader();
+export function createONNXDownloader(config?: any): ONNXDownloader {
+  return new ONNXDownloader(config);
+}
+
+/**
+ * Factory function for creating ONNXEmbeddingService
+ */
+export function createONNXEmbeddingService(config: any): ONNXEmbeddingService {
+  return new ONNXEmbeddingService(config);
 }

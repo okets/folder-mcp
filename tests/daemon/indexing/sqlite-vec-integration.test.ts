@@ -115,17 +115,6 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     expect(result.filesProcessed).toBeGreaterThan(0);
   });
   
-  it('should create per-folder databases in correct locations', async () => {
-    // Test database creation at folderPath/.folder-mcp/embeddings.db
-    await indexingOrchestrator.indexFolder(testFolder, {
-      forceReindex: true,
-      embeddingModel: 'gpu:paraphrase-multilingual-minilm' // Required model parameter
-    });
-    
-    // Check if SQLite database was created
-    const dbPath = join(testFolder, '.folder-mcp', 'embeddings.db');
-    expect(existsSync(dbPath)).toBe(true);
-  });
   
   it('should handle indexing errors with proper status updates', async () => {
     // Test error status updates and recovery

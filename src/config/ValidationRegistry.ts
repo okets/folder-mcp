@@ -85,16 +85,17 @@ export class ValidationRegistry {
         // Embedding model validation (per folder)
         this.registerRule('folders.list[].model', {
             validate: (value: string) => {
-                // Basic validation - just check if it's a non-empty string
-                // Model validation is now handled by the daemon's ModelHandlers (single source of truth)
-                return !!(value && value.trim() !== '');
+                if (!value || value.trim() === '') return false;
+                return isValidModelId(value);
             },
-            message: 'Model name is required',
+            message: 'Must be a supported embedding model',
             getTuiResult: (value: string) => {
                 if (!value || value.trim() === '') {
                     return { isValid: false, error: 'Model name is required' };
                 }
-                // Model validation is now handled by daemon - just check for non-empty string
+                if (!isValidModelId(value)) {
+                    return { isValid: false, error: 'Must be a supported embedding model' };
+                }
                 return { isValid: true };
             }
         });

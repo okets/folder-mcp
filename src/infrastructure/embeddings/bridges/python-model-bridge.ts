@@ -15,6 +15,7 @@ import type {
 import type { TextChunk } from '../../../types/index.js';
 import type { EmbeddingVector, EmbeddingResult } from '../../../domain/embeddings/index.js';
 import { PythonEmbeddingService } from '../python-embedding-service.js';
+import { createPythonEmbeddingService } from '../../../daemon/factories/model-factories.js';
 import type { ILoggingService } from '../../../di/interfaces.js';
 
 export class PythonModelBridge implements IEmbeddingModel {
@@ -88,7 +89,7 @@ export class PythonModelBridge implements IEmbeddingModel {
         pythonConfig.pythonPath = this.modelConfig.pythonPath;
       }
 
-      this.pythonService = new PythonEmbeddingService(pythonConfig);
+      this.pythonService = createPythonEmbeddingService(pythonConfig);
 
       // Initialize the service (which starts the Python process)
       await this.pythonService.initialize();

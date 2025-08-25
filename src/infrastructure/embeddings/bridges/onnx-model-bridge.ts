@@ -18,6 +18,11 @@ import type { ILoggingService } from '../../../di/interfaces.js';
 import { ONNXDownloader } from '../onnx/onnx-downloader.js';
 import { ONNXEmbeddingService } from '../onnx/onnx-embedding-service.js';
 import { ModelCompatibilityEvaluator } from '../../../domain/models/model-evaluator.js';
+import { 
+  createModelCompatibilityEvaluator,
+  createONNXDownloader,
+  createONNXEmbeddingService 
+} from '../../../daemon/factories/model-factories.js';
 import path from 'path';
 import os from 'os';
 
@@ -41,10 +46,10 @@ export class ONNXModelBridge implements IEmbeddingModel {
       path.join(os.homedir(), '.cache', 'folder-mcp', 'onnx-models');
     
     // Initialize evaluator and downloader
-    this.evaluator = new ModelCompatibilityEvaluator();
+    this.evaluator = createModelCompatibilityEvaluator();
     
     // Create ONNX downloader with cache directory
-    this.downloader = new ONNXDownloader({
+    this.downloader = createONNXDownloader({
       cacheDirectory: this.cacheDir,
     });
   }
@@ -123,7 +128,7 @@ export class ONNXModelBridge implements IEmbeddingModel {
       });
 
       // Create ONNX service
-      this.onnxService = new ONNXEmbeddingService({
+      this.onnxService = createONNXEmbeddingService({
         modelId: this.modelConfig.modelId,
         cacheDirectory: this.cacheDir,
         batchSize: this.modelConfig.batchSize ?? 32,
