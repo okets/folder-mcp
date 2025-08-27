@@ -3,7 +3,9 @@
 **Status**: 📋 PLANNED  
 **Priority**: HIGH  
 **Start Date**: TBD  
-**Approach**: Endpoint-by-Endpoint Implementation  
+**Approach**: Endpoint-by-Endpoint Implementation
+
+**🚀 Implementation Plan**: [Phase 9 Simple SCRUM Plan](./Phase-9-Implementation-epic.md)  
 
 ## 🎯 **Overview**
 
@@ -116,7 +118,6 @@ Keep our excellent 10-endpoint interface, but make each endpoint **folder-aware*
 - **Accept folder-aware document identification**
 - **Validate folder accessibility**
 - **Include folder attribution** in metadata
-- **Handle cross-folder document references**
 
 ---
 

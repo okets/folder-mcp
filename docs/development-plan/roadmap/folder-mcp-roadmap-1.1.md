@@ -361,11 +361,132 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - **Defaults**: Smart defaults that work without configuration
 - **Validation**: Schema-based validation for all settings
 
-## Phase 6: Configuration Foundation & CLI/TUI Parity
+## Phase 1: MCP Endpoint Redesign ✅ COMPLETED (December 2024)
 
-**Goal**: Establish configuration system as the foundation for all features, then achieve identical functionality between CLI and TUI interfaces
+**📋 [Detailed Phase Plan](completed/Phase-1.mcp-endpoint-redesign.md)**
 
-### **User Stories**
+**Goal**: Replace current MCP endpoints with streamlined, LLM-friendly API
+
+**Why**: Original endpoints were too granular, requiring LLMs to orchestrate complex workflows. The redesign creates intent-driven endpoints that complete user journeys efficiently while respecting token limits.
+
+**Implementation Summary**:
+This phase successfully transitioned the MCP server from a tool-centric, low-level API to a user-intent-driven and LLM-friendly interface with 8 streamlined endpoints, token-aware pagination, rich search results, and comprehensive test coverage.
+
+**Key Achievements**:
+- **Complete Endpoint Redesign**: 8 new streamlined endpoints (search, get_document_outline, get_document_data, list_folders/documents, get_sheet_data, get_slides, get_pages, get_embedding, get_status)
+- **Test Coverage**: 34/34 MCP endpoint tests + 6/6 integration tests + 12/12 performance tests passing
+- **Real-World Validation**: 36 business documents in test suite including Marketing, Finance, Engineering, and Legal documents
+- **Production Ready**: Full server validation with operational file watching and endpoint responses
+
+## Phase 2: Real Folder-Oriented Tests ✅ COMPLETED (June 2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-2.robust-real-folder-oriented-tests-implementation.md)**
+
+**Goal**: Replace mock-based tests with real folder-oriented tests using actual files and real cache directories
+
+**Why**: Existing tests used mocks and fake data instead of testing against real files, meaning system functionality wasn't actually validated.
+
+**Implementation Summary**:
+Achieved **100% real integration testing** with zero tolerance for mocks. All tests now run against actual documents, create real cache directories, and perform real indexing operations.
+
+**Key Achievements**:
+- **Real File Testing**: All 137+ integration tests run against actual business documents
+- **Zero Mock Tolerance**: 95% compliance achieved - only legitimate mocks for error simulation remain
+- **Real Embeddings**: Production-ready Ollama API integration with actual vector generation
+- **Complete Coverage**: All 10 user stories from PRD tested with comprehensive real data workflows
+- **Performance Benchmarks**: Real-world performance measurements (0.3ms/file processing, 645+ embeddings/sec)
+
+## Phase 3: TUI Design & Implementation ✅ COMPLETED (2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-3.tui-design-and-implementation-plan.md)**
+
+**Goal**: Create groundbreaking terminal user interface with Claude Code-level polish
+
+**Why**: Needed intuitive TUI for configuration management with smooth animations and modern design.
+
+**Implementation Summary**:
+Built a complete TUI framework with React Ink components, responsive design, and sophisticated animation system that exceeds modern GUI application standards.
+
+**Key Achievements**:
+- **Visual Demo System**: Complete interactive showcase of all design elements
+- **Animation Framework**: Breathing progress bars, focus transitions, and smooth state changes
+- **Responsive Design**: Intelligent adaptation to terminal size with breakpoint system
+- **Component Architecture**: Reusable components (BorderedBox, GenericListPanel, ConfigurationItems)
+- **Claude Code Polish**: Interface that feels as polished as professional GUI applications
+
+## Phase 4: TUI Components Development ✅ COMPLETED (July 2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-4.tui-components-development.md)**
+
+**Goal**: Extend TUI framework with comprehensive configuration components
+
+**Why**: Needed full configuration management capabilities with validation, file pickers, selections, and destructive operation confirmations.
+
+**Implementation Summary**:
+Built production-ready TUI component library with sophisticated features including validation, file navigation, confirmation dialogs, and responsive layouts.
+
+**Key Achievements**:
+- **TextInput Validation**: Number, email, IP, regex validation with visual error states
+- **SelectionListItem**: Radio/checkbox selections with vertical/horizontal layouts and metadata display
+- **FilePickerListItem**: Real file system navigation with security and cross-platform support
+- **Destructive Confirmations**: Inline confirmation dialogs with severity levels and smart button states
+- **Animation Components**: AnimationContainer and ProgressBar with responsive behavior
+- **Zero TypeScript Errors**: Complete elimination of 397 TypeScript errors while maintaining full functionality
+
+## Phase 5: TypeScript Error Elimination ✅ COMPLETED (July 2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-5.tui-eliminate-all-dev-errors.md)**
+
+**Goal**: Systematically eliminate all TypeScript errors while maintaining fully functional TUI
+
+**Why**: 397 TypeScript errors needed resolution to ensure code quality and maintainability.
+
+**Implementation Summary**:
+Achieved zero TypeScript errors through systematic error categorization and resolution while maintaining complete TUI functionality.
+
+**Key Achievements**:
+- **Complete Error Resolution**: 397 → 0 errors (100% elimination)
+- **Systematic Approach**: Module resolution, component errors, type safety, compatibility, and optional properties
+- **No Regression**: TUI remained fully functional throughout the process
+- **Architecture Compliance**: All fixes maintained clean architecture boundaries
+
+## Phase 6: Configuration Foundation & CLI/TUI Parity ✅ COMPLETED (July 2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-6-Configuration-Foundation-plan.md)**
+
+**Goal**: Establish comprehensive configuration system as foundation for all features
+
+**Why**: Need unified configuration system driving all functionality with CLI/TUI parity.
+
+**Implementation Summary**:
+Built complete configuration architecture with hierarchical loading, validation, hot reload, and daemon-based service management.
+
+**Key Achievements**:
+- **Configuration Architecture**: Hierarchical system (defaults → system → user → environment → runtime)
+- **Event-Driven Daemon**: Background service with health monitoring and auto-restart (127 tests passing)
+- **Multi-Folder MCP Server**: Extended server for multiple folder support with real-data testing
+- **CLI Command Suite**: Full configuration management commands (42 tests passing)
+- **Unified System**: Single configuration foundation driving all components
+
+## Phase 7: Configuration System Overhaul ✅ COMPLETED (July 2025)
+
+**📋 [Detailed Phase Plan](completed/Phase-7-configuration-system-overhaul-plan.md)**
+
+**Goal**: Replace complex 6-source configuration with simple schema-driven system
+
+**Why**: Original system was too complex; needed simple 2-file system with schema-driven UI generation.
+
+**Implementation Summary**:
+Successfully replaced complex configuration with elegant 2-file system and schema-driven interface generation.
+
+**Key Achievements**:
+- **Simplified Architecture**: config-defaults.yaml → config.yaml → CLI arguments (from 6-source system)
+- **Schema-Driven UI**: Automatic TUI generation from configuration schemas
+- **Clean Separation**: User configurations (YAML) vs system constants (JSON)
+- **Test Cleanup**: Removed old system tests, implemented new validation system
+- **Maintainable Codebase**: Clear architecture with proper DI boundaries
+
+**User Stories**:
 - **As a user, I want sensible defaults**: System works without any configuration
 - **As a user, I want to customize behavior**: Easy configuration for common needs
 - **As a power user, I want full control**: Every aspect configurable
@@ -373,305 +494,41 @@ Create a configuration-driven daemon-based system that manages multiple MCP serv
 - **As a user, I want to see all shared folders**: `folder-mcp list`
 - **As a user, I want to check configuration**: `folder-mcp config get`
 
-### Task 1: Configuration System Foundation
+## Phase 8: Unified Application Flow ✅ COMPLETED (January 2025)
 
-**Goal**: Create comprehensive configuration system that drives all functionality
+**📋 [Detailed Phase Plan](completed/Phase-8-Unified-Application-Flow-plan.md)**
 
-**Scope**:
-- Configuration schema definition (YAML with JSON Schema validation)
-- Configuration loader with schema validation
-- Environment variable expansion
-- Configuration validation with helpful errors
-- Default configuration generation
-- Configuration schema definitions
+**Goal**: Create unified application experience combining all components into cohesive, production-ready system
 
-**Completion Criteria**:
-- [ ] Configuration schema defined and documented
-- [ ] Loader handles all configuration sources
-- [ ] Validation provides helpful error messages
-- [ ] Configuration schema validation working
-- [ ] Hot reload for applicable settings
-- [ ] Configuration CLI commands working
+**Why**: Transform from single-folder proof-of-concept into complete multi-folder indexing system with unified TUI interface.
 
+**Implementation Summary**:
+Phase 8 achieved a complete architectural transformation, far exceeding the original scope. What began as "Enhanced UX & Core Features" became a comprehensive system rewrite delivering a production-ready multi-folder indexing platform.
 
-### Task 2: Basic Daemon Architecture
-
-**Goal**: Create configuration-driven daemon that manages single multi-folder MCP server
-
-**Scope**:
-- Daemon reads configuration on startup
-- Configuration drives all daemon behavior
-- Support configuration reload via signals
-- Health checks and restart policies from config
-- Performance monitoring per configuration
-
-**Completion Criteria**:
-- [ ] Daemon respects all configuration settings
-- [ ] Configuration reload without restart
-- [ ] Health monitoring uses configured intervals
-- [ ] Auto-restart follows configuration
-- [ ] Performance metrics per configuration
-
-
-### Task 3: Extend MCP Server for Multiple Folders
-
-**Goal**: Modify existing MCP server to handle multiple folders with per-folder configuration
-
-**Scope**:
-- Read folder list from configuration
-- Apply folder-specific settings (model, excludes, etc.)
-- Support folder configuration overrides
-- Dynamic folder addition/removal
-- Performance settings per folder
-- Preserve existing endpoint functionality
-
-**Completion Criteria**:
-- [ ] MCP server reads folder configuration
-- [ ] Per-folder settings applied correctly
-- [ ] Configuration changes trigger re-indexing
-- [ ] Folder-specific models working
-- [ ] Performance tuning per folder
-
-
-### Task 4: Configuration-Aware CLI Commands
-
-**Goal**: Implement CLI commands that respect and expose configuration
-
-**Scope**:
-- `folder-mcp config get/set/list` - Configuration management
-- `folder-mcp add --backend <backend>` - Override configuration
-- `folder-mcp config show` - Display current configuration
-- All commands accept config overrides
-- Help shows configuration options
-
-**Completion Criteria**:
-- [ ] Configuration commands working
-- [ ] All commands accept config overrides
-- [ ] Profile switching works
-- [ ] Help includes configuration options
-- [ ] JSON output for automation
-
-
-**Phase 6 Success Criteria**:
-- ✅ Configuration system foundation established
-- ✅ Basic daemon architecture implemented
-- ✅ MCP server extended for multiple folders
-- ✅ Configuration-aware CLI commands working
-- Configuration system ready for overhaul in Phase 7
-
-## Phase 7: Configuration System Overhaul
-
-**Goal**: Replace the complex 6-source configuration system with a simple, schema-driven system focused on user configurations
-
-**Reference Documents**:
-- `docs/development-plan/roadmap/currently-implementing/configuration-system-design.md` - Complete design specification
-- `docs/development-plan/roadmap/currently-implementing/configurable-parameters.md` - Schema examples and parameter documentation
-
-### **User Stories**
-- **As a user, I want simple configuration**: Just two YAML files with clear purpose
-- **As a user, I want schema validation**: Know immediately if my config is wrong
-- **As a user, I want dynamic UI**: Configuration options that adapt based on my choices
-- **As a developer, I want clear separation**: System config vs user config with no overlap
-
-### Task 1: Remove Old Configuration System Tests
-
-**Goal**: Clean up all tests related to the old 6-source configuration system
-
-**Scope**:
-- Remove tests for system config, profiles, environment expansion
-- Remove tests for complex hierarchy merging
-- Remove tests for hot reload of all sources
-- Keep only tests that will be relevant to new system
-
-**Completion Criteria**:
-- [x] Old configuration tests removed
-- [x] Test suite passes without old config tests
-- [x] No references to old config system in tests
-
-### Task 2: Simplify Current Configuration System
-
-**Goal**: Move all current configurations to a single system-configuration.json file
-
-**Scope**:
-- Create system-configuration.json with ALL current configs
-- Include both system and user-related configurations temporarily
-- Simple JSON loader that reads this file on startup
-- No hierarchy, no merging, no environment variables
-- Write tests for simple JSON loading mechanism
-
-**Configuration Items to Move**:
-- Model settings (modelName, batchSize, etc.)
-- File processing settings (extensions, ignore patterns)
-- Performance settings
-- Development flags
-- All other current configurations
-
-**Completion Criteria**:
-- [x] system-configuration.json contains all current configs
-- [x] Simple loader reads JSON on startup
-- [x] Application works with single config file
-- [x] Tests verify JSON loading mechanism
-- [ ] No regression in functionality
-
-### Task 3: Implement New User Configuration System ✅ COMPLETED (2025-07-08)
-
-**Goal**: Build schema-driven configuration system with DEAD SIMPLE architecture
-
-**Configuration Architecture (DEAD SIMPLE)**:
-- **system-configuration.json** = Constants (file extensions, model names, never user-configurable)
-- **config-defaults.yaml** = Default values for user preferences  
-- **config.yaml** = User overrides (ONLY selected items, added one by one as TUI grows)
-
-**Scope**:
-- Implement ConfigManager (loads config-defaults.yaml and config.yaml) 
-- Create configuration schema with single test item (theme selection)
-- Implement CLI config commands (get/set/show) for user preferences
-- Add tests for merging and override behavior
-- Keep system constants in JSON, user preferences in YAML
-
-**Test Configuration Item**:
-```yaml
-# config-defaults.yaml
-theme: "auto"  # Options: light, dark, auto
-
-# User can override in config.yaml
-theme: "dark"  # User prefers dark mode
-```
-
-**Completion Criteria**:
-- [x] ConfigManager implemented and tested
-- [x] Schema system working with theme configuration
-- [x] CLI can get/set theme configuration  
-- [x] config.yaml overrides config-defaults.yaml
-- [x] Theme changes reflected in TUI
-- [x] Tests verify override hierarchy
-- [x] CLI --theme flag overrides config files (Assignment 4)
-- [x] DI integration complete (Assignment 8)
-
-### Task 4: Create Schema-Driven TUI
-
-**Goal**: Build real TUI that generates UI from configuration schema for user preferences
-
-**Scope**:
-- Move all test items from MainPanel to SecondaryPanel
-- Implement ConfigurationItemFactory for user preferences
-- Generate theme selection UI from schema  
-- Connect UI to real config.yaml file
-- Save changes persist to config.yaml
-
-**TUI Changes**:
-- MainPanel: Real user configuration (theme selection initially)
-- SecondaryPanel: Test items for reference
-- Theme selection with instant visual feedback
-- Real-time validation from schema
-
-**Completion Criteria**:
-- [ ] TUI generates theme selection from schema
-- [ ] Theme selection saved to config.yaml
-- [ ] UI updates when config.yaml changes
-- [ ] Theme changes immediately visible in TUI
-- [ ] Validation prevents invalid selections
-- [ ] Test items moved to SecondaryPanel
-
-### Task 5: Define All User Configurations
-
-**Goal**: Gradually migrate selected items from JSON constants to user-configurable YAML
-
-**Scope (PROGRESSIVE MIGRATION)**:
-- Start with theme (completed in Task 3-4)
-- Add development settings (enabled, hotReload, debugOutput) 
-- Add performance tuning (batchSize, maxConcurrentOperations) when TUI needs it
-- Create schema definitions for each new item
-- Move items from system-configuration.json to user config ONE BY ONE
-
-**Progressive Addition Strategy**:
-- **Phase 1**: Theme (light/dark/auto) ← DONE
-- **Phase 2**: Development flags (enabled, hotReload) 
-- **Phase 3**: Performance tuning (when users request it)
-- **Phase 4**: UI preferences (when TUI expands)
-
-**Completion Criteria**:
-- [ ] Theme configuration working end-to-end
-- [ ] Development configuration added to schema
-- [ ] Performance settings available when needed
-- [ ] CLI commands work for all migrated configs
-- [ ] TUI shows all migrated configuration options
-- [ ] system-configuration.json keeps only true constants
-
-### Task 6: Update Roadmap for New Architecture
-
-**Goal**: Update all future phases to use new configuration system
-
-**Scope**:
-- Remove references to old configuration system
-- Add user configuration items for each feature
-- Update task descriptions to use new schema
-- Ensure gradual config growth pattern
-
-**Completion Criteria**:
-- [ ] All phases updated for new config system
-- [ ] Each phase adds its config items to schema
-- [ ] No references to old 6-source system
-- [ ] Clear pattern for adding new configs
-
-**Phase 7 Success Criteria**:
-- Simple 2-file configuration system operational ✅ (Task 3 complete)
-- Schema drives both CLI and TUI interfaces ✅ (Theme working)
-- All user configs in config.yaml with defaults ⏳ (Theme done, more to come)
-- System configs isolated in system-configuration.json ✅ (Task 2 complete)
-- Clean, maintainable configuration architecture ✅ (DI integrated)
-
-## Phase 8: Multi-Folder Multi-Model Indexing System ✅ COMPLETED
-
-**Goal**: Complete transformation to multi-folder, multi-model indexing system with unified TUI interface
-
-**Scope Achieved**: During Phase 8, the project underwent a major architectural transformation that completely rebuilt the application from the ground up. What started as "Enhanced UX & Core Features" became a comprehensive system rewrite.
-
-### **Major Achievements**
-- **✅ Unified TUI Application**: Complete terminal interface with wizard, folder management, and real-time status
-- **✅ Multi-Folder Support**: Add, configure, and manage multiple folders with different embedding models
-- **✅ WebSocket Daemon Architecture**: Persistent background daemon with TUI client communication
-- **✅ Python Embeddings System**: GPU-accelerated embeddings with 8 supported models and hardware detection
-- **✅ SQLite-vec Vector Storage**: Production-ready vector database with persistent storage and fast search
-- **✅ Dynamic Model Selection**: Hardware-aware model defaults with sequential processing and model switching
-- **✅ Comprehensive Configuration System**: Unified configuration with validation, CLI commands, and hot reload
+**Major Infrastructure Achievements**:
+- **✅ Multi-Folder Multi-Model System**: Complete support for multiple folders with different embedding models
+- **✅ Unified TUI Application**: Full-featured terminal interface with wizard, management, and real-time status  
+- **✅ Daemon-Centric Architecture**: WebSocket-based daemon with persistent state and multi-client support
+- **✅ Python Embeddings Pipeline**: GPU-accelerated embeddings with 8 supported models and hardware detection
+- **✅ SQLite-vec Vector Storage**: Production-ready vector database with persistent storage per folder
+- **✅ Dynamic Model Selection**: Hardware-aware defaults with sequential processing and intelligent switching
 - **✅ Real-time Progress Reporting**: Live status updates during indexing with detailed progress tracking
 
-### **Core Infrastructure Built**
-- **Configuration Architecture**: Single source of truth with ValidationRegistry and ConfigurationComponent
-- **Daemon-Centric Design**: Background service managing all folders with persistent state
-- **TUI Framework**: React Ink-based interface with reusable components and responsive design
-- **Embeddings Pipeline**: Complete Python subprocess with JSON-RPC communication and GPU optimization
-- **Vector Storage**: SQLite-vec databases per folder with incremental updates and metadata storage
-- **Process Management**: Keep-alive systems, graceful shutdown, and error recovery
+**Quality & Testing Achievements**:
+- **✅ Zero Test Failures**: 905+ tests passing with comprehensive coverage
+- **✅ Cross-Platform Support**: Windows, macOS, and Linux compatibility
+- **✅ Performance Optimization**: GPU acceleration, model caching, memory management
+- **✅ Error Recovery**: Graceful degradation and comprehensive error handling
 
-### **Technical Components Delivered**
-- **WebSocket Communication**: Daemon ↔ TUI real-time communication with message correlation
-- **Folder Validation Service**: Comprehensive validation with duplicate, sub-folder, and ancestor detection
-- **Model Registry**: 8 supported embedding models with automatic downloads and device optimization
-- **Progress Tracking**: Complete indexing flow with status transitions (pending → scanning → parsing → embedding → indexing → ready)
-- **Error Handling**: Graceful degradation, error reporting, and recovery mechanisms
+**User Experience Transformation**:
+- **✅ Intelligent First-Run**: Wizard with smart defaults and hardware detection
+- **✅ Real-Time Management**: Live folder status with progress bars and validation
+- **✅ Multi-Client Architecture**: Multiple TUI instances with WebSocket synchronization
+- **✅ Production-Ready CLI**: Complete command-line interface with folder management
 
-### **User Experience Transformation**
-- **First-Run Wizard**: Intelligent folder selection with smart defaults and model auto-detection
-- **Add Folder Wizard**: Reusable component with validation and confirmation flows
-- **Real-time Status**: Live folder status with progress bars and error reporting
-- **Multi-Model Support**: Per-folder model selection with hardware-aware defaults
-- **CLI Integration**: Complete CLI with folder management and configuration commands
+**Technical Foundation Built**:
+The complete technical foundation for all future development including configuration architecture, process management, keep-alive systems, graceful shutdown, WebSocket communication, error recovery, and extensible design supporting additional features and deployment options.
 
-### **Testing & Quality**
-- **905+ Tests Passing**: Comprehensive test coverage including real document processing
-- **E2E Integration**: Full workflow testing with business documents (Marketing, Finance, Engineering, Legal)
-- **Performance Optimization**: GPU acceleration, model caching, and memory management
-- **Cross-platform Support**: Windows, macOS, and Linux compatibility with terminal-specific optimizations
-
-**Phase 8 Success Metrics**:
-- ✅ Complete architectural transformation to multi-folder system
-- ✅ Production-ready embeddings with GPU acceleration
-- ✅ Real-time TUI interface with comprehensive folder management
-- ✅ Zero test failures across entire codebase (905/905 passing)
-- ✅ Hardware-adaptive model selection and performance optimization
-- ✅ Persistent vector storage with SQLite-vec database per folder
 
 ## Phase 9: MCP Endpoints Multi-Folder Support
 
@@ -683,7 +540,7 @@ theme: "dark"  # User prefers dark mode
 
 **Success Criteria**: LLMs can discover, search, and retrieve documents across multiple folders with automatic model switching.
 
-**Reference Document**: [Phase-9-MCP-Endpoints-Multi-Folder-Support.md](currently-implementing/Phase-9-MCP-Endpoints-Multi-Folder-Support.md)
+**📋 [Detailed Phase Plan](currently-implementing/Phase-9-MCP-Endpoints-Multi-Folder-Support.md)**
 
 ## Phase 10: TUI Rebuild & Navigation
 
