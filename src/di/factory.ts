@@ -114,22 +114,16 @@ export class ServiceFactory implements IServiceFactory {
     return new EmbeddingService(config, loggingService);
   }
 
-  createVectorSearchService(cacheDir: string): IVectorSearchService {
+  async createVectorSearchService(cacheDir: string): Promise<IVectorSearchService> {
     const loggingService = this.getLoggingService();
-    // Use SQLiteVecStorage instead of mock VectorSearchService
     
-    // Pass cacheDir directly to SQLiteVecStorage - it will handle extracting the correct path
-    // Create SQLiteVecStorage config with default values
-    // TODO: In future, get actual model info from folder configuration
-    const config = {
-      folderPath: cacheDir, // DatabaseManager will handle extracting the base folder path
-      modelName: 'all-MiniLM-L6-v2', // Default model
-      modelDimension: 384, // Default dimension for all-MiniLM-L6-v2
-      logger: loggingService
-    };
+    // TODO: Task 12 - Use full SQLiteVecStorage for multi-folder search
+    // For Step 7 priority testing, use BasicVectorSearchService
     
-    loggingService.info(`Creating SQLiteVecStorage for cache dir: ${cacheDir}`);
-    return new SQLiteVecStorage(config);
+    loggingService.info(`Creating BasicVectorSearchService for testing priority system: ${cacheDir}`);
+    
+    const { BasicVectorSearchService } = await import('../infrastructure/storage/basic-vector-search.js');
+    return new BasicVectorSearchService(loggingService);
   }
 
   createCacheService(folderPath: string): ICacheService {
@@ -180,7 +174,7 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CHUNKING),
       container.resolve(SERVICE_TOKENS.EMBEDDING),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
+      await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       await container.resolveAsync(SERVICE_TOKENS.CONFIGURATION),
@@ -192,7 +186,7 @@ export class ServiceFactory implements IServiceFactory {
 
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
-      container.resolve(SERVICE_TOKENS.CACHE),
+      container.resolve(SERVICE_TOKENS.FILE_STATE_STORAGE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       indexingOrchestrator
     );
@@ -203,7 +197,7 @@ export class ServiceFactory implements IServiceFactory {
 
       const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as IFileParsingService;
       const cacheService = container.resolve(SERVICE_TOKENS.CACHE) as ICacheService;
-      const vectorSearchService = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
+      const vectorSearchService = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
       const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
       const configService = container.resolve(SERVICE_TOKENS.CONFIGURATION) as IConfigurationService;
       const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as IEmbeddingService;
@@ -235,7 +229,7 @@ export class ServiceFactory implements IServiceFactory {
       loggingService.debug('Imported KnowledgeOperationsService');
 
       loggingService.debug('Resolving dependencies...');
-      const vectorSearch = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH);
+      const vectorSearch = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
       const cache = container.resolve(SERVICE_TOKENS.CACHE);
       const logging = container.resolve(SERVICE_TOKENS.LOGGING);
       const fileParsing = container.resolve(SERVICE_TOKENS.FILE_PARSING);
@@ -273,7 +267,7 @@ export class ServiceFactory implements IServiceFactory {
     const { HealthMonitoringService } = await import('../application/monitoring/health.js');
     return new HealthMonitoringService(
       container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.VECTOR_SEARCH),
+      await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH),
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
       container.resolve(SERVICE_TOKENS.FILE_PARSING)
@@ -318,7 +312,7 @@ export class ServiceFactory implements IServiceFactory {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
     
     // Get core infrastructure services for new endpoints
-    const vectorSearchService = container.resolve(SERVICE_TOKENS.VECTOR_SEARCH) as any;
+    const vectorSearchService = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH) as any;
     const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as any;
     const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as any;
     const fileSystemService = container.resolve(SERVICE_TOKENS.FILE_SYSTEM) as any;

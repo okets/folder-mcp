@@ -10,7 +10,9 @@ export interface FMDM {
   folders: FolderConfig[];
   daemon: DaemonStatus;
   connections: ConnectionInfo;
-  models: string[];
+  models: string[]; // Legacy - will be deprecated
+  curatedModels: CuratedModelInfo[]; // Enhanced model tracking
+  modelCheckStatus?: ModelCheckStatus; // Status of model checks
 }
 
 /**
@@ -20,7 +22,8 @@ export interface FolderConfig {
   path: string;
   model: string;
   status: FolderIndexingStatus;
-  progress?: number; // Optional indexing progress percentage (0-100)
+  progress?: number;              // INDEXING progress percentage (0-100) - files being processed
+  downloadProgress?: number;      // MODEL DOWNLOAD progress percentage (0-100) - mirrors CuratedModelInfo.downloadProgress
   scanningProgress?: {
     phase: 'folder-to-db' | 'db-to-folder' | 'intelligent-scanning' | 'cleanup';
     processedFiles: number;
@@ -37,14 +40,15 @@ export interface FolderConfig {
  * Indexing status for a monitored folder
  */
 export type FolderIndexingStatus = 
-  | 'pending'      // Not yet started indexing
-  | 'scanning'     // Scanning for files
-  | 'ready'        // Ready to start indexing (has tasks queued)
-  | 'indexing'     // Currently indexing files
-  | 'indexed'      // Indexing completed successfully
-  | 'active'       // Active and watching for changes
-  | 'error'        // Error occurred during indexing
-  | 'watching';    // Actively watching for file changes
+  | 'pending'           // Not yet started indexing
+  | 'downloading-model' // Downloading required model
+  | 'scanning'          // Scanning for files
+  | 'ready'             // Ready to start indexing (has tasks queued)
+  | 'indexing'          // Currently indexing files
+  | 'indexed'           // Indexing completed successfully
+  | 'active'            // Active and watching for changes
+  | 'error'             // Error occurred during indexing
+  | 'watching';         // Actively watching for file changes
 
 /**
  * Current daemon process status information
@@ -69,4 +73,29 @@ export interface ClientConnection {
   id: string;
   type: 'tui' | 'cli' | 'web';
   connectedAt: string;
+}
+
+/**
+ * Information about a curated model's installation status and download state
+ */
+export interface CuratedModelInfo {
+  id: string;           // e.g., 'gpu:bge-m3'
+  installed: boolean;   // Whether model is downloaded/cached locally
+  type: 'gpu' | 'cpu';  // Model type - GPU (HuggingFace) or CPU (ONNX)
+  
+  // Download tracking fields
+  downloading?: boolean;          // Currently downloading
+  downloadProgress?: number;      // 0-100 percentage
+  downloadError?: string;         // Error message if download failed
+  lastChecked?: string;          // ISO timestamp of last availability check
+}
+
+/**
+ * Status information about the model checking process
+ */
+export interface ModelCheckStatus {
+  pythonAvailable: boolean;      // Whether Python is available for GPU model checks
+  gpuModelsCheckable: boolean;   // Whether GPU models could be checked
+  error?: string;                // Error message if checks failed
+  checkedAt: string;            // ISO timestamp of when check was performed
 }

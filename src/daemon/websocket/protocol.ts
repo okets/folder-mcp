@@ -15,6 +15,7 @@ import {
   ConnectionAckMessage,
   ErrorMessage,
   ModelListResponseMessage,
+  ModelRecommendResponseMessage,
   ValidationResult,
   isValidClientMessage,
   validateClientMessage,
@@ -23,6 +24,7 @@ import {
   isConnectionInitMessage,
   isPingMessage,
   isModelListMessage,
+  isModelRecommendMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
@@ -37,6 +39,8 @@ import { ModelHandlers } from './handlers/model-handlers.js';
 import { IDaemonConfigurationService } from '../services/configuration-service.js';
 import { IDaemonFolderValidationService } from '../services/folder-validation-service.js';
 import { IMonitoredFoldersOrchestrator } from '../services/monitored-folders-orchestrator.js';
+import { ModelSelectionService } from '../../application/models/model-selection-service.js';
+import { OllamaDetector } from '../../infrastructure/ollama/ollama-detector.js';
 
 /**
  * Folder validation service interface
@@ -68,14 +72,13 @@ export class WebSocketProtocol {
     private configService: IDaemonConfigurationService,
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService,
+    modelHandlers: ModelHandlers,
     private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
   ) {
-    // Create model handlers first
-    this.modelHandlers = new ModelHandlers(this.logger);
+    this.modelHandlers = modelHandlers;
     
     // Create folder handlers with proper interfaces, including model handlers
     this.folderHandlers = new FolderHandlers(
-      this.configService,
       this.fmdmService,
       this.validationService,
       this.modelHandlers,
@@ -118,7 +121,10 @@ export class WebSocketProtocol {
       }
 
       const message = rawMessage as WSClientMessage;
-      this.logger.debug(`Processing message from ${clientId}: ${message.type}`);
+      // Skip logging for ping messages
+      if (message.type !== 'ping') {
+        this.logger.debug(`Processing message from ${clientId}: ${message.type}`);
+      }
 
       // Route message based on type
       switch (message.type) {
@@ -140,11 +146,14 @@ export class WebSocketProtocol {
         case 'models.list':
           return await this.modelHandlers.handleModelList(message);
 
+        case 'models.recommend':
+          return await this.modelHandlers.handleModelRecommend(message, clientId);
+
         default:
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }
@@ -179,10 +188,8 @@ export class WebSocketProtocol {
     
     // Notify that client is connected (so server can send initial FMDM)
     if (this.onClientConnected) {
-      this.logger.debug(`[PROTOCOL] Calling onClientConnected callback for client ${clientId}`);
+      this.logger.debug(`Calling onClientConnected callback for client ${clientId}`);
       this.onClientConnected(clientId);
-    } else {
-      this.logger.error(`[PROTOCOL] onClientConnected callback not set for client ${clientId}`);
     }
     
     return createConnectionAck(clientId);
@@ -205,12 +212,6 @@ export class WebSocketProtocol {
 
     try {
       const result = await this.validationService.validate(path);
-      
-      this.logger.debug(`Validation result for ${path}:`, {
-        valid: result.isValid,
-        errorCount: result.errors.length,
-        warningCount: result.warnings.length
-      });
 
       return createValidationResponse(
         id,
@@ -241,7 +242,7 @@ export class WebSocketProtocol {
     }
 
     const { id } = message;
-    this.logger.debug(`Responding to ping from client: ${id}`);
+    // Don't log ping/pong - they're just heartbeats
     
     return createPongResponse(id);
   }

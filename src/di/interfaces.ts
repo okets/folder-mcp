@@ -19,7 +19,7 @@ import { SystemCapabilities } from '../config/schema.js';
  */
 export interface IIndexingOrchestrator {
   indexFolder(path: string, options?: any): Promise<any>;
-  processFile(filePath: string): Promise<any>;
+  processFile(filePath: string, modelId: string): Promise<any>;
   removeFile(filePath: string): Promise<any>;
   pauseFolder(path: string): void;
   resumeFolder(path: string): void;
@@ -462,7 +462,7 @@ export interface IServiceFactory {
   /**
    * Create vector search service
    */
-  createVectorSearchService(cacheDir: string): IVectorSearchService;
+  createVectorSearchService(cacheDir: string): Promise<IVectorSearchService>;
   
   /**
    * Create cache service
@@ -604,6 +604,12 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   FMDM_SERVICE: Symbol('FMDMService'),
   DAEMON_CONFIGURATION_SERVICE: Symbol('DaemonConfigurationService'),
   DAEMON_FOLDER_VALIDATION_SERVICE: Symbol('DaemonFolderValidationService'),
+  MONITORED_FOLDERS_ORCHESTRATOR: Symbol('MonitoredFoldersOrchestrator'),
+  
+  // Model Selection Services
+  MODEL_SELECTION_SERVICE: Symbol('ModelSelectionService'),
+  OLLAMA_DETECTOR: Symbol('OllamaDetector'),
+  MODEL_HANDLERS: Symbol('ModelHandlers'),
 } as const;
 
 /**

@@ -71,7 +71,14 @@ export const DEFAULT_FOLDERS_CONFIG: FoldersConfig = {
       '.DS_Store',
       'Thumbs.db',
       '*.tmp',
-      '*.log'
+      '*.log',
+      'venv',
+      '.venv',
+      'env',
+      '.env',
+      'site-packages',
+      '__pycache__',
+      '*.pyc'
     ],
     embeddings: {
       backend: 'auto', // Let system detect best backend

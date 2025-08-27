@@ -9,7 +9,7 @@
     "downloadMethod": "huggingface-auto",
     "models": [
       {
-        "id": "folder-mcp:bge-m3",
+        "id": "gpu:bge-m3",
         "displayName": "BGE-M3 (Comprehensive)",
         "description": "Leading multilingual model, 100+ languages, 8192 token context",
         "huggingfaceId": "BAAI/bge-m3",
@@ -110,7 +110,7 @@
         }
       },
       {
-        "id": "folder-mcp:multilingual-e5-large",
+        "id": "gpu:multilingual-e5-large",
         "displayName": "E5-Large (Production)",
         "description": "Microsoft's proven multilingual model for production use",
         "huggingfaceId": "intfloat/multilingual-e5-large",
@@ -197,6 +197,7 @@
           "ps": 0.48
         },
         "mtebScore": 66.0,
+        "contextWindow": 512,
         "requirements": {
           "prefixes": true,
           "cpu": {
@@ -209,7 +210,7 @@
         }
       },
       {
-        "id": "folder-mcp:paraphrase-multilingual-minilm",
+        "id": "gpu:paraphrase-multilingual-minilm",
         "displayName": "MiniLM-L12 (Fast)",
         "description": "Fast multilingual model, 50+ languages, resource-friendly",
         "huggingfaceId": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -280,7 +281,7 @@
     "baseUrl": "https://huggingface.co/Xenova",
     "models": [
       {
-        "id": "folder-mcp-lite:xenova-multilingual-e5-small",
+        "id": "cpu:xenova-multilingual-e5-small",
         "displayName": "E5-Small ONNX (Most Popular)",
         "description": "171k downloads/month, 100 languages, CPU-optimized",
         "huggingfaceId": "Xenova/multilingual-e5-small",
@@ -288,6 +289,8 @@
         "dimensions": 384,
         "modelSizeMB": 120,
         "quantization": "int8",
+        "mtebScore": 57.0,
+        "contextWindow": 512,
         "languagePerformance": {
           "en": 0.83,
           "zh": 0.63,
@@ -382,7 +385,7 @@
         }
       },
       {
-        "id": "folder-mcp-lite:xenova-multilingual-e5-large",
+        "id": "cpu:xenova-multilingual-e5-large",
         "displayName": "E5-Large ONNX (High Accuracy)",
         "description": "Full accuracy ONNX conversion, 1024 dimensions",
         "huggingfaceId": "Xenova/multilingual-e5-large",
@@ -390,6 +393,8 @@
         "dimensions": 1024,
         "modelSizeMB": 550,
         "quantization": "int8",
+        "mtebScore": 64.0,
+        "contextWindow": 512,
         "languagePerformance": {
           "en": 0.97,
           "zh": 0.71,
@@ -476,77 +481,6 @@
             "recRAM": 2048,
             "expectedTokensPerSec": 50
           }
-        }
-      }
-    ]
-  },
-
-  "ollamaModels": {
-    "description": "Research-identified Ollama embedding models (Manual mode only)",
-    "detectionMethod": "runtime-api-query",
-    "endpoint": "http://localhost:11434/api/tags",
-    "knownModels": [
-      {
-        "id": "ollama:granite-embedding:278m",
-        "displayName": "Granite Embedding (IBM)",
-        "description": "IBM model, 12 languages including Arabic, Japanese, Chinese",
-        "modelName": "granite-embedding:278m",
-        "languagePerformance": {
-          "en": 0.95,
-          "es": 0.90,
-          "fr": 0.90,
-          "de": 0.90,
-          "zh": 0.80,
-          "ja": 0.80,
-          "ar": 0.80,
-          "pt": 0.85,
-          "it": 0.85,
-          "ru": 0.80,
-          "ko": 0.80,
-          "hi": 0.75
-        },
-        "modelSizeMB": 500,
-        "requirements": {
-          "vram": 1024,
-          "installCommand": "ollama pull granite-embedding:278m"
-        }
-      },
-      {
-        "id": "ollama:snowflake-arctic-embed2:305m",
-        "displayName": "Arctic Embed2 305M",
-        "description": "Latest Snowflake model, 8192 context, Matryoshka optimization",
-        "modelName": "snowflake-arctic-embed2:305m",
-        "languagePerformance": {
-          "en": 0.95,
-          "es": 0.90,
-          "fr": 0.90,
-          "de": 0.90,
-          "it": 0.90,
-          "pt": 0.85
-        },
-        "contextWindow": 8192,
-        "requirements": {
-          "vram": 1024,
-          "installCommand": "ollama pull snowflake-arctic-embed2:305m"
-        }
-      },
-      {
-        "id": "ollama:snowflake-arctic-embed2:568m",
-        "displayName": "Arctic Embed2 568M",
-        "description": "High-capacity Snowflake model, 8192 context, premium performance",
-        "modelName": "snowflake-arctic-embed2:568m",
-        "languagePerformance": {
-          "en": 0.98,
-          "es": 0.93,
-          "fr": 0.93,
-          "de": 0.93,
-          "it": 0.93,
-          "pt": 0.88
-        },
-        "contextWindow": 8192,
-        "requirements": {
-          "vram": 2048,
-          "installCommand": "ollama pull snowflake-arctic-embed2:568m"
         }
       }
     ]

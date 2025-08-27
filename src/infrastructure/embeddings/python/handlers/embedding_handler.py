@@ -110,6 +110,7 @@ class EmbeddingHandler:
         # State
         self.is_running = False
         self.current_request: Optional[QueuedRequest] = None
+        self.model_loaded = False  # Track model loading state separately from event
         
         # Batch optimization
         self.optimal_batch_size = 32  # Will be updated after device detection
@@ -276,6 +277,7 @@ class EmbeddingHandler:
             logger.info(f"Target inference device: {self.device}")
             
             self.model_loaded_event.set()
+            self.model_loaded = True
             logger.info(f"✓ Model {self.model_name} ready for inference")
             
         except Exception as e:
@@ -437,6 +439,67 @@ class EmbeddingHandler:
         
         return CompatibilityModel(self.model_name)
     
+    def _unload_model(self) -> None:
+        """Unload model from memory to free resources"""
+        if self.model is not None:
+            logger.info(f"Unloading model {self.model_name} from memory...")
+            
+            # Get memory usage before unload for comparison
+            memory_before = self._get_memory_usage()
+            
+            # Clear the model
+            del self.model
+            self.model = None
+            self.model_loaded = False
+            self.model_loaded_event.clear()
+            
+            # Clear GPU memory if using CUDA or MPS
+            try:
+                if self.device == 'cuda':
+                    import torch
+                    torch.cuda.empty_cache()
+                    logger.info("CUDA memory cache cleared")
+                elif self.device == 'mps':
+                    import torch
+                    if hasattr(torch.backends.mps, 'empty_cache'):
+                        torch.backends.mps.empty_cache()
+                    logger.info("MPS memory cache cleared")
+            except Exception as e:
+                logger.warning(f"Failed to clear GPU memory cache: {e}")
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+            # Get memory usage after unload
+            memory_after = self._get_memory_usage()
+            memory_freed = max(0, memory_before - memory_after)
+            
+            logger.info(f"Model unloaded successfully. Memory freed: ~{memory_freed:.1f}MB")
+    
+    def _ensure_model_loaded(self) -> bool:
+        """Ensure model is loaded before processing"""
+        if self.model is None or not self.model_loaded:
+            logger.info("Model not loaded, loading now...")
+            try:
+                self._load_model_sync()
+                return self.model is not None and self.model_loaded
+            except Exception as e:
+                logger.error(f"Failed to load model: {e}")
+                return False
+        return True
+    
+    def _get_memory_usage(self) -> float:
+        """Get current memory usage in MB"""
+        try:
+            memory_info = get_memory_info(self.device)
+            usage = memory_info.get('used_mb', 0.0)
+            if isinstance(usage, str):
+                return 0.0
+            return float(usage)
+        except Exception:
+            return 0.0
+    
     async def generate_embeddings(self, request: EmbeddingRequest) -> EmbeddingResponse:
         """
         Generate embeddings for the given request.
@@ -460,16 +523,24 @@ class EmbeddingHandler:
         start_time = time.time()
         
         try:
-            # Wait for model to be loaded (with timeout)
+            # Ensure model is loaded (reload if it was unloaded)
+            if not self._ensure_model_loaded():
+                return EmbeddingResponse(
+                    embeddings=[],
+                    success=False,
+                    processing_time_ms=int((time.time() - start_time) * 1000),
+                    model_info=self._get_model_info(),
+                    request_id=request.request_id,
+                    error="Failed to load model"
+                )
+            
+            # Wait for model to be loaded (with timeout) - this is now guaranteed to be quick
             max_wait = 30.0  # 30 seconds
             wait_start = time.time()
             while not self.model_loaded_event.is_set():
                 if time.time() - wait_start > max_wait:
                     raise TimeoutError("Model loading timeout")
                 await asyncio.sleep(0.1)
-            
-            if self.model is None:
-                raise RuntimeError("Model not loaded")
             
             # Update activity tracking
             if request.immediate:
@@ -688,8 +759,8 @@ class EmbeddingHandler:
         # Determine status
         if not self.is_running:
             status = 'unhealthy'
-        elif not self.model_loaded_event.is_set():
-            status = 'degraded'
+        elif not self.model_loaded:
+            status = 'idle'  # Process running but model unloaded
         else:
             status = 'healthy'
         
@@ -704,7 +775,7 @@ class EmbeddingHandler:
         
         return HealthCheckResponse(
             status=status,
-            model_loaded=self.model_loaded_event.is_set(),
+            model_loaded=self.model_loaded,
             gpu_available=self.device != 'cpu',
             memory_usage_mb=float(memory_usage),
             uptime_seconds=uptime,
@@ -717,7 +788,8 @@ class EmbeddingHandler:
             'model_name': self.model_name,
             'device': self.device,
             'device_info': self.device_info,
-            'model_loaded': self.model_loaded_event.is_set(),
+            'model_loaded': self.model_loaded,
+            'memory_usage_mb': self._get_memory_usage(),
             'requests_processed': self.requests_processed,
             'immediate_requests': self.immediate_requests_processed,
             'batch_requests': self.batch_requests_processed
@@ -735,6 +807,9 @@ class EmbeddingHandler:
             }
         
         try:
+            # Reset keep-alive timer for model downloads to prevent shutdown
+            self._reset_keep_alive_timer()
+            
             # Check if already cached
             if self.is_model_cached(model_name):
                 return {
@@ -821,20 +896,18 @@ class EmbeddingHandler:
             import os
             from pathlib import Path
             
-            # Check default sentence-transformers cache directory
-            cache_dir = Path.home() / '.cache' / 'torch' / 'sentence_transformers'
+            # Check new HuggingFace hub cache directory (current location)
+            hub_cache_dir = Path.home() / '.cache' / 'huggingface' / 'hub'
+            # HuggingFace uses 'models--' prefix and replaces '/' with '--'
+            hub_model_dir = hub_cache_dir / f"models--{model_name.replace('/', '--')}"
             
-            # Model directory name (sentence-transformers replaces '/' with '_')
-            model_dir = cache_dir / model_name.replace('/', '_')
-            
-            # Check if model directory exists and contains required files
-            if model_dir.exists() and (model_dir / 'config.json').exists():
-                return True
-                
-            # Alternative: try to check if model files exist by looking for common files
-            common_files = ['config.json', 'pytorch_model.bin', 'tokenizer.json']
-            if model_dir.exists() and any((model_dir / f).exists() for f in common_files):
-                return True
+            # Check if model exists in HuggingFace hub cache
+            if hub_model_dir.exists():
+                # Check for snapshot directory which contains the actual model files
+                snapshots = hub_model_dir / 'snapshots'
+                if snapshots.exists() and any(snapshots.iterdir()):
+                    logger.info(f"Model {model_name} found in HuggingFace hub cache")
+                    return True
                 
             return False
         except Exception as e:
@@ -921,23 +994,29 @@ class EmbeddingHandler:
             logger.warning(f"Failed to reset keep-alive timer: {e}")
     
     def _handle_keep_alive_timeout(self) -> None:
-        """Handle keep-alive timeout - initiate graceful shutdown"""
+        """Handle keep-alive timeout - unload model but keep process alive"""
         try:
-            logger.info(f"Keep-alive timeout reached ({self.keep_alive_duration}s since last immediate request)")
-            logger.info("Initiating graceful shutdown due to inactivity")
+            logger.info(f"Keep-alive timeout reached ({self.keep_alive_duration}s since last activity)")
+            logger.info("Unloading model to free memory...")
             
-            # Mark shutdown as requested
+            # Unload the model instead of shutting down
+            self._unload_model()
+            
+            # Don't set shutdown_event or is_running = False
+            # Process stays alive, ready for next request
+            
+            logger.info("Keep-alive timeout handled - model unloaded, process remains active")
+            
+        except Exception as e:
+            logger.error(f"Error during model unloading: {e}")
+            # If model unloading fails, fall back to graceful shutdown
+            logger.warning("Model unloading failed, falling back to graceful shutdown")
             self.shutdown_requested = True
-            
-            # Start shutdown process in separate thread to avoid blocking
             shutdown_thread = threading.Thread(
                 target=self._graceful_shutdown_worker,
                 daemon=True
             )
             shutdown_thread.start()
-            
-        except Exception as e:
-            logger.error(f"Error during keep-alive timeout handling: {e}")
     
     def _graceful_shutdown_worker(self) -> None:
         """Worker thread for graceful shutdown"""

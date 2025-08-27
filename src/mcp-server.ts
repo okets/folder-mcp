@@ -13,6 +13,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import path from 'path';
 
 import { setupDependencyInjection } from './di/setup.js';
 import { SERVICE_TOKENS } from './di/interfaces.js';
@@ -129,8 +130,22 @@ export async function main(): Promise<void> {
     const logger = container.resolve(SERVICE_TOKENS.LOGGING);
 
     // Get multi-folder services
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER);
+    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
     const multiFolderStorageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER);
+    
+    // Add the command-line folder to the folder manager
+    debug(`Adding command-line folder to folder manager: ${folderPath}`);
+    // Ensure we have a model configured - no fallback to reveal configuration issues
+    const modelName = config.embeddings?.model;
+    if (!modelName) {
+      throw new Error(`No embedding model configured. Check embeddings.model in configuration.`);
+    }
+    
+    await folderManager.addFolder({
+      path: folderPath,
+      model: modelName
+    });
+    
     debug('Multi-folder services initialized');
 
     const endpoints = new MCPEndpoints(
@@ -368,7 +383,7 @@ export async function main(): Promise<void> {
     debug('Scheduling background multi-folder indexing...');
     setTimeout(async () => {
       try {
-        const multiFolderIndexing = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW) as any;
+        const multiFolderIndexing = await container.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW) as any;
         const indexingResult = await multiFolderIndexing.indexAllFolders({
           forceReindex: true,
           continueOnError: true
@@ -388,7 +403,7 @@ export async function main(): Promise<void> {
     debug('Scheduling background multi-folder file watching...');
     setTimeout(async () => {
       try {
-        const multiFolderMonitoring = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
+        const multiFolderMonitoring = await container.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
         const watchingResult = await multiFolderMonitoring.startMonitoringAllFolders({
           baseOptions: {
             includeFileTypes: getSupportedExtensions(),

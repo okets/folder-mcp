@@ -217,8 +217,8 @@ export class NodeMcpServerExecutor implements IMcpServerExecutor {
     // Handle stderr (logging from MCP server)
     childProcess.stderr?.on('data', (data) => {
       const message = data.toString().trim();
-      // MCP server logs to stderr, so we relay these as info
-      this.logger.info(`MCP[${pid}]: ${message}`);
+      // MCP server logs to stderr, relay as debug to avoid log spam
+      this.logger.debug(`MCP[${pid}]: ${message}`);
     });
 
     // Handle process exit

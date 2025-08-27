@@ -79,7 +79,7 @@ export const SelectionBody = ({
             let headerText = '';
             
             columnLayout.columns.forEach((col, index) => {
-                const headerName = col.name === 'label' ? 'Model Name' : formatColumnHeader(col.name);
+                const headerName = col.name === 'label' ? 'Name' : formatColumnHeader(col.name);
                 const paddedHeader = padToWidth(truncateToWidth(headerName, col.width), col.width);
                 headerText += paddedHeader;
                 if (index < columnLayout.columns.length - 1) {

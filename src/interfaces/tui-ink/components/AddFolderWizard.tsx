@@ -10,27 +10,200 @@ import { Text, Key } from 'ink';
 import { ContainerListItem } from './core/ContainerListItem';
 import { FilePickerListItem } from './core/FilePickerListItem';
 import { SelectionListItem } from './core/SelectionListItem';
+import { VerticalToggleRowListItem } from './core/VerticalToggleRow';
 import { IListItem } from './core/IListItem';
-import { getPythonModels, ModelInfo } from '../services/ModelListService';
 import { SelectionOption } from './core/SelectionListItem';
 import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
-import { DestructiveConfirmationWrapper, useDestructiveConfirmation } from './DestructiveConfirmationWrapper';
 import { theme } from '../utils/theme';
+import { 
+    ModelRecommendMessage, 
+    ModelRecommendResponseMessage, 
+    ModelCompatibilityScore 
+} from '../../../daemon/websocket/message-types';
+
+/**
+ * WebSocket client interface for daemon communication
+ */
+interface WebSocketClient {
+    connect(url: string): Promise<void>;
+    send(message: any): void;
+    onMessage(callback: (data: any) => void): void;
+    close(): void;
+    isConnected(): boolean;
+}
+
+/**
+ * Simple WebSocket client implementation for Node.js environment
+ */
+class SimpleWebSocketClient implements WebSocketClient {
+    private ws: any = null; // Using any to avoid WebSocket type issues in Node.js
+    private messageCallbacks: Array<(data: any) => void> = [];
+
+    async connect(url: string): Promise<void> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Import WebSocket dynamically using ES modules
+                // Creating WebSocket connection
+                const { default: WebSocket } = await import('ws');
+                this.ws = new WebSocket(url);
+                
+                this.ws.onopen = () => {
+                    resolve();
+                };
+                
+                this.ws.onerror = (error: any) => {
+                    reject(new Error(`WebSocket connection failed: ${error.message}`));
+                };
+                
+                this.ws.onmessage = (event: any) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        this.messageCallbacks.forEach(callback => callback(data));
+                    } catch (error) {
+                        console.error('Failed to parse WebSocket message:', error);
+                    }
+                };
+                
+                this.ws.onclose = () => {
+                    this.ws = null;
+                };
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    send(message: any): void {
+        if (this.ws && this.ws.readyState === 1) { // 1 = WebSocket.OPEN
+            this.ws.send(JSON.stringify(message));
+        }
+    }
+
+    onMessage(callback: (data: any) => void): void {
+        this.messageCallbacks.push(callback);
+    }
+
+    close(): void {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+    }
+
+    isConnected(): boolean {
+        return this.ws !== null && this.ws.readyState === 1; // 1 = WebSocket.OPEN
+    }
+}
+
+/**
+ * Language code to display name mapping for comprehensive language support
+ * Pre-sorted by English name with English first, then alphabetically
+ * Only English names to avoid Unicode TUI issues
+ */
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+    'en': 'English',
+    'af': 'Afrikaans',
+    'sq': 'Albanian',
+    'am': 'Amharic',
+    'ar': 'Arabic',
+    'hy': 'Armenian',
+    'az': 'Azerbaijani',
+    'eu': 'Basque',
+    'be': 'Belarusian',
+    'bn': 'Bengali',
+    'bg': 'Bulgarian',
+    'ca': 'Catalan',
+    'zh': 'Chinese',
+    'zh-tw': 'Chinese Traditional',
+    'hr': 'Croatian',
+    'cs': 'Czech',
+    'da': 'Danish',
+    'nl': 'Dutch',
+    'et': 'Estonian',
+    'fil': 'Filipino',
+    'fi': 'Finnish',
+    'fr': 'French',
+    'gl': 'Galician',
+    'ka': 'Georgian',
+    'de': 'German',
+    'el': 'Greek',
+    'gu': 'Gujarati',
+    'ha': 'Hausa',
+    'he': 'Hebrew',
+    'hi': 'Hindi',
+    'hu': 'Hungarian',
+    'is': 'Icelandic',
+    'id': 'Indonesian',
+    'ga': 'Irish',
+    'it': 'Italian',
+    'ja': 'Japanese',
+    'kn': 'Kannada',
+    'kk': 'Kazakh',
+    'km': 'Khmer',
+    'ko': 'Korean',
+    'ku': 'Kurdish',
+    'lo': 'Lao',
+    'lv': 'Latvian',
+    'lt': 'Lithuanian',
+    'mk': 'Macedonian',
+    'ms': 'Malay',
+    'ml': 'Malayalam',
+    'mr': 'Marathi',
+    'mn': 'Mongolian',
+    'my': 'Myanmar',
+    'ne': 'Nepali',
+    'no': 'Norwegian',
+    'ps': 'Pashto',
+    'fa': 'Persian',
+    'pl': 'Polish',
+    'pt': 'Portuguese',
+    'pa': 'Punjabi',
+    'ro': 'Romanian',
+    'ru': 'Russian',
+    'sr': 'Serbian',
+    'si': 'Sinhala',
+    'sk': 'Slovak',
+    'sl': 'Slovenian',
+    'so': 'Somali',
+    'es': 'Spanish',
+    'sw': 'Swahili',
+    'sv': 'Swedish',
+    'ta': 'Tamil',
+    'te': 'Telugu',
+    'th': 'Thai',
+    'tr': 'Turkish',
+    'uk': 'Ukrainian',
+    'ur': 'Urdu',
+    'uz': 'Uzbek',
+    'vi': 'Vietnamese',
+    'cy': 'Welsh',
+    'xh': 'Xhosa',
+    'yo': 'Yoruba',
+};
+
+function getLanguageDisplayName(code: string): string {
+    return LANGUAGE_DISPLAY_NAMES[code] || code.toUpperCase();
+}
 
 export interface AddFolderWizardResult {
     path: string;
     model: string;
+    mode: 'assisted' | 'manual';
+    languages: string[];
 }
 
 export interface AddFolderWizardOptions {
     initialPath?: string;
     initialModel?: string;
+    initialMode?: 'assisted' | 'manual';
+    initialLanguages?: string[];
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
     fmdmOperations?: any;
+    onModeChange?: (mode: 'assisted' | 'manual') => void;
 }
 
 /**
@@ -67,6 +240,25 @@ class AddFolderContainerItem extends ContainerListItem {
         super.updateValidation(result);
     }
     
+    /**
+     * Update child items dynamically for mode switching
+     */
+    updateChildItems(newChildItems: IListItem[]): void {
+        // Clear existing children
+        while ((this as any)._childItems.length > 0) {
+            this.removeChild((this as any)._childItems[0]);
+        }
+        
+        // Add new children
+        newChildItems.forEach(child => this.addChild(child));
+        
+        // Reset selection to first item
+        (this as any)._childSelectedIndex = 0;
+        
+        // Call onEnter to properly initialize the new children
+        this.onEnter();
+    }
+    
     // Override handleInput to customize left arrow behavior
     handleInput(input: string, key: Key): boolean {
         if (key.leftArrow) {
@@ -92,12 +284,17 @@ class AddFolderContainerItem extends ContainerListItem {
                     return true;
                 }
             } else if (activeChild && !activeChild.isControllingInput) {
-                // We're on a collapsed child item - jump to Cancel button
-                (this as any)._focusedButton = 'cancel';
-                (this as any)._childSelectedIndex = -1;
-                return true;
+                // REFINED FIX: Only allow VerticalToggleRow to expand on left arrow, others jump to Cancel
+                if (activeChild.constructor.name === 'VerticalToggleRowListItem' && activeChild.onExpand) {
+                    // Let parent ContainerListItem handle the left arrow to call onExpand
+                    return super.handleInput(input, key);
+                } else {
+                    // We're on a collapsed child item - jump to Cancel button for navigation
+                    (this as any)._focusedButton = 'cancel';
+                    (this as any)._childSelectedIndex = -1;
+                    return true;
+                }
             }
-            // If child is expanded (isControllingInput), let parent handle it normally
         }
         
         // For all other keys, use parent's handling
@@ -137,7 +334,6 @@ class AddFolderContainerItem extends ContainerListItem {
         
         if (this.currentValidationResult.hasError || this.currentValidationResult.hasWarning) {
             const validationIcon = this.currentValidationResult.hasError ? '✗' : '!';
-            const validationColor = this.currentValidationResult.hasError ? 'red' : 'yellow';
             const validationMessage = this.currentValidationResult.errorMessage || this.currentValidationResult.warningMessage || '';
             
             
@@ -199,74 +395,43 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     const {
         initialPath = process.cwd(),
         initialModel, // Will be set dynamically from daemon
+        initialMode = 'assisted', // Default to assisted mode
+        initialLanguages = ['en'], // Default to English
         onComplete,
         onCancel,
         fmdmOperations
     } = options;
 
-    // Get models from daemon to determine the correct default
+    // Initialize WebSocket client for daemon communication
+    const wsClient = new SimpleWebSocketClient();
+    let isConnected = false;
+    
+    // Try to connect to daemon
+    try {
+        await wsClient.connect('ws://127.0.0.1:31850');
+        isConnected = true;
+        // WebSocket connected to daemon successfully
+    } catch (error) {
+        // Failed to connect to daemon
+        isConnected = false;
+    }
+    
+    // Initialize model state
     let selectedModel = initialModel;
-    let pythonModels: ModelInfo[] = [];
-    
-    if (fmdmOperations && fmdmOperations.getModels) {
-        try {
-            const { models } = await fmdmOperations.getModels();
-            // Convert daemon models to ModelInfo format
-            pythonModels = models.map((modelName: string) => ({
-                name: modelName,
-                displayName: modelName.replace('folder-mcp:', '') + ' (Recommended)',
-                backend: 'python' as const,
-                recommended: true
-            }));
-            
-            // Use first model from daemon as default if no initial model provided
-            if (!initialModel && pythonModels.length > 0) {
-                if (!initialModel && pythonModels.length > 0) {
-                selectedModel = pythonModels[0]?.name;
-            }
-            }
-        } catch (error) {
-            console.error('Failed to get models from daemon, using fallback list:', error);
-            // Fallback to hardcoded list if daemon call fails
-            pythonModels = [{
-                name: 'folder-mcp:all-MiniLM-L6-v2',
-                displayName: 'All-MiniLM-L6-v2 (Recommended)',
-                backend: 'python',
-                recommended: true
-            }];
-            if (!initialModel && pythonModels.length > 0) {
-                selectedModel = pythonModels[0]?.name;
-            }
-        }
-    } else {
-        // Fallback if no FMDM operations available
-        pythonModels = [{
-            name: 'folder-mcp:all-MiniLM-L6-v2',
-            displayName: 'All-MiniLM-L6-v2 (Recommended)',
-            backend: 'python',
-            recommended: true
-        }];
-        selectedModel = pythonModels[0]?.name;
-    }
-    
-    // Validate that initialModel exists in the list
+    let currentModels: ModelCompatibilityScore[] = [];
     let modelValidationError: string | null = null;
-    
-    
-    if (selectedModel && pythonModels.length > 0) {
-        const modelExists = pythonModels.some(m => m.name === selectedModel);
-        if (!modelExists) {
-            modelValidationError = `Model "${selectedModel}" is not available. Please select from the list.`;
-            // Don't change selectedModel - keep it to show the error
-        }
-    } else if (!selectedModel && pythonModels.length > 0) {
-        // If no model selected, use first available
-        selectedModel = pythonModels[0]?.name;
-    }
     
     // Track wizard state
     let selectedPath = initialPath;
-    // selectedModel is already declared above with dynamic daemon fetching
+    let selectedMode = initialMode;
+    let selectedLanguages = [...initialLanguages];
+    
+    // Separate model state for each mode to handle incompatible selections
+    let assistedSelectedModel: string | undefined; 
+    let manualSelectedModel: string | undefined;
+    
+    // Model selection will be initialized after getting recommendations from daemon
+    // This is deferred until we get the actual model compatibility data
     
     // Initialize FMDM validation if operations are provided
     // Since we're already past the app-level daemon connection check, we know we're connected
@@ -276,6 +441,55 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     let currentValidation: ValidationResult = DEFAULT_VALIDATION;
     let containerWizard: AddFolderContainerItem;
     let folderPicker: FilePickerListItem;
+    
+    // Data model for change detection - only validate when this changes
+    interface WizardDataModel {
+        path: string;
+        mode: 'assisted' | 'manual';
+        model: string | undefined;
+        languages: string[];
+    }
+    
+    // Track last validated state to detect changes
+    let lastValidatedData: string | null = null;
+    
+    // Helper to get current data model
+    const getCurrentDataModel = (): WizardDataModel => ({
+        path: selectedPath,
+        mode: selectedMode,
+        model: selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel,
+        languages: selectedLanguages
+    });
+    
+    // Check if data model has changed since last validation
+    const hasDataChanged = (): boolean => {
+        const currentData = JSON.stringify(getCurrentDataModel());
+        if (lastValidatedData === null || currentData !== lastValidatedData) {
+            return true;
+        }
+        return false;
+    };
+    
+    // Update data model and validate only if changed
+    const updateDataModelAndValidate = async () => {
+        if (!hasDataChanged()) {
+            return; // No data change, skip validation
+        }
+        
+        const dataModel = getCurrentDataModel();
+        if (!dataModel.model) {
+            // No model selected yet
+            currentValidation = createValidationResult(false, 'Please select an embedding model');
+            if (containerWizard) {
+                containerWizard.updateValidationResult(currentValidation);
+            }
+            return;
+        }
+        
+        // Data changed, validate
+        await validateAndUpdateContainer(dataModel.path, dataModel.model);
+        lastValidatedData = JSON.stringify(dataModel);
+    };
     
     // Create destructive config for ancestor scenarios using FMDM validation
     const createAncestorDestructiveConfig = async (folderPath: string): Promise<IDestructiveConfig | undefined> => {
@@ -289,7 +503,6 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         
         // For now, we'll extract folder info from the daemon validation warnings
         // This assumes the daemon validation includes affectedFolders info
-        const folderCount = 1; // We can't get exact count without the detailed info
         
         return {
             level: 'warning',
@@ -312,7 +525,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             return;
         }
         
-        const modelToValidate = model || selectedModel;
+        // Use provided model or current mode's selected model
+        const modelToValidate = model || (selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel);
         if (!modelToValidate) {
             currentValidation = createValidationResult(false, 'Please select an embedding model');
             if (containerWizard) {
@@ -338,97 +552,359 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         }
     };
     
-    // Create child items
-    const childItems: IListItem[] = [];
+    // Create child items - will be replaced by buildChildItemsForMode after all components are defined
+    let childItems: IListItem[] = [];
     
-    // Step 1: Folder selection
+    // Step 1: Mode selection - Using VerticalToggleRow for cleaner UI
+    const modeToggleOptions = [
+        {
+            value: 'assisted',
+            label: 'Assisted (Recommended)'
+        },
+        {
+            value: 'manual',
+            label: 'Manual (Advanced)'
+        }
+    ];
+    
+    // Create mode selector with no initial callback - will be set after container exists
+    const modeSelector = new VerticalToggleRowListItem(
+        '⁃',
+        'Choose configuration mode',
+        modeToggleOptions,
+        selectedMode, // Pre-select the initial mode
+        false, // Will be managed by ContainerListItem
+        undefined // No callback yet - will be set after container is created
+    );
+    
+    // Step 2: Language selection - Load from curated models catalog (single source of truth)
+    const { ModelCompatibilityEvaluator } = await import('../../../domain/models/model-evaluator');
+    const modelEvaluator = new ModelCompatibilityEvaluator();
+    const supportedLanguageCodes = modelEvaluator.getSupportedLanguages();
+    
+    // Pre-sorted language order: English first, then alphabetically by English name
+    const languageOrder = [
+        'en', 'af', 'sq', 'am', 'ar', 'hy', 'az', 'eu', 'be', 'bn', 'bg', 'ca',
+        'zh', 'zh-tw', 'hr', 'cs', 'da', 'nl', 'et', 'fil', 'fi', 'fr', 'gl',
+        'ka', 'de', 'el', 'gu', 'ha', 'he', 'hi', 'hu', 'is', 'id', 'ga', 'it',
+        'ja', 'kn', 'kk', 'km', 'ko', 'ku', 'lo', 'lv', 'lt', 'mk', 'ms', 'ml',
+        'mr', 'mn', 'my', 'ne', 'no', 'ps', 'fa', 'pl', 'pt', 'pa', 'ro', 'ru',
+        'sr', 'si', 'sk', 'sl', 'so', 'es', 'sw', 'sv', 'ta', 'te', 'th', 'tr',
+        'uk', 'ur', 'uz', 'vi', 'cy', 'xh', 'yo'
+    ];
+    
+    // Filter pre-sorted languages by what's available in curated models (no runtime sorting needed)
+    const supportedSet = new Set(supportedLanguageCodes);
+    const languageOptions: SelectionOption[] = languageOrder
+        .filter(code => supportedSet.has(code))
+        .map(code => {
+            const languageName = getLanguageDisplayName(code);
+            
+            return {
+                value: code,
+                label: languageName
+            };
+        });
+    
+    const languageSelector = new SelectionListItem(
+        '⁃',
+        'Select document languages',
+        languageOptions,
+        [...selectedLanguages], // Pre-select the initial languages (copy array)
+        false, // Will be managed by ContainerListItem
+        'checkbox', // Multi-selection
+        'vertical', // Vertical layout
+        async (values) => {
+            const newLanguages = [...values];
+            // Only update if languages actually changed
+            const oldLanguages = JSON.stringify(selectedLanguages);
+            const currentLanguages = JSON.stringify(newLanguages);
+            
+            if (oldLanguages !== currentLanguages) {
+                selectedLanguages = newLanguages;
+                // Update the selectedValues property of the component to maintain state
+                languageSelector.selectedValues = newLanguages;
+                
+                // Trigger model re-evaluation for current mode
+                await updateModelOptions(selectedMode, newLanguages);
+                
+                // Validate only if data model changed
+                await updateDataModelAndValidate();
+            }
+        },
+        1, // minSelections - at least one language required
+        undefined, // maxSelections - no maximum
+        false, // autoSwitchLayout
+        false // showDetails - Simplified to single column display
+    );
+    
+    // Step 3: Folder selection
     folderPicker = new FilePickerListItem(
-        '■',
+        '⁃',
         'Select folder to index',
         initialPath,
         false, // Will be managed by ContainerListItem
         'folder', // folder mode only
         async (newPath) => {
-            selectedPath = newPath;
-            // Trigger real-time validation of both folder and model
-            await validateAndUpdateContainer(newPath, selectedModel);
+            // Only update if path actually changed
+            if (newPath !== selectedPath) {
+                selectedPath = newPath;
+                // Validate only if data model changed
+                await updateDataModelAndValidate();
+            }
         },
         undefined, // filterPatterns
-        async () => {
-            // onChange callback - sync validation to container with both folder and model
-            if (validationService && containerWizard) {
-                // Check if we have a model validation error first
-                if (modelValidationError) {
-                    // Keep the model validation error
-                    containerWizard.updateValidationResult(createValidationResult(false, modelValidationError));
-                } else if (selectedModel) {
-                    let validationResult: ValidationResult;
-                    if (validationService.validateFolderAndModel) {
-                        validationResult = await validationService.validateFolderAndModel(selectedPath, selectedModel);
-                    } else {
-                        validationResult = await validationService.validateFolderPath(selectedPath);
-                    }
-                    containerWizard.updateValidationResult(validationResult);
-                } else {
-                    // No model selected
-                    containerWizard.updateValidationResult(createValidationResult(false, 'Please select an embedding model'));
-                }
-            }
-        }, // onChange - keep container validation in sync
+        undefined, // No onChange - we only validate on actual path changes
         false, // showHiddenFiles
-        validationService as any // Pass validation service (FolderValidationService or FMDMValidationAdapter)
+        undefined // No validation service - handled by data model
     );
     
-    childItems.push(folderPicker);
+    // Step 4: Create separate model selectors for assisted and manual modes
     
-    // Step 2: Model selection with dynamically fetched Python models
-    const modelOptions: SelectionOption[] = pythonModels.map(model => ({
-        value: model.name,
-        label: model.recommended ? `${model.displayName}` : model.displayName,
-        details: {
-            'Backend': model.backend,
-            'Type': 'Sentence Transformer',
-            'Status': 'Available'
-        }
-    }));
+    // Assisted mode model selector - curated models only with recommendation column
+    // Initially empty, will be populated by daemon recommendations
+    let assistedModelOptions: SelectionOption[] = [];
     
-    
-    // For display purposes, we'll show the invalid model in the selection even if it's not in options
-    // This helps users understand what model was attempted
-    const initialModelSelection = selectedModel ? [selectedModel] : [];
-    
-    const modelSelector = new SelectionListItem(
-        'м',
+    const assistedModelSelector = new SelectionListItem(
+        '⁃',
         'Choose embedding model',
-        modelOptions,
-        initialModelSelection, // Show the model even if invalid
+        assistedModelOptions,
+        assistedSelectedModel ? [assistedSelectedModel] : [],
         false, // Will be managed by ContainerListItem
         'radio', // Single selection
         'vertical', // Vertical layout for detailed display
         async (values) => {
             if (values.length > 0 && values[0]) {
-                selectedModel = values[0];
-                // Clear model validation error when user selects a valid model
-                modelValidationError = null;
-                modelSelector._validationMessage = null;
-                // Trigger validation when model changes
-                await validateAndUpdateContainer(selectedPath, selectedModel);
+                const newModel = values[0];
+                // Only update if model actually changed
+                if (newModel !== assistedSelectedModel) {
+                    assistedSelectedModel = newModel;
+                    // Clear model validation error when user selects a valid model
+                    modelValidationError = null;
+                    assistedModelSelector._validationMessage = null;
+                    // Validate only if data model changed
+                    await updateDataModelAndValidate();
+                }
             }
         },
         undefined, // minSelections
         undefined, // maxSelections
         false, // autoSwitchLayout
         true, // showDetails - Enable column display
-        ['Backend', 'Type', 'Status'] // Column headers
+        ['Match', 'Recommendation', 'Speed', 'Languages', 'Type', 'Size', 'Local Copy'] // Assisted mode columns
     );
-    childItems.push(modelSelector);
+    
+    // Manual mode model selector - all models including Ollama with compatibility column
+    // Initially empty, will be populated by daemon recommendations
+    let manualModelOptions: SelectionOption[] = [];
+    
+    const manualModelSelector = new SelectionListItem(
+        '⁃',
+        'Choose embedding model',
+        manualModelOptions,
+        manualSelectedModel ? [manualSelectedModel] : [],
+        false, // Will be managed by ContainerListItem
+        'radio', // Single selection
+        'vertical', // Vertical layout for detailed display
+        async (values) => {
+            if (values.length > 0 && values[0]) {
+                const newModel = values[0];
+                // Only update if model actually changed
+                if (newModel !== manualSelectedModel) {
+                    manualSelectedModel = newModel;
+                    // Clear model validation error when user selects a valid model
+                    modelValidationError = null;
+                    manualModelSelector._validationMessage = null;
+                    // Validate only if data model changed
+                    await updateDataModelAndValidate();
+                }
+            }
+        },
+        undefined, // minSelections
+        undefined, // maxSelections
+        false, // autoSwitchLayout
+        true, // showDetails - Enable column display
+        ['Match', 'Compatibility', 'Speed', 'Languages', 'Type', 'Size', 'Local Copy'] // Manual mode columns
+    );
+    
+    // Model recommendation and dynamic update functionality
+    let requestIdCounter = 0;
+    const pendingRequests = new Map<string, (response: any) => void>();
+    
+    // Set up WebSocket message handler for model recommendations
+    if (isConnected) {
+        wsClient.onMessage((message: any) => {
+            if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
+                const resolver = pendingRequests.get(message.id);
+                if (resolver) {
+                    resolver(message);
+                    pendingRequests.delete(message.id);
+                }
+            }
+        });
+    }
+    
+    // Function to request model recommendations from daemon
+    const requestModelRecommendations = async (languages: string[], mode: 'assisted' | 'manual'): Promise<ModelCompatibilityScore[]> => {
+        // Requesting model recommendations
+        
+        if (!isConnected) {
+            // Not connected to daemon - returning empty list
+            return [];
+        }
+        
+        const requestId = `model-recommend-${++requestIdCounter}`;
+        
+        const message: ModelRecommendMessage = {
+            type: 'models.recommend',
+            id: requestId,
+            payload: {
+                languages,
+                mode
+            }
+        };
+        
+        // Send WebSocket message
+        
+        return new Promise((resolve, reject) => {
+            // Set up response handler
+            pendingRequests.set(requestId, (response: ModelRecommendResponseMessage) => {
+                // Received model recommendation response
+                if (response.data) {
+                    // Found models
+                    resolve(response.data.models);
+                } else {
+                    // No data in response - returning empty list
+                    resolve([]);
+                }
+            });
+            
+            // Send request
+            wsClient.send(message);
+            
+            // Set timeout for request
+            setTimeout(() => {
+                if (pendingRequests.has(requestId)) {
+                    // Request timed out after 5 seconds
+                    pendingRequests.delete(requestId);
+                    resolve([]); // Fallback to empty list on timeout
+                }
+            }, 5000); // 5 second timeout
+        });
+    };
+    
+    // Function to update model options for a specific mode
+    const updateModelOptions = async (mode: 'assisted' | 'manual', languages: string[]) => {
+        // Updating model options
+        try {
+            const models = await requestModelRecommendations(languages, mode);
+            currentModels = models;
+            // Converting models to SelectionOptions
+            
+            // Sort models by score (highest first)
+            const sortedModels = models.sort((a, b) => b.score - a.score);
+            
+            // Convert ModelCompatibilityScore to SelectionOption
+            const options: SelectionOption[] = sortedModels.map(model => ({
+                value: model.modelId,
+                label: model.displayName,
+                details: {
+                    ...(mode === 'assisted' ? {
+                        'Recommendation': model.details.recommendation || 
+                            (model.score >= 80 ? 'Good' : 
+                             model.score >= 60 ? 'Alternative' : 
+                             'Available')
+                    } : {
+                        'Compatibility': model.compatibility === 'supported' ? '√ Supported' : 
+                                       model.compatibility === 'needs_gpu' ? '⚠ Needs GPU' : 
+                                       model.compatibility === 'needs_vram' ? '⚠ Needs VRAM' : 
+                                       model.compatibility === 'incompatible' ? '✗ Incompatible' : '? User Managed'
+                    }),
+                    'Speed': model.details.speed,
+                    'Match': `${Math.round(model.score)}%`,
+                    'Languages': model.details.languages,
+                    'Type': model.details.type,
+                    'Size': model.details.size,
+                    'Local Copy': model.details.localCopy ? '√' : '✗'
+                }
+            }));
+            
+            // Update the appropriate model selector
+            if (mode === 'assisted') {
+                // Updating assisted model selector
+                assistedModelOptions = options;
+                assistedModelSelector.updateOptions(options);
+                
+                // Auto-select recommended model if none selected
+                if (!assistedSelectedModel && models.length > 0) {
+                    const recommendedModel = models.find(m => m.details.recommendation);
+                    const modelToSelect = recommendedModel ? recommendedModel.modelId : models[0]?.modelId;
+                    if (modelToSelect) {
+                        // Auto-selecting assisted model
+                        assistedSelectedModel = modelToSelect;
+                        assistedModelSelector.selectValue(modelToSelect);
+                    }
+                }
+            } else {
+                // Updating manual model selector
+                manualModelOptions = options;
+                manualModelSelector.updateOptions(options);
+                
+                // Auto-select first compatible model if none selected
+                if (!manualSelectedModel && models.length > 0) {
+                    const compatibleModel = models.find(m => m.compatibility === 'supported');
+                    const modelToSelect = compatibleModel ? compatibleModel.modelId : models[0]?.modelId;
+                    if (modelToSelect) {
+                        // Auto-selecting manual model
+                        manualSelectedModel = modelToSelect;
+                        manualModelSelector.selectValue(modelToSelect);
+                    }
+                }
+            }
+            
+        } catch (error) {
+            // Failed to update model options
+        }
+    };
     
     // Set validation error if model doesn't exist using validation message
     if (modelValidationError) {
-        // Create a validation message for the model selector
+        // Create a validation message for the appropriate model selector based on mode
         const modelValidationMessage = createValidationMessage(ValidatedListItemValidationState.Error, modelValidationError);
-        modelSelector._validationMessage = modelValidationMessage;
+        if (selectedMode === 'assisted') {
+            assistedModelSelector._validationMessage = modelValidationMessage;
+        } else {
+            manualModelSelector._validationMessage = modelValidationMessage;
+        }
     }
+    
+    // Helper function to build child items based on selected mode
+    const buildChildItemsForMode = (mode: 'assisted' | 'manual'): IListItem[] => {
+        const items: IListItem[] = [];
+        
+        // Always include mode selector
+        items.push(modeSelector);
+        
+        // Conditional language selector (assisted mode only)
+        if (mode === 'assisted') {
+            items.push(languageSelector);
+        }
+        
+        // Always include folder picker
+        items.push(folderPicker);
+        
+        // Mode-specific model selector
+        if (mode === 'assisted') {
+            items.push(assistedModelSelector);
+        } else {
+            items.push(manualModelSelector);
+        }
+        
+        return items;
+    };
+    
+    // Initialize child items with current mode
+    childItems = buildChildItemsForMode(selectedMode);
     
     // Set up validation state
     const validationState: ValidationState = {
@@ -446,7 +922,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         currentValidation,
         childItems,
         false, // Not active initially
-        async (results) => {
+        async () => {
             // Check for ancestor scenarios requiring destructive confirmation
             if (currentValidation.hasWarning && currentValidation.warningMessage?.includes('replace monitoring')) {
                 const destructiveConfig = await createAncestorDestructiveConfig(selectedPath);
@@ -456,15 +932,23 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 }
             }
             
-            // Wizard completed - extract final values
-            if (!selectedModel) {
-                console.error('No model selected for wizard completion');
+            // Wizard completed - extract final values based on current mode
+            const finalSelectedModel = selectedMode === 'assisted' ? assistedSelectedModel : manualSelectedModel;
+            
+            if (!finalSelectedModel) {
+                return;
+            }
+            
+            // For assisted mode, language selection is required; for manual mode, it's not used
+            if (selectedMode === 'assisted' && selectedLanguages.length === 0) {
                 return;
             }
             
             const result: AddFolderWizardResult = {
                 path: selectedPath,
-                model: selectedModel
+                model: finalSelectedModel,
+                mode: selectedMode,
+                languages: selectedMode === 'assisted' ? selectedLanguages : [] // Empty for manual mode
             };
             onComplete(result);
         },
@@ -479,26 +963,58 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         { text: 'Cancel', isDestructive: false }
     );
     
-    // Perform initial validation now that containerWizard is created
-    // This ensures the validation state is properly initialized with both folder and model
+    // Now that container exists, set up the proper mode selection callback
+    modeSelector.updateOnSelectionChange(async (value: string) => {
+        const oldMode = selectedMode;
+        const newMode = value as 'assisted' | 'manual';
+        
+        // Only trigger changes if mode actually changed
+        if (oldMode !== newMode) {
+            selectedMode = newMode;
+            
+            // Handle mode-specific state changes
+            if (selectedMode === 'assisted') {
+                selectedLanguages = ['en'];
+                languageSelector.selectedValues = ['en'];
+            } else {
+                selectedLanguages = [];
+            }
+            
+            // Update the container's children immediately
+            const newChildItems = buildChildItemsForMode(selectedMode);
+            containerWizard.updateChildItems(newChildItems);
+            
+            // Trigger model re-evaluation for new mode
+            await updateModelOptions(selectedMode, selectedLanguages);
+            
+            // Validate only if data model changed (includes mode + model + languages)
+            await updateDataModelAndValidate();
+            
+            // Call the onModeChange callback to trigger React re-render
+            if (options.onModeChange) {
+                options.onModeChange(selectedMode);
+            }
+        }
+    });
+    
+    // Load initial model recommendations for the current mode
+    // Loading initial model recommendations
+    try {
+        await updateModelOptions(selectedMode, selectedLanguages);
+    } catch (error) {
+        // Failed to load initial model recommendations
+    }
+    
+    // Perform initial validation using data model approach
     try {
         // Check model validation first
         if (modelValidationError) {
             const modelErrorResult = createValidationResult(false, modelValidationError);
             containerWizard.updateValidationResult(modelErrorResult);
-            // Also update the current validation state
             currentValidation = modelErrorResult;
         } else {
-            await validateAndUpdateContainer(selectedPath, selectedModel);
-            // Initial validation completed
-            
-            // Also set the validation on the folder picker so it shows immediately
-            if (currentValidation.hasWarning || currentValidation.hasError) {
-                const state = currentValidation.hasError ? ValidatedListItemValidationState.Error : ValidatedListItemValidationState.Warning;
-                const message = currentValidation.errorMessage || currentValidation.warningMessage || '';
-                const validationMessage = createValidationMessage(state, message);
-                folderPicker.setValidationMessage(validationMessage);
-            }
+            // Use data model validation approach for initial validation
+            await updateDataModelAndValidate();
         }
     } catch (error) {
         // If validation fails, set a basic error state
@@ -506,6 +1022,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             containerWizard.updateValidationResult(createValidationResult(false, 'Validation service unavailable'));
         }
     }
+    
+    // TODO: Add WebSocket cleanup when wizard completes/cancels
     
     return containerWizard;
 }

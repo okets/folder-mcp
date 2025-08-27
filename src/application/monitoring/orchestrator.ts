@@ -264,10 +264,13 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     eventQueue.push(event);
     this.eventQueues.set(folderPath, eventQueue);
 
-    this.loggingService.info(`📊 Event queue updated - ${eventQueue.length} events queued`, { 
-      folderPath,
-      queueLength: eventQueue.length
-    });
+    // Log queue updates for small queues (now that we only watch supported files, queues will be small)
+    if (eventQueue.length < 10) {
+      this.loggingService.info(`📊 Event queue updated - ${eventQueue.length} events queued`, { 
+        folderPath,
+        queueLength: eventQueue.length
+      });
+    }
 
     // Get watcher options for debouncing
     const watcher = this.watchers.get(folderPath);
@@ -650,13 +653,27 @@ class FileWatcher {
       options: this.options
     });
     
-    try {      // Initialize chokidar watcher
-      this.chokidarWatcher = chokidar.watch(this.folderPath, {
-        ignored: /(^|[\/\\])\../, // ignore dotfiles
+    try {
+      // Get supported extensions and create glob patterns for them
+      const supportedExtensions = this.options.includeFileTypes || getSupportedExtensions();
+      const globPatterns = supportedExtensions.map(ext => `**/*${ext}`);
+      
+      this.loggingService.info('📋 Configuring file watcher with extension filtering', {
+        supportedExtensions,
+        globPatterns,
+        folderPath: this.folderPath
+      });
+      
+      // Initialize chokidar watcher - ONLY watch files with supported extensions
+      this.chokidarWatcher = chokidar.watch(globPatterns, {
+        cwd: this.folderPath,  // Set working directory first
+        ignored: [
+          /(^|[\/\\])\../,  // ignore dotfiles
+          ...(this.options.excludePatterns || [])  // apply exclude patterns
+        ],
         persistent: true,
         ignoreInitial: false, // Set to false to detect existing files
         followSymlinks: true,
-        cwd: this.folderPath,
         awaitWriteFinish: {
           stabilityThreshold: 100,
           pollInterval: 20

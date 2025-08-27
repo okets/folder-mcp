@@ -553,9 +553,17 @@ export class ContainerListItem implements IListItem {
         
         const activeChild = this._childItems[this._childSelectedIndex];
         
+        
         // Priority 1: Delegate to controlling child
         if (activeChild?.isControllingInput && activeChild.handleInput) {
-            return activeChild.handleInput(input, key);
+            const childResult = activeChild.handleInput(input, key);
+            
+            // CRITICAL FIX: If child returns false, continue processing in parent
+            if (childResult === false) {
+                // Fall through to parent processing logic below
+            } else {
+                return childResult; // Child handled it, return the result
+            }
         }
         
         // Priority 2: Handle navigation using actual render width and constraints
@@ -673,6 +681,10 @@ export class ContainerListItem implements IListItem {
                     this.cancelAndExit();
                     return true;
                 }
+            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
+                // Check if child wants to handle left arrow for expansion (like VerticalToggleRow)
+                activeChild.onExpand(key);
+                return true;
             } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onCollapse) {
                 // New behavior: only try to collapse child if it's expanded
                 const wasCollapsed = activeChild.onCollapse();
@@ -681,6 +693,10 @@ export class ContainerListItem implements IListItem {
                 }
                 // Item was already collapsed, fall through to exit container
                 this.cancelAndExit();
+                return true;
+            } else if (!this._isConfirmFocused && !this._focusedButton && this._useDualButtons) {
+                // In dual-button mode: if no expandable/collapsible item, move to buttons (like right arrow)
+                this.moveToConfirmation();
                 return true;
             } else {
                 // Traditional behavior: close the container
@@ -703,7 +719,7 @@ export class ContainerListItem implements IListItem {
                 }
             } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
                 // Traditional behavior: expand child item
-                activeChild.onExpand();
+                activeChild.onExpand(key);
                 return true;
             } else if (!this._isConfirmFocused && !this._focusedButton && this._useDualButtons) {
                 // In dual-button mode: if no expandable item, move to buttons
@@ -870,8 +886,10 @@ export class ContainerListItem implements IListItem {
      * Move focus to confirmation line
      */
     private moveToConfirmation(): void {
+        console.error(`\n--- MOVE TO CONFIRMATION ---`);
         const currentChild = this._childItems[this._childSelectedIndex];
         if (currentChild) {
+            console.error(`Deselecting current child: ${currentChild.constructor.name}`);
             currentChild.isActive = false;
             if (currentChild.onDeselect) {
                 currentChild.onDeselect();
@@ -881,16 +899,20 @@ export class ContainerListItem implements IListItem {
         if (this._useDualButtons) {
             // In dual-button mode, focus the appropriate button
             if (this.isConfirmEnabled) {
+                console.error(`Focusing confirm button (enabled)`);
                 this._focusedButton = 'confirm';
             } else {
+                console.error(`Focusing cancel button (confirm disabled)`);
                 this._focusedButton = 'cancel';
             }
             this._isConfirmFocused = false;
         } else {
             // Traditional single-button mode
+            console.error(`Focusing traditional confirm`);
             this._isConfirmFocused = true;
             this._focusedButton = null;
         }
+        console.error(`Final state: _focusedButton=${this._focusedButton}, _isConfirmFocused=${this._isConfirmFocused}`);
     }
     
     /**
@@ -907,14 +929,19 @@ export class ContainerListItem implements IListItem {
      * Cancel selection and exit
      */
     private cancelAndExit(): void {
+        console.error(`\n--- CANCEL AND EXIT ---`);
+        console.error(`Has onCancel handler: ${!!this._onCancel}`);
         // For destructive buttons, only call handler if confirmed
         // For non-destructive buttons, always call handler
         if (this._onCancel) {
             const isDestructive = this._cancelButtonConfig.isDestructive;
+            console.error(`Is destructive: ${isDestructive}, confirmed removal: ${this._confirmedRemoval}`);
             if (!isDestructive || this._confirmedRemoval) {
+                console.error(`Calling onCancel handler`);
                 this._onCancel();
             }
         }
+        console.error(`Calling onExit()`);
         this.onExit();
     }
     

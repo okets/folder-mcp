@@ -54,6 +54,17 @@ export interface FileConfig {
   encoding: string;
 }
 
+// Model status cache configuration  
+export interface ModelStatusCache {
+  lastChecked: string;
+  models: Record<string, {
+    installed: boolean;
+    checkedAt: string;
+  }>;
+  pythonAvailable: boolean;
+  gpuModelsCheckable: boolean;
+}
+
 // UI/UX configuration (only in runtime config)
 export interface UIConfig {
   fullScreen: boolean;
@@ -182,6 +193,9 @@ export interface LocalConfig {
       cpuTracking?: boolean;
       diskTracking?: boolean;
     };
+    memoryMonitor?: {
+      enabled?: boolean;
+    };
     shutdownTimeout?: number;
     shutdownSignal?: 'SIGTERM' | 'SIGINT' | 'SIGQUIT' | 'SIGUSR2';
     reloadSignal?: 'SIGHUP' | 'SIGUSR1' | 'SIGUSR2';
@@ -215,6 +229,9 @@ export interface LocalConfig {
       };
     }>;
   };
+  
+  // Model status cache
+  modelStatusCache?: ModelStatusCache;
   
   // Metadata
   version?: string;
@@ -300,6 +317,7 @@ export interface RuntimeConfig {
     encoding: string;
   };
   cache: CacheConfig;
+  modelStatusCache?: ModelStatusCache;
   metadata: RuntimeMetadata;
 }
 
@@ -640,6 +658,9 @@ export const DEFAULT_VALUES = {
       cpuTracking: true,
       diskTracking: false
     },
+    memoryMonitor: {
+      enabled: false
+    },
     shutdownTimeout: 10000,
     shutdownSignal: 'SIGTERM' as const,
     reloadSignal: 'SIGHUP' as const
@@ -745,6 +766,7 @@ export function getDaemonDefaults() {
     healthCheck: { ...DEFAULT_VALUES.daemon.healthCheck },
     autoRestart: { ...DEFAULT_VALUES.daemon.autoRestart },
     performance: { ...DEFAULT_VALUES.daemon.performance },
+    memoryMonitor: { ...DEFAULT_VALUES.daemon.memoryMonitor },
     shutdownTimeout: DEFAULT_VALUES.daemon.shutdownTimeout,
     shutdownSignal: DEFAULT_VALUES.daemon.shutdownSignal,
     reloadSignal: DEFAULT_VALUES.daemon.reloadSignal

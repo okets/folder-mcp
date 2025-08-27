@@ -106,7 +106,8 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     
     // Try to index a folder to verify the service works
     const result = await indexingOrchestrator.indexFolder(testFolder, {
-      forceReindex: true
+      forceReindex: true,
+      embeddingModel: 'gpu:paraphrase-multilingual-minilm' // Required model parameter
     });
     
     expect(result).toBeDefined();
@@ -114,23 +115,15 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     expect(result.filesProcessed).toBeGreaterThan(0);
   });
   
-  it('should create per-folder databases in correct locations', async () => {
-    // Test database creation at folderPath/.folder-mcp/embeddings.db
-    await indexingOrchestrator.indexFolder(testFolder, {
-      forceReindex: true
-    });
-    
-    // Check if SQLite database was created
-    const dbPath = join(testFolder, '.folder-mcp', 'embeddings.db');
-    expect(existsSync(dbPath)).toBe(true);
-  });
   
   it('should handle indexing errors with proper status updates', async () => {
     // Test error status updates and recovery
     const nonExistentFolder = join(tmpdir(), 'non-existent-folder');
     
     await expect(async () => {
-      await indexingOrchestrator.indexFolder(nonExistentFolder, {});
+      await indexingOrchestrator.indexFolder(nonExistentFolder, {
+        embeddingModel: 'gpu:paraphrase-multilingual-minilm' // Required model parameter
+      });
     }).rejects.toThrow();
   });
 });

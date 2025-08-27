@@ -23,7 +23,7 @@ export function getPythonModels(): ModelInfo[] {
   // This should rarely be used since wizard now fetches from daemon
   return [
     {
-      name: 'folder-mcp:all-MiniLM-L6-v2',
+      name: 'gpu:all-MiniLM-L6-v2',
       displayName: 'All-MiniLM-L6-v2 (Recommended)',
       backend: 'python',
       recommended: true

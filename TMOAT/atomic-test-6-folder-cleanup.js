@@ -23,7 +23,7 @@ const testFolderPath = path.resolve(__dirname, '../tests/fixtures/tmp/smoke-smal
 const folderMcpPath = path.join(testFolderPath, '.folder-mcp');
 
 console.log(`📁 Test folder: ${testFolderPath}`);
-console.log(`🗂️  .folder-mcp: ${folderMcpPath}`);
+console.log(`🗂️  .gpu: ${folderMcpPath}`);
 
 let testPhase = 'setup'; // setup -> add-folder -> wait-active -> remove-folder -> verify-cleanup -> complete
 let addedFolderId = null;
@@ -49,7 +49,7 @@ ws.on('open', () => {
             id: folderId,
             payload: {
                 path: testFolderPath,
-                model: 'folder-mcp:all-MiniLM-L6-v2'
+                model: 'gpu:all-MiniLM-L6-v2'
             }
         }));
         

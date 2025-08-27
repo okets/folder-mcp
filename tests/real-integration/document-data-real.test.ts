@@ -97,7 +97,7 @@ describe('Document Data Endpoints - Real Integration Tests', () => {
     // Verify cache structure was created properly
     expect(cacheHelper.cacheExists()).toBe(true);
     expect(existsSync(cacheStructure.baseDir)).toBe(true);
-    expect(existsSync(cacheStructure.metadata)).toBe(true);
+    expect(existsSync(cacheStructure.sqliteDatabase)).toBe(true);
     expect(existsSync(cacheStructure.documents!)).toBe(true);
     
     // Test cache population with actual document data
@@ -121,22 +121,23 @@ describe('Document Data Endpoints - Real Integration Tests', () => {
     const savedPath = await cacheHelper.saveToCache('documents', 'test-remote-work-policy', documentData);
     expect(existsSync(savedPath)).toBe(true);
     
-    // Save metadata separately for additional validation
-    const metadataPath = await cacheHelper.saveToCache('metadata', 'test-remote-work-metadata', {
+    // Note: Metadata is now stored in SQLite database, not separate JSON files
+    // Save additional validation data to documents directory instead
+    const validationPath = await cacheHelper.saveToCache('documents', 'test-remote-work-validation', {
       originalPath: testDocPath,
       fileName: path.basename(testDocPath),
       fileType: 'pdf',
       extractedAt: new Date().toISOString(),
       metadata: parsedContent.metadata
     });
-    expect(existsSync(metadataPath)).toBe(true);
+    expect(existsSync(validationPath)).toBe(true);
     
-    // Validate cache structure and contents
-    const validation = await cacheHelper.validateCacheStructure(['documents', 'metadata']);
+    // Validate cache structure and contents (metadata is now in SQLite)
+    const validation = await cacheHelper.validateCacheStructure(['documents']);
     expect(validation.isValid).toBe(true);
     expect(validation.exists).toBe(true);
     expect(validation.subdirectories).toContain('documents');
-    expect(validation.subdirectories).toContain('metadata');
+    // Note: metadata subdirectory is no longer created - metadata is in SQLite
     expect(validation.files.length).toBeGreaterThanOrEqual(2);
     expect(validation.errors.length).toBe(0);
     

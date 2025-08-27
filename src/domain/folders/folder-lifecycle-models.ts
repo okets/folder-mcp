@@ -4,7 +4,7 @@
  */
 
 // Core lifecycle states
-export type FolderStatus = 'pending' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
+export type FolderStatus = 'pending' | 'downloading-model' | 'scanning' | 'ready' | 'indexing' | 'active' | 'error';
 
 // Task types for file operations
 export type FileTaskType = 'CreateEmbeddings' | 'UpdateEmbeddings' | 'RemoveEmbeddings';
@@ -64,6 +64,7 @@ export interface FolderLifecycleState {
   fileEmbeddingTasks: FileEmbeddingTask[];
   progress: FolderProgress;
   scanningProgress?: ScanningProgress;
+  progressMessage?: string;  // Human-readable progress message
   errorMessage?: string;
   consecutiveErrors: number;
 }

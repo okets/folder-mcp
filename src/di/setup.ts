@@ -49,12 +49,17 @@ import { MultiFolderMonitoringWorkflow } from '../application/monitoring/multi-f
 import { DaemonConfigurationService } from '../daemon/services/configuration-service.js';
 import { FMDMService } from '../daemon/services/fmdm-service.js';
 import { DaemonFolderValidationService } from '../daemon/services/folder-validation-service.js';
+import { MonitoredFoldersOrchestrator } from '../daemon/services/monitored-folders-orchestrator.js';
 
 // Import WebSocket services
 import { FolderHandlers } from '../daemon/websocket/handlers/folder-handlers.js';
 import { ModelHandlers } from '../daemon/websocket/handlers/model-handlers.js';
 import { WebSocketProtocol } from '../daemon/websocket/protocol.js';
 import { FMDMWebSocketServer } from '../daemon/websocket/server.js';
+
+// Import model services
+import { ModelSelectionService } from '../application/models/model-selection-service.js';
+import { OllamaDetector } from '../infrastructure/ollama/ollama-detector.js';
 
 /**
  * Setup the dependency injection container with all services
@@ -124,8 +129,8 @@ export function setupDependencyInjection(options: {
   // Register storage factory
   container.registerSingleton(SERVICE_TOKENS.STORAGE_FACTORY, () => {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
-    const createVectorSearchService = (cacheDir: string) => {
-      return serviceFactory.createVectorSearchService(cacheDir);
+    const createVectorSearchService = async (cacheDir: string) => {
+      return await serviceFactory.createVectorSearchService(cacheDir);
     };
     return new StorageFactory(createVectorSearchService, loggingService);
   });
@@ -263,8 +268,8 @@ export function setupDependencyInjection(options: {
   // Register vector search and error recovery services
   const cacheDir = options.folderPath ? `${options.folderPath}/.folder-mcp` : `${process.cwd()}/.folder-mcp`;
   
-  container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, () => {
-    return serviceFactory.createVectorSearchService(cacheDir);
+  container.registerSingleton(SERVICE_TOKENS.VECTOR_SEARCH, async () => {
+    return await serviceFactory.createVectorSearchService(cacheDir);
   });
 
   container.registerSingleton(SERVICE_TOKENS.ERROR_RECOVERY, () => {
@@ -396,31 +401,68 @@ export function setupDependencyInjection(options: {
     return new DaemonFolderValidationService(daemonConfigService, loggingService);
   });
 
-  // Register Folder Handlers
-  container.registerSingleton('FolderHandlers' as any, () => {
+  // Register MonitoredFoldersOrchestrator
+  container.registerSingleton(SERVICE_TOKENS.MONITORED_FOLDERS_ORCHESTRATOR, async () => {
+    const indexingOrchestrator = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    const fileSystemService = container.resolve(SERVICE_TOKENS.FILE_SYSTEM) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
+    
+    return new MonitoredFoldersOrchestrator(
+      indexingOrchestrator,
+      fmdmService,
+      fileSystemService,
+      loggingService,
+      daemonConfigService
+    );
+  });
+
+  // Register Model Selection Services
+  container.registerSingleton(SERVICE_TOKENS.MODEL_SELECTION_SERVICE, () => {
+    return new ModelSelectionService();
+  });
+
+  container.registerSingleton(SERVICE_TOKENS.OLLAMA_DETECTOR, () => {
+    return new OllamaDetector();
+  });
+
+  // Register Model Handlers
+  container.registerSingleton(SERVICE_TOKENS.MODEL_HANDLERS, () => {
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    const modelSelectionService = container.resolve(SERVICE_TOKENS.MODEL_SELECTION_SERVICE) as any;
+    const ollamaDetector = container.resolve(SERVICE_TOKENS.OLLAMA_DETECTOR) as any;
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector, fmdmService);
+  });
+
+  // Register Folder Handlers
+  container.registerSingleton('FolderHandlers' as any, async () => {
     const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
     const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
+    const modelHandlers = container.resolve(SERVICE_TOKENS.MODEL_HANDLERS) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    const monitoredFoldersOrchestrator = await container.resolveAsync(SERVICE_TOKENS.MONITORED_FOLDERS_ORCHESTRATOR) as any;
     
-    const modelHandlers = new ModelHandlers(loggingService);
-    return new FolderHandlers(daemonConfigService, fmdmService, validationService, modelHandlers, loggingService);
+    return new FolderHandlers(fmdmService, validationService, modelHandlers, loggingService, monitoredFoldersOrchestrator);
   });
 
   // Register WebSocket Protocol
-  container.registerSingleton('WebSocketProtocol' as any, () => {
+  container.registerSingleton('WebSocketProtocol' as any, async () => {
     const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
     const daemonConfigService = container.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE) as any;
     const validationService = container.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    const modelHandlers = container.resolve(SERVICE_TOKENS.MODEL_HANDLERS) as any;
+    const monitoredFoldersOrchestrator = await container.resolveAsync(SERVICE_TOKENS.MONITORED_FOLDERS_ORCHESTRATOR) as any;
     
-    return new WebSocketProtocol(validationService, daemonConfigService, fmdmService, loggingService);
+    return new WebSocketProtocol(validationService, daemonConfigService, fmdmService, loggingService, modelHandlers, monitoredFoldersOrchestrator);
   });
 
   // Register WebSocket server
-  container.registerSingleton(SERVICE_TOKENS.WEBSOCKET_SERVER, () => {
+  container.registerSingleton(SERVICE_TOKENS.WEBSOCKET_SERVER, async () => {
     const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
-    const protocol = container.resolve('WebSocketProtocol' as any) as any;
+    const protocol = await container.resolveAsync('WebSocketProtocol' as any) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     
     const server = new FMDMWebSocketServer();

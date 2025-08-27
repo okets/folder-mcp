@@ -11,7 +11,6 @@ import type {
   TaskResult, 
   FileChangeInfo,
   FileEmbeddingTask,
-  FolderStatus,
   ScanningProgress,
 } from '../../domain/folders/folder-lifecycle-models.js';
 import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecycle-state-machine.js';
@@ -107,7 +106,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     this.active = false;
     
     // Cancel any pending tasks
-    for (const [taskId, promise] of this.pendingIndexingTasks) {
+    for (const [taskId] of this.pendingIndexingTasks) {
       this.pendingIndexingTasks.delete(taskId);
     }
     
@@ -241,6 +240,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
           lastIndexCompleted: new Date(),
           fileEmbeddingTasks: [], // Empty task list
         });
+        // Clear progress message when becoming active
+        delete this.state.progressMessage;
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
         this.logger.debug('[MANAGER-PROCESS] Successfully transitioned to active state');
@@ -317,6 +318,11 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       return;
     }
 
+    // Log initial task state before starting indexing
+    const initialStats = this.taskQueue.getStatistics();
+    const initialProgress = this.getProgress();
+    this.logger.debug(`[MANAGER-INDEX] Initial state: ${initialStats.totalTasks} total tasks, ${initialStats.pendingTasks} pending, progress: ${initialProgress.percentage}%`);
+
     // Transition to indexing
     this.stateMachine.transitionTo('indexing');
     this.updateState({ 
@@ -364,21 +370,36 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   }
 
   getNextTask(): string | null {
+    const stats = this.taskQueue.getStatistics();
+    this.logger.debug(`[MANAGER-GET-NEXT-TASK] Queue stats before getting task: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}`);
+    
     const task = this.taskQueue.getNextTask();
+    if (task) {
+      this.logger.debug(`[MANAGER-GET-NEXT-TASK] Retrieved task ${task.id} for file: ${task.file}`);
+    } else {
+      this.logger.debug(`[MANAGER-GET-NEXT-TASK] No task available (concurrency limit: ${stats.inProgressTasks})`);
+    }
+    
     return task?.id || null;
   }
 
   startTask(taskId: string): void {
     const task = this.taskQueue.getTaskById(taskId);
     if (!task) {
-return;
-}
+      this.logger.warn(`[MANAGER-START-TASK] Task ${taskId} not found in queue`);
+      return;
+    }
+
+    this.logger.debug(`[MANAGER-START-TASK] Starting task ${taskId} for file: ${task.file}`);
 
     // Update task in state
     const stateTask = this.state.fileEmbeddingTasks.find(t => t.id === taskId);
     if (stateTask) {
       stateTask.status = 'in-progress';
       stateTask.startedAt = new Date();
+      this.logger.debug(`[MANAGER-START-TASK] Updated state task ${taskId} to in-progress`);
+    } else {
+      this.logger.warn(`[MANAGER-START-TASK] State task ${taskId} not found in fileEmbeddingTasks`);
     }
 
     // Update progress immediately when starting a task
@@ -412,7 +433,8 @@ return;
       case 'UpdateEmbeddings':
         try {
           // Process file with IndexingOrchestrator to get embeddings and metadata
-          const fileResult = await this.indexingOrchestrator.processFile(task.file);
+          // Using per-folder model configuration for embeddings
+          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model);
           
           // Store results in SQLiteVecStorage if we have embeddings
           if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
@@ -499,6 +521,31 @@ return;
       if (result.success) {
         stateTask.status = 'success';
         stateTask.completedAt = new Date();
+        
+        // Mark file as successfully processed in database
+        // Since chunks were already stored, we can query the database for chunk count
+        const markProcessed = async () => {
+          try {
+            const db = this.sqliteVecStorage.getDatabaseManager().getDatabase();
+            const stmt = db.prepare(`
+              SELECT COUNT(c.id) as chunk_count 
+              FROM documents d 
+              JOIN chunks c ON d.id = c.document_id 
+              WHERE d.file_path = ?
+            `);
+            const result = stmt.get(stateTask.file) as { chunk_count: number };
+            const chunkCount = result?.chunk_count || 0;
+            
+            if (chunkCount > 0) {
+              await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
+            } else {
+              this.logger.warn(`No chunks found for successfully processed file: ${stateTask.file}`);
+            }
+          } catch (error) {
+            this.logger.warn(`Failed to mark file as processed in database: ${stateTask.file}`, error);
+          }
+        };
+        markProcessed();
       } else {
         // Check if task will be retried
         const queueTask = this.taskQueue.getTaskById(taskId);
@@ -570,6 +617,8 @@ return;
         fileEmbeddingTasks: [], // Clear tasks
         consecutiveErrors: 0,
       });
+      // Clear progress message when becoming active
+      delete this.state.progressMessage;
       
       // Emit indexComplete event
       this.emit('indexComplete', this.getState());
@@ -581,7 +630,7 @@ return;
     const stats = this.taskQueue.getStatistics();
     
     // Calculate percentage based on completed files vs total files
-    // This gives more accurate progress since each file is one task
+    // Show actual percentage for accurate progress tracking
     let percentage = 0;
     
     if (stats.totalTasks > 0) {
@@ -809,10 +858,33 @@ return;
     const progress = this.getProgress();
     this.state.progress = progress;
     
-    // Log progress updates for debugging
-    if (progress.percentage % 10 === 0 || progress.percentage === 99 || progress.percentage === 100) {
-      this.logger.debug(`[MANAGER-PROGRESS] Indexing progress: ${progress.percentage}% (${progress.completedTasks}/${progress.totalTasks} files complete, ${progress.inProgressTasks} in progress)`);
+    // CRITICAL DEBUG: Always log progress updates to diagnose 0% stuck issue
+    const stats = this.taskQueue.getStatistics();
+    this.logger.debug(`[MANAGER-PROGRESS-DEBUG] Progress: ${progress.percentage}% | Queue stats: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}, failed=${stats.failedTasks}, retrying=${stats.retryingTasks}`);
+    
+    // Add detailed progress message for better UX
+    if (this.state.status === 'indexing' && progress.totalTasks > 0) {
+      const filesRemaining = progress.totalTasks - progress.completedTasks;
+      let progressMessage = `Processing ${progress.completedTasks} of ${progress.totalTasks} files`;
+      
+      if (progress.inProgressTasks > 0) {
+        progressMessage += ` (${progress.inProgressTasks} in progress)`;
+      }
+      
+      if (filesRemaining > 0 && filesRemaining <= 5) {
+        progressMessage += ` - Almost done!`;
+      }
+      
+      
+      // Store progress message in state for UI display
+      this.state.progressMessage = progressMessage;
     }
+    
+    // ENHANCED LOGGING: Log all progress updates during indexing for debugging
+    if (this.state.status === 'indexing') {
+      this.logger.debug(`[MANAGER-PROGRESS] Indexing progress: ${progress.percentage}% (${progress.completedTasks}/${progress.totalTasks} files complete, ${progress.inProgressTasks} in progress, ${progress.failedTasks} failed)`);
+    }
+    
     
     // Emit progress update
     this.emit('progressUpdate', progress);
@@ -865,20 +937,16 @@ return;
    * This prevents memory overload from processing too many files simultaneously
    */
   private getMaxFilesPerBatch(): number {
-    // Conservative batch sizes based on memory constraints:
-    // - Small batch (50): For typical usage, prevents memory overload
-    // - Consider file sizes: Large files (PDFs, DOCX) use more memory than text files
-    // - Consider available system memory and concurrent folders
+    // No arbitrary file discovery limit - memory constraints are properly handled at:
+    // - Embedding batch processing (32 files at a time)
+    // - Task queue concurrency limits (2 concurrent tasks)  
+    // - Individual file size limits and chunking
+    //
+    // Large projects (200-500+ files) should be fully indexed, not artificially limited.
+    // The file discovery/scanning phase just creates task metadata - it doesn't consume
+    // significant memory compared to actual file processing.
     
-    const maxFilesPerBatch = 50; // Conservative default
-    
-    // Future enhancement: Could be configurable based on:
-    // - Available system memory
-    // - Average file sizes in folder
-    // - Number of concurrent folder operations
-    // - Resource manager settings
-    
-    return maxFilesPerBatch;
+    return Number.MAX_SAFE_INTEGER; // No limit on file discovery
   }
 
   reset(): void {
@@ -922,13 +990,14 @@ return;
     try {
       this.logger.debug(`[MANAGER-MODEL-VALIDATION] Lightweight validation for model ${this.model}`);
       
-      // Determine if this is a Python or Ollama model
-      const isPythonModel = this.model.includes('transformers:') || 
-                           this.model.includes('MiniLM') || 
-                           this.model.includes('mpnet');
+      // Determine model type based on prefix convention:
+      // - gpu: = GPU models (use Python service)
+      // - cpu: = CPU models (use ONNX, runs locally, no service needed)
+      // - ollama: = External Ollama models
+      // - Others = Default to Ollama for backward compatibility
       
-      if (isPythonModel) {
-        // Quick check if Python command exists (< 100ms)
+      if (this.model.startsWith('gpu:')) {
+        // GPU models - need Python service
         const { exec } = await import('child_process');
         const { promisify } = await import('util');
         const execAsync = promisify(exec);
@@ -937,14 +1006,20 @@ return;
           // Use the same Python command detection as PythonEmbeddingService
           const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
           await execAsync(`${pythonCommand} --version`, { timeout: 1000 });
-          this.logger.debug(`[MANAGER-MODEL-VALIDATION] Python available for ${this.model}`);
+          this.logger.debug(`[MANAGER-MODEL-VALIDATION] Python available for GPU model ${this.model}`);
           return { valid: true };
         } catch (error) {
           const displayName = this.getModelDisplayName(this.model);
           return { valid: false, errorMessage: EmbeddingErrors.pythonNotFound(displayName) };
         }
+        
+      } else if (this.model.startsWith('cpu:')) {
+        // CPU models - run locally via ONNX, no external service needed
+        this.logger.debug(`[MANAGER-MODEL-VALIDATION] CPU/ONNX model ${this.model} - no service validation needed`);
+        return { valid: true };
+        
       } else {
-        // Quick Ollama API ping (< 500ms)
+        // Ollama models (explicit ollama: prefix or any other model ID)
         try {
           const response = await fetch('http://127.0.0.1:11434/api/tags', {
             method: 'GET',
@@ -1140,4 +1215,5 @@ return;
       return modelName;
     }
   }
+
 }

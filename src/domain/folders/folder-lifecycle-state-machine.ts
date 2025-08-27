@@ -10,7 +10,8 @@ export class FolderLifecycleStateMachine {
 
   // Define valid transitions
   private readonly validTransitions: Record<FolderStatus, FolderStatus[]> = {
-    pending: ['scanning', 'error'],
+    pending: ['downloading-model', 'scanning', 'error'],
+    'downloading-model': ['scanning', 'error'],
     scanning: ['ready', 'active', 'error'], // Can go to active if no changes
     ready: ['indexing', 'error'],
     indexing: ['active', 'error'],
@@ -80,7 +81,7 @@ export class FolderLifecycleStateMachine {
    * Validate that a state is valid
    */
   private validateState(state: string): asserts state is FolderStatus {
-    const validStates: FolderStatus[] = ['pending', 'scanning', 'ready', 'indexing', 'active', 'error'];
+    const validStates: FolderStatus[] = ['pending', 'downloading-model', 'scanning', 'ready', 'indexing', 'active', 'error'];
     if (!validStates.includes(state as FolderStatus)) {
       throw new Error(`Invalid state: ${state}`);
     }

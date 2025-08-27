@@ -356,6 +356,47 @@ class EmbeddingRPCServer:
                 'cached': False,
                 'error': str(e)
             }
+    
+    def unload_model(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Unload the current model from memory to free resources.
+        The process remains alive for faster reloading.
+        
+        JSON-RPC method: unload_model
+        
+        Args:
+            request_data: Optional dictionary (not used)
+            
+        Returns:
+            Dictionary containing unload status
+        """
+        try:
+            if not self.handler:
+                return {
+                    'success': False,
+                    'error': 'Handler not initialized'
+                }
+            
+            logger.info("Unloading model from memory")
+            
+            # Use the internal unload method
+            self.handler._unload_model()
+            
+            result = {
+                'success': True,
+                'message': 'Model unloaded successfully'
+            }
+            
+            logger.info(f"Model unload result: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in unload_model: {e}")
+            logger.error(traceback.format_exc())
+            return {
+                'success': False,
+                'error': str(e)
+            }
 
 
 class StdioJSONRPCServer:
@@ -425,7 +466,11 @@ class StdioJSONRPCServer:
                 result = self.embedding_server.download_model(params)
             elif method == 'is_model_cached':
                 result = self.embedding_server.is_model_cached(params)
+            elif method == 'unload_model':
+                result = self.embedding_server.unload_model(params)
             elif method == 'shutdown':
+                # Note: Shutdown method is preserved for explicit shutdown requests
+                # but keep-alive timeout no longer triggers shutdown
                 result = await self.embedding_server.shutdown(params)
                 # Signal shutdown after sending response
                 asyncio.create_task(self._delayed_shutdown())

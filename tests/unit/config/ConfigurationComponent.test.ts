@@ -134,10 +134,10 @@ describe('ConfigurationComponent', () => {
     describe('Embedding model validation', () => {
         it('should accept supported embedding models', async () => {
             const supportedModels = [
-                'nomic-embed-text',
-                'mxbai-embed-large',
-                'all-minilm',
-                'sentence-transformers'
+                'gpu:bge-m3',
+                'gpu:paraphrase-multilingual-minilm',
+                'cpu:xenova-multilingual-e5-small',
+                'cpu:xenova-multilingual-e5-large'
             ];
             
             for (const model of supportedModels) {

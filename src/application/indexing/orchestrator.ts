@@ -32,10 +32,11 @@ import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js'
 
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
+  private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
   constructor(
     private readonly fileParsingService: IFileParsingService,
     private readonly chunkingService: IChunkingService,
-    private readonly embeddingService: IEmbeddingService,
+    private readonly embeddingService: IEmbeddingService, // Fallback service
     private readonly vectorSearchService: IVectorSearchService,
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
@@ -43,11 +44,45 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly fileSystemService: IFileSystemService
   ) {}
 
+  /**
+   * Get or create embedding service for a specific model
+   */
+  private async getEmbeddingServiceForModel(modelId: string): Promise<IEmbeddingService> {
+    // Check cache first
+    if (this.embeddingServiceCache.has(modelId)) {
+      return this.embeddingServiceCache.get(modelId)!;
+    }
+
+    // For now, just use the fallback embedding service for all models
+    // TODO: Implement proper model-specific embedding service creation
+    // This will require updates to the ServiceFactory to accept model parameters
+    this.loggingService.debug(`Using fallback embedding service for model: ${modelId}`);
+    
+    // Cache the fallback service for this model
+    this.embeddingServiceCache.set(modelId, this.embeddingService);
+    
+    return this.embeddingService;
+  }
+
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
-    this.loggingService.info('Starting folder indexing', { folderPath: path, options });
+    
+    // Embedding model MUST be provided - no fallback to reveal configuration issues
+    if (!options.embeddingModel) {
+      throw new Error(`No embedding model specified in indexing options. This indicates a configuration flow issue that must be fixed.`);
+    }
+    
+    // Generate unique indexing ID for progress tracking
+    const indexingId = `idx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    this.loggingService.info('Starting folder indexing', { 
+      folderPath: path, 
+      options,
+      indexingId,
+      timestamp: new Date().toISOString()
+    });
 
-    // Initialize status tracking
+    // Initialize status tracking with performance metrics
     const status: IndexingStatus = {
       isRunning: true,
       progress: {
@@ -68,14 +103,25 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       status.isRunning = false;
       // processingTime is already calculated in executeIndexingWorkflow
       
+      // Get database size information for completion logging
+      const dbStats = await this.getDatabaseStats(path);
+      
       this.loggingService.info('Folder indexing completed', { 
-        folderPath: path, 
+        folderPath: path,
+        indexingId,
         result: {
           filesProcessed: result.filesProcessed,
           chunksGenerated: result.chunksGenerated,
           embeddingsCreated: result.embeddingsCreated,
           processingTime: result.processingTime
-        }
+        },
+        performanceMetrics: {
+          averageFileProcessingTime: result.filesProcessed > 0 ? result.processingTime / result.filesProcessed : 0,
+          filesPerSecond: result.processingTime > 0 ? (result.filesProcessed * 1000) / result.processingTime : 0,
+          chunksPerFile: result.filesProcessed > 0 ? result.chunksGenerated / result.filesProcessed : 0
+        },
+        databaseStats: dbStats,
+        timestamp: new Date().toISOString()
       });
 
       return result;
@@ -109,6 +155,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
   async indexFiles(files: string[], options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
+    
+    // Embedding model MUST be provided - no fallback to reveal configuration issues
+    if (!options.embeddingModel) {
+      throw new Error(`No embedding model specified in indexing options. This indicates a configuration flow issue that must be fixed.`);
+    }
+    
     this.loggingService.info('Starting file indexing', { fileCount: files.length, options });
 
     const result: IndexingResult = {
@@ -124,7 +176,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Process files individually
     for (const filePath of files) {
       try {
-        const fileResult = await this.processFile(filePath, options);
+        if (!options.embeddingModel) {
+          throw new Error(`No embedding model specified for file: ${filePath}`);
+        }
+        const fileResult = await this.processFile(filePath, options.embeddingModel, options);
         this.mergeFileResult(result, fileResult);
       } catch (error) {
         const indexingError: IndexingError = {
@@ -256,7 +311,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         const { join } = await import('path');
         const absoluteFilePath = join(folderPath, fingerprint.path);
         
-        const fileResult = await this.processFile(absoluteFilePath, options);
+        if (!options.embeddingModel) {
+          throw new Error(`No embedding model specified for file: ${absoluteFilePath}`);
+        }
+        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options);
         this.mergeFileResult(result, fileResult);
         
         // Collect embeddings and metadata for vector index
@@ -264,9 +322,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           allEmbeddings.push(...fileResult.embeddings);
           allMetadata.push(...fileResult.metadata);
         }
-
-        status.progress.processedFiles++;
-        this.updateProgress(status);
 
       } catch (error) {
         const indexingError: IndexingError = {
@@ -281,7 +336,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.error('File processing failed', error instanceof Error ? error : new Error(String(error)), { 
           filePath: fingerprint.path 
         });
-      }    }
+      }
+
+      // Update progress after each file attempt (success or failure)
+      status.progress.processedFiles++;
+      this.updateProgress(status);    }
 
     // 4. Build vector index if embeddings were created
     if (result.embeddingsCreated > 0) {
@@ -307,7 +366,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     return result;
   }
-  async processFile(filePath: string, options: IndexingOptions = {}): Promise<{
+  async processFile(filePath: string, modelId: string, options: IndexingOptions = {}): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
@@ -333,7 +392,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     let metadata: any[] = [];
     
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
-      embeddings = await this.embeddingService.generateEmbeddings(chunks);
+      // Use model-specific embedding service
+      const embeddingService = await this.getEmbeddingServiceForModel(modelId);
+      embeddings = await embeddingService.generateEmbeddings(chunks);
       embeddingsCreated = embeddings.length;
       
       // Calculate file hash for proper fingerprinting
@@ -360,13 +421,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       }));
     }
 
-    // Cache the processed content using available cache methods
-    const cacheKey = this.generateCacheKey(filePath);
-    await this.cacheService.saveToCache(cacheKey, {
-      parsedContent,
-      chunks,
-      processedAt: new Date().toISOString()
-    }, 'metadata');    return {
+    // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
+    // No need for duplicate caching - chunks are already saved via VectorSearchService
+    
+    return {
       chunksGenerated: chunks.length,
       embeddingsCreated,
       bytes: parsedContent.content.length,
@@ -399,7 +457,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       ? Math.round((progress.processedFiles / progress.totalFiles) * 100)
       : 0;
       
-    // Estimate completion time based on current progress
+    // Calculate performance telemetry
+    let performanceMetrics = {};
     if (progress.processedFiles > 0 && status.startedAt) {
       const elapsed = Date.now() - status.startedAt.getTime();
       const rate = progress.processedFiles / elapsed;
@@ -407,6 +466,38 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       const estimatedRemainingTime = remaining / rate;
       
       status.estimatedCompletion = new Date(Date.now() + estimatedRemainingTime);
+      
+      // Performance telemetry
+      performanceMetrics = {
+        averageFileProcessingTimeMs: elapsed / progress.processedFiles,
+        filesPerSecond: (progress.processedFiles * 1000) / elapsed,
+        chunksPerFile: progress.processedFiles > 0 ? progress.processedChunks / progress.processedFiles : 0,
+        estimatedRemainingTimeMs: estimatedRemainingTime,
+        elapsedTimeMs: elapsed
+      };
+    }
+
+    // Log progress with performance telemetry for significant milestones
+    const shouldLogProgress = 
+      progress.percentage % 10 === 0 || // Every 10%
+      progress.processedFiles === 1 || // First file
+      progress.processedFiles === progress.totalFiles || // Completion
+      Date.now() - (status.lastProgressLogTime || 0) > 30000; // Every 30 seconds
+
+    if (shouldLogProgress) {
+      this.loggingService.info('Indexing progress update', {
+        progress: {
+          processedFiles: progress.processedFiles,
+          totalFiles: progress.totalFiles,
+          percentage: progress.percentage,
+          processedChunks: progress.processedChunks
+        },
+        performanceMetrics,
+        estimatedCompletion: status.estimatedCompletion?.toISOString(),
+        currentFile: status.currentFile
+      });
+      
+      status.lastProgressLogTime = Date.now();
     }
   }
 
@@ -498,5 +589,68 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     return { available: false, error: 'Model validation has been simplified - use lightweight checks instead' };
   }
   
+  /**
+   * Get database statistics for completion logging
+   */
+  private async getDatabaseStats(folderPath: string): Promise<{
+    totalFiles: number;
+    totalChunks: number;
+    totalEmbeddings: number;
+    indexReady: boolean;
+    embeddingServiceInitialized: boolean;
+  }> {
+    try {
+      // Get current status for the folder
+      const status = this.currentStatus.get(folderPath);
+      const progress = status?.progress || { 
+        totalFiles: 0, 
+        processedFiles: 0, 
+        totalChunks: 0, 
+        processedChunks: 0 
+      };
+
+      // Check vector index readiness
+      let indexReady = false;
+      try {
+        indexReady = this.vectorSearchService.isReady();
+      } catch (error) {
+        // Vector index status not available
+        this.loggingService.debug('Vector index readiness check failed', { error: (error as Error).message });
+      }
+
+      // Check embedding service initialization
+      let embeddingServiceInitialized = false;
+      try {
+        embeddingServiceInitialized = this.embeddingService.isInitialized();
+      } catch (error) {
+        // Embedding service status not available
+        this.loggingService.debug('Embedding service status check failed', { error: (error as Error).message });
+      }
+
+      return {
+        totalFiles: progress.processedFiles,
+        totalChunks: progress.processedChunks,
+        totalEmbeddings: progress.processedChunks, // Assuming 1:1 ratio for now
+        indexReady,
+        embeddingServiceInitialized
+      };
+
+    } catch (error) {
+      this.loggingService.debug('Failed to get database statistics', { error: (error as Error).message });
+      
+      // Return basic stats if detailed stats fail
+      const status = this.currentStatus.get(folderPath);
+      const progress = status?.progress || { processedFiles: 0, processedChunks: 0 };
+      
+      return {
+        totalFiles: progress.processedFiles,
+        totalChunks: progress.processedChunks,
+        totalEmbeddings: progress.processedChunks,
+        indexReady: false,
+        embeddingServiceInitialized: false
+      };
+    }
+  }
+
   // Removed complex helper methods - using lightweight validation instead
 }

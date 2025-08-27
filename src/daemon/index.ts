@@ -23,18 +23,43 @@ import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds, setDynamicDefaultModel } from '../config/model-registry.js';
 import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
+import { ModelCacheChecker } from './services/model-cache-checker.js';
+import { DefaultModelSelector } from './services/default-model-selector.js';
 
-// Create a simple debug logger
-const debug = (message: string, ...args: any[]) => {
-  const timestamp = new Date().toISOString();
-  if (args.length > 0) {
-    console.error(`[${timestamp}] [DAEMON] ${message}`, ...args);
-  } else {
-    console.error(`[${timestamp}] [DAEMON] ${message}`);
+// Log level configuration
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+const LOG_LEVELS: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+// Get log level from environment or default to 'info'
+const currentLogLevel = (process.env.DAEMON_LOG_LEVEL?.toLowerCase() || 'info') as LogLevel;
+const currentLogLevelValue = LOG_LEVELS[currentLogLevel] ?? LOG_LEVELS.info;
+
+// Create a logger with level support
+const log = (level: LogLevel, message: string, ...args: any[]) => {
+  if (LOG_LEVELS[level] >= currentLogLevelValue) {
+    const timestamp = new Date().toISOString();
+    const levelStr = level.toUpperCase().padEnd(5);
+    if (args.length > 0) {
+      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`, ...args);
+    } else {
+      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`);
+    }
   }
 };
+
+// Convenience methods
+const debug = (message: string, ...args: any[]) => log('debug', message, ...args);
+const info = (message: string, ...args: any[]) => log('info', message, ...args);
+const warn = (message: string, ...args: any[]) => log('warn', message, ...args);
+const logError = (message: string, ...args: any[]) => log('error', message, ...args);
 
 interface DaemonConfig {
   port: number;
@@ -75,7 +100,7 @@ class FolderMCPDaemon {
   }
 
   async start(): Promise<void> {
-    debug('Starting folder-mcp daemon...');
+    info(`Starting folder-mcp daemon on port ${this.config.port}`);
 
     try {
       debug('Registering daemon in discovery registry...');
@@ -86,10 +111,10 @@ class FolderMCPDaemon {
         startTime: this.startTime.toISOString(),
         version: '1.0.0' // TODO: Get from package.json
       });
-      debug('Daemon successfully registered in discovery registry.');
+      debug('Daemon registered in discovery registry');
     } catch (error) {
       const errorMessage = `Failed to register daemon in discovery registry: ${error instanceof Error ? error.message : String(error)}`;
-      debug(errorMessage);
+      logError(errorMessage);
       this.logToFile(errorMessage);
       throw new Error(errorMessage);
     }
@@ -97,11 +122,11 @@ class FolderMCPDaemon {
     try {
       debug('Setting up dependency injection container...');
       this.diContainer = setupDependencyInjection({
-        logLevel: 'debug'
+        logLevel: currentLogLevel
       });
-      debug('Dependency injection container set up successfully.');
+      debug('Dependency injection container ready');
 
-      debug('Loading configuration services...');
+      debug('Loading configuration...');
       const { registerConfigurationServices, CONFIG_SERVICE_TOKENS } = await import('../config/di-setup.js');
       this.CONFIG_SERVICE_TOKENS = CONFIG_SERVICE_TOKENS;
       const { join } = await import('path');
@@ -113,22 +138,16 @@ class FolderMCPDaemon {
       registerConfigurationServices(this.diContainer, {
         userConfigPath: userConfigPath
       });
-      debug('Configuration services loaded successfully.');
+      debug('Configuration loaded');
 
-      debug('Loading configuration component...');
       const configComponent = this.diContainer.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
       await configComponent.load();
-      debug('Configuration component loaded successfully.');
 
-      debug('Initializing FMDM service...');
+      debug('Initializing services...');
       this.fmdmService = this.diContainer.resolve(SERVICE_TOKENS.FMDM_SERVICE);
-      debug('FMDM service initialized successfully.');
 
-      debug('Initializing multi-folder indexing service...');
       this.indexingService = await this.diContainer.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW);
-      debug('Multi-folder indexing service initialized successfully.');
 
-      debug('Initializing folder lifecycle manager...');
       const loggingService = this.diContainer.resolve(SERVICE_TOKENS.LOGGING);
       const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
       const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
@@ -140,71 +159,89 @@ class FolderMCPDaemon {
         loggingService,
         configComponent // Reuse existing configComponent
       );
-      debug('Folder lifecycle manager initialized successfully.');
+      debug('Services initialized');
+      
+      // Set up cache update callback for model downloads
+      this.setupModelCacheUpdateCallback(configComponent);
 
-      debug('Restoring folders from configuration using orchestrator.startAll()...');
+      // Load cached model status FIRST (fast startup)
+      info('Loading cached model status...');
+      await this.loadCachedModelStatus(loggingService, configComponent);
+      
+      // Select default model based on cached status
+      await this.selectDefaultModel(loggingService);
+      
+      debug('Loading configured folders into FMDM...');
+      await this.fmdmService!.loadFoldersFromConfig();
+      
+      debug('Restoring monitored folders...');
       await this.monitoredFoldersOrchestrator!.startAll();
-      debug('Folders restored successfully.');
+      const folders = this.fmdmService!.getFMDM().folders;
+      if (folders.length > 0) {
+        info(`Monitoring ${folders.length} folder${folders.length > 1 ? 's' : ''}`);
+      }
 
       debug('Initializing WebSocket server...');
-      this.webSocketServer = this.diContainer.resolve(SERVICE_TOKENS.WEBSOCKET_SERVER);
-      debug('WebSocket server initialized successfully.');
-
-      debug('Initializing validation service...');
+      this.webSocketServer = await this.diContainer.resolveAsync(SERVICE_TOKENS.WEBSOCKET_SERVER);
+      
       const validationService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_FOLDER_VALIDATION_SERVICE);
       await validationService.initialize();
-      debug('Validation service initialized successfully.');
 
-      debug('Creating WebSocket protocol...');
       const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
+      const modelHandlers = this.diContainer.resolve(SERVICE_TOKENS.MODEL_HANDLERS);
       const webSocketProtocol = new WebSocketProtocol(
         validationService,
         daemonConfigService,
         this.fmdmService!,
         loggingService,
+        modelHandlers,
         this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
       );
-      debug('WebSocket protocol created successfully.');
-
-      debug('Updating WebSocket server with custom protocol...');
+      
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
-      debug('WebSocket server updated successfully.');
 
-      debug('Starting WebSocket server...');
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
-      debug(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+      info(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
 
-      debug('Updating FMDM with daemon status...');
+      // Schedule background model status refresh (non-blocking)
+      setImmediate(async () => {
+        try {
+          info('Refreshing model status in background...');
+          await this.refreshModelStatusInBackground(loggingService, configComponent);
+          info('Model status refreshed successfully');
+        } catch (error) {
+          logError('Background model check failed (non-critical):', error);
+        }
+      });
+
       this.fmdmService!.updateDaemonStatus({
         pid: process.pid,
         uptime: Math.floor(process.uptime())
       });
-      debug(`FMDM updated with daemon status - PID: ${process.pid}, uptime: ${Math.floor(process.uptime())}s`);
+      debug(`Daemon status updated - PID: ${process.pid}`);
 
-      debug('Creating HTTP server...');
       this.server = createServer(this.handleRequest.bind(this));
 
-      debug('Starting HTTP server...');
       return new Promise(async (resolve, reject) => {
         this.server!.listen(this.config.port, this.config.host, async () => {
-          debug(`Daemon listening on http://${this.config.host}:${this.config.port}`);
+          info(`Daemon ready (PID: ${process.pid})`);
           debug(`PID file: ${this.config.pidFile}`);
           resolve();
         });
 
-        this.server!.on('error', (error) => {
-          const errorMessage = `Server error: ${error}`;
-          debug(errorMessage);
+        this.server!.on('error', (err) => {
+          const errorMessage = `Server error: ${err}`;
+          logError(errorMessage);
           this.logToFile(errorMessage);
-          reject(error);
+          reject(err);
         });
       });
-    } catch (error) {
-      const errorMessage = `Error during daemon startup: ${error instanceof Error ? error.message : String(error)}`;
-      debug(errorMessage);
+    } catch (err) {
+      const errorMessage = `Error during daemon startup: ${err instanceof Error ? err.message : String(err)}`;
+      logError(errorMessage);
       this.logToFile(errorMessage);
-      throw error;
+      throw err;
     }
   }
 
@@ -235,6 +272,18 @@ class FolderMCPDaemon {
         case '/status':
           response = this.getDetailedStatus();
           break;
+
+        case '/api/folders':
+          if (req.method === 'POST') {
+            response = await this.addFolder(req);
+          } else if (req.method === 'GET') {
+            response = await this.listFolders();
+          } else {
+            res.writeHead(405);
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+          break;
           
         default:
           res.writeHead(404);
@@ -246,7 +295,7 @@ class FolderMCPDaemon {
       res.end(JSON.stringify(response, null, 2));
       
     } catch (error) {
-      debug('Request error:', error);
+      logError('Request error:', error);
       res.writeHead(500);
       res.end(JSON.stringify({ 
         error: 'Internal server error',
@@ -272,7 +321,7 @@ class FolderMCPDaemon {
       try {
         memoryStats = this.monitoredFoldersOrchestrator.getMemoryStatistics();
       } catch (error) {
-        debug('Error getting memory statistics:', error);
+        warn('Error getting memory statistics:', error);
       }
     }
     
@@ -307,12 +356,140 @@ class FolderMCPDaemon {
     };
   }
 
+  /**
+   * Add folder for indexing via API
+   */
+  private async addFolder(req: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', (chunk: any) => {
+        body += chunk.toString();
+      });
+      
+      req.on('end', async () => {
+        try {
+          const { path, modelId, name } = JSON.parse(body);
+          
+          if (!path || !modelId) {
+            resolve({ error: 'Missing required fields: path, modelId' });
+            return;
+          }
+
+          // Use existing FMDM system 
+          if (this.fmdmService) {
+            try {
+              // Get current folders from FMDM
+              const currentFmdm = this.fmdmService.getFMDM();
+              const currentFolders = [...currentFmdm.folders];
+              
+              // Check if folder already exists
+              const existingFolder = currentFolders.find(f => f.path === path);
+              if (existingFolder) {
+                resolve({
+                  success: true,
+                  message: `Folder ${path} already configured with model ${existingFolder.model}`,
+                  folderId: path,
+                  status: existingFolder.status
+                });
+                return;
+              }
+              
+              // Add new folder to the list
+              const folderConfig = {
+                path: path,
+                model: modelId,
+                status: 'pending' as const
+              };
+              
+              currentFolders.push(folderConfig);
+              
+              // Update FMDM with new folder list
+              this.fmdmService.updateFolders(currentFolders);
+              
+              info(`[API] Added folder ${path} with model ${modelId} to FMDM`);
+              
+              resolve({
+                success: true,
+                message: `Folder ${path} added for indexing with model ${modelId}`,
+                folderId: path,
+                status: 'pending'
+              });
+              
+            } catch (error) {
+              const errorMsg = error instanceof Error ? error.message : String(error);
+              resolve({ 
+                error: `Failed to add folder: ${errorMsg}`
+              });
+            }
+          } else {
+            resolve({ error: 'FMDM service not initialized' });
+          }
+          
+        } catch (error) {
+          resolve({ 
+            error: 'Invalid JSON or processing error',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      });
+    });
+  }
+
+  /**
+   * List folders being indexed
+   */
+  private async listFolders(): Promise<any> {
+    if (this.fmdmService) {
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        const configuredFolders = fmdm.folders || [];
+        
+        const folders = configuredFolders?.map((folder: any, index: number) => ({
+          id: folder.path,
+          path: folder.path,
+          modelId: folder.model,
+          status: folder.status || 'pending',
+          priority: 'normal'
+        })) || [];
+
+        return {
+          folders,
+          queueStatus: {
+            isProcessing: folders.length > 0,
+            currentModel: folders.length > 0 ? folders[0]?.modelId : null,
+            totalFolders: folders.length
+          }
+        };
+      } catch (error) {
+        return {
+          error: `Failed to list folders: ${error instanceof Error ? error.message : String(error)}`,
+          folders: [],
+          queueStatus: {
+            isProcessing: false,
+            currentModel: null,
+            totalFolders: 0
+          }
+        };
+      }
+    }
+    
+    return {
+      folders: [],
+      queueStatus: {
+        isProcessing: false,
+        currentModel: null,
+        totalFolders: 0
+      }
+    };
+  }
+
+
   private writePidFile(): void {
     try {
       writeFileSync(this.config.pidFile, process.pid.toString(), 'utf8');
       debug(`PID file written: ${this.config.pidFile} (PID: ${process.pid})`);
     } catch (error) {
-      debug('Failed to write PID file:', error);
+      logError('Failed to write PID file:', error);
       throw error;
     }
   }
@@ -324,12 +501,12 @@ class FolderMCPDaemon {
         debug('PID file removed');
       }
     } catch (error) {
-      debug('Failed to remove PID file:', error);
+      warn('Failed to remove PID file:', error);
     }
   }
 
   async stop(): Promise<void> {
-    debug('Stopping daemon...');
+    info('Stopping daemon...');
     
     // Stop WebSocket server
     if (this.webSocketServer) {
@@ -363,10 +540,10 @@ class FolderMCPDaemon {
       await DaemonRegistry.cleanup();
       debug('Discovery registry cleaned up');
     } catch (error) {
-      debug('Failed to cleanup discovery registry:', error);
+      warn('Failed to cleanup discovery registry:', error);
     }
     
-    debug('Daemon stopped');
+    info('Daemon stopped');
   }
 
   // TODO: Future Phase 5 - Connect SQLite-vec storage to daemon indexing pipeline
@@ -375,27 +552,293 @@ class FolderMCPDaemon {
   // - FMDM broadcasts status changes
   // - TUI displays status updates
 
+  /**
+   * Initialize curated models by checking their installation status
+   */
+  private async initializeCuratedModels(loggingService: any): Promise<void> {
+    try {
+      // Use factories module to avoid direct instantiation
+      const { createPythonEmbeddingService, createONNXDownloader } = await import('./factories/model-factories.js');
+      
+      const checker = new ModelCacheChecker(loggingService, createPythonEmbeddingService, createONNXDownloader);
+      const result = await checker.checkCuratedModels();
+      
+      this.fmdmService!.setCuratedModelInfo(result.models, result.status);
+      
+      const gpuCount = result.models.filter(m => m.type === 'gpu' && m.installed).length;
+      const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
+      
+      info(`Model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      // Select optimal default model based on hardware capabilities
+      try {
+        loggingService.info('[DAEMON] Starting default model selection...');
+        const defaultSelector = new DefaultModelSelector(
+          loggingService,
+          result.models,
+          result.status.pythonAvailable
+        );
+        
+        loggingService.info('[DAEMON] Determining optimal default model...');
+        const defaultSelection = await defaultSelector.determineOptimalDefault();
+        
+        // Update configuration with new default
+        // Note: Configuration persistence can be added later when CONFIG_TOKENS is properly exported
+        // For now, just update the in-memory registry
+        
+        // Update model registry immediately
+        setDynamicDefaultModel(defaultSelection.modelId);
+        
+        info(`Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+        loggingService.info(`[DAEMON] Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      } catch (error) {
+        logError('Failed to select default model:', error);
+        // System will fallback to smallest CPU model via model-registry
+      }
+      
+      if (result.status.error) {
+        info(`Note: ${result.status.error}`);
+      }
+    } catch (error) {
+      // Non-critical - set defaults and continue
+      logError('Model check failed (non-critical):', error);
+      
+      // Set all models as not installed as fallback
+      const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+      const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+      const defaultModels = [...gpuModels, ...cpuModels
+      ];
+      
+      this.fmdmService!.setCuratedModelInfo(defaultModels, {
+        pythonAvailable: false,
+        gpuModelsCheckable: false,
+        error: 'Model check failed',
+        checkedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Select default model based on current FMDM state
+   */
+  private async selectDefaultModel(loggingService: any): Promise<void> {
+    try {
+      // Get current model status from FMDM
+      const fmdm = this.fmdmService!.getFMDM();
+      const models = fmdm.curatedModels || [];
+      const status = fmdm.modelCheckStatus || { pythonAvailable: false, gpuModelsCheckable: false };
+      
+      if (models.length === 0) {
+        debug('No model information available for default selection');
+        return;
+      }
+      
+      loggingService.info('[DAEMON] Starting default model selection...');
+      const defaultSelector = new DefaultModelSelector(
+        loggingService,
+        models,
+        status.pythonAvailable
+      );
+      
+      loggingService.info('[DAEMON] Determining optimal default model...');
+      const defaultSelection = await defaultSelector.determineOptimalDefault();
+      
+      // Update model registry immediately
+      setDynamicDefaultModel(defaultSelection.modelId);
+      
+      info(`Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      loggingService.info(`[DAEMON] Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+    } catch (error) {
+      logError('Failed to select default model:', error);
+      // System will fallback to smallest CPU model via model-registry
+    }
+  }
+  
+  /**
+   * Load cached model status from configuration (fast startup)
+   */
+  private async loadCachedModelStatus(loggingService: any, configComponent: any): Promise<void> {
+    try {
+      const cachedStatus = await configComponent.get('modelStatusCache');
+      
+      if (cachedStatus && cachedStatus.lastChecked) {
+        // Use cached model status
+        const models = Object.entries(cachedStatus.models || {}).map(([id, info]: [string, any]) => ({
+          id,
+          installed: info.installed,
+          type: id.startsWith('gpu:') ? 'gpu' as const : 'cpu' as const
+        }));
+        
+        this.fmdmService!.setCuratedModelInfo(models, {
+          pythonAvailable: cachedStatus.pythonAvailable,
+          gpuModelsCheckable: cachedStatus.gpuModelsCheckable,
+          checkedAt: cachedStatus.lastChecked
+        });
+        
+        const gpuCount = models.filter(m => m.type === 'gpu' && m.installed).length;
+        const cpuCount = models.filter(m => m.type === 'cpu' && m.installed).length;
+        
+        info(`Using cached model status: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      } else {
+        // No cache available - set defaults
+        const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+        const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+        const defaultModels = [...gpuModels, ...cpuModels];
+        
+        this.fmdmService!.setCuratedModelInfo(defaultModels, {
+          pythonAvailable: false,
+          gpuModelsCheckable: false,
+          checkedAt: new Date().toISOString()
+        });
+        
+        info('No cached model status found - using defaults');
+      }
+    } catch (error) {
+      // Fallback to defaults
+      logError('Failed to load cached model status:', error);
+      const gpuModels = getSupportedGpuModelIds().map(id => ({ id, installed: false, type: 'gpu' as const }));
+      const cpuModels = getSupportedCpuModelIds().map(id => ({ id, installed: false, type: 'cpu' as const }));
+      const defaultModels = [...gpuModels, ...cpuModels];
+      
+      this.fmdmService!.setCuratedModelInfo(defaultModels, {
+        pythonAvailable: false,
+        gpuModelsCheckable: false,
+        checkedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Refresh model status in background and update cache
+   */
+  private async refreshModelStatusInBackground(loggingService: any, configComponent: any): Promise<void> {
+    try {
+      // Use existing model checking logic
+      const { createPythonEmbeddingService, createONNXDownloader } = await import('./factories/model-factories.js');
+      
+      const checker = new ModelCacheChecker(loggingService, createPythonEmbeddingService, createONNXDownloader);
+      const result = await checker.checkCuratedModels();
+      
+      // Update in-memory FMDM
+      this.fmdmService!.setCuratedModelInfo(result.models, result.status);
+      
+      // Save to cache for next startup
+      const cacheData = {
+        lastChecked: new Date().toISOString(),
+        models: {} as Record<string, { installed: boolean; checkedAt: string }>,
+        pythonAvailable: result.status.pythonAvailable,
+        gpuModelsCheckable: result.status.gpuModelsCheckable
+      };
+      
+      // Convert models array to cache format
+      for (const model of result.models) {
+        cacheData.models[model.id] = {
+          installed: model.installed,
+          checkedAt: new Date().toISOString()
+        };
+      }
+      
+      await configComponent.set('modelStatusCache', cacheData);
+      
+      const gpuCount = result.models.filter(m => m.type === 'gpu' && m.installed).length;
+      const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
+      
+      debug(`Background model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      // Re-select default model with updated information
+      try {
+        const defaultSelector = new DefaultModelSelector(
+          loggingService,
+          result.models,
+          result.status.pythonAvailable
+        );
+        
+        const defaultSelection = await defaultSelector.determineOptimalDefault();
+        setDynamicDefaultModel(defaultSelection.modelId);
+        
+        debug(`Updated default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      } catch (error) {
+        debug('Failed to update default model:', error);
+      }
+      
+      if (result.status.error) {
+        debug(`Note: ${result.status.error}`);
+      }
+    } catch (error) {
+      // Background check failed - cache remains unchanged
+      logError('Background model check failed:', error);
+    }
+  }
+
+  /**
+   * Set up model cache update callback for download manager
+   */
+  private setupModelCacheUpdateCallback(configComponent: any): void {
+    if (!this.monitoredFoldersOrchestrator) {
+      return;
+    }
+    
+    const modelDownloadManager = this.monitoredFoldersOrchestrator.getModelDownloadManager();
+    
+    // Create callback that updates the cache when a model is downloaded
+    const cacheUpdateCallback = async (modelId: string): Promise<void> => {
+      try {
+        // Get current cache or create new one
+        const currentCache = await configComponent.get('modelStatusCache') || {
+          lastChecked: new Date().toISOString(),
+          models: {},
+          pythonAvailable: false,
+          gpuModelsCheckable: false
+        };
+        
+        // Update the specific model as installed
+        currentCache.models[modelId] = {
+          installed: true,
+          checkedAt: new Date().toISOString()
+        };
+        
+        // Save updated cache
+        await configComponent.set('modelStatusCache', currentCache);
+        
+        // Also update in-memory FMDM
+        const fmdm = this.fmdmService!.getFMDM();
+        const model = fmdm.curatedModels.find(m => m.id === modelId);
+        if (model) {
+          model.installed = true;
+        }
+        
+        debug(`[CACHE-UPDATE] Updated cache for downloaded model: ${modelId}`);
+      } catch (error) {
+        logError(`[CACHE-UPDATE] Failed to update cache for ${modelId}:`, error);
+      }
+    };
+    
+    // Set the callback
+    modelDownloadManager.setCacheUpdateCallback(cacheUpdateCallback);
+    debug('Model cache update callback configured');
+  }
+
   // Setup graceful shutdown
   setupShutdownHandlers(): void {
     const shutdown = async (signal: string) => {
-      debug(`Received ${signal}, shutting down gracefully...`);
+      info(`Received ${signal}, shutting down gracefully...`);
       try {
         await this.stop();
         process.exit(0);
       } catch (error) {
-        debug('Error during shutdown:', error);
+        logError('Error during shutdown:', error);
         process.exit(1);
       }
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
-    process.on('uncaughtException', (error) => {
-      debug('Uncaught exception:', error);
+    process.on('uncaughtException', (err) => {
+      logError('Uncaught exception:', err);
       this.stop().finally(() => process.exit(1));
     });
     process.on('unhandledRejection', (reason) => {
-      debug('Unhandled rejection:', reason);
+      logError('Unhandled rejection:', reason);
       this.stop().finally(() => process.exit(1));
     });
     
@@ -415,11 +858,11 @@ class FolderMCPDaemon {
    */
   async startFolderIndexing(folderPath: string): Promise<void> {
     if (!this.fmdmService || !this.monitoredFoldersOrchestrator) {
-      debug(`Cannot start indexing: services not initialized`);
+      warn(`Cannot start indexing: services not initialized`);
       return;
     }
 
-    debug(`Starting indexing for folder: ${folderPath}`);
+    info(`[INDEXING] Started indexing: ${folderPath}`);
     
     try {
       // Get folder configuration
@@ -428,17 +871,17 @@ class FolderMCPDaemon {
       const folderConfig = folders.find((f: any) => f.path === folderPath);
       
       if (!folderConfig) {
-        debug(`Folder not found in configuration: ${folderPath}`);
+        warn(`Folder not found in configuration: ${folderPath}`);
         return;
       }
       
       // Start lifecycle management for this folder
       await this.monitoredFoldersOrchestrator.addFolder(folderConfig.path, folderConfig.model);
       
-      debug(`Started lifecycle management for folder: ${folderPath}`);
+      debug(`Lifecycle management started for: ${folderPath}`);
       
     } catch (error) {
-      debug(`Indexing error for folder ${folderPath}:`, error);
+      logError(`[INDEXING] Failed for ${folderPath}:`, error instanceof Error ? error.message : String(error));
       debug(`Error details:`, {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : 'No stack trace',
@@ -449,7 +892,7 @@ class FolderMCPDaemon {
       try {
         this.fmdmService.updateFolderStatus(folderPath, 'error');
       } catch (statusError) {
-        debug(`Failed to update folder status after error:`, statusError);
+        warn(`Failed to update folder status after error:`, statusError);
       }
       
       // Don't re-throw the error - this prevents daemon crash
@@ -494,7 +937,7 @@ async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void>
 }
 
 async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
-  debug(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
+  info(`Stopping existing daemon (PID: ${daemonInfo.pid})...`);
   
   try {
     // Try graceful shutdown first (SIGTERM)
@@ -502,19 +945,19 @@ async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
     
     // Wait up to 5 seconds for graceful shutdown
     await waitForProcessExit(daemonInfo.pid, 5000);
-    debug('Existing daemon stopped gracefully');
+    info('Existing daemon stopped gracefully');
     
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ESRCH') {
       // Process already dead
-      debug('Existing daemon already stopped');
+      info('Existing daemon already stopped');
     } else {
       // Graceful shutdown failed, try force kill
-      debug('Graceful shutdown failed, force killing...');
+      warn('Graceful shutdown failed, force killing...');
       try {
         process.kill(daemonInfo.pid, 'SIGKILL');
         await waitForProcessExit(daemonInfo.pid, 2000);
-        debug('Existing daemon force killed');
+        info('Existing daemon force killed');
       } catch (killError) {
         throw new Error(`Failed to stop existing daemon: ${killError}`);
       }
@@ -560,7 +1003,7 @@ the folder-mcp services.
   
   // Handle restart BEFORE any other operations
   if (restartFlag) {
-    debug('Restart flag detected, checking for running daemon processes...');
+    info('Restart flag detected, checking for running daemon processes...');
     
     // Use comprehensive process scanning instead of registry file check
     const runningDaemonPids = await DaemonRegistry.findRunningDaemonProcesses();
@@ -568,15 +1011,15 @@ the folder-mcp services.
     
     if (otherDaemonPids.length > 0) {
       for (const daemonPid of otherDaemonPids) {
-        debug(`Found running daemon process (PID: ${daemonPid}), stopping it...`);
+        info(`Found running daemon process (PID: ${daemonPid}), stopping it...`);
         
         // Create minimal daemon info for stopping
         const daemonInfo = { pid: daemonPid };
         await stopExistingDaemon(daemonInfo);
-        debug(`Stopped daemon process PID: ${daemonPid}`);
+        info(`Stopped daemon process PID: ${daemonPid}`);
       }
       
-      debug('All existing daemon processes stopped, waiting for cleanup...');
+      info('All existing daemon processes stopped, waiting for cleanup...');
       
       // Wait to ensure processes are fully terminated
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -588,7 +1031,7 @@ the folder-mcp services.
       // Wait a bit more to ensure cleanup is complete
       await new Promise(resolve => setTimeout(resolve, 500));
     } else {
-      debug('No existing daemon processes found to restart');
+      info('No existing daemon processes found to restart');
     }
   }
   
@@ -610,7 +1053,7 @@ the folder-mcp services.
   // Check if daemon is already running (after restart handling)
   const status = await isDaemonRunning();
   if (status.running && !restartFlag) {
-    debug(`Daemon already running with PID ${status.pid}`);
+    logError(`Daemon already running with PID ${status.pid}`);
     process.exit(1);
   }
   
@@ -620,9 +1063,9 @@ the folder-mcp services.
   
   try {
     await daemon.start();
-    debug('Daemon started successfully');
-  } catch (error) {
-    debug('Failed to start daemon:', error);
+    // Success message already logged by daemon.start()
+  } catch (err) {
+    logError('Failed to start daemon:', err);
     process.exit(1);
   }
 }
@@ -635,8 +1078,8 @@ if (import.meta.url === `file://${process.argv[1]}` ||
     import.meta.url.endsWith('/daemon/index.js') || 
     (process.argv[1] && process.argv[1].endsWith('daemon/index.js')) || 
     (process.argv[1] && process.argv[1].endsWith('daemon\\index.js'))) {
-  main().catch((error) => {
-    debug('Fatal error:', error);
+  main().catch((err) => {
+    logError('Fatal error:', err);
     process.exit(1);
   });
 }

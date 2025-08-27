@@ -28,3 +28,6 @@ export type { NotificationAreaProps } from './NotificationArea';
 
 export { ButtonsRow } from './ButtonsRow';
 export type { ButtonConfig, ButtonsRowConfig } from './ButtonsRow';
+
+export { VerticalToggleRow, VerticalToggleRowComponent, VerticalToggleRowListItem } from './VerticalToggleRow';
+export type { ToggleOption, VerticalToggleRowProps } from './VerticalToggleRow';

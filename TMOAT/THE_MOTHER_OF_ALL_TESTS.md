@@ -265,7 +265,7 @@ async function runQuickSmokeTest() {
 { type: 'connection.init', clientType: 'cli' }
 
 // Add folder (CRITICAL: Use correct model name)
-{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'folder-mcp:all-MiniLM-L6-v2' }}
+{ type: 'folder.add', payload: { path: '/path/to/folder', model: 'gpu:all-MiniLM-L6-v2' }}
 
 // Remove folder  
 { type: 'folder.remove', payload: { path: '/path/to/folder' }}
@@ -276,7 +276,7 @@ async function runQuickSmokeTest() {
 
 **CRITICAL WebSocket Requirements:**
 - **Client Type**: Must be 'cli', 'tui', or 'web' (NOT 'tmoat-smoke-test')
-- **Model Name**: Must use 'folder-mcp:all-MiniLM-L6-v2' (NOT 'nomic-embed-text')
+- **Model Name**: Must use 'gpu:all-MiniLM-L6-v2' (NOT 'nomic-embed-text')
 - **Connection Init**: Always send connection.init first before any other messages
 
 ### 4. State Validation Points
@@ -378,7 +378,7 @@ await client.addFolder('tests/fixtures/tmp/smoke-large');
 //   type: 'folder.add', 
 //   payload: { 
 //     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/smoke-small',
-//     model: 'folder-mcp:all-MiniLM-L6-v2' 
+//     model: 'gpu:all-MiniLM-L6-v2' 
 //   }
 // }));
 ```
@@ -459,13 +459,24 @@ ws.send(JSON.stringify({
   type: 'folder.add', 
   payload: { 
     path: '/Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/does-not-exist',
-    model: 'folder-mcp:all-MiniLM-L6-v2' 
+    model: 'gpu:all-MiniLM-L6-v2' 
   }
 }));
 ```
 ✓ Error state in FMDM
 ✓ Clear error message
 ✓ Daemon doesn't crash
+
+**Step 8.5: Test Model Recommendation Endpoints (Phase 8 Task 11.5)**
+```bash
+# Run dedicated model recommendation test suite
+node tmp/test-model-recommendation-endpoints.js
+```
+✓ Assisted mode returns only compatible models
+✓ Manual mode includes incompatible and Ollama models
+✓ Language changes affect recommendation scoring
+✓ Machine capabilities detected correctly
+✓ Error handling for invalid requests
 
 **Step 9: Cleanup**
 ```bash
@@ -484,6 +495,7 @@ rm -rf /Users/hanan/Projects/folder-mcp/tests/fixtures/tmp/*
 | 5-6 | Offline changes | 🟢 PASS | Manual only (complex scenario) |
 | 7 | Folder removal | 🟢 PASS | Covered by integration tests |
 | 8 | Error handling | 🟢 PASS | `tests/integration/error-recovery.test.ts` |
+| 8.5 | Model recommendations | 🟡 NEW | Phase 8 Task 11.5 - manual test only |
 
 **Overall**: 🟢 **SYSTEM READY TO SHIP**
 
@@ -725,6 +737,16 @@ The expanded TMOAT test suite now includes atomic tests for comprehensive system
 8. **Offline Changes Test**: Validates detection of file changes made while daemon was offline
 9. **Database Recovery Test**: Verifies system rebuilds database when `.folder-mcp` directory is deleted
 
+### Model Recommendation System (Tests 10-17)
+10. **Model Cache FMDM Test**: Verifies curated models checked at daemon startup (before WebSocket), stored in FMDM with installation status, wizard loads instantly (no Python spawning). Run: `node TMOAT/atomic-test-10-model-cache-fmdm.js`
+11. **Assisted Mode English Test**: Single language recommendation with auto-selection
+12. **Assisted Mode Multi-Language Test**: Multiple languages affect recommendation scoring  
+13. **Manual Mode Compatibility Test**: Shows compatible + incompatible + Ollama models
+14. **Ollama Detection Test**: Power user models detected when available
+15. **Language Impact Analysis**: Compare recommendations across language sets
+16. **Machine Capability Detection**: GPU/CPU/RAM detection for compatibility scoring
+17. **Model Endpoint Error Handling**: Invalid requests handled gracefully
+
 ### Test Execution
 ```bash
 # Run complete atomic test suite
@@ -732,9 +754,45 @@ node TMOAT/run-smoke-test.js
 
 # Run individual atomic test
 node TMOAT/atomic-test-N-description.js
+
+# Run model recommendation endpoint tests (Phase 8 Task 11.5)
+node tmp/test-model-recommendation-endpoints.js
 ```
 
 Each atomic test is self-contained and validates specific functionality with real WebSocket communication to the daemon.
+
+### Atomic Test 10: Model Cache FMDM Test Details
+
+**Critical Performance Fix Test**
+
+This test validates the solution to the "slow Add Folder Wizard" issue:
+
+**Problem Solved**: Wizard was spawning 3+ Python processes every time it opened to check GPU model cache status
+
+**Solution Tested**: 
+- ✅ Curated models checked ONCE at daemon startup (before WebSocket starts)
+- ✅ Results stored in FMDM with installation status for all 5 expected models
+- ✅ ModelCheckStatus tracks Python availability and any errors
+- ✅ Wizard now loads instantly using FMDM data (no Python spawning)
+
+**Test Execution**:
+```bash
+# Run the model cache FMDM test
+node TMOAT/atomic-test-10-model-cache-fmdm.js
+
+# Expected results:
+# - Daemon startup: ~12 seconds (includes one-time model checking)
+# - All 5 curated models present in FMDM
+# - Model check status with Python availability info
+# - Test passes: "🎉 All tests passed! Model caching in FMDM is working correctly"
+```
+
+**Expected Models Verified**:
+- `gpu:bge-m3` (gpu)
+- `gpu:multilingual-e5-large` (gpu) 
+- `gpu:paraphrase-multilingual-minilm` (gpu)
+- `cpu:xenova-multilingual-e5-small` (cpu)
+- `cpu:xenova-multilingual-e5-large` (cpu)
 
 ## 🎯 Success Criteria Summary
 

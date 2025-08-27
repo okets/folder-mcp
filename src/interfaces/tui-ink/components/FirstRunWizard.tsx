@@ -59,6 +59,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     const [validationErrors, setValidationErrors] = useState<{ folder?: string; model?: string }>({});
     const [wizardItem, setWizardItem] = useState<IListItem | null>(null);
     const [wizardLoading, setWizardLoading] = useState(true);
+    const [layoutVersion, setLayoutVersion] = useState(0); // Force re-render trigger
     
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
@@ -102,11 +103,11 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                 const { getPythonModels } = await import('../services/ModelListService');
                 const supportedModels = getPythonModels().map(model => model.name);
                 
-                // Also check if model is missing the folder-mcp: prefix
-                const normalizedModel = cliModel.startsWith('folder-mcp:') ? cliModel : `folder-mcp:${cliModel}`;
+                // Also check if model is missing the gpu: prefix
+                const normalizedModel = cliModel.startsWith('gpu:') ? cliModel : `gpu:${cliModel}`;
                 
                 if (!supportedModels.includes(normalizedModel)) {
-                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.map(m => m.replace('folder-mcp:', '')).join(', ')}`;
+                    errors.model = `Unsupported model: ${cliModel}. Supported models: ${supportedModels.map(m => m.replace('gpu:', '')).join(', ')}`;
                 }
             }
             
@@ -170,7 +171,11 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                     onCancel: () => {
                         process.exit(0);
                     },
-                    fmdmOperations
+                    fmdmOperations,
+                    onModeChange: () => {
+                        // Increment layout version to force React re-render
+                        setLayoutVersion(v => v + 1);
+                    }
                 });
                 
                 // Start wizard in expanded mode
@@ -284,7 +289,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     }
     
     return (
-        <Box flexDirection="column" height="100%">
+        <Box flexDirection="column" height="100%" key={`wizard-${layoutVersion}`}>
             <GenericListPanel
                 title="folder-mcp · Add Folder Wizard"
                 subtitle="Let's configure your knowledge base"

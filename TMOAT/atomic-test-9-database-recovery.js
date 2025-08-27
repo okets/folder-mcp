@@ -24,7 +24,7 @@ const folderMcpPath = path.join(testFolderPath, '.folder-mcp');
 const dbPath = path.join(folderMcpPath, 'embeddings.db');
 
 console.log(`📁 Test folder: ${testFolderPath}`);
-console.log(`🗂️  .folder-mcp: ${folderMcpPath}`);
+console.log(`🗂️  .gpu: ${folderMcpPath}`);
 console.log(`🗄️  Database: ${dbPath}`);
 
 let testPhase = 'setup'; // setup -> initial-add -> wait-active -> delete-database -> re-add -> verify-recovery
@@ -61,7 +61,7 @@ async function setupInitialDatabase() {
             id: folderId,
             payload: {
                 path: testFolderPath,
-                model: 'folder-mcp:all-MiniLM-L6-v2'
+                model: 'gpu:all-MiniLM-L6-v2'
             }
         }));
         
@@ -155,7 +155,7 @@ async function triggerDatabaseRecovery() {
                     id: recoveryFolderId,
                     payload: {
                         path: testFolderPath,
-                        model: 'folder-mcp:all-MiniLM-L6-v2'
+                        model: 'gpu:all-MiniLM-L6-v2'
                     }
                 }));
                 
