@@ -1111,45 +1111,39 @@ Python Layer:
 
 **Implementation Details**: See comprehensive implementation in [Phase-8-Task-11-SQLite-vec-Embeddings.md](Phase-8-Task-11-SQLite-vec-Embeddings.md)
 
-### Task 11.5: Multi-Source Model Offering System
-**Status**: 📋 PLANNED  
+### Task 11.5: Multi-Source Model Offering System ✅ COMPLETED
+**Status**: ✅ Completed  
 **Dependencies**: Task 11 (SQLite-vec Embeddings) ✅ COMPLETED  
 **Priority**: **HIGH** - Critical for user experience and flexibility
+**Completed**: 2024-12-26
 
-**What**: Implement comprehensive model selection system with multiple sources and intelligent recommendations.
+**What Was Implemented**: Dynamic model selection with hardware-aware defaults and sequential processing.
 
-**Why**: Users need flexibility in choosing embedding models based on:
-- Hardware capabilities (GPU vs CPU)
-- Language requirements (English-only vs multilingual)
-- Performance needs (speed vs quality)
-- Available resources (memory, disk space)
+**Key Achievements**:
+1. **Hardware-Aware Model Selection**:
+   - Automatic GPU detection with Python gating
+   - Dynamic default model based on capabilities
+   - Fallback to smallest CPU model when needed
 
-**Key Features**:
-1. **Three Model Sources**:
-   - GPU models (Python/HuggingFace) - Auto-download
-   - CPU models (ONNX Runtime) - CDN download with verification
-   - Ollama models - User-managed, detected dynamically (Manual mode only)
+2. **Sequential Processing Queue**:
+   - ONE model loads at a time (prevents memory issues)
+   - Semantic search interrupts with model switching
+   - 3-minute keep-alive for agent responsiveness
 
-2. **Smart Setup Modes**:
-   - **Assisted Mode**: Recommends best model based on languages and hardware
-   - **Manual Mode**: Full control, access to all models including Ollama
+3. **Model ID Standardization**:
+   - `gpu:` prefix for Python/HuggingFace models
+   - `cpu:` prefix for ONNX models
+   - `ollama:` prefix for Ollama models
 
-3. **Smooth Onboarding**:
-   - Cached machine capabilities for instant detection (<3 seconds)
-   - Pre-loaded model recommendations
-   - Clear performance expectations
+4. **Performance & Monitoring**:
+   - Fixed false memory warnings (heap calculation)
+   - Resource management with throttling
+   - Real-time telemetry and health tracking
 
-4. **Resilient Downloads**:
-   - Auto-redownload deleted models
-   - Global status updates for all folders using a model
-   - Progress tracking with cancellation support
+**Outcome**: System now robustly handles multiple model sources with intelligent defaults and no hardcoded model names. See TASK-11.5-COURSE-CORRECTION.md for implementation details.
 
-**Implementation Plan**: See detailed sprint plan in [Phase-8-task-11.5-models-offering.md](Phase-8-task-11.5-models-offering.md)
-
-**Estimated Duration**: 9-10 days (6 sprints with safety stops)
-
-### Task 12: MCP Endpoints Migration to Daemon-Centric Architecture
-**Status**: ⏳ Waiting  
+### Task 12: MCP Endpoints Migration to Daemon-Centric Architecture ⏳ NEXT
+**Status**: ⏳ Next Task  
 **Dependencies**: Task 10 (New Embeddings Mechanism)  
 **Priority**: **HIGH** - Critical for unified architecture  
 

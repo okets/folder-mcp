@@ -12,7 +12,6 @@
         "id": "gpu:bge-m3",
         "displayName": "BGE-M3 (Comprehensive)",
         "description": "Leading multilingual model, 100+ languages, 8192 token context",
-        "isDefault": true,
         "huggingfaceId": "BAAI/bge-m3",
         "dimensions": 1024,
         "modelSizeMB": 2200,

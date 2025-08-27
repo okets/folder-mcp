@@ -156,15 +156,19 @@ Testing:
 4. Test incremental indexing still detects changes without the JSON cache
 5. Ensure search endpoints can retrieve chunks from SQLite only
 
-*Step 11, setting default model automatically:* [Next]
+*Step 11, setting default model automatically:* [Completed]
 All models are working perfectly at this stage with sequential processing. now we need to set the default one.
-1. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
-2. Check for GPU and memory availability.
-3. **Simplified with sequential processing**: No need to allocate memory budgets for multiple models - just ensure single model fits.
-4. Register chosen default with FolderIndexingQueue.
-We have a recommendation engine in place that can help with this decision. but it should be done once per daemon instance. the hardware doesn't change frequently, so this is a reasonable approach.
+1. understand how the default model (currently hard codded in curated-models.json) impacts the system. this is the only thing we are changing, swithching from a flag in the curated-models.json to a per-machine recomendation.
+2. We need to figure out where in the daemon's lifecycle we should calculate "default model".
+3. The logic to choose the default model should be: "The best quality model available for your machine's hardware and software."
+  - Check for GPU and memory availability.
+  - If Python is not installed or packages are missing, fall back to a CPU-based model.
+4. The following systems are in place might help us with this task as most of the code we need was already implemented, we just need to reuse it:
+  - We already have a system that checks if python models are already downloaded.
+  - We have a recommendation system for models.
+  - We already have a system that checks hardware capabilities that we utilize in the recommendation system.
 
-*Step 12, verify model picking robustness using TMOAT* [Not-Started]
+*Step 12, verify model picking robustness using TMOAT* [Completed]
 - Create a set of test cases that cover various hardware configurations (e.g., different GPU/CPU combinations, memory sizes).
 - For each test case, use the TMOAT method to simulate the folder indexing process.
 - Verify that the correct model is selected based on the machine's capabilities.
@@ -172,7 +176,7 @@ We have a recommendation engine in place that can help with this decision. but i
 2. verify that models re-download if they are not present locally when trying to load them.
 3. **Sequential processing**: verify only ONE model loads at a time, others wait in queue.
 
-*Step 13, sequential processing robustness verification* [Not-Started]
+*Step 13, sequential processing robustness verification* [Completed]
 TMOAT comprehensive test of the sequential indexing system:
 1. Setup test scenario:
    - Folder A: Python model (gpu:all-MiniLM-L6-v2)
@@ -192,7 +196,7 @@ TMOAT comprehensive test of the sequential indexing system:
    - Test daemon restart with active queue
    - Test model download failure (should skip folder, continue queue)
 
-*Step 14, performance and resource verification* [Not-Started]
+*Step 14, performance and resource verification* [Completed]
 Final verification of the sequential system:
 1. Monitor memory usage stays predictable (only one model at a time)
 2. Test edge cases: Out of memory during model load (should fail gracefully)

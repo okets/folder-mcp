@@ -8,6 +8,7 @@
 
 import { ConfigurationComponent } from '../../config/ConfigurationComponent.js';
 import { ILoggingService } from '../../di/interfaces.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../../config/model-registry.js';
 
 /**
  * Configuration folder format (without runtime status)
@@ -203,16 +204,10 @@ export class DaemonConfigurationService implements IDaemonConfigurationService {
    * Get available models list
    */
   getAvailableModels(): string[] {
-    // Return the standard list of available embedding models
-    return [
-      'nomic-embed-text',
-      'mxbai-embed-large',
-      'all-minilm',
-      'bge-large',
-      'bge-base',
-      'sentence-transformers/all-MiniLM-L6-v2',
-      'sentence-transformers/all-mpnet-base-v2'
-    ];
+    // Return all curated model IDs
+    const gpuModels = getSupportedGpuModelIds();
+    const cpuModels = getSupportedCpuModelIds();
+    return [...gpuModels, ...cpuModels];
   }
 
   /**

@@ -8,6 +8,7 @@
 
 import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../../config/model-registry.js';
 
 /**
  * FMDM Service interface for dependency injection
@@ -164,16 +165,13 @@ export class FMDMService implements IFMDMService {
   }
   
   /**
-   * Get default available models
+   * Get default available models (from curated models)
    */
   private getDefaultModels(): string[] {
-    return [
-      'nomic-embed-text',
-      'mxbai-embed-large',
-      'all-minilm',
-      'bge-large',
-      'bge-base'
-    ];
+    // Return all curated model IDs
+    const gpuModels = getSupportedGpuModelIds();
+    const cpuModels = getSupportedCpuModelIds();
+    return [...gpuModels, ...cpuModels];
   }
   
   /**

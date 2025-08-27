@@ -192,3 +192,5 @@ Be a good TMOAT agent!
 ────────────────────────────────────────────────────────────────────
 ────────────────────────────────────────────────────────────────────
 ***Next Issue:***
+'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/TASK-11.5-COURSE-CORRECTION.md' 
+Lets discuss our approach for step 11 of our course correction plan.  

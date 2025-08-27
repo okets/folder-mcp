@@ -32,6 +32,7 @@ interface CuratedModelsConfig {
 }
 
 let cachedConfig: CuratedModelsConfig | null = null;
+let dynamicDefaultModelId: string | null = null;
 
 /**
  * Load curated models configuration
@@ -72,45 +73,60 @@ export function getSupportedCpuModelIds(): string[] {
 }
 
 /**
- * Get default model ID (marked with isDefault: true)
+ * Get default model ID (dynamically selected or smallest CPU model)
  */
 export function getDefaultModelId(): string {
-    const config = loadCuratedModels();
-    const allModels = [...config.gpuModels.models, ...config.cpuModels.models];
-    
-    // Look for model marked as default
-    const defaultModel = allModels.find(model => model.isDefault);
-    if (defaultModel) {
-        return defaultModel.id;
+    // Return dynamically set default if available
+    if (dynamicDefaultModelId) {
+        return dynamicDefaultModelId;
     }
     
-    // Fallback to first GPU model if no default marked
-    const gpuModels = config.gpuModels.models;
-    if (gpuModels.length === 0) {
-        throw new Error('No GPU models available in curated-models.json');
-    }
-    return gpuModels[0]!.id;
+    // Fallback: find smallest CPU model
+    return findSmallestCpuModel();
 }
 
 /**
- * Get default model huggingface ID (marked with isDefault: true)
+ * Set the dynamic default model ID
+ */
+export function setDynamicDefaultModel(modelId: string): void {
+    dynamicDefaultModelId = modelId;
+}
+
+/**
+ * Get the current dynamic default model ID (may be null)
+ */
+export function getDynamicDefaultModelId(): string | null {
+    return dynamicDefaultModelId;
+}
+
+/**
+ * Find the smallest CPU model by size
+ */
+export function findSmallestCpuModel(): string {
+    const config = loadCuratedModels();
+    const cpuModels = config.cpuModels.models;
+    
+    if (cpuModels.length === 0) {
+        throw new Error('No CPU models available in curated-models.json');
+    }
+    
+    // Sort by size and return smallest
+    const smallest = cpuModels.sort((a, b) => a.modelSizeMB - b.modelSizeMB)[0];
+    return smallest!.id;
+}
+
+/**
+ * Get default model huggingface ID (dynamically selected or smallest CPU model)
  */
 export function getDefaultModelHuggingfaceId(): string {
-    const config = loadCuratedModels();
-    const allModels = [...config.gpuModels.models, ...config.cpuModels.models];
+    const defaultId = getDefaultModelId();
+    const model = getModelById(defaultId);
     
-    // Look for model marked as default
-    const defaultModel = allModels.find(model => model.isDefault);
-    if (defaultModel) {
-        return defaultModel.huggingfaceId;
+    if (!model) {
+        throw new Error(`Default model ${defaultId} not found in curated-models.json`);
     }
     
-    // Fallback to first GPU model if no default marked
-    const gpuModels = config.gpuModels.models;
-    if (gpuModels.length === 0) {
-        throw new Error('No GPU models available in curated-models.json');
-    }
-    return gpuModels[0]!.huggingfaceId;
+    return model.huggingfaceId;
 }
 
 /**

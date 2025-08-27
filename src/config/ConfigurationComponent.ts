@@ -9,7 +9,8 @@
 import { IConfigManager, ValidationResult } from '../domain/config/IConfigManager';
 import { ValidationRegistry } from './ValidationRegistry.js';
 import { ValidationPipelineService } from './validation/ValidationPipelineService.js';
-import { getDefaultModelId, getSupportedGpuModelIds, getSupportedCpuModelIds } from './model-registry.js';
+import { getDefaultModelId, getSupportedGpuModelIds, getSupportedCpuModelIds, findSmallestCpuModel, setDynamicDefaultModel } from './model-registry.js';
+import { DefaultModelSelection } from '../daemon/services/default-model-selector.js';
 import { existsSync } from 'fs';
 import { unlinkSync } from 'fs';
 import { join } from 'path';
@@ -506,7 +507,36 @@ export class ConfigurationComponent {
      * Get the default model for new folders
      */
     async getDefaultModel(): Promise<string> {
-        return await this.get('folders.defaults.embeddings.model');
+        // First check if we have a dynamic default model set
+        const dynamicDefault = await this.get('system.defaultModel.modelId');
+        if (dynamicDefault) {
+            return dynamicDefault;
+        }
+        
+        // Then check configured default
+        const configuredDefault = await this.get('folders.defaults.embeddings.model');
+        if (configuredDefault) {
+            return configuredDefault;
+        }
+        
+        // Finally fallback to smallest CPU model
+        return findSmallestCpuModel();
+    }
+    
+    /**
+     * Set the dynamic default model selection
+     */
+    async setDefaultModelSelection(selection: DefaultModelSelection): Promise<void> {
+        await this.set('system.defaultModel', selection);
+        // Also update the in-memory model registry
+        setDynamicDefaultModel(selection.modelId);
+    }
+    
+    /**
+     * Get the current default model selection metadata
+     */
+    async getDefaultModelSelection(): Promise<DefaultModelSelection | null> {
+        return await this.get('system.defaultModel');
     }
     
     /**

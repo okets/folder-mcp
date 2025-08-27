@@ -10,6 +10,7 @@ import { ILoggingService } from '../../di/interfaces.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { getSupportedGpuModelIds, getModelById } from '../../config/model-registry.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
+import { MachineCapabilitiesDetector } from '../../domain/models/machine-capabilities.js';
 
 // Factory functions for dependency injection
 export type PythonEmbeddingServiceFactory = (config: any) => PythonEmbeddingService;
@@ -28,6 +29,7 @@ export interface ModelCheckResult {
  */
 export class ModelCacheChecker {
   private readonly CHECK_TIMEOUT = 15000; // 15 seconds max for GPU checks - needed for Python initialization
+  private capabilitiesDetector: MachineCapabilitiesDetector;
   
   constructor(
     private logger: ILoggingService,
@@ -35,10 +37,11 @@ export class ModelCacheChecker {
     private onnxDownloaderFactory?: ONNXDownloaderFactory
   ) {
     // Factories are optional and will use external creation if not provided
+    this.capabilitiesDetector = new MachineCapabilitiesDetector();
   }
 
   /**
-   * Check all curated models - CPU models always, GPU models with timeout
+   * Check all curated models - CPU models always, GPU models only if GPU detected
    */
   async checkCuratedModels(): Promise<ModelCheckResult> {
     const models: CuratedModelInfo[] = [];
@@ -54,22 +57,34 @@ export class ModelCacheChecker {
       models.push(...cpuModels);
       this.logger.debug(`Checked ${cpuModels.length} CPU models`);
 
-      // Try GPU models with timeout protection
-      const gpuResult = await this.checkGPUModelsWithTimeout();
+      // CRITICAL: Check hardware BEFORE attempting Python
+      const capabilities = await this.capabilitiesDetector.detectCapabilities();
       
-      if (gpuResult.success) {
-        models.push(...gpuResult.models);
-        status.pythonAvailable = true;
-        status.gpuModelsCheckable = true;
-        this.logger.debug(`Checked ${gpuResult.models.length} GPU models`);
-      } else {
-        // Add GPU models as not installed
+      if (capabilities.gpu.type === 'none') {
+        // No GPU detected: Skip Python checks entirely
+        this.logger.info('[MODEL-CHECK] No GPU detected, skipping Python/GPU model checks');
         const defaultGpuModels = this.getDefaultGPUModels();
         models.push(...defaultGpuModels);
-        if (gpuResult.error) {
-          status.error = gpuResult.error;
+        status.error = 'No GPU detected - Python checks skipped';
+      } else {
+        // GPU detected: Try GPU models with timeout protection
+        this.logger.info(`[MODEL-CHECK] GPU detected (${capabilities.gpu.type}), checking Python availability...`);
+        const gpuResult = await this.checkGPUModelsWithTimeout();
+        
+        if (gpuResult.success) {
+          models.push(...gpuResult.models);
+          status.pythonAvailable = true;
+          status.gpuModelsCheckable = true;
+          this.logger.debug(`Checked ${gpuResult.models.length} GPU models`);
+        } else {
+          // Add GPU models as not installed
+          const defaultGpuModels = this.getDefaultGPUModels();
+          models.push(...defaultGpuModels);
+          if (gpuResult.error) {
+            status.error = gpuResult.error;
+          }
+          this.logger.info(`GPU models marked as not installed: ${gpuResult.error}`);
         }
-        this.logger.info(`GPU models marked as not installed: ${gpuResult.error}`);
       }
 
     } catch (error) {

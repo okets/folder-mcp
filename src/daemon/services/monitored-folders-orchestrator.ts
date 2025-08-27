@@ -22,6 +22,7 @@ import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/da
 import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
+import { getDefaultModelId } from '../../config/model-registry.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -1373,7 +1374,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         
         folderConfig = {
           path: folderPath,
-          model: existingConfig?.model || 'nomic-embed-text', // Fallback to default model
+          model: existingConfig?.model || getDefaultModelId(), // Fallback to dynamic default model
           status: 'error',
           notification: this.createErrorNotification(errorMessage)
         };
@@ -1381,7 +1382,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         // If we can't get the config, create a minimal one
         folderConfig = {
           path: folderPath,
-          model: 'nomic-embed-text', // Default model
+          model: getDefaultModelId(), // Dynamic default model
           status: 'error',
           notification: this.createErrorNotification(errorMessage)
         };
@@ -1694,9 +1695,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Import factory function (same as daemon uses)
       const { createPythonEmbeddingService } = await import('../factories/model-factories.js');
       
-      // Create Python embedding service with default config
+      // Create Python embedding service with any valid config (not used for embedding)
+      // This is just for model download capabilities, not for actual embedding
       const pythonService = createPythonEmbeddingService({
-        modelName: 'BAAI/bge-m3', // Default model for initialization
+        modelName: 'sentence-transformers/all-MiniLM-L6-v2', // Any valid HF model ID for service init
         batchSize: 32,
         maxSequenceLength: 512
       });

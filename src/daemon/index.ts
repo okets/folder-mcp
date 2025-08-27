@@ -23,10 +23,11 @@ import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
 import { IMultiFolderIndexingWorkflow } from '../application/indexing/index.js';
 import { SERVICE_TOKENS } from '../di/interfaces.js';
-import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../config/model-registry.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds, setDynamicDefaultModel } from '../config/model-registry.js';
 import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orchestrator.js';
 import { DaemonRegistry } from './registry/daemon-registry.js';
 import { ModelCacheChecker } from './services/model-cache-checker.js';
+import { DefaultModelSelector } from './services/default-model-selector.js';
 
 // Log level configuration
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -166,6 +167,9 @@ class FolderMCPDaemon {
       // Load cached model status FIRST (fast startup)
       info('Loading cached model status...');
       await this.loadCachedModelStatus(loggingService, configComponent);
+      
+      // Select default model based on cached status
+      await this.selectDefaultModel(loggingService);
       
       debug('Loading configured folders into FMDM...');
       await this.fmdmService!.loadFoldersFromConfig();
@@ -566,6 +570,32 @@ class FolderMCPDaemon {
       
       info(`Model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
       
+      // Select optimal default model based on hardware capabilities
+      try {
+        loggingService.info('[DAEMON] Starting default model selection...');
+        const defaultSelector = new DefaultModelSelector(
+          loggingService,
+          result.models,
+          result.status.pythonAvailable
+        );
+        
+        loggingService.info('[DAEMON] Determining optimal default model...');
+        const defaultSelection = await defaultSelector.determineOptimalDefault();
+        
+        // Update configuration with new default
+        // Note: Configuration persistence can be added later when CONFIG_TOKENS is properly exported
+        // For now, just update the in-memory registry
+        
+        // Update model registry immediately
+        setDynamicDefaultModel(defaultSelection.modelId);
+        
+        info(`Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+        loggingService.info(`[DAEMON] Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      } catch (error) {
+        logError('Failed to select default model:', error);
+        // System will fallback to smallest CPU model via model-registry
+      }
+      
       if (result.status.error) {
         info(`Note: ${result.status.error}`);
       }
@@ -588,6 +618,42 @@ class FolderMCPDaemon {
     }
   }
 
+  /**
+   * Select default model based on current FMDM state
+   */
+  private async selectDefaultModel(loggingService: any): Promise<void> {
+    try {
+      // Get current model status from FMDM
+      const fmdm = this.fmdmService!.getFMDM();
+      const models = fmdm.curatedModels || [];
+      const status = fmdm.modelCheckStatus || { pythonAvailable: false, gpuModelsCheckable: false };
+      
+      if (models.length === 0) {
+        debug('No model information available for default selection');
+        return;
+      }
+      
+      loggingService.info('[DAEMON] Starting default model selection...');
+      const defaultSelector = new DefaultModelSelector(
+        loggingService,
+        models,
+        status.pythonAvailable
+      );
+      
+      loggingService.info('[DAEMON] Determining optimal default model...');
+      const defaultSelection = await defaultSelector.determineOptimalDefault();
+      
+      // Update model registry immediately
+      setDynamicDefaultModel(defaultSelection.modelId);
+      
+      info(`Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      loggingService.info(`[DAEMON] Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+    } catch (error) {
+      logError('Failed to select default model:', error);
+      // System will fallback to smallest CPU model via model-registry
+    }
+  }
+  
   /**
    * Load cached model status from configuration (fast startup)
    */
@@ -678,6 +744,22 @@ class FolderMCPDaemon {
       const cpuCount = result.models.filter(m => m.type === 'cpu' && m.installed).length;
       
       debug(`Background model check complete: ${gpuCount} GPU, ${cpuCount} CPU models installed`);
+      
+      // Re-select default model with updated information
+      try {
+        const defaultSelector = new DefaultModelSelector(
+          loggingService,
+          result.models,
+          result.status.pythonAvailable
+        );
+        
+        const defaultSelection = await defaultSelector.determineOptimalDefault();
+        setDynamicDefaultModel(defaultSelection.modelId);
+        
+        debug(`Updated default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
+      } catch (error) {
+        debug('Failed to update default model:', error);
+      }
       
       if (result.status.error) {
         debug(`Note: ${result.status.error}`);

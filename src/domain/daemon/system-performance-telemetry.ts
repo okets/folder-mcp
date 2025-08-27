@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
+import v8 from 'v8';
 
 /**
  * System performance snapshot
@@ -277,12 +278,15 @@ export class SystemPerformanceTelemetry extends EventEmitter {
         ? (this.queryStats.cacheHits / this.queryStats.totalCacheRequests) * 100
         : 0;
 
+      // Get heap statistics for accurate memory utilization
+      const heapStats = v8.getHeapStatistics();
+      
       // Create performance snapshot
       const snapshot: PerformanceSnapshot = {
         timestamp: now,
         systemMetrics: {
           memoryUsageMB: Math.round(memoryUsage.heapUsed / (1024 * 1024)),
-          memoryUtilizationPercent: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100),
+          memoryUtilizationPercent: Math.round((memoryUsage.heapUsed / heapStats.heap_size_limit) * 100),
           heapUsedMB: Math.round(memoryUsage.heapUsed / (1024 * 1024)),
           heapTotalMB: Math.round(memoryUsage.heapTotal / (1024 * 1024)),
           uptimeSeconds: Math.round(process.uptime()),
@@ -343,13 +347,14 @@ export class SystemPerformanceTelemetry extends EventEmitter {
     const recommendations: string[] = [];
     let healthScore = 100;
 
-    // Memory health check
-    const memoryUtilization = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
-    if (memoryUtilization > 90) {
+    // Memory health check - use heap limit instead of heap total for accurate measurement
+    const heapStats = v8.getHeapStatistics();
+    const realMemoryUtilization = (memoryUsage.heapUsed / heapStats.heap_size_limit) * 100;
+    if (realMemoryUtilization > 75) {
       issues.push('Critical memory usage detected');
       recommendations.push('Consider restarting the daemon or reducing concurrent operations');
       healthScore -= 30;
-    } else if (memoryUtilization > 75) {
+    } else if (realMemoryUtilization > 60) {
       issues.push('High memory usage detected');
       recommendations.push('Monitor memory usage and consider reducing folder count');
       healthScore -= 15;
