@@ -1,4 +1,4 @@
-# Phase 8 Step 12: MCP Endpoints Multi-Folder Support
+# Phase 9: MCP Endpoints Multi-Folder Support
 
 **Status**: 📋 PLANNED  
 **Priority**: HIGH  

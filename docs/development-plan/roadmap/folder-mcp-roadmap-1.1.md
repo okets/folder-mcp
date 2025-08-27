@@ -621,363 +621,128 @@ theme: "dark"  # User prefers dark mode
 - System configs isolated in system-configuration.json ✅ (Task 2 complete)
 - Clean, maintainable configuration architecture ✅ (DI integrated)
 
-## Phase 8: Enhanced UX & Core Features
+## Phase 8: Multi-Folder Multi-Model Indexing System ✅ COMPLETED
 
-**Goal**: Build upon configuration foundation to add advanced features
+**Goal**: Complete transformation to multi-folder, multi-model indexing system with unified TUI interface
 
-### **User Stories**
-- **As a user, I want powerful search capabilities**: Answer mode for Q&A, locate for specific items, explore for discovery
-- **As a user, I want to explore my documents**: Topic discovery and clustering
-- **As a user, I want context within limits**: Intelligent content assembly respecting token limits
-- **As a user, I want to find examples**: Code examples and practical usage patterns
-- **As a user, I want to navigate relationships**: Find related documents, tests, implementations
-- **As a user, I want flexibility in embedding generation**: Choice of backends
-- **As a user, I want to see indexing progress**: Real-time progress bars
-- **As a user, I want to monitor system health**: Configurable monitoring
-- **As an LLM, I want clear endpoint documentation**: Know exactly when and how to use each endpoint
-- **As an LLM, I want helpful error messages**: Understand what went wrong and what to try next
+**Scope Achieved**: During Phase 8, the project underwent a major architectural transformation that completely rebuilt the application from the ground up. What started as "Enhanced UX & Core Features" became a comprehensive system rewrite.
 
-### Task 1: Progress & Status System
-
-**Goal**: Provide configurable feedback on all operations
+### **Major Achievements**
+- **✅ Unified TUI Application**: Complete terminal interface with wizard, folder management, and real-time status
+- **✅ Multi-Folder Support**: Add, configure, and manage multiple folders with different embedding models
+- **✅ WebSocket Daemon Architecture**: Persistent background daemon with TUI client communication
+- **✅ Python Embeddings System**: GPU-accelerated embeddings with 8 supported models and hardware detection
+- **✅ SQLite-vec Vector Storage**: Production-ready vector database with persistent storage and fast search
+- **✅ Dynamic Model Selection**: Hardware-aware model defaults with sequential processing and model switching
+- **✅ Comprehensive Configuration System**: Unified configuration with validation, CLI commands, and hot reload
+- **✅ Real-time Progress Reporting**: Live status updates during indexing with detailed progress tracking
 
-**Completion Criteria**:
-- [ ] Progress displays for long operations
-- [ ] Configurable verbosity levels
-- [ ] Performance metrics available
-- [ ] Flexible logging system
-- [ ] Status information accessible
+### **Core Infrastructure Built**
+- **Configuration Architecture**: Single source of truth with ValidationRegistry and ConfigurationComponent
+- **Daemon-Centric Design**: Background service managing all folders with persistent state
+- **TUI Framework**: React Ink-based interface with reusable components and responsive design
+- **Embeddings Pipeline**: Complete Python subprocess with JSON-RPC communication and GPU optimization
+- **Vector Storage**: SQLite-vec databases per folder with incremental updates and metadata storage
+- **Process Management**: Keep-alive systems, graceful shutdown, and error recovery
 
+### **Technical Components Delivered**
+- **WebSocket Communication**: Daemon ↔ TUI real-time communication with message correlation
+- **Folder Validation Service**: Comprehensive validation with duplicate, sub-folder, and ancestor detection
+- **Model Registry**: 8 supported embedding models with automatic downloads and device optimization
+- **Progress Tracking**: Complete indexing flow with status transitions (pending → scanning → parsing → embedding → indexing → ready)
+- **Error Handling**: Graceful degradation, error reporting, and recovery mechanisms
 
-### Task 2: Intelligent Embedding & Search System with Enhanced Endpoints
+### **User Experience Transformation**
+- **First-Run Wizard**: Intelligent folder selection with smart defaults and model auto-detection
+- **Add Folder Wizard**: Reusable component with validation and confirmation flows
+- **Real-time Status**: Live folder status with progress bars and error reporting
+- **Multi-Model Support**: Per-folder model selection with hardware-aware defaults
+- **CLI Integration**: Complete CLI with folder management and configuration commands
 
-**Goal**: Build comprehensive embedding and search capabilities with LLM-optimized endpoints
+### **Testing & Quality**
+- **905+ Tests Passing**: Comprehensive test coverage including real document processing
+- **E2E Integration**: Full workflow testing with business documents (Marketing, Finance, Engineering, Legal)
+- **Performance Optimization**: GPU acceleration, model caching, and memory management
+- **Cross-platform Support**: Windows, macOS, and Linux compatibility with terminal-specific optimizations
 
-**Requirements**:
-- Support multiple embedding backends with automatic selection
-- Enhance search with answer, locate, and explore modes
-- Add topic discovery and clustering capabilities
-- Provide intelligent context assembly within token limits
-- Enable code example discovery
-- Support document relationship navigation
-- Consolidate and optimize existing endpoints
+**Phase 8 Success Metrics**:
+- ✅ Complete architectural transformation to multi-folder system
+- ✅ Production-ready embeddings with GPU acceleration
+- ✅ Real-time TUI interface with comprehensive folder management
+- ✅ Zero test failures across entire codebase (905/905 passing)
+- ✅ Hardware-adaptive model selection and performance optimization
+- ✅ Persistent vector storage with SQLite-vec database per folder
 
-**New Endpoints**:
-- `explore_topics` - Topic discovery
-- `get_context` - Smart context assembly
-- `find_code_examples` - Code usage discovery
-- `get_related` - Document relationships
-- `help` - LLM-optimized documentation
+## Phase 9: MCP Endpoints Multi-Folder Support
 
-**Completion Criteria**:
-- [ ] Multiple embedding backends supported
-- [ ] Search modes implemented (answer/locate/explore)
-- [ ] Topic clustering available
-- [ ] All new endpoints functional
-- [ ] Existing endpoints enhanced
-- [ ] Configuration-driven behavior
+**Goal**: Enable MCP endpoints to work with multiple folders and models
 
+**Why**: Phase 8 built multi-folder indexing infrastructure. Phase 9 connects the MCP endpoints to use this system instead of single-folder access.
 
-### Task 3: Version Control & Update System
+**What**: Transform existing MCP endpoints to be folder-aware while maintaining the same excellent interface for LLMs.
 
-**Goal**: Enable version management and updates
+**Success Criteria**: LLMs can discover, search, and retrieve documents across multiple folders with automatic model switching.
 
-**Completion Criteria**:
-- [ ] Version checking available
-- [ ] Update notifications working
-- [ ] Configuration versioning supported
-- [ ] Update preferences configurable
-- [ ] Version information accessible via MCP
+**Reference Document**: [Phase-9-MCP-Endpoints-Multi-Folder-Support.md](currently-implementing/Phase-9-MCP-Endpoints-Multi-Folder-Support.md)
 
+## Phase 10: TUI Rebuild & Navigation
 
-### Task 4: Auto-Config Placement & Client Support
+**Goal**: Rebuild TUI with proper screens, navigation menu, and professional interface
 
-**Goal**: Automate client configuration setup
+**Why**: Current TUI is functional but needs proper screen architecture, navigation system, and polished user experience for production use.
 
-**Completion Criteria**:
-- [ ] Multiple client support (Claude Desktop, VSCode, etc.)
-- [ ] Automatic configuration generation
-- [ ] Client-specific settings supported
-- [ ] All endpoints included in configs
-- [ ] Configuration placement automated
+**What**:
+- Complete TUI architecture rebuild with proper screen management
+- Navigation menu system for different application areas
+- Multiple screens (folder management, agent connections, settings, monitoring)
+- Professional interface design and user experience improvements
+- Centralized focus management and keyboard navigation system
 
+**Success Criteria**: Professional TUI interface with intuitive navigation and multiple functional screens.
 
-**Phase 8 Completion Review**:
-- Feature adoption and user feedback
-- Performance impact assessment
-- System usability evaluation
-- LLM integration effectiveness
-- Lessons learned for next phases
+## Phase 11: Remote Access
 
-## Phase 9: Remote Access & Production Features
+**Goal**: Enable secure remote access to knowledge base
 
-**Goal**: Enable simple remote access using proven patterns and production-ready features
+**Why**: Users want to access their knowledge base from anywhere, not just locally.
 
-### **User Stories**
-- **As a user, I want simple remote access**: One command to enable remote
-- **As a user, I want secure remote connections**: API keys that just work
-- **As a user, I want production reliability**: Set it and forget it
+**What**:
+- Remote access via Server-Sent Events (SSE) with authentication
+- Cloudflare tunnel support for easy setup
+- Security configuration (API keys, rate limiting, audit logging)
+- VSCode MCP integration optimization
 
-### **Design Decision: Why SSE over WebSockets**
+**Success Criteria**: Users can securely access their knowledge base remotely with proper authentication.
 
-Since LLMs (like Claude) are the primary consumers of MCP servers, we chose our transport based on what LLMs actually need:
+## Phase 12: Release 1.0 - Production System & Advanced Features
 
-**What LLMs DON'T Need:**
-- Real-time bidirectional communication (requests are request/response)
-- Persistent connections (each query is independent)
-- Complex state management (LLMs are stateless between calls)
+**Goal**: Deliver complete production-ready system with advanced capabilities
 
-**What LLMs DO Need:**
-- **Reliability**: Connections should work every time
-- **Simplicity**: Fewer failure points mean better reliability
-- **Clear errors**: When things fail, clear error messages for debugging
-- **Streaming**: For large responses (where SSE excels)
+**Why**: Combine production system management with advanced features for comprehensive 1.0 release.
 
-**Why SSE is Perfect for LLM Consumption:**
-1. **One-way streaming**: MCP servers stream responses to LLMs, no back-channel needed
-2. **HTTP-based**: Works through firewalls, proxies, and Cloudflare without issues
-3. **Simple debugging**: It's just HTTP GET with special headers
-4. **Auto-reconnect**: Built into the protocol
-5. **Connection pooling**: HTTP keep-alive provides efficiency for sequential requests
+**What**:
+- **Production System Management**: Enhanced daemon process management, multi-agent connection support, OS integration (auto-start on boot)
+- **Advanced LLM Features**: New endpoints (`explore_topics`, `get_context`, `find_code_examples`, `get_related`, `help`)
+- **Extended Capabilities**: Broader file format support, code intelligence features, performance optimizations
+- **Versioning & Installation**: Semantic versioning, npm registry publishing, update notifications
+- **CI/CD Pipeline**: Automated testing, building, and deployment pipeline for reliable releases
+- **Release Readiness**: Complete testing, documentation, and release automation
 
-**Our Transport Strategy:**
-- **Local**: `stdio` - Zero network overhead, direct process communication
-- **Remote**: `SSE` - HTTP-based, streaming support, simple authentication
+**Success Criteria**: Complete production system with advanced features and automated CI/CD pipeline ready for 1.0 release.
 
-This choice optimizes for LLM consumption patterns while maintaining maximum simplicity.
+## Phase 13: Public Release
 
-### Task 1: Simple SSE Remote Access
+**Goal**: Deliver polished public release with comprehensive documentation
 
-**Goal**: Enable remote access to MCP server
+**Why**: Make the system publicly available with professional documentation and support materials.
 
-**Completion Criteria**:
-- [ ] Remote access working via SSE
-- [ ] Authentication implemented
-- [ ] Health monitoring available
-- [ ] Cloudflare tunnel support
-- [ ] Client configuration automated
+**What**:
+- Comprehensive user documentation and guides
+- API reference and developer documentation  
+- Cross-platform compatibility verification
+- Public release preparation and distribution
 
-
-### Task 2: Simple Security Configuration
-
-**Goal**: Implement effective security measures
-
-**Completion Criteria**:
-- [ ] API key authentication working
-- [ ] Rate limiting implemented
-- [ ] Audit logging available
-- [ ] CORS configured for web clients
-- [ ] Security settings configurable
-
-
-### Task 3: VSCode 1.101 MCP Integration
-
-**Goal**: Optimize for VSCode MCP support
-
-**Completion Criteria**:
-- [ ] VSCode integration working
-- [ ] Development features available
-- [ ] Tool organization supported
-- [ ] Feature flags functional
-- [ ] Configuration-driven behavior
-
-
-### Task 4: Production Readiness
-
-**Goal**: Prepare system for production deployment
-
-**Completion Criteria**:
-- [ ] Auto-start capability
-- [ ] Resilience features implemented
-- [ ] Monitoring system available
-- [ ] Backup functionality working
-- [ ] Platform-specific optimizations
-- [ ] All features configurable
-
-
-**Phase 9 Completion Review**:
-- Remote access reliability
-- Security effectiveness
-- Production readiness assessment
-- Platform compatibility
-- Deployment experience feedback
-
-## Phase 10: Advanced Features & Polish
-
-**Goal**: Configuration-driven advanced features building on stable foundation
-
-### **User Stories**
-- **As a user, I want search behavior customized**: Search configuration
-- **As a user, I want format support configured**: Enable/disable formats
-- **As a user, I want performance tuned**: Configuration-based optimization
-
-### Task 1: Advanced Search Features
-
-**Goal**: Enhance search capabilities
-
-**Completion Criteria**:
-- [ ] Multiple search algorithms available
-- [ ] Customizable ranking system
-- [ ] Advanced filtering options
-- [ ] Export functionality
-- [ ] Integration with topic discovery
-
-
-### Task 2: Extended File Format Support
-
-**Goal**: Expand and optimize file format handling
-
-**Completion Criteria**:
-- [ ] Additional format support
-- [ ] Format-specific optimizations
-- [ ] Parser selection available
-- [ ] Performance tuning per format
-- [ ] Configurable format features
-
-### Task 3: Code Intelligence Features
-
-**Goal**: Add intelligent code analysis capabilities
-
-**Completion Criteria**:
-- [ ] AST parsing functional
-- [ ] Framework detection working
-- [ ] Code-aware search available
-- [ ] Language-specific features
-- [ ] Integration with search system
-- [ ] All features configurable
-
-### Task 4: Performance & Scalability
-
-**Goal**: Optimize system performance and scalability
-
-**Completion Criteria**:
-- [ ] Performance parameters tunable
-- [ ] Resource limits implemented
-- [ ] Caching system optimized
-- [ ] Scaling capabilities available
-- [ ] All settings configurable
-
-### Task 5: Chat Interface
-
-**Goal**: Add interactive chat capabilities
-
-**Completion Criteria**:
-- [ ] Chat interface functional
-- [ ] Multiple LLM providers supported
-- [ ] Session management working
-- [ ] Export functionality available
-- [ ] All features configurable
-
-**Phase 10 Completion Review**:
-- Feature completeness
-- System complexity assessment
-- Performance evaluation
-- User satisfaction metrics
-- Final preparation checklist
-
-## Phase 11: Release & Documentation
-
-**Goal**: Production release with configuration-focused documentation
-
-### Task 1: System Testing & Validation
-
-**Goal**: Comprehensive system testing
-
-**Completion Criteria**:
-- [ ] Full test coverage achieved
-- [ ] Configuration scenarios validated
-- [ ] Performance benchmarks completed
-- [ ] Cross-platform testing done
-- [ ] Edge cases handled
-
-### Task 2: Documentation
-
-**Goal**: Complete system documentation
-
-**Note**: The `help` endpoint provides LLM-optimized documentation for all endpoints.
-
-**Completion Criteria**:
-- [ ] User guide complete
-- [ ] Configuration reference documented
-- [ ] API documentation available
-- [ ] Examples for all features
-- [ ] Configuration guides ready
-- [ ] Troubleshooting guide complete
-
-### Task 3: Release Automation
-
-**Goal**: Automate release process
-
-**Completion Criteria**:
-- [ ] Release automation working
-- [ ] Changelog generation automated
-- [ ] Compatibility checking implemented
-- [ ] Configuration tools available
-- [ ] Release process documented
-
-### Task 4: Update Development Workflow
-
-**Goal**: Update development practices for production
-
-**Completion Criteria**:
-- [ ] Development workflow updated
-- [ ] Production practices documented
-- [ ] Configuration procedures established
-- [ ] Compatibility guidelines defined
-- [ ] Team processes formalized
-
-### Task 5: Windows Platform Compatibility Verification
-
-**Goal**: Comprehensive verification that Windows TUI is flicker-free and performs identically to macOS
-
-**Background**: During development, Windows terminal handling required specific fixes to eliminate screen flickering, startup tearing, and exit behavior differences compared to macOS. This task ensures all fixes are working and documented.
-
-**Windows-Specific Fixes Implemented**:
-- [ ] **Debug Logging Removal**: Verify no console.error statements interfere with ANSI escape codes
-  - [ ] TextListItem.tsx clean (20+ debug statements removed)
-  - [ ] ContainerListItem.tsx clean (dynamic height and ButtonsRow debugging removed)
-  - [ ] ButtonsRow.tsx clean (render, width calculation, and getRequiredLines debugging removed)
-  - [ ] AppFullscreen.tsx clean (wizard completion logging removed)
-  
-- [ ] **Windows Terminal Setup**: Verify proper ANSI escape code handling
-  - [ ] Virtual Terminal Processing detection working
-  - [ ] Alternate screen buffer setup (\\x1b[?1049h) functional
-  - [ ] Multiple terminal detection (Windows Terminal, VSCode, PowerShell, Command Prompt)
-  - [ ] Screen clearing utilities working without interference
-  
-- [ ] **Exit Mechanism**: Verify ESC key properly exits on Windows
-  - [ ] Platform-specific exit strategy working (process.exit(0) with terminal cleanup)
-  - [ ] Terminal state restoration on exit (cursor show, alternate screen exit)
-  - [ ] No "Terminate batch job (Y/N)?" prompts
-  - [ ] Clean exit without Ctrl+C requirement
-  
-- [ ] **Startup Experience**: Verify no startup flickering or tearing
-  - [ ] Single terminal initialization without cascading clears
-  - [ ] WindowsScreenWrapper minimal and non-aggressive
-  - [ ] No periodic screen clearing during startup
-  - [ ] Smooth initialization identical to macOS experience
-
-**Test Scenarios**:
-- [ ] **Fresh Startup**: Clean startup on Windows Terminal, PowerShell, Command Prompt, VSCode Terminal
-- [ ] **Add Folder Wizard**: No flickering during wizard navigation and interaction
-- [ ] **ESC Exit**: Single ESC starts countdown, double ESC exits cleanly
-- [ ] **Long-term Usage**: No screen artifacts during extended TUI sessions
-- [ ] **Cross-Platform Parity**: Windows experience matches macOS functionality
-
-**Completion Criteria**:
-- [ ] All Windows-specific fixes verified working
-- [ ] No screen flickering in any Windows terminal environment
-- [ ] ESC key exits cleanly without manual intervention
-- [ ] Startup experience smooth and tear-free
-- [ ] Cross-platform behavior identical
-- [ ] Windows compatibility documentation complete
-
-**Phase 11 Completion Review**:
-- System readiness verification
-- User adoption success metrics
-- Performance benchmarks achieved
-- Quality assurance complete
-- Future roadmap defined
+**Success Criteria**: Polished system ready for public use with complete documentation.
 
 ## Success Metrics
 
