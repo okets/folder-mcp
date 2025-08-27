@@ -192,5 +192,34 @@ Be a good TMOAT agent!
 ────────────────────────────────────────────────────────────────────
 ────────────────────────────────────────────────────────────────────
 ***Next Issue:***
-'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/TASK-11.5-COURSE-CORRECTION.md' 
-Lets discuss our approach for step 11 of our course correction plan.  
+This is a research task. it should change our plan for the MCP endpoints re-implementation.
+  Current status:
+  We finished task 11.5 in '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/cur
+  rently-implementing/Phase-8-Unified-Application-Flow-plan.md'
+
+  now our indexing system is working, tested and very robust.
+  Now we can index folders using ONNX models, python tourch models or even Ollama.
+  Since switching to a multi-folder multi-model support, our old MCP endpoints from our MVP 
+  stopped working. they supported a single folder, fixed model and now needs to be adjusted to
+   our multi-folder multi-model support.
+  Over our development course we might have patched the MCP endpoints so that we can continue 
+  working without the app breaking but now it's time we support them fully.
+  once both indexing and querying is complete, we finally have our core functionality ready.
+
+  What we need to do?
+  1. Review our new indexing system and folder lifecycle. querying our indexed folder should 
+  be a part of the "active" state of a folder.
+  2. Review our MVP endpoints, they worked well for single-folder with a fixed model, I like 
+  the interface so we don't need to change it too much, just support multi-folder with 
+  orchastrating which model should be loaded for searching that folder.
+  3. read our outdated documents and see what our original plans for the MCP endpoints and 
+  search process were, decide together what to keep and what to change.
+  '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md'
+  '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase
+  -8-Unified-Application-Flow-plan.md'
+  4. Create a plan for transforming our MVP endpoints that stopped working to be connected to 
+  our new multi-folder, multi-model supported indexing system.
+
+  The plan should be a PRD, don't dive to much into implementation, you can mention 
+  implementation tasks, warn from pitfalls or mark parts for change/deletion, but very high 
+  level. it's not an implementation plan, just a PRD.
