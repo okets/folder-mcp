@@ -42,6 +42,7 @@ interface WebSocketClient {
 class SimpleWebSocketClient implements WebSocketClient {
     private ws: any = null; // Using any to avoid WebSocket type issues in Node.js
     private messageCallbacks: Array<(data: any) => void> = [];
+    private closeCallbacks: Array<() => void> = [];
 
     async connect(_url: string): Promise<void> {
         return new Promise(async (resolve, reject) => {
@@ -64,6 +65,8 @@ class SimpleWebSocketClient implements WebSocketClient {
                 
                 this.ws.on('close', () => {
                     this.ws = null;
+                    // Notify all close listeners
+                    this.closeCallbacks.forEach(callback => callback());
                 });
                 
                 // Connection already established by DaemonConnector
@@ -82,6 +85,10 @@ class SimpleWebSocketClient implements WebSocketClient {
 
     onMessage(callback: (data: any) => void): void {
         this.messageCallbacks.push(callback);
+    }
+
+    onClose(callback: () => void): void {
+        this.closeCallbacks.push(callback);
     }
 
     close(): void {
@@ -724,20 +731,27 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     
     // Model recommendation and dynamic update functionality
     let requestIdCounter = 0;
-    const pendingRequests = new Map<string, (response: any) => void>();
+    const pendingRequests = new Map<string, { resolve: (response: any) => void; reject: (error: Error) => void }>();
     
-    // Set up WebSocket message handler for model recommendations
-    if (wsClient.isConnected()) {
-        wsClient.onMessage((message: any) => {
-            if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
-                const resolver = pendingRequests.get(message.id);
-                if (resolver) {
-                    resolver(message);
-                    pendingRequests.delete(message.id);
-                }
+    // Set up WebSocket message handler for model recommendations (always, not conditionally)
+    wsClient.onMessage((message: any) => {
+        if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
+            const promiseHandlers = pendingRequests.get(message.id);
+            if (promiseHandlers) {
+                promiseHandlers.resolve(message);
+                pendingRequests.delete(message.id);
             }
+        }
+    });
+    
+    // Set up WebSocket close handler to clean up pending requests
+    wsClient.onClose(() => {
+        // Reject all pending requests when connection closes
+        pendingRequests.forEach((promiseHandlers, requestId) => {
+            promiseHandlers.reject(new Error('WebSocket connection closed'));
         });
-    }
+        pendingRequests.clear();
+    });
     
     // Function to request model recommendations from daemon
     const requestModelRecommendations = async (languages: string[], mode: 'assisted' | 'manual'): Promise<ModelCompatibilityScore[]> => {
@@ -762,19 +776,32 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         // Send WebSocket message
         
         return new Promise((resolve, reject) => {
-            // Set up response handler
-            pendingRequests.set(requestId, (response: ModelRecommendResponseMessage) => {
-                // Received model recommendation response
-                if (response.data) {
-                    // Found models
-                    resolve(response.data.models);
-                } else {
-                    // No data in response - returning empty list
-                    resolve([]);
+            // Check connection again right before sending
+            if (!wsClient.isConnected()) {
+                // Connection lost before send - returning empty list
+                resolve([]);
+                return;
+            }
+            
+            // Set up response handler with both resolve and reject
+            pendingRequests.set(requestId, {
+                resolve: (response: ModelRecommendResponseMessage) => {
+                    // Received model recommendation response
+                    if (response.data) {
+                        // Found models
+                        resolve(response.data.models);
+                    } else {
+                        // No data in response - returning empty list
+                        resolve([]);
+                    }
+                },
+                reject: (error: Error) => {
+                    // Connection closed or other error
+                    resolve([]); // Return empty list on error
                 }
             });
             
-            // Send request
+            // Send request (protected by connection check above)
             wsClient.send(message);
             
             // Set timeout for request

@@ -90,8 +90,19 @@ export class DaemonService extends EventEmitter implements IDaemonService {
 
       // Start WebSocket server for FMDM communication
       // Use configured port if available, otherwise default to 31849 (HTTP) / 31850 (WS)
-      const httpPort = this.config.port || 31849;
+      // Use nullish coalescing so that port=0 isn’t overridden,
+      // and validate that it’s an integer in the 1–65535 range.
+      const httpPort = this.config.port ?? 31849;
+      if (!Number.isInteger(httpPort) || httpPort < 1 || httpPort > 65535) {
+        throw new Error(`Invalid HTTP port: ${httpPort}`);
+      }
+
+      // Derive WebSocket port and guard against overflow past 65535.
       const wsPort = httpPort + 1;
+      if (wsPort > 65535) {
+        throw new Error(`Invalid derived WebSocket port: ${wsPort}`);
+      }
+
       await this.webSocketServer.start(wsPort); // Pass actual WebSocket port
       this.logger.info(`FMDM WebSocket server started on ws://127.0.0.1:${wsPort}`);
 
