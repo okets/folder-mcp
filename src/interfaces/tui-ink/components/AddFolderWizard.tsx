@@ -402,16 +402,13 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
 
     // Initialize WebSocket client for daemon communication using auto-discovery
     const wsClient = new SimpleWebSocketClient();
-    let isConnected = false;
     
     // Try to connect to daemon using auto-discovery
     try {
         await wsClient.connect(''); // URL parameter is ignored, uses auto-discovery
-        isConnected = true;
         // WebSocket connected to daemon successfully via auto-discovery
     } catch (error) {
         // Failed to connect to daemon
-        isConnected = false;
     }
     
     // Initialize model state
@@ -730,7 +727,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     const pendingRequests = new Map<string, (response: any) => void>();
     
     // Set up WebSocket message handler for model recommendations
-    if (isConnected) {
+    if (wsClient.isConnected()) {
         wsClient.onMessage((message: any) => {
             if (message.type === 'models.recommend.response' && message.id && pendingRequests.has(message.id)) {
                 const resolver = pendingRequests.get(message.id);
@@ -746,7 +743,7 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     const requestModelRecommendations = async (languages: string[], mode: 'assisted' | 'manual'): Promise<ModelCompatibilityScore[]> => {
         // Requesting model recommendations
         
-        if (!isConnected) {
+        if (!wsClient.isConnected()) {
             // Not connected to daemon - returning empty list
             return [];
         }

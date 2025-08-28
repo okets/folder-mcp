@@ -1021,7 +1021,11 @@ return;
       } else {
         // Ollama models (explicit ollama: prefix or any other model ID)
         try {
-          const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+          // Normalize OLLAMA_HOST: trim, remove trailing slashes, and remove /api suffix if present
+          const ollamaHost = (process.env.OLLAMA_HOST || 'http://localhost:11434')
+            .trim()
+            .replace(/\/+$/, '')
+            .replace(/\/api$/, '');
           const response = await fetch(`${ollamaHost}/api/tags`, {
             method: 'GET',
             signal: AbortSignal.timeout(2000)

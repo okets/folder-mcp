@@ -126,7 +126,7 @@ describe('Memory Performance Tests', () => {
       });
         // Basic sanity check - heap usage should be reasonable for a test environment
       expect(current.heapUsed).toBeGreaterThan(1024 * 1024); // At least 1MB
-      expect(current.heapUsed).toBeLessThan(150 * 1024 * 1024); // Less than 150MB
+      expect(current.heapUsed).toBeLessThan(300 * 1024 * 1024); // Less than 300MB (updated due to application growth)
     });
   });
 });

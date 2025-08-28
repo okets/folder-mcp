@@ -81,7 +81,8 @@ export class ONNXDownloader {
     // Ensure cache directory exists
     await fs.mkdir(this.cacheDir, { recursive: true });
 
-    const modelDir = path.join(this.cacheDir, model.huggingfaceId!.replace('/', '_'));
+    // Match transformers.js cache structure: Xenova/multilingual-e5-small/onnx/model_quantized.onnx
+    const modelDir = path.join(this.cacheDir, model.huggingfaceId!, 'onnx');
     const modelFile = path.join(modelDir, 'model_quantized.onnx');
 
     // Check if model already exists and verify size if requested
@@ -317,7 +318,8 @@ export class ONNXDownloader {
       return false;
     }
 
-    const modelDir = path.join(this.cacheDir, model.huggingfaceId!.replace('/', '_'));
+    // Match transformers.js cache structure: Xenova/multilingual-e5-small/onnx/model_quantized.onnx
+    const modelDir = path.join(this.cacheDir, model.huggingfaceId!, 'onnx');
     const modelFile = path.join(modelDir, 'model_quantized.onnx');
     
     return await this.fileExists(modelFile);
@@ -362,11 +364,23 @@ export class ONNXDownloader {
           const stats = await fs.stat(entryPath);
           
           if (stats.isDirectory()) {
-            const modelFile = path.join(entryPath, 'model_quantized.onnx');
+            // Check for nested structure: vendor/model/onnx/model_quantized.onnx
+            const modelFile = path.join(entryPath, 'onnx', 'model_quantized.onnx');
             if (await this.fileExists(modelFile)) {
               const fileSize = await this.getFileSize(modelFile);
               totalSize += fileSize;
-              models.push(entry.replace('_', '/'));
+              models.push(entry);
+            } else {
+              // Also check subdirectories for models
+              const subEntries = await fs.readdir(entryPath).catch(() => []);
+              for (const subEntry of subEntries) {
+                const subPath = path.join(entryPath, subEntry, 'onnx', 'model_quantized.onnx');
+                if (await this.fileExists(subPath)) {
+                  const fileSize = await this.getFileSize(subPath);
+                  totalSize += fileSize;
+                  models.push(`${entry}/${subEntry}`);
+                }
+              }
             }
           }
         }

@@ -41,13 +41,22 @@ export class OllamaEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private initialized = false;
 
   constructor(config?: Partial<OllamaConfig>) {
+    // Normalize OLLAMA_HOST if provided
+    const defaultBaseUrl = process.env.OLLAMA_HOST || 'http://localhost:11434';
+    const normalizedBaseUrl = defaultBaseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+    
     this.config = {
-      baseUrl: process.env.OLLAMA_HOST || 'http://localhost:11434',
+      baseUrl: normalizedBaseUrl,
       timeout: 30000, // 30 seconds for embedding generation
       retries: 3,
       model: 'mxbai-embed-large', // Default to a popular embedding model
       ...config
     };
+    
+    // Also normalize config.baseUrl if provided
+    if (this.config.baseUrl) {
+      this.config.baseUrl = this.config.baseUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+    }
   }
 
   /**

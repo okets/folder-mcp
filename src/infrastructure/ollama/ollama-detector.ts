@@ -41,7 +41,8 @@ export class OllamaDetector {
   private readonly timeout: number;
 
   constructor(endpoint: string = process.env.OLLAMA_HOST || 'http://localhost:11434', timeout: number = 3000) {
-    this.endpoint = endpoint;
+    // Normalize endpoint: trim whitespace, remove trailing slashes, and remove /api suffix if present
+    this.endpoint = endpoint.trim().replace(/\/+$/, '').replace(/\/api$/, '');
     this.timeout = timeout;
   }
 
