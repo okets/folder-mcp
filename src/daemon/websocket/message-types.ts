@@ -100,6 +100,27 @@ export interface GetFoldersConfigMessage extends WSClientMessageBase {
 }
 
 /**
+ * Get server info request message
+ * For Phase 9 - Sprint 1 Task 3: Simple hello world endpoint with basic system info
+ */
+export interface GetServerInfoMessage extends WSClientMessageBase {
+  type: 'get_server_info';
+  id: string; // Required for correlation
+}
+
+/**
+ * Get folder info request message
+ * For Phase 9 - Sprint 1 Task 4: Get detailed info for a specific folder
+ */
+export interface GetFolderInfoMessage extends WSClientMessageBase {
+  type: 'get_folder_info';
+  id: string; // Required for correlation
+  payload: {
+    folderPath: string;
+  };
+}
+
+/**
  * Union type for all client messages
  */
 export type WSClientMessage = 
@@ -110,7 +131,9 @@ export type WSClientMessage =
   | PingMessage
   | ModelListMessage
   | ModelRecommendMessage
-  | GetFoldersConfigMessage;
+  | GetFoldersConfigMessage
+  | GetServerInfoMessage
+  | GetFolderInfoMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -308,6 +331,42 @@ export interface GetFoldersConfigResponseMessage extends WSServerMessageBase {
 }
 
 /**
+ * Get server info response message
+ * For Phase 9 - Sprint 1 Task 3: Returns basic system and daemon info
+ */
+export interface GetServerInfoResponseMessage extends WSServerMessageBase {
+  type: 'get_server_info_response';
+  id: string; // Matches request ID
+  serverInfo: {
+    version: string;          // folder-mcp version
+    platform: string;         // darwin, win32, linux
+    nodeVersion: string;      // Node.js version
+    daemonPid: number;        // Process ID
+    daemonUptime: number;     // Uptime in seconds
+    hardware: {
+      gpu: string;            // GPU name/type or "none"
+      cpuCores: number;       // Number of CPU cores
+      ramGB: number;          // Total RAM in GB
+    };
+  };
+}
+
+/**
+ * Get folder info response message
+ * For Phase 9 - Sprint 1 Task 4: Returns detailed info for a specific folder
+ */
+export interface GetFolderInfoResponseMessage extends WSServerMessageBase {
+  type: 'get_folder_info_response';
+  id: string; // Matches request ID
+  folderInfo?: {
+    path: string;
+    model: string;
+    status: string;  // Simple status from FMDM
+  };
+  error?: string;  // If folder not found
+}
+
+/**
  * Union type for all server messages
  */
 export type WSServerMessage = 
@@ -323,7 +382,9 @@ export type WSServerMessage =
   | ModelDownloadErrorMessage
   | ModelListResponseMessage
   | ModelRecommendResponseMessage
-  | GetFoldersConfigResponseMessage;
+  | GetFoldersConfigResponseMessage
+  | GetServerInfoResponseMessage
+  | GetFolderInfoResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -361,7 +422,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
     };
   }
 
-  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig'];
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info'];
   
   switch (message.type) {
     case 'connection.init':
@@ -381,6 +442,8 @@ export function validateClientMessage(message: any): MessageValidationResult {
     case 'models.list':
     case 'models.recommend':
     case 'getFoldersConfig':
+    case 'get_server_info':
+    case 'get_folder_info':
       if (typeof message.id !== 'string' || message.id.length === 0) {
         return {
           valid: false,
@@ -397,6 +460,16 @@ export function validateClientMessage(message: any): MessageValidationResult {
             valid: false,
             errorCode: 'INVALID_PAYLOAD',
             errorMessage: 'models.recommend requires payload with languages array and mode (assisted|manual)'
+          };
+        }
+      }
+      // Additional validation for get_folder_info
+      if (message.type === 'get_folder_info') {
+        if (!message.payload || typeof message.payload.folderPath !== 'string') {
+          return {
+            valid: false,
+            errorCode: 'INVALID_PAYLOAD',
+            errorMessage: 'get_folder_info requires payload with folderPath string'
           };
         }
       }
@@ -485,6 +558,23 @@ export function isModelRecommendMessage(message: WSClientMessage): message is Mo
  */
 export function isGetFoldersConfigMessage(message: WSClientMessage): message is GetFoldersConfigMessage {
   return message.type === 'getFoldersConfig' && typeof message.id === 'string';
+}
+
+/**
+ * Type guard for get_server_info messages
+ */
+export function isGetServerInfoMessage(message: WSClientMessage): message is GetServerInfoMessage {
+  return message.type === 'get_server_info' && typeof message.id === 'string';
+}
+
+/**
+ * Type guard for get_folder_info messages
+ */
+export function isGetFolderInfoMessage(message: WSClientMessage): message is GetFolderInfoMessage {
+  return message.type === 'get_folder_info' && 
+         typeof message.id === 'string' &&
+         message.payload &&
+         typeof message.payload.folderPath === 'string';
 }
 
 // =============================================================================
@@ -628,6 +718,51 @@ export function createGetFoldersConfigResponse(
     type: 'getFoldersConfigResponse',
     id,
     folders
+  };
+}
+
+/**
+ * Create a get_server_info response message
+ */
+export function createGetServerInfoResponse(
+  id: string,
+  serverInfo: {
+    version: string;
+    platform: string;
+    nodeVersion: string;
+    daemonPid: number;
+    daemonUptime: number;
+    hardware: {
+      gpu: string;
+      cpuCores: number;
+      ramGB: number;
+    };
+  }
+): GetServerInfoResponseMessage {
+  return {
+    type: 'get_server_info_response',
+    id,
+    serverInfo
+  };
+}
+
+/**
+ * Create a get_folder_info response message
+ */
+export function createGetFolderInfoResponse(
+  id: string,
+  folderInfo?: {
+    path: string;
+    model: string;
+    status: string;
+  },
+  error?: string
+): GetFolderInfoResponseMessage {
+  return {
+    type: 'get_folder_info_response',
+    id,
+    ...(folderInfo && { folderInfo }),
+    ...(error && { error })
   };
 }
 

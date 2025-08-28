@@ -42,6 +42,13 @@ export class ModelHandlers {
   }
 
   /**
+   * Get machine capabilities - exposed for get_server_info endpoint
+   */
+  async getMachineCapabilities() {
+    return await this.modelSelectionService.getMachineCapabilities();
+  }
+
+  /**
    * Handle model list request
    */
   async handleModelList(message: WSClientMessage, clientId?: string): Promise<ModelListResponseMessage> {

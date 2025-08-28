@@ -148,7 +148,9 @@ export class DaemonClient {
                 }
                 
                 // Determine response type and handle accordingly
-                if (message.type === 'getFoldersConfigResponse') {
+                if (message.type === 'getFoldersConfigResponse' || 
+                    message.type === 'get_server_info_response' ||
+                    message.type === 'get_folder_info_response') {
                   handler.resolve(message);
                 } else if (message.type === 'error') {
                   handler.reject(new Error(message.message || 'Unknown error'));
@@ -216,6 +218,113 @@ export class DaemonClient {
 
       try {
         console.log('[DaemonClient] Sending getFoldersConfig request');
+        this.ws!.send(JSON.stringify(requestMessage));
+      } catch (error) {
+        // Clean up on send failure
+        this.messageHandlers.delete(id);
+        clearTimeout(timeoutId);
+        reject(new Error(`Failed to send request: ${error}`));
+      }
+    });
+  }
+
+  /**
+   * Get server information from the daemon
+   */
+  async getServerInfo(): Promise<any> {
+    // Check connection state first
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('Not connected to daemon');
+    }
+
+    return new Promise((resolve, reject) => {
+      const id = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      
+      const timeoutId = setTimeout(() => {
+        this.messageHandlers.delete(id);
+        reject(new Error(`getServerInfo request timed out (${this.timeout}ms)`));
+      }, this.timeout);
+
+      // Register response handler with timeout cleanup
+      const request: PendingRequest = {
+        resolve: (response) => {
+          clearTimeout(timeoutId);
+          if (response && response.serverInfo) {
+            resolve(response.serverInfo);
+          } else {
+            reject(new Error('Invalid response: serverInfo missing'));
+          }
+        },
+        reject,
+        timeoutId
+      };
+      
+      this.messageHandlers.set(id, request);
+
+      // Send request
+      const requestMessage = {
+        type: 'get_server_info',
+        id
+      };
+
+      try {
+        console.log('[DaemonClient] Sending get_server_info request');
+        this.ws!.send(JSON.stringify(requestMessage));
+      } catch (error) {
+        // Clean up on send failure
+        this.messageHandlers.delete(id);
+        clearTimeout(timeoutId);
+        reject(new Error(`Failed to send request: ${error}`));
+      }
+    });
+  }
+
+  /**
+   * Get information about a specific folder from the daemon
+   */
+  async getFolderInfo(folderPath: string): Promise<any> {
+    // Check connection state first
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('Not connected to daemon');
+    }
+
+    return new Promise((resolve, reject) => {
+      const id = `mcp-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      
+      const timeoutId = setTimeout(() => {
+        this.messageHandlers.delete(id);
+        reject(new Error(`getFolderInfo request timed out (${this.timeout}ms)`));
+      }, this.timeout);
+
+      // Register response handler with timeout cleanup
+      const request: PendingRequest = {
+        resolve: (response) => {
+          clearTimeout(timeoutId);
+          if (response && response.error) {
+            reject(new Error(response.error));
+          } else if (response && response.folderInfo) {
+            resolve(response.folderInfo);
+          } else {
+            reject(new Error('Invalid response: folderInfo missing'));
+          }
+        },
+        reject,
+        timeoutId
+      };
+      
+      this.messageHandlers.set(id, request);
+
+      // Send request
+      const requestMessage = {
+        type: 'get_folder_info',
+        id,
+        payload: {
+          folderPath
+        }
+      };
+
+      try {
+        console.log(`[DaemonClient] Sending get_folder_info request for ${folderPath}`);
         this.ws!.send(JSON.stringify(requestMessage));
       } catch (error) {
         // Clean up on send failure
