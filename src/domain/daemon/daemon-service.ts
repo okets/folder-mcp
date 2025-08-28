@@ -89,8 +89,11 @@ export class DaemonService extends EventEmitter implements IDaemonService {
       await this.processManager.startMcpServer();
 
       // Start WebSocket server for FMDM communication
-      await this.webSocketServer.start(31849);
-      this.logger.info('FMDM WebSocket server started on ws://127.0.0.1:31849');
+      // Use configured port if available, otherwise default to 31849 (HTTP) / 31850 (WS)
+      const httpPort = this.config.port || 31849;
+      const wsPort = httpPort + 1;
+      await this.webSocketServer.start(wsPort); // Pass actual WebSocket port
+      this.logger.info(`FMDM WebSocket server started on ws://127.0.0.1:${wsPort}`);
 
       // Start health monitoring if enabled
       if (this.config.healthCheck.enabled) {

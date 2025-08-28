@@ -40,7 +40,7 @@ export class OllamaDetector {
   private readonly endpoint: string;
   private readonly timeout: number;
 
-  constructor(endpoint: string = 'http://localhost:11434', timeout: number = 3000) {
+  constructor(endpoint: string = process.env.OLLAMA_HOST || 'http://localhost:11434', timeout: number = 3000) {
     this.endpoint = endpoint;
     this.timeout = timeout;
   }

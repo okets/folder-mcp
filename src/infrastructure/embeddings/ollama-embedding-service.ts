@@ -42,7 +42,7 @@ export class OllamaEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
   constructor(config?: Partial<OllamaConfig>) {
     this.config = {
-      baseUrl: 'http://127.0.0.1:11434',
+      baseUrl: process.env.OLLAMA_HOST || 'http://localhost:11434',
       timeout: 30000, // 30 seconds for embedding generation
       retries: 3,
       model: 'mxbai-embed-large', // Default to a popular embedding model

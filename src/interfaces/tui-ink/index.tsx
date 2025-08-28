@@ -114,7 +114,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
                 batchSize: 32
             },
             server: {
-                port: 9876,
+                // Port auto-discovered from daemon registry
                 host: '127.0.0.1'
             },
             ui: {
@@ -159,7 +159,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
             const newConfig = {
                 folders: [{ path: dir, model }],
                 embedding: { model, batchSize: 32 },
-                server: { port: 9876, host: '127.0.0.1' },
+                server: { host: '127.0.0.1' }, // Port auto-discovered
                 ui: { theme: 'auto' }
             };
             

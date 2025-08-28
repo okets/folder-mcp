@@ -18,6 +18,7 @@ import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidation
 import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
 import { theme } from '../utils/theme';
+import { DaemonConnector } from '../daemon-connector.js';
 import { 
     ModelRecommendMessage, 
     ModelRecommendResponseMessage, 
@@ -42,34 +43,31 @@ class SimpleWebSocketClient implements WebSocketClient {
     private ws: any = null; // Using any to avoid WebSocket type issues in Node.js
     private messageCallbacks: Array<(data: any) => void> = [];
 
-    async connect(url: string): Promise<void> {
+    async connect(_url: string): Promise<void> {
         return new Promise(async (resolve, reject) => {
             try {
-                // Import WebSocket dynamically using ES modules
-                // Creating WebSocket connection
-                const { default: WebSocket } = await import('ws');
-                this.ws = new WebSocket(url);
+                // Use DaemonConnector for auto-discovery instead of hardcoded URL (ignores url parameter)
+                const daemonConnector = new DaemonConnector({ timeoutMs: 3000, maxRetries: 1 });
+                const { ws } = await daemonConnector.connect();
                 
-                this.ws.onopen = () => {
-                    resolve();
-                };
+                this.ws = ws;
                 
-                this.ws.onerror = (error: any) => {
-                    reject(new Error(`WebSocket connection failed: ${error.message}`));
-                };
-                
-                this.ws.onmessage = (event: any) => {
+                // Set up message handling
+                this.ws.on('message', (data: Buffer) => {
                     try {
-                        const data = JSON.parse(event.data);
-                        this.messageCallbacks.forEach(callback => callback(data));
+                        const parsed = JSON.parse(data.toString());
+                        this.messageCallbacks.forEach(callback => callback(parsed));
                     } catch (error) {
                         console.error('Failed to parse WebSocket message:', error);
                     }
-                };
+                });
                 
-                this.ws.onclose = () => {
+                this.ws.on('close', () => {
                     this.ws = null;
-                };
+                });
+                
+                // Connection already established by DaemonConnector
+                resolve();
             } catch (error) {
                 reject(error);
             }
@@ -402,15 +400,15 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         fmdmOperations
     } = options;
 
-    // Initialize WebSocket client for daemon communication
+    // Initialize WebSocket client for daemon communication using auto-discovery
     const wsClient = new SimpleWebSocketClient();
     let isConnected = false;
     
-    // Try to connect to daemon
+    // Try to connect to daemon using auto-discovery
     try {
-        await wsClient.connect('ws://127.0.0.1:31850');
+        await wsClient.connect(''); // URL parameter is ignored, uses auto-discovery
         isConnected = true;
-        // WebSocket connected to daemon successfully
+        // WebSocket connected to daemon successfully via auto-discovery
     } catch (error) {
         // Failed to connect to daemon
         isConnected = false;

@@ -1021,7 +1021,8 @@ return;
       } else {
         // Ollama models (explicit ollama: prefix or any other model ID)
         try {
-          const response = await fetch('http://127.0.0.1:11434/api/tags', {
+          const ollamaHost = process.env.OLLAMA_HOST || 'http://localhost:11434';
+          const response = await fetch(`${ollamaHost}/api/tags`, {
             method: 'GET',
             signal: AbortSignal.timeout(2000)
           });

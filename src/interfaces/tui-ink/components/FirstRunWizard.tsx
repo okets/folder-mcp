@@ -151,7 +151,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                             batchSize: 32
                         },
                         server: {
-                            port: 9876,
+                            // Port auto-discovered from daemon registry
                             host: '127.0.0.1'
                         }
                     };
