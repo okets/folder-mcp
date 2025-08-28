@@ -115,8 +115,45 @@ export async function main(): Promise<void> {
         await server.connect(transport);
         debug('MCP server started in daemon mode');
         
-        // Keep the process running
-        await new Promise(() => {});
+        // Keep the process running with proper shutdown handling
+        await new Promise<void>((resolve) => {
+          // Set up signal handlers for graceful shutdown
+          const shutdown = async (signal: string) => {
+            debug(`Received ${signal}, shutting down gracefully...`);
+            
+            // Clean up daemon client
+            if (daemonClient) {
+              daemonClient.close();
+            }
+            
+            // Close the MCP server connection if method exists
+            if (server && typeof (server as any).close === 'function') {
+              try {
+                await (server as any).close();
+              } catch (error) {
+                debug(`Error closing server: ${error}`);
+              }
+            }
+            
+            resolve();
+            process.exit(0);
+          };
+          
+          // Handle termination signals
+          process.once('SIGINT', () => shutdown('SIGINT'));
+          process.once('SIGTERM', () => shutdown('SIGTERM'));
+          
+          // Also handle uncaught exceptions and rejections
+          process.once('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+            shutdown('uncaughtException');
+          });
+          
+          process.once('unhandledRejection', (reason, promise) => {
+            console.error('Unhandled rejection at:', promise, 'reason:', reason);
+            shutdown('unhandledRejection');
+          });
+        });
         return;
       } catch (error) {
         debug(`Failed to connect to daemon: ${error}`);

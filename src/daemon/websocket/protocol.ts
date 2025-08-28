@@ -268,13 +268,66 @@ export class WebSocketProtocol {
     // Get current FMDM state with all configured folders
     const fmdm = this.fmdmService.getFMDM();
     
-    // Transform folders into the response format
-    const folders = fmdm.folders.map(folder => ({
-      name: this.extractFolderName(folder.path),
-      path: folder.path,
-      model: folder.model || 'unknown',
-      status: folder.status || 'pending'
-    }));
+    // Validate and transform folders into the response format
+    let folders: Array<{
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    }> = [];
+    
+    // Check if fmdm and folders array exist
+    if (fmdm && Array.isArray(fmdm.folders)) {
+      const MAX_FOLDERS = 100; // Configurable limit to prevent oversized responses
+      let skippedCount = 0;
+      
+      folders = fmdm.folders
+        .filter(folder => {
+          // Filter out non-object entries
+          if (!folder || typeof folder !== 'object') {
+            this.logger.warn('Skipped invalid folder entry (not an object)');
+            skippedCount++;
+            return false;
+          }
+          
+          // Validate required path property
+          if (!folder.path || typeof folder.path !== 'string' || folder.path.trim().length === 0) {
+            this.logger.warn('Skipped folder with invalid or missing path', { folder });
+            skippedCount++;
+            return false;
+          }
+          
+          return true;
+        })
+        .slice(0, MAX_FOLDERS) // Enforce max response size
+        .map(folder => {
+          const path = folder.path.trim();
+          const name = this.extractFolderName(path);
+          const model = folder.model && typeof folder.model === 'string' 
+            ? folder.model 
+            : 'unknown';
+          const status = folder.status && typeof folder.status === 'string'
+            ? folder.status
+            : 'pending';
+            
+          return {
+            name,
+            path,
+            model,
+            status
+          };
+        });
+        
+      if (skippedCount > 0) {
+        this.logger.warn(`Skipped ${skippedCount} invalid folder entries`);
+      }
+      
+      if (fmdm.folders.length > MAX_FOLDERS) {
+        this.logger.warn(`Truncated folders list from ${fmdm.folders.length} to ${MAX_FOLDERS} entries`);
+      }
+    } else {
+      this.logger.warn('FMDM or folders array is missing/invalid, returning empty folders list');
+    }
 
     this.logger.info(`Returning ${folders.length} folders configuration to MCP server`);
     
