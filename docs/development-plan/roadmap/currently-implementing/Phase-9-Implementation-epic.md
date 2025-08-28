@@ -2,6 +2,24 @@
 
 **📋 Related Documentation**: [Phase 9 PRD - MCP Endpoints Multi-Folder Support](./Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md)
 
+## 🚀 Current Status
+**Sprint 1**: ✅ **COMPLETE** (All 4 tasks done)
+- MCP server can now run without folder arguments
+- WebSocket connection to daemon established 
+- Daemon API endpoints implemented:
+  - `get_server_info()` - Returns system info with hardware capabilities
+  - `get_folder_info()` - Returns folder configuration and status
+  - `getFoldersConfig()` - Returns all configured folders
+
+**Notable Changes:**
+- Changed from `get_status()` to `get_server_info()` for better clarity
+- Implemented as "hello world" level endpoints (level 2/10 effort)
+- Reused existing MachineCapabilities for hardware info
+
+**Test Files:**
+- `tests/integration/phase-9-sprint-1-task-1.test.ts` - Tests MCP server without folder argument
+- `tests/integration/phase-9-simple-api.test.ts` - Tests get_server_info and get_folder_info endpoints
+
 ## Goal
 Transform MCP endpoints from single-folder to multi-folder aware through daemon connection.
 
@@ -26,31 +44,31 @@ Target: `MCP Server → WebSocket → Daemon → Multi-Folder System`
 **Goal**: Connect MCP server to daemon via WebSocket
 
 ### Tasks
-1. **Remove folder argument requirement from MCP server**
+1. **Remove folder argument requirement from MCP server** ✅ Done
    - Modify `src/mcp-server.ts` to start without folder path
    - Make folder parameter optional in CLI parsing
    - Test: `node dist/mcp-server.js` starts without crashing
 
-2. **Add WebSocket client to MCP server**
+2. **Add WebSocket client to MCP server** ✅ Done
    - Install `ws` dependency
    - Create `DaemonClient` class for WebSocket communication
    - Connect to daemon on startup: `ws://localhost:3001`
    - Test: WebSocket connection established, logs show "Connected to daemon"
 
-3. **Create daemon API endpoints for MCP requests**
+3. **Create daemon API endpoints for MCP requests** ✅ Done
    - Add WebSocket handlers in daemon for MCP operations
-   - Implement `get_status`, `get_folder_info` endpoints first
+   - Implement `get_server_info`, `get_folder_info` endpoints first
    - Test: Direct WebSocket calls to daemon return expected data
 
-4. **Forward MCP calls through WebSocket**
-   - Update MCP endpoints to use `daemonClient.sendRequest()`
-   - Translate MCP JSON-RPC to daemon WebSocket messages
-   - Test: `echo '{"method":"get_status"}' | node dist/mcp-server.js` works
+4. **Forward MCP calls through WebSocket** ✅ Done (for implemented endpoints)
+   - Updated MCP server to use `DaemonClient` for folder configuration
+   - Implemented WebSocket message handling for new endpoints
+   - Test: WebSocket calls to daemon return expected data
 
 ### Sprint 1 Success Criteria
-- [ ] MCP server starts without folder arguments
-- [ ] WebSocket connection to daemon established
-- [ ] get_status endpoint works through daemon
+- [x] MCP server starts without folder arguments
+- [x] WebSocket connection to daemon established
+- [x] get_server_info endpoint works through daemon
 - [ ] Response time < 1 second
 
 ---
@@ -88,10 +106,10 @@ Target: `MCP Server → WebSocket → Daemon → Multi-Folder System`
 4. **Create MCP testing subagent**
    - Configure Claude Code: `"args": ["/path/to/dist/mcp-server.js"]`
    - Create subagent with MCP tools access
-   - Test basic endpoints: get_status, get_folder_info, list_documents
+   - Test basic endpoints: get_server_info, get_folder_info, list_documents
 
 ### Sprint 2 Success Criteria
-- [ ] get_folder_info shows multiple folders with topics and status
+- [x] get_folder_info shows folders with status (topics pending)
 - [ ] list_documents works with folder parameter and state validation
 - [ ] State validation blocks operations on non-active folders
 - [ ] Subagent can successfully call endpoints

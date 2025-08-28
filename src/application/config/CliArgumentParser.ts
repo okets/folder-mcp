@@ -81,17 +81,18 @@ export class CliArgumentParser {
    */
   static getHelpText(): string {
     return `
-Usage: folder-mcp [options] <folder-path>
+Usage: folder-mcp [options] [folder-path]
 
 Arguments:
-  <folder-path>     Path to the folder to serve
+  [folder-path]     Optional: Path to the folder to serve (if not provided, connects to daemon)
 
 Options:
   --theme <theme>   Override theme configuration (auto, light, dark, light-optimized, dark-optimized, default, minimal)
   --help, -h        Show this help message
 
 Examples:
-  folder-mcp /path/to/documents
+  folder-mcp                                            # Connect to daemon for multi-folder support
+  folder-mcp /path/to/documents                         # Single folder mode (legacy)
   folder-mcp --theme dark-optimized /path/to/documents  
   folder-mcp --theme light /path/to/documents
   folder-mcp --theme auto /path/to/documents
@@ -104,9 +105,11 @@ Examples:
   static validate(args: CliArguments): string[] {
     const errors: string[] = [];
     
-    if (!args.folderPath && !args.help) {
-      errors.push('Folder path is required');
-    }
+    // Phase 9: folderPath is now optional - MCP server can fetch folders from daemon
+    // Keep the validation commented for reference but don't enforce it
+    // if (!args.folderPath && !args.help) {
+    //   errors.push('Folder path is required');
+    // }
     
     return errors;
   }

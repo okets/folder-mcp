@@ -23,6 +23,7 @@ import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js'
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
 import { getSupportedExtensions } from './domain/files/supported-extensions.js';
+import { DaemonClient } from './interfaces/mcp/daemon-client.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -45,9 +46,10 @@ console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`)
 export async function main(): Promise<void> {
   debug('main() function called');
   let devModeManager: DevModeManager | null = null;
+  let daemonClient: DaemonClient | null = null;
   
   try {
-    debug('Starting MCP server with DEAD SIMPLE configuration');
+    debug('Starting MCP server');
     
     // Parse command line arguments
     const parseResult = CliArgumentParser.parse(process.argv);
@@ -72,9 +74,99 @@ export async function main(): Promise<void> {
     
     const { folderPath, theme } = parseResult.args;
     
-    // Ensure folderPath is defined (validation should have caught this)
+    // Phase 9: Determine mode based on folderPath presence
+    const isDaemonMode = !folderPath;
+    
+    if (isDaemonMode) {
+      debug('No folder path provided - connecting to daemon for multi-folder support');
+      
+      // Connect to daemon
+      daemonClient = new DaemonClient();
+      try {
+        await daemonClient.connect();
+        debug('Successfully connected to daemon');
+        
+        // For now, just test the connection - full implementation coming later
+        const folders = await daemonClient.getFoldersConfig();
+        debug(`Retrieved ${folders.length} folders from daemon`);
+        folders.forEach(folder => {
+          debug(`  - ${folder.name}: ${folder.path} (${folder.model}, ${folder.status})`);
+        });
+        
+        // For Phase 9 Sprint 1 Task 1, we just need to prove the connection works
+        // The actual MCP endpoint forwarding will come in later sprints
+        debug('Daemon connection verified - MCP server ready for Phase 9 implementation');
+        
+        // Create a basic server that can start without folder configuration
+        const server = new Server(
+          {
+            name: 'folder-mcp',
+            version: '1.0.0',
+          },
+          {
+            capabilities: {
+              tools: {},
+            },
+          }
+        );
+        
+        // Start the stdio transport
+        const transport = new StdioServerTransport();
+        await server.connect(transport);
+        debug('MCP server started in daemon mode');
+        
+        // Keep the process running with proper shutdown handling
+        await new Promise<void>((resolve) => {
+          // Set up signal handlers for graceful shutdown
+          const shutdown = async (signal: string) => {
+            debug(`Received ${signal}, shutting down gracefully...`);
+            
+            // Clean up daemon client
+            if (daemonClient) {
+              daemonClient.close();
+            }
+            
+            // Close the MCP server connection if method exists
+            if (server && typeof (server as any).close === 'function') {
+              try {
+                await (server as any).close();
+              } catch (error) {
+                debug(`Error closing server: ${error}`);
+              }
+            }
+            
+            resolve();
+            process.exit(0);
+          };
+          
+          // Handle termination signals
+          process.once('SIGINT', () => shutdown('SIGINT'));
+          process.once('SIGTERM', () => shutdown('SIGTERM'));
+          
+          // Also handle uncaught exceptions and rejections
+          process.once('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+            shutdown('uncaughtException');
+          });
+          
+          process.once('unhandledRejection', (reason, promise) => {
+            console.error('Unhandled rejection at:', promise, 'reason:', reason);
+            shutdown('unhandledRejection');
+          });
+        });
+        return;
+      } catch (error) {
+        debug(`Failed to connect to daemon: ${error}`);
+        debug('Please ensure the daemon is running (start with folder-mcp --daemon)');
+        process.exit(1);
+      }
+    }
+    
+    // Legacy single-folder mode
+    debug('Running in legacy single-folder mode');
+    
     if (!folderPath) {
-      debug('Error: folderPath is undefined after validation');
+      debug('Error: folderPath is undefined in single-folder mode');
       process.exit(1);
     }
     
@@ -430,6 +522,12 @@ export async function main(): Promise<void> {
     const shutdown = async () => {
       debug('Shutting down MCP server...');
       try {
+        // Clean up daemon client if in daemon mode
+        if (daemonClient) {
+          daemonClient.close();
+          debug('Daemon client connection closed');
+        }
+        
         if (devModeManager) {
           await devModeManager.stopWatching();
           debug('Development mode file watcher stopped');

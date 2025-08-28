@@ -97,9 +97,10 @@ describe('CliArgumentParser', () => {
       expect(errors).toEqual([]);
     });
 
-    it('should fail validation without folder path and no help', () => {
+    it('should pass validation without folder path (daemon mode)', () => {
+      // Phase 9: folder path is now optional - daemon mode doesn't require it
       const errors = CliArgumentParser.validate({});
-      expect(errors).toContain('Folder path is required');
+      expect(errors).toEqual([]);
     });
   });
 
@@ -107,10 +108,12 @@ describe('CliArgumentParser', () => {
     it('should return help text', () => {
       const help = CliArgumentParser.getHelpText();
       
-      expect(help).toContain('Usage: folder-mcp [options] <folder-path>');
+      // Phase 9: folder path is now optional - shown with brackets
+      expect(help).toContain('Usage: folder-mcp [options] [folder-path]');
       expect(help).toContain('--theme <theme>');
       expect(help).toContain('Examples:');
       expect(help).toContain('folder-mcp --theme dark');
+      expect(help).toContain('Connect to daemon for multi-folder support');
     });
   });
 });

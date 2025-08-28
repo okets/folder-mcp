@@ -16,6 +16,9 @@ import {
   ErrorMessage,
   ModelListResponseMessage,
   ModelRecommendResponseMessage,
+  GetFoldersConfigResponseMessage,
+  GetServerInfoResponseMessage,
+  GetFolderInfoResponseMessage,
   ValidationResult,
   isValidClientMessage,
   validateClientMessage,
@@ -25,10 +28,16 @@ import {
   isPingMessage,
   isModelListMessage,
   isModelRecommendMessage,
+  isGetFoldersConfigMessage,
+  isGetServerInfoMessage,
+  isGetFolderInfoMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
   createErrorMessage,
+  createGetFoldersConfigResponse,
+  createGetServerInfoResponse,
+  createGetFolderInfoResponse,
   VALIDATION_ERRORS
 } from './message-types.js';
 
@@ -149,11 +158,20 @@ export class WebSocketProtocol {
         case 'models.recommend':
           return await this.modelHandlers.handleModelRecommend(message, clientId);
 
+        case 'getFoldersConfig':
+          return this.handleGetFoldersConfig(message);
+
+        case 'get_server_info':
+          return await this.handleGetServerInfo(message);
+
+        case 'get_folder_info':
+          return this.handleGetFolderInfo(message);
+
         default:
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, getFoldersConfig, get_server_info, get_folder_info`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }
@@ -245,6 +263,203 @@ export class WebSocketProtocol {
     // Don't log ping/pong - they're just heartbeats
     
     return createPongResponse(id);
+  }
+
+  /**
+   * Handle get folders configuration request
+   * Phase 9 - Sprint 1 Task 1: Provide configured folders to MCP server
+   */
+  private handleGetFoldersConfig(message: WSClientMessage): GetFoldersConfigResponseMessage {
+    if (!isGetFoldersConfigMessage(message)) {
+      throw new Error('Invalid getFoldersConfig message');
+    }
+
+    const { id } = message;
+    this.logger.debug(`Getting folders configuration for MCP server`);
+
+    // Get current FMDM state with all configured folders
+    const fmdm = this.fmdmService.getFMDM();
+    
+    // Process folders with validation and limits
+    const folders = this.processFoldersForResponse(fmdm);
+
+    this.logger.info(`Returning ${folders.length} folders configuration to MCP server`);
+    
+    return createGetFoldersConfigResponse(id, folders);
+  }
+  
+  /**
+   * Process FMDM folders for response with validation and limits
+   */
+  private processFoldersForResponse(fmdm: any): Array<{
+    name: string;
+    path: string;
+    model: string;
+    status: string;
+  }> {
+    // Early return if no folders available
+    if (!fmdm?.folders || !Array.isArray(fmdm.folders)) {
+      this.logger.warn('FMDM or folders array is missing/invalid, returning empty folders list');
+      return [];
+    }
+    
+    // Get max folders limit (with fallback to 100)
+    const MAX_FOLDERS = (this.configService as any).getMaxFolders?.() ?? 100;
+    
+    const validFolders: Array<{
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    }> = [];
+    
+    let skippedCount = 0;
+    let processedCount = 0;
+    
+    // Process folders with a for-loop to avoid extra passes
+    for (const folder of fmdm.folders) {
+      // Stop if we've reached the limit
+      if (validFolders.length >= MAX_FOLDERS) {
+        break;
+      }
+      
+      processedCount++;
+      
+      // Validate folder
+      if (!this.isValidFolder(folder)) {
+        skippedCount++;
+        continue;
+      }
+      
+      // Transform valid folder for response
+      const path = folder.path.trim();
+      const name = this.extractFolderName(path);
+      const model = folder.model && typeof folder.model === 'string' 
+        ? folder.model 
+        : 'unknown';
+      const status = folder.status && typeof folder.status === 'string'
+        ? folder.status
+        : 'pending';
+        
+      validFolders.push({
+        name,
+        path,
+        model,
+        status
+      });
+    }
+    
+    // Log skipped and truncated counts
+    if (skippedCount > 0) {
+      this.logger.warn(`Skipped ${skippedCount} invalid folder entries`);
+    }
+    
+    const totalFolders = fmdm.folders.length;
+    if (totalFolders > MAX_FOLDERS) {
+      const truncatedCount = totalFolders - processedCount;
+      this.logger.warn(`Truncated folders list: processed ${processedCount} of ${totalFolders} entries (limit: ${MAX_FOLDERS}, truncated: ${truncatedCount})`);
+    }
+    
+    return validFolders;
+  }
+  
+  /**
+   * Validate if a folder object has required properties
+   */
+  private isValidFolder(folder: any): boolean {
+    // Check if folder is a valid object
+    if (!folder || typeof folder !== 'object') {
+      this.logger.warn('Skipped invalid folder entry (not an object)');
+      return false;
+    }
+    
+    // Validate required path property
+    if (!folder.path || typeof folder.path !== 'string' || folder.path.trim().length === 0) {
+      this.logger.warn('Skipped folder with invalid or missing path', { folder });
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Handle get server info request
+   * Phase 9 - Sprint 1 Task 3: Simple hello world endpoint with system info
+   */
+  private async handleGetServerInfo(message: WSClientMessage): Promise<GetServerInfoResponseMessage> {
+    if (!isGetServerInfoMessage(message)) {
+      throw new Error('Invalid get_server_info message');
+    }
+    
+    const { id } = message;
+    this.logger.debug('Getting server info');
+    
+    // Get machine capabilities through model handlers
+    const capabilities = await this.modelHandlers.getMachineCapabilities();
+    
+    // Get package version (hardcoded for simplicity)
+    const version = '1.0.0'; // Could read from package.json if needed
+    
+    return createGetServerInfoResponse(id, {
+      version,
+      platform: process.platform,
+      nodeVersion: process.version,
+      daemonPid: process.pid,
+      daemonUptime: Math.floor(process.uptime()),
+      hardware: {
+        gpu: capabilities.gpu.name || capabilities.gpu.type,
+        cpuCores: capabilities.cpu.cores,
+        ramGB: capabilities.memory.totalRAMGB
+      }
+    });
+  }
+
+  /**
+   * Handle get folder info request
+   * Phase 9 - Sprint 1 Task 4: Get detailed info for a specific folder
+   */
+  private handleGetFolderInfo(message: WSClientMessage): GetFolderInfoResponseMessage {
+    if (!isGetFolderInfoMessage(message)) {
+      throw new Error('Invalid get_folder_info message');
+    }
+    
+    const { id, payload } = message;
+    const { folderPath } = payload;
+    
+    this.logger.debug(`Getting folder info for: ${folderPath}`);
+    
+    // Get current FMDM state
+    const fmdm = this.fmdmService.getFMDM();
+    
+    // Validate that fmdm and folders array exist before using array methods
+    if (!fmdm || !Array.isArray(fmdm.folders)) {
+      this.logger.debug(`FMDM or folders array is missing/invalid. Cannot find folder: ${folderPath}`);
+      return createGetFolderInfoResponse(id, undefined, `Folder not found: ${folderPath}`);
+    }
+    
+    // Find the requested folder
+    const folder = fmdm.folders.find(f => f.path === folderPath);
+    
+    if (!folder) {
+      this.logger.debug(`Folder not found: ${folderPath}`);
+      return createGetFolderInfoResponse(id, undefined, `Folder not found: ${folderPath}`);
+    }
+    
+    // Return folder info
+    return createGetFolderInfoResponse(id, {
+      path: folder.path,
+      model: folder.model || 'unknown',
+      status: folder.status || 'pending'
+    });
+  }
+
+  /**
+   * Extract a readable folder name from a path
+   */
+  private extractFolderName(path: string): string {
+    // Get the last component of the path
+    const parts = path.split(/[/\\]/);
+    return parts[parts.length - 1] || path;
   }
 
   /**
