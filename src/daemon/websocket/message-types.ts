@@ -91,6 +91,15 @@ export interface ModelRecommendMessage extends WSClientMessageBase {
 }
 
 /**
+ * Get folders configuration request message
+ * For Phase 9 - Sprint 1 Task 1: MCP server to get configured folders from daemon
+ */
+export interface GetFoldersConfigMessage extends WSClientMessageBase {
+  type: 'getFoldersConfig';
+  id: string; // Required for correlation
+}
+
+/**
  * Union type for all client messages
  */
 export type WSClientMessage = 
@@ -100,7 +109,8 @@ export type WSClientMessage =
   | FolderRemoveMessage
   | PingMessage
   | ModelListMessage
-  | ModelRecommendMessage;
+  | ModelRecommendMessage
+  | GetFoldersConfigMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -283,6 +293,21 @@ export interface ModelRecommendResponseMessage extends WSServerMessageBase {
 }
 
 /**
+ * Get folders configuration response message
+ * For Phase 9 - Sprint 1 Task 1: Returns configured folders with metadata
+ */
+export interface GetFoldersConfigResponseMessage extends WSServerMessageBase {
+  type: 'getFoldersConfigResponse';
+  id: string; // Matches request ID
+  folders: Array<{
+    name: string;
+    path: string;
+    model: string;
+    status: string;
+  }>;
+}
+
+/**
  * Union type for all server messages
  */
 export type WSServerMessage = 
@@ -297,7 +322,8 @@ export type WSServerMessage =
   | ModelDownloadCompleteMessage
   | ModelDownloadErrorMessage
   | ModelListResponseMessage
-  | ModelRecommendResponseMessage;
+  | ModelRecommendResponseMessage
+  | GetFoldersConfigResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -335,7 +361,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
     };
   }
 
-  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend'];
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig'];
   
   switch (message.type) {
     case 'connection.init':
@@ -354,6 +380,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
     case 'ping':
     case 'models.list':
     case 'models.recommend':
+    case 'getFoldersConfig':
       if (typeof message.id !== 'string' || message.id.length === 0) {
         return {
           valid: false,
@@ -451,6 +478,13 @@ export function isModelRecommendMessage(message: WSClientMessage): message is Mo
          message.payload &&
          Array.isArray(message.payload.languages) &&
          ['assisted', 'manual'].includes(message.payload.mode);
+}
+
+/**
+ * Type guard for getFoldersConfig messages
+ */
+export function isGetFoldersConfigMessage(message: WSClientMessage): message is GetFoldersConfigMessage {
+  return message.type === 'getFoldersConfig' && typeof message.id === 'string';
 }
 
 // =============================================================================
@@ -575,6 +609,25 @@ export function createModelRecommendResponse(
       machineCapabilities,
       ...(recommendation && { recommendation })
     }
+  };
+}
+
+/**
+ * Create a getFoldersConfig response message
+ */
+export function createGetFoldersConfigResponse(
+  id: string,
+  folders: Array<{
+    name: string;
+    path: string;
+    model: string;
+    status: string;
+  }>
+): GetFoldersConfigResponseMessage {
+  return {
+    type: 'getFoldersConfigResponse',
+    id,
+    folders
   };
 }
 

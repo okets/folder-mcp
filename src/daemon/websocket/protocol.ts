@@ -16,6 +16,7 @@ import {
   ErrorMessage,
   ModelListResponseMessage,
   ModelRecommendResponseMessage,
+  GetFoldersConfigResponseMessage,
   ValidationResult,
   isValidClientMessage,
   validateClientMessage,
@@ -25,10 +26,12 @@ import {
   isPingMessage,
   isModelListMessage,
   isModelRecommendMessage,
+  isGetFoldersConfigMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
   createErrorMessage,
+  createGetFoldersConfigResponse,
   VALIDATION_ERRORS
 } from './message-types.js';
 
@@ -149,11 +152,14 @@ export class WebSocketProtocol {
         case 'models.recommend':
           return await this.modelHandlers.handleModelRecommend(message, clientId);
 
+        case 'getFoldersConfig':
+          return this.handleGetFoldersConfig(message);
+
         default:
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, getFoldersConfig`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }
@@ -245,6 +251,43 @@ export class WebSocketProtocol {
     // Don't log ping/pong - they're just heartbeats
     
     return createPongResponse(id);
+  }
+
+  /**
+   * Handle get folders configuration request
+   * Phase 9 - Sprint 1 Task 1: Provide configured folders to MCP server
+   */
+  private handleGetFoldersConfig(message: WSClientMessage): GetFoldersConfigResponseMessage {
+    if (!isGetFoldersConfigMessage(message)) {
+      throw new Error('Invalid getFoldersConfig message');
+    }
+
+    const { id } = message;
+    this.logger.debug(`Getting folders configuration for MCP server`);
+
+    // Get current FMDM state with all configured folders
+    const fmdm = this.fmdmService.getFMDM();
+    
+    // Transform folders into the response format
+    const folders = fmdm.folders.map(folder => ({
+      name: this.extractFolderName(folder.path),
+      path: folder.path,
+      model: folder.model || 'unknown',
+      status: folder.status || 'pending'
+    }));
+
+    this.logger.info(`Returning ${folders.length} folders configuration to MCP server`);
+    
+    return createGetFoldersConfigResponse(id, folders);
+  }
+
+  /**
+   * Extract a readable folder name from a path
+   */
+  private extractFolderName(path: string): string {
+    // Get the last component of the path
+    const parts = path.split(/[/\\]/);
+    return parts[parts.length - 1] || path;
   }
 
   /**
