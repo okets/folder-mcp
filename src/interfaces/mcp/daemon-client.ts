@@ -248,7 +248,6 @@ export class DaemonClient {
       // Register response handler with timeout cleanup
       const request: PendingRequest = {
         resolve: (response) => {
-          clearTimeout(timeoutId);
           if (response && response.serverInfo) {
             resolve(response.serverInfo);
           } else {
@@ -299,7 +298,6 @@ export class DaemonClient {
       // Register response handler with timeout cleanup
       const request: PendingRequest = {
         resolve: (response) => {
-          clearTimeout(timeoutId);
           if (response && response.error) {
             reject(new Error(response.error));
           } else if (response && response.folderInfo) {

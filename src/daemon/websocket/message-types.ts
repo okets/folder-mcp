@@ -418,7 +418,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
       valid: false,
       errorCode: 'MISSING_TYPE',
       errorMessage: 'Message must have a "type" field of type string',
-      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend']
+      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info']
     };
   }
 

@@ -193,8 +193,8 @@ class FolderMCPDaemon {
       
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
 
-      // Start WebSocket server on port 3001 for TUI communication
-      const wsPort = 3001;
+      // Start WebSocket server on daemon port + 1 for TUI communication
+      const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
       info(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
 
