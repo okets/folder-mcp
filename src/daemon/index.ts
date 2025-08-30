@@ -10,7 +10,6 @@
  * 4. Can spawn MCP server processes
  */
 
-import { createServer, type Server } from 'http';
 import { writeFileSync, readFileSync, existsSync, unlinkSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
@@ -18,6 +17,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import { FMDMWebSocketServer } from './websocket/server.js';
 import { FMDMService } from './services/fmdm-service.js';
 import { WebSocketProtocol } from './websocket/protocol.js';
+import { RESTAPIServer } from './rest/server.js';
 // SQLiteVecStorage will be imported in Phase 5 when properly integrated
 import { setupDependencyInjection } from '../di/setup.js';
 import { MODULE_TOKENS } from '../di/interfaces.js';
@@ -68,16 +68,9 @@ interface DaemonConfig {
   logFile?: string;
 }
 
-interface HealthResponse {
-  status: 'healthy' | 'starting' | 'error';
-  pid: number;
-  uptime: number;
-  version: string;
-  startTime: string;
-}
 
 class FolderMCPDaemon {
-  private server: Server | null = null;
+  private restAPIServer: RESTAPIServer | null = null;
   private config: DaemonConfig;
   private startTime: Date;
   private mcpProcess: ChildProcess | null = null;
@@ -200,9 +193,30 @@ class FolderMCPDaemon {
       
       this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
 
+      // Start WebSocket server on daemon port + 1 for TUI communication
       const wsPort = this.config.port + 1;
       await this.webSocketServer!.start(wsPort);
       info(`WebSocket server started on ws://127.0.0.1:${wsPort}`);
+
+      // Initialize and start REST API server on port 3002 for MCP operations
+      debug('Initializing REST API server...');
+      try {
+        this.restAPIServer = new RESTAPIServer(this.fmdmService!, {
+          info,
+          warn,
+          error: logError,
+          debug
+        });
+        debug('REST API server instance created successfully');
+        
+        const restPort = 3002;
+        debug(`Starting REST API server on port ${restPort}...`);
+        await this.restAPIServer.start(restPort, '127.0.0.1');
+        info(`REST API server started on http://127.0.0.1:${restPort}`);
+      } catch (restError) {
+        logError('Failed to start REST API server:', restError);
+        throw restError;
+      }
 
       // Schedule background model status refresh (non-blocking)
       setImmediate(async () => {
@@ -221,22 +235,12 @@ class FolderMCPDaemon {
       });
       debug(`Daemon status updated - PID: ${process.pid}`);
 
-      this.server = createServer(this.handleRequest.bind(this));
-
-      return new Promise(async (resolve, reject) => {
-        this.server!.listen(this.config.port, this.config.host, async () => {
-          info(`Daemon ready (PID: ${process.pid})`);
-          debug(`PID file: ${this.config.pidFile}`);
-          resolve();
-        });
-
-        this.server!.on('error', (err) => {
-          const errorMessage = `Server error: ${err}`;
-          logError(errorMessage);
-          this.logToFile(errorMessage);
-          reject(err);
-        });
-      });
+      // All servers are now running - daemon is ready
+      info(`Daemon ready (PID: ${process.pid})`);
+      info(`Hybrid architecture active:`);
+      info(`- WebSocket (TUI): ws://127.0.0.1:${wsPort}`);
+      info(`- REST API (MCP): http://127.0.0.1:3002`);
+      debug(`PID file: ${this.config.pidFile}`);
     } catch (err) {
       const errorMessage = `Error during daemon startup: ${err instanceof Error ? err.message : String(err)}`;
       logError(errorMessage);
@@ -245,243 +249,6 @@ class FolderMCPDaemon {
     }
   }
 
-  private async handleRequest(req: any, res: any): Promise<void> {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Content-Type', 'application/json');
-    
-    // Handle OPTIONS for CORS
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200);
-      res.end();
-      return;
-    }
-    
-    try {
-      let response: any;
-      
-      switch (url.pathname) {
-        case '/health':
-          response = this.getHealthStatus();
-          break;
-          
-        case '/status':
-          response = this.getDetailedStatus();
-          break;
-
-        case '/api/folders':
-          if (req.method === 'POST') {
-            response = await this.addFolder(req);
-          } else if (req.method === 'GET') {
-            response = await this.listFolders();
-          } else {
-            res.writeHead(405);
-            res.end(JSON.stringify({ error: 'Method not allowed' }));
-            return;
-          }
-          break;
-          
-        default:
-          res.writeHead(404);
-          res.end(JSON.stringify({ error: 'Not found' }));
-          return;
-      }
-      
-      res.writeHead(200);
-      res.end(JSON.stringify(response, null, 2));
-      
-    } catch (error) {
-      logError('Request error:', error);
-      res.writeHead(500);
-      res.end(JSON.stringify({ 
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : String(error)
-      }));
-    }
-  }
-
-  private getHealthStatus(): HealthResponse {
-    return {
-      status: 'healthy',
-      pid: process.pid,
-      uptime: Date.now() - this.startTime.getTime(),
-      version: '1.0.0',
-      startTime: this.startTime.toISOString()
-    };
-  }
-
-  private getDetailedStatus() {
-    // Get memory statistics from monitored folders orchestrator if available
-    let memoryStats = null;
-    if (this.monitoredFoldersOrchestrator) {
-      try {
-        memoryStats = this.monitoredFoldersOrchestrator.getMemoryStatistics();
-      } catch (error) {
-        warn('Error getting memory statistics:', error);
-      }
-    }
-    
-    return {
-      ...this.getHealthStatus(),
-      config: {
-        port: this.config.port,
-        host: this.config.host,
-        pidFile: this.config.pidFile
-      },
-      mcpServer: {
-        running: this.mcpProcess !== null,
-        pid: this.mcpProcess?.pid || null
-      },
-      memory: {
-        process: process.memoryUsage(),
-        orchestrator: memoryStats ? {
-          heapUtilizationPercent: Math.round(memoryStats.heapUtilizationPercent * 10) / 10,
-          resourceManager: {
-            memoryUsedMB: Math.round(memoryStats.resourceManager.memoryUsedMB),
-            memoryLimitMB: memoryStats.resourceManager.memoryLimitMB,
-            memoryPercent: Math.round(memoryStats.resourceManager.memoryPercent * 10) / 10,
-            activeOperations: memoryStats.resourceManager.activeOperations,
-            queuedOperations: memoryStats.resourceManager.queuedOperations,
-            isThrottled: memoryStats.resourceManager.isThrottled
-          },
-          folders: memoryStats.folders
-        } : null
-      },
-      platform: process.platform,
-      nodeVersion: process.version
-    };
-  }
-
-  /**
-   * Add folder for indexing via API
-   */
-  private async addFolder(req: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      let body = '';
-      req.on('data', (chunk: any) => {
-        body += chunk.toString();
-      });
-      
-      req.on('end', async () => {
-        try {
-          const { path, modelId, name } = JSON.parse(body);
-          
-          if (!path || !modelId) {
-            resolve({ error: 'Missing required fields: path, modelId' });
-            return;
-          }
-
-          // Use existing FMDM system 
-          if (this.fmdmService) {
-            try {
-              // Get current folders from FMDM
-              const currentFmdm = this.fmdmService.getFMDM();
-              const currentFolders = [...currentFmdm.folders];
-              
-              // Check if folder already exists
-              const existingFolder = currentFolders.find(f => f.path === path);
-              if (existingFolder) {
-                resolve({
-                  success: true,
-                  message: `Folder ${path} already configured with model ${existingFolder.model}`,
-                  folderId: path,
-                  status: existingFolder.status
-                });
-                return;
-              }
-              
-              // Add new folder to the list
-              const folderConfig = {
-                path: path,
-                model: modelId,
-                status: 'pending' as const
-              };
-              
-              currentFolders.push(folderConfig);
-              
-              // Update FMDM with new folder list
-              this.fmdmService.updateFolders(currentFolders);
-              
-              info(`[API] Added folder ${path} with model ${modelId} to FMDM`);
-              
-              resolve({
-                success: true,
-                message: `Folder ${path} added for indexing with model ${modelId}`,
-                folderId: path,
-                status: 'pending'
-              });
-              
-            } catch (error) {
-              const errorMsg = error instanceof Error ? error.message : String(error);
-              resolve({ 
-                error: `Failed to add folder: ${errorMsg}`
-              });
-            }
-          } else {
-            resolve({ error: 'FMDM service not initialized' });
-          }
-          
-        } catch (error) {
-          resolve({ 
-            error: 'Invalid JSON or processing error',
-            details: error instanceof Error ? error.message : String(error)
-          });
-        }
-      });
-    });
-  }
-
-  /**
-   * List folders being indexed
-   */
-  private async listFolders(): Promise<any> {
-    if (this.fmdmService) {
-      try {
-        const fmdm = this.fmdmService.getFMDM();
-        const configuredFolders = fmdm.folders || [];
-        
-        const folders = configuredFolders?.map((folder: any, index: number) => ({
-          id: folder.path,
-          path: folder.path,
-          modelId: folder.model,
-          status: folder.status || 'pending',
-          priority: 'normal'
-        })) || [];
-
-        return {
-          folders,
-          queueStatus: {
-            isProcessing: folders.length > 0,
-            currentModel: folders.length > 0 ? folders[0]?.modelId : null,
-            totalFolders: folders.length
-          }
-        };
-      } catch (error) {
-        return {
-          error: `Failed to list folders: ${error instanceof Error ? error.message : String(error)}`,
-          folders: [],
-          queueStatus: {
-            isProcessing: false,
-            currentModel: null,
-            totalFolders: 0
-          }
-        };
-      }
-    }
-    
-    return {
-      folders: [],
-      queueStatus: {
-        isProcessing: false,
-        currentModel: null,
-        totalFolders: 0
-      }
-    };
-  }
 
 
   private writePidFile(): void {
@@ -515,6 +282,13 @@ class FolderMCPDaemon {
       this.webSocketServer = null;
     }
     
+    // Stop REST API server
+    if (this.restAPIServer) {
+      debug('Stopping REST API server...');
+      await this.restAPIServer.stop();
+      this.restAPIServer = null;
+    }
+    
     // Stop MCP process if running
     if (this.mcpProcess) {
       debug('Stopping MCP process...');
@@ -522,15 +296,6 @@ class FolderMCPDaemon {
       this.mcpProcess = null;
     }
     
-    // Stop HTTP server
-    if (this.server) {
-      await new Promise<void>((resolve) => {
-        this.server!.close(() => {
-          debug('HTTP server stopped');
-          resolve();
-        });
-      });
-    }
     
     // Legacy PID file cleanup no longer needed - DaemonRegistry handles cleanup
     // this.removePidFile();

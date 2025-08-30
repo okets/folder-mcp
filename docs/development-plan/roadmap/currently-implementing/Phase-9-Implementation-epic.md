@@ -2,6 +2,65 @@
 
 **📋 Related Documentation**: [Phase 9 PRD - MCP Endpoints Multi-Folder Support](./Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md)
 
+## 🔧 Git Workflow Instructions
+
+### Branch Naming Strategy
+**Principle**: Name branches based on logical work units, not sprint numbers.
+
+**Phase 9 Branch Structure**:
+- `phase-9-mcp-foundation` - Sprints 1-3 (REST API, MCP daemon mode, first endpoint)
+- `phase-9-folder-operations` - Sprints 4-6 (folder CRUD, document operations)
+- `phase-9-search-integration` - Sprints 7-9 (search, optimization, legacy cleanup)
+
+### When to Create New Branches
+1. **Start new branch** when beginning a logical group of sprints
+2. **Continue on same branch** for related sprint work
+3. **Switch branches** only when starting significantly different features
+
+### Commit Strategy
+**During Development**:
+- Make logical commits for each meaningful change
+- Use conventional commit format: `feat:`, `fix:`, `refactor:`, `test:`
+- Include descriptive messages explaining the "why"
+
+**Sprint Completion**:
+- Create a sprint summary commit: `feat: complete Phase 9 Sprint X - [Sprint Title]`
+- Include list of completed tasks in commit body
+- Add Co-Authored-By if worked with Claude
+
+### Pull Request Strategy
+**When to Create PR**:
+- After completing a logical group of sprints (e.g., Sprints 1-3)
+- When you have a cohesive, reviewable feature set
+- NOT required at every sprint boundary
+
+**PR Guidelines**:
+- Title: `Phase 9: [Feature Group Name]` (e.g., "Phase 9: MCP Foundation")
+- Description should cover all completed sprints
+- Include testing instructions
+- Link to relevant Epic sections
+
+### Current Phase 9 Git Plan
+1. **Sprints 1-3**: Use branch `phase-9-mcp-foundation`
+   - Sprint 1: REST Foundation ✅
+   - Sprint 2: MCP Server Without Folder ✅
+   - Sprint 3: First Endpoint Migration ✅
+   - **Action**: Create PR after Sprint 3 completion
+
+2. **Sprints 4-6**: Create new branch `phase-9-folder-operations`
+   - Sprint 4: Folder CRUD Endpoints
+   - Sprint 5: Document List Endpoints
+   - Sprint 6: Document Content Endpoints
+   - **Action**: Create PR after Sprint 6 completion
+
+3. **Sprints 7-9**: Create new branch `phase-9-search-integration`
+   - Sprint 7: Search Implementation
+   - Sprint 8: Performance & Optimization
+   - Sprint 9: Legacy Cleanup
+   - **Action**: Create PR after Sprint 9 completion
+
+---
+
 ## Executive Summary
 **Executive Summary**: Transform MCP endpoints from single-folder to multi-folder architecture using a hybrid approach: **REST API for MCP operations (stateless)** + **WebSocket for TUI updates (real-time)**, with complete legacy code removal.
 
@@ -56,30 +115,31 @@ Transform folder-mcp into a **multi-client, multi-folder, cloud-accessible** MCP
 
 ## 📅 SPRINT BREAKDOWN
 
-### Sprint 1: REST Foundation (Days 1-2)
+### Sprint 1: REST Foundation (Days 1-2) ✅
 **🎯 Goal**: Add REST API to daemon alongside existing WebSocket (hybrid architecture)
+**Status**: COMPLETED
 
-#### Tasks
-1. **Add Express server to daemon (port 3002)**
+#### Implementation Tasks
+1. **Add Express server to daemon (port 3002)** ✅
    - Install express, cors, helmet for security
    - Create `src/daemon/rest/server.ts` 
    - Initialize in daemon startup alongside WebSocket
 
-2. **Keep WebSocket untouched (port 3001 for TUI)**
+2. **Keep WebSocket untouched (port 3001 for TUI)** ✅
    - No changes to existing WebSocket implementation
    - Maintain TUI functionality completely
 
-3. **Implement basic REST endpoints**
+3. **Implement basic REST endpoints** ✅
    - `GET /api/v1/health` - Basic health check
    - `GET /api/v1/server/info` - System information
    - Add request logging and error handling
 
-4. **Test hybrid architecture**
+4. **Test hybrid architecture** ✅
    - Verify TUI still works via WebSocket
    - Test REST endpoints with curl
    - Validate both ports work simultaneously
 
-5. **Document REST API structure**
+5. **Document REST API structure** ✅
    - Create OpenAPI specification
    - Document endpoint patterns
    - Establish REST conventions
@@ -109,31 +169,33 @@ npm run tui  # Should connect and work normally
 
 ---
 
-### Sprint 2: Remove Folder Dependency (Days 3-4)
+### Sprint 2: Remove Folder Dependency (Days 3-4) ✅
 **🎯 Goal**: MCP server starts without folder arguments, connects to daemon
+**Status**: COMPLETED
 
 #### Tasks
-1. **Modify MCP server entry point**
+1. **Modify MCP server entry point** ✅
    - Remove mandatory folder path from `src/mcp-server.ts`
    - Make folder parameter optional in CLI parsing
    - Update help text and documentation
 
-2. **Create DaemonRESTClient class**
+2. **Create DaemonRESTClient class** ✅
    - Implement REST client in `src/interfaces/mcp/daemon-rest-client.ts`
    - Handle connection, retries, error handling
    - Support local and remote daemon URLs
+   - Fixed critical abort controller race condition
 
-3. **Establish daemon connection on MCP startup**
+3. **Establish daemon connection on MCP startup** ✅
    - Connect to daemon REST API during MCP server init
    - Validate connection with health check
    - Fail gracefully if daemon unavailable
 
-4. **Update Claude Desktop configuration**
+4. **Update Claude Desktop configuration** ✅
    - Remove folder arguments from config
    - Add DAEMON_URL environment variable
    - Document new configuration pattern
 
-5. **Test connection flow**
+5. **Test connection flow** ✅
    - MCP server starts without arguments
    - Establishes REST connection to daemon
    - Handles daemon unavailable scenarios
@@ -176,34 +238,48 @@ node dist/mcp-server.js  # Should fail gracefully with clear error
 
 ---
 
-### Sprint 3: First Endpoint Migration (Days 5-6)
+### Sprint 3: First Endpoint Migration (Days 5-6) ✅
 **🎯 Goal**: Migrate simplest endpoint (`get_server_info`) to establish REST pattern
+**Status**: COMPLETED
 
 #### Tasks
-1. **Implement daemon REST endpoint**
+1. **Implement daemon REST endpoint** ✅
    - Create `GET /api/v1/server/info` in daemon
    - Return multi-folder system information
    - Include folder counts, status, capabilities
 
-2. **Update MCP endpoint implementation**
+2. **Update MCP endpoint implementation** ✅
+   - Created `DaemonMCPEndpoints` class
    - Modify MCP `get_server_info` to call daemon REST API
    - Transform daemon response to MCP format
    - Handle errors and timeouts gracefully
 
-3. **Establish migration pattern**
+3. **Establish migration pattern** ✅
    - Document REST endpoint → MCP tool translation
    - Create reusable error handling patterns
    - Standardize response transformation
 
-4. **Test complete flow**
+4. **Test complete flow** ✅
    - Claude Desktop → MCP server → REST → Daemon
    - Validate response format and content
    - Test error scenarios
 
-5. **Performance validation**
-   - Measure end-to-end latency
-   - Optimize response transformation
-   - Ensure sub-500ms response times
+5. **Performance validation** ✅
+   - Measured end-to-end latency: **5.2ms average**
+   - Optimized response transformation
+   - **100% requests under 10ms** (requirement: <500ms)
+
+6. **📤 CREATE PULL REQUEST** 🔴
+   - **Branch**: `phase-9-mcp-foundation`
+   - **Title**: "Phase 9: MCP Foundation (Sprints 1-3)"
+   - **Description**: Cover all three sprints' accomplishments
+   - **Include**:
+     - Summary of REST API implementation
+     - MCP daemon mode changes
+     - Performance metrics
+     - Testing instructions
+   - **Review**: Request review from team members
+   - **Merge**: After approval, merge to main
 
 #### API Design
 ```javascript
@@ -586,6 +662,18 @@ curl http://localhost:3002/api/v1/folders/sales/documents/nonexistent.pdf
 # Should return 404 with helpful error message
 ```
 
+6. **📤 CREATE PULL REQUEST**
+   - **Branch**: `phase-9-folder-operations`
+   - **Title**: "Phase 9: Folder Operations (Sprints 4-6)"
+   - **Description**: Cover Sprints 4-6 accomplishments
+   - **Include**:
+     - Folder CRUD operations
+     - Document listing and retrieval
+     - Format-specific document handling
+     - Multi-folder support testing
+   - **Review**: Request review from team members
+   - **Merge**: After approval, merge to main
+
 ---
 
 ### Sprint 7: Search Implementation (Days 13-14)  
@@ -741,7 +829,7 @@ sqlite3 ~/.cache/folder-mcp/embeddings.db \
 ### Sprint 9: Legacy Code Cleanup (Days 17-18)
 **🎯 Goal**: Remove all single-folder legacy code and obsolete tests
 
-#### Tasks
+#### Implementation Tasks
 1. **Identify and remove legacy single-folder code**
    - Remove old single-folder MCP endpoint implementations
    - Delete deprecated CLI argument parsing for folder paths
@@ -817,6 +905,19 @@ npm run test:integration
 npm run build:analyze
 # Should show reduced bundle size from removed code
 ```
+
+6. **📤 CREATE PULL REQUEST**
+   - **Branch**: `phase-9-search-integration`
+   - **Title**: "Phase 9: Search Integration & Cleanup (Sprints 7-9)"
+   - **Description**: Cover Sprints 7-9 accomplishments
+   - **Include**:
+     - Semantic search implementation
+     - Performance optimizations
+     - Legacy code removal
+     - Final test results and metrics
+   - **Review**: Request review from team members
+   - **Merge**: After approval, merge to main
+   - **Celebrate**: Phase 9 complete! 🎉
 
 #### Remote Access Setup
 ```bash

@@ -23,6 +23,8 @@ import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js'
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
 import { getSupportedExtensions } from './domain/files/supported-extensions.js';
+import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
+import { DaemonMCPEndpoints } from './interfaces/mcp/daemon-mcp-endpoints.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -45,9 +47,10 @@ console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`)
 export async function main(): Promise<void> {
   debug('main() function called');
   let devModeManager: DevModeManager | null = null;
+  let daemonClient: DaemonRESTClient | null = null;
   
   try {
-    debug('Starting MCP server with DEAD SIMPLE configuration');
+    debug('Starting MCP server');
     
     // Parse command line arguments
     const parseResult = CliArgumentParser.parse(process.argv);
@@ -72,9 +75,187 @@ export async function main(): Promise<void> {
     
     const { folderPath, theme } = parseResult.args;
     
-    // Ensure folderPath is defined (validation should have caught this)
+    // Phase 9: Determine mode based on folderPath presence
+    const isDaemonMode = !folderPath;
+    
+    if (isDaemonMode) {
+      debug('No folder path provided - connecting to daemon REST API for multi-folder support');
+      
+      // Connect to daemon REST API
+      daemonClient = new DaemonRESTClient();
+      try {
+        await daemonClient.connect();
+        debug('Successfully connected to daemon REST API');
+        
+        // Get server info to verify connection
+        const serverInfo = await daemonClient.getServerInfo();
+        debug(`Daemon info: v${serverInfo.version}, ${serverInfo.daemon.folderCount} folders configured`);
+        debug(`  - Active folders: ${serverInfo.daemon.activeFolders}`);
+        debug(`  - Indexing folders: ${serverInfo.daemon.indexingFolders}`);
+        debug(`  - Total documents: ${serverInfo.daemon.totalDocuments}`);
+        
+        // Sprint 2: Connection established, ready for endpoint migration
+        debug('Daemon REST connection verified - MCP server ready for multi-folder operations');
+        
+        // Sprint 3: Create daemon MCP endpoints
+        const daemonEndpoints = new DaemonMCPEndpoints(daemonClient);
+        
+        // Create MCP server with daemon-backed tools
+        const server = new Server(
+          {
+            name: 'folder-mcp',
+            version: '2.0.0',
+          },
+          {
+            capabilities: {
+              tools: {},
+            },
+          }
+        );
+        
+        // Register MCP tools that forward to daemon
+        server.setRequestHandler(ListToolsRequestSchema, async () => {
+          return {
+            tools: [
+              {
+                name: 'get_server_info',
+                description: 'Get information about the folder-mcp server and daemon status',
+                inputSchema: {
+                  type: 'object',
+                  properties: {},
+                  required: []
+                }
+              },
+              {
+                name: 'list_folders',
+                description: 'List all configured folders in the multi-folder system',
+                inputSchema: {
+                  type: 'object',
+                  properties: {},
+                  required: []
+                }
+              },
+              {
+                name: 'search',
+                description: 'Search for documents across folders (coming in Sprint 7)',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                      description: 'Search query'
+                    },
+                    folder_id: {
+                      type: 'string',
+                      description: 'Optional folder ID to search within'
+                    }
+                  },
+                  required: ['query']
+                }
+              }
+            ]
+          };
+        });
+        
+        // Handle tool calls by forwarding to daemon endpoints
+        server.setRequestHandler(CallToolRequestSchema, async (request) => {
+          const { name, arguments: args } = request.params;
+          
+          try {
+            switch (name) {
+              case 'get_server_info': {
+                const result = await daemonEndpoints.getServerInfo();
+                return result as any;
+              }
+              
+              case 'list_folders': {
+                const result = await daemonEndpoints.listFolders();
+                return result as any;
+              }
+              
+              case 'search': {
+                const query = args?.query as string || '';
+                const folderId = args?.folder_id as string | undefined;
+                const result = await daemonEndpoints.search(query, folderId);
+                return result as any;
+              }
+              
+              default:
+                return {
+                  content: [{
+                    type: 'text' as const,
+                    text: `Unknown tool: ${name}`
+                  }]
+                } as any;
+            }
+          } catch (error) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Error calling tool ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+              }]
+            } as any;
+          }
+        });
+        
+        // Start the stdio transport
+        const transport = new StdioServerTransport();
+        await server.connect(transport);
+        debug('MCP server started in daemon mode with tools registered');
+        
+        // Keep the process running with proper shutdown handling
+        await new Promise<void>((resolve) => {
+          // Set up signal handlers for graceful shutdown
+          const shutdown = async (signal: string) => {
+            debug(`Received ${signal}, shutting down gracefully...`);
+            
+            // Clean up daemon client
+            if (daemonClient) {
+              daemonClient.close();
+            }
+            
+            // Close the MCP server connection if method exists
+            if (server && typeof (server as any).close === 'function') {
+              try {
+                await (server as any).close();
+              } catch (error) {
+                debug(`Error closing server: ${error}`);
+              }
+            }
+            
+            resolve();
+            process.exit(0);
+          };
+          
+          // Handle termination signals
+          process.once('SIGINT', () => shutdown('SIGINT'));
+          process.once('SIGTERM', () => shutdown('SIGTERM'));
+          
+          // Also handle uncaught exceptions and rejections
+          process.once('uncaughtException', (error) => {
+            console.error('Uncaught exception:', error);
+            shutdown('uncaughtException');
+          });
+          
+          process.once('unhandledRejection', (reason, promise) => {
+            console.error('Unhandled rejection at:', promise, 'reason:', reason);
+            shutdown('unhandledRejection');
+          });
+        });
+        return;
+      } catch (error) {
+        debug(`Failed to connect to daemon: ${error}`);
+        debug('Please ensure the daemon is running with REST API on port 3002');
+        debug('Start the daemon with: npm run daemon:restart');
+        process.exit(1);
+      }
+    }
+    
+    // Legacy single-folder mode
+    debug('Running in legacy single-folder mode');
+    
     if (!folderPath) {
-      debug('Error: folderPath is undefined after validation');
+      debug('Error: folderPath is undefined in single-folder mode');
       process.exit(1);
     }
     
@@ -430,6 +611,12 @@ export async function main(): Promise<void> {
     const shutdown = async () => {
       debug('Shutting down MCP server...');
       try {
+        // Clean up daemon client if in daemon mode
+        if (daemonClient) {
+          daemonClient.close();
+          debug('Daemon client connection closed');
+        }
+        
         if (devModeManager) {
           await devModeManager.stopWatching();
           debug('Development mode file watcher stopped');

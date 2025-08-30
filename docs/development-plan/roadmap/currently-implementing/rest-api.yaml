@@ -1,0 +1,660 @@
+openapi: 3.0.3
+info:
+  title: folder-mcp REST API
+  description: |
+    REST API for multi-folder MCP operations in folder-mcp daemon.
+    
+    This API provides stateless HTTP endpoints for MCP clients to access
+    folder-mcp's multi-folder knowledge system. It runs alongside the WebSocket
+    API which continues to serve TUI real-time updates.
+    
+    ## Architecture
+    
+    - **REST API (Port 3002)**: Stateless MCP operations
+    - **WebSocket (Port 3001)**: Real-time TUI updates
+    
+    Both servers run simultaneously in the daemon, providing a hybrid
+    architecture that supports multiple client types.
+    
+  version: 2.0.0-dev
+  contact:
+    name: folder-mcp
+    url: https://github.com/okets/folder-mcp
+  license:
+    name: MIT
+    url: https://github.com/okets/folder-mcp/blob/main/LICENSE
+
+servers:
+  - url: http://localhost:3002
+    description: Local daemon REST API
+  - url: https://folder-mcp.yourdomain.com
+    description: Remote access via Cloudflare tunnel (future)
+
+tags:
+  - name: Health
+    description: System health and status endpoints
+  - name: Server Info
+    description: Server capabilities and system information
+  - name: Folders
+    description: Multi-folder operations (future sprints)
+  - name: Documents
+    description: Document access and retrieval (future sprints)
+  - name: Search
+    description: Semantic search operations (future sprints)
+
+paths:
+  /api/v1/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Returns the current health status of the daemon and REST API server.
+        This endpoint is used for monitoring and health checks.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Healthy server response
+                  value:
+                    status: healthy
+                    uptime: 3600
+                    version: "2.0.0-dev"
+                    timestamp: "2025-08-29T19:50:35.233Z"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                error:
+                  summary: Server error response
+                  value:
+                    status: error
+                    uptime: 0
+                    version: "2.0.0-dev"
+                    timestamp: "2025-08-29T19:50:35.233Z"
+
+  /api/v1/server/info:
+    get:
+      tags:
+        - Server Info
+      summary: Server information
+      description: |
+        Returns comprehensive information about the server capabilities,
+        system resources, and daemon status including multi-folder statistics.
+      operationId: getServerInfo
+      responses:
+        '200':
+          description: Server information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerInfoResponse'
+              examples:
+                server_info:
+                  summary: Server information response
+                  value:
+                    version: "2.0.0-dev"
+                    capabilities:
+                      cpuCount: 10
+                      totalMemory: 68719476736
+                      supportedModels:
+                        - "all-MiniLM-L6-v2"
+                        - "all-mpnet-base-v2"
+                        - "nomic-embed-text"
+                    daemon:
+                      uptime: 3600
+                      folderCount: 3
+                      activeFolders: 2
+                      indexingFolders: 1
+                      totalDocuments: 156
+        '500':
+          description: Failed to retrieve server information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1:
+    get:
+      tags:
+        - Server Info
+      summary: API root
+      description: |
+        Returns basic API information and available endpoints.
+        Useful for API discovery and documentation.
+      operationId: getApiRoot
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiRootResponse'
+
+  /api:
+    get:
+      tags:
+        - Server Info
+      summary: API discovery
+      description: Alias for /api/v1 endpoint
+      operationId: getApi
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiRootResponse'
+
+  # Future endpoints (Sprint 2+)
+  /api/v1/folders:
+    get:
+      tags:
+        - Folders
+      summary: List all folders
+      description: |
+        Returns a list of all configured folders with their status,
+        model information, and statistics.
+        
+        **Note**: This endpoint will be implemented in Sprint 5.
+      operationId: listFolders
+      responses:
+        '200':
+          description: Folders retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FoldersResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/folders/{folderId}/documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents in folder
+      description: |
+        Returns a paginated list of documents in the specified folder.
+        
+        **Note**: This endpoint will be implemented in Sprint 5.
+      operationId: listDocuments
+      parameters:
+        - name: folderId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the folder
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Maximum number of documents to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of documents to skip
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
+        '404':
+          description: Folder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/folders/{folderId}/search:
+    post:
+      tags:
+        - Search
+      summary: Search within folder
+      description: |
+        Performs semantic search within the specified folder using the 
+        folder's configured embedding model.
+        
+        **Note**: This endpoint will be implemented in Sprint 7.
+      operationId: searchFolder
+      parameters:
+        - name: folderId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Unique identifier of the folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              basic_search:
+                summary: Basic search query
+                value:
+                  query: "Q4 revenue projections"
+                  limit: 10
+                  threshold: 0.7
+                  includeContent: true
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '404':
+          description: Folder not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, starting, error]
+          description: Current health status of the server
+        uptime:
+          type: integer
+          minimum: 0
+          description: Server uptime in seconds
+        version:
+          type: string
+          description: Server version
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the response
+
+    ServerInfoResponse:
+      type: object
+      required:
+        - version
+        - capabilities
+        - daemon
+      properties:
+        version:
+          type: string
+          description: Server version
+        capabilities:
+          type: object
+          required:
+            - cpuCount
+            - totalMemory
+            - supportedModels
+          properties:
+            cpuCount:
+              type: integer
+              minimum: 1
+              description: Number of CPU cores available
+            totalMemory:
+              type: integer
+              minimum: 0
+              description: Total system memory in bytes
+            supportedModels:
+              type: array
+              items:
+                type: string
+              description: List of supported embedding model names
+        daemon:
+          type: object
+          required:
+            - uptime
+            - folderCount
+            - activeFolders
+            - indexingFolders
+            - totalDocuments
+          properties:
+            uptime:
+              type: integer
+              minimum: 0
+              description: Daemon uptime in seconds
+            folderCount:
+              type: integer
+              minimum: 0
+              description: Total number of configured folders
+            activeFolders:
+              type: integer
+              minimum: 0
+              description: Number of active folders
+            indexingFolders:
+              type: integer
+              minimum: 0
+              description: Number of folders currently being indexed
+            totalDocuments:
+              type: integer
+              minimum: 0
+              description: Total number of indexed documents across all folders
+
+    ApiRootResponse:
+      type: object
+      required:
+        - name
+        - version
+        - description
+        - endpoints
+      properties:
+        name:
+          type: string
+          description: API name
+        version:
+          type: string
+          description: API version
+        description:
+          type: string
+          description: API description
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+          description: Available endpoints with their descriptions
+        documentation:
+          type: string
+          description: Link to full API documentation
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          description: Error type or category
+        message:
+          type: string
+          description: Human-readable error message
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the error occurred
+        path:
+          type: string
+          description: Request path that caused the error
+
+    # Future schemas for Sprint 2+ endpoints
+    FoldersResponse:
+      type: object
+      required:
+        - folders
+      properties:
+        folders:
+          type: array
+          items:
+            $ref: '#/components/schemas/FolderInfo'
+          description: List of configured folders
+
+    FolderInfo:
+      type: object
+      required:
+        - id
+        - name
+        - path
+        - model
+        - status
+        - documentCount
+        - lastIndexed
+      properties:
+        id:
+          type: string
+          description: Unique folder identifier
+        name:
+          type: string
+          description: Human-readable folder name
+        path:
+          type: string
+          description: Absolute file system path
+        model:
+          type: string
+          description: Embedding model used for this folder
+        status:
+          type: string
+          enum: [active, indexing, pending, error]
+          description: Current folder status
+        documentCount:
+          type: integer
+          minimum: 0
+          description: Number of documents in this folder
+        lastIndexed:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of last indexing
+        topics:
+          type: array
+          items:
+            type: string
+          description: Main topics detected in folder content
+
+    DocumentsResponse:
+      type: object
+      required:
+        - folderContext
+        - documents
+        - pagination
+      properties:
+        folderContext:
+          $ref: '#/components/schemas/FolderInfo'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentInfo'
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    DocumentInfo:
+      type: object
+      required:
+        - id
+        - name
+        - path
+        - type
+        - size
+        - modified
+        - indexed
+      properties:
+        id:
+          type: string
+          description: Unique document identifier
+        name:
+          type: string
+          description: Document filename
+        path:
+          type: string
+          description: Relative path within folder
+        type:
+          type: string
+          description: File extension/type
+        size:
+          type: integer
+          minimum: 0
+          description: File size in bytes
+        modified:
+          type: string
+          format: date-time
+          description: Last modified timestamp
+        pageCount:
+          type: integer
+          minimum: 1
+          description: Number of pages (for PDF/PPTX)
+        indexed:
+          type: boolean
+          description: Whether document is fully indexed
+
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          description: Search query text
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+          description: Maximum number of results
+        threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.7
+          description: Minimum relevance score
+        includeContent:
+          type: boolean
+          default: true
+          description: Include content snippets in results
+
+    SearchResponse:
+      type: object
+      required:
+        - folderContext
+        - results
+        - performance
+      properties:
+        folderContext:
+          $ref: '#/components/schemas/FolderInfo'
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        performance:
+          $ref: '#/components/schemas/SearchPerformance'
+
+    SearchResult:
+      type: object
+      required:
+        - documentId
+        - documentName
+        - relevance
+      properties:
+        documentId:
+          type: string
+          description: Document identifier
+        documentName:
+          type: string
+          description: Document name
+        relevance:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Relevance score
+        snippet:
+          type: string
+          description: Content excerpt
+        pageNumber:
+          type: integer
+          minimum: 1
+          description: Page number (if applicable)
+        chunkId:
+          type: string
+          description: Internal chunk identifier
+
+    SearchPerformance:
+      type: object
+      required:
+        - searchTime
+        - documentsSearched
+        - totalResults
+      properties:
+        searchTime:
+          type: integer
+          minimum: 0
+          description: Search time in milliseconds
+        modelLoadTime:
+          type: integer
+          minimum: 0
+          description: Model loading time in milliseconds
+        documentsSearched:
+          type: integer
+          minimum: 0
+          description: Number of documents searched
+        totalResults:
+          type: integer
+          minimum: 0
+          description: Total number of results found
+
+    PaginationInfo:
+      type: object
+      required:
+        - total
+        - limit
+        - offset
+        - hasMore
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items
+        limit:
+          type: integer
+          minimum: 1
+          description: Items per page
+        offset:
+          type: integer
+          minimum: 0
+          description: Current offset
+        hasMore:
+          type: boolean
+          description: Whether more items are available
+
+  # Future: Authentication schemas for remote access
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: |
+        API key for remote access authentication.
+        **Note**: Authentication will be implemented in Sprint 8.
+
+# Future: Security requirements for remote access
+# security:
+#   - ApiKeyAuth: []
