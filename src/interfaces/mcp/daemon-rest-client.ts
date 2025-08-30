@@ -4,9 +4,12 @@
  * 
  * This client communicates with the daemon's REST API on port 3002
  * instead of using WebSocket, providing stateless operations for MCP endpoints.
+ * 
+ * Auto-discovers daemon just like TUI does - no configuration needed!
  */
 
 import fetch, { RequestInit, Response } from 'node-fetch';
+import { DaemonRegistry } from '../../daemon/registry/daemon-registry.js';
 
 export interface FolderConfig {
   id: string;
@@ -67,21 +70,66 @@ export class DaemonRESTClient {
   private isConnected: boolean = false;
 
   constructor(options: DaemonRESTClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.DAEMON_URL || 'http://localhost:3002';
+    // We'll set baseUrl dynamically during connect() through auto-discovery
+    this.baseUrl = options.baseUrl || '';
     this.timeout = options.timeout || 5000;
     this.retryAttempts = options.retryAttempts || 3;
     this.retryDelay = options.retryDelay || 1000;
+  }
+
+  /**
+   * Auto-discover daemon REST API using registry
+   * Returns the REST API URL constructed from discovered host and port
+   */
+  private async discoverDaemonUrl(): Promise<string> {
+    // First check if baseUrl was explicitly provided
+    if (this.baseUrl) {
+      return this.baseUrl;
+    }
     
-    // Ensure baseUrl doesn't have trailing slash
-    this.baseUrl = this.baseUrl.replace(/\/$/, '');
+    // Check environment variable
+    if (process.env.DAEMON_URL) {
+      return process.env.DAEMON_URL;
+    }
+
+    // Use daemon registry discovery
+    try {
+      const daemonInfo = await DaemonRegistry.discover();
+      if (daemonInfo) {
+        // Use discovered host and REST port
+        // Normalize host to loopback if needed
+        const host = daemonInfo.host || '127.0.0.1';
+        const normalizedHost = (host === 'localhost' || host === '0.0.0.0') ? '127.0.0.1' : host;
+        
+        // Use explicit restPort if available, otherwise fallback to hardcoded 3002
+        // (for backward compatibility with daemons that don't report restPort yet)
+        const restPort = daemonInfo.restPort || 3002;
+        
+        const restUrl = `http://${normalizedHost}:${restPort}`;
+        console.error(`[DaemonRESTClient] Auto-discovered daemon REST API at ${restUrl}`);
+        return restUrl;
+      }
+    } catch (error) {
+      console.error(`[DaemonRESTClient] Registry discovery failed: ${error}`);
+    }
+
+    // Fallback to default when no discovery info available
+    const defaultUrl = 'http://localhost:3002';
+    console.error(`[DaemonRESTClient] No daemon discovered, using default: ${defaultUrl}`);
+    return defaultUrl;
   }
 
   /**
    * Connect to the daemon REST API
-   * Verifies the connection by calling the health endpoint
+   * Auto-discovers daemon port using the same mechanism as TUI
    */
   async connect(): Promise<void> {
     try {
+      // Auto-discover daemon URL if not already set
+      this.baseUrl = await this.discoverDaemonUrl();
+      // Ensure baseUrl doesn't have trailing slash
+      this.baseUrl = this.baseUrl.replace(/\/$/, '');
+      
       console.error(`[DaemonRESTClient] Connecting to daemon at ${this.baseUrl}`);
       
       const health = await this.getHealth();

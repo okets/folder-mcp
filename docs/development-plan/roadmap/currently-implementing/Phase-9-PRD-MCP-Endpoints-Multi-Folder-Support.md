@@ -376,7 +376,7 @@ npm run daemon
 # Daemon reads folders from ~/.folder-mcp/config.yaml
 
 # 2. Configure Claude Code to use folder-mcp (NO folder arguments!)
-# Add to Claude Desktop config:
+# Add to Claude Code config:
 {
   "mcpServers": {
     "folder-mcp": {

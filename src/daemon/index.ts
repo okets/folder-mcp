@@ -101,6 +101,8 @@ class FolderMCPDaemon {
         pid: process.pid,
         httpPort: this.config.port,
         wsPort: this.config.port + 1,
+        restPort: 3002,  // REST API port for MCP operations
+        host: '127.0.0.1',
         startTime: this.startTime.toISOString(),
         version: '1.0.0' // TODO: Get from package.json
       });

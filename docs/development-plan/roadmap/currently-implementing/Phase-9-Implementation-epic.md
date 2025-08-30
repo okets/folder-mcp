@@ -48,9 +48,9 @@
    - **Action**: Create PR after Sprint 3 completion
 
 2. **Sprints 4-6**: Create new branch `phase-9-folder-operations`
-   - Sprint 4: Folder CRUD Endpoints
+   - Sprint 4: Create a revolutionary MCP testing method
    - Sprint 5: Document List Endpoints
-   - Sprint 6: Document Content Endpoints
+   - Sprint 6: Folder CRUD Endpoints, Document Content Endpoints
    - **Action**: Create PR after Sprint 6 completion
 
 3. **Sprints 7-9**: Create new branch `phase-9-search-integration`
@@ -71,13 +71,13 @@
 
 ### Current State (Post-Rollback)
 ```
-❌ BROKEN: Claude Desktop → MCP Server → Direct File Access (single folder only)
+❌ BROKEN: Claude Code → MCP Server → Direct File Access (single folder only)
 ✅ WORKING: TUI → WebSocket (3001) → Daemon → Multi-Folder System
 ```
 
 ### Target State (Revolutionary)
 ```
-✅ LOCAL: Claude Desktop → MCP Server → REST (3002) → Daemon ← WebSocket (3001) ← TUI
+✅ LOCAL: Claude Code → MCP Server → REST (3002) → Daemon ← WebSocket (3001) ← TUI
 ✅ MULTI: Multiple Clients → Multiple MCP Servers → Single REST API → Shared Multi-Folder System  
 ✅ CLOUD: Remote Cloud LLMs → HTTPS → Daemon REST API → Your Local Knowledge
 ```
@@ -90,7 +90,7 @@
 
 Transform folder-mcp into a **multi-client, multi-folder, cloud-accessible** MCP system while maintaining existing TUI functionality and enabling revolutionary AI-agent-led testing.
 
-**Success Definition**: Claude Desktop + VSCode + Cloud LLMs can all access the same multi-folder knowledge base simultaneously, with instant validation through Claude Code subagent testing.
+**Success Definition**: Claude Code + VSCode + Cloud LLMs can all access the same multi-folder knowledge base simultaneously, with instant validation through Claude Code subagent testing.
 
 ---
 
@@ -109,7 +109,7 @@ Transform folder-mcp into a **multi-client, multi-folder, cloud-accessible** MCP
 - ✅ Clearer documentation focused on current architecture
 - ✅ Faster development without dual-mode complexity
 
-**User Impact**: Existing users must reconfigure Claude Desktop and update folder configuration when upgrading.
+**User Impact**: Existing users must reconfigure Claude Code and update folder configuration when upgrading.
 
 ---
 
@@ -190,7 +190,7 @@ npm run tui  # Should connect and work normally
    - Validate connection with health check
    - Fail gracefully if daemon unavailable
 
-4. **Update Claude Desktop configuration** ✅
+4. **Update Claude Code configuration** ✅
    - Remove folder arguments from config
    - Add DAEMON_URL environment variable
    - Document new configuration pattern
@@ -203,10 +203,10 @@ npm run tui  # Should connect and work normally
 #### Connection Flow
 ```typescript
 // Old (broken after rollback)
-Claude Desktop spawns: node mcp-server.js /path/to/folder
+Claude Code spawns: node mcp-server.js /path/to/folder
 
 // New (multi-folder capable)
-Claude Desktop spawns: node mcp-server.js
+Claude Code spawns: node mcp-server.js
 MCP Server → REST call → http://localhost:3002/api/v1/health
 Daemon responds with system status including all folders
 ```
@@ -214,7 +214,7 @@ Daemon responds with system status including all folders
 #### Success Criteria
 - [x] MCP server starts without folder arguments
 - [x] Establishes REST connection to daemon on startup
-- [x] Claude Desktop config simplified (no folder paths)
+- [x] Claude Code config simplified (no folder paths)
 - [x] Proper error handling when daemon unavailable
 - [x] Connection established under 1 second
 
@@ -231,9 +231,9 @@ node dist/mcp-server.js &  # Should connect successfully
 killall folder-mcp-daemon
 node dist/mcp-server.js  # Should fail gracefully with clear error
 
-# 4. Claude Desktop integration test
+# 4. Claude Code integration test
 # Update claude_desktop_config.json to remove folder args
-# Test that MCP server loads in Claude Desktop
+# Test that MCP server loads in Claude Code
 ```
 
 ---
@@ -260,7 +260,7 @@ node dist/mcp-server.js  # Should fail gracefully with clear error
    - Standardize response transformation
 
 4. **Test complete flow** ✅
-   - Claude Desktop → MCP server → REST → Daemon
+   - Claude Code → MCP server → REST → Daemon
    - Validate response format and content
    - Test error scenarios
 
@@ -313,7 +313,7 @@ Response: {
 ```
 
 #### Success Criteria
-- [x] Claude Desktop gets multi-folder info via MCP tool
+- [x] Claude Code gets multi-folder info via MCP tool
 - [x] REST endpoint testable with curl independently
 - [x] Response transformation preserves all important information
 - [x] Error handling works for daemon unavailable scenarios
@@ -338,19 +338,27 @@ killall folder-mcp-daemon
 
 ---
 
-### Sprint 4: Claude Code Agent Testing (Days 7-8)
+### Sprint 4: Claude Code Agent Testing (Days 7-8) ✅
 **🎯 Goal**: Revolutionary testing approach - Claude as MCP client
+**Status**: COMPLETED
+
+#### Revolutionary Discovery
+**Claude Code can directly test MCP servers!** Using the `/mcp` command, Claude Code can:
+- Act as both developer AND tester
+- Provide instant validation of MCP endpoints
+- Execute test scenarios without external tools
+- Verify protocol compliance in real-time
 
 #### Tasks
-1. **Configure Claude Desktop with folder-mcp**
+1. **Configure Claude Code with folder-mcp**
    - Update claude_desktop_config.json with new MCP server config
-   - Add folder-mcp as MCP server (no folder arguments)
+   - Add folder-mcp as MCP server to Claude Code (no folder arguments)
    - Verify MCP server loads and tools are available
 
-2. **Create specialized testing subagent**
-   - Use Claude Code Task tool to create MCP-only testing agent
-   - Agent restricted to MCP tools only (no file system access)
-   - Document agent creation and configuration process
+2. **Direct MCP Testing (Revolutionary Approach)**
+   - Claude Code tests MCP endpoints directly via `/mcp` command
+   - No need for subagents or external testing tools
+   - Instant feedback on protocol compliance and response formats
 
 3. **Design comprehensive test scenarios**
    - Basic connectivity: "Test MCP server connection"
@@ -368,7 +376,7 @@ killall folder-mcp-daemon
    - Document how to create and run agent tests
    - Integrate into development workflow
 
-#### Claude Desktop Config
+#### Claude Code Config
 ```json
 {
   "mcpServers": {
@@ -411,26 +419,42 @@ killall folder-mcp-daemon
 - [x] Instant feedback on MCP protocol compliance
 - [x] Agent identifies any response format or performance issues
 
-#### Agent-Led Validation Process
+#### Revolutionary Self-Testing Process
 ```bash
 # 1. Setup
 npm run daemon:restart
 npm run build
 
-# 2. Configure Claude Desktop
-# Add folder-mcp-test to claude_desktop_config.json
+# 2. Configure Claude Code
+# Add folder-mcp to Claude code:
+i. run 'claude mcp add folder-mcp -- node /Users/hanan/Projects/folder-mcp/dist/src/mcp-server.js'
+ii. restart Claude Code.
 
-# 3. Create testing subagent
-# Use Claude Code Task tool:
-Task({
-  description: "MCP Endpoint Tester",
-  prompt: "You are testing the folder-mcp endpoints. Use only the MCP tools to query the system and validate responses.",
-  subagent_type: "general-purpose"
-})
+# 3. Direct MCP Testing (No subagents needed!)
+# Claude Code tests itself using /mcp command:
 
-# 4. Run test scenarios
-# Agent executes each scenario and reports results
+# Test server info
+/mcp folder-mcp get_server_info
+
+# Test folder listing
+/mcp folder-mcp list_folders
+
+# Test search (placeholder expected)
+/mcp folder-mcp search "test query"
+
+# 4. Claude Code validates responses automatically
+# - Checks response format
+# - Validates data structure
+# - Measures response time
+# - Reports any protocol violations
 ```
+
+#### Why This Is Revolutionary
+1. **No External Tools**: Claude Code is both developer and tester
+2. **Instant Feedback**: Test changes immediately without context switching
+3. **Self-Validation**: Claude understands MCP protocol and validates compliance
+4. **Rapid Iteration**: Fix issues and retest in seconds
+5. **No Subagents Needed**: Direct testing via `/mcp` command
 
 ---
 
@@ -962,7 +986,7 @@ app.use('/api/v1/*', limiter);
 #### Final Integration Testing
 ```markdown
 ### Integration Test 1: Multi-Client Access
-**Test**: Run Claude Desktop, VSCode MCP, and curl simultaneously
+**Test**: Run Claude Code, VSCode MCP, and curl simultaneously
 **Expected**: All clients can access daemon REST API concurrently
 **Validation**: No conflicts, consistent responses across clients
 
@@ -1051,7 +1075,7 @@ class FolderMCPDaemon {
 #### Local Development (Multiple Agents)
 ```
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│Claude Desktop│  │   VSCode     │  │    Cursor    │
+│Claude Code│  │   VSCode     │  │    Cursor    │
 └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
        │ spawns          │ spawns          │ spawns   
        ↓                 ↓                 ↓         
@@ -1122,7 +1146,7 @@ class FolderMCPDaemon {
 
 ### Data Flow
 ```
-1. Claude Desktop → spawns MCP Server
+1. Claude Code → spawns MCP Server
 2. MCP Server → connects to Daemon REST API  
 3. Claude → JSON-RPC → MCP Server
 4. MCP Server → HTTP REST → Daemon
@@ -1146,7 +1170,7 @@ Every sprint validated by Claude Code subagent using actual MCP protocol:
 ## AI Agent Test Execution
 
 ### Agent Setup
-1. Configure Claude Desktop with folder-mcp MCP server
+1. Configure Claude Code with folder-mcp MCP server
 2. Create specialized testing subagent via Task tool
 3. Agent has access ONLY to MCP tools (no file system)
 4. Agent tests actual Claude → MCP → Daemon → Multi-Folder flow
@@ -1250,7 +1274,7 @@ class SprintValidator {
 - [x] **Documentation**: Complete setup guides for local development and remote deployment
 
 ### User Experience Success
-- [x] **Simplified Configuration**: Claude Desktop config requires no folder arguments
+- [x] **Simplified Configuration**: Claude Code config requires no folder arguments
 - [x] **Multi-Client Support**: Multiple local agents (Claude, VSCode, Cursor) share same daemon
 - [x] **Cloud Access**: Seamless remote access to local knowledge with proper authentication
 - [x] **Performance Consistency**: Fast, reliable responses across all client types and endpoints
@@ -1295,7 +1319,7 @@ Each sprint is considered complete only when ALL criteria are met:
 #### Technical Completion
 - [x] All planned functionality implemented and working
 - [x] REST endpoints respond correctly and within performance targets
-- [x] MCP tools work via Claude Desktop integration
+- [x] MCP tools work via Claude Code integration
 - [x] No regressions in existing functionality (TUI, daemon core services)
 
 #### Testing Completion  
@@ -1319,7 +1343,7 @@ Each sprint is considered complete only when ALL criteria are met:
 ### Final Project Success (End of Sprint 8)
 - [x] **Feature Complete**: All 10 MCP endpoints support multi-folder operations with folder parameters
 - [x] **Performance Validated**: Search <500ms, folder ops <100ms, model switching <2s across all scenarios
-- [x] **Multi-Client Proven**: Claude Desktop + VSCode + remote cloud access working simultaneously
+- [x] **Multi-Client Proven**: Claude Code + VSCode + remote cloud access working simultaneously
 - [x] **Agent Certified**: Claude Code subagent successfully validates all endpoints and workflows
 - [x] **Zero Regression**: TUI functionality unchanged, all existing features preserved
 - [x] **Production Ready**: Security, monitoring, documentation complete for production deployment
@@ -1357,7 +1381,7 @@ Each sprint is considered complete only when ALL criteria are met:
 - [x] **Testing Guide**: Agent testing methodology and TMOAT script usage
 
 ### User Documentation  
-- [x] **Claude Desktop Setup**: MCP server configuration and usage
+- [x] **Claude Code Setup**: MCP server configuration and usage
 - [x] **Remote Access Guide**: Cloudflare tunnel setup and security configuration
 - [x] **Multi-Client Guide**: Using multiple AI agents with same knowledge base
 - [x] **Troubleshooting**: Common issues, error messages, and resolution steps
