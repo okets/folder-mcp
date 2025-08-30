@@ -1,4 +1,4 @@
-# Claude Desktop Configuration for Phase 9 Multi-Folder Support
+# Claude Code Configuration for Phase 9 Multi-Folder Support
 
 ## Overview
 
@@ -55,7 +55,7 @@ For example:
 
 ### 1. Ensure the Daemon is Running
 
-Before using the MCP server in Claude Desktop, make sure the daemon is running:
+Before using the MCP server in Claude Code, make sure the daemon is running:
 
 ```bash
 # Start the daemon (if not already running)
@@ -81,16 +81,16 @@ Expected response:
 npm run build
 ```
 
-### 3. Update Claude Desktop Configuration
+### 3. Update Claude Code Configuration
 
-1. Open Claude Desktop settings
+1. Open Claude Code settings
 2. Navigate to the MCP servers configuration
 3. Update or add the folder-mcp configuration using the new format above
-4. Save and restart Claude Desktop
+4. Save and restart Claude Code
 
 ### 4. Verify Connection
 
-In Claude Desktop, you should be able to use folder-mcp tools. Test with:
+In Claude Code, you should be able to use folder-mcp tools. Test with:
 - "Use the get_server_info tool to check the connection"
 - The response should show multi-folder information from the daemon
 
@@ -106,15 +106,15 @@ In Claude Desktop, you should be able to use folder-mcp tools. Test with:
 3. Verify port 3002 is not blocked by firewall
 4. Try setting explicit DAEMON_URL in the env section
 
-### No Tools Available in Claude Desktop
+### No Tools Available in Claude Code
 
-**Error**: MCP tools don't appear in Claude Desktop
+**Error**: MCP tools don't appear in Claude Code
 
 **Solutions**:
-1. Check the MCP server logs (visible in Claude Desktop developer console)
+1. Check the MCP server logs (visible in Claude Code developer console)
 2. Ensure the path to mcp-server.js is correct
 3. Verify the build completed successfully: `npm run build`
-4. Restart Claude Desktop after configuration changes
+4. Restart Claude Code after configuration changes
 
 ### Connection Timeout
 
@@ -139,7 +139,7 @@ If you were previously using folder-mcp in single-folder mode:
 1. Remove the folder path from the args array
 2. Add the DAEMON_URL environment variable (optional if using default)
 3. Configure your folders in the daemon instead of passing a single folder path
-4. Restart Claude Desktop
+4. Restart Claude Code
 
 ## Future Enhancements
 
@@ -162,7 +162,7 @@ Ask Claude: "List all documents in the Engineering folder"
 
 ## Notes
 
-- The daemon must be running before starting Claude Desktop with the MCP server
+- The daemon must be running before starting Claude Code with the MCP server
 - All folder configuration is now managed through the daemon, not through MCP server arguments
-- The MCP server acts as a stateless bridge between Claude Desktop and the daemon
+- The MCP server acts as a stateless bridge between Claude Code and the daemon
 - Multiple MCP clients can connect to the same daemon simultaneously

@@ -112,27 +112,204 @@ export class DaemonMCPEndpoints {
   }
 
   /**
-   * List documents in a folder (placeholder for Sprint 5)
+   * List documents in a folder (Sprint 5 implementation)
    */
-  async listDocuments(folderId: string): Promise<MCPToolResponse> {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Document listing will be implemented in Sprint 5.\nFolder: ${folderId}`
-      }]
-    };
+  async listDocuments(folderId: string, limit: number = 20): Promise<MCPToolResponse> {
+    try {
+      // Get documents from daemon REST API
+      const response = await this.daemonClient.getDocuments(folderId, { limit });
+      
+      // Transform to MCP tool response format
+      const documentText = response.documents.map(doc => 
+        `📄 ${doc.name} (${doc.type.toUpperCase()})\n` +
+        `   Path: ${doc.path}\n` +
+        `   Size: ${this.formatBytes(doc.size)}\n` +
+        `   Modified: ${new Date(doc.modified).toLocaleDateString()}\n` +
+        `   Indexed: ${doc.indexed ? '✅' : '❌'}`
+      ).join('\n\n');
+
+      const folderInfo = response.folderContext;
+      const pagination = response.pagination;
+
+      const responseText = [
+        `📁 Documents in ${folderInfo.name}`,
+        '════════════════════════════════════',
+        '',
+        `📊 Folder Info:`,
+        `   • Model: ${folderInfo.model}`,
+        `   • Status: ${folderInfo.status}`,
+        `   • Path: ${folderInfo.path}`,
+        '',
+        `📄 Documents (${response.documents.length} of ${pagination.total}):`,
+        '',
+        documentText || '   No documents found.',
+        '',
+        `📊 Pagination:`,
+        `   • Showing: ${response.documents.length > 0 ? `${pagination.offset + 1}-${pagination.offset + response.documents.length}` : '0'}`,
+        `   • Total: ${pagination.total}`,
+        `   • Has more: ${pagination.hasMore ? 'Yes' : 'No'}`
+      ].join('\n');
+      
+      return {
+        content: [{
+          type: 'text' as const,
+          text: responseText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error listing documents in folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
 
   /**
-   * Get document content (placeholder for Sprint 6)
+   * Get document content (Sprint 6)
    */
   async getDocument(folderId: string, documentId: string): Promise<MCPToolResponse> {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Document retrieval will be implemented in Sprint 6.\nFolder: ${folderId}\nDocument: ${documentId}`
-      }]
-    };
+    try {
+      // Get document data from daemon REST API
+      const response = await this.daemonClient.getDocumentData(folderId, documentId);
+      
+      // Transform to MCP tool response format
+      const document = response.document;
+      const folderInfo = response.folderContext;
+
+      const responseText = [
+        `📄 ${document.name}`,
+        '════════════════════════════════════',
+        '',
+        `📊 Document Info:`,
+        `   • Type: ${document.type.toUpperCase()}`,
+        `   • Size: ${this.formatBytes(document.size)}`,
+        `   • Folder: ${folderInfo.name} (${folderInfo.model})`,
+        '',
+        `📖 Metadata:`,
+        ...Object.entries(document.metadata || {}).map(([key, value]) => 
+          `   • ${key}: ${value}`
+        ),
+        '',
+        `📝 Content:`,
+        '────────────────────────────────────',
+        document.content
+      ].join('\n');
+      
+      return {
+        content: [{
+          type: 'text' as const,
+          text: responseText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error retrieving document '${documentId}' from folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Get document outline/structure (Sprint 6)
+   */
+  async getDocumentOutline(folderId: string, documentId: string): Promise<MCPToolResponse> {
+    try {
+      // Get document outline from daemon REST API
+      const response = await this.daemonClient.getDocumentOutline(folderId, documentId);
+      
+      // Transform to MCP tool response format
+      const outline = response.outline;
+      const folderInfo = response.folderContext;
+
+      let outlineText = '';
+      
+      switch (outline.type) {
+        case 'text':
+          if (outline.headings && outline.headings.length > 0) {
+            outlineText = outline.headings.map(heading => 
+              `${'  '.repeat(heading.level - 1)}${'#'.repeat(heading.level)} ${heading.title} (Line ${heading.lineNumber})`
+            ).join('\n');
+          } else {
+            outlineText = '   No headings found in document.';
+          }
+          break;
+          
+        case 'pdf':
+          if (outline.pages && outline.pages.length > 0) {
+            outlineText = outline.pages.map(page => 
+              `   Page ${page.pageNumber}: ${page.title || 'Untitled'}`
+            ).join('\n');
+          } else {
+            outlineText = '   No pages found in PDF.';
+          }
+          break;
+          
+        case 'xlsx':
+          if (outline.sheets && outline.sheets.length > 0) {
+            outlineText = outline.sheets.map(sheet => 
+              `   Sheet ${sheet.sheetIndex + 1}: ${sheet.name} (${sheet.rowCount || '?'} rows, ${sheet.columnCount || '?'} columns)`
+            ).join('\n');
+          } else {
+            outlineText = '   No sheets found in Excel file.';
+          }
+          break;
+          
+        case 'pptx':
+          if (outline.slides && outline.slides.length > 0) {
+            outlineText = outline.slides.map(slide => 
+              `   Slide ${slide.slideNumber}: ${slide.title}`
+            ).join('\n');
+          } else {
+            outlineText = '   No slides found in PowerPoint file.';
+          }
+          break;
+          
+        case 'docx':
+          if (outline.sections && outline.sections.length > 0) {
+            outlineText = outline.sections.map(section => 
+              `${'  '.repeat(section.level - 1)}• ${section.title} (Page ${section.pageNumber || '?'})`
+            ).join('\n');
+          } else {
+            outlineText = '   No sections found in Word document.';
+          }
+          break;
+          
+        default:
+          outlineText = '   Outline not available for this document type.';
+      }
+
+      const responseText = [
+        `📋 Document Outline: ${documentId}`,
+        '════════════════════════════════════',
+        '',
+        `📊 Document Info:`,
+        `   • Type: ${outline.type.toUpperCase()}`,
+        `   • Total Items: ${outline.totalItems || 0}`,
+        `   • Folder: ${folderInfo.name}`,
+        '',
+        `📝 Structure:`,
+        '────────────────────────────────────',
+        outlineText
+      ].join('\n');
+      
+      return {
+        content: [{
+          type: 'text' as const,
+          text: responseText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error retrieving outline for document '${documentId}' from folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
 
   /**

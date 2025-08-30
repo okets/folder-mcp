@@ -14,8 +14,10 @@ export interface DaemonInfo {
   pid: number;
   httpPort: number;
   wsPort: number;
+  restPort?: number;  // REST API port for MCP operations
   startTime: string;
   version?: string;
+  host?: string;      // Host address (defaults to 127.0.0.1)
 }
 
 /**

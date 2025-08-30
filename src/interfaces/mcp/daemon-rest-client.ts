@@ -4,9 +4,12 @@
  * 
  * This client communicates with the daemon's REST API on port 3002
  * instead of using WebSocket, providing stateless operations for MCP endpoints.
+ * 
+ * Auto-discovers daemon just like TUI does - no configuration needed!
  */
 
 import fetch, { RequestInit, Response } from 'node-fetch';
+import { DaemonRegistry } from '../../daemon/registry/daemon-registry.js';
 
 export interface FolderConfig {
   id: string;
@@ -67,21 +70,66 @@ export class DaemonRESTClient {
   private isConnected: boolean = false;
 
   constructor(options: DaemonRESTClientOptions = {}) {
-    this.baseUrl = options.baseUrl || process.env.DAEMON_URL || 'http://localhost:3002';
+    // We'll set baseUrl dynamically during connect() through auto-discovery
+    this.baseUrl = options.baseUrl || '';
     this.timeout = options.timeout || 5000;
     this.retryAttempts = options.retryAttempts || 3;
     this.retryDelay = options.retryDelay || 1000;
+  }
+
+  /**
+   * Auto-discover daemon REST API using registry
+   * Returns the REST API URL constructed from discovered host and port
+   */
+  private async discoverDaemonUrl(): Promise<string> {
+    // First check if baseUrl was explicitly provided
+    if (this.baseUrl) {
+      return this.baseUrl;
+    }
     
-    // Ensure baseUrl doesn't have trailing slash
-    this.baseUrl = this.baseUrl.replace(/\/$/, '');
+    // Check environment variable
+    if (process.env.DAEMON_URL) {
+      return process.env.DAEMON_URL;
+    }
+
+    // Use daemon registry discovery
+    try {
+      const daemonInfo = await DaemonRegistry.discover();
+      if (daemonInfo) {
+        // Use discovered host and REST port
+        // Normalize host to loopback if needed
+        const host = daemonInfo.host || '127.0.0.1';
+        const normalizedHost = (host === 'localhost' || host === '0.0.0.0') ? '127.0.0.1' : host;
+        
+        // Use explicit restPort if available, otherwise fallback to hardcoded 3002
+        // (for backward compatibility with daemons that don't report restPort yet)
+        const restPort = daemonInfo.restPort || 3002;
+        
+        const restUrl = `http://${normalizedHost}:${restPort}`;
+        console.error(`[DaemonRESTClient] Auto-discovered daemon REST API at ${restUrl}`);
+        return restUrl;
+      }
+    } catch (error) {
+      console.error(`[DaemonRESTClient] Registry discovery failed: ${error}`);
+    }
+
+    // Fallback to default when no discovery info available
+    const defaultUrl = 'http://localhost:3002';
+    console.error(`[DaemonRESTClient] No daemon discovered, using default: ${defaultUrl}`);
+    return defaultUrl;
   }
 
   /**
    * Connect to the daemon REST API
-   * Verifies the connection by calling the health endpoint
+   * Auto-discovers daemon port using the same mechanism as TUI
    */
   async connect(): Promise<void> {
     try {
+      // Auto-discover daemon URL if not already set
+      this.baseUrl = await this.discoverDaemonUrl();
+      // Ensure baseUrl doesn't have trailing slash
+      this.baseUrl = this.baseUrl.replace(/\/$/, '');
+      
       console.error(`[DaemonRESTClient] Connecting to daemon at ${this.baseUrl}`);
       
       const health = await this.getHealth();
@@ -192,49 +240,151 @@ export class DaemonRESTClient {
   }
 
   /**
-   * Get configured folders from the daemon
-   * Note: This endpoint will be implemented in a future sprint
+   * Get folders configuration (Sprint 5 - real REST API implementation)
    */
   async getFoldersConfig(): Promise<FolderConfig[]> {
     if (!this.isConnected) {
       throw new Error('Not connected to daemon. Call connect() first.');
     }
     
-    // For Sprint 2, we'll use the server info to simulate folders
-    // This will be replaced with actual /api/v1/folders endpoint in Sprint 5
-    const serverInfo = await this.getServerInfo();
-    
-    // Create mock folder data based on server info
-    const mockFolders: FolderConfig[] = [];
-    
-    if (serverInfo.daemon.folderCount > 0) {
-      // Add some example folders for testing
-      mockFolders.push({
-        id: 'sales',
-        name: 'Sales',
-        path: '/Users/hanan/Documents/Sales',
-        model: 'all-MiniLM-L6-v2',
-        status: 'active',
-        documentCount: 42,
-        lastIndexed: new Date().toISOString(),
-        topics: ['Q4 Revenue', 'Sales Pipeline', 'Customer Analysis']
-      });
-      
-      if (serverInfo.daemon.folderCount > 1) {
-        mockFolders.push({
-          id: 'engineering',
-          name: 'Engineering',
-          path: '/Users/hanan/Documents/Engineering',
-          model: 'all-mpnet-base-v2',
-          status: 'indexing',
-          documentCount: 156,
-          lastIndexed: new Date().toISOString(),
-          topics: ['Architecture', 'API Design', 'Performance']
-        });
-      }
+    interface FoldersResponse {
+      folders: FolderConfig[];
+      totalCount: number;
     }
     
-    return mockFolders;
+    const response = await this.makeRequest<FoldersResponse>('/api/v1/folders');
+    return response.folders;
+  }
+
+  /**
+   * List documents in a specific folder (Sprint 5)
+   */
+  async getDocuments(
+    folderId: string, 
+    options: {
+      limit?: number;
+      offset?: number;
+      sort?: 'name' | 'modified' | 'size' | 'type';
+      order?: 'asc' | 'desc';
+      type?: string;
+    } = {}
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    documents: Array<{
+      id: string;
+      name: string;
+      path: string;
+      type: string;
+      size: number;
+      modified: string;
+      indexed: boolean;
+      metadata?: any;
+    }>;
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    };
+  }> {
+    if (!this.isConnected) {
+      throw new Error('Not connected to daemon. Call connect() first.');
+    }
+
+    // Build query string
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.append('limit', options.limit.toString());
+    if (options.offset !== undefined) params.append('offset', options.offset.toString());
+    if (options.sort) params.append('sort', options.sort);
+    if (options.order) params.append('order', options.order);
+    if (options.type) params.append('type', options.type);
+
+    const queryString = params.toString();
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents${queryString ? '?' + queryString : ''}`;
+
+    return await this.makeRequest(path);
+  }
+
+  /**
+   * Get specific document content (Sprint 6)
+   */
+  async getDocumentData(
+    folderId: string,
+    docId: string
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    document: {
+      id: string;
+      name: string;
+      type: string;
+      size: number;
+      content: string;
+      metadata: any;
+    };
+  }> {
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}`;
+    return await this.makeRequest(path);
+  }
+
+  /**
+   * Get document outline/structure (Sprint 6)
+   */
+  async getDocumentOutline(
+    folderId: string,
+    docId: string
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    outline: {
+      type: 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'text';
+      totalItems?: number;
+      pages?: Array<{
+        pageNumber: number;
+        title?: string;
+        content?: string;
+      }>;
+      sections?: Array<{
+        level: number;
+        title: string;
+        pageNumber?: number;
+      }>;
+      sheets?: Array<{
+        sheetIndex: number;
+        name: string;
+        rowCount?: number;
+        columnCount?: number;
+      }>;
+      slides?: Array<{
+        slideNumber: number;
+        title: string;
+        notes?: string;
+      }>;
+      headings?: Array<{
+        level: number;
+        title: string;
+        lineNumber?: number;
+      }>;
+    };
+  }> {
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}/outline`;
+    return await this.makeRequest(path);
   }
 
   /**

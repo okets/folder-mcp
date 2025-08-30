@@ -101,6 +101,8 @@ class FolderMCPDaemon {
         pid: process.pid,
         httpPort: this.config.port,
         wsPort: this.config.port + 1,
+        restPort: 3002,  // REST API port for MCP operations
+        host: '127.0.0.1',
         startTime: this.startTime.toISOString(),
         version: '1.0.0' // TODO: Get from package.json
       });
@@ -201,7 +203,14 @@ class FolderMCPDaemon {
       // Initialize and start REST API server on port 3002 for MCP operations
       debug('Initializing REST API server...');
       try {
-        this.restAPIServer = new RESTAPIServer(this.fmdmService!, {
+        // Create DocumentService instance for dependency injection
+        const { DocumentService } = await import('./services/document-service.js');
+        const documentService = new DocumentService({
+          debug,
+          warn
+        });
+        
+        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, {
           info,
           warn,
           error: logError,
