@@ -312,6 +312,82 @@ export class DaemonRESTClient {
   }
 
   /**
+   * Get specific document content (Sprint 6)
+   */
+  async getDocumentData(
+    folderId: string,
+    docId: string
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    document: {
+      id: string;
+      name: string;
+      type: string;
+      size: number;
+      content: string;
+      metadata: any;
+    };
+  }> {
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}`;
+    return await this.makeRequest(path);
+  }
+
+  /**
+   * Get document outline/structure (Sprint 6)
+   */
+  async getDocumentOutline(
+    folderId: string,
+    docId: string
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    outline: {
+      type: 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'text';
+      totalItems?: number;
+      pages?: Array<{
+        pageNumber: number;
+        title?: string;
+        content?: string;
+      }>;
+      sections?: Array<{
+        level: number;
+        title: string;
+        pageNumber?: number;
+      }>;
+      sheets?: Array<{
+        sheetIndex: number;
+        name: string;
+        rowCount?: number;
+        columnCount?: number;
+      }>;
+      slides?: Array<{
+        slideNumber: number;
+        title: string;
+        notes?: string;
+      }>;
+      headings?: Array<{
+        level: number;
+        title: string;
+        lineNumber?: number;
+      }>;
+    };
+  }> {
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}/outline`;
+    return await this.makeRequest(path);
+  }
+
+  /**
    * Close the client and clean up resources
    */
   close(): void {

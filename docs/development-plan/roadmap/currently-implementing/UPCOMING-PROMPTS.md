@@ -111,8 +111,8 @@ If the PRD has contradicting instructions, these instructions take precedence. t
 
 -----------------------------Next Sprint
 '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md'
-we have finished sprint 4.
-let's plan for sprint 5. we do it agent-to-daemon method.
+we have finished sprint 5.
+let's plan for sprint 6. we do it agent-to-daemon method, read about it in memory mcp.
 
 
 -----------------------------agent-to-endpoint

@@ -12,7 +12,7 @@ import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
 import { FMDMService } from '../services/fmdm-service.js';
-import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams } from './types.js';
+import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 
 // Types for REST API
@@ -122,6 +122,10 @@ export class RESTAPIServer {
     // Folder operations endpoints (Sprint 5)
     this.app.get('/api/v1/folders', this.handleListFolders.bind(this));
     this.app.get('/api/v1/folders/:folderId/documents', this.handleListDocuments.bind(this));
+
+    // Document operations endpoints (Sprint 6) 
+    this.app.get('/api/v1/folders/:folderId/documents/:docId', this.handleGetDocument.bind(this));
+    this.app.get('/api/v1/folders/:folderId/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
 
     // Root path for API discovery
     this.app.get('/api/v1', this.handleApiRoot.bind(this));
@@ -432,6 +436,192 @@ export class RESTAPIServer {
           statusCode = 404;
           message = error.message;
         } else if (error.message.includes('not a directory')) {
+          statusCode = 400;
+          message = error.message;
+        }
+      }
+
+      const errorResponse: ErrorResponse = {
+        error: statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
+        message,
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Get specific document with full content (Sprint 6)
+   */
+  private async handleGetDocument(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderId, docId } = req.params;
+      if (!folderId || !docId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder ID and document ID are required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      this.logger.debug(`[REST] Getting document ${docId} from folder ${folderId}`);
+
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for document retrieval:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Resolve folder ID to path
+      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
+      if (!folderResolution) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      const { path: folderPath, folder } = folderResolution;
+      const folderName = this.extractFolderName(folderPath);
+
+      // Get document data using document service
+      const result = await this.documentService.getDocumentData(
+        folderPath,
+        folderId,
+        folderName,
+        folder.model || 'all-MiniLM-L6-v2',
+        folder.status || 'pending',
+        docId
+      );
+
+      const response: DocumentDataResponse = result;
+
+      this.logger.debug(`[REST] Returning document data for ${docId} from folder ${folderId}`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Get document failed:', error);
+      
+      let statusCode = 500;
+      let message = 'Failed to retrieve document';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          statusCode = 404;
+          message = error.message;
+        } else if (error.message.includes('not supported') || error.message.includes('invalid')) {
+          statusCode = 400;
+          message = error.message;
+        }
+      }
+
+      const errorResponse: ErrorResponse = {
+        error: statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
+        message,
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Get document outline/structure (Sprint 6)
+   */
+  private async handleGetDocumentOutline(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderId, docId } = req.params;
+      if (!folderId || !docId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder ID and document ID are required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      this.logger.debug(`[REST] Getting document outline for ${docId} from folder ${folderId}`);
+
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for document outline:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Resolve folder ID to path
+      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
+      if (!folderResolution) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      const { path: folderPath, folder } = folderResolution;
+      const folderName = this.extractFolderName(folderPath);
+
+      // Get document outline using document service
+      const result = await this.documentService.getDocumentOutline(
+        folderPath,
+        folderId,
+        folderName,
+        folder.model || 'all-MiniLM-L6-v2',
+        folder.status || 'pending',
+        docId
+      );
+
+      const response: DocumentOutlineResponse = result;
+
+      this.logger.debug(`[REST] Returning document outline for ${docId} from folder ${folderId}`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Get document outline failed:', error);
+      
+      let statusCode = 500;
+      let message = 'Failed to retrieve document outline';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          statusCode = 404;
+          message = error.message;
+        } else if (error.message.includes('not supported') || error.message.includes('invalid')) {
           statusCode = 400;
           message = error.message;
         }

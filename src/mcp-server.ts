@@ -172,6 +172,42 @@ export async function main(): Promise<void> {
                   },
                   required: ['query']
                 }
+              },
+              {
+                name: 'get_document_data',
+                description: 'Get document content and metadata from a specific folder',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    folder_id: {
+                      type: 'string',
+                      description: 'Folder ID containing the document'
+                    },
+                    document_id: {
+                      type: 'string',
+                      description: 'Document ID (filename or generated ID)'
+                    }
+                  },
+                  required: ['folder_id', 'document_id']
+                }
+              },
+              {
+                name: 'get_document_outline',
+                description: 'Get document structure and outline from a specific folder',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    folder_id: {
+                      type: 'string',
+                      description: 'Folder ID containing the document'
+                    },
+                    document_id: {
+                      type: 'string',
+                      description: 'Document ID (filename or generated ID)'
+                    }
+                  },
+                  required: ['folder_id', 'document_id']
+                }
               }
             ]
           };
@@ -204,6 +240,20 @@ export async function main(): Promise<void> {
                 const query = args?.query as string || '';
                 const folderId = args?.folder_id as string | undefined;
                 const result = await daemonEndpoints.search(query, folderId);
+                return result as any;
+              }
+              
+              case 'get_document_data': {
+                const folderId = args?.folder_id as string;
+                const documentId = args?.document_id as string;
+                const result = await daemonEndpoints.getDocument(folderId, documentId);
+                return result as any;
+              }
+              
+              case 'get_document_outline': {
+                const folderId = args?.folder_id as string;
+                const documentId = args?.document_id as string;
+                const result = await daemonEndpoints.getDocumentOutline(folderId, documentId);
                 return result as any;
               }
               

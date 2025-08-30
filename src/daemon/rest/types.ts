@@ -128,3 +128,95 @@ export interface DocumentListParams {
   /** Filter by file type */
   type?: string;
 }
+
+/**
+ * Full document data with content - Sprint 6
+ */
+export interface DocumentData {
+  /** Document identifier */
+  id: string;
+  /** Document filename */
+  name: string;
+  /** File type */
+  type: string;
+  /** File size in bytes */
+  size: number;
+  /** Full document content */
+  content: string;
+  /** Document metadata including format-specific info */
+  metadata: {
+    /** PDF page count */
+    pageCount?: number;
+    /** Word count */
+    wordCount?: number;
+    /** Character count */
+    charCount?: number;
+    /** Sheet count (Excel) */
+    sheetCount?: number;
+    /** Slide count (PowerPoint) */
+    slideCount?: number;
+    /** Additional format-specific metadata */
+    [key: string]: any;
+  };
+}
+
+/**
+ * Response for GET /api/v1/folders/{id}/documents/{docId}
+ */
+export interface DocumentDataResponse {
+  /** Context about the parent folder */
+  folderContext: FolderContext;
+  /** Full document data including content */
+  document: DocumentData;
+}
+
+/**
+ * Document outline structures for different formats
+ */
+export interface DocumentOutline {
+  /** Document type determines outline structure */
+  type: 'pdf' | 'docx' | 'xlsx' | 'pptx' | 'text';
+  /** Total items in outline (pages, sheets, slides, etc.) */
+  totalItems?: number;
+  /** PDF outline - pages */
+  pages?: Array<{
+    pageNumber: number;
+    title?: string;
+    content?: string;
+  }>;
+  /** Word document outline - headings/sections */
+  sections?: Array<{
+    level: number;
+    title: string;
+    pageNumber?: number;
+  }>;
+  /** Excel outline - sheets */
+  sheets?: Array<{
+    sheetIndex: number;
+    name: string;
+    rowCount?: number;
+    columnCount?: number;
+  }>;
+  /** PowerPoint outline - slides */
+  slides?: Array<{
+    slideNumber: number;
+    title: string;
+    notes?: string;
+  }>;
+  /** Text document outline - headings */
+  headings?: Array<{
+    level: number;
+    title: string;
+    lineNumber?: number;
+  }>;
+}
+
+/**
+ * Response for GET /api/v1/folders/{id}/documents/{docId}/outline
+ */
+export interface DocumentOutlineResponse {
+  /** Context about the parent folder */
+  folderContext: FolderContext;
+  /** Structured document outline */
+  outline: DocumentOutline;
+}
