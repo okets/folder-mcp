@@ -23,7 +23,7 @@ import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js'
 import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
 import { getSupportedExtensions } from './domain/files/supported-extensions.js';
-import { DaemonClient } from './interfaces/mcp/daemon-client.js';
+import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -46,7 +46,7 @@ console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`)
 export async function main(): Promise<void> {
   debug('main() function called');
   let devModeManager: DevModeManager | null = null;
-  let daemonClient: DaemonClient | null = null;
+  let daemonClient: DaemonRESTClient | null = null;
   
   try {
     debug('Starting MCP server');
@@ -78,24 +78,23 @@ export async function main(): Promise<void> {
     const isDaemonMode = !folderPath;
     
     if (isDaemonMode) {
-      debug('No folder path provided - connecting to daemon for multi-folder support');
+      debug('No folder path provided - connecting to daemon REST API for multi-folder support');
       
-      // Connect to daemon
-      daemonClient = new DaemonClient();
+      // Connect to daemon REST API
+      daemonClient = new DaemonRESTClient();
       try {
         await daemonClient.connect();
-        debug('Successfully connected to daemon');
+        debug('Successfully connected to daemon REST API');
         
-        // For now, just test the connection - full implementation coming later
-        const folders = await daemonClient.getFoldersConfig();
-        debug(`Retrieved ${folders.length} folders from daemon`);
-        folders.forEach(folder => {
-          debug(`  - ${folder.name}: ${folder.path} (${folder.model}, ${folder.status})`);
-        });
+        // Get server info to verify connection
+        const serverInfo = await daemonClient.getServerInfo();
+        debug(`Daemon info: v${serverInfo.version}, ${serverInfo.daemon.folderCount} folders configured`);
+        debug(`  - Active folders: ${serverInfo.daemon.activeFolders}`);
+        debug(`  - Indexing folders: ${serverInfo.daemon.indexingFolders}`);
+        debug(`  - Total documents: ${serverInfo.daemon.totalDocuments}`);
         
-        // For Phase 9 Sprint 1 Task 1, we just need to prove the connection works
-        // The actual MCP endpoint forwarding will come in later sprints
-        debug('Daemon connection verified - MCP server ready for Phase 9 implementation');
+        // Sprint 2: Connection established, ready for endpoint migration
+        debug('Daemon REST connection verified - MCP server ready for multi-folder operations');
         
         // Create a basic server that can start without folder configuration
         const server = new Server(
@@ -157,7 +156,8 @@ export async function main(): Promise<void> {
         return;
       } catch (error) {
         debug(`Failed to connect to daemon: ${error}`);
-        debug('Please ensure the daemon is running (start with folder-mcp --daemon)');
+        debug('Please ensure the daemon is running with REST API on port 3002');
+        debug('Start the daemon with: npm run daemon:restart');
         process.exit(1);
       }
     }

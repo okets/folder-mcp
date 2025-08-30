@@ -9,7 +9,8 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
   let daemonWs: WebSocket | null = null;
   const DAEMON_PORT = 31849;  // Default daemon port
   const WS_PORT = DAEMON_PORT + 1;  // WebSocket server runs on daemon port + 1
-  const DAEMON_URL = `ws://localhost:${WS_PORT}`;
+  const REST_PORT = 3002;  // REST API port for MCP operations
+  const DAEMON_URL = `http://localhost:${REST_PORT}`;  // MCP server now uses REST API
 
   beforeAll(async () => {
     // Start the daemon
@@ -36,10 +37,13 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
       
       const checkOutput = (data: Buffer) => {
         const output = data.toString();
-        // Check for WebSocket server started message
+        // Check for WebSocket server started message (still needed for TUI)
+        // Also check for REST API server started message
         if (!resolved && (
             output.includes('WebSocket server started on ws://') || 
             output.includes('Daemon WebSocket server listening') || 
+            output.includes('REST API server started on') ||
+            output.includes('[REST] API server started') ||
             output.includes('ready on port'))) {
           resolved = true;
           clearTimeout(timeout);
@@ -61,7 +65,7 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
 
     // Connect WebSocket
     console.log('Connecting WebSocket to daemon...');
-    daemonWs = new WebSocket(DAEMON_URL);
+    daemonWs = new WebSocket(`ws://localhost:${WS_PORT}`);
     
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);
@@ -178,9 +182,11 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
       mcpProcess.stderr?.on('data', (data) => {
         const err = data.toString();
         console.log('MCP stderr:', err);
-        // Check for connection to daemon
+        // Check for connection to daemon (REST or WebSocket)
         if (err.includes('Connected to daemon') || 
-            err.includes('WebSocket connected')) {
+            err.includes('WebSocket connected') ||
+            err.includes('Successfully connected to daemon REST API') ||
+            err.includes('Daemon REST connection verified')) {
           started = true;
         }
         // Check for errors that would indicate folder argument is still required

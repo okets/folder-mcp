@@ -10,6 +10,7 @@ import express, { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { Server } from 'http';
+import os from 'os';
 import { FMDMService } from '../services/fmdm-service.js';
 
 // Types for REST API
@@ -103,9 +104,6 @@ export class RESTAPIServer {
 
     // Request logging middleware
     this.app.use(this.requestLogger.bind(this));
-
-    // Global error handling middleware (must be last)
-    this.app.use(this.errorHandler.bind(this));
   }
 
   /**
@@ -124,12 +122,15 @@ export class RESTAPIServer {
 
     // Handle 404 for unknown routes
     this.app.use(this.handleNotFound.bind(this));
+
+    // Global error handling middleware (must be last)
+    this.app.use(this.errorHandler.bind(this));
   }
 
   /**
    * Request logging middleware
    */
-  private requestLogger(req: Request, res: Response, next: NextFunction): void {
+  private requestLogger(req: Request, _res: Response, next: NextFunction): void {
     const log: RequestLog = {
       method: req.method,
       url: req.url,
@@ -145,7 +146,7 @@ export class RESTAPIServer {
   /**
    * Global error handler
    */
-  private errorHandler(err: Error, req: Request, res: Response, next: NextFunction): void {
+  private errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
     this.logger.error(`[REST] Error processing ${req.method} ${req.url}:`, err);
 
     const errorResponse: ErrorResponse = {
@@ -164,7 +165,7 @@ export class RESTAPIServer {
   /**
    * Health check endpoint
    */
-  private async handleHealth(req: Request, res: Response): Promise<void> {
+  private async handleHealth(_req: Request, res: Response): Promise<void> {
     try {
       const uptime = Math.floor((Date.now() - this.startTime.getTime()) / 1000);
       
@@ -196,16 +197,25 @@ export class RESTAPIServer {
   private async handleServerInfo(req: Request, res: Response): Promise<void> {
     try {
       const uptime = Math.floor((Date.now() - this.startTime.getTime()) / 1000);
-      const fmdm = this.fmdmService.getFMDM();
       
       // Get system info
-      const cpuCount = require('os').cpus().length;
-      const totalMemory = require('os').totalmem();
+      const cpuCount = os.cpus().length;
+      const totalMemory = os.totalmem();
       
-      // Get folder statistics
-      const folders = fmdm.folders || [];
-      const activeFolders = folders.filter((f: any) => f.status === 'active').length;
-      const indexingFolders = folders.filter((f: any) => f.status === 'indexing' || f.status === 'pending').length;
+      // Get folder statistics - handle case where fmdm might not be initialized
+      let folders: any[] = [];
+      let activeFolders = 0;
+      let indexingFolders = 0;
+      
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+        activeFolders = folders.filter((f: any) => f?.status === 'active').length;
+        indexingFolders = folders.filter((f: any) => f?.status === 'indexing' || f?.status === 'pending').length;
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data:', fmdmError);
+        // Continue with empty folders array
+      }
       
       // Get supported models (placeholder - will be enhanced in future sprints)
       const supportedModels = ['all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'nomic-embed-text'];
@@ -249,7 +259,7 @@ export class RESTAPIServer {
   /**
    * API root endpoint - returns available endpoints
    */
-  private async handleApiRoot(req: Request, res: Response): Promise<void> {
+  private async handleApiRoot(_req: Request, res: Response): Promise<void> {
     const apiInfo = {
       name: 'folder-mcp REST API',
       version: '2.0.0-dev',
