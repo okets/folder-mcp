@@ -203,7 +203,14 @@ class FolderMCPDaemon {
       // Initialize and start REST API server on port 3002 for MCP operations
       debug('Initializing REST API server...');
       try {
-        this.restAPIServer = new RESTAPIServer(this.fmdmService!, {
+        // Create DocumentService instance for dependency injection
+        const { DocumentService } = await import('./services/document-service.js');
+        const documentService = new DocumentService({
+          debug,
+          warn
+        });
+        
+        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, {
           info,
           warn,
           error: logError,

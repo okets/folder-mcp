@@ -136,6 +136,26 @@ export async function main(): Promise<void> {
                 }
               },
               {
+                name: 'list_documents',
+                description: 'List documents in a specific folder',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    folder_id: {
+                      type: 'string',
+                      description: 'Folder ID to list documents from'
+                    },
+                    limit: {
+                      type: 'number',
+                      description: 'Maximum number of documents to return (default: 20)',
+                      minimum: 1,
+                      maximum: 100
+                    }
+                  },
+                  required: ['folder_id']
+                }
+              },
+              {
                 name: 'search',
                 description: 'Search for documents across folders (coming in Sprint 7)',
                 inputSchema: {
@@ -170,6 +190,13 @@ export async function main(): Promise<void> {
               
               case 'list_folders': {
                 const result = await daemonEndpoints.listFolders();
+                return result as any;
+              }
+              
+              case 'list_documents': {
+                const folderId = args?.folder_id as string;
+                const limit = args?.limit as number | undefined;
+                const result = await daemonEndpoints.listDocuments(folderId, limit);
                 return result as any;
               }
               

@@ -112,15 +112,58 @@ export class DaemonMCPEndpoints {
   }
 
   /**
-   * List documents in a folder (placeholder for Sprint 5)
+   * List documents in a folder (Sprint 5 implementation)
    */
-  async listDocuments(folderId: string): Promise<MCPToolResponse> {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Document listing will be implemented in Sprint 5.\nFolder: ${folderId}`
-      }]
-    };
+  async listDocuments(folderId: string, limit: number = 20): Promise<MCPToolResponse> {
+    try {
+      // Get documents from daemon REST API
+      const response = await this.daemonClient.getDocuments(folderId, { limit });
+      
+      // Transform to MCP tool response format
+      const documentText = response.documents.map(doc => 
+        `📄 ${doc.name} (${doc.type.toUpperCase()})\n` +
+        `   Path: ${doc.path}\n` +
+        `   Size: ${this.formatBytes(doc.size)}\n` +
+        `   Modified: ${new Date(doc.modified).toLocaleDateString()}\n` +
+        `   Indexed: ${doc.indexed ? '✅' : '❌'}`
+      ).join('\n\n');
+
+      const folderInfo = response.folderContext;
+      const pagination = response.pagination;
+
+      const responseText = [
+        `📁 Documents in ${folderInfo.name}`,
+        '════════════════════════════════════',
+        '',
+        `📊 Folder Info:`,
+        `   • Model: ${folderInfo.model}`,
+        `   • Status: ${folderInfo.status}`,
+        `   • Path: ${folderInfo.path}`,
+        '',
+        `📄 Documents (${response.documents.length} of ${pagination.total}):`,
+        '',
+        documentText || '   No documents found.',
+        '',
+        `📊 Pagination:`,
+        `   • Showing: ${response.documents.length > 0 ? pagination.offset + 1 : 0}-${pagination.offset + response.documents.length}`,
+        `   • Total: ${pagination.total}`,
+        `   • Has more: ${pagination.hasMore ? 'Yes' : 'No'}`
+      ].join('\n');
+      
+      return {
+        content: [{
+          type: 'text' as const,
+          text: responseText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error listing documents in folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
 
   /**

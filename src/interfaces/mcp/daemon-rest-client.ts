@@ -240,49 +240,75 @@ export class DaemonRESTClient {
   }
 
   /**
-   * Get configured folders from the daemon
-   * Note: This endpoint will be implemented in a future sprint
+   * Get folders configuration (Sprint 5 - real REST API implementation)
    */
   async getFoldersConfig(): Promise<FolderConfig[]> {
     if (!this.isConnected) {
       throw new Error('Not connected to daemon. Call connect() first.');
     }
     
-    // For Sprint 2, we'll use the server info to simulate folders
-    // This will be replaced with actual /api/v1/folders endpoint in Sprint 5
-    const serverInfo = await this.getServerInfo();
-    
-    // Create mock folder data based on server info
-    const mockFolders: FolderConfig[] = [];
-    
-    if (serverInfo.daemon.folderCount > 0) {
-      // Add some example folders for testing
-      mockFolders.push({
-        id: 'sales',
-        name: 'Sales',
-        path: '/Users/hanan/Documents/Sales',
-        model: 'all-MiniLM-L6-v2',
-        status: 'active',
-        documentCount: 42,
-        lastIndexed: new Date().toISOString(),
-        topics: ['Q4 Revenue', 'Sales Pipeline', 'Customer Analysis']
-      });
-      
-      if (serverInfo.daemon.folderCount > 1) {
-        mockFolders.push({
-          id: 'engineering',
-          name: 'Engineering',
-          path: '/Users/hanan/Documents/Engineering',
-          model: 'all-mpnet-base-v2',
-          status: 'indexing',
-          documentCount: 156,
-          lastIndexed: new Date().toISOString(),
-          topics: ['Architecture', 'API Design', 'Performance']
-        });
-      }
+    interface FoldersResponse {
+      folders: FolderConfig[];
+      totalCount: number;
     }
     
-    return mockFolders;
+    const response = await this.makeRequest<FoldersResponse>('/api/v1/folders');
+    return response.folders;
+  }
+
+  /**
+   * List documents in a specific folder (Sprint 5)
+   */
+  async getDocuments(
+    folderId: string, 
+    options: {
+      limit?: number;
+      offset?: number;
+      sort?: 'name' | 'modified' | 'size' | 'type';
+      order?: 'asc' | 'desc';
+      type?: string;
+    } = {}
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    documents: Array<{
+      id: string;
+      name: string;
+      path: string;
+      type: string;
+      size: number;
+      modified: string;
+      indexed: boolean;
+      metadata?: any;
+    }>;
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      hasMore: boolean;
+    };
+  }> {
+    if (!this.isConnected) {
+      throw new Error('Not connected to daemon. Call connect() first.');
+    }
+
+    // Build query string
+    const params = new URLSearchParams();
+    if (options.limit !== undefined) params.append('limit', options.limit.toString());
+    if (options.offset !== undefined) params.append('offset', options.offset.toString());
+    if (options.sort) params.append('sort', options.sort);
+    if (options.order) params.append('order', options.order);
+    if (options.type) params.append('type', options.type);
+
+    const queryString = params.toString();
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents${queryString ? '?' + queryString : ''}`;
+
+    return await this.makeRequest(path);
   }
 
   /**

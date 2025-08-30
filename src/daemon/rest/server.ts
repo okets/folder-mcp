@@ -12,6 +12,8 @@ import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
 import { FMDMService } from '../services/fmdm-service.js';
+import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams } from './types.js';
+import { DocumentService } from '../services/document-service.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -63,6 +65,7 @@ export class RESTAPIServer {
 
   constructor(
     private fmdmService: FMDMService,
+    private documentService: DocumentService,
     private logger: {
       info: (message: string, ...args: any[]) => void;
       warn: (message: string, ...args: any[]) => void;
@@ -115,6 +118,10 @@ export class RESTAPIServer {
 
     // Server information endpoint
     this.app.get('/api/v1/server/info', this.handleServerInfo.bind(this));
+
+    // Folder operations endpoints (Sprint 5)
+    this.app.get('/api/v1/folders', this.handleListFolders.bind(this));
+    this.app.get('/api/v1/folders/:folderId/documents', this.handleListDocuments.bind(this));
 
     // Root path for API discovery
     this.app.get('/api/v1', this.handleApiRoot.bind(this));
@@ -257,6 +264,191 @@ export class RESTAPIServer {
   }
 
   /**
+   * List all folders endpoint (Sprint 5)
+   */
+  private async handleListFolders(req: Request, res: Response): Promise<void> {
+    try {
+      this.logger.debug('[REST] Listing folders');
+      
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for folders:', fmdmError);
+        // Continue with empty folders array
+      }
+
+      // Transform FMDM folders to REST API format
+      const folderInfos: FolderInfo[] = folders.map((folder: any) => {
+        // Generate folder ID from path (sanitized)
+        const folderId = this.generateFolderId(folder.path);
+        
+        // Extract folder name from path
+        const folderName = this.extractFolderName(folder.path);
+        
+        return {
+          id: folderId,
+          name: folderName,
+          path: folder.path,
+          model: folder.model || 'all-MiniLM-L6-v2',
+          status: folder.status || 'pending',
+          documentCount: folder.documentCount || 0,
+          lastIndexed: folder.lastIndexed,
+          topics: [], // Placeholder for future implementation
+          progress: folder.progress,
+          notification: folder.notification
+        };
+      });
+
+      const response: FoldersListResponse = {
+        folders: folderInfos,
+        totalCount: folderInfos.length
+      };
+
+      this.logger.debug(`[REST] Returning ${folderInfos.length} folders`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] List folders failed:', error);
+      
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: 'Failed to retrieve folder list',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * List documents in a folder endpoint (Sprint 5)
+   */
+  private async handleListDocuments(req: Request, res: Response): Promise<void> {
+    try {
+      const folderId = req.params.folderId;
+      if (!folderId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder ID is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+      
+      this.logger.debug(`[REST] Listing documents for folder: ${folderId}`);
+
+      // Parse query parameters
+      const params: DocumentListParams = {
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 50,
+        offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+        sort: (req.query.sort as any) || 'name',
+        order: (req.query.order as any) || 'asc',
+        type: req.query.type as string
+      };
+
+      // Validate parameters
+      if (params.limit && (params.limit < 1 || params.limit > 1000)) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Limit must be between 1 and 1000',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      if (params.offset && params.offset < 0) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Offset must be non-negative',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for documents:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Resolve folder ID to path
+      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
+      if (!folderResolution) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      const { path: folderPath, folder } = folderResolution;
+      const folderName = this.extractFolderName(folderPath);
+
+      // List documents using document service
+      const result = await this.documentService.listDocuments(
+        folderPath,
+        folderId,
+        folderName,
+        folder.model || 'all-MiniLM-L6-v2',
+        folder.status || 'pending',
+        params
+      );
+
+      const response: DocumentsListResponse = result;
+
+      this.logger.debug(`[REST] Returning ${result.documents.length} documents from folder ${folderId}`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] List documents failed:', error);
+      
+      let statusCode = 500;
+      let message = 'Failed to retrieve document list';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          statusCode = 404;
+          message = error.message;
+        } else if (error.message.includes('not a directory')) {
+          statusCode = 400;
+          message = error.message;
+        }
+      }
+
+      const errorResponse: ErrorResponse = {
+        error: statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
+        message,
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
    * API root endpoint - returns available endpoints
    */
   private async handleApiRoot(_req: Request, res: Response): Promise<void> {
@@ -335,5 +527,67 @@ export class RESTAPIServer {
    */
   getApp(): Application {
     return this.app;
+  }
+
+  /**
+   * Generate a folder ID from a path
+   */
+  private generateFolderId(folderPath: string): string {
+    // Extract the last directory name and sanitize it
+    const pathParts = folderPath.split(/[/\\]/);
+    const lastPart = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2] || 'unknown';
+    
+    // Sanitize the name to create a valid ID
+    return lastPart
+      .toLowerCase()
+      .replace(/[^a-z0-9\-_]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  /**
+   * Extract a human-friendly folder name from a path
+   */
+  private extractFolderName(folderPath: string): string {
+    // Handle null/undefined/empty inputs defensively
+    if (!folderPath || typeof folderPath !== 'string') {
+      return 'Unknown Folder';
+    }
+
+    // Trim leading/trailing whitespace
+    const trimmed = folderPath.trim();
+    if (!trimmed) {
+      return 'Unknown Folder';
+    }
+
+    // Remove trailing path separators and normalize
+    const normalized = trimmed.replace(/[/\\]+$/, '');
+    if (!normalized) {
+      return 'Unknown Folder';
+    }
+
+    // Split on path separators and filter out empty segments
+    const pathParts = normalized.split(/[/\\]/).filter(part => part.trim().length > 0);
+    
+    if (pathParts.length === 0) {
+      return 'Unknown Folder';
+    }
+
+    // Return the last non-empty segment, or fall back to previous segment
+    const lastName = pathParts[pathParts.length - 1];
+    if (lastName && lastName.trim()) {
+      return lastName.trim();
+    }
+
+    // Fall back to second-to-last segment if available
+    if (pathParts.length >= 2) {
+      const secondLast = pathParts[pathParts.length - 2];
+      if (secondLast && secondLast.trim()) {
+        return secondLast.trim();
+      }
+    }
+
+    // Final fallback
+    return 'Unknown Folder';
   }
 }

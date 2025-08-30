@@ -109,4 +109,12 @@ being able to instantly figure out how our change is reflected all the way to th
 The goal is to have all endpoints migrated to the new architecture as described in the PRD and fully tested by the agent.
 If the PRD has contradicting instructions, these instructions take precedence. tell me if you find any discrepancies.
 
+-----------------------------Next Sprint
+'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md'
+we have finished sprint 4.
+let's plan for sprint 5. we do it agent-to-daemon method.
 
+
+-----------------------------agent-to-endpoint
+agent-to-endpoint testing using project's directory indexing:
+You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faster.

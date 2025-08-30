@@ -61,6 +61,60 @@
 
 ---
 
+## 🧪 Standard Testing Methodology
+
+### Agent-to-Endpoint Testing (MANDATORY for ALL Sprints)
+
+**What it is**: Testing the complete integration chain from MCP client → MCP server → REST API → Daemon services, exactly as end users would experience it.
+
+**Why it's critical**: 
+- Tests the actual user journey, not just individual components
+- Validates the complete request flow through all architectural layers
+- Catches integration issues that unit tests miss
+- Ensures MCP protocol compliance end-to-end
+
+**How to implement for EVERY Sprint**:
+
+1. **Use Installed MCP Tools**: Use the folder-mcp MCP tools that are already available in Claude Code
+   ```bash
+   # The MCP tools are already installed and available:
+   # - mcp__folder-mcp__list_folders
+   # - mcp__folder-mcp__list_documents  
+   # - mcp__folder-mcp__search
+   # etc.
+   ```
+
+2. **Agent-to-Endpoint Flow**: Test the complete integration chain
+   ```
+   Claude Code Agent → MCP Tool Call → MCP Server → REST API → Daemon → Multi-Folder System
+   ```
+
+3. **Test as End User Would**:
+   - Start daemon: `node dist/src/daemon/index.js --restart`
+   - The MCP server connects automatically to daemon REST API (port 3002)  
+   - Use MCP tools directly in Claude Code: `mcp__folder-mcp__list_folders`
+   - Verify results come from daemon's multi-folder system
+
+4. **Standard Test Categories**:
+   - **Happy Path**: Normal operation with valid inputs
+   - **Error Cases**: Invalid inputs, missing data, network failures
+   - **Edge Cases**: Empty lists, large datasets, concurrent requests
+   - **Isolation**: Verify security boundaries and data access controls
+
+**Example Sprint Testing Checklist**:
+- ✅ `mcp__folder-mcp__list_folders` returns actual configured folders from daemon
+- ✅ `mcp__folder-mcp__list_documents` works with real folder IDs from daemon
+- ✅ Error handling: invalid folder ID returns proper MCP error response
+- ✅ Security: MCP tools cannot access files outside daemon's configured folders
+- ✅ Performance: MCP tool calls complete in reasonable time with real data
+
+**Integration with Development**:
+- Add agent-to-endpoint tests to every sprint completion criteria
+- Use agent-to-endpoint testing for debugging integration issues
+- Include agent-to-endpoint validation in sprint demo/handoff
+
+---
+
 ## Executive Summary
 **Executive Summary**: Transform MCP endpoints from single-folder to multi-folder architecture using a hybrid approach: **REST API for MCP operations (stateless)** + **WebSocket for TUI updates (real-time)**, with complete legacy code removal.
 
@@ -482,10 +536,13 @@ ii. restart Claude Code.
    - Clear error messages for invalid folder IDs
    - Handle folder state transitions gracefully
 
-5. **Agent testing for multi-folder navigation**
-   - Agent discovers all available folders
-   - Agent lists documents in specific folders
-   - Agent validates folder isolation
+5. **Agent-to-endpoint testing (MCP → REST → Daemon)**
+   - Use MCP tools to test full integration chain:
+     - `list_folders` tool → `GET /api/v1/folders` → daemon folder discovery
+     - `list_documents` tool → `GET /api/v1/folders/{id}/documents` → document scanning
+     - Validate folder isolation by attempting access to non-configured paths
+   - Test as end user would: through MCP client calling our tools
+   - Verify complete request flow from MCP protocol to daemon services
 
 #### Key REST API Endpoints
 ```javascript
