@@ -24,6 +24,7 @@ import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
 import { getSupportedExtensions } from './domain/files/supported-extensions.js';
 import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
+import { DaemonMCPEndpoints } from './interfaces/mcp/daemon-mcp-endpoints.js';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -96,11 +97,14 @@ export async function main(): Promise<void> {
         // Sprint 2: Connection established, ready for endpoint migration
         debug('Daemon REST connection verified - MCP server ready for multi-folder operations');
         
-        // Create a basic server that can start without folder configuration
+        // Sprint 3: Create daemon MCP endpoints
+        const daemonEndpoints = new DaemonMCPEndpoints(daemonClient);
+        
+        // Create MCP server with daemon-backed tools
         const server = new Server(
           {
             name: 'folder-mcp',
-            version: '1.0.0',
+            version: '2.0.0',
           },
           {
             capabilities: {
@@ -109,10 +113,95 @@ export async function main(): Promise<void> {
           }
         );
         
+        // Register MCP tools that forward to daemon
+        server.setRequestHandler(ListToolsRequestSchema, async () => {
+          return {
+            tools: [
+              {
+                name: 'get_server_info',
+                description: 'Get information about the folder-mcp server and daemon status',
+                inputSchema: {
+                  type: 'object',
+                  properties: {},
+                  required: []
+                }
+              },
+              {
+                name: 'list_folders',
+                description: 'List all configured folders in the multi-folder system',
+                inputSchema: {
+                  type: 'object',
+                  properties: {},
+                  required: []
+                }
+              },
+              {
+                name: 'search',
+                description: 'Search for documents across folders (coming in Sprint 7)',
+                inputSchema: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                      description: 'Search query'
+                    },
+                    folder_id: {
+                      type: 'string',
+                      description: 'Optional folder ID to search within'
+                    }
+                  },
+                  required: ['query']
+                }
+              }
+            ]
+          };
+        });
+        
+        // Handle tool calls by forwarding to daemon endpoints
+        server.setRequestHandler(CallToolRequestSchema, async (request) => {
+          const { name, arguments: args } = request.params;
+          
+          try {
+            switch (name) {
+              case 'get_server_info': {
+                const result = await daemonEndpoints.getServerInfo();
+                return result as any;
+              }
+              
+              case 'list_folders': {
+                const result = await daemonEndpoints.listFolders();
+                return result as any;
+              }
+              
+              case 'search': {
+                const query = args?.query as string || '';
+                const folderId = args?.folder_id as string | undefined;
+                const result = await daemonEndpoints.search(query, folderId);
+                return result as any;
+              }
+              
+              default:
+                return {
+                  content: [{
+                    type: 'text' as const,
+                    text: `Unknown tool: ${name}`
+                  }]
+                } as any;
+            }
+          } catch (error) {
+            return {
+              content: [{
+                type: 'text' as const,
+                text: `Error calling tool ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+              }]
+            } as any;
+          }
+        });
+        
         // Start the stdio transport
         const transport = new StdioServerTransport();
         await server.connect(transport);
-        debug('MCP server started in daemon mode');
+        debug('MCP server started in daemon mode with tools registered');
         
         // Keep the process running with proper shutdown handling
         await new Promise<void>((resolve) => {
