@@ -8,6 +8,7 @@
 import { ILoggingService } from '../../di/interfaces.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
+import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
 
 /**
  * Loaded model instance with metadata
@@ -15,7 +16,7 @@ import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downlo
 interface LoadedModel {
   modelId: string;
   modelType: 'gpu' | 'cpu';
-  service: PythonEmbeddingService | ONNXDownloader;
+  service: PythonEmbeddingService | ONNXEmbeddingService;
   loadedAt: Date;
   lastUsedAt: Date;
   memoryUsage?: number; // Estimated memory usage in MB
@@ -83,7 +84,8 @@ export class ModelRegistry implements IModelRegistry {
   constructor(
     private logger: ILoggingService,
     private pythonEmbeddingServiceFactory: (config: any) => PythonEmbeddingService,
-    private onnxDownloaderFactory: () => ONNXDownloader
+    private onnxDownloaderFactory: () => ONNXDownloader,
+    private onnxEmbeddingServiceFactory: (config: any) => ONNXEmbeddingService
   ) {}
   
   async getModelForFolder(folderId: string, folderPath: string, modelId: string): Promise<ModelLoadResult> {
@@ -115,7 +117,7 @@ export class ModelRegistry implements IModelRegistry {
       
       // Determine model type and load appropriate service
       const modelType = this.getModelType(modelId);
-      let service: PythonEmbeddingService | ONNXDownloader;
+      let service: PythonEmbeddingService | ONNXEmbeddingService;
       
       if (modelType === 'gpu') {
         // Create Python embedding service for GPU model
@@ -128,14 +130,16 @@ export class ModelRegistry implements IModelRegistry {
         await (service as PythonEmbeddingService).initialize();
         
       } else if (modelType === 'cpu') {
-        // Create ONNX downloader for CPU model
-        service = this.onnxDownloaderFactory();
+        // Create ONNX embedding service for CPU model
+        service = this.onnxEmbeddingServiceFactory({
+          modelId: modelId,
+          cacheDirectory: undefined, // Use default cache directory
+          maxSequenceLength: 512,
+          batchSize: 32
+        });
         
-        // Ensure model is downloaded before using
-        const isAvailable = await (service as ONNXDownloader).isModelAvailable(modelId);
-        if (!isAvailable) {
-          throw new Error(`CPU model ${modelId} not available and auto-download not implemented`);
-        }
+        // Initialize the ONNX embedding service
+        await (service as ONNXEmbeddingService).initialize();
         
       } else {
         throw new Error(`Unknown model type for ${modelId}`);

@@ -215,11 +215,13 @@ class FolderMCPDaemon {
         const { ModelRegistry } = await import('./services/model-registry.js');
         const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
         const { ONNXDownloader } = await import('../infrastructure/embeddings/onnx/onnx-downloader.js');
+        const { ONNXEmbeddingService } = await import('../infrastructure/embeddings/onnx/onnx-embedding-service.js');
         
         const modelRegistry = new ModelRegistry(
           loggingService,
           (config: any) => new PythonEmbeddingService(config),
-          () => new ONNXDownloader()
+          () => new ONNXDownloader(),
+          (config: any) => new ONNXEmbeddingService(config)
         );
         
         // Create Vector Search Service instance for Sprint 7 search functionality

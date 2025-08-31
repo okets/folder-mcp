@@ -28,7 +28,7 @@ export interface ModelCheckResult {
  * Service to check curated model installation status
  */
 export class ModelCacheChecker {
-  private readonly CHECK_TIMEOUT = 15000; // 15 seconds max for GPU checks - needed for Python initialization
+  private readonly CHECK_TIMEOUT = 30000; // 30 seconds max for GPU checks - Apple Silicon MPS initialization can be slow
   private capabilitiesDetector: MachineCapabilitiesDetector;
   
   constructor(
@@ -192,7 +192,7 @@ export class ModelCacheChecker {
       pythonService = this.pythonEmbeddingServiceFactory({
         modelName: 'BAAI/bge-m3', // Any valid HuggingFace model ID works
         pythonPath: 'python3',
-        timeout: 3000 // Shorter timeout for initialization
+        timeout: 15000 // Extended timeout for Apple Silicon MPS initialization
       });
       
       await pythonService.initialize();
@@ -217,7 +217,8 @@ export class ModelCacheChecker {
       // Always clean up Python service
       if (pythonService) {
         try {
-          await pythonService.shutdown();
+          // Use short timeout for model checking - we just need to exit quickly
+          await pythonService.shutdown(5); // 5 seconds max
         } catch (error) {
           // Ignore shutdown errors
           this.logger.debug('Python service shutdown error (ignored):', error);

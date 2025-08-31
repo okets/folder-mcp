@@ -18,6 +18,8 @@ import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
 import { IVectorSearchService } from '../../di/interfaces.js';
 import type { TextChunk, EmbeddingVector } from '../../types/index.js';
+import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
+import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -760,7 +762,7 @@ export class RESTAPIServer {
         let queryEmbeddings: EmbeddingVector[];
         
         // Check service type and call appropriate method
-        if ('generateEmbeddings' in loadedModel.service) {
+        if (loadedModel.service instanceof PythonEmbeddingService) {
           // PythonEmbeddingService - expects TextChunk[]
           const chunks: TextChunk[] = [{
             content: query,
@@ -776,8 +778,18 @@ export class RESTAPIServer {
             }
           }];
           queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
+        } else if (loadedModel.service instanceof ONNXEmbeddingService) {
+          // ONNXEmbeddingService - expects string[] and returns EmbeddingResult
+          const embeddingResult: EmbeddingResult = await loadedModel.service.generateEmbeddings([query]);
+          // Convert EmbeddingResult to EmbeddingVector[]
+          queryEmbeddings = embeddingResult.embeddings.map((embedding, index) => ({
+            vector: embedding,
+            dimensions: embeddingResult.dimensions,
+            model: embeddingResult.modelUsed,
+            createdAt: new Date().toISOString()
+          }));
         } else {
-          // ONNXDownloader doesn't have generateEmbeddings - this should not happen in practice
+          // Unknown service type
           throw new Error(`Model service type doesn't support embedding generation: ${typeof loadedModel.service}`);
         }
         

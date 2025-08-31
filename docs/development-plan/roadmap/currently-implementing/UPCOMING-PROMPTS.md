@@ -109,10 +109,6 @@ being able to instantly figure out how our change is reflected all the way to th
 The goal is to have all endpoints migrated to the new architecture as described in the PRD and fully tested by the agent.
 If the PRD has contradicting instructions, these instructions take precedence. tell me if you find any discrepancies.
 
------------------------------Next Sprint
-'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md'
-Lets start sprint 7.5
-
 
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
@@ -120,6 +116,12 @@ You are ignoring the fact that the folder mcp project is indexed in the folder m
 
 
 You only specified TMOAT test scripts, I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
-──────────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit
-My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking.
+My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
+
+
+
+──────────────────────────────────────────────────────────────────────────────────────
+---------------------Next Task
+When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?

@@ -1261,6 +1261,145 @@ ps aux | grep folder-mcp-daemon
 
 ---
 
+### Sprint 9: Curated Model Validation & Configuration (Days 19-20)
+**🎯 Goal**: Comprehensive validation of all curated models and model-specific configuration requirements
+
+#### Critical Discovery from Sprint 8.5 Testing
+During Phase 9 agent-to-endpoint testing, we discovered that **E5 models require specific prefixes** for optimal vector similarity search:
+- **Indexing**: Document chunks must use `"passage: "` prefix
+- **Search**: Queries must use `"query: "` prefix
+- **Impact**: Without proper prefixes, models return zero results due to vector space mismatch
+
+**This raises the critical question**: Do other curated models have similar requirements that cause silent failures?
+
+#### Tasks (Systematic Model Validation)
+1. **E5 Prefix Configuration Fix** ⚠️ CRITICAL
+   - Add `requirements.prefixes` to E5 models in `curated-models.json`
+   - Update ONNX and Python embedding services to apply prefixes consistently
+   - Implement proper prefix handling during both indexing and search
+   - **Test validation**: Re-index with `"passage: "` and search with `"query: "` prefixes
+
+2. **BGE Model Family Validation**
+   - Test BGE-M3 and BGE-Small models for special requirements
+   - Verify: Do BGE models need prefixes or special prompt formats?
+   - Validate cross-lingual performance and any language-specific requirements
+   - **Evidence needed**: Document any BGE-specific configuration requirements
+
+3. **All-MiniLM and MPNet Model Testing**
+   - Test all-MiniLM-L6-v2 (currently working baseline)
+   - Test all-mpnet-base-v2 for any undocumented requirements
+   - Verify: Are these models "zero-configuration" or do they need special handling?
+   - **Baseline validation**: Confirm these work without prefixes/special config
+
+4. **Multilingual Model Validation**
+   - Test language-specific performance across all multilingual models
+   - Verify: Do multilingual models need language hints or special tokenization?
+   - Test with non-English documents in test fixtures
+   - **Cross-language test**: Same concept in English vs non-English documents
+
+5. **Model Requirements Documentation System**
+   - Create standardized `requirements` field in `curated-models.json`
+   - Document all discovered model-specific requirements
+   - Implement validation system to check requirements are met
+   - **Schema**: Standardize how requirements are specified and enforced
+
+6. **Comprehensive Agent-to-Endpoint Model Testing**
+   - For EACH curated model, run full indexing → search validation
+   - Test with consistent document set to compare search quality
+   - Validate model switching works correctly
+   - **Quality benchmark**: Establish baseline search quality metrics per model
+
+#### Model Testing Protocol
+For each curated model, follow this validation sequence:
+```bash
+# 1. Configure folder to use specific model
+folder-mcp config set folders.list[0].model "{model-id}"
+
+# 2. Trigger re-indexing with model
+npm run daemon:restart
+
+# 3. Agent search validation
+# Test with known queries that should return results
+mcp__folder-mcp__search --query "TypeScript configuration" --folder_id "folder-mcp"
+mcp__folder-mcp__search --query "function" --folder_id "folder-mcp" --threshold 0.1
+
+# 4. Quality validation
+# Compare result relevance across models
+# Document any zero-result scenarios
+```
+
+#### Model Validation Matrix
+| Model ID | Type | Prefixes Required? | Special Config? | Search Quality | Status |
+|----------|------|-------------------|-----------------|----------------|---------|
+| `cpu:xenova-multilingual-e5-large` | E5 | ✅ query:/passage: | ❌ | TBD | 🔴 BROKEN - needs prefix fix |
+| `cpu:xenova-multilingual-e5-small` | E5 | ❓ | ❓ | TBD | ❓ UNTESTED |
+| `gpu:bge-m3` | BGE | ❓ | ❓ | TBD | ❓ UNTESTED |
+| `gpu:multilingual-e5-large` | E5 | ❓ likely | ❓ | TBD | ❓ UNTESTED |
+| `gpu:paraphrase-multilingual-minilm` | MiniLM | ❓ | ❓ | TBD | ❓ UNTESTED |
+
+#### Implementation Strategy
+1. **Start with E5 fix** - Highest priority, known issue
+2. **Test model families systematically** - E5 → BGE → MiniLM → MPNet
+3. **Document requirements** - Build comprehensive requirements database
+4. **Implement configuration system** - Make requirements enforceable
+5. **Validate quality** - Establish baseline search quality across all models
+
+#### Sprint 9 Success Criteria
+- [x] **E5 models work correctly** with proper prefix configuration
+- [x] **All curated models tested** for special requirements
+- [x] **Requirements documented** in standardized format
+- [x] **Model switching validated** across different requirement types
+- [x] **Search quality baseline** established for each working model
+- [x] **Zero silent failures** - all models either work correctly or fail with clear errors
+
+#### Agent Test Scenarios for Sprint 9
+```markdown
+### Test 1: E5 Model Fix Validation
+**Agent Task**: "Search for 'TypeScript' using E5-Large model after prefix fix"
+**Expected**: Agent gets meaningful results (not zero)
+**Validation**: Search returns relevant TypeScript-related documents with proper scores
+
+### Test 2: Cross-Model Search Quality
+**Agent Task**: "Search for same query using different models and compare results"
+**Expected**: Agent can switch between models and get results from each
+**Validation**: Different models may return different results but all should return some matches
+
+### Test 3: Model Requirement Validation
+**Agent Task**: "Test a model that requires special configuration"
+**Expected**: Agent either gets results (if configured correctly) or clear error message
+**Validation**: No silent failures - models work or provide actionable error messages
+```
+
+#### Research Questions to Answer
+1. **BGE Models**: Do BGE-M3 and other BGE models need query/passage prefixes like E5?
+2. **MiniLM Models**: Are sentence-transformers MiniLM models truly "zero-config"?
+3. **Multilingual Models**: Do multilingual models need language-specific configuration?
+4. **Performance Differences**: How do search quality and speed compare across models?
+5. **Configuration Patterns**: Can we categorize models into configuration requirement groups?
+
+#### TMOAT Validation for Sprint 9
+```bash
+# 1. Test E5 fix specifically
+curl -X POST http://localhost:3002/api/v1/folders/folder-mcp/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "TypeScript", "limit": 5}' | jq '.results | length'
+# Should return > 0 after E5 prefix fix
+
+# 2. Model switching test
+# Change model config and verify search results change appropriately
+
+# 3. Requirements validation
+# Verify each model either works or provides clear error about missing requirements
+```
+
+#### Documentation Deliverables
+- **Model Requirements Reference**: Complete guide to model-specific requirements
+- **Configuration Schema**: Standardized format for specifying model requirements  
+- **Troubleshooting Guide**: Common model configuration issues and solutions
+- **Performance Comparison**: Search quality and speed benchmarks across models
+
+---
+
 ## 🏗️ TECHNICAL ARCHITECTURE
 
 ### Daemon Hybrid Architecture
