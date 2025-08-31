@@ -1017,26 +1017,9 @@ export class MCPEndpoints implements IMCPEndpoints {
           }
         }
       } else {
-        // Fall back to single-folder mode
-        try {
-          const files = await this.listFiles(this.folderPath);
-          const folderStats = await this.getFolderStats(this.folderPath);
-          totalDocuments = files.length;
-
-          folders.push({
-            name: 'default',
-            path: this.folderPath,
-            enabled: true,
-            documentCount: files.length,
-            indexingStatus: 'ready',
-            lastIndexed: new Date().toISOString(),
-            size: this.formatFileSize(folderStats.totalSize),
-            settings: {}
-          });
-        } catch (error) {
-          this.logger.error('Failed to get single-folder info:', error as Error);
-          systemStatus = 'error';
-        }
+        // Phase 9: No single-folder mode fallback
+        this.logger.error('Daemon client not available. MCP server requires daemon for multi-folder support.');
+        systemStatus = 'error';
       }
 
       return {
@@ -1271,8 +1254,8 @@ export class MCPEndpoints implements IMCPEndpoints {
       }
     }
     
-    // Fall back to single-folder resolution
-    return path.join(this.folderPath, documentId);
+    // Phase 9: No single-folder fallback - folder must be specified
+    throw new Error(`Document resolution requires folder context. Folder '${folderName}' not found.`);
   }
 
   private resolveFolderPath(folder: string): string {

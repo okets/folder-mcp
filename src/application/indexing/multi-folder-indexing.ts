@@ -198,7 +198,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
   constructor(
     private folderManager: IFolderManager,
     private storageProvider: IMultiFolderStorageProvider,
-    private singleFolderIndexing: IndexingWorkflow,
+    private indexingWorkflow: IndexingWorkflow,
     private loggingService: ILoggingService
   ) {}
 
@@ -250,7 +250,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
           const result = await this.resourceManager!.submitOperation(
             operationId,
             folder.path,
-            () => this.indexSingleFolder(folder, options.baseOptions || {}),
+            () => this.indexSingleFolderInternal(folder, options.baseOptions || {}),
             {
               priority: 0, // Default priority, could be enhanced
               estimatedMemoryMB
@@ -362,7 +362,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
 
     this.loggingService.info(`Starting indexing for folder: ${folderPath} (resolved: ${folder.resolvedPath})`);
 
-    return this.indexSingleFolder(folder, options.baseOptions || {});
+    return this.indexSingleFolderInternal(folder, options.baseOptions || {});
   }
 
   async getAllFoldersStatus(): Promise<MultiFolderIndexingStatus> {
@@ -435,7 +435,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     this.cancellationTokens.set(folderPath, true);
   }
 
-  private async indexSingleFolder(folder: ResolvedFolderConfig, baseOptions: IndexingOptions): Promise<FolderIndexingResult> {
+  private async indexSingleFolderInternal(folder: ResolvedFolderConfig, baseOptions: IndexingOptions): Promise<FolderIndexingResult> {
     const startTime = Date.now();
     const folderPath = folder.path;
     const folderName = this.getFolderName(folderPath);
@@ -449,6 +449,21 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     const folderOptions = this.createFolderIndexingOptions(folder, baseOptions);
     const settings = this.createFolderSettings(folder);
 
+    // Ensure status/cancellation entries exist for direct single-folder invocations
+    if (!this.folderStatuses.has(folderPath)) {
+      this.folderStatuses.set(folderPath, {
+        folderName,
+        folderPath: folder.resolvedPath,
+        isIndexing: false,
+        progress: { totalFiles: 0, processedFiles: 0, totalChunks: 0, processedChunks: 0, percentage: 0 },
+        settings,
+        errors: []
+      });
+    }
+    if (!this.cancellationTokens.has(folderPath)) {
+      this.cancellationTokens.set(folderPath, false);
+    }
+
     // Update status
     this.updateFolderStatus(folderPath, {
       isIndexing: true,
@@ -459,8 +474,8 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
     try {
       this.loggingService.debug(`Indexing folder: ${folderName} with settings`, settings);
 
-      // Use the single-folder indexing workflow
-      const result = await this.singleFolderIndexing.indexFolder(folder.resolvedPath, folderOptions);
+      // Use the underlying indexing workflow for this folder
+      const result = await this.indexingWorkflow.indexFolder(folder.resolvedPath, folderOptions);
 
       // Store embeddings in the multi-folder storage provider
       // Note: This would need to be coordinated with the actual embedding generation

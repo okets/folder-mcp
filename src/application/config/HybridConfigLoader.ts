@@ -59,7 +59,7 @@ export function convertToResolvedConfig(hybridConfig: HybridConfig): any {
     maxFileSize: hybridConfig.system.fileProcessing?.maxFileSize || 10485760,
     debounceDelay: hybridConfig.system.fileProcessing?.debounceDelay || 1000,
     
-    // Folders configuration - single folder from command line
+    // Folders configuration
     folders: {
       list: hybridConfig.folders.map(folder => ({
         path: folder,

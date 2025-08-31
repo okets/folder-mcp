@@ -92,17 +92,16 @@ Options:
 
 Examples:
   folder-mcp                                            # Connect to daemon for multi-folder support
-  folder-mcp /path/to/documents                         # Single folder mode (legacy)
-  folder-mcp --theme dark-optimized /path/to/documents  
-  folder-mcp --theme light /path/to/documents
-  folder-mcp --theme auto /path/to/documents
+  folder-mcp --theme dark-optimized                     # Connect to daemon with theme override  
+  folder-mcp --theme light                              # Connect to daemon with light theme
+  folder-mcp --theme auto                               # Connect to daemon with auto theme
 `.trim();
   }
 
   /**
    * Validate parsed arguments
    */
-  static validate(args: CliArguments): string[] {
+  static validate(_args: CliArguments): string[] {
     const errors: string[] = [];
     
     // Phase 9: folderPath is now optional - MCP server can fetch folders from daemon
