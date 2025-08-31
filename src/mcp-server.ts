@@ -168,6 +168,20 @@ export async function main(): Promise<void> {
                     folder_id: {
                       type: 'string',
                       description: 'Folder ID to search within (required for folder-specific search)'
+                    },
+                    threshold: {
+                      type: 'number',
+                      description: 'Minimum relevance threshold (0.0-1.0). Lower values return more results; higher values return only very relevant results.',
+                      minimum: 0.0,
+                      maximum: 1.0,
+                      default: 0.3
+                    },
+                    limit: {
+                      type: 'number',
+                      description: 'Maximum number of results to return.',
+                      minimum: 1,
+                      maximum: 100,
+                      default: 10
                     }
                   },
                   required: ['query', 'folder_id']  // Sprint 7: folder_id is now required
@@ -239,7 +253,12 @@ export async function main(): Promise<void> {
               case 'search': {
                 const query = args?.query as string || '';
                 const folderId = args?.folder_id as string | undefined;
-                const result = await daemonEndpoints.search(query, folderId);
+                const threshold = args?.threshold as number | undefined;
+                const limit = args?.limit as number | undefined;
+                const options: { threshold?: number; limit?: number } = {};
+                if (threshold !== undefined) options.threshold = threshold;
+                if (limit !== undefined) options.limit = limit;
+                const result = await daemonEndpoints.search(query, folderId, options);
                 return result as any;
               }
               

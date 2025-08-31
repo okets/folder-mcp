@@ -11,10 +11,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
+import path from 'node:path';
 import { FMDMService } from '../services/fmdm-service.js';
 import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
+import { IVectorSearchService } from '../../di/interfaces.js';
+import type { TextChunk, EmbeddingVector } from '../../types/index.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -68,6 +71,7 @@ export class RESTAPIServer {
     private fmdmService: FMDMService,
     private documentService: DocumentService,
     private modelRegistry: IModelRegistry,
+    private vectorSearchService: IVectorSearchService,
     private logger: {
       info: (message: string, ...args: any[]) => void;
       warn: (message: string, ...args: any[]) => void;
@@ -644,11 +648,11 @@ export class RESTAPIServer {
   }
 
   /**
-   * Search within a specific folder endpoint (Sprint 7)
+   * Search for documents within a folder (Sprint 7)
    */
   private async handleSearch(req: Request, res: Response): Promise<void> {
     try {
-      const folderId = req.params.folderId;
+      const { folderId } = req.params;
       if (!folderId) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
@@ -660,12 +664,12 @@ export class RESTAPIServer {
         return;
       }
 
-      // Parse and validate request body
-      const searchRequest: SearchRequest = req.body;
+      // Parse search request body
+      const searchRequest = req.body as SearchRequest;
       if (!searchRequest || !searchRequest.query || typeof searchRequest.query !== 'string') {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Search query is required and must be a string',
+          message: 'Search query is required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -673,33 +677,11 @@ export class RESTAPIServer {
         return;
       }
 
-      // Validate search parameters
-      const query = searchRequest.query.trim();
-      if (query.length === 0) {
-        const errorResponse: ErrorResponse = {
-          error: 'Bad Request',
-          message: 'Search query cannot be empty',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(400).json(errorResponse);
-        return;
-      }
+      const { query } = searchRequest;
 
-      if (query.length > 1000) {
-        const errorResponse: ErrorResponse = {
-          error: 'Bad Request',
-          message: 'Search query too long (maximum 1000 characters)',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(400).json(errorResponse);
-        return;
-      }
-
-      // Validate optional parameters
-      const limit = Math.min(Math.max(searchRequest.limit || 10, 1), 100);
-      const threshold = Math.min(Math.max(searchRequest.threshold || 0.7, 0.0), 1.0);
+      // Parse and validate parameters - fix threshold 0.0 handling
+      const limit = Math.min(Math.max((typeof searchRequest.limit === 'number' ? searchRequest.limit : 10), 1), 100);
+      const threshold = Math.min(Math.max((typeof searchRequest.threshold === 'number' ? searchRequest.threshold : 0.3), 0.0), 1.0);
       const includeContent = searchRequest.includeContent !== false; // default true
 
       this.logger.debug(`[REST] Searching folder ${folderId} for: "${query}" (limit: ${limit}, threshold: ${threshold})`);
@@ -768,33 +750,105 @@ export class RESTAPIServer {
         return;
       }
 
-      // TODO: Implement actual vector search using the loaded model
-      // For now, return enhanced placeholder with model registry integration
+      // Sprint 7: Implement actual vector search using the loaded model and vector search service
       const searchStartTime = Date.now();
+      let searchResults: any[] = [];
       
-      // Placeholder search results - will be replaced with actual vector search
-      const mockResults = [
-        {
-          documentId: `search-result-${folderId}-1`,
-          documentName: 'Q4_Revenue_Report.pdf',
-          relevance: 0.92,
-          snippet: `Found "${query}" in Q4 revenue analysis section...`,
-          pageNumber: 5,
-          chunkId: 'chunk-q4-revenue-001',
-          documentType: 'pdf',
-          documentPath: 'reports/Q4_Revenue_Report.pdf'
-        },
-        {
-          documentId: `search-result-${folderId}-2`,
-          documentName: 'Sales_Pipeline.xlsx',
-          relevance: 0.88,
-          snippet: `"${query}" mentioned in pipeline forecast data...`,
-          pageNumber: 1,
-          chunkId: 'chunk-pipeline-002',
-          documentType: 'xlsx',
-          documentPath: 'data/Sales_Pipeline.xlsx'
+      try {
+        // Generate embedding for the search query using the loaded model's service
+        this.logger.debug(`[REST] Generating embedding for query: "${query}"`);
+        let queryEmbeddings: EmbeddingVector[];
+        
+        // Check service type and call appropriate method
+        if ('generateEmbeddings' in loadedModel.service) {
+          // PythonEmbeddingService - expects TextChunk[]
+          const chunks: TextChunk[] = [{
+            content: query,
+            chunkIndex: 0,
+            startPosition: 0,
+            endPosition: query.length,
+            tokenCount: undefined as any, // let service compute if needed
+            metadata: {
+              sourceFile: 'search-query',
+              sourceType: 'text',
+              totalChunks: 1,
+              hasOverlap: false
+            }
+          }];
+          queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
+        } else {
+          // ONNXDownloader doesn't have generateEmbeddings - this should not happen in practice
+          throw new Error(`Model service type doesn't support embedding generation: ${typeof loadedModel.service}`);
         }
-      ];
+        
+        if (!queryEmbeddings || queryEmbeddings.length === 0) {
+          this.logger.error(`[REST] Failed to generate embedding for query: "${query}"`);
+          const errorResponse: ErrorResponse = {
+            error: 'Internal Server Error',
+            message: 'Failed to generate embedding for search query',
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(500).json(errorResponse);
+          return;
+        }
+
+        // Perform vector search - request more results for folder filtering
+        this.logger.debug(`[REST] Performing vector search with threshold: ${threshold}, initial limit: ${limit * 2}`);
+        
+        const firstEmbedding = queryEmbeddings[0];
+        if (!firstEmbedding) {
+          throw new Error('Generated embedding is empty or invalid');
+        }
+        
+        // Request more results to account for folder filtering
+        const vectorSearchResults = await this.vectorSearchService.search(firstEmbedding, limit * 2, threshold);
+        
+        // Filter results to current folder - fix folder scoping security issue
+        const normalizedFolder = path.resolve(folderPath);
+        const folderFilteredResults = vectorSearchResults.filter(result => {
+          const rawPath = result.documentId || result.folderPath || '';
+          const normalizedResult = path.resolve(rawPath);
+          const rel = path.relative(normalizedFolder, normalizedResult);
+          const belongsToFolder = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+          
+          if (!belongsToFolder) {
+            this.logger.debug(`[REST] Filtering out result from different folder: ${rawPath} (expected under: ${normalizedFolder})`);
+          }
+          
+          return belongsToFolder;
+        });
+
+        // Log if filtering reduced results
+        if (folderFilteredResults.length !== vectorSearchResults.length) {
+          this.logger.info(`[REST] Folder filtering reduced results from ${vectorSearchResults.length} to ${folderFilteredResults.length} for folder ${folderId}`);
+        }
+
+        // Apply final limit after folder filtering
+        const finalResults = folderFilteredResults.slice(0, limit);
+        
+        // Transform vector search results to REST API format
+        searchResults = finalResults.map(result => ({
+          documentId: result.documentId,
+          documentName: this.extractFileNameFromPath(result.documentId || ''),
+          relevance: result.score,
+          snippet: includeContent && result.content
+            ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
+            : undefined,
+          pageNumber: result.metadata?.page,
+          chunkId: result.id,
+          documentType: this.getDocumentType(result.documentId || ''),
+          documentPath: result.documentId
+        }));
+
+        this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);
+        
+      } catch (searchError) {
+        this.logger.error(`[REST] Vector search failed for query "${query}":`, searchError);
+        
+        // Fallback to empty results on search error (fail gracefully)
+        searchResults = [];
+      }
 
       const searchTime = Date.now() - searchStartTime;
       const totalTime = Date.now() - startTime;
@@ -807,12 +861,12 @@ export class RESTAPIServer {
           model: modelName,
           status: folder.status || 'pending'
         },
-        results: mockResults.slice(0, limit), // Respect limit parameter
+        results: searchResults,
         performance: {
           searchTime,
           modelLoadTime: modelLoadResult.loadTime,
           documentsSearched: folder.documentCount || 0,
-          totalResults: mockResults.length,
+          totalResults: searchResults.length,
           modelUsed: modelName
         },
         query,
@@ -980,5 +1034,23 @@ export class RESTAPIServer {
 
     // Final fallback
     return 'Unknown Folder';
+  }
+
+  /**
+   * Extract filename from a file path
+   */
+  private extractFileNameFromPath(filePath: string): string {
+    if (!filePath) return 'Unknown Document';
+    const pathParts = filePath.split(/[/\\]/);
+    return pathParts[pathParts.length - 1] || 'Unknown Document';
+  }
+
+  /**
+   * Get document type from file path or document ID
+   */
+  private getDocumentType(documentId: string): string {
+    if (!documentId) return 'unknown';
+    const extension = documentId.split('.').pop()?.toLowerCase();
+    return extension || 'unknown';
   }
 }

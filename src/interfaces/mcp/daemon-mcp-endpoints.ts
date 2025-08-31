@@ -9,6 +9,7 @@
 
 import { DaemonRESTClient } from './daemon-rest-client.js';
 import type { ServerInfoResponse } from './daemon-rest-client.js';
+import { SEMANTIC_THRESHOLD, DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT } from '../../constants/search.js';
 
 /**
  * MCP content item format - matches MCP SDK's expected structure
@@ -103,7 +104,7 @@ export class DaemonMCPEndpoints {
    * Search within a specific folder (Sprint 7 implementation)
    * Note: folderId is REQUIRED for folder-specific search
    */
-  async search(query: string, folderId?: string): Promise<MCPToolResponse> {
+  async search(query: string, folderId?: string, options?: { threshold?: number; limit?: number }): Promise<MCPToolResponse> {
     try {
       // Sprint 7: Folder parameter is now required for search
       if (!folderId) {
@@ -115,11 +116,11 @@ export class DaemonMCPEndpoints {
         };
       }
 
-      // Call daemon REST API search endpoint
+      // Call daemon REST API search endpoint with bounds enforcement
       const searchResponse = await this.daemonClient.searchFolder(folderId, {
         query,
-        limit: 10,
-        threshold: 0.7,
+        limit: Math.min(options?.limit || DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT),
+        threshold: options?.threshold ?? SEMANTIC_THRESHOLD,
         includeContent: true
       });
 

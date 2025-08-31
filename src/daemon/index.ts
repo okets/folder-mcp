@@ -207,7 +207,8 @@ class FolderMCPDaemon {
         const { DocumentService } = await import('./services/document-service.js');
         const documentService = new DocumentService({
           debug,
-          warn
+          warn,
+          error: logError
         });
         
         // Create ModelRegistry instance for Sprint 7 search functionality
@@ -221,7 +222,10 @@ class FolderMCPDaemon {
           () => new ONNXDownloader()
         );
         
-        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, modelRegistry, {
+        // Create Vector Search Service instance for Sprint 7 search functionality
+        const vectorSearchService = await this.diContainer.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
+        
+        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, modelRegistry, vectorSearchService, {
           info,
           warn,
           error: logError,

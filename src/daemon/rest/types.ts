@@ -229,7 +229,7 @@ export interface SearchRequest {
   query: string;
   /** Maximum number of results to return (default: 10, max: 100) */
   limit?: number;
-  /** Minimum relevance threshold (0.0-1.0, default: 0.7) */
+  /** Minimum relevance threshold (0.0-1.0, default: 0.3) */
   threshold?: number;
   /** Whether to include document content in results (default: true) */
   includeContent?: boolean;

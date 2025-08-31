@@ -60,7 +60,6 @@ import { ResolvedConfig } from '../config/schema.js';
 import { DependencyContainer } from './container.js';
 import { IndexingOrchestrator } from '../application/indexing/orchestrator.js';
 import { IncrementalIndexer } from '../application/indexing/incremental.js';
-import { MCPServer } from '../interfaces/mcp/server.js';
 
 /**
  * Default service factory implementation
@@ -117,13 +116,29 @@ export class ServiceFactory implements IServiceFactory {
   async createVectorSearchService(cacheDir: string): Promise<IVectorSearchService> {
     const loggingService = this.getLoggingService();
     
-    // TODO: Task 12 - Use full SQLiteVecStorage for multi-folder search
-    // For Step 7 priority testing, use BasicVectorSearchService
+    // Use SQLite-backed vector search service to connect to real embeddings database
+    const dbPath = `${cacheDir}/embeddings.db`;
+    loggingService.info(`Creating SQLiteVectorSearchService with database: ${dbPath}`);
     
-    loggingService.info(`Creating BasicVectorSearchService for testing priority system: ${cacheDir}`);
+    const { SQLiteVectorSearchService } = await import('../infrastructure/storage/sqlite-vector-search.js');
+    const service = new SQLiteVectorSearchService(dbPath, loggingService);
     
-    const { BasicVectorSearchService } = await import('../infrastructure/storage/basic-vector-search.js');
-    return new BasicVectorSearchService(loggingService);
+    // Try to load index if database exists, but don't fail if it doesn't
+    // This allows services to be created in test environments or when database hasn't been created yet
+    try {
+      await service.loadIndex(dbPath);
+      loggingService.debug(`SQLite vector index loaded successfully from ${dbPath}`);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Database file not found')) {
+        loggingService.debug(`Database file not found at ${dbPath}, service created but not ready for search`);
+        // Service is created but not ready - this is acceptable for test scenarios
+      } else {
+        loggingService.warn(`Failed to load SQLite vector index: ${error instanceof Error ? error.message : String(error)}`);
+        // Don't throw - allow service to be created even if index loading fails
+      }
+    }
+    
+    return service;
   }
 
   createCacheService(folderPath: string): ICacheService {

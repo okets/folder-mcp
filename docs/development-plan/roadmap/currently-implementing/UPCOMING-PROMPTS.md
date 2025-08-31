@@ -111,10 +111,15 @@ If the PRD has contradicting instructions, these instructions take precedence. t
 
 -----------------------------Next Sprint
 '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md'
-we have finished sprint 5.
-let's plan for sprint 6. we do it agent-to-daemon method, read about it in memory mcp.
+Lets start sprint 7.5
 
 
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
-You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faster.
+You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste
+
+
+You only specified TMOAT test scripts, I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
+──────────────────────────────────────────────────────────────────────────────────────────
+--------------------- Code Rabbit
+My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking.

@@ -8,6 +8,7 @@
 import { BaseCommand } from './base-command.js';
 import { MODULE_TOKENS } from '../../../di/interfaces.js';
 import type { IKnowledgeOperations } from '../../../di/interfaces.js';
+import { SEMANTIC_THRESHOLD, LIMITS } from '../../../constants/search.js';
 
 export class SearchCommand extends BaseCommand {
   constructor() {
@@ -18,7 +19,7 @@ export class SearchCommand extends BaseCommand {
       .argument('<query>', 'Search query')
       .argument('[folder]', 'Folder to search in (optional, defaults to current directory)')
       .option('-l, --limit <number>', 'Maximum number of results', '10')
-      .option('-t, --threshold <number>', 'Similarity threshold (0-1)', '0.7')
+      .option('-t, --threshold <number>', 'Similarity threshold (0-1)', String(SEMANTIC_THRESHOLD))
       .option('--help-config', 'Show configuration help for search command')
       .action(this.execute.bind(this))
       .addHelpText('after', () => {
@@ -48,6 +49,21 @@ export class SearchCommand extends BaseCommand {
       // Apply configuration overrides first
       await this.applyConfigurationOverrides(searchFolder, options);
       
+      // Parse and validate search parameters
+      const parsedThreshold = parseFloat(options.threshold);
+      
+      // Validate threshold against defined bounds
+      if (isNaN(parsedThreshold)) {
+        throw new Error(`Invalid threshold value "${options.threshold}": must be a number`);
+      }
+      
+      if (parsedThreshold < LIMITS.MIN_SEMANTIC_THRESHOLD || parsedThreshold > LIMITS.MAX_SEMANTIC_THRESHOLD) {
+        throw new Error(
+          `Threshold ${parsedThreshold} is out of bounds. ` +
+          `Must be between ${LIMITS.MIN_SEMANTIC_THRESHOLD} and ${LIMITS.MAX_SEMANTIC_THRESHOLD}`
+        );
+      }
+      
       // Resolve the knowledge operations service lazily
       const knowledgeOperations = this.resolveService<IKnowledgeOperations>(
         searchFolder,
@@ -60,7 +76,7 @@ export class SearchCommand extends BaseCommand {
       
       const searchResult = await knowledgeOperations.semanticSearch(query, {
         maxResults: parseInt(options.limit),
-        threshold: parseFloat(options.threshold)
+        threshold: parsedThreshold
       });
 
       // Display results
