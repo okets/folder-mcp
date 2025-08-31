@@ -24,8 +24,8 @@ export default defineConfig({
       'tests/integration/workflows/indexing-real-data.test.ts'
     ],
     
-    // Reporter configuration - fix for strikethrough font issues
-    reporters: process.env.CI ? ['junit'] : ['basic'],
+    // Reporter configuration - using default reporter with summary disabled to match basic
+    reporters: process.env.CI ? ['junit'] : [['default', { summary: false }]],
     outputFile: process.env.CI ? 'test-results.xml' : undefined,
     
     // Memory-safe timeout settings
