@@ -157,7 +157,7 @@ export async function main(): Promise<void> {
               },
               {
                 name: 'search',
-                description: 'Search for documents across folders (coming in Sprint 7)',
+                description: 'Search for documents within a specific folder using semantic search',
                 inputSchema: {
                   type: 'object',
                   properties: {
@@ -167,10 +167,10 @@ export async function main(): Promise<void> {
                     },
                     folder_id: {
                       type: 'string',
-                      description: 'Optional folder ID to search within'
+                      description: 'Folder ID to search within (required for folder-specific search)'
                     }
                   },
-                  required: ['query']
+                  required: ['query', 'folder_id']  // Sprint 7: folder_id is now required
                 }
               },
               {

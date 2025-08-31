@@ -388,6 +388,65 @@ export class DaemonRESTClient {
   }
 
   /**
+   * Search within a specific folder (Sprint 7)
+   */
+  async searchFolder(
+    folderId: string,
+    searchParams: {
+      query: string;
+      limit?: number;
+      threshold?: number;
+      includeContent?: boolean;
+    }
+  ): Promise<{
+    folderContext: {
+      id: string;
+      name: string;
+      path: string;
+      model: string;
+      status: string;
+    };
+    results: Array<{
+      documentId: string;
+      documentName: string;
+      relevance: number;
+      snippet: string;
+      pageNumber?: number;
+      chunkId?: string;
+      documentType?: string;
+      documentPath?: string;
+    }>;
+    performance: {
+      searchTime: number;
+      modelLoadTime: number;
+      documentsSearched: number;
+      totalResults: number;
+      modelUsed: string;
+    };
+    query: string;
+    parameters: {
+      limit: number;
+      threshold: number;
+      includeContent: boolean;
+    };
+  }> {
+    if (!this.isConnected) {
+      throw new Error('Not connected to daemon. Call connect() first.');
+    }
+
+    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/search`;
+    
+    // Make POST request with search parameters in body
+    return await this.makeRequest(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(searchParams)
+    });
+  }
+
+  /**
    * Close the client and clean up resources
    */
   close(): void {

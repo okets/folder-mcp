@@ -210,7 +210,18 @@ class FolderMCPDaemon {
           warn
         });
         
-        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, {
+        // Create ModelRegistry instance for Sprint 7 search functionality
+        const { ModelRegistry } = await import('./services/model-registry.js');
+        const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
+        const { ONNXDownloader } = await import('../infrastructure/embeddings/onnx/onnx-downloader.js');
+        
+        const modelRegistry = new ModelRegistry(
+          loggingService,
+          (config: any) => new PythonEmbeddingService(config),
+          () => new ONNXDownloader()
+        );
+        
+        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, modelRegistry, {
           info,
           warn,
           error: logError,

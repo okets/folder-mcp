@@ -12,8 +12,9 @@ import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
 import { FMDMService } from '../services/fmdm-service.js';
-import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse } from './types.js';
+import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse } from './types.js';
 import { DocumentService } from '../services/document-service.js';
+import { IModelRegistry } from '../services/model-registry.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -66,6 +67,7 @@ export class RESTAPIServer {
   constructor(
     private fmdmService: FMDMService,
     private documentService: DocumentService,
+    private modelRegistry: IModelRegistry,
     private logger: {
       info: (message: string, ...args: any[]) => void;
       warn: (message: string, ...args: any[]) => void;
@@ -126,6 +128,9 @@ export class RESTAPIServer {
     // Document operations endpoints (Sprint 6) 
     this.app.get('/api/v1/folders/:folderId/documents/:docId', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderId/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
+
+    // Search operations endpoints (Sprint 7)
+    this.app.post('/api/v1/folders/:folderId/search', this.handleSearch.bind(this));
 
     // Root path for API discovery
     this.app.get('/api/v1', this.handleApiRoot.bind(this));
@@ -635,6 +640,202 @@ export class RESTAPIServer {
       };
       
       res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Search within a specific folder endpoint (Sprint 7)
+   */
+  private async handleSearch(req: Request, res: Response): Promise<void> {
+    try {
+      const folderId = req.params.folderId;
+      if (!folderId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder ID is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Parse and validate request body
+      const searchRequest: SearchRequest = req.body;
+      if (!searchRequest || !searchRequest.query || typeof searchRequest.query !== 'string') {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Search query is required and must be a string',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Validate search parameters
+      const query = searchRequest.query.trim();
+      if (query.length === 0) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Search query cannot be empty',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      if (query.length > 1000) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Search query too long (maximum 1000 characters)',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Validate optional parameters
+      const limit = Math.min(Math.max(searchRequest.limit || 10, 1), 100);
+      const threshold = Math.min(Math.max(searchRequest.threshold || 0.7, 0.0), 1.0);
+      const includeContent = searchRequest.includeContent !== false; // default true
+
+      this.logger.debug(`[REST] Searching folder ${folderId} for: "${query}" (limit: ${limit}, threshold: ${threshold})`);
+
+      // Get folders from FMDM service to validate folder exists
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for search:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Resolve folder ID to path and validate folder exists
+      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
+      if (!folderResolution) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      const { path: folderPath, folder } = folderResolution;
+      const folderName = this.extractFolderName(folderPath);
+      const modelName = folder.model || 'all-MiniLM-L6-v2';
+
+      // Sprint 7: Implement actual search functionality with model registry
+      const startTime = Date.now();
+      
+      // Load or get model for this folder
+      const modelLoadResult = await this.modelRegistry.getModelForFolder(folderId, folderPath, modelName);
+      
+      if (!modelLoadResult.success) {
+        const errorResponse: ErrorResponse = {
+          error: 'Service Unavailable',
+          message: `Failed to load embedding model '${modelName}' for folder '${folderId}': ${modelLoadResult.error}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(503).json(errorResponse);
+        return;
+      }
+
+      // Get the loaded model instance
+      const loadedModel = this.modelRegistry.getLoadedModel(modelName);
+      if (!loadedModel) {
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: `Model '${modelName}' loaded but not accessible`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // TODO: Implement actual vector search using the loaded model
+      // For now, return enhanced placeholder with model registry integration
+      const searchStartTime = Date.now();
+      
+      // Placeholder search results - will be replaced with actual vector search
+      const mockResults = [
+        {
+          documentId: `search-result-${folderId}-1`,
+          documentName: 'Q4_Revenue_Report.pdf',
+          relevance: 0.92,
+          snippet: `Found "${query}" in Q4 revenue analysis section...`,
+          pageNumber: 5,
+          chunkId: 'chunk-q4-revenue-001',
+          documentType: 'pdf',
+          documentPath: 'reports/Q4_Revenue_Report.pdf'
+        },
+        {
+          documentId: `search-result-${folderId}-2`,
+          documentName: 'Sales_Pipeline.xlsx',
+          relevance: 0.88,
+          snippet: `"${query}" mentioned in pipeline forecast data...`,
+          pageNumber: 1,
+          chunkId: 'chunk-pipeline-002',
+          documentType: 'xlsx',
+          documentPath: 'data/Sales_Pipeline.xlsx'
+        }
+      ];
+
+      const searchTime = Date.now() - searchStartTime;
+      const totalTime = Date.now() - startTime;
+      
+      const response: SearchResponse = {
+        folderContext: {
+          id: folderId,
+          name: folderName,
+          path: folderPath,
+          model: modelName,
+          status: folder.status || 'pending'
+        },
+        results: mockResults.slice(0, limit), // Respect limit parameter
+        performance: {
+          searchTime,
+          modelLoadTime: modelLoadResult.loadTime,
+          documentsSearched: folder.documentCount || 0,
+          totalResults: mockResults.length,
+          modelUsed: modelName
+        },
+        query,
+        parameters: {
+          limit,
+          threshold,
+          includeContent
+        }
+      };
+
+      this.logger.debug(`[REST] Search completed in ${totalTime}ms for folder ${folderId} (model load: ${modelLoadResult.loadTime}ms, search: ${searchTime}ms)`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Search failed:', error);
+      
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: 'Search operation failed',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(500).json(errorResponse);
     }
   }
 

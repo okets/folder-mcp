@@ -881,6 +881,149 @@ sqlite3 ~/.cache/folder-mcp/embeddings.db \
 
 ---
 
+### Sprint 7.5: Complete Real Data Implementation (Days 13.5-14.5)  
+**🎯 Goal**: Transform all mock endpoints to use real file system data
+
+#### Overview
+Systematic transformation of endpoints from mock to real data, ordered by implementation difficulty. Each endpoint must be fully functional and tested via agent-to-endpoint methodology before proceeding to the next.
+
+#### Tasks (Ordered by Difficulty)
+1. **Fix document indexing status tracking**
+   - Update DocumentService to track real indexing status
+   - Currently hardcoded to `false` in `/documents` endpoint
+   - Add simple file-based or in-memory tracking mechanism
+   - **Agent-to-endpoint validation:**
+     - Read actual files: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Engineering/README.md`
+     - Query via MCP: `mcp__folder-mcp__list_documents --folder_id "test-knowledge-base"`
+     - Verify: Files appear with correct size, "indexed" field shows real status (not false)
+
+2. **Validate text document processing**
+   - Text/markdown outline extraction already works
+   - Add comprehensive edge case testing
+   - Ensure proper heading extraction from markdown files
+   - **Agent-to-endpoint validation:**
+     - Read: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Marketing/competitive_analysis.md` - count headings
+     - Query: `mcp__folder-mcp__get_document_outline --folder_id "test-knowledge-base" --document_id "competitive_analysis.md"`
+     - Verify: Outline shows real headings matching markdown structure with correct line numbers
+
+3. **Implement PDF document processing**
+   - Install `pdf-parse` library for text extraction
+   - Implement real PDF content extraction (replace placeholder)
+   - Extract real page count, bookmarks, TOC for outline
+   - Handle encrypted PDFs gracefully
+   - **Agent-to-endpoint validation:**
+     - Read metadata: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Policies/Remote_Work_Policy.pdf`
+     - Query: `mcp__folder-mcp__get_document_data --folder_id "test-knowledge-base" --document_id "Remote_Work_Policy.pdf"`
+     - Verify: Content is NOT "[PDF Document...]", contains actual policy text
+
+4. **Implement Excel document processing**
+   - Install `xlsx` library for spreadsheet parsing
+   - Extract real sheet data, formulas, and values
+   - Provide accurate sheet names and dimensions in outline
+   - Support both .xlsx and .xls formats
+   - **Agent-to-endpoint validation:**
+     - Identify: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Sales/Data/Sales_Pipeline.xlsx`
+     - Query: `mcp__folder-mcp__get_document_outline --folder_id "test-knowledge-base" --document_id "Sales_Pipeline.xlsx"`
+     - Verify: Real sheet names/dimensions, NOT mock "Sheet1 100x10"
+
+5. **Implement Word document processing**
+   - Install `mammoth` library for .docx parsing
+   - Extract formatted text with structure preservation
+   - Parse real document outline (headings, sections)
+   - Handle both .docx and legacy .doc formats
+   - **Agent-to-endpoint validation:**
+     - Locate: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Marketing/competitive_analysis.docx`
+     - Query: `mcp__folder-mcp__get_document_data --folder_id "test-knowledge-base" --document_id "competitive_analysis.docx"`
+     - Verify: Real text content extracted matching the .md version
+
+6. **Implement PowerPoint processing**
+   - Research and select appropriate library
+   - Extract slide content, titles, and speaker notes
+   - Provide real slide count and structure in outline
+   - Support both .pptx and .ppt formats
+   - **Agent-to-endpoint validation:**
+     - Find: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Sales/Presentations/Product_Demo.pptx`
+     - Query: `mcp__folder-mcp__get_document_outline --folder_id "test-knowledge-base" --document_id "Product_Demo.pptx"`
+     - Verify: Real slide titles and count, not estimates based on file size
+
+7. **Human verification checkpoint**
+   - Review all document processing implementations
+   - Verify each format works with real test files
+   - Performance validation (<500ms per document)
+   - Get approval before proceeding to search
+
+8. **Implement real vector search**
+   - Connect Python embedding service for vector generation
+   - Implement document chunking pipeline
+   - Integrate FAISS for vector storage and similarity search
+   - Replace mock search results with real semantic matches
+   - Track actual document indexing status in database
+   - **Agent-to-endpoint validation:**
+     - Read: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Policies/Remote_Work_Policy.txt` - note "remote work", "flexibility"
+     - Search: `mcp__folder-mcp__search --query "remote work flexibility" --folder_id "test-knowledge-base"`
+     - Verify: Results include Remote_Work_Policy files, NOT mock "Q4_Revenue_Report.pdf"
+
+#### Testing Protocol
+Each task follows this validation pattern:
+```
+1. Pre-test: Verify current mock behavior via MCP tools
+2. Implement: Transform to use real data
+3. Build: Compile and restart daemon
+4. Agent validation: 
+   - READ actual file content directly
+   - QUERY same file via MCP endpoint
+   - COMPARE results to verify real data
+   - VALIDATE no mock data remains
+5. Edge test: Boundary conditions and error cases
+6. Document: Record test results
+```
+
+#### Success Metrics
+- ✅ All document types return actual content (not placeholders)
+- ✅ Document outlines reflect real structure
+- ✅ Search returns real semantic matches from indexed documents
+- ✅ Each endpoint responds in <500ms (except initial indexing)
+- ✅ All agent-to-endpoint tests pass
+- ✅ No regression in existing functionality
+
+#### Endpoint Transformation Status
+| Endpoint | Current State | Target State | Priority |
+|----------|--------------|--------------|----------|
+| `/documents` indexed field | Mock (false) | Real tracking | 1 - Easiest |
+| `/documents/{id}` for .txt/.md | Real | Validated | 2 - Easy |
+| `/documents/{id}` for .pdf | Mock | Real content | 3 - Medium |
+| `/documents/{id}/outline` for .pdf | Mock | Real structure | 3 - Medium |
+| `/documents/{id}` for .xlsx | Mock | Real data | 4 - Medium |
+| `/documents/{id}/outline` for .xlsx | Mock | Real sheets | 4 - Medium |
+| `/documents/{id}` for .docx | Mock | Real text | 5 - Medium |
+| `/documents/{id}/outline` for .docx | Mock | Real structure | 5 - Medium |
+| `/documents/{id}` for .pptx | Mock | Real slides | 6 - Hard |
+| `/documents/{id}/outline` for .pptx | Mock | Real structure | 6 - Hard |
+| `/folders/{id}/search` | Mock results | Real vector search | 8 - Hardest |
+
+#### TMOAT Manual Validation
+```bash
+# 1. Test document indexing status
+curl http://localhost:3002/api/v1/folders/sales/documents | jq '.documents[].indexed'
+# Should show real tracking, not all false
+
+# 2. Test PDF content extraction
+curl http://localhost:3002/api/v1/folders/sales/documents/test.pdf | jq '.document.content'
+# Should show actual PDF text, not placeholder
+
+# 3. Test Excel data extraction
+curl http://localhost:3002/api/v1/folders/sales/documents/data.xlsx | jq '.document.content'
+# Should show real spreadsheet data
+
+# 4. Test real search
+curl -X POST http://localhost:3002/api/v1/folders/sales/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "revenue"}' | jq '.results'
+# Should return real matching documents with actual snippets
+```
+
+---
+
 ### Sprint 8: Remote Access & Polish (Days 15-16)
 **🎯 Goal**: Enable cloud LLM access and complete integration
 

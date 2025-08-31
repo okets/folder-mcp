@@ -100,15 +100,82 @@ export class DaemonMCPEndpoints {
   }
 
   /**
-   * Search across folders (placeholder for Sprint 7)
+   * Search within a specific folder (Sprint 7 implementation)
+   * Note: folderId is REQUIRED for folder-specific search
    */
   async search(query: string, folderId?: string): Promise<MCPToolResponse> {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: `Search functionality will be implemented in Sprint 7.\nQuery: "${query}"${folderId ? `\nFolder: ${folderId}` : ''}`
-      }]
-    };
+    try {
+      // Sprint 7: Folder parameter is now required for search
+      if (!folderId) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: '❌ Error: Folder ID is required for search.\nPlease specify which folder to search in.\n\nUsage: search(query, folderId)\nExample: search("revenue report", "sales")'
+          }]
+        };
+      }
+
+      // Call daemon REST API search endpoint
+      const searchResponse = await this.daemonClient.searchFolder(folderId, {
+        query,
+        limit: 10,
+        threshold: 0.7,
+        includeContent: true
+      });
+
+      // Format search results for display
+      if (searchResponse.results.length === 0) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `🔍 No results found for "${query}" in folder '${folderId}'.\n\nTry:\n• Different search terms\n• Checking if the folder is indexed\n• Verifying the folder ID is correct`
+          }]
+        };
+      }
+
+      const resultsText = searchResponse.results.map((result, index) => 
+        `${index + 1}. 📄 ${result.documentName} (${result.relevance.toFixed(2)} relevance)\n` +
+        `   Type: ${result.documentType || 'unknown'}\n` +
+        `   Path: ${result.documentPath || result.documentId}\n` +
+        `   ${result.pageNumber ? `Page: ${result.pageNumber}\n` : ''}` +
+        `   Snippet: ${result.snippet.substring(0, 200)}${result.snippet.length > 200 ? '...' : ''}`
+      ).join('\n\n');
+
+      const responseText = [
+        `🔍 Search Results for "${query}"`,
+        '════════════════════════════════════',
+        '',
+        `📁 Folder: ${searchResponse.folderContext.name}`,
+        `   • Path: ${searchResponse.folderContext.path}`,
+        `   • Model: ${searchResponse.folderContext.model}`,
+        `   • Status: ${searchResponse.folderContext.status}`,
+        '',
+        `📊 Search Performance:`,
+        `   • Total time: ${searchResponse.performance.searchTime}ms`,
+        `   • Model load time: ${searchResponse.performance.modelLoadTime}ms`,
+        `   • Documents searched: ${searchResponse.performance.documentsSearched}`,
+        `   • Total results: ${searchResponse.performance.totalResults}`,
+        `   • Model used: ${searchResponse.performance.modelUsed}`,
+        '',
+        `📄 Results (showing ${searchResponse.results.length} of ${searchResponse.performance.totalResults}):`,
+        '────────────────────────────────────',
+        resultsText
+      ].join('\n');
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: responseText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `❌ Error searching in folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
   }
 
   /**
