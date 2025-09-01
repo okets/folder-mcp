@@ -398,12 +398,12 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         }
       } else {
         // No tasks available - either at concurrency limit or waiting for tasks
-        // Only wait if we have tasks in progress
-        if (stats.inProgressTasks > 0 || this.pendingIndexingTasks.size > 0) {
+        // Only wait if we have tasks in progress OR tasks scheduled for retry
+        if (stats.inProgressTasks > 0 || this.pendingIndexingTasks.size > 0 || stats.retryingTasks > 0) {
           await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 500ms
         } else {
-          // No tasks in progress and none pending - break to avoid infinite loop
-          this.logger.debug('[MANAGER-QUEUE] No tasks available and none in progress');
+          // No tasks in progress, none pending, and none retrying - break to avoid infinite loop
+          this.logger.debug('[MANAGER-QUEUE] No tasks available, none in progress, and none retrying');
           break;
         }
       }
@@ -623,6 +623,8 @@ return;
 
   private isAllTasksComplete(): boolean {
     const stats = this.taskQueue.getStatistics();
+    // All tasks are complete when there are no pending, in-progress, or retrying tasks
+    // Failed tasks are considered "complete" (they won't be retried anymore)
     return stats.totalTasks > 0 && 
            stats.pendingTasks === 0 && 
            stats.inProgressTasks === 0 &&
