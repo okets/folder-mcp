@@ -20,7 +20,10 @@ export interface CuratedModel {
   mtebScore?: number;
   contextWindow?: number;
   requirements?: {
-    prefixes?: boolean;
+    prefixes?: {
+      query?: string;
+      passage?: string;
+    };
     cpu?: {
       minRAM?: number;
       recRAM?: number;

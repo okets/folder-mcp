@@ -13,6 +13,7 @@ import {
   SystemHealthResult
 } from './index.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
+import { gitIgnoreService } from '../../infrastructure/filesystem/gitignore-service.js';
 
 // Domain service interfaces
 import { 
@@ -46,6 +47,20 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
   private eventQueues: Map<string, FileWatchEvent[]> = new Map();
   private processingTimers: Map<string, NodeJS.Timeout> = new Map();
   private changeDetectionCallback?: (folderPath: string, changeCount: number) => void;
+  private gitignoreFilters: Map<string, import('ignore').Ignore> = new Map();
+  private memoryBaselineTracker?: {
+    samples: Array<{ timestamp: number; heapUsedMB: number; rssMB: number; heapUtilizationPercent: number }>;
+    establishedBaseline: {
+      heapUsedMB: number;
+      rssMB: number;
+      heapUtilizationPercent: number;
+      standardDeviation: number;
+      isStable: boolean;
+      establishedAt: Date;
+      sampleCount: number;
+    } | null;
+    startTime: number;
+  };
 
   constructor(
     private readonly fileParsingService: IFileParsingService,
@@ -388,7 +403,14 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     // Process files in batches
     for (let i = 0; i < filePaths.length; i += batchSize) {
       const batch = filePaths.slice(i, i + batchSize);
-      const changedFiles = batch.filter(path => this.shouldProcessFile(path, fileEvents.get(path)!));
+      const changedFiles = [];
+      for (const path of batch) {
+        if (await this.shouldProcessFile(path, fileEvents.get(path)!, folderPath)) {
+          changedFiles.push(path);
+        } else {
+          this.loggingService.debug(`[BATCH] Skipping file due to filtering: ${path}`);
+        }
+      }
       
       if (changedFiles.length > 0) {
         this.loggingService.info(`🔄 Processing batch of ${changedFiles.length} changed files`, {
@@ -455,7 +477,7 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     fileEvents: Map<string, FileWatchEvent[]>
   ): Promise<void> {
     for (const [filePath, events] of fileEvents) {
-      if (this.shouldProcessFile(filePath, events)) {
+      if (await this.shouldProcessFile(filePath, events, folderPath)) {
         this.loggingService.info(`🔄 Processing individual file change`, { 
           filePath,
           eventCount: events.length,
@@ -505,7 +527,17 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     }
   }
 
-  private shouldProcessFile(filePath: string, events: FileWatchEvent[]): boolean {
+  /**
+   * Initialize gitignore filter for a folder
+   */
+  private async initializeGitIgnoreFilter(folderPath: string): Promise<void> {
+    if (!this.gitignoreFilters.has(folderPath)) {
+      const ignoreFilter = await gitIgnoreService.loadGitIgnore(folderPath);
+      this.gitignoreFilters.set(folderPath, ignoreFilter);
+    }
+  }
+
+  private async shouldProcessFile(filePath: string, events: FileWatchEvent[], folderPath: string): Promise<boolean> {
     // Check if file should be processed based on events
     const lastEvent = events[events.length - 1];
     
@@ -519,11 +551,23 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
       return false;
     }
 
-    // Check file extension
+    // Check file extension first (fast check)
     const supportedExtensions = getSupportedExtensions();
     const hasValidExtension = supportedExtensions.some(ext => filePath.toLowerCase().endsWith(ext));
+    if (!hasValidExtension) {
+      return false;
+    }
     
-    return hasValidExtension;
+    // Initialize gitignore filter if needed
+    await this.initializeGitIgnoreFilter(folderPath);
+    
+    // Check gitignore
+    const ignoreFilter = this.gitignoreFilters.get(folderPath);
+    if (ignoreFilter && gitIgnoreService.shouldIgnore(ignoreFilter, filePath, folderPath)) {
+      return false;
+    }
+    
+    return true;
   }
 
   private async checkFileSystemHealth(folderPath?: string): Promise<{ healthy: boolean; details: any }> {
@@ -593,16 +637,106 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     const memoryUsage = process.memoryUsage();
     const totalMemoryMB = memoryUsage.heapTotal / 1024 / 1024;
     const usedMemoryMB = memoryUsage.heapUsed / 1024 / 1024;
+    const rssMB = memoryUsage.rss / 1024 / 1024;
+    const externalMB = memoryUsage.external / 1024 / 1024;
     const usagePercentage = (usedMemoryMB / totalMemoryMB) * 100;
 
+    // Initialize memory baseline tracking if not present
+    if (!this.memoryBaselineTracker) {
+      this.memoryBaselineTracker = {
+        samples: [],
+        establishedBaseline: null,
+        startTime: Date.now()
+      };
+    }
+
+    // Collect memory samples for baseline establishment
+    this.memoryBaselineTracker.samples.push({
+      timestamp: Date.now(),
+      heapUsedMB: usedMemoryMB,
+      rssMB: rssMB,
+      heapUtilizationPercent: usagePercentage
+    });
+
+    // Keep only recent samples (last 10 minutes worth)
+    const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+    this.memoryBaselineTracker.samples = this.memoryBaselineTracker.samples
+      .filter(sample => sample.timestamp > tenMinutesAgo);
+
+    // Establish baseline after collecting samples for at least 2 minutes
+    const twoMinutesAgo = Date.now() - (2 * 60 * 1000);
+    if (!this.memoryBaselineTracker.establishedBaseline && 
+        this.memoryBaselineTracker.startTime < twoMinutesAgo &&
+        this.memoryBaselineTracker.samples.length >= 4) {
+      
+      const samples = this.memoryBaselineTracker.samples;
+      const avgHeapUsed = samples.reduce((sum, s) => sum + s.heapUsedMB, 0) / samples.length;
+      const avgRss = samples.reduce((sum, s) => sum + s.rssMB, 0) / samples.length;
+      const avgUtilization = samples.reduce((sum, s) => sum + s.heapUtilizationPercent, 0) / samples.length;
+      
+      // Calculate standard deviation to assess stability
+      const heapVariances = samples.map(s => Math.pow(s.heapUsedMB - avgHeapUsed, 2));
+      const heapStdDev = Math.sqrt(heapVariances.reduce((sum, v) => sum + v, 0) / samples.length);
+      
+      this.memoryBaselineTracker.establishedBaseline = {
+        heapUsedMB: avgHeapUsed,
+        rssMB: avgRss,
+        heapUtilizationPercent: avgUtilization,
+        standardDeviation: heapStdDev,
+        isStable: heapStdDev < (avgHeapUsed * 0.15), // Stable if std dev < 15% of mean
+        establishedAt: new Date(),
+        sampleCount: samples.length
+      };
+    }
+
+    // Determine health based on baseline if available
+    let isHealthy = true;
+    let healthReason = 'Memory usage is within normal parameters';
+
+    if (this.memoryBaselineTracker.establishedBaseline) {
+      const baseline = this.memoryBaselineTracker.establishedBaseline;
+      const deviationFromBaseline = usedMemoryMB - baseline.heapUsedMB;
+      const deviationPercentage = Math.abs(deviationFromBaseline) / baseline.heapUsedMB;
+
+      // Consider unhealthy if deviation is significant or heap utilization is very high
+      if (deviationPercentage > 0.5) { // 50% deviation from baseline
+        isHealthy = false;
+        healthReason = `Memory usage deviates ${Math.round(deviationPercentage * 100)}% from baseline (${Math.round(deviationFromBaseline)}MB difference)`;
+      } else if (usagePercentage > 90) { // Very high heap utilization
+        isHealthy = false;
+        healthReason = `Heap utilization critically high at ${Math.round(usagePercentage)}%`;
+      } else if (rssMB > baseline.rssMB * 2) { // RSS doubled from baseline
+        isHealthy = false;
+        healthReason = `RSS memory usage doubled from baseline (${Math.round(rssMB)}MB vs ${Math.round(baseline.rssMB)}MB baseline)`;
+      }
+    } else {
+      // Fallback to conservative thresholds while establishing baseline
+      if (usagePercentage > 85 || rssMB > 1024) { // 85% heap or 1GB RSS
+        isHealthy = false;
+        healthReason = usagePercentage > 85 
+          ? `High heap utilization at ${Math.round(usagePercentage)}% (baseline not yet established)`
+          : `High RSS usage at ${Math.round(rssMB)}MB (baseline not yet established)`;
+      }
+    }
+
     return {
-      healthy: usagePercentage < 80, // Consider unhealthy if using >80% of heap
+      healthy: isHealthy,
       details: {
         totalMB: Math.round(totalMemoryMB),
         usedMB: Math.round(usedMemoryMB),
         usagePercentage: Math.round(usagePercentage),
-        rss: Math.round(memoryUsage.rss / 1024 / 1024),
-        external: Math.round(memoryUsage.external / 1024 / 1024)
+        rss: Math.round(rssMB),
+        external: Math.round(externalMB),
+        baselineEstablished: !!this.memoryBaselineTracker.establishedBaseline,
+        baseline: this.memoryBaselineTracker.establishedBaseline ? {
+          heapUsedMB: Math.round(this.memoryBaselineTracker.establishedBaseline.heapUsedMB),
+          rssMB: Math.round(this.memoryBaselineTracker.establishedBaseline.rssMB),
+          heapUtilizationPercent: Math.round(this.memoryBaselineTracker.establishedBaseline.heapUtilizationPercent),
+          isStable: this.memoryBaselineTracker.establishedBaseline.isStable,
+          sampleCount: this.memoryBaselineTracker.establishedBaseline.sampleCount
+        } : null,
+        healthReason,
+        samplesCollected: this.memoryBaselineTracker.samples.length
       }
     };
   }
@@ -658,18 +792,22 @@ class FileWatcher {
       const supportedExtensions = this.options.includeFileTypes || getSupportedExtensions();
       const globPatterns = supportedExtensions.map(ext => `**/*${ext}`);
       
-      this.loggingService.info('📋 Configuring file watcher with extension filtering', {
+      // Get gitignore ignore patterns
+      const gitignorePatterns = await gitIgnoreService.getChokidarIgnorePatterns(this.folderPath);
+      
+      this.loggingService.info('📋 Configuring file watcher with extension filtering and .gitignore support', {
         supportedExtensions,
         globPatterns,
-        folderPath: this.folderPath
+        folderPath: this.folderPath,
+        gitignoreEnabled: gitignorePatterns.length > 0
       });
       
-      // Initialize chokidar watcher - ONLY watch files with supported extensions
+      // Initialize chokidar watcher - ONLY watch files with supported extensions, respecting .gitignore
       this.chokidarWatcher = chokidar.watch(globPatterns, {
         cwd: this.folderPath,  // Set working directory first
         ignored: [
-          /(^|[\/\\])\../,  // ignore dotfiles
-          ...(this.options.excludePatterns || [])  // apply exclude patterns
+          ...gitignorePatterns,  // Use gitignore patterns first
+          ...(this.options.excludePatterns || [])  // apply additional exclude patterns
         ],
         persistent: true,
         ignoreInitial: false, // Set to false to detect existing files

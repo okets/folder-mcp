@@ -20,6 +20,7 @@ import { IVectorSearchService } from '../../di/interfaces.js';
 import type { TextChunk, EmbeddingVector } from '../../types/index.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
+import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -242,10 +243,26 @@ export class RESTAPIServer {
       // Get supported models (placeholder - will be enhanced in future sprints)
       const supportedModels = ['all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'nomic-embed-text'];
       
-      // Calculate total documents (placeholder - will be implemented in future sprints)
-      const totalDocuments = folders.reduce((total: number, folder: any) => {
-        return total + (folder.documentCount || 0);
-      }, 0);
+      // Calculate total documents by getting real counts from databases
+      let totalDocuments = 0;
+      for (const folder of folders) {
+        try {
+          const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+          const fs = await import('fs/promises');
+          try {
+            await fs.access(dbPath);
+            const Database = await import('better-sqlite3');
+            const db = Database.default(dbPath);
+            const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+            totalDocuments += result?.count || 0;
+            db.close();
+          } catch (dbError) {
+            // Database doesn't exist, skip this folder
+          }
+        } catch (error) {
+          // Error accessing folder, skip
+        }
+      }
 
       const response: ServerInfoResponse = {
         version: '2.0.0-dev',
@@ -295,13 +312,41 @@ export class RESTAPIServer {
         // Continue with empty folders array
       }
 
-      // Transform FMDM folders to REST API format
-      const folderInfos: FolderInfo[] = folders.map((folder: any) => {
+      // Transform FMDM folders to REST API format with real document counts
+      const folderInfos: FolderInfo[] = await Promise.all(folders.map(async (folder: any) => {
         // Generate folder ID from path (sanitized)
         const folderId = this.generateFolderId(folder.path);
         
         // Extract folder name from path
         const folderName = this.extractFolderName(folder.path);
+        
+        // Get real document count from database
+        let documentCount = 0;
+        try {
+          // Try to get document count from the vector search service
+          if (this.vectorSearchService && 'getDocumentCount' in this.vectorSearchService) {
+            documentCount = await (this.vectorSearchService as any).getDocumentCount(folder.path);
+          } else {
+            // Fallback: check if database exists and count documents
+            const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+            const fs = await import('fs/promises');
+            try {
+              await fs.access(dbPath);
+              // Use sqlite to count documents
+              const Database = await import('better-sqlite3');
+              const db = Database.default(dbPath);
+              const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+              documentCount = result?.count || 0;
+              db.close();
+            } catch (dbError) {
+              // Database doesn't exist or can't be read
+              documentCount = 0;
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`[REST] Could not get document count for ${folder.path}:`, error);
+          documentCount = folder.documentCount || 0; // Fallback to FMDM value
+        }
         
         return {
           id: folderId,
@@ -309,13 +354,13 @@ export class RESTAPIServer {
           path: folder.path,
           model: folder.model || 'all-MiniLM-L6-v2',
           status: folder.status || 'pending',
-          documentCount: folder.documentCount || 0,
+          documentCount,
           lastIndexed: folder.lastIndexed,
           topics: [], // Placeholder for future implementation
           progress: folder.progress,
           notification: folder.notification
         };
-      });
+      }));
 
       const response: FoldersListResponse = {
         folders: folderInfos,
@@ -780,7 +825,7 @@ export class RESTAPIServer {
           queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
         } else if (loadedModel.service instanceof ONNXEmbeddingService) {
           // ONNXEmbeddingService - expects string[] and returns EmbeddingResult
-          const embeddingResult: EmbeddingResult = await loadedModel.service.generateEmbeddings([query]);
+          const embeddingResult: EmbeddingResult = await loadedModel.service.generateEmbeddingsFromStrings([query], 'query');
           // Convert EmbeddingResult to EmbeddingVector[]
           queryEmbeddings = embeddingResult.embeddings.map((embedding, index) => ({
             vector: embedding,
@@ -814,7 +859,16 @@ export class RESTAPIServer {
         }
         
         // Request more results to account for folder filtering
-        const vectorSearchResults = await this.vectorSearchService.search(firstEmbedding, limit * 2, threshold);
+        // Use folder-specific search if the service supports it
+        let vectorSearchResults: any[];
+        if (this.vectorSearchService instanceof MultiFolderVectorSearchService) {
+          // Use folder-specific database for search
+          vectorSearchResults = await (this.vectorSearchService as MultiFolderVectorSearchService)
+            .searchInFolder(firstEmbedding, folderPath, limit * 2, threshold);
+        } else {
+          // Fallback to legacy search
+          vectorSearchResults = await this.vectorSearchService.search(firstEmbedding, limit * 2, threshold);
+        }
         
         // Filter results to current folder - fix folder scoping security issue
         const normalizedFolder = path.resolve(folderPath);

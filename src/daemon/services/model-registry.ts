@@ -9,6 +9,7 @@ import { ILoggingService } from '../../di/interfaces.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
+import { ONNXSingletonManager } from '../../infrastructure/embeddings/onnx-singleton-manager.js';
 
 /**
  * Loaded model instance with metadata
@@ -130,16 +131,9 @@ export class ModelRegistry implements IModelRegistry {
         await (service as PythonEmbeddingService).initialize();
         
       } else if (modelType === 'cpu') {
-        // Create ONNX embedding service for CPU model
-        service = this.onnxEmbeddingServiceFactory({
-          modelId: modelId,
-          cacheDirectory: undefined, // Use default cache directory
-          maxSequenceLength: 512,
-          batchSize: 32
-        });
-        
-        // Initialize the ONNX embedding service
-        await (service as ONNXEmbeddingService).initialize();
+        // Use singleton manager for ONNX models to prevent memory leaks
+        const onnxManager = ONNXSingletonManager.getInstance();
+        service = await onnxManager.getModel(modelId) as ONNXEmbeddingService;
         
       } else {
         throw new Error(`Unknown model type for ${modelId}`);

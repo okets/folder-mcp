@@ -75,7 +75,24 @@ export class ONNXEmbeddingService {
     }
   }
 
-  async generateEmbeddings(texts: string[]): Promise<EmbeddingResult> {
+  // Implement IEmbeddingService interface method
+  async generateEmbeddings(chunks: any[]): Promise<any[]> {
+    // Extract text content from chunks
+    const texts = chunks.map(chunk => 
+      typeof chunk === 'string' ? chunk : chunk.content
+    );
+    
+    const result = await this.generateEmbeddingsFromStrings(texts, 'passage');
+    
+    // Convert to expected format
+    return result.embeddings.map((embedding, index) => ({
+      vector: embedding,
+      dimensions: result.dimensions,
+      metadata: chunks[index]?.metadata || {}
+    }));
+  }
+
+  async generateEmbeddingsFromStrings(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<EmbeddingResult> {
     if (!this.model || !this.modelConfig) {
       throw new Error('Model not initialized. Call initialize() first.');
     }
@@ -89,7 +106,7 @@ export class ONNXEmbeddingService {
 
       for (let i = 0; i < texts.length; i += batchSize) {
         const batch = texts.slice(i, i + batchSize);
-        const batchResults = await this.processBatch(batch);
+        const batchResults = await this.processBatch(batch, textType);
         allEmbeddings.push(...batchResults);
       }
 
@@ -107,12 +124,19 @@ export class ONNXEmbeddingService {
     }
   }
 
-  private async processBatch(texts: string[]): Promise<number[][]> {
-    // Apply E5 prefix if required by model
-    const processedTexts = this.modelConfig?.requirements?.prefixes
-      ? texts.map(text => `query: ${text}`)
-      : texts;
-
+  private async processBatch(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<number[][]> {
+    // Apply prefixes if the model requires them
+    let processedTexts = texts;
+    if (this.modelConfig?.requirements?.prefixes) {
+      const prefix = textType === 'query' 
+        ? this.modelConfig.requirements.prefixes.query || ''
+        : this.modelConfig.requirements.prefixes.passage || '';
+      
+      if (prefix) {
+        processedTexts = texts.map(text => prefix + text);
+      }
+    }
+    
     // Truncate texts if they exceed max sequence length
     const maxLength = this.options.maxSequenceLength || 512;
     const truncatedTexts = processedTexts.map(text => 
@@ -217,10 +241,60 @@ export class ONNXEmbeddingService {
     this.modelConfig = null;
   }
 
+  // Implement IEmbeddingService interface methods for compatibility
+  async generateQueryEmbedding(query: string): Promise<any> {
+    const result = await this.generateEmbeddingsFromStrings([query], 'query');
+    return {
+      vector: result.embeddings[0],
+      dimensions: result.dimensions
+    };
+  }
+  
+  async generateSingleEmbedding(text: string): Promise<any> {
+    const result = await this.generateEmbeddingsFromStrings([text], 'query');
+    return {
+      vector: result.embeddings[0],
+      dimensions: result.dimensions
+    };
+  }
+  
+  calculateSimilarity(vector1: any, vector2: any): number {
+    // Cosine similarity calculation
+    const v1 = Array.isArray(vector1) ? vector1 : vector1.vector;
+    const v2 = Array.isArray(vector2) ? vector2 : vector2.vector;
+    
+    if (!v1 || !v2 || v1.length !== v2.length) {
+      throw new Error('Vectors must have the same dimensions for similarity calculation');
+    }
+    
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    
+    for (let i = 0; i < v1.length; i++) {
+      dotProduct += v1[i] * v2[i];
+      norm1 += v1[i] * v1[i];
+      norm2 += v2[i] * v2[i];
+    }
+    
+    const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+    const similarity = denominator === 0 ? 0 : dotProduct / denominator;
+    // Clamp to [-1, 1] range to handle floating point errors
+    return Math.max(-1, Math.min(1, similarity));
+  }
+  
+  getModelConfig(): any {
+    return this.modelConfig;
+  }
+  
+  isInitialized(): boolean {
+    return this.model !== null && this.modelConfig !== null;
+  }
+  
   // Test method to verify model works correctly
   async testEmbedding(): Promise<boolean> {
     try {
-      const testResult = await this.generateEmbeddings(['Hello world']);
+      const testResult = await this.generateEmbeddingsFromStrings(['Hello world']);
       
       return (
         testResult.embeddings.length === 1 &&

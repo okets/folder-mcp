@@ -199,7 +199,6 @@
         "mtebScore": 66.0,
         "contextWindow": 512,
         "requirements": {
-          "prefixes": true,
           "cpu": {
             "expectedTokensPerSec": 100
           },

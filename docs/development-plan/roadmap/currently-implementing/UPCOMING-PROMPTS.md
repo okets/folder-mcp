@@ -114,14 +114,141 @@ If the PRD has contradicting instructions, these instructions take precedence. t
 agent-to-endpoint testing using project's directory indexing:
 You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste
 
+search memory mcp on how we do agent-to-endpoint testing. it doesn't involve creating scripts. its direct polling by using the mcp server we are building as a tool.
+agent-to-endpoint is not TMOAT, both serve similar purposes but when testing endpoints, a2e is superior. I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
 
-You only specified TMOAT test scripts, I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
+----------------------------end-to-end TMOAT+agent-to-endpoint
+Let me tell you how to run this test end-to-end using a mix of TMOAT and agent-to-endpoint techniques.
+If anything fails during this process we fix the root cause and we start the entire sequence over again.
+TMOAT part:
+1. run the daemon in a background service using 'npm run daemon:restart' no need to kill previous instances, the daemon:restart will handle this for you. monitor the logs when you need to figure out what the daemon is doing.
+2. connect to the websocket interface, Remove  /Users/hanan/Projects/folder-mcp from indexing list. if we are testing multiple folders, remove /Users/hanan/Projects/folder-mcp-copy too. (The ./TMOAT folder contains a lot of scripts that does this exactly, see how they connect and copy the behavior)
+3. Monitor the FMDM and query the database embeddings directly. see if the indexing went as expected. (Again, look at the ./TMOAT folder for examples)
+4. Then re-add the folders using the model you want to test (Python or ONNX or one of each). monitor the indexing process closely.
+A2E part:
+now that the indexing works, you can start testing the endpoints directly. Use the MCP server to query the indexed documents and verify the responses.
+If you need a Human to reconnect the MCP. (we are working on it live, it might be disconnected when we kill the daemon during development)
+
+This is a foolproof way to test everything about our system.
+──────────────────────────────────────────────────────────────────────────────────────
+---------------------Next Task
+When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+
+
 ──────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit
 My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
 
+1. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
+API change: generateEmbeddings now accepts chunks instead of strings
+The method signature change from strings to chunks is a breaking change. The implementation correctly handles both string and chunk inputs, but all callers need to be updated.
+# Search for calls to generateEmbeddings to ensure they're updated for the new signature (you can use tree sitter mcp for this)
+
+2. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
+Missing prefixing logic for E5 models
+The E5 models require specific prefixes for queries ("query: ") and passages ("passage: ") according to their documentation. The prefixing logic was removed but not replaced with the new text type handling.
+Apply this diff to add the required prefixes based on text type:
+-    const truncatedTexts = texts.map(text => 
+-      text.length > maxLength ? text.substring(0, maxLength) : text
+-    );
++    // Apply prefixes if the model requires them
++    let processedTexts = texts;
++    if (this.modelConfig?.requirements?.prefixes) {
++      const prefix = textType === 'query' 
++        ? this.modelConfig.requirements.prefixes.query || ''
+
+3. /Users/hanan/Projects/folder-mcp/src/domain/models/model-evaluator.ts
+CodeRabbit
+lines 23-26:
+    prefixes?: {
+      query?: string;
+      passage?: string;
+    };
+Breaking change: prefixes type changed from boolean to object
+The change from boolean to { query?: string; passage?: string; } is a breaking change in the public interface. Ensure all consumers of CuratedModel are updated to handle the new structure.
+#Comment from human: Didn't we roll it back?
+
+4. /Users/hanan/Projects/folder-mcp/src/application/indexing/folder-lifecycle-service.ts
+Consider adding a reprocessing limit to prevent infinite loops
+While forcing reprocessing when embeddings are missing is good, there should be a mechanism to prevent infinite reprocessing loops if embedding generation consistently fails.
+Consider tracking reprocessing attempts and failing after a reasonable number of retries:
+-      // Override decision if we're forcing reprocessing due to missing embeddings
+-      if (forceReprocess && !decision.shouldProcess) {
+-        decision.shouldProcess = true;
+-        decision.action = 'process';
+-        decision.reason = 'No embeddings in database - forcing reprocess';
+-      }
++      // Override decision if we're forcing reprocessing due to missing embeddings
++      if (forceReprocess && !decision.shouldProcess) {
++        // Check if file has been attempted too many times
++        const attemptCount = await this.fileStateService.getProcessingAttemptCount?.(filePath) || 0;
++        if (attemptCount < 3) {  // Allow up to 3 reprocessing attempts
++          decision.shouldProcess = true;
++          decision.action = 'process';
++          decision.reason = `No embeddings in database - forcing reprocess (attempt ${attemptCount + 1}/3)`;
++        } else {
++          this.logger.warn(`[MANAGER-DETECT] Skipping ${filePath} after 3 failed reprocessing attempts`);
++        }
++      }
 
 
-──────────────────────────────────────────────────────────────────────────────────────
----------------------Next Task
-When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+5. /Users/hanan/Projects/folder-mcp/src/application/indexing/orchestrator.ts
+const [provider, modelName] = modelId.includes(':') 
+      ? modelId.split(':') 
+      : ['gpu', modelId]; // Default to GPU for backward compatibility
+
+Contradicts user instructions: "we don't fall back to GPU anymore. we do not keep backwards compatibility as we are in pre-production."
+
+6. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/python-embedding-service.ts
+Type the new convenience method.
+
+Return EmbeddingVector instead of any and ensure a typed fallback.
+
+-  async generateQueryEmbedding(query: string): Promise<any> {
++  async generateQueryEmbedding(query: string): Promise<EmbeddingVector> {
+@@
+-    return embeddings[0] || {
+-      vector: [],
+-      dimensions: 0
+-    };
++    return embeddings[0] ?? {
++      vector: [],
++      dimensions: 0,
++      model: this.config.modelName,
++      createdAt: new Date().toISOString(),
++      chunkId: 'query_0'
++    };
+
+7. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
+Cosine similarity implementation needs normalization check
+The cosine similarity calculation assumes the vectors are already normalized. If they aren't, the result may not be in the [-1, 1] range.
+
+Consider adding a normalization check or documenting the assumption:
+
+  calculateSimilarity(vector1: any, vector2: any): number {
+    // Cosine similarity calculation
+    const v1 = Array.isArray(vector1) ? vector1 : vector1.vector;
+    const v2 = Array.isArray(vector2) ? vector2 : vector2.vector;
+    
+    if (!v1 || !v2 || v1.length !== v2.length) {
+      throw new Error('Vectors must have the same dimensions for similarity calculation');
+    }
+    
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    
+    for (let i = 0; i < v1.length; i++) {
+      dotProduct += v1[i] * v2[i];
+      norm1 += v1[i] * v1[i];
+      norm2 += v2[i] * v2[i];
+    }
+
+    const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+-    return denominator === 0 ? 0 : dotProduct / denominator;
++    const similarity = denominator === 0 ? 0 : dotProduct / denominator;
++    // Clamp to [-1, 1] range to handle floating point errors
++    return Math.max(-1, Math.min(1, similarity));
+  }
+
+

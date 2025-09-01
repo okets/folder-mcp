@@ -17,6 +17,7 @@ import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecyc
 import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { EmbeddingErrors } from '../../infrastructure/embeddings/embedding-errors.js';
+import { gitIgnoreService } from '../../infrastructure/filesystem/gitignore-service.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -174,7 +175,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug(`[MANAGER-SCAN] Supported extensions: ${supportedExtensions.join(', ')}`);
       
       // Extract and filter file paths by supported extensions
-      const filePaths = scanResult.files
+      const extensionFilteredPaths = scanResult.files
         .map(file => typeof file === 'string' ? file : file.path || file.filePath || file.absolutePath)
         .filter((path): path is string => {
           if (!path) return false;
@@ -186,7 +187,27 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
           }
           return isSupported;
         });
-      this.logger.debug(`[MANAGER-SCAN] Filtered to ${filePaths.length} supported files`);
+      this.logger.debug(`[MANAGER-SCAN] Filtered to ${extensionFilteredPaths.length} supported files`);
+      
+      // Apply .gitignore filtering (optimized to avoid per-file logging)
+      this.logger.debug(`[MANAGER-SCAN] Loading .gitignore rules from ${this.folderPath}`);
+      const gitIgnore = await gitIgnoreService.loadGitIgnore(this.folderPath);
+      
+      const filePaths: string[] = [];
+      let ignoredCount = 0;
+      
+      for (const path of extensionFilteredPaths) {
+        if (!path) continue;
+        
+        const shouldIgnore = gitIgnoreService.shouldIgnore(gitIgnore, path, this.folderPath);
+        if (shouldIgnore) {
+          ignoredCount++;
+        } else {
+          filePaths.push(path);
+        }
+      }
+      
+      this.logger.debug(`[MANAGER-SCAN] After .gitignore filtering: ${filePaths.length} files (${ignoredCount} excluded by .gitignore)`);
       
       const changes = await this.detectChanges(filePaths);
       this.logger.debug(`[MANAGER-SCAN] Detected ${changes.length} changes in ${this.folderPath}`);
@@ -335,6 +356,9 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   }
 
   private async processTaskQueue(): Promise<void> {
+    let lastProgressEmit = Date.now();
+    const PROGRESS_THROTTLE_MS = 1000; // Only emit progress every 1 second
+    
     // Process all tasks in queue, respecting concurrency limits
     while (this.active && this.state.status === 'indexing') {
       // Check if all tasks are complete
@@ -345,11 +369,18 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       
       // Check if the task queue was cleared (fail-fast scenario)
       const stats = this.taskQueue.getStatistics();
-      if (stats.pendingTasks === 0 && this.pendingIndexingTasks.size === 0) {
+      if (stats.pendingTasks === 0 && stats.inProgressTasks === 0 && this.pendingIndexingTasks.size === 0) {
         // Check if there are failed tasks indicating a model loading error
         const failedTasks = this.state.fileEmbeddingTasks.filter(t => t.status === 'error');
         if (failedTasks.length > 0 && failedTasks.some(t => t.errorMessage?.includes('model loading failure'))) {
           this.logger.warn('[MANAGER-QUEUE] Stopping task processing due to model loading failure');
+          break;
+        }
+        
+        // If no tasks at all and none in progress, we're done
+        if (stats.completedTasks > 0 || stats.failedTasks > 0) {
+          this.logger.info('[MANAGER-QUEUE] All tasks processed');
+          await this.transitionToActive();
           break;
         }
       }
@@ -358,14 +389,24 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       const taskId = this.getNextTask();
       if (taskId) {
         this.startTask(taskId);
+        
+        // Throttled progress update when starting new task
+        const now = Date.now();
+        if (now - lastProgressEmit > PROGRESS_THROTTLE_MS) {
+          this.updateProgress();
+          lastProgressEmit = now;
+        }
       } else {
-        // No tasks available (either due to concurrency limit or no pending tasks)
-        // Wait a bit and check again
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // No tasks available - either at concurrency limit or waiting for tasks
+        // Only wait if we have tasks in progress
+        if (stats.inProgressTasks > 0 || this.pendingIndexingTasks.size > 0) {
+          await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 500ms
+        } else {
+          // No tasks in progress and none pending - break to avoid infinite loop
+          this.logger.debug('[MANAGER-QUEUE] No tasks available and none in progress');
+          break;
+        }
       }
-      
-      // Small delay to prevent tight loop
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
@@ -402,11 +443,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.warn(`[MANAGER-START-TASK] State task ${taskId} not found in fileEmbeddingTasks`);
     }
 
-    // Update progress immediately when starting a task
-    // This makes the progress bar more responsive
-    this.updateProgress();
-
     // Start async processing
+    // Progress updates are now throttled in the main processing loop
     const processingPromise = this.processTask(taskId);
     this.pendingIndexingTasks.set(taskId, processingPromise);
     
@@ -571,7 +609,7 @@ return;
       }
     }
 
-    // Update progress
+    // Update progress (throttled internally)
     this.updateProgress();
     
     // Check if all tasks are complete (this will be handled by the processTaskQueue loop)
@@ -619,6 +657,9 @@ return;
       });
       // Clear progress message when becoming active
       delete this.state.progressMessage;
+      
+      // Emit final 100% progress event
+      this.emit('progressUpdate', finalProgress);
       
       // Emit indexComplete event
       this.emit('indexComplete', this.getState());
@@ -679,6 +720,13 @@ return;
         await this.sqliteVecStorage.loadIndex(dbPath);
       }
       
+      // Check if embeddings exist - if not, force reprocessing of all files
+      const embeddingCount = await this.getEmbeddingCount();
+      const forceReprocess = embeddingCount === 0;
+      if (forceReprocess) {
+        this.logger.info('[MANAGER-DETECT] No embeddings found in database, forcing reprocessing of all files');
+      }
+      
       // Phase 1: Intelligent processing decisions using file states
       this.updateScanningProgress({
         phase: 'intelligent-scanning',
@@ -715,6 +763,13 @@ return;
         
         // Make intelligent processing decision
         const decision = await this.fileStateService.makeProcessingDecision(filePath, contentHash);
+        
+        // Override decision if we're forcing reprocessing due to missing embeddings
+        if (forceReprocess && !decision.shouldProcess) {
+          decision.shouldProcess = true;
+          decision.action = 'process';
+          decision.reason = 'No embeddings in database - forcing reprocess';
+        }
         
         this.logger.debug(`[MANAGER-DETECT] File ${filePath}: ${decision.action} (${decision.reason})`);
         
@@ -854,13 +909,23 @@ return;
     this.emit('stateChange', this.getState());
   }
 
+  private lastProgressUpdateTime = 0;
+  private readonly PROGRESS_UPDATE_THROTTLE = 1000; // Minimum 1 second between updates
+
   private updateProgress(): void {
+    // Throttle progress updates to prevent excessive event emissions
+    const now = Date.now();
+    if (now - this.lastProgressUpdateTime < this.PROGRESS_UPDATE_THROTTLE) {
+      return; // Skip this update, too soon since last one
+    }
+    this.lastProgressUpdateTime = now;
+    
     const progress = this.getProgress();
     this.state.progress = progress;
     
-    // CRITICAL DEBUG: Always log progress updates to diagnose 0% stuck issue
+    // Log progress updates at reasonable intervals
     const stats = this.taskQueue.getStatistics();
-    this.logger.debug(`[MANAGER-PROGRESS-DEBUG] Progress: ${progress.percentage}% | Queue stats: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}, failed=${stats.failedTasks}, retrying=${stats.retryingTasks}`);
+    this.logger.debug(`[MANAGER-PROGRESS] Progress: ${progress.percentage}% | Queue stats: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}, failed=${stats.failedTasks}, retrying=${stats.retryingTasks}`);
     
     // Add detailed progress message for better UX
     if (this.state.status === 'indexing' && progress.totalTasks > 0) {

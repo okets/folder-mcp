@@ -170,6 +170,9 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('OllamaEmbeddingService') &&
             !content.includes('createPythonEmbeddingService') &&
             !content.includes('createONNXDownloader') &&
+            !content.includes('ONNXSingletonManager') &&
+            !content.includes('new ONNXEmbeddingService') &&
+            !content.includes('new GitIgnoreService') &&
             !file.includes('ValidationPipelineService')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);
         }

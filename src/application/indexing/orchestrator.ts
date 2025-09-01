@@ -27,6 +27,9 @@ import {
   IFileSystemService
 } from '../../di/interfaces.js';
 
+// ONNX Singleton Manager for memory efficiency
+import { ONNXSingletonManager } from '../../infrastructure/embeddings/onnx-singleton-manager.js';
+
 // Domain types
 import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js';
 
@@ -53,15 +56,64 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       return this.embeddingServiceCache.get(modelId)!;
     }
 
-    // For now, just use the fallback embedding service for all models
-    // TODO: Implement proper model-specific embedding service creation
-    // This will require updates to the ServiceFactory to accept model parameters
-    this.loggingService.debug(`Using fallback embedding service for model: ${modelId}`);
+    // Import necessary modules
+    const { ModelCompatibilityEvaluator } = await import('../../domain/models/model-evaluator.js');
+    const evaluator = new ModelCompatibilityEvaluator();
     
-    // Cache the fallback service for this model
-    this.embeddingServiceCache.set(modelId, this.embeddingService);
+    // Parse model ID format: "provider:model-name" (e.g., "cpu:xenova-multilingual-e5-large")
+    if (!modelId.includes(':')) {
+      throw new Error(`Invalid model ID format: ${modelId}. Must specify provider (e.g., "cpu:model-name" or "gpu:model-name")`);
+    }
+    const [provider, modelName] = modelId.split(':');
     
-    return this.embeddingService;
+    // Look up model in curated catalog
+    const modelConfig = evaluator.getModelById(modelId);
+    
+    if (!modelConfig) {
+      throw new Error(
+        `Model ${modelId} not found in curated catalog. ` +
+        `Available models can be found in src/config/curated-models.json`
+      );
+    }
+    
+    let embeddingService: IEmbeddingService;
+    
+    // Create appropriate service based on provider type
+    if (provider === 'cpu' || provider === 'onnx') {
+      // Use singleton manager for ONNX models to prevent memory leaks
+      const onnxManager = ONNXSingletonManager.getInstance();
+      embeddingService = await onnxManager.getModel(modelId);
+      
+    } else if (provider === 'gpu' || provider === 'python') {
+      // Python models for GPU
+      const { PythonEmbeddingService } = await import('../../infrastructure/embeddings/python-embedding-service.js');
+      
+      embeddingService = new PythonEmbeddingService({
+        modelName: modelName || modelId // Use full modelId if modelName is undefined
+      }, modelConfig); // Pass model config as second parameter for prefix support
+      
+      // Initialize the service
+      await embeddingService.initialize();
+      
+    } else {
+      throw new Error(
+        `Unknown model provider: ${provider}. ` +
+        `Expected 'cpu' (ONNX) or 'gpu' (Python). ` +
+        `Model ID format should be 'provider:model-name'`
+      );
+    }
+    
+    // Cache the service for reuse
+    this.embeddingServiceCache.set(modelId, embeddingService);
+    
+    this.loggingService.info('Created embedding service for model', { 
+      modelId, 
+      provider, 
+      modelName,
+      modelDisplayName: modelConfig.displayName 
+    });
+    
+    return embeddingService;
   }
 
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {

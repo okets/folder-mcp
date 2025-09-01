@@ -221,11 +221,16 @@ class FolderMCPDaemon {
           loggingService,
           (config: any) => new PythonEmbeddingService(config),
           () => new ONNXDownloader(),
-          (config: any) => new ONNXEmbeddingService(config)
+          (config: any) => new ONNXEmbeddingService(config) // Not used anymore, handled by singleton manager internally
         );
         
-        // Create Vector Search Service instance for Sprint 7 search functionality
-        const vectorSearchService = await this.diContainer.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
+        // Create Multi-Folder Vector Search Service for Sprint 7 search functionality
+        // This service dynamically loads the correct database for each folder
+        const { MultiFolderVectorSearchService } = await import('../infrastructure/storage/multi-folder-vector-search.js');
+        const vectorSearchService = new MultiFolderVectorSearchService(
+          `${process.cwd()}/.folder-mcp/embeddings.db`, // Default fallback path
+          loggingService
+        );
         
         this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, modelRegistry, vectorSearchService, {
           info,

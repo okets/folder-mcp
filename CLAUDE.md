@@ -361,6 +361,93 @@ See `docs/configuration.md` for complete configuration documentation.
 
 **Test Data:** Located in `tests/fixtures/test-knowledge-base/` with realistic business documents.
 
+## Agent-to-Endpoint Testing (A2E)
+
+**Agent-to-Endpoint (A2E) Testing** is the superior method for testing MCP endpoints by using the folder-mcp MCP server directly as a tool. This is NOT about creating scripts or using curl commands.
+
+### A2E Methodology
+
+**Think Like a Human Tester:**
+1. **Read Known Content**: Use the Read tool to examine specific files that you know are indexed
+2. **Ask Known Questions**: Query for content you already know the answer to using MCP tools
+3. **Compare Results**: Verify the MCP server returns the expected content and metadata
+
+### A2E vs Other Testing Approaches
+
+**✅ CORRECT Agent-to-Endpoint Testing:**
+- Use MCP tools directly: `search()`, `list_documents()`, `get_document_data()`
+- Read specific project files first, then search for that exact content
+- Compare MCP results with known file contents
+- Leverage that folder-mcp project itself is indexed by folder-mcp
+- All `.md` files accessible via Read tool are also searchable via MCP
+
+**❌ WRONG Approaches (Anti-patterns):**
+- Creating bash scripts or using curl commands for testing
+- Using REST API endpoints via command line instead of MCP tools
+- Writing complex test files in `tmp/` directories
+- Script-based testing approaches
+
+### A2E Testing Examples
+
+**Example 1: Test Search Functionality**
+```
+1. Read file: tests/fixtures/test-knowledge-base/Policies/Remote_Work_Policy.md
+   - Contains: "three days per week", "core business hours 9am-5pm", HR Department
+2. Use MCP: search(query="Remote Work Policy three days per week", folder_id="folder-mcp")
+3. Verify: Results include Remote_Work_Policy.md with correct content snippets
+```
+
+**Example 2: Test Document Retrieval**
+```
+1. Read file: README.md contains "Model Context Protocol server for folder operations"
+2. Use MCP: list_documents(folder_id="folder-mcp") then get_document_data(document_id="README.md")
+3. Verify: Retrieved content matches what was read directly
+```
+
+### Key A2E Benefits
+
+- **Direct MCP Validation**: Tests the actual tools that MCP clients will use
+- **Real Data Testing**: Uses actual project files and test fixtures, not mock data
+- **Human-like Validation**: Mirrors how a human would verify search results
+- **Superior to TMOAT**: For endpoint testing, A2E provides direct tool validation
+- **Self-Validating**: folder-mcp indexes itself, so all project documentation is searchable
+
+### A2E Requirements
+
+- **MCP Server Available**: folder-mcp must be configured as an available MCP tool
+- **Known Content**: Use Read tool to establish ground truth before testing
+- **Direct Tool Usage**: No intermediate scripts or API calls
+- **Result Comparison**: Always compare MCP results with directly-read file content
+
+### A2E Troubleshooting
+
+**CRITICAL**: Agent-to-Endpoint testing requires the folder-mcp MCP server to be connected as a tool.
+
+**Common Issue**: "Error: No such tool available: search" or similar errors
+**Solution**: Tell user "The MCP server needs to be reconnected" and wait for reconnection
+
+**Proper A2E Testing Process**:
+1. **Read Known Content**: Use Read tool to examine specific files that should be indexed
+2. **Use MCP Tools Directly**: Call search(), list_folders(), get_document_data() tools
+3. **Compare Results**: Match search results against known file contents
+4. **Validate Models**: Test both ONNX (folder-mcp) and Python GPU (folder-mcp-copy) models
+
+**Example A2E Test**:
+```
+// 1. Read known content
+Read: /tests/fixtures/test-knowledge-base/Policies/Remote_Work_Policy.md
+Contains: "three days per week", "core business hours 9am-5pm"
+
+// 2. Search via MCP tools
+search(query="Remote Work Policy three days per week", folder_id="folder-mcp")
+
+// 3. Validate result
+Expected: Should find Remote_Work_Policy.md with relevance > 0.8
+Actual: Compare returned document and snippet
+```
+
+**Never Use**: bash/curl commands for A2E testing - these are not agent-to-endpoint tests
+
 ## Development Mode Features
 
 Enable with `FOLDER_MCP_DEVELOPMENT_ENABLED=true`:

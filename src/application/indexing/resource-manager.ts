@@ -271,15 +271,14 @@ export class ResourceManager extends EventEmitter {
             const cpuPressure = stats.cpuPercent / 100;
             
             // Calculate throttle factor (lower = more throttling)
+            // Updated thresholds: High CPU/Memory usage is normal during indexing
             const pressure = Math.max(memoryPressure, cpuPressure);
-            if (pressure > 0.9) {
-                this.throttleFactor = 0.25; // Heavy throttling
-            } else if (pressure > 0.7) {
-                this.throttleFactor = 0.5; // Moderate throttling
-            } else if (pressure > 0.5) {
-                this.throttleFactor = 0.75; // Light throttling
+            if (pressure > 0.95) {
+                this.throttleFactor = 0.5; // Moderate throttling only at extreme usage (95%+)
+            } else if (pressure > 0.85) {
+                this.throttleFactor = 0.75; // Light throttling at high usage (85%+)
             } else {
-                this.throttleFactor = 1.0; // No throttling
+                this.throttleFactor = 1.0; // No throttling - allow normal indexing operations
             }
         }
 

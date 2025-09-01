@@ -61,11 +61,18 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     
     mockStorage = {
       getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
-      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      isReady: vi.fn().mockReturnValue(true), // Fix: storage should be ready
       buildIndex: vi.fn().mockResolvedValue(void 0), // Add missing buildIndex method
       loadIndex: vi.fn().mockResolvedValue(void 0), // Fix: Add missing loadIndex method
       addEmbeddings: vi.fn().mockResolvedValue(void 0), // Add missing addEmbeddings method
-      removeDocument: vi.fn().mockResolvedValue(void 0) // Add missing removeDocument method
+      removeDocument: vi.fn().mockResolvedValue(void 0), // Add missing removeDocument method
+      getDatabaseManager: vi.fn().mockReturnValue({
+        getDatabase: vi.fn().mockReturnValue({
+          prepare: vi.fn().mockReturnValue({
+            get: vi.fn().mockReturnValue({ chunk_count: 1 }) // Mock successful chunk count
+          })
+        })
+      })
     };
     
     // Create mock logger
