@@ -231,7 +231,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         if (!options.embeddingModel) {
           throw new Error(`No embedding model specified for file: ${filePath}`);
         }
-        const fileResult = await this.processFile(filePath, options.embeddingModel, options);
+        const fileResult = await this.processFile(filePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
       } catch (error) {
         const indexingError: IndexingError = {
@@ -366,7 +366,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         if (!options.embeddingModel) {
           throw new Error(`No embedding model specified for file: ${absoluteFilePath}`);
         }
-        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options);
+        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
         
         // Collect embeddings and metadata for vector index
@@ -418,7 +418,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     return result;
   }
-  async processFile(filePath: string, modelId: string, options: IndexingOptions = {}): Promise<{
+  async processFile(
+    filePath: string, 
+    modelId: string, 
+    options: IndexingOptions = {},
+    progressCallback?: (totalChunks: number, processedChunks: number) => void
+  ): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
@@ -438,6 +443,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunkResult = await this.chunkingService.chunkText(parsedContent);
     const chunks = chunkResult.chunks;
 
+    // Report total chunks
+    if (progressCallback) {
+      progressCallback(chunks.length, 0);
+    }
+
     // Generate embeddings if not skipped
     let embeddingsCreated = 0;
     let embeddings: any[] = [];
@@ -446,7 +456,19 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
       // Use model-specific embedding service
       const embeddingService = await this.getEmbeddingServiceForModel(modelId);
-      embeddings = await embeddingService.generateEmbeddings(chunks);
+      
+      // Process embeddings in batches and report progress
+      const batchSize = 10; // Process 10 chunks at a time
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+        const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+        embeddings.push(...batchEmbeddings);
+        
+        // Report progress
+        if (progressCallback) {
+          progressCallback(chunks.length, Math.min(i + batchSize, chunks.length));
+        }
+      }
       embeddingsCreated = embeddings.length;
       
       // Calculate file hash for proper fingerprinting

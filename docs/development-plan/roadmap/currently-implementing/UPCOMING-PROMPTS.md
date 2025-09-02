@@ -130,125 +130,43 @@ now that the indexing works, you can start testing the endpoints directly. Use t
 If you need a Human to reconnect the MCP. (we are working on it live, it might be disconnected when we kill the daemon during development)
 
 This is a foolproof way to test everything about our system.
-──────────────────────────────────────────────────────────────────────────────────────
+─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Task
-When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+0. When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+1. We have an issue we need to address.
+when indexing a large files, the TUI seems stuck.
+instead of showing "i Processing 16 of 133 files (2 in progress)"
+Lets start by a visual change:
+Please show "i filename1.txt (13%), filename2.pptx (67%) • 18/133 files processed • 2 in progress" 
+- The percent of each file should be calculated by the chunks processed/total.
+- This will be broadcast in the FMDM as an info message (same as now),
+no TUI changes are required, only backend.
 
+2. When processing large files using ONNX models, the CPU shoots to 100% and everything seems stuck. The indexing continues in the background very very slowly but both the daemon and the TUI are stuck until the file has completed it's indexing.
+There are many reasons this can happen, the first one I would like to check is that we send a file much larger than the context window of the model.
+I found this information online, please be critical about the recommendation, don't blindly adopt this internet suggestion without validating:
+Preprocessing, chunking and batching: Large text files should be broken into smaller pieces that fit the model’s context. For example, split a long document into 512–1024 token segments (possibly overlapping by ~10%) before encoding. Embed each chunk separately, then combine them into a single representation. A common method is mean-aggregating the chunk embeddings dimension-wise
+stackoverflow.com
+. Concretely: tokenize and batch your chunks (using Hugging Face’s fast tokenizer with return_tensors='np' for numpy arrays), run session.run(...) on each batch, and compute the mean over the sequence length for each chunk. Finally, average the resulting chunk-vectors into one document vector
+stackoverflow.com
+. For example:
 
-──────────────────────────────────────────────────────────────────────────────────────
+# Example: split text and embed
+from transformers import AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-large', use_fast=True)
+text = open("large_doc.txt").read()
+# Split text into ~512-token chunks (this is a simple whitespace split example)
+chunks = [text[i:i+3000] for i in range(0, len(text), 3000)]
+# Tokenize chunks
+batch = tokenizer(chunks, padding=True, truncation=True, return_tensors='np')
+outputs = session.run(None, {'input_ids': batch['input_ids'], 'attention_mask': batch['attention_mask']})
+# outputs[0] has shape (num_chunks, seq_len, hidden)
+chunk_embeddings = outputs[0].mean(axis=1)             # mean-pool each chunk
+doc_embedding = chunk_embeddings.mean(axis=0)          # average chunks:contentReference[oaicite:14]{index=14}
+
+This aligns with published advice: “split into 256–1024 token sub-documents, embed each, then average each dimension to get one vector”
+. Batching multiple chunks per ONNX run is also important: grouping a few chunks (subject to memory) improves throughput compared to one-by-one.
+Key strategies: Clean/normalize text, chunk it into meaningful pieces (sentences or fixed-token-size), use a tokenizer with fast mode (Rust) to speed encoding, and batch-process chunks through ONNX. Overlapping chunks can improve quality, and average (or other pooling) of chunk embeddings gives a good “document” embedding
+─────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit
 My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
-
-1. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
-API change: generateEmbeddings now accepts chunks instead of strings
-The method signature change from strings to chunks is a breaking change. The implementation correctly handles both string and chunk inputs, but all callers need to be updated.
-# Search for calls to generateEmbeddings to ensure they're updated for the new signature (you can use tree sitter mcp for this)
-
-2. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
-Missing prefixing logic for E5 models
-The E5 models require specific prefixes for queries ("query: ") and passages ("passage: ") according to their documentation. The prefixing logic was removed but not replaced with the new text type handling.
-Apply this diff to add the required prefixes based on text type:
--    const truncatedTexts = texts.map(text => 
--      text.length > maxLength ? text.substring(0, maxLength) : text
--    );
-+    // Apply prefixes if the model requires them
-+    let processedTexts = texts;
-+    if (this.modelConfig?.requirements?.prefixes) {
-+      const prefix = textType === 'query' 
-+        ? this.modelConfig.requirements.prefixes.query || ''
-
-3. /Users/hanan/Projects/folder-mcp/src/domain/models/model-evaluator.ts
-CodeRabbit
-lines 23-26:
-    prefixes?: {
-      query?: string;
-      passage?: string;
-    };
-Breaking change: prefixes type changed from boolean to object
-The change from boolean to { query?: string; passage?: string; } is a breaking change in the public interface. Ensure all consumers of CuratedModel are updated to handle the new structure.
-#Comment from human: Didn't we roll it back?
-
-4. /Users/hanan/Projects/folder-mcp/src/application/indexing/folder-lifecycle-service.ts
-Consider adding a reprocessing limit to prevent infinite loops
-While forcing reprocessing when embeddings are missing is good, there should be a mechanism to prevent infinite reprocessing loops if embedding generation consistently fails.
-Consider tracking reprocessing attempts and failing after a reasonable number of retries:
--      // Override decision if we're forcing reprocessing due to missing embeddings
--      if (forceReprocess && !decision.shouldProcess) {
--        decision.shouldProcess = true;
--        decision.action = 'process';
--        decision.reason = 'No embeddings in database - forcing reprocess';
--      }
-+      // Override decision if we're forcing reprocessing due to missing embeddings
-+      if (forceReprocess && !decision.shouldProcess) {
-+        // Check if file has been attempted too many times
-+        const attemptCount = await this.fileStateService.getProcessingAttemptCount?.(filePath) || 0;
-+        if (attemptCount < 3) {  // Allow up to 3 reprocessing attempts
-+          decision.shouldProcess = true;
-+          decision.action = 'process';
-+          decision.reason = `No embeddings in database - forcing reprocess (attempt ${attemptCount + 1}/3)`;
-+        } else {
-+          this.logger.warn(`[MANAGER-DETECT] Skipping ${filePath} after 3 failed reprocessing attempts`);
-+        }
-+      }
-
-
-5. /Users/hanan/Projects/folder-mcp/src/application/indexing/orchestrator.ts
-const [provider, modelName] = modelId.includes(':') 
-      ? modelId.split(':') 
-      : ['gpu', modelId]; // Default to GPU for backward compatibility
-
-Contradicts user instructions: "we don't fall back to GPU anymore. we do not keep backwards compatibility as we are in pre-production."
-
-6. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/python-embedding-service.ts
-Type the new convenience method.
-
-Return EmbeddingVector instead of any and ensure a typed fallback.
-
--  async generateQueryEmbedding(query: string): Promise<any> {
-+  async generateQueryEmbedding(query: string): Promise<EmbeddingVector> {
-@@
--    return embeddings[0] || {
--      vector: [],
--      dimensions: 0
--    };
-+    return embeddings[0] ?? {
-+      vector: [],
-+      dimensions: 0,
-+      model: this.config.modelName,
-+      createdAt: new Date().toISOString(),
-+      chunkId: 'query_0'
-+    };
-
-7. /Users/hanan/Projects/folder-mcp/src/infrastructure/embeddings/onnx/onnx-embedding-service.ts
-Cosine similarity implementation needs normalization check
-The cosine similarity calculation assumes the vectors are already normalized. If they aren't, the result may not be in the [-1, 1] range.
-
-Consider adding a normalization check or documenting the assumption:
-
-  calculateSimilarity(vector1: any, vector2: any): number {
-    // Cosine similarity calculation
-    const v1 = Array.isArray(vector1) ? vector1 : vector1.vector;
-    const v2 = Array.isArray(vector2) ? vector2 : vector2.vector;
-    
-    if (!v1 || !v2 || v1.length !== v2.length) {
-      throw new Error('Vectors must have the same dimensions for similarity calculation');
-    }
-    
-    let dotProduct = 0;
-    let norm1 = 0;
-    let norm2 = 0;
-    
-    for (let i = 0; i < v1.length; i++) {
-      dotProduct += v1[i] * v2[i];
-      norm1 += v1[i] * v1[i];
-      norm2 += v2[i] * v2[i];
-    }
-
-    const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
--    return denominator === 0 ? 0 : dotProduct / denominator;
-+    const similarity = denominator === 0 ? 0 : dotProduct / denominator;
-+    // Clamp to [-1, 1] range to handle floating point errors
-+    return Math.max(-1, Math.min(1, similarity));
-  }
-
-

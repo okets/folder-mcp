@@ -26,6 +26,8 @@ export interface FileEmbeddingTask {
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
+  totalChunks?: number;      // Total number of chunks for this file
+  processedChunks?: number;   // Number of chunks processed so far
 }
 
 /**

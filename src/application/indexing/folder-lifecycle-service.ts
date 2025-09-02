@@ -470,9 +470,22 @@ return;
       case 'CreateEmbeddings':
       case 'UpdateEmbeddings':
         try {
+          // Create progress callback to update chunk progress
+          const progressCallback = (totalChunks: number, processedChunks: number) => {
+            // Update task in state with chunk progress
+            const stateTask = this.state.fileEmbeddingTasks.find(t => t.id === taskId);
+            if (stateTask) {
+              stateTask.totalChunks = totalChunks;
+              stateTask.processedChunks = processedChunks;
+              
+              // Trigger progress update to refresh the message
+              this.updateProgress();
+            }
+          };
+          
           // Process file with IndexingOrchestrator to get embeddings and metadata
           // Using per-folder model configuration for embeddings
-          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model);
+          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model, {}, progressCallback);
           
           // Store results in SQLiteVecStorage if we have embeddings
           if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
@@ -931,17 +944,37 @@ return;
     
     // Add detailed progress message for better UX
     if (this.state.status === 'indexing' && progress.totalTasks > 0) {
-      const filesRemaining = progress.totalTasks - progress.completedTasks;
-      let progressMessage = `Processing ${progress.completedTasks} of ${progress.totalTasks} files`;
+      // Get in-progress tasks with chunk progress
+      const inProgressTasks = this.state.fileEmbeddingTasks.filter(t => t.status === 'in-progress');
       
-      if (progress.inProgressTasks > 0) {
-        progressMessage += ` (${progress.inProgressTasks} in progress)`;
+      let progressMessage = '';
+      
+      // Build message showing individual file progress
+      if (inProgressTasks.length > 0) {
+        const fileProgresses = inProgressTasks.map(task => {
+          const filename = task.file.split('/').pop() || task.file;
+          
+          // Calculate percentage based on chunks
+          let percentage = 0;
+          if (task.totalChunks && task.totalChunks > 0) {
+            percentage = Math.round(((task.processedChunks || 0) / task.totalChunks) * 100);
+          }
+          
+          return `${filename} (${percentage}%)`;
+        });
+        
+        progressMessage = fileProgresses.join(', ');
+        progressMessage += ` • ${progress.completedTasks}/${progress.totalTasks} files processed`;
+        progressMessage += ` • ${inProgressTasks.length} in progress`;
+      } else {
+        // Fallback to simpler message when no files are actively processing
+        progressMessage = `Processing ${progress.completedTasks} of ${progress.totalTasks} files`;
+        
+        const filesRemaining = progress.totalTasks - progress.completedTasks;
+        if (filesRemaining > 0 && filesRemaining <= 5) {
+          progressMessage += ` - Almost done!`;
+        }
       }
-      
-      if (filesRemaining > 0 && filesRemaining <= 5) {
-        progressMessage += ` - Almost done!`;
-      }
-      
       
       // Store progress message in state for UI display
       this.state.progressMessage = progressMessage;
