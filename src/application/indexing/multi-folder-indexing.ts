@@ -380,7 +380,10 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
       processedFiles,
       totalChunks,
       processedChunks,
-      percentage: totalFiles > 0 ? (processedFiles / totalFiles) * 100 : 0
+      // Use chunk-based percentage for smoother progress updates
+      percentage: totalChunks > 0 
+        ? Math.round((processedChunks / totalChunks) * 100)
+        : (totalFiles > 0 ? Math.round((processedFiles / totalFiles) * 100) : 0)
     };
 
     // Find earliest start time

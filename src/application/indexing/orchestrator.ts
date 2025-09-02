@@ -457,20 +457,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       // Use model-specific embedding service
       const embeddingService = await this.getEmbeddingServiceForModel(modelId);
       
-      // Process embeddings in batches and report progress
-      const batchSize = 10; // Process 10 chunks at a time
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
-        const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
-        embeddings.push(...batchEmbeddings);
-        
-        // Report progress
-        if (progressCallback) {
-          progressCallback(chunks.length, Math.min(i + batchSize, chunks.length));
-        }
-      }
-      embeddingsCreated = embeddings.length;
-      
       // Calculate file hash for proper fingerprinting
       let fileHash = '';
       try {
@@ -483,16 +469,51 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.debug('Using content-based hash for file', { filePath, hash: fileHash });
       }
       
-      // Create metadata for each chunk
-      metadata = chunks.map((chunk, index) => ({
-        filePath,
-        chunkId: `${filePath}_chunk_${index}`,
-        chunkIndex: index,
-        content: chunk.content,
-        startPosition: chunk.startPosition,
-        endPosition: chunk.endPosition,
-        fileHash // Include file hash for fingerprinting
-      }));
+      // Process embeddings in batches and create metadata only for successful embeddings
+      const batchSize = 10; // Process 10 chunks at a time
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+        
+        try {
+          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+          
+          // Only add embeddings and metadata if generation succeeded
+          if (batchEmbeddings && batchEmbeddings.length > 0) {
+            embeddings.push(...batchEmbeddings);
+            
+            // Create metadata only for successfully embedded chunks
+            const batchMetadata = batch.slice(0, batchEmbeddings.length).map((chunk, batchIndex) => ({
+              filePath,
+              chunkId: `${filePath}_chunk_${i + batchIndex}`,
+              chunkIndex: i + batchIndex,
+              content: chunk.content,
+              startPosition: chunk.startPosition,
+              endPosition: chunk.endPosition,
+              fileHash
+            }));
+            
+            metadata.push(...batchMetadata);
+          } else {
+            this.loggingService.warn(`Failed to generate embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}`);
+          }
+        } catch (batchError) {
+          const error = batchError as Error;
+          this.loggingService.error(`Error generating embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}:`, error);
+          // Continue with next batch rather than failing entire file
+        }
+        
+        // Report progress
+        if (progressCallback) {
+          progressCallback(chunks.length, Math.min(i + batchSize, chunks.length));
+        }
+      }
+      embeddingsCreated = embeddings.length;
+      
+      // Validate that embeddings and metadata arrays match
+      if (embeddings.length !== metadata.length) {
+        this.loggingService.error(`CRITICAL: Embeddings/metadata count mismatch in ${filePath}: ${embeddings.length} embeddings vs ${metadata.length} metadata`);
+        throw new Error(`Embeddings/metadata count mismatch: ${embeddings.length} embeddings vs ${metadata.length} metadata`);
+      }
     }
 
     // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database

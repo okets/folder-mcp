@@ -506,21 +506,15 @@ return;
             try {
               this.logger.info(`[HUGE-DEBUG] ${fileName}: Calling addEmbeddings with ${fileResult.embeddings.length} embeddings and ${fileResult.metadata.length} metadata`);
               
-              // Fix mismatch: ensure embeddings and metadata arrays have same length
+              // Validate that embeddings and metadata arrays have matching lengths
+              // This should now always be true due to orchestrator fixes, but keep validation
               if (fileResult.embeddings.length !== fileResult.metadata.length) {
-                this.logger.warn(`[HUGE-DEBUG] ${fileName}: Mismatch detected - ${fileResult.embeddings.length} embeddings vs ${fileResult.metadata.length} metadata`);
-                
-                // Take the minimum to ensure we don't have orphaned data
-                const validCount = Math.min(fileResult.embeddings.length, fileResult.metadata.length);
-                const trimmedEmbeddings = fileResult.embeddings.slice(0, validCount);
-                const trimmedMetadata = fileResult.metadata.slice(0, validCount);
-                
-                this.logger.info(`[HUGE-DEBUG] ${fileName}: Trimmed to ${validCount} matching pairs`);
-                await this.sqliteVecStorage.addEmbeddings(trimmedEmbeddings, trimmedMetadata);
-              } else {
-                await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
+                const errorMsg = `CRITICAL: Embeddings/metadata count mismatch in ${fileName}: ${fileResult.embeddings.length} embeddings vs ${fileResult.metadata.length} metadata`;
+                this.logger.error(`[HUGE-DEBUG] ${errorMsg}`);
+                throw new Error(errorMsg);
               }
               
+              await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
               this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully stored embeddings`);
             } catch (dbError) {
               const error = dbError as Error;
@@ -743,20 +737,52 @@ return;
   getProgress(): FolderProgress {
     const stats = this.taskQueue.getStatistics();
     
-    // Calculate percentage based on completed files vs total files
-    // Show actual percentage for accurate progress tracking
-    let percentage = 0;
+    // Calculate chunk-based progress for smoother UX on large files
+    let totalChunks = 0;
+    let processedChunks = 0;
     
-    if (stats.totalTasks > 0) {
-      // Include in-progress tasks as partially complete (50% weight)
-      // This prevents the progress from appearing stuck while processing large files
+    // Aggregate chunk counts from all tasks for accurate progress
+    for (const task of this.state.fileEmbeddingTasks) {
+      if (task.totalChunks && task.totalChunks > 0) {
+        totalChunks += task.totalChunks;
+        
+        if (task.status === 'success') {
+          // Completed tasks have processed all chunks
+          processedChunks += task.totalChunks;
+        } else if (task.status === 'in-progress' && task.processedChunks !== undefined) {
+          // In-progress tasks have partial chunks
+          processedChunks += task.processedChunks;
+        }
+        // Pending and error tasks contribute 0 processed chunks
+      } else if (task.status === 'success') {
+        // For completed tasks without chunk info, estimate based on average
+        // This handles edge cases where chunk info might be missing
+        const avgChunksPerFile = totalChunks > 0 && stats.completedTasks > 0 
+          ? Math.ceil(totalChunks / stats.completedTasks) 
+          : 10; // Default estimate for files without chunk data
+        totalChunks += avgChunksPerFile;
+        processedChunks += avgChunksPerFile;
+      } else if (task.status === 'pending' || task.status === 'in-progress') {
+        // For pending/in-progress files without chunk info yet, add estimated chunks
+        // This prevents percentage from jumping when chunks are discovered
+        const estimatedChunks = 10; // Conservative estimate
+        totalChunks += estimatedChunks;
+      }
+    }
+    
+    // Calculate percentage based on chunks for smooth, accurate progress
+    let percentage = 0;
+    if (totalChunks > 0) {
+      percentage = Math.round((processedChunks / totalChunks) * 100);
+    } else if (stats.totalTasks > 0) {
+      // Fallback to task-based calculation if no chunk info available
       const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
       percentage = Math.round((effectiveCompleted / stats.totalTasks) * 100);
-      
-      // Ensure we don't exceed 99% until truly complete
-      if (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) {
-        percentage = 99;
-      }
+    }
+    
+    // Ensure we don't exceed 99% until truly complete
+    if (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) {
+      percentage = 99;
     }
 
     return {
@@ -764,7 +790,7 @@ return;
       completedTasks: stats.completedTasks,
       failedTasks: stats.failedTasks,
       inProgressTasks: stats.inProgressTasks,
-      percentage,
+      percentage
     };
   }
 
@@ -1066,12 +1092,12 @@ return;
       
       let progressMessage = '';
       
-      // Build message showing individual file progress
+      // Build message showing individual file progress (original format)
       if (inProgressTasks.length > 0) {
         const fileProgresses = inProgressTasks.map(task => {
           const filename = task.file.split('/').pop() || task.file;
           
-          // Calculate percentage based on chunks
+          // Calculate percentage based on chunks for smooth updates
           let percentage = 0;
           if (task.totalChunks && task.totalChunks > 0) {
             percentage = Math.round(((task.processedChunks || 0) / task.totalChunks) * 100);

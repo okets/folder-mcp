@@ -165,24 +165,37 @@ export class ONNXEmbeddingService {
     } else if (results && results.data) {
       // Handle tensor result - may contain multiple embeddings
       const data = Array.from(results.data) as number[];
-      const embeddingDim = 384; // E5-Small dimension
+      const embeddingDim = this.modelConfig!.dimensions; // Use actual model dimension
       
-      // If data length is multiple of embedding dimension, split into individual embeddings
-      if (data.length % embeddingDim === 0) {
-        const numEmbeddings = data.length / embeddingDim;
-        for (let i = 0; i < numEmbeddings; i++) {
+      // Validate that we have the right number of embeddings for the input batch
+      const expectedDataLength = texts.length * embeddingDim;
+      
+      if (data.length === expectedDataLength) {
+        // Split tensor data into individual embeddings
+        for (let i = 0; i < texts.length; i++) {
           const start = i * embeddingDim;
           const end = start + embeddingDim;
           embeddings.push(data.slice(start, end));
         }
+      } else if (data.length === embeddingDim) {
+        // Single embedding case - should only happen with 1 text
+        if (texts.length === 1) {
+          embeddings.push(data);
+        } else {
+          throw new Error(`ONNX tensor data mismatch: expected ${expectedDataLength} values for ${texts.length} texts, got ${data.length}`);
+        }
       } else {
-        // Single embedding case
-        embeddings.push(data);
+        throw new Error(`ONNX tensor data mismatch: expected ${expectedDataLength} values for ${texts.length} texts (${embeddingDim} dims each), got ${data.length}`);
       }
     } else {
       throw new Error('No embeddings generated from ONNX model');
     }
 
+    // Validate that the number of embeddings matches the number of input texts
+    if (embeddings.length !== texts.length) {
+      throw new Error(`ONNX embedding count mismatch: expected ${texts.length} embeddings for ${texts.length} texts, got ${embeddings.length}`);
+    }
+    
     return embeddings;
   }
 
