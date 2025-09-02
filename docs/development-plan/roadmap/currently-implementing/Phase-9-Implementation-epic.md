@@ -1473,7 +1473,229 @@ curl -X POST http://localhost:3002/api/v1/folders/folder-mcp/search \
 
 ---
 
-### Sprint 10: Curated Model Validation & Configuration (Days 21-22)
+### Sprint 10: Fix ONNX Connection Blocking with Worker Threads (Days 21-22)
+**🎯 Goal**: Resolve daemon connection blocking during large file ONNX indexing using worker threads
+**⚠️ CRITICAL BUG**: New connections cannot be established while ONNX processes large files
+
+#### Problem Statement
+During large file indexing with CPU ONNX models, the daemon becomes unresponsive to new connections:
+- **TUI cannot connect** during active indexing 
+- **MCP clients timeout** when attempting connections
+- **WebSocket handshakes fail** due to blocked event loop
+- **Discovery mechanism fails** as daemon cannot respond to requests
+
+**Root Cause**: ONNX model operations (`await this.model(...)`) are CPU-intensive and synchronous, completely blocking Node.js event loop for 2-4 minutes during large file processing.
+
+**Test Environment**: `/Users/hanan/Projects/small-test-folder` contains perfect test data:
+- 5-6 small documents (process quickly)
+- 1 medium document (takes 2-4 minutes with CPU ONNX)
+- Reproduces issue reliably
+
+#### Technical Analysis
+**Event Loop Blocking Location**: `src/infrastructure/embeddings/onnx/onnx-embedding-service.ts:147`
+```typescript
+// This blocks the entire event loop for minutes
+const results = await this.model(truncatedTexts, {
+  pooling: 'mean',
+  normalize: true
+});
+```
+
+**Connection Impact**:
+- WebSocket server cannot accept new connections
+- HTTP requests timeout during model processing  
+- DaemonRegistry.discover() fails due to blocked responses
+- TUI/MCP clients fail with "connection refused" errors
+
+#### Implementation Tasks
+
+1. **Create Worker Thread Pool** 
+   - New file: `src/infrastructure/embeddings/onnx/onnx-worker-pool.ts`
+   - Pool size: `Math.max(1, os.cpus().length - 1)` (reserve main thread)
+   - Round-robin task distribution with message passing
+   - Graceful shutdown and error handling
+
+2. **Create Worker Thread Script**
+   - New file: `src/infrastructure/embeddings/onnx/onnx-worker.ts`
+   - Loads ONNX model once per worker (not per request)
+   - Processes embedding requests via message channel
+   - Returns results to main thread asynchronously
+
+3. **Modify ONNXEmbeddingService**
+   - Replace direct `this.model()` calls with worker pool delegation
+   - Maintain existing interface for backward compatibility
+   - Add worker pool initialization in constructor
+   - Handle worker failures with proper error propagation
+
+4. **Update ONNXSingletonManager**
+   - Integrate worker pool lifecycle management
+   - Ensure proper cleanup during shutdown
+   - Handle worker pool initialization errors
+
+5. **Create Connection Test Script**
+   - New file: `TMOAT/test-connection-during-indexing.js`
+   - Based on existing `atomic-test-1-connection.js`
+   - Tests WebSocket connection during active indexing
+   - Uses DaemonConnector for auto-discovery
+
+#### Worker Thread Architecture
+```typescript
+// Main Thread (Daemon)
+class ONNXEmbeddingService {
+  private workerPool: ONNXWorkerPool;
+  
+  async processBatch(texts: string[], textType: 'query' | 'passage'): Promise<number[][]> {
+    // Instead of blocking: const results = await this.model(texts);
+    // Non-blocking: 
+    return await this.workerPool.processEmbeddings({
+      texts: processedTexts,
+      options: { pooling: 'mean', normalize: true }
+    });
+  }
+}
+
+// Worker Thread Pool
+class ONNXWorkerPool {
+  private workers: Worker[] = [];
+  private taskQueue: EmbeddingTask[] = [];
+  
+  async processEmbeddings(task: EmbeddingTask): Promise<number[][]> {
+    return new Promise((resolve, reject) => {
+      const worker = this.getAvailableWorker();
+      worker.postMessage({ type: 'embed', data: task });
+      worker.once('message', (result) => {
+        if (result.error) reject(new Error(result.error));
+        else resolve(result.embeddings);
+      });
+    });
+  }
+}
+
+// Worker Thread (onnx-worker.ts)
+import { parentPort } from 'worker_threads';
+import { pipeline } from '@xenova/transformers';
+
+let model: any = null;
+
+parentPort.on('message', async (message) => {
+  if (message.type === 'embed') {
+    if (!model) {
+      model = await pipeline('feature-extraction', modelId);
+    }
+    
+    const results = await model(message.data.texts, message.data.options);
+    parentPort.postMessage({ 
+      type: 'result', 
+      embeddings: processResults(results) 
+    });
+  }
+});
+```
+
+#### Benefits of Worker Threads Approach
+- **Main Thread Free**: Event loop remains responsive for WebSocket/HTTP
+- **Parallel Processing**: Multiple CPU cores utilized efficiently
+- **Memory Isolation**: Worker crashes don't affect daemon
+- **Model Caching**: Each worker loads model once, reuses for all requests
+- **Graceful Degradation**: Worker failures don't crash entire system
+
+#### Testing Protocol
+
+**Reproduction Steps**:
+```bash
+# 1. Clean previous test data
+rm -rf /Users/hanan/Projects/small-test-folder/.folder-mcp
+
+# 2. Start daemon and wait for small files to complete
+npm run daemon:restart
+# Wait ~20 seconds for small files to finish
+
+# 3. Daemon starts processing medium file (2-4 minute process)
+# During this time, test connections:
+
+# 4. Test TUI connection (should work after fix)
+npm run tui  # Should connect successfully during indexing
+
+# 5. Test MCP connection (should work after fix)  
+node TMOAT/test-connection-during-indexing.js
+```
+
+**TMOAT Test Script** (`TMOAT/test-connection-during-indexing.js`):
+```javascript
+#!/usr/bin/env node
+/**
+ * Test WebSocket connection during active indexing
+ * Verifies worker threads prevent event loop blocking
+ */
+import { DaemonConnector } from '../dist/src/interfaces/tui-ink/daemon-connector.js';
+
+console.log('🔄 Testing connection during indexing...');
+
+const connector = new DaemonConnector({ 
+  timeoutMs: 10000,  // 10 second timeout
+  maxRetries: 3,
+  debug: true 
+});
+
+try {
+  const { ws, connectionInfo } = await connector.connect();
+  console.log('✅ Successfully connected during indexing!');
+  console.log(`Connection: ${connectionInfo.daemonUrl} (${connectionInfo.discoveryMethod})`);
+  
+  // Test basic communication
+  ws.send(JSON.stringify({ type: 'connection.init', clientType: 'test' }));
+  
+  // Close after 5 seconds
+  setTimeout(() => {
+    ws.close();
+    console.log('🔌 Connection closed - test complete');
+    process.exit(0);
+  }, 5000);
+  
+} catch (error) {
+  console.log('❌ Connection failed:', error.message);
+  process.exit(1);
+}
+```
+
+#### Success Criteria
+- [ ] **No connection blocking** during large file indexing
+- [ ] **TUI connects successfully** while ONNX processes medium files
+- [ ] **MCP clients can establish connections** during active indexing
+- [ ] **WebSocket handshakes complete** within 5 seconds regardless of indexing state
+- [ ] **Worker pool utilizes multiple CPU cores** efficiently  
+- [ ] **Memory usage stable** with worker thread isolation
+- [ ] **Indexing performance maintained** - no regression in embedding quality or speed
+- [ ] **Graceful error handling** when workers fail or pool is exhausted
+
+#### Performance Targets
+- **Connection Time**: < 5 seconds to establish WebSocket connection
+- **Discovery Response**: < 1 second for daemon registry discovery
+- **CPU Distribution**: Processing distributed across available cores
+- **Memory Isolation**: Worker failures don't affect daemon stability
+- **Indexing Speed**: No regression from current ONNX performance
+
+#### Integration Points
+This fix integrates with multiple system components:
+- **WebSocket Server**: Remains responsive for new connections
+- **HTTP Server**: Can respond to health checks and discovery requests
+- **DaemonRegistry**: Discovery mechanism works during indexing
+- **TUI Interface**: Can connect and display progress updates
+- **MCP Server**: Can establish connections for search operations
+
+#### Validation Steps
+1. **Before Fix**: Verify connection blocking occurs during indexing
+2. **Worker Pool Implementation**: Add comprehensive logging for debugging
+3. **Connection Testing**: Use TMOAT script to verify fix works
+4. **TUI Integration**: Test actual TUI connection during indexing
+5. **Performance Validation**: Ensure no regression in indexing speed
+6. **Error Handling**: Test worker failures and recovery scenarios
+
+This Sprint 10 addresses a critical user experience issue that prevents the daemon from being truly usable during indexing operations. The worker thread solution provides a clean, scalable fix that improves both functionality and performance.
+
+---
+
+### Sprint 11: Curated Model Validation & Configuration (Days 23-24)
 **🎯 Goal**: Comprehensive validation of all curated models and model-specific configuration requirements
 
 #### Critical Discovery from Sprint 8.5 Testing

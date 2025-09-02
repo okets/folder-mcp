@@ -133,40 +133,22 @@ This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Task
 0. When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
-1. We have an issue we need to address.
-when indexing a large files, the TUI seems stuck.
-instead of showing "i Processing 16 of 133 files (2 in progress)"
-Lets start by a visual change:
-Please show "i filename1.txt (13%), filename2.pptx (67%) • 18/133 files processed • 2 in progress" 
-- The percent of each file should be calculated by the chunks processed/total.
-- This will be broadcast in the FMDM as an info message (same as now),
-no TUI changes are required, only backend.
 
-2. When processing large files using ONNX models, the CPU shoots to 100% and everything seems stuck. The indexing continues in the background very very slowly but both the daemon and the TUI are stuck until the file has completed it's indexing.
-There are many reasons this can happen, the first one I would like to check is that we send a file much larger than the context window of the model.
-I found this information online, please be critical about the recommendation, don't blindly adopt this internet suggestion without validating:
-Preprocessing, chunking and batching: Large text files should be broken into smaller pieces that fit the model’s context. For example, split a long document into 512–1024 token segments (possibly overlapping by ~10%) before encoding. Embed each chunk separately, then combine them into a single representation. A common method is mean-aggregating the chunk embeddings dimension-wise
-stackoverflow.com
-. Concretely: tokenize and batch your chunks (using Hugging Face’s fast tokenizer with return_tensors='np' for numpy arrays), run session.run(...) on each batch, and compute the mean over the sequence length for each chunk. Finally, average the resulting chunk-vectors into one document vector
-stackoverflow.com
-. For example:
+1. I want to change how the indexing progress percentage is being calculated.
+We are calculating by chunks, but the way we calculate makes the progress regress when it indexes a large file.
+this is just bad UX. how hard will it be to calculate the progress by file sizes instead of chunks?
+This task should not be very demanding because the indexing process is already demanding enough. But we should strive towards giving them accurate enough progress tracking.
 
-# Example: split text and embed
-from transformers import AutoTokenizer
-tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-large', use_fast=True)
-text = open("large_doc.txt").read()
-# Split text into ~512-token chunks (this is a simple whitespace split example)
-chunks = [text[i:i+3000] for i in range(0, len(text), 3000)]
-# Tokenize chunks
-batch = tokenizer(chunks, padding=True, truncation=True, return_tensors='np')
-outputs = session.run(None, {'input_ids': batch['input_ids'], 'attention_mask': batch['attention_mask']})
-# outputs[0] has shape (num_chunks, seq_len, hidden)
-chunk_embeddings = outputs[0].mean(axis=1)             # mean-pool each chunk
-doc_embedding = chunk_embeddings.mean(axis=0)          # average chunks:contentReference[oaicite:14]{index=14}
+2. How is folder monitoring working? I just added a file to a monitored folder but it didn't trigger indexing.
+do I need to wait? restart the daemon?
 
-This aligns with published advice: “split into 256–1024 token sub-documents, embed each, then average each dimension to get one vector”
-. Batching multiple chunks per ONNX run is also important: grouping a few chunks (subject to memory) improves throughput compared to one-by-one.
-Key strategies: Clean/normalize text, chunk it into meaningful pieces (sentences or fixed-token-size), use a tokenizer with fast mode (Rust) to speed encoding, and batch-process chunks through ONNX. Overlapping chunks can improve quality, and average (or other pooling) of chunk embeddings gives a good “document” embedding
+3. the daemon log is flooding with these messages even when there is no indexing activity and the daemon is pretty idle:
+2025-09-02T13:56:30.446Z ERROR [folder-mcp] CRITICAL memory alert - immediate action recommended | {"level":"critical","currentMemoryMB":193,"baselineDeviationMB":-11,"growthRateMBPerHour":1105.91,"trend":"growing","utilization":99,"systemMemoryMB":8192,"recommendations":["Consider immediate action: restart daemon or reduce concurrent operations","Memory leak suspected - monitor for continuous growth"]}
+
+I don't think we are doing throtteling right. We need to think ultra hard about our strategy. why throttle when there is hardly any activity?
+I remind you that we are currently running on a mac. please also check if we might not do the right performance evaluation for this environment.
+
+4. GPU models stopped working. We worked hard on fixing the ONNX models but now the python models are not working.ß
 ─────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit
 My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!

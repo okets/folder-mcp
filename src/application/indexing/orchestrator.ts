@@ -471,28 +471,62 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       
       // Process embeddings in batches and create metadata only for successful embeddings
       const batchSize = 10; // Process 10 chunks at a time
+      let totalProcessed = 0; // Track actual number of successfully processed embeddings
+      
       for (let i = 0; i < chunks.length; i += batchSize) {
         const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+        const batchStartIndex = i; // Store the starting index for this batch
         
         try {
           const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
           
           // Only add embeddings and metadata if generation succeeded
           if (batchEmbeddings && batchEmbeddings.length > 0) {
-            embeddings.push(...batchEmbeddings);
+            // Iterate over returned embeddings and use their positions to build metadata
+            // This ensures proper alignment even if some embeddings failed or were filtered
+            const successfulEmbeddings: any[] = [];
+            const successfulMetadata: any[] = [];
             
-            // Create metadata only for successfully embedded chunks
-            const batchMetadata = batch.slice(0, batchEmbeddings.length).map((chunk, batchIndex) => ({
-              filePath,
-              chunkId: `${filePath}_chunk_${i + batchIndex}`,
-              chunkIndex: i + batchIndex,
-              content: chunk.content,
-              startPosition: chunk.startPosition,
-              endPosition: chunk.endPosition,
-              fileHash
-            }));
+            batchEmbeddings.forEach((embedding, embeddingIndex) => {
+              // Skip null/undefined/failed embeddings
+              if (embedding && embedding.vector && embedding.vector.length > 0) {
+                successfulEmbeddings.push(embedding);
+                
+                // Use the original chunk index to maintain proper alignment
+                const originalChunkIndex = batchStartIndex + embeddingIndex;
+                
+                // Only create metadata if we have a corresponding chunk
+                if (embeddingIndex < batch.length) {
+                  const chunk = batch[embeddingIndex];
+                  if (chunk) {
+                    successfulMetadata.push({
+                      filePath,
+                      chunkId: `${filePath}_chunk_${originalChunkIndex}`,
+                      chunkIndex: originalChunkIndex,
+                      content: chunk.content,
+                      startPosition: chunk.startPosition,
+                      endPosition: chunk.endPosition,
+                      fileHash
+                    });
+                  }
+                }
+              }
+            });
             
-            metadata.push(...batchMetadata);
+            // Only add successful embeddings and their metadata
+            if (successfulEmbeddings.length > 0) {
+              embeddings.push(...successfulEmbeddings);
+              metadata.push(...successfulMetadata);
+              totalProcessed += successfulEmbeddings.length;
+            }
+            
+            // Log if some embeddings failed
+            if (successfulEmbeddings.length < batch.length) {
+              this.loggingService.warn(
+                `Partial embedding generation for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}: ` +
+                `${successfulEmbeddings.length}/${batch.length} succeeded`
+              );
+            }
           } else {
             this.loggingService.warn(`Failed to generate embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}`);
           }
@@ -502,9 +536,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           // Continue with next batch rather than failing entire file
         }
         
-        // Report progress
+        // Report progress based on actual processed embeddings
         if (progressCallback) {
-          progressCallback(chunks.length, Math.min(i + batchSize, chunks.length));
+          progressCallback(chunks.length, totalProcessed);
         }
       }
       embeddingsCreated = embeddings.length;

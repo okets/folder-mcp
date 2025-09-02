@@ -108,14 +108,20 @@ export class ONNXEmbeddingService {
         const batch = texts.slice(i, i + batchSize);
         const batchResults = await this.processBatch(batch, textType);
         allEmbeddings.push(...batchResults);
+        
+        // Yield to event loop between batches to prevent blocking connections
+        // This allows WebSocket handshakes and HTTP requests to be processed
+        if (i + batchSize < texts.length) {
+          await new Promise(resolve => setImmediate(resolve));
+        }
       }
 
       const processingTime = Date.now() - startTime;
 
       return {
         embeddings: allEmbeddings,
-        dimensions: this.modelConfig.dimensions,
-        modelUsed: this.modelConfig.displayName,
+        dimensions: this.modelConfig!.dimensions,
+        modelUsed: this.modelConfig!.displayName,
         processingTime
       };
 
@@ -137,13 +143,19 @@ export class ONNXEmbeddingService {
       }
     }
     
-    // Truncate texts if they exceed max sequence length
-    const maxLength = this.options.maxSequenceLength || 512;
+    // Use model's actual context window for proper token-based truncation
+    // The Xenova transformer pipeline handles tokenization internally
+    // For now, we'll do a simple character-based estimation (avg 4 chars per token)
+    // This is temporary until Worker Threads are implemented in Sprint 10
+    const contextWindow = this.modelConfig?.contextWindow || 512;
+    const maxChars = contextWindow * 4; // Rough estimate: 4 chars per token
+    
+    // Truncate if needed (temporary until proper tokenization)
     const truncatedTexts = processedTexts.map(text => 
-      text.length > maxLength ? text.substring(0, maxLength) : text
+      text.length > maxChars ? text.substring(0, maxChars) : text
     );
-
-    // Generate embeddings using the pipeline
+    
+    // Generate embeddings - the pipeline will do its own tokenization
     const results = await this.model(truncatedTexts, {
       pooling: 'mean',
       normalize: true

@@ -25,12 +25,24 @@ export class IndexingLogger {
     this.logFilePath = path.join(logDir, 'indexing-decisions.log');
     
     // Clear previous log on startup
-    if (fs.existsSync(this.logFilePath)) {
-      fs.unlinkSync(this.logFilePath);
+    try {
+      if (fs.existsSync(this.logFilePath)) {
+        fs.unlinkSync(this.logFilePath);
+      }
+    } catch (e) {
+      console.warn('[INDEXING-LOGGER] Failed to clear previous log:', (e as Error).message);
     }
-    
     // Create write stream
-    this.stream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
+    try {
+      this.stream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
+      this.stream.on('error', (err) => {
+        console.error('[INDEXING-LOGGER] Stream error:', err.message);
+        this.stream = null;
+      });
+    } catch (e) {
+      console.error('[INDEXING-LOGGER] Failed to open log file:', (e as Error).message);
+      this.stream = null;
+    }
   }
   
   private formatTimestamp(): string {
