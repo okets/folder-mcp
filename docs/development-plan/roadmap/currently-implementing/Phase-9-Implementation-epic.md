@@ -1261,7 +1261,219 @@ ps aux | grep folder-mcp-daemon
 
 ---
 
-### Sprint 9: Curated Model Validation & Configuration (Days 19-20)
+### Sprint 9: Fix ONNX Model Performance & Embeddings/Metadata Alignment (Days 19-20)
+**🎯 Goal**: Fix CPU overload when processing large files and ensure 1:1 mapping between chunks and embeddings
+
+#### Problem Summary
+Multiple interconnected issues causing performance degradation and data integrity problems:
+- CPU shoots to 100% when processing large files (662% CPU usage observed)
+- Large files take 7-12 minutes to process (huge_test.txt: 7 mins for 3.2MB, huge_text.txt: 12 mins for 12.6MB)
+- **Embeddings/metadata count mismatch** (e.g., "8 embeddings vs 3 metadata", "16 embeddings vs 6 metadata")
+- Character-based truncation instead of token-based, causing 20-68% content loss
+- Double chunking: ContentProcessor chunks once, ONNX service chunks again
+
+#### Root Causes Identified
+1. **Character vs Token Confusion**: `maxSequenceLength` truncates at 512 characters, but models expect 512 tokens
+2. **No Tokenization**: Text is truncated before the tokenizer processes it
+3. **Static Truncation**: Not using model's actual context window (128-8192 tokens depending on model)
+4. **Mismatched Processing**: ContentProcessor creates 200-500 token chunks, ONNX truncates to 512 chars
+5. **Double Chunking**: ContentProcessor and ONNX service both chunk independently
+6. **Batch Processing Bottleneck**: Processing too many chunks in a single batch causes memory pressure
+
+#### Implementation Tasks
+
+1. **Fix Embeddings/Metadata Count Mismatch** *(NEW - Critical)*
+   - Ensure 1:1 mapping between chunks and embeddings
+   - Remove double chunking between ContentProcessor and ONNX service
+   - Add validation: `assert(embeddings.length === metadata.length)`
+   - Log mismatch details for debugging
+   - **Location**: `src/application/indexing/folder-lifecycle-service.ts`
+
+2. **Remove Character-Based Truncation**
+   - Delete the incorrect `substring(0, maxLength)` truncation in `processBatch()`
+   - Let Xenova transformers handle tokenization and truncation properly
+   - Ensure chunks from ContentProcessor are NOT re-chunked
+   - **Location**: `src/infrastructure/embeddings/onnx/onnx-embedding-service.ts`
+
+3. **Use Model's Actual Context Window**
+   - Access `this.modelConfig.contextWindow` to get the model's token limit
+   - BGE-M3: 8192 tokens, E5: 512 tokens, MiniLM: 128 tokens
+   - Pass this to the transformer pipeline for proper truncation
+   - Configure pipeline with proper `max_length` parameter
+
+4. **Dynamic Chunk Size Adjustment**
+   - In ContentProcessor, adjust chunk sizes based on the selected model's context window:
+     - For models with 8192 tokens: chunks of 2000-4000 tokens
+     - For models with 512 tokens: chunks of 200-400 tokens  
+     - For models with 128 tokens: chunks of 50-100 tokens
+   - Reserve ~20% headroom for prefixes, special tokens, and padding
+   - **Location**: `src/domain/content/chunking.ts`
+
+5. **Optimize Batch Processing for Large Files** *(NEW - Performance)*
+   - Reduce batch size from 32/64 to 10 for large files
+   - Process incrementally with progress updates
+   - Save embeddings after each batch (not all at once)
+   - Monitor memory usage and throttle if needed
+   - **Location**: `src/application/indexing/orchestrator.ts`
+
+6. **Add Chunk Lifecycle Tracking** *(NEW - Debugging)*
+   - Log chunk creation: ID, size, token count
+   - Log embedding generation: chunk ID → embedding ID
+   - Log database storage: embedding ID → database row
+   - Track any chunks that get lost or duplicated
+   - **Location**: Multiple files in pipeline
+
+7. **Improve Tokenization Estimation**
+   - Update `estimateTokenCount()` to be more accurate:
+     - Current: `words * 1.3` ratio (too simplistic)
+     - Better: Use character-based estimation for the specific model
+     - Best: Cache a simple tokenizer for accurate counts
+   - Consider model-specific tokenization patterns
+
+8. **Pass Model Context Window to Chunking Service**
+   - Modify orchestrator to pass model's context window to chunking service
+   - Ensure chunks are sized appropriately for the target model
+   - **Location**: `src/application/indexing/orchestrator.ts`
+
+9. **Add Validation Gates** *(NEW - Quality Assurance)*
+   - Pre-embedding validation: chunk count matches expected
+   - Post-embedding validation: embedding count matches chunk count
+   - Pre-storage validation: metadata array matches embeddings array
+   - Post-storage validation: database rows match embedding count
+   - **Location**: `src/application/indexing/folder-lifecycle-service.ts`
+
+#### Testing Protocol
+
+**Test Files Already Available:**
+- `tests/fixtures/test-knowledge-base/test-edge-cases/huge_test.txt` (3.2MB)
+- `tests/fixtures/test-knowledge-base/test-edge-cases/huge_text.txt` (12.6MB)
+
+```bash
+# 1. Clean previous test data
+rm -rf .folder-mcp
+rm -f tmp/indexing-decisions.log
+rm -f tmp/check-file-state.cjs tmp/monitor-indexing.cjs
+
+# 2. Start monitoring scripts
+node tmp/monitor-indexing.cjs &  # Monitor for infinite loops
+node tmp/check-file-state.cjs    # Check database state
+
+# 3. Start daemon with debug logging
+node dist/src/daemon/index.js 2>&1 | grep -E "HUGE-DEBUG|Mismatch|Processing"
+
+# 4. Monitor CPU and memory during indexing
+top -pid $(pgrep -f "node.*daemon")
+
+# 5. Verify embeddings/metadata alignment
+sqlite3 .folder-mcp/embeddings.db \
+  "SELECT file_path, chunk_count, processing_state FROM file_states 
+   WHERE file_path LIKE '%huge_%';"
+
+# 6. Check actual chunks stored
+sqlite3 .folder-mcp/embeddings.db \
+  "SELECT d.file_path, COUNT(c.id) as chunks 
+   FROM documents d 
+   LEFT JOIN chunks c ON d.id = c.document_id 
+   WHERE d.file_path LIKE '%huge_%' 
+   GROUP BY d.file_path;"
+
+# 7. Monitor processing time
+time node dist/src/daemon/index.js --single-run
+```
+
+#### Success Criteria
+- [ ] **No embeddings/metadata mismatch** - Every chunk gets exactly one embedding
+- [ ] **No infinite loops** - huge_test.txt and huge_text.txt process once and complete
+- [ ] **No more CPU spikes** on large files (stays under 80% CPU)
+- [ ] **Processing time reduced** - huge_test.txt under 2 mins, huge_text.txt under 4 mins
+- [ ] **Proper token-based truncation** implemented in ONNX service
+- [ ] **Dynamic chunk sizing** based on model's context window
+- [ ] **BGE-M3 utilizes full 8192 token window** (16x improvement)
+- [ ] **No content loss**: Chunks properly sized for model capacity
+- [ ] **Database integrity**: All embeddings successfully stored with matching metadata
+- [ ] **Progress tracking works**: Individual file percentages display correctly
+
+#### Expected Outcomes
+- **Alignment**: 1:1 mapping between chunks, embeddings, and metadata
+- **Performance**: 3-5x faster processing for large files
+- **Stability**: No infinite loops or re-indexing of completed files
+- **CPU usage**: Remains under 80% during large file processing
+- **Memory**: Stable memory usage with incremental batch processing
+- **Quality**: Complete text processing without truncation losses
+- **Search**: Better semantic search results due to proper embeddings
+- **Monitoring**: Clear visibility into processing progress per file
+
+#### TMOAT Validation
+
+**Automated Validation Script:**
+```bash
+#!/bin/bash
+# Sprint 9 Validation Script
+
+echo "=== Sprint 9 Validation Starting ==="
+
+# 1. Clean environment
+echo "Cleaning previous test data..."
+pkill -f "node.*daemon"
+rm -rf .folder-mcp
+rm -f tmp/*.log
+
+# 2. Start daemon with timing
+echo "Starting daemon..."
+time node dist/src/daemon/index.js 2>&1 | tee tmp/daemon.log &
+DAEMON_PID=$!
+
+# 3. Wait for indexing to complete
+echo "Waiting for indexing to complete..."
+sleep 5
+while pgrep -f "node.*daemon" > /dev/null; do
+  CPU=$(ps aux | grep "node.*daemon" | grep -v grep | awk '{print $3}')
+  echo "CPU Usage: ${CPU}%"
+  sleep 10
+done
+
+# 4. Validate no mismatch
+echo "Checking for embeddings/metadata mismatches..."
+grep -c "Mismatch detected" tmp/daemon.log || echo "✓ No mismatches found"
+
+# 5. Validate huge files processed
+echo "Checking huge file processing..."
+sqlite3 .folder-mcp/embeddings.db \
+  "SELECT file_path, chunk_count, processing_state 
+   FROM file_states 
+   WHERE file_path LIKE '%huge_%';"
+
+# 6. Check processing times
+echo "Processing times:"
+grep "PROCESSING_COMPLETE.*huge" tmp/indexing-decisions.log
+
+# 7. Validate chunk counts match
+echo "Validating chunk integrity..."
+sqlite3 .folder-mcp/embeddings.db \
+  "SELECT f.file_path, f.chunk_count as expected, COUNT(c.id) as actual
+   FROM file_states f
+   JOIN documents d ON d.file_path = f.file_path
+   LEFT JOIN chunks c ON c.document_id = d.id
+   WHERE f.file_path LIKE '%huge_%'
+   GROUP BY f.file_path;"
+
+echo "=== Validation Complete ==="
+```
+
+**Manual Validation Steps:**
+1. Open TUI and observe file progress percentages
+2. Verify no files get stuck in "Processing" state
+3. Check that huge files show incremental progress
+4. Confirm search works after indexing completes
+curl -X POST http://localhost:3002/api/v1/folders/folder-mcp/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "specific content from large file"}'
+# Should return relevant results
+```
+
+---
+
+### Sprint 10: Curated Model Validation & Configuration (Days 21-22)
 **🎯 Goal**: Comprehensive validation of all curated models and model-specific configuration requirements
 
 #### Critical Discovery from Sprint 8.5 Testing
@@ -1344,15 +1556,15 @@ mcp__folder-mcp__search --query "function" --folder_id "folder-mcp" --threshold 
 4. **Implement configuration system** - Make requirements enforceable
 5. **Validate quality** - Establish baseline search quality across all models
 
-#### Sprint 9 Success Criteria
-- [x] **E5 models work correctly** with proper prefix configuration
-- [x] **All curated models tested** for special requirements
-- [x] **Requirements documented** in standardized format
-- [x] **Model switching validated** across different requirement types
-- [x] **Search quality baseline** established for each working model
-- [x] **Zero silent failures** - all models either work correctly or fail with clear errors
+#### Sprint 10 Success Criteria
+- [ ] **E5 models work correctly** with proper prefix configuration
+- [ ] **All curated models tested** for special requirements
+- [ ] **Requirements documented** in standardized format
+- [ ] **Model switching validated** across different requirement types
+- [ ] **Search quality baseline** established for each working model
+- [ ] **Zero silent failures** - all models either work correctly or fail with clear errors
 
-#### Agent Test Scenarios for Sprint 9
+#### Agent Test Scenarios for Sprint 10
 ```markdown
 ### Test 1: E5 Model Fix Validation
 **Agent Task**: "Search for 'TypeScript' using E5-Large model after prefix fix"
@@ -1377,7 +1589,7 @@ mcp__folder-mcp__search --query "function" --folder_id "folder-mcp" --threshold 
 4. **Performance Differences**: How do search quality and speed compare across models?
 5. **Configuration Patterns**: Can we categorize models into configuration requirement groups?
 
-#### TMOAT Validation for Sprint 9
+#### TMOAT Validation for Sprint 10
 ```bash
 # 1. Test E5 fix specifically
 curl -X POST http://localhost:3002/api/v1/folders/folder-mcp/search \

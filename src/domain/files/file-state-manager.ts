@@ -142,7 +142,7 @@ export class FileStateManager {
     currentContentHash: string
   ): Promise<ProcessingDecision> {
     const existingState = await this.storage.getFileState(filePath);
-
+    
     // File is new - process it
     if (!existingState) {
       return {
@@ -151,7 +151,7 @@ export class FileStateManager {
         action: 'process'
       };
     }
-
+    
     // Content hash changed - file was modified, process it
     if (existingState.contentHash !== currentContentHash) {
       return {

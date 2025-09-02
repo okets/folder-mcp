@@ -18,6 +18,7 @@ import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { EmbeddingErrors } from '../../infrastructure/embeddings/embedding-errors.js';
 import { gitIgnoreService } from '../../infrastructure/filesystem/gitignore-service.js';
+import { getIndexingLogger } from '../../utils/indexing-logger.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -28,6 +29,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   private taskQueue: FolderTaskQueue;
   private state: FolderLifecycleState;
   private pendingIndexingTasks: Map<string, Promise<any>> = new Map();
+  private indexingLogger = getIndexingLogger();
   private model: string;
   private active = true;
 
@@ -488,21 +490,45 @@ return;
           const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model, {}, progressCallback);
           
           // Store results in SQLiteVecStorage if we have embeddings
+          const fileName = task.file.split('/').pop() || task.file;
           if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
-            this.logger.debug(`[MANAGER-STORE] Storing ${fileResult.embeddings.length} embeddings for ${task.file}`);
+            this.logger.info(`[HUGE-DEBUG] ${fileName}: Starting to store ${fileResult.embeddings.length} embeddings`);
             
             // Ensure database is initialized
             if (!this.sqliteVecStorage.isReady()) {
               // Load existing index or initialize if empty (does not wipe existing data)
               const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Loading database index from ${dbPath}`);
               await this.sqliteVecStorage.loadIndex(dbPath);
             }
             
             // Store embeddings in SQLite database incrementally
-            await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
-            this.logger.info(`[MANAGER-STORE] Successfully stored ${fileResult.embeddings.length} embeddings for ${task.file}`);
+            try {
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Calling addEmbeddings with ${fileResult.embeddings.length} embeddings and ${fileResult.metadata.length} metadata`);
+              
+              // Fix mismatch: ensure embeddings and metadata arrays have same length
+              if (fileResult.embeddings.length !== fileResult.metadata.length) {
+                this.logger.warn(`[HUGE-DEBUG] ${fileName}: Mismatch detected - ${fileResult.embeddings.length} embeddings vs ${fileResult.metadata.length} metadata`);
+                
+                // Take the minimum to ensure we don't have orphaned data
+                const validCount = Math.min(fileResult.embeddings.length, fileResult.metadata.length);
+                const trimmedEmbeddings = fileResult.embeddings.slice(0, validCount);
+                const trimmedMetadata = fileResult.metadata.slice(0, validCount);
+                
+                this.logger.info(`[HUGE-DEBUG] ${fileName}: Trimmed to ${validCount} matching pairs`);
+                await this.sqliteVecStorage.addEmbeddings(trimmedEmbeddings, trimmedMetadata);
+              } else {
+                await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
+              }
+              
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully stored embeddings`);
+            } catch (dbError) {
+              const error = dbError as Error;
+              this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to store embeddings: ${error.message}`, error);
+              throw dbError;
+            }
           } else {
-            this.logger.warn(`[MANAGER-STORE] No embeddings generated for ${task.file}`);
+            this.logger.warn(`[HUGE-DEBUG] ${fileName}: No embeddings generated (embeddings: ${!!fileResult.embeddings}, metadata: ${!!fileResult.metadata}, length: ${fileResult.embeddings?.length || 0})`);
           }
         } catch (error: any) {
           // Check if this is a model loading error - if so, fail fast
@@ -587,10 +613,42 @@ return;
             const result = stmt.get(stateTask.file) as { chunk_count: number };
             const chunkCount = result?.chunk_count || 0;
             
+            const fileName = stateTask.file.split('/').pop() || stateTask.file;
+            
             if (chunkCount > 0) {
-              await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Found ${chunkCount} chunks in database, marking as success`);
+              try {
+                await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
+                this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully marked as indexed in file_states table`);
+              } catch (stateError) {
+                const error = stateError as Error;
+                this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to mark as success in file_states: ${error.message}`, error);
+              }
+              
+              // Log successful processing for huge files
+              if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+                this.indexingLogger.logProcessingComplete(
+                  stateTask.file,
+                  'SUCCESS',
+                  chunkCount,
+                  true,
+                  'indexed'
+                );
+              }
             } else {
-              this.logger.warn(`No chunks found for successfully processed file: ${stateTask.file}`);
+              this.logger.warn(`[HUGE-DEBUG] ${fileName}: No chunks found in database after processing`);
+              
+              // Log failure for huge files
+              if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+                this.indexingLogger.logProcessingComplete(
+                  stateTask.file,
+                  'FAILURE',
+                  0,
+                  false,
+                  undefined,
+                  'No chunks generated'
+                );
+              }
             }
           } catch (error) {
             this.logger.warn(`Failed to mark file as processed in database: ${stateTask.file}`, error);
@@ -727,6 +785,9 @@ return;
     this.logger.debug(`[MANAGER-DETECT] Starting intelligent scanning for ${currentFiles.length} files`);
     const changes: FileChangeInfo[] = [];
     
+    // Log scan started
+    this.indexingLogger.logScanStarted(this.folderPath, currentFiles.length);
+    
     try {
       // Ensure database is initialized before attempting to get fingerprints
       if (!this.sqliteVecStorage.isReady()) {
@@ -788,6 +849,32 @@ return;
         
         this.logger.debug(`[MANAGER-DETECT] File ${filePath}: ${decision.action} (${decision.reason})`);
         
+        // Log file detection decision for debugging
+        const fileName = filePath.split('/').pop() || filePath;
+        if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+          // Get additional file state info for huge files
+          let fileStateInfo: any = {};
+          const decisionWithState = decision as any; // Type workaround for logging
+          if (decisionWithState.currentState) {
+            fileStateInfo = {
+              processingState: decisionWithState.currentState.processingState,
+              chunkCount: decisionWithState.currentState.chunkCount,
+              attemptCount: decisionWithState.currentState.attemptCount
+            };
+          }
+          
+          const storedHash = decisionWithState.currentState?.contentHash || null;
+          
+          this.indexingLogger.logFileDetected(
+            filePath,
+            contentHash,
+            storedHash,
+            decision.shouldProcess ? (decision.action === 'retry' ? 'RETRY' : 'PROCESS') : 'SKIP',
+            decision.reason,
+            fileStateInfo
+          );
+        }
+        
         if (decision.shouldProcess) {
           toProcessCount++;
           
@@ -819,7 +906,28 @@ return;
           });
           
           // Record the start of processing for this file
-          await this.fileStateService.startProcessing(filePath, contentHash);
+          const fileName = filePath.split('/').pop() || filePath;
+          
+          if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+            this.logger.info(`[HUGE-DEBUG] ${fileName}: Recording processing start in file_states`);
+          }
+          
+          try {
+            await this.fileStateService.startProcessing(filePath, contentHash);
+            if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully recorded in file_states`);
+            }
+          } catch (stateError) {
+            const error = stateError as Error;
+            this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to record processing start: ${error.message}`, error);
+          }
+          
+          // Log processing start for huge files
+          if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+            const decisionWithState = decision as any; // Type workaround for logging
+            const attemptCount = decisionWithState.currentState?.attemptCount || 1;
+            this.indexingLogger.logProcessingStart(filePath, contentHash, attemptCount);
+          }
         } else {
           skippedCount++;
           this.logger.debug(`[MANAGER-DETECT] File skipped: ${filePath} - ${decision.reason}`);
@@ -877,6 +985,9 @@ return;
       this.logger.info(`[MANAGER-DETECT]   Files skipped: ${skippedCount}`);
       this.logger.info(`[MANAGER-DETECT]   Efficiency: ${((skippedCount / processedCount) * 100).toFixed(1)}% avoided unnecessary processing`);
       
+      // Log scan completion
+      this.indexingLogger.logScanCompleted(this.folderPath, toProcessCount, skippedCount);
+      
       // Clear scanning progress when done
       this.clearScanningProgress();
       
@@ -897,11 +1008,17 @@ return;
       const content = readFileSync(filePath);
       const stats = statSync(filePath);
       const hash = createHash('md5');
+      
+      // Generate stable hash based on content only (not mtime)
+      // This prevents re-indexing when files are accessed but not modified
       hash.update(filePath); // Include path for uniqueness
       hash.update(content);
-      hash.update(stats.size.toString()); // Include size
-      hash.update(stats.mtime.toISOString()); // Include modification time
-      return hash.digest('hex');
+      hash.update(stats.size.toString()); // Include size for quick change detection
+      // NOTE: Deliberately NOT including mtime to prevent infinite indexing loops
+      // when large files update their access times during processing
+      
+      const finalHash = hash.digest('hex');
+      return finalHash;
     } catch (error) {
       this.logger.warn(`[MANAGER-HASH] Cannot generate hash for ${filePath}:`, error);
       throw error;
