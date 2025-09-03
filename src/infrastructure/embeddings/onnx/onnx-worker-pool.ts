@@ -101,10 +101,14 @@ export class ONNXWorkerPool extends EventEmitter {
       // Handle both test environment (src/) and production environment (dist/)
       let workerPath = path.join(__dirname, 'onnx-worker.js');
       
-      // If running from src/ (test environment), look in dist/ instead
-      if (__dirname.includes('/src/')) {
-        const distPath = __dirname.replace('/src/', '/dist/src/');
-        workerPath = path.join(distPath, 'onnx-worker.js');
+      // If running from src/ directory (not already in dist/), point to dist/ instead
+      if (__dirname.includes('/src/') && !__dirname.includes('/dist/')) {
+        const pathParts = __dirname.split('/src/');
+        if (pathParts.length === 2 && pathParts[0] && pathParts[1]) {
+          const projectRoot = pathParts[0];
+          const relativePath = pathParts[1];
+          workerPath = path.join(projectRoot, 'dist', 'src', relativePath, 'onnx-worker.js');
+        }
       }
       
       const worker = new Worker(workerPath, {
