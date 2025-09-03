@@ -771,6 +771,7 @@ class FileWatcher {
   private lastEventAt?: Date;
   private errors: any[] = [];
   private chokidarWatcher: FSWatcher | undefined;
+  private precompiledExcludeRegexes: RegExp[] = [];
 
   constructor(
     private readonly folderPath: string,
@@ -779,6 +780,13 @@ class FileWatcher {
     private readonly eventHandler: (folderPath: string, event: FileWatchEvent) => Promise<void>
   ) {
     this.watchId = this.generateWatchId();
+    
+    // Precompile exclude patterns for performance
+    const excludePatterns = this.options.excludePatterns || [];
+    this.precompiledExcludeRegexes = excludePatterns.map(pattern => {
+      const regexPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
+      return new RegExp(regexPattern);
+    });
   }
 
   async start(): Promise<void> {
@@ -821,11 +829,9 @@ class FileWatcher {
           return true; // Ignore unsupported files
         }
         
-        // Check exclude patterns
-        const excludePatterns = this.options.excludePatterns || [];
-        for (const pattern of excludePatterns) {
-          const regexPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
-          if (new RegExp(regexPattern).test(filePath)) {
+        // Check exclude patterns using precompiled regexes
+        for (const excludeRegex of this.precompiledExcludeRegexes) {
+          if (excludeRegex.test(filePath)) {
             return true; // Ignore excluded files
           }
         }
