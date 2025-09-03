@@ -4,50 +4,13 @@
  */
 
 import { parentPort, workerData } from 'worker_threads';
-// Import and patch onnxruntime-node BEFORE xenova/transformers loads it
-import * as ort from 'onnxruntime-node';
-
-// Apply monkey-patch immediately at module load time
-console.error('[Worker] Applying ONNX Runtime patches at module level...');
-if (ort.InferenceSession && ort.InferenceSession.create) {
-  const originalCreate = ort.InferenceSession.create;
-  ort.InferenceSession.create = async function(model: any, options: any = {}) {
-    // Extract thread count from options or use default
-    const numThreads = options.intraOpNumThreads || 2;
-    
-    const enhancedOptions = {
-      ...options,
-      intraOpNumThreads: numThreads,
-      interOpNumThreads: 1,
-      executionMode: 'sequential',
-      graphOptimizationLevel: 'basic',
-      logSeverityLevel: 2,
-      extra: {
-        session: {
-          intra_op_allow_spinning: '0',
-          inter_op_allow_spinning: '0',
-          use_deterministic_compute: '1'
-        }
-      }
-    };
-    
-    console.error(`[Worker] 🎯 INTERCEPTED InferenceSession.create:`, {
-      threads: enhancedOptions.intraOpNumThreads,
-      spinning: 'disabled'
-    });
-    
-    return originalCreate.call(this, model, enhancedOptions);
-  };
-  console.error('[Worker] ✅ Module-level patch applied to ort.InferenceSession.create');
-}
-
-import { pipeline, env } from '@xenova/transformers';
+import { pipeline } from '@xenova/transformers';
 
 interface WorkerData {
   modelId: string;
   modelConfig: any;
   workerId: number;
-  numThreads?: number;
+  numThreads?: number; // Configuration parameter (not used for monkey-patching)
 }
 
 interface WorkerMessage {
@@ -61,12 +24,15 @@ interface WorkerResponse {
   taskId?: string;
   embeddings?: number[][];
   error?: string;
+  workerId?: number;
+  modelPath?: string;
 }
 
 // Worker state
 let model: any = null;
 let modelConfig: any = null;
 let workerId: number = -1;
+let modelPath: string = '';
 
 /**
  * Initialize the worker and load the model
@@ -77,83 +43,36 @@ async function initialize(): Promise<void> {
     workerId = data.workerId;
     modelConfig = data.modelConfig;
     
-    console.error(`[Worker ${workerId}] Initializing with model ${data.modelId}`);
-    
-    // Configure thread control for ONNX Runtime Node.js
-    const numThreads = data.numThreads || 2;
-    
-    // Configure ONNX Runtime environment
-    console.error(`[Worker ${workerId}] ort imported, checking structure...`);
-    console.error(`[Worker ${workerId}] ort.InferenceSession exists: ${!!ort.InferenceSession}`);
-    console.error(`[Worker ${workerId}] ort.InferenceSession.create type: ${typeof ort.InferenceSession?.create}`);
-    
-    if (ort.env) {
-      console.error(`[Worker ${workerId}] Configuring ONNX Runtime environment`);
-      
-      // Set WASM threads (even though we use CPU provider, this might help)
-      if (ort.env.wasm) {
-        ort.env.wasm.numThreads = numThreads;
-        console.error(`[Worker ${workerId}] Set ort.env.wasm.numThreads = ${numThreads}`);
-      }
-    }
-    
-    // Update the module-level patch with the specific thread count for this worker
-    if (ort.InferenceSession && ort.InferenceSession.create) {
-      const originalCreate = ort.InferenceSession.create;
-      ort.InferenceSession.create = async function(model: any, options: any = {}) {
-        // Use the worker-specific thread count
-        const enhancedOptions = {
-          ...options,
-          intraOpNumThreads: numThreads,
-          interOpNumThreads: 1,
-          executionMode: 'sequential',
-          graphOptimizationLevel: 'basic',
-          logSeverityLevel: 2,
-          extra: {
-            session: {
-              intra_op_allow_spinning: '0',
-              inter_op_allow_spinning: '0',
-              use_deterministic_compute: '1'
-            }
-          }
-        };
-        
-        console.error(`[Worker ${workerId}] 🎯 INTERCEPTED InferenceSession.create:`, {
-          threads: enhancedOptions.intraOpNumThreads,
-          spinning: 'disabled',
-          executionMode: enhancedOptions.executionMode
-        });
-        
-        return originalCreate.call(this, model, enhancedOptions);
-      };
-      console.error(`[Worker ${workerId}] ✅ Re-patched with worker-specific thread count: ${numThreads}`);
-    }
-    
-    // Also set via Xenova's env for compatibility
-    env.backends.onnx.wasm.numThreads = numThreads;
-    console.error(`[Worker ${workerId}] Set env.backends.onnx.wasm.numThreads = ${numThreads}`);
-    
     // Extract model name from ID (format: "cpu:model-name")
     const modelName = data.modelId.split(':')[1] || data.modelId;
     
-    // Load the model using Transformers.js
     // Use the huggingfaceId from model config if available
-    const modelPath = modelConfig.huggingfaceId || modelName;
+    modelPath = modelConfig.huggingfaceId || modelName;
     
-    console.error(`[Worker ${workerId}] Loading model from ${modelPath} with ${numThreads} threads`);
+    console.log(`[Worker ${workerId}] Initializing with model ${data.modelId}`);
+    if (data.numThreads) {
+      console.log(`[Worker ${workerId}] Thread configuration: ${data.numThreads} (provided via config)`);
+    }
+    console.log(`[Worker ${workerId}] Loading model from ${modelPath}`);
     
-    // Now load the model - it will use our patched InferenceSession.create if available
+    // Load the model using Transformers.js
     model = await pipeline('feature-extraction', modelPath);
     
-    console.error(`[Worker ${workerId}] Model loaded successfully`);
+    console.log(`[Worker ${workerId}] Model loaded successfully`);
     
-    // Notify main thread that worker is ready
-    parentPort?.postMessage({ type: 'initialized' } as WorkerResponse);
+    // Notify main thread that worker is ready with enhanced diagnostics
+    parentPort?.postMessage({ 
+      type: 'initialized',
+      workerId: workerId,
+      modelPath: modelPath
+    } as WorkerResponse);
   } catch (error) {
     console.error(`[Worker ${workerId}] Initialization error:`, error);
     parentPort?.postMessage({
       type: 'error',
-      error: `Failed to initialize worker: ${error}`
+      error: `Failed to initialize worker: ${error}`,
+      workerId: workerId,
+      modelPath: modelPath
     } as WorkerResponse);
   }
 }
@@ -274,12 +193,11 @@ function handleMessage(message: WorkerMessage): void {
       break;
       
     case 'shutdown':
-      console.error(`[Worker ${workerId}] Shutting down`);
+      console.log(`[Worker ${workerId}] Shutting down`);
       if (model) {
         model = null;
       }
       process.exit(0);
-      break;
       
     default:
       console.error(`[Worker ${workerId}] Unknown message type: ${message.type}`);

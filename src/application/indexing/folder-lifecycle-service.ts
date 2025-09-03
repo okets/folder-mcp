@@ -323,6 +323,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       retryCount: 0,
       maxRetries: 3,
       createdAt: new Date(),
+      fileSize: change.size,
     }));
 
     this.logger.info(`[MANAGER-PROCESS] Created ${tasks.length} tasks from ${changes.length} detected changes`, {
@@ -752,60 +753,48 @@ return;
   getProgress(): FolderProgress {
     const stats = this.taskQueue.getStatistics();
     
-    // Calculate chunk-based progress for smoother UX on large files
-    let totalChunks = 0;
-    let processedChunks = 0;
-    
-    // Aggregate chunk counts from all tasks for accurate progress
+    // Calculate total file size across all tasks for weighted progress
+    let totalSize = 0;
     for (const task of this.state.fileEmbeddingTasks) {
-      if (task.totalChunks && task.totalChunks > 0) {
-        totalChunks += task.totalChunks;
+      totalSize += task.fileSize || 0;
+    }
+    
+    // Calculate file-size weighted progress to prevent regression on large files
+    let weightedProgress = 0;
+    
+    if (totalSize > 0) {
+      for (const task of this.state.fileEmbeddingTasks) {
+        const fileWeight = (task.fileSize || 0) / totalSize;
         
         if (task.status === 'success') {
-          // Completed tasks have processed all chunks
-          processedChunks += task.totalChunks;
-        } else if (task.status === 'in-progress' && task.processedChunks !== undefined) {
-          // In-progress tasks have partial chunks
-          processedChunks += task.processedChunks;
+          // Completed files contribute their full weight
+          weightedProgress += fileWeight * 100;
+        } else if (task.status === 'in-progress' && task.totalChunks && task.totalChunks > 0) {
+          // In-progress files contribute partial weight based on chunks
+          const chunkProgress = (task.processedChunks || 0) / task.totalChunks;
+          weightedProgress += fileWeight * chunkProgress * 100;
         }
-        // Pending and error tasks contribute 0 processed chunks
-      } else if (task.status === 'success') {
-        // For completed tasks without chunk info, estimate based on average
-        // This handles edge cases where chunk info might be missing
-        const avgChunksPerFile = totalChunks > 0 && stats.completedTasks > 0 
-          ? Math.ceil(totalChunks / stats.completedTasks) 
-          : 10; // Default estimate for files without chunk data
-        totalChunks += avgChunksPerFile;
-        processedChunks += avgChunksPerFile;
-      } else if (task.status === 'pending' || task.status === 'in-progress') {
-        // For pending/in-progress files without chunk info yet, add estimated chunks
-        // This prevents percentage from jumping when chunks are discovered
-        const estimatedChunks = 10; // Conservative estimate
-        totalChunks += estimatedChunks;
+        // Pending and failed files contribute 0
       }
+    } else if (stats.totalTasks > 0) {
+      // Fallback to task-based calculation if no file size info available
+      const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
+      weightedProgress = (effectiveCompleted / stats.totalTasks) * 100;
     }
     
-    // Calculate percentage based on chunks for smooth, accurate progress
-    let percentage = 0;
-    if (totalChunks > 0) {
-      percentage = Math.round((processedChunks / totalChunks) * 100);
-    } else if (stats.totalTasks > 0) {
-      // Fallback to task-based calculation if no chunk info available
-      const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
-      percentage = Math.round((effectiveCompleted / stats.totalTasks) * 100);
-    }
+    const percentage = Math.round(weightedProgress);
     
     // Ensure we don't exceed 99% until truly complete
-    if (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) {
-      percentage = 99;
-    }
+    const cappedPercentage = (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) 
+      ? 99 
+      : Math.min(percentage, 100);
 
     return {
       totalTasks: stats.totalTasks,
       completedTasks: stats.completedTasks,
       failedTasks: stats.failedTasks,
       inProgressTasks: stats.inProgressTasks,
-      percentage
+      percentage: cappedPercentage
     };
   }
 

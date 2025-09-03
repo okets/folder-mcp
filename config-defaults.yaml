@@ -23,10 +23,10 @@ memoryMonitor:
 
 # ONNX Performance Optimization Settings (testing configuration system)
 onnx:
-  workerPoolSize: 5        # Testing: changed from optimal 2
-  threadsPerWorker: 5      # Testing: changed from optimal 2
-  batchSize: 5             # Testing: changed from optimal 1
-  maxConcurrentFiles: 5    # Testing: changed from optimal 4
+  workerPoolSize: 2        # Testing showed optimal 2
+  threadsPerWorker: 2      # Testing showed optimal 2
+  batchSize: 1             # Testing showed optimal 1
+  maxConcurrentFiles: 4    # Testing showed optimal 4
 
 # Logging configuration
 logging:
