@@ -97,7 +97,15 @@ export class ONNXWorkerPool extends EventEmitter {
     return new Promise((resolve, reject) => {
       // Get the directory of the current module
       const __dirname = path.dirname(fileURLToPath(import.meta.url));
-      const workerPath = path.join(__dirname, 'onnx-worker.js');
+      
+      // Handle both test environment (src/) and production environment (dist/)
+      let workerPath = path.join(__dirname, 'onnx-worker.js');
+      
+      // If running from src/ (test environment), look in dist/ instead
+      if (__dirname.includes('/src/')) {
+        const distPath = __dirname.replace('/src/', '/dist/src/');
+        workerPath = path.join(distPath, 'onnx-worker.js');
+      }
       
       const worker = new Worker(workerPath, {
         workerData: {
