@@ -59,7 +59,7 @@ export class ConfigurationComponent {
         // Core application defaults
         this.defaults.set('theme', 'auto');
         this.defaults.set('folders.defaults.embeddings.model', getDefaultModelId());
-        this.defaults.set('folders.defaults.embeddings.batchSize', 1);
+        this.defaults.set('folders.defaults.performance.batchSize', 1);
         this.defaults.set('server.port', 3000);
         this.defaults.set('server.host', 'localhost');
         this.defaults.set('user.email', '');

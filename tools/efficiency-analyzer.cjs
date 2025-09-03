@@ -57,8 +57,15 @@ class EfficiencyAnalyzer {
     // Performance gain per CPU cost - higher is better
     const performanceGain = ((avgCpm - 78.7) / 78.7) * 100;
     const cpuCost = cpuUsage - 100; // Additional CPU over baseline 100%
-    if (cpuCost <= 0) return performanceGain > 0 ? 999 : 0; // Infinite efficiency if no extra CPU cost
-    return (performanceGain / cpuCost).toFixed(3);
+    
+    // Handle special case of zero CPU cost
+    if (cpuCost === 0) {
+      return performanceGain > 0 ? Number.POSITIVE_INFINITY : 0;
+    }
+    
+    // For all other values (including negative cpuCost), compute numeric ratio
+    const ratio = performanceGain / cpuCost;
+    return Math.round(ratio * 1000) / 1000; // Round to 3 decimals without string conversion
   }
 
   findDiminishingReturns() {

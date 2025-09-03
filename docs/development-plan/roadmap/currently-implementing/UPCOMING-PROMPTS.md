@@ -134,13 +134,9 @@ This is a foolproof way to test everything about our system.
 ---------------------Next Task
 0. When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
 
-1. I want to change how the indexing progress percentage is being calculated.
-We are calculating by chunks, but the way we calculate makes the progress regress when it indexes a large file.
-this is just bad UX. how hard will it be to calculate the progress by file sizes instead of chunks?
-This task should not be very demanding because the indexing process is already demanding enough. But we should strive towards giving them accurate enough progress tracking.
-
 2. How is folder monitoring working? I just added a file to a monitored folder but it didn't trigger indexing.
-do I need to wait? restart the daemon?
+do I need to wait? is it interval based or folder monitoring based?
+restarting the daemon picks up the changes.
 
 3. the daemon log is flooding with these messages even when there is no indexing activity and the daemon is pretty idle:
 2025-09-02T13:56:30.446Z ERROR [folder-mcp] CRITICAL memory alert - immediate action recommended | {"level":"critical","currentMemoryMB":193,"baselineDeviationMB":-11,"growthRateMBPerHour":1105.91,"trend":"growing","utilization":99,"systemMemoryMB":8192,"recommendations":["Consider immediate action: restart daemon or reduce concurrent operations","Memory leak suspected - monitor for continuous growth"]}
