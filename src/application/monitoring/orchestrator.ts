@@ -31,6 +31,7 @@ import { IncrementalIndexer } from '../indexing/index.js';
 
 // Import chokidar for actual file watching
 import chokidar, { FSWatcher } from 'chokidar';
+import path from 'path';
 
 export interface FileWatchEvent {
   type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
@@ -788,29 +789,68 @@ class FileWatcher {
     });
     
     try {
-      // Get supported extensions and create glob patterns for them
+      // Get supported extensions
       const supportedExtensions = this.options.includeFileTypes || getSupportedExtensions();
-      const globPatterns = supportedExtensions.map(ext => `**/*${ext}`);
       
-      // Get gitignore ignore patterns
+      // Get gitignore ignore patterns (returns array of functions)
       const gitignorePatterns = await gitIgnoreService.getChokidarIgnorePatterns(this.folderPath);
+      
+      // Create file extension filter function  
+      const isFileSupported = (filePath: string) => {
+        const ext = path.extname(filePath).toLowerCase();
+        return supportedExtensions.includes(ext);
+      };
+      
+      // Create combined filter function
+      const shouldIgnoreFile = (filePath: string, stats?: any) => {
+        // CRITICAL FIX: Always allow directories to be watched
+        // Check stats first, then fall back to extension check for directories
+        if (stats && stats.isDirectory()) {
+          return false; // Never ignore directories
+        }
+        
+        // If no stats available, check if path looks like a directory (no extension and ends with folder name)
+        const hasExtension = path.extname(filePath) !== '';
+        if (!hasExtension && (filePath === this.folderPath || filePath.endsWith('/'))) {
+          return false; // Never ignore directories
+        }
+        
+        // First check if file has supported extension
+        const isSupported = isFileSupported(filePath);
+        if (!isSupported) {
+          return true; // Ignore unsupported files
+        }
+        
+        // Check exclude patterns
+        const excludePatterns = this.options.excludePatterns || [];
+        for (const pattern of excludePatterns) {
+          const regexPattern = pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*');
+          if (new RegExp(regexPattern).test(filePath)) {
+            return true; // Ignore excluded files
+          }
+        }
+        
+        // Check gitignore patterns
+        for (const ignoreFunction of gitignorePatterns) {
+          if (ignoreFunction(filePath)) {
+            return true; // Ignore gitignored files
+          }
+        }
+        
+        return false; // Don't ignore this file
+      };
       
       this.loggingService.info('📋 Configuring file watcher with extension filtering and .gitignore support', {
         supportedExtensions,
-        globPatterns,
         folderPath: this.folderPath,
-        gitignoreEnabled: gitignorePatterns.length > 0
+        gitignoreEnabled: gitignorePatterns.length > 0,
+        excludePatterns: this.options.excludePatterns
       });
       
-      // Initialize chokidar watcher - ONLY watch files with supported extensions, respecting .gitignore
-      this.chokidarWatcher = chokidar.watch(globPatterns, {
-        cwd: this.folderPath,  // Set working directory first
-        ignored: [
-          ...gitignorePatterns,  // Use gitignore patterns first
-          ...(this.options.excludePatterns || [])  // apply additional exclude patterns
-        ],
+      this.chokidarWatcher = chokidar.watch(this.folderPath, {
+        ignored: shouldIgnoreFile,  // Use our combined filter function
         persistent: true,
-        ignoreInitial: false, // Set to false to detect existing files
+        ignoreInitial: true, // Only watch for new changes
         followSymlinks: true,
         awaitWriteFinish: {
           stabilityThreshold: 100,
@@ -824,7 +864,7 @@ class FileWatcher {
           this.handleChokidarEvent('add', filePath, stats);
         })
         .on('change', (filePath: string, stats?: any) => {
-          this.loggingService.info('📝 File changed - THIS IS CRITICAL FOR INTEGRATION TEST', { 
+          this.loggingService.info('📝 File changed', { 
             filePath, 
             size: stats?.size,
             timestamp: new Date().toISOString()
