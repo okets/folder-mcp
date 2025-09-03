@@ -43,21 +43,28 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     private fileStateService: IFileStateService,
     private logger: ILoggingService,
     model?: string,
+    maxConcurrentFiles?: number,
   ) {
     super();
     this.model = model || 'unknown';
     this.stateMachine = new FolderLifecycleStateMachine();
-    // Use ONNX configuration for optimal max concurrent files
-    // Priority: ENV var > config system > optimal default (4)
-    // Note: Using synchronous fallback since constructor can't be async
-    const maxConcurrentFiles = process.env.MAX_CONCURRENT_FILES 
-      ? parseInt(process.env.MAX_CONCURRENT_FILES, 10)
-      : 4; // Optimal value from CPM testing
+    // Use provided value or fallback to environment variable or default
+    const concurrentFiles = maxConcurrentFiles ?? 
+      (process.env.MAX_CONCURRENT_FILES 
+        ? parseInt(process.env.MAX_CONCURRENT_FILES, 10)
+        : 4); // Fallback default from CPM testing
+    
+    // Log configuration for debugging
+    this.logger.debug(`[FolderLifecycleService] Initialized with maxConcurrentFiles=${concurrentFiles} (source: ${
+      maxConcurrentFiles !== undefined ? 'constructor param' : 
+      process.env.MAX_CONCURRENT_FILES ? 'ENV var' : 
+      'default'
+    })`);
       
     this.taskQueue = new FolderTaskQueue({
       maxRetries: 3,
       retryDelayMs: 1000,
-      maxConcurrentTasks: maxConcurrentFiles,
+      maxConcurrentTasks: concurrentFiles,
     });
     
     this.state = {

@@ -23,6 +23,7 @@ import { ModelDownloadManager, IModelDownloadManager } from './model-download-ma
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import { getDefaultModelId } from '../../config/model-registry.js';
+import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -106,9 +107,10 @@ function createFolderLifecycleService(
   storage: any,
   fileStateService: any,
   logger: ILoggingService,
-  model?: string
+  model?: string,
+  maxConcurrentFiles?: number
 ): IFolderLifecycleManager {
-  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger, model);
+  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger, model, maxConcurrentFiles);
 }
 
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
@@ -118,6 +120,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
   private intelligentMemoryMonitor?: IntelligentMemoryMonitor;
+  private onnxConfiguration: OnnxConfiguration;
   private systemPerformanceTelemetry?: SystemPerformanceTelemetry;
   private windowsPerformanceService: IWindowsPerformanceService;
   private modelDownloadManager: IModelDownloadManager;
@@ -134,6 +137,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     modelDownloadManager?: IModelDownloadManager
   ) {
     super();
+    
+    // Initialize ONNX configuration service with config component
+    this.onnxConfiguration = new OnnxConfiguration(this.configService);
     
     // Initialize Windows performance service (default if not provided)
     this.windowsPerformanceService = windowsPerformanceService || new WindowsPerformanceService(this.logger);
@@ -538,6 +544,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       const folderDbPath = `${path}/.folder-mcp/embeddings.db`;
       const folderFileStateService = new FileStateService(folderDbPath, this.logger);
       
+      // Get max concurrent files from ONNX configuration
+      const maxConcurrentFiles = await this.onnxConfiguration.getMaxConcurrentFiles();
+      this.logger.debug(`[ORCHESTRATOR] Using maxConcurrentFiles=${maxConcurrentFiles} from ONNX configuration`);
+      
       // Use factory function to create folder lifecycle manager
       const folderManager = createFolderLifecycleService(
         `folder-${Date.now()}`, // Generate unique ID
@@ -547,7 +557,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         storage,
         folderFileStateService, // Use per-folder service instead of global
         this.logger,
-        model // Pass the model parameter
+        model, // Pass the model parameter
+        maxConcurrentFiles // Pass the configured max concurrent files
       );
       
       // Subscribe to manager events
