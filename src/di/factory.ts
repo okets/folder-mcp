@@ -193,7 +193,8 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       await container.resolveAsync(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(SERVICE_TOKENS.FILE_SYSTEM)
+      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
+      container.resolve(SERVICE_TOKENS.ONNX_CONFIG)
     );
   }
   async createIncrementalIndexer(container: DependencyContainer): Promise<IncrementalIndexer> {

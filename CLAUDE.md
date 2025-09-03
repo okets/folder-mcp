@@ -800,3 +800,4 @@ console.error(`=== END COMPONENT WIDTH ===\\n`);
 ```
 
 This methodology has proven highly effective for resolving TUI visual bugs through systematic character-level analysis.
+- memorize what "Run a CPM test" means. you should ask which factors to test for and run our beautiful test routine.

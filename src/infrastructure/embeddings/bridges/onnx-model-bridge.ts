@@ -20,8 +20,7 @@ import { ONNXEmbeddingService } from '../onnx/onnx-embedding-service.js';
 import { ModelCompatibilityEvaluator } from '../../../domain/models/model-evaluator.js';
 import { 
   createModelCompatibilityEvaluator,
-  createONNXDownloader,
-  createONNXEmbeddingService 
+  createONNXDownloader
 } from '../../../daemon/factories/model-factories.js';
 import path from 'path';
 import os from 'os';
@@ -127,8 +126,8 @@ export class ONNXModelBridge implements IEmbeddingModel {
         message: 'Initializing ONNX runtime',
       });
 
-      // Create ONNX service
-      this.onnxService = createONNXEmbeddingService({
+      // Create ONNX service directly - NO singleton manager
+      this.onnxService = new ONNXEmbeddingService({
         modelId: this.modelConfig.modelId,
         cacheDirectory: this.cacheDir,
         batchSize: this.modelConfig.batchSize ?? 32,

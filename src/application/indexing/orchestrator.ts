@@ -24,11 +24,13 @@ import {
   ICacheService,
   ILoggingService,
   IConfigurationService,
-  IFileSystemService
+  IFileSystemService,
+  IOnnxConfiguration
 } from '../../di/interfaces.js';
 
-// ONNX Singleton Manager for memory efficiency
-import { ONNXSingletonManager } from '../../infrastructure/embeddings/onnx-singleton-manager.js';
+// Required for path operations
+import path from 'path';
+import os from 'os';
 
 // Domain types
 import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js';
@@ -36,6 +38,17 @@ import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js'
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
   private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
+  private embeddingServiceCreationPromises: Map<string, Promise<IEmbeddingService>> = new Map();
+  
+  // Performance tracking for benchmarking
+  private performanceMetrics = {
+    startTime: Date.now(), // Initialize with current time
+    chunksProcessed: 0,
+    embeddingsProcessed: 0,
+    filesProcessed: 0,
+    lastReportTime: Date.now(), // Initialize with current time
+    lastChunkMilestone: 0 // Track chunk milestones for CPM calculation
+  };
   constructor(
     private readonly fileParsingService: IFileParsingService,
     private readonly chunkingService: IChunkingService,
@@ -44,7 +57,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
     private readonly configService: IConfigurationService,
-    private readonly fileSystemService: IFileSystemService
+    private readonly fileSystemService: IFileSystemService,
+    private readonly onnxConfiguration: IOnnxConfiguration
   ) {}
 
   /**
@@ -56,6 +70,34 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       return this.embeddingServiceCache.get(modelId)!;
     }
 
+    // Check if creation is already in progress
+    if (this.embeddingServiceCreationPromises.has(modelId)) {
+      // Wait for the existing creation to complete
+      const service = await this.embeddingServiceCreationPromises.get(modelId)!;
+      return service;
+    }
+    // Start creation and store the promise to prevent duplicate creation
+    const creationPromise = this.createEmbeddingService(modelId);
+    this.embeddingServiceCreationPromises.set(modelId, creationPromise);
+
+    try {
+      const service = await creationPromise;
+      // Cache the completed service
+      this.embeddingServiceCache.set(modelId, service);
+      // Clean up the creation promise
+      this.embeddingServiceCreationPromises.delete(modelId);
+      return service;
+    } catch (error) {
+      // Clean up on error
+      this.embeddingServiceCreationPromises.delete(modelId);
+      throw error;
+    }
+  }
+
+  /**
+   * Actually create the embedding service (separated for atomic creation)
+   */
+  private async createEmbeddingService(modelId: string): Promise<IEmbeddingService> {
     // Import necessary modules
     const { ModelCompatibilityEvaluator } = await import('../../domain/models/model-evaluator.js');
     const evaluator = new ModelCompatibilityEvaluator();
@@ -80,9 +122,29 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     // Create appropriate service based on provider type
     if (provider === 'cpu' || provider === 'onnx') {
-      // Use singleton manager for ONNX models to prevent memory leaks
-      const onnxManager = ONNXSingletonManager.getInstance();
-      embeddingService = await onnxManager.getModel(modelId);
+      // Direct ONNX service creation - NO DI, NO singleton manager
+      const { ONNXEmbeddingService } = await import('../../infrastructure/embeddings/onnx/onnx-embedding-service.js');
+      
+      // Use ONNX configuration service with 3-tier priority system
+      // Priority: ENV var > config system > optimal default
+      console.error(`[ORCHESTRATOR-DEBUG] Getting ONNX configuration values...`);
+      const batchSize = await this.onnxConfiguration.getBatchSize();
+      const workerPoolSize = await this.onnxConfiguration.getWorkerPoolSize();
+      const numThreads = await this.onnxConfiguration.getNumThreadsPerWorker();
+      console.error(`[ORCHESTRATOR-DEBUG] Got values: batchSize=${batchSize}, workerPoolSize=${workerPoolSize}, numThreads=${numThreads}`);
+      
+      const onnxConfig: any = {
+        modelId: modelId,
+        cacheDirectory: path.join(os.homedir(), '.cache', 'folder-mcp', 'onnx-models'),
+        maxSequenceLength: 512,
+        batchSize,
+        workerPoolSize,
+        numThreads
+      };
+      
+      embeddingService = new ONNXEmbeddingService(onnxConfig);
+      
+      await embeddingService.initialize();
       
     } else if (provider === 'gpu' || provider === 'python') {
       // Python models for GPU
@@ -103,9 +165,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       );
     }
     
-    // Cache the service for reuse
-    this.embeddingServiceCache.set(modelId, embeddingService);
-    
     this.loggingService.info('Created embedding service for model', { 
       modelId, 
       provider, 
@@ -118,6 +177,18 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
+    
+    // Reset performance metrics for this indexing run
+    this.performanceMetrics = {
+      startTime,
+      chunksProcessed: 0,
+      embeddingsProcessed: 0,
+      filesProcessed: 0,
+      lastReportTime: startTime,
+      lastChunkMilestone: 0
+    };
+    
+    console.error(`[CPM-LOG] START TIME=${startTime} CONFIG=${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t PATH=${path}`);
     
     // Embedding model MUST be provided - no fallback to reveal configuration issues
     if (!options.embeddingModel) {
@@ -539,9 +610,87 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         // Report progress based on actual processed embeddings
         if (progressCallback) {
           progressCallback(chunks.length, totalProcessed);
+          
+          // TUI progress-based continuous CPM logging as suggested by user
+          const currentTime = Date.now();
+          const firstChunkTime = this.performanceMetrics.startTime;
+          const chunksProcessedSoFar = this.performanceMetrics.chunksProcessed + totalProcessed;
+          
+          if (chunksProcessedSoFar > 0 && firstChunkTime > 0) {
+            const elapsedMs = currentTime - firstChunkTime;
+            const elapsedMin = elapsedMs / 60000;
+            const avgTimePerChunk = elapsedMs / chunksProcessedSoFar;
+            const currentCpm = chunksProcessedSoFar / elapsedMin;
+            
+            // Log continuous CPM data (user's exact format suggestion)
+            console.error(`[CONTINUOUS-CPM] current_time:${currentTime}, first_chunk_time:${firstChunkTime}, chunks_so_far:${chunksProcessedSoFar}, avg_time_per_chunk:${avgTimePerChunk.toFixed(2)}ms, CPM:${currentCpm.toFixed(1)}, config:${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t`);
+          }
         }
       }
       embeddingsCreated = embeddings.length;
+      
+      // Track performance metrics
+      this.performanceMetrics.chunksProcessed += chunks.length;
+      this.performanceMetrics.embeddingsProcessed += embeddings.length;
+      
+      // Strategic CPM logging every 100 chunks for precise measurement
+      const chunkMilestone = Math.floor(this.performanceMetrics.chunksProcessed / 100) * 100;
+      if (chunkMilestone > this.performanceMetrics.lastChunkMilestone && chunkMilestone > 0) {
+        const now = Date.now();
+        const elapsedMs = now - this.performanceMetrics.startTime;
+        const elapsedMin = elapsedMs / 60000;
+        const currentCpm = this.performanceMetrics.chunksProcessed / elapsedMin;
+        
+        console.error(`[CPM-LOG] MILESTONE=${chunkMilestone} TOTAL=${this.performanceMetrics.chunksProcessed} TIME=${now} ELAPSED=${elapsedMs}ms CPM=${currentCpm.toFixed(1)} CONFIG=${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t`);
+        
+        this.performanceMetrics.lastChunkMilestone = chunkMilestone;
+      }
+      
+      // Report performance every 30 seconds
+      const now = Date.now();
+      const timeSinceLastReport = now - this.performanceMetrics.lastReportTime;
+      
+      if (timeSinceLastReport > 30000) {
+        // Safety check: ensure startTime is reasonable (within last 24 hours)
+        const maxReasonableAge = 24 * 60 * 60 * 1000; // 24 hours in ms
+        const startTimeAge = now - this.performanceMetrics.startTime;
+        
+        if (startTimeAge > maxReasonableAge || this.performanceMetrics.startTime < 1000000000000) {
+          console.error(`[PERF WARNING] Resetting corrupted startTime. Age: ${startTimeAge}ms, startTime: ${this.performanceMetrics.startTime}`);
+          this.performanceMetrics.startTime = now - 30000; // Assume started 30 seconds ago
+          this.performanceMetrics.lastReportTime = now - 30000;
+        }
+        
+        const elapsed = (now - this.performanceMetrics.startTime) / 60000; // minutes
+        const chunksPerMinute = this.performanceMetrics.chunksProcessed / elapsed;
+        const embeddingsPerMinute = this.performanceMetrics.embeddingsProcessed / elapsed;
+        
+        // Write to performance log file
+        const perfLogPath = './tmp/onnx-performance-log.jsonl';
+        const perfData = {
+          timestamp: new Date().toISOString(),
+          elapsed: elapsed.toFixed(2),
+          chunksProcessed: this.performanceMetrics.chunksProcessed,
+          embeddingsProcessed: this.performanceMetrics.embeddingsProcessed,
+          filesProcessed: this.performanceMetrics.filesProcessed,
+          chunksPerMinute: chunksPerMinute.toFixed(1),
+          embeddingsPerMinute: embeddingsPerMinute.toFixed(1),
+          model: modelId,
+          workerPoolSize: process.env.WORKER_POOL_SIZE || 'default',
+          numThreads: process.env.NUM_THREADS || 'default',
+          batchSize: options.batchSize || 32
+        };
+        
+        try {
+          const fs = await import('fs');
+          fs.appendFileSync(perfLogPath, JSON.stringify(perfData) + '\n');
+          this.loggingService.info(`[PERFORMANCE] CPM: ${chunksPerMinute.toFixed(1)}, EPM: ${embeddingsPerMinute.toFixed(1)}, Files: ${this.performanceMetrics.filesProcessed}`);
+        } catch (e) {
+          // Ignore file write errors
+        }
+        
+        this.performanceMetrics.lastReportTime = now;
+      }
       
       // Validate that embeddings and metadata arrays match
       if (embeddings.length !== metadata.length) {
@@ -552,6 +701,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
     // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
     // No need for duplicate caching - chunks are already saved via VectorSearchService
+    
+    // Track file completion
+    this.performanceMetrics.filesProcessed++;
     
     return {
       chunksGenerated: chunks.length,

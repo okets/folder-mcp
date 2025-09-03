@@ -1046,6 +1046,22 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private async onIndexComplete(folderPath: string, state: any): Promise<void> {
     this.logger.info(`[ORCHESTRATOR] Indexing complete for ${folderPath}, starting file watching`);
     
+    // Create and emit FMDM informational message for active state
+    if (state.indexingStats) {
+      const { fileCount, indexingTimeSeconds } = state.indexingStats;
+      const infoMessage = `▶ ${folderPath} [active] i ${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`;
+      
+      this.logger.info(`[ORCHESTRATOR] ${infoMessage}`);
+      
+      // Update folder status to 'active' with permanent completion notification
+      this.fmdmService.updateFolderStatus(folderPath, 'active', {
+        message: `${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`,
+        type: 'info'
+      });
+    } else {
+      this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folderPath}`);
+    }
+    
     // Check for Windows performance issues when folder becomes active after indexing
     await this.checkWindowsPerformanceForFolder(folderPath, state.model);
     
@@ -1224,6 +1240,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private getCurrentFolderConfigs(): FolderConfig[] {
     const folders: FolderConfig[] = [];
     
+    // Get current FMDM state to preserve existing notifications
+    const currentFMDM = this.fmdmService.getFMDM();
+    
     // Add folders with managers
     for (const [path, manager] of this.folderManagers) {
       const state = manager.getState();
@@ -1246,10 +1265,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         }
       } else if (state.status === 'active') {
         folderConfig.progress = 100; // Active folders are 100% complete
-        // Clear progress notification when active - should not show "Processing X files" anymore
-        // Only clear info notifications (progress), keep error/warning notifications
-        if (folderConfig.notification?.type === 'info') {
-          delete folderConfig.notification;
+        
+        // Preserve completion notifications for active folders from current FMDM
+        const existingFolder = currentFMDM.folders.find(f => f.path === path);
+        if (existingFolder?.notification) {
+          // Only preserve completion notifications (contain "files indexed")
+          // Clear progress notifications (contain "processing" or "in progress")
+          if (existingFolder.notification.message.includes('files indexed')) {
+            folderConfig.notification = existingFolder.notification;
+          }
         }
       } else {
         // Clear progress notification for other states

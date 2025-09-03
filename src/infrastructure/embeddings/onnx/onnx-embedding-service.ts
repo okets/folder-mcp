@@ -3,12 +3,16 @@ import { pipeline, env } from '@xenova/transformers';
 import path from 'path';
 import fs from 'fs/promises';
 import { ModelCompatibilityEvaluator, CuratedModel } from '../../../domain/models/model-evaluator.js';
+import { ONNXWorkerPool } from './onnx-worker-pool.js';
 
 export interface ONNXEmbeddingOptions {
   modelId: string;
   cacheDirectory?: string;
   maxSequenceLength?: number;
   batchSize?: number;
+  useWorkerThreads?: boolean; // Option to enable/disable worker threads
+  workerPoolSize?: number; // Number of worker threads in the pool
+  numThreads?: number; // Number of threads per ONNX worker
 }
 
 export interface EmbeddingResult {
@@ -23,10 +27,14 @@ export class ONNXEmbeddingService {
   private modelConfig: CuratedModel | null = null;
   private evaluator: ModelCompatibilityEvaluator;
   private cacheDir: string;
+  private workerPool: ONNXWorkerPool | null = null;
+  private useWorkerThreads: boolean;
 
   constructor(private options: ONNXEmbeddingOptions) {
     this.evaluator = new ModelCompatibilityEvaluator();
     this.cacheDir = options.cacheDirectory || path.join(process.env.HOME || '~', '.cache', 'folder-mcp', 'onnx-models');
+    // Enable worker threads by default for better performance
+    this.useWorkerThreads = options.useWorkerThreads !== false;
     
     // Configure Transformers.js environment
     env.allowLocalModels = true;
@@ -54,18 +62,33 @@ export class ONNXEmbeddingService {
       // Ensure cache directory exists
       await fs.mkdir(this.cacheDir, { recursive: true });
 
-      // Load the model using Transformers.js pipeline
-      const modelPath = await this.ensureModelDownloaded();
-      
-      this.model = await pipeline(
-        'feature-extraction',
-        this.modelConfig.huggingfaceId!,
-        {
-          local_files_only: false,
-          cache_dir: this.cacheDir,
-          revision: 'main'
-        }
-      );
+      if (this.useWorkerThreads) {
+        // Initialize worker pool instead of loading model in main thread
+        console.log(`[ONNXEmbeddingService] Using worker threads for ${this.options.modelId}`);
+        
+        // CPM-optimized defaults (2 workers, 2 threads each provides best performance)
+        const poolSize = this.options.workerPoolSize || 2;
+        const numThreads = this.options.numThreads !== undefined ? this.options.numThreads : 2;
+        console.error(`[ONNXEmbeddingService] Creating worker pool with ${poolSize} workers, ${numThreads || 'auto'} threads each for ${this.options.modelId}`);
+        
+        this.workerPool = new ONNXWorkerPool(this.options.modelId, this.modelConfig, poolSize, numThreads);
+        await this.workerPool.initialize();
+        console.log(`✅ ONNX worker pool initialized: ${this.modelConfig.displayName}`);
+      } else {
+        // Fallback to main thread loading (original behavior)
+        console.log(`[ONNXEmbeddingService] Using main thread for ${this.options.modelId}`);
+        const modelPath = await this.ensureModelDownloaded();
+        
+        this.model = await pipeline(
+          'feature-extraction',
+          this.modelConfig.huggingfaceId!,
+          {
+            local_files_only: false,
+            cache_dir: this.cacheDir,
+            revision: 'main'
+          }
+        );
+      }
 
       const initTime = Date.now() - startTime;
       console.log(`✅ ONNX model initialized in ${initTime}ms: ${this.modelConfig.displayName}`);
@@ -93,7 +116,7 @@ export class ONNXEmbeddingService {
   }
 
   async generateEmbeddingsFromStrings(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<EmbeddingResult> {
-    if (!this.model || !this.modelConfig) {
+    if (!this.modelConfig || (!this.model && !this.workerPool)) {
       throw new Error('Model not initialized. Call initialize() first.');
     }
 
@@ -131,6 +154,27 @@ export class ONNXEmbeddingService {
   }
 
   private async processBatch(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<number[][]> {
+    // If using worker threads, delegate to worker pool
+    if (this.useWorkerThreads && this.workerPool) {
+      try {
+        // Worker pool handles prefixes and truncation internally
+        const embeddings = await this.workerPool.processEmbeddings(texts, {
+          textType,
+          pooling: 'mean',
+          normalize: true
+        });
+        return embeddings;
+      } catch (error) {
+        console.error('[ONNXEmbeddingService] Worker pool error, falling back to main thread:', error);
+        // Fall through to main thread processing if worker fails
+      }
+    }
+    
+    // Main thread processing (original behavior)
+    if (!this.model) {
+      throw new Error('Model not initialized for main thread processing');
+    }
+    
     // Apply prefixes if the model requires them
     let processedTexts = texts;
     if (this.modelConfig?.requirements?.prefixes) {
@@ -146,7 +190,6 @@ export class ONNXEmbeddingService {
     // Use model's actual context window for proper token-based truncation
     // The Xenova transformer pipeline handles tokenization internally
     // For now, we'll do a simple character-based estimation (avg 4 chars per token)
-    // This is temporary until Worker Threads are implemented in Sprint 10
     const contextWindow = this.modelConfig?.contextWindow || 512;
     const maxChars = contextWindow * 4; // Rough estimate: 4 chars per token
     
@@ -259,6 +302,13 @@ export class ONNXEmbeddingService {
   }
 
   async dispose(): Promise<void> {
+    // Clean up worker pool if used
+    if (this.workerPool) {
+      console.log('[ONNXEmbeddingService] Shutting down worker pool');
+      await this.workerPool.shutdown();
+      this.workerPool = null;
+    }
+    
     if (this.model) {
       // Clean up model resources if needed
       this.model = null;
@@ -313,7 +363,7 @@ export class ONNXEmbeddingService {
   }
   
   isInitialized(): boolean {
-    return this.model !== null && this.modelConfig !== null;
+    return this.modelConfig !== null && (this.model !== null || this.workerPool !== null);
   }
   
   // Test method to verify model works correctly

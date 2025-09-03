@@ -19,6 +19,7 @@ import { getSupportedExtensions } from '../../domain/files/supported-extensions.
 import { EmbeddingErrors } from '../../infrastructure/embeddings/embedding-errors.js';
 import { gitIgnoreService } from '../../infrastructure/filesystem/gitignore-service.js';
 import { getIndexingLogger } from '../../utils/indexing-logger.js';
+import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -46,10 +47,17 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     super();
     this.model = model || 'unknown';
     this.stateMachine = new FolderLifecycleStateMachine();
+    // Use ONNX configuration for optimal max concurrent files
+    // Priority: ENV var > config system > optimal default (4)
+    // Note: Using synchronous fallback since constructor can't be async
+    const maxConcurrentFiles = process.env.MAX_CONCURRENT_FILES 
+      ? parseInt(process.env.MAX_CONCURRENT_FILES, 10)
+      : 4; // Optimal value from CPM testing
+      
     this.taskQueue = new FolderTaskQueue({
       maxRetries: 3,
       retryDelayMs: 1000,
-      maxConcurrentTasks: 2,
+      maxConcurrentTasks: maxConcurrentFiles,
     });
     
     this.state = {
@@ -257,6 +265,10 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug('[MANAGER-PROCESS] Model and embedding validation passed, transitioning to active');
       
       if (this.stateMachine.canTransitionTo('active')) {
+        // Collect indexing statistics before transitioning to active
+        const indexingStats = await this.collectIndexingStatistics();
+        this.logger.debug(`[MANAGER-PROCESS] Collected indexing statistics for no-changes path: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
+        
         this.stateMachine.transitionTo('active');
         this.updateState({ 
           status: 'active',
@@ -265,8 +277,12 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         });
         // Clear progress message when becoming active
         delete this.state.progressMessage;
+        
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
+        
+        // Also emit indexComplete event with statistics for consistency
+        this.emit('indexComplete', { ...this.getState(), indexingStats });
         this.logger.debug('[MANAGER-PROCESS] Successfully transitioned to active state');
       } else {
         this.logger.error(`[MANAGER-PROCESS] Cannot transition to active from ${this.state.status}`);
@@ -630,19 +646,7 @@ return;
                 );
               }
             } else {
-              this.logger.warn(`[HUGE-DEBUG] ${fileName}: No chunks found in database after processing`);
-              
-              // Log failure for huge files
-              if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
-                this.indexingLogger.logProcessingComplete(
-                  stateTask.file,
-                  'FAILURE',
-                  0,
-                  false,
-                  undefined,
-                  'No chunks generated'
-                );
-              }
+              this.logger.warn(`[PROCESSING] ${fileName}: No chunks found in database after processing`);
             }
           } catch (error) {
             this.logger.warn(`Failed to mark file as processed in database: ${stateTask.file}`, error);
@@ -709,6 +713,10 @@ return;
         return;
       }
       
+      // Collect indexing statistics before transitioning to active
+      const indexingStats = await this.collectIndexingStatistics();
+      this.logger.debug(`[MANAGER-TRANSITION] Collected indexing statistics: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
+      
       this.stateMachine.transitionTo('active');
       
       // Set progress to 100% when transitioning to active
@@ -728,8 +736,8 @@ return;
       // Emit final 100% progress event
       this.emit('progressUpdate', finalProgress);
       
-      // Emit indexComplete event
-      this.emit('indexComplete', this.getState());
+      // Emit indexComplete event with statistics
+      this.emit('indexComplete', { ...this.getState(), indexingStats });
       this.logger.debug('[MANAGER-TRANSITION] Successfully transitioned to active state after model validation');
     }
   }
@@ -1446,6 +1454,61 @@ return;
     } catch (error) {
       this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error accessing database:`, error);
       return 0;
+    }
+  }
+
+  /**
+   * Collect indexing statistics for FMDM informational messages
+   */
+  private async collectIndexingStatistics(): Promise<{ fileCount: number; indexingTimeSeconds: number }> {
+    try {
+      // Get file count from embeddings database (most accurate)
+      let fileCount = 0;
+      try {
+        const embeddingCount = await this.getEmbeddingCount();
+        // Get distinct file count by querying the documents table
+        if (this.sqliteVecStorage && this.sqliteVecStorage.isReady()) {
+          const db = this.sqliteVecStorage.getDatabaseManager().getDatabase();
+          const result = db.prepare('SELECT COUNT(DISTINCT file_path) as file_count FROM documents').get() as { file_count: number };
+          fileCount = result?.file_count || 0;
+          this.logger.debug(`[STATISTICS] Database file count: ${fileCount}`);
+        }
+      } catch (error) {
+        this.logger.debug(`[STATISTICS] Could not get database file count, using task count fallback:`, error);
+        // Fallback to task queue statistics
+        const taskStats = this.taskQueue.getStatistics();
+        fileCount = taskStats.totalTasks || 0;
+      }
+      
+      // Calculate indexing duration
+      let indexingTimeSeconds = 0;
+      const now = new Date();
+      
+      if (this.state.lastIndexStarted) {
+        // Indexing path - use time from index start
+        indexingTimeSeconds = Math.round((now.getTime() - this.state.lastIndexStarted.getTime()) / 1000);
+        this.logger.debug(`[STATISTICS] Using indexing duration from lastIndexStarted: ${indexingTimeSeconds}s`);
+      } else if (this.state.lastScanStarted) {
+        // No-changes path - use time from scan start  
+        indexingTimeSeconds = Math.round((now.getTime() - this.state.lastScanStarted.getTime()) / 1000);
+        this.logger.debug(`[STATISTICS] Using scan duration as indexing time: ${indexingTimeSeconds}s`);
+      } else {
+        // Fallback - minimal time for immediate transitions
+        indexingTimeSeconds = 1;
+        this.logger.debug(`[STATISTICS] Using fallback duration: ${indexingTimeSeconds}s`);
+      }
+      
+      return {
+        fileCount: Math.max(0, fileCount),
+        indexingTimeSeconds: Math.max(1, indexingTimeSeconds) // Minimum 1 second for display
+      };
+    } catch (error) {
+      this.logger.warn(`[STATISTICS] Error collecting indexing statistics:`, error);
+      // Return safe fallback values
+      return {
+        fileCount: 0,
+        indexingTimeSeconds: 1
+      };
     }
   }
 

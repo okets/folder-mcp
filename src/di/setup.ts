@@ -51,6 +51,9 @@ import { FMDMService } from '../daemon/services/fmdm-service.js';
 import { DaemonFolderValidationService } from '../daemon/services/folder-validation-service.js';
 import { MonitoredFoldersOrchestrator } from '../daemon/services/monitored-folders-orchestrator.js';
 
+// Import ONNX configuration
+import { OnnxConfiguration } from '../infrastructure/config/onnx-configuration.js';
+
 // Import WebSocket services
 import { FolderHandlers } from '../daemon/websocket/handlers/folder-handlers.js';
 import { ModelHandlers } from '../daemon/websocket/handlers/model-handlers.js';
@@ -96,6 +99,13 @@ export function setupDependencyInjection(options: {
 
   container.registerSingleton(SERVICE_TOKENS.DOMAIN_PATH_PROVIDER, () => {
     return new NodePathProvider();
+  });
+
+  // Register ONNX configuration service with configuration system integration
+  container.registerSingleton(SERVICE_TOKENS.ONNX_CONFIG, () => {
+    // Use ConfigurationComponent as the unified configuration interface
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
+    return new OnnxConfiguration(configurationComponent);
   });
 
   // Register folder domain services as singletons

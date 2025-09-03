@@ -574,7 +574,7 @@ export class FolderConfigMerger implements IFolderConfigMerger {
 
   mergePerformance(folderPerf?: any, defaultPerf?: any): any {
     return {
-      batchSize: folderPerf?.batchSize || defaultPerf?.batchSize || 32,
+      batchSize: folderPerf?.batchSize || defaultPerf?.batchSize || 1,
       maxConcurrency: folderPerf?.maxConcurrency || defaultPerf?.maxConcurrency || 4
     };
   }

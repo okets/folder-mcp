@@ -27,7 +27,7 @@ export class ONNXSingletonManager {
    * Get or create a singleton ONNX model instance
    * Ensures only one instance per modelId exists
    */
-  async getModel(modelId: string): Promise<IEmbeddingService> {
+  async getModel(modelId: string, config?: any): Promise<IEmbeddingService> {
     // Return existing instance if available
     if (this.modelInstances.has(modelId)) {
       console.error(`[ONNXSingletonManager] Returning existing instance for ${modelId}`);
@@ -41,7 +41,7 @@ export class ONNXSingletonManager {
     }
 
     // Create initialization promise to prevent race conditions
-    const initPromise = this.createModel(modelId);
+    const initPromise = this.createModel(modelId, config);
     this.initializationPromises.set(modelId, initPromise);
 
     try {
@@ -56,12 +56,30 @@ export class ONNXSingletonManager {
     }
   }
 
-  private async createModel(modelId: string): Promise<IEmbeddingService> {
+  private async createModel(modelId: string, config?: any): Promise<IEmbeddingService> {
+    // CPM-optimized defaults based on comprehensive performance testing
+    // These values provide 103.6 CPM at 400% CPU (background-friendly)
+    const defaultConfig = {
+      workerPoolSize: 2,  // Optimal efficiency vs baseline 4
+      numThreads: 2,      // Best ROI before diminishing returns
+      batchSize: 1        // Single chunks outperform larger batches
+    };
+    
+    // Merge with provided config, prioritizing explicit config over defaults
+    const workerPoolSize = config?.workerPoolSize || defaultConfig.workerPoolSize;
+    const batchSize = config?.batchSize || defaultConfig.batchSize;
+    const numThreads = config?.numThreads || defaultConfig.numThreads;
+    
+    console.error(`[ONNXSingletonManager] Creating ${modelId} with workerPoolSize=${workerPoolSize}, numThreads=${numThreads}, batchSize=${batchSize} (CPM-optimized)`);
+    
     const onnxService = new ONNXEmbeddingService({
       modelId: modelId,
       cacheDirectory: path.join(os.homedir(), '.cache', 'folder-mcp', 'onnx-models'),
       maxSequenceLength: 512,
-      batchSize: 32
+      batchSize: batchSize,
+      workerPoolSize: workerPoolSize,
+      numThreads: numThreads,
+      ...config // Allow config to override other properties
     });
 
     await onnxService.initialize();

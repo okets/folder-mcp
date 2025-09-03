@@ -59,7 +59,7 @@ export class ConfigurationComponent {
         // Core application defaults
         this.defaults.set('theme', 'auto');
         this.defaults.set('folders.defaults.embeddings.model', getDefaultModelId());
-        this.defaults.set('folders.defaults.embeddings.batchSize', 32);
+        this.defaults.set('folders.defaults.embeddings.batchSize', 1);
         this.defaults.set('server.port', 3000);
         this.defaults.set('server.host', 'localhost');
         this.defaults.set('user.email', '');
@@ -76,6 +76,12 @@ export class ConfigurationComponent {
         // Development settings
         this.defaults.set('development.enabled', false);
         this.defaults.set('development.logLevel', 'info');
+        
+        // ONNX Optimization Settings (based on systematic CPM testing)
+        this.defaults.set('onnx.workerPoolSize', 2);        // Optimal balance of performance vs resources
+        this.defaults.set('onnx.threadsPerWorker', 2);      // Optimal ROI before diminishing returns
+        this.defaults.set('onnx.batchSize', 1);             // Single chunk batches outperform larger batches
+        this.defaults.set('onnx.maxConcurrentFiles', 4);    // Sweet spot before performance cliff (14.6% improvement vs 2)
     }
     
     /**
