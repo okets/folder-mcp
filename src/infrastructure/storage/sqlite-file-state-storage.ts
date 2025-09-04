@@ -219,7 +219,8 @@ export class SqliteFileStateStorage implements IFileStateStorage {
             [FileProcessingState.INDEXED]: 0,
             [FileProcessingState.FAILED]: 0,
             [FileProcessingState.SKIPPED]: 0,
-            [FileProcessingState.CORRUPTED]: 0
+            [FileProcessingState.CORRUPTED]: 0,
+            [FileProcessingState.DELETED]: 0
         };
 
         for (const row of statsRows) {

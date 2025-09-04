@@ -378,8 +378,9 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         timestamp: new Date().toISOString()
       });
       
-      // Notify about changes detected if callback is set
-      if (this.changeDetectionCallback && eventQueue.length > 0) {
+      // Don't notify about changes if we've already handled them via incremental indexing
+      // Only notify if batch processing is disabled (meaning no incremental handling occurred)
+      if (this.changeDetectionCallback && eventQueue.length > 0 && !options.enableBatchProcessing) {
         this.loggingService.info('🔔 Notifying about file changes detected', { 
           folderPath,
           changeCount: eventQueue.length 
@@ -443,12 +444,50 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
             }
           };
           
-          // Use incremental indexer to process the changes
-          const result = await this.incrementalIndexer.indexChanges(changes, {
-            includeFileTypes: options.includeFileTypes || [...getSupportedExtensions()],
-            excludePatterns: options.excludePatterns || [],
-            forceReindex: false // Incremental updates
+          // Debug log the changes object
+          this.loggingService.info(`📝 Changes to be processed`, {
+            newFiles: changes.newFiles,
+            modifiedFiles: changes.modifiedFiles,
+            deletedFiles: changes.deletedFiles
           });
+          
+          // Check if incremental indexer is available
+          if (!this.incrementalIndexer) {
+            this.loggingService.error('❌ Incremental indexer is not initialized!', new Error('IncrementalIndexer is null or undefined'));
+            return;
+          }
+          
+          this.loggingService.info(`📍 About to call incrementalIndexer.indexChanges`);
+          
+          let result;
+          try {
+            // Use incremental indexer to process the changes
+            result = await this.incrementalIndexer.indexChanges(changes, {
+              includeFileTypes: options.includeFileTypes || [...getSupportedExtensions()],
+              excludePatterns: options.excludePatterns || [],
+              forceReindex: false // Incremental updates
+            });
+            
+            this.loggingService.info(`📊 Result from incrementalIndexer`, { result });
+          } catch (error) {
+            this.loggingService.error('❌ Error calling incrementalIndexer', error instanceof Error ? error : new Error(String(error)));
+            // Return empty result to continue
+            result = {
+              success: false,
+              filesProcessed: 0,
+              chunksGenerated: 0,
+              embeddingsCreated: 0,
+              processingTime: 0,
+              errors: [],
+              statistics: {
+                totalBytes: 0,
+                totalWords: 0,
+                averageChunkSize: 0,
+                processingRate: 0,
+                embeddingRate: 0
+              }
+            };
+          }
           
           this.loggingService.info(`✅ Batch processing completed`, {
             folderPath,
@@ -547,9 +586,11 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
       return false;
     }
     
-    // Skip if file was deleted
+    // Deletions should always be processed
     if (lastEvent.type === 'unlink') {
-      return false;
+      // For deletions, we don't need to check extension or existence
+      // We just need to process the deletion from our index
+      return true;
     }
 
     // Check file extension first (fast check)

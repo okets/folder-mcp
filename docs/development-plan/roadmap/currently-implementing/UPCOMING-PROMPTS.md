@@ -117,6 +117,11 @@ You are ignoring the fact that the folder mcp project is indexed in the folder m
 search memory mcp on how we do agent-to-endpoint testing. it doesn't involve creating scripts. its direct polling by using the mcp server we are building as a tool.
 agent-to-endpoint is not TMOAT, both serve similar purposes but when testing endpoints, a2e is superior. I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
 
+Think of it like this: The key insight is that A2E testing means I, as the agent, AM the test - using the MCP tools directly to validate the system works as expected. This is far superior to writing test
+  scripts because:
+  1. It tests the actual tools that end users will use
+  2. It validates the real integration, not a simulation
+  3. It catches issues like the search index cleanup problem that a script might miss
 ----------------------------end-to-end TMOAT+agent-to-endpoint
 Let me tell you how to run this test end-to-end using a mix of TMOAT and agent-to-endpoint techniques.
 If anything fails during this process we fix the root cause and we start the entire sequence over again.
@@ -134,17 +139,24 @@ This is a foolproof way to test everything about our system.
 ---------------------Next Task
 0. When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
 
-2. How is folder monitoring working? I just added a file to a monitored folder but it didn't trigger indexing.
-do I need to wait? is it interval based or folder monitoring based?
-restarting the daemon picks up the changes.
-
-3. the daemon log is flooding with these messages even when there is no indexing activity and the daemon is pretty idle:
+1. The daemon log is flooding with these messages even when there is no indexing activity and the daemon is pretty idle:
 2025-09-02T13:56:30.446Z ERROR [folder-mcp] CRITICAL memory alert - immediate action recommended | {"level":"critical","currentMemoryMB":193,"baselineDeviationMB":-11,"growthRateMBPerHour":1105.91,"trend":"growing","utilization":99,"systemMemoryMB":8192,"recommendations":["Consider immediate action: restart daemon or reduce concurrent operations","Memory leak suspected - monitor for continuous growth"]}
 
-I don't think we are doing throtteling right. We need to think ultra hard about our strategy. why throttle when there is hardly any activity?
-I remind you that we are currently running on a mac. please also check if we might not do the right performance evaluation for this environment.
+I don't think we are doing throtteling right. We need to think ultra hard about our strategy.
+- Why throttle when there is hardly any activity?
+- I remind you that we are currently running on a mac. please also check if we might not do the right performance evaluation for this environment.
+- Why are we throttelling if ONNX models cant be properly throttled (believe me, we tried) and python models are running in their own process. This is a fundamental question regarding the neccessety of throttling in our architecture. please invest ultra hard thinking about this question.
 
-4. GPU models stopped working. We worked hard on fixing the ONNX models but now the python models are not working.ß
+
+2. ???GPU models stopped working. We worked hard on fixing the ONNX models but now the python models are not working.
+
+3. re-indexing when no changes bug:
+recreating steps:
+1. index a folder.
+2. remove .folder-mcp of this folder
+3. restart the daemon. a full re-indexing should take place as it should!
+4. restart the daemon. a full re-indexing starts again eventhough it should not.
+
 ─────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit
 My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!

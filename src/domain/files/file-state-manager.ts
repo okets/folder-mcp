@@ -26,7 +26,10 @@ export enum FileProcessingState {
   SKIPPED = 'skipped',
   
   /** File was detected as corrupted and should not be retried */
-  CORRUPTED = 'corrupted'
+  CORRUPTED = 'corrupted',
+  
+  /** File was deleted from the filesystem */
+  DELETED = 'deleted'
 }
 
 /**

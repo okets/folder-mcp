@@ -199,12 +199,14 @@ export class ServiceFactory implements IServiceFactory {
   }
   async createIncrementalIndexer(container: DependencyContainer): Promise<IncrementalIndexer> {
     const indexingOrchestrator = await this.createIndexingOrchestrator(container);
+    const vectorStorage = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
 
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
       container.resolve(SERVICE_TOKENS.FILE_STATE_STORAGE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      indexingOrchestrator
+      indexingOrchestrator,
+      vectorStorage
     );
   } async createContentServingOrchestrator(container: DependencyContainer): Promise<any> {
     // Create the actual ContentServingOrchestrator with proper dependencies
@@ -271,12 +273,14 @@ export class ServiceFactory implements IServiceFactory {
   }
   async createMonitoringOrchestrator(container: DependencyContainer): Promise<any> {
     const { MonitoringOrchestrator } = await import('../application/monitoring/orchestrator.js');
+    const { IncrementalIndexer } = await import('../application/indexing/incremental.js');
+    const incrementalIndexer = await container.resolveAsync(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING) as IncrementalIndexer;
     return new MonitoringOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING)
+      incrementalIndexer
     );
   }
   async createHealthMonitoringService(container: DependencyContainer): Promise<any> {
