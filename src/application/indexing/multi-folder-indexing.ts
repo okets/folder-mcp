@@ -308,7 +308,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
         const finalStats = this.resourceManager.getStats();
         this.loggingService.info('Final resource usage', {
           memoryUsedMB: Math.round(finalStats.memoryUsedMB),
-          peakMemoryMB: Math.round(finalStats.memoryLimitMB),
+          activeOperations: finalStats.activeOperations,
           totalOperations: folderResults.length
         });
         
