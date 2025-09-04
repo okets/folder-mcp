@@ -304,7 +304,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 // Create ManageFolderItem for each folder
                 const manageFolderItem = createManageFolderItem({
                     folderPath,
-                    model: (folder.model && folder.model !== 'unknown') ? folder.model : 'nomic-embed-text',
+                    model: (() => {
+                        if (folder.model && folder.model !== 'unknown') {
+                            return folder.model;
+                        }
+                        throw new Error(`No valid model found for folder ${folderPath}. Model registry may be corrupted or folder configuration is invalid.`);
+                    })(),
                     isValid: folderValid,
                     folderStatus: (() => {
                         if (folder.status === 'indexing' && folder.progress !== undefined) {

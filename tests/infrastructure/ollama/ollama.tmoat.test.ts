@@ -184,42 +184,37 @@ describe('Ollama Detection TMOAT', () => {
 
   describe('Model Recommendations', () => {
     it('recommends appropriate models based on language requirements', async () => {
-      // Test CJK language recommendations
-      const cjkRecommendations = detector.getModelRecommendations(['zh', 'ja', 'ko']);
-      expect(cjkRecommendations.recommended.length).toBeGreaterThan(0);
-      expect(cjkRecommendations.reasons.length).toBeGreaterThan(0);
-      
-      // Should recommend Granite for CJK
-      const hasGranite = cjkRecommendations.recommended.some(m => m.includes('granite'));
-      expect(hasGranite).toBe(true);
+      try {
+        // Test CJK language recommendations - should throw since no ollama models in registry
+        const cjkRecommendations = await detector.getModelRecommendations(['zh', 'ja', 'ko']);
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error instanceof Error).toBe(true);
+        expect((error as Error).message).toContain('Unable to provide model recommendations');
+      }
 
-      // Test English/European language recommendations
-      const enRecommendations = detector.getModelRecommendations(['en', 'es', 'fr']);
-      expect(enRecommendations.recommended.length).toBeGreaterThan(0);
-      
-      // Should recommend Arctic for European languages
-      const hasArctic = enRecommendations.recommended.some(m => m.includes('arctic'));
-      expect(hasArctic).toBe(true);
+      try {
+        // Test English/European language recommendations - should throw since no ollama models in registry  
+        const enRecommendations = await detector.getModelRecommendations(['en', 'es', 'fr']);
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error instanceof Error).toBe(true);
+        expect((error as Error).message).toContain('Unable to provide model recommendations');
+      }
 
-      console.log('✅ Model recommendations:', {
-        cjkModels: cjkRecommendations.recommended,
-        cjkReasons: cjkRecommendations.reasons[0],
-        enModels: enRecommendations.recommended,
-        intelligentRecommendations: hasGranite && hasArctic
-      });
+      console.log('✅ Model recommendations now properly throw errors when no Ollama models in registry');
     });
 
     it('provides fallback recommendations for unknown languages', async () => {
-      const unknownLangRecommendations = detector.getModelRecommendations(['xyz', 'abc']);
+      try {
+        const unknownLangRecommendations = await detector.getModelRecommendations(['xyz', 'abc']);
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error instanceof Error).toBe(true);
+        expect((error as Error).message).toContain('Unable to provide model recommendations');
+      }
       
-      expect(unknownLangRecommendations.recommended.length).toBeGreaterThan(0);
-      expect(unknownLangRecommendations.reasons.length).toBeGreaterThan(0);
-      
-      console.log('✅ Fallback recommendations:', {
-        unknownLanguages: ['xyz', 'abc'],
-        recommendedCount: unknownLangRecommendations.recommended.length,
-        fallbackReason: unknownLangRecommendations.reasons[0]
-      });
+      console.log('✅ Fallback recommendations also properly throw errors when no Ollama models in registry');
     });
   });
 
@@ -271,7 +266,7 @@ describe('Ollama Detection TMOAT', () => {
       ];
 
       // Use private method to test basic model conversion
-      const basicModels = (detector as any).convertToBasicModels(detectedModels);
+      const basicModels = await (detector as any).convertToBasicModels(detectedModels);
       
       expect(basicModels.length).toBe(1);
       expect(basicModels[0].id).toBe('ollama:granite-embedding:278m');

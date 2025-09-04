@@ -371,8 +371,9 @@ export class EmbeddingService implements IEmbeddingService {
   private async initializePythonService(): Promise<void> {
     const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
     
-    // Map Ollama model names to sentence-transformer equivalents
-    const modelName = this.mapModelNameForPython(this.config.modelName || 'nomic-embed-text');
+    // Use model name from registry directly - no mapping needed
+    const { getDefaultModelId } = await import('../config/model-registry.js');
+    const modelName = this.config.modelName || getDefaultModelId();
     
     this.embeddingModel = new PythonEmbeddingService({
       modelName,
@@ -393,8 +394,9 @@ export class EmbeddingService implements IEmbeddingService {
 
   private async initializeOllamaService(): Promise<void> {
     const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
+    const { getDefaultModelId } = await import('../config/model-registry.js');
     this.embeddingModel = new OllamaEmbeddingService({
-      model: this.config.modelName || 'nomic-embed-text'
+      model: this.config.modelName || getDefaultModelId()
     });
     
     await this.embeddingModel.initialize();
@@ -407,29 +409,6 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
 
-  private mapModelNameForPython(ollamaModelName: string): string {
-    // Map common Ollama model names to sentence-transformer equivalents
-    const modelMap: Record<string, string> = {
-      'nomic-embed-text': 'all-MiniLM-L6-v2',
-      'nomic-embed-text-v1.5': 'all-MiniLM-L12-v2', 
-      'mxbai-embed-large': 'all-mpnet-base-v2',
-      'all-minilm-l6-v2': 'all-MiniLM-L6-v2',
-      'all-minilm-l12-v2': 'all-MiniLM-L12-v2',
-      'all-mpnet-base-v2': 'all-mpnet-base-v2'
-    };
-
-    const mapped = modelMap[ollamaModelName.toLowerCase()];
-    if (mapped) {
-      this.loggingService.debug('Mapped Ollama model to sentence-transformer model', { 
-        from: ollamaModelName, 
-        to: mapped 
-      });
-      return mapped;
-    }
-
-    // If no mapping found, assume it's already a sentence-transformer model name
-    return ollamaModelName;
-  }
 
   async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
     if (!this.initialized) {

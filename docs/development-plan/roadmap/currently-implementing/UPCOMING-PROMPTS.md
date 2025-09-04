@@ -136,26 +136,39 @@ If you need a Human to reconnect the MCP. (we are working on it live, it might b
 
 This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
----------------------Next Task
-0. When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+---------------------Next Tasks
+**Autorun Daemon**
+When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
+this will ensure that the daemon will run when an LLM wants it.
+Since you are an agent, you have better undestanding than mine about when mcp-server.js runs. as a human, All I had to do was to give you a connection string with a "node" command. but I don't know when you call it. it's part of your coding.
 
-1. The daemon log is flooding with these messages even when there is no indexing activity and the daemon is pretty idle:
-2025-09-02T13:56:30.446Z ERROR [folder-mcp] CRITICAL memory alert - immediate action recommended | {"level":"critical","currentMemoryMB":193,"baselineDeviationMB":-11,"growthRateMBPerHour":1105.91,"trend":"growing","utilization":99,"systemMemoryMB":8192,"recommendations":["Consider immediate action: restart daemon or reduce concurrent operations","Memory leak suspected - monitor for continuous growth"]}
-
-I don't think we are doing throtteling right. We need to think ultra hard about our strategy.
-- Why throttle when there is hardly any activity?
-- I remind you that we are currently running on a mac. please also check if we might not do the right performance evaluation for this environment.
-- Why are we throttelling if ONNX models cant be properly throttled (believe me, we tried) and python models are running in their own process. This is a fundamental question regarding the neccessety of throttling in our architecture. please invest ultra hard thinking about this question.
-
-
-2. ???GPU models stopped working. We worked hard on fixing the ONNX models but now the python models are not working.
-
-3. re-indexing when no changes bug:
+**re-indexing bug ??Verify that is still exists as we changed the indexing process**
+re-indexing when no changes bug:
 recreating steps:
 1. index a folder.
 2. remove .folder-mcp of this folder
 3. restart the daemon. a full re-indexing should take place as it should!
 4. restart the daemon. a full re-indexing starts again eventhough it should not.
+
+**MCP endpoint Folder name concerns**
+When querying the MCP endpoint, we need to ensure that the folder names are handled correctly. This includes:
+1. Normalizing folder names to avoid issues with casing or special characters. I am not sure we have an issue here, but we need to check.
+2. Ensuring that folder names are unique. This means that if we index two folders with different paths but the same name, we need to differentiate between them in the MCP.
+I need advice on how to implement this effectively.
+
+
+**Ultimate end to end test**
+I want to test that all of our curated models are working properly.
+To do so, we need to create a simple but very effective TMOAT + agent-to-endpoint test suite.
+This is the flow:
+1. Run the daemon in a background process.
+2. Connect to the websocket interface and remove the folders from the indexing list.
+We offer 5 models, 2 CPU and 3 GPU models. *Run this test 5 times! one for each model*
+ - Add the following folder path to the indexing list using the websocket interface: /Users/hanan/Projects/folder-mcp/tmp/small-test-folder
+ - once indexing is finished, add a text file with a secret to the folder something like "Cats likes blue bananas". it should be picked up and indexed right away. (use a different secret for each model)
+ - query the database, see that the embeddings are correct and using the same dimensions as the selected model.
+ - now YOU are the final test! use folder-mcp mcp server and use the semantic search endpoint to ask about the secret. see if it's being fetched.
+
 
 ─────────────────────────────────────────────────────────────────────────────────────
 --------------------- Code Rabbit

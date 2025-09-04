@@ -240,8 +240,9 @@ export class RESTAPIServer {
         // Continue with empty folders array
       }
       
-      // Get supported models (placeholder - will be enhanced in future sprints)
-      const supportedModels = ['all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'nomic-embed-text'];
+      // Get supported models from registry
+      const { getSupportedGpuModelIds, getSupportedCpuModelIds } = await import('../../config/model-registry.js');
+      const supportedModels = [...getSupportedGpuModelIds(), ...getSupportedCpuModelIds()];
       
       // Calculate total documents by getting real counts from databases
       let totalDocuments = 0;

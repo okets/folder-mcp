@@ -3,134 +3,55 @@
  * 
  * Provides comprehensive metadata for embedding models to enable
  * informed model selection in the UI.
+ * 
+ * Now uses curated-models.json as single source of truth.
  */
 
+import { 
+    getAllModelMetadata, 
+    getModelMetadata as getRegistryMetadata,
+    type ModelMetadata as RegistryModelMetadata
+} from '../../../config/model-registry.js';
+
 export interface ModelMetadata {
-    name: string;                    // Model identifier (e.g., 'nomic-embed-text')
-    displayName: string;             // User-friendly name (e.g., 'Nomic Embed Text')
-    languages: string[];             // Supported languages (e.g., ['Multi', 'EN', 'Code'])
-    params: string;                  // Model size (e.g., '137M', '7B')
+    name: string;                    // Model identifier (e.g., 'gpu:bge-m3')
+    displayName: string;             // User-friendly name (e.g., 'BGE-M3 (Comprehensive)')
+    languages: string[];             // Supported languages (e.g., ['Multi', 'EN'])
+    params: string;                  // Model size (e.g., '2.2GB', '420M')
     gpuRequired: boolean;            // Whether GPU is required for reasonable performance
     backend: 'ollama' | 'folder-mcp'; // Backend service (user-friendly names)
-    recommended?: boolean;           // Whether this is a recommended model
-    description?: string;            // Optional description for future use
+    recommended?: boolean;           // Whether this is a recommended model (deprecated - use recommendation algorithm)
+    description?: string;            // Optional description
 }
 
 /**
- * Comprehensive model metadata registry
+ * Generate model metadata from curated-models.json via model registry
+ * No hardcoded values - all data derived from single source of truth
+ */
+function generateModelMetadata(): Record<string, ModelMetadata> {
+    const registryModels = getAllModelMetadata();
+    const metadata: Record<string, ModelMetadata> = {};
+    
+    for (const model of registryModels) {
+        metadata[model.name] = {
+            name: model.name,
+            displayName: model.displayName,
+            languages: model.languages,
+            params: model.params,
+            gpuRequired: model.gpuRequired,
+            backend: model.backend,
+            ...(model.description && { description: model.description })
+        };
+    }
+    
+    return metadata;
+}
+
+/**
+ * Model metadata registry - dynamically generated from curated-models.json
  * Maps model identifiers to their metadata
  */
-export const modelMetadata: Record<string, ModelMetadata> = {
-    'nomic-embed-text': {
-        name: 'nomic-embed-text',
-        displayName: 'Nomic Embed Text',
-        languages: ['Multi'],
-        params: '137M',
-        gpuRequired: false,
-        backend: 'ollama',
-        recommended: true,
-        description: 'Balanced model for general-purpose text embeddings'
-    },
-    'mxbai-embed-large': {
-        name: 'mxbai-embed-large',
-        displayName: 'MXBai Embed Large',
-        languages: ['EN'],
-        params: '335M',
-        gpuRequired: true,
-        backend: 'ollama',
-        description: 'High-quality embeddings, best with GPU'
-    },
-    'all-minilm': {
-        name: 'all-minilm',
-        displayName: 'All-MiniLM',
-        languages: ['EN'],
-        params: '23M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Lightweight model for fast processing'
-    },
-    'sentence-transformers': {
-        name: 'sentence-transformers',
-        displayName: 'Sentence Transformers',
-        languages: ['Multi'],
-        params: '110M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Popular choice for sentence embeddings'
-    },
-    'ollama:nomic-embed-text': {
-        name: 'ollama:nomic-embed-text',
-        displayName: 'Nomic Embed Text (Ollama)',
-        languages: ['Multi'],
-        params: '137M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Explicit Ollama backend specification'
-    },
-    'ollama:mxbai-embed-large': {
-        name: 'ollama:mxbai-embed-large',
-        displayName: 'MXBai Embed Large (Ollama)',
-        languages: ['EN'],
-        params: '335M',
-        gpuRequired: true,
-        backend: 'ollama',
-        description: 'Explicit Ollama backend specification'
-    },
-    'ollama:all-minilm': {
-        name: 'ollama:all-minilm',
-        displayName: 'All-MiniLM (Ollama)',
-        languages: ['EN'],
-        params: '23M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Explicit Ollama backend specification'
-    },
-    'transformers:all-MiniLM-L6-v2': {
-        name: 'transformers:all-MiniLM-L6-v2',
-        displayName: 'All-MiniLM-L6-v2',
-        languages: ['EN'],
-        params: '23M',
-        gpuRequired: false,
-        backend: 'folder-mcp',  // Changed from 'transformers.js' to 'folder-mcp'
-        description: 'Offline model, no external dependencies'
-    },
-    'gpu:all-MiniLM-L6-v2': {
-        name: 'gpu:all-MiniLM-L6-v2',
-        displayName: 'All-MiniLM-L6-v2',
-        languages: ['EN'],
-        params: '23M',
-        gpuRequired: false,
-        backend: 'folder-mcp',
-        description: 'Python-based embeddings model'
-    },
-    'all-mpnet-base-v2': {
-        name: 'all-mpnet-base-v2',
-        displayName: 'All-MPNet Base v2',
-        languages: ['EN'],
-        params: '110M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'General-purpose model with good accuracy'
-    },
-    'all-MiniLM-L6-v2': {
-        name: 'all-MiniLM-L6-v2',
-        displayName: 'All-MiniLM-L6-v2',
-        languages: ['EN'],
-        params: '23M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Lightweight and fast'
-    },
-    'codebert-base': {
-        name: 'codebert-base',
-        displayName: 'CodeBERT Base',
-        languages: ['Code'],
-        params: '125M',
-        gpuRequired: false,
-        backend: 'ollama',
-        description: 'Optimized for source code understanding'
-    }
-};
+export const modelMetadata: Record<string, ModelMetadata> = generateModelMetadata();
 
 /**
  * Get metadata for a specific model
@@ -150,19 +71,19 @@ export function getAllModelsWithMetadata(): ModelMetadata[] {
 }
 
 /**
- * Get model display options for SelectionListItem
- * @returns Array suitable for SelectionListItem options
+ * Get model options for selection components
+ * @returns Array of {value, label} objects for UI selects
  */
 export function getModelOptions(): Array<{ value: string; label: string }> {
-    return Object.entries(modelMetadata).map(([key, meta]) => ({
-        value: key,
-        label: meta.recommended ? `${meta.displayName} (Recommended)` : meta.displayName
+    return getAllModelsWithMetadata().map(model => ({
+        value: model.name,
+        label: model.displayName
     }));
 }
 
 /**
- * Format model metadata for column display
- * @param model ModelMetadata object
+ * Format model metadata for terminal display
+ * @param model The model metadata to format
  * @param columnWidths Optional column widths for formatting
  * @returns Formatted string for display
  */
@@ -181,16 +102,16 @@ export function formatModelForDisplay(
     const name = model.displayName.padEnd(widths.name);
     const languages = model.languages.join(',').padEnd(widths.languages);
     const params = model.params.padEnd(widths.params);
-    const gpu = (model.gpuRequired ? 'GPU Req' : 'No GPU').padEnd(widths.gpu);
+    const gpu = (model.gpuRequired ? 'Yes' : 'No').padEnd(widths.gpu);
     const backend = model.backend.padEnd(widths.backend);
     
     return `${name} │ ${languages} │ ${params} │ ${gpu} │ ${backend}`;
 }
 
 /**
- * Calculate responsive column widths based on terminal width
+ * Calculate responsive column widths for terminal display
  * @param terminalWidth Available terminal width
- * @returns Column widths object
+ * @returns Column width configuration
  */
 export function calculateColumnWidths(terminalWidth: number): {
     name: number;
@@ -211,9 +132,9 @@ export function calculateColumnWidths(terminalWidth: number): {
     }
     
     // Distribute extra space proportionally
-    const extra = availableWidth - minTotal;
-    const nameExtra = Math.floor(extra * 0.4);
-    const othersExtra = Math.floor(extra * 0.15);
+    const extraSpace = availableWidth - minTotal;
+    const nameExtra = Math.floor(extraSpace * 0.4);
+    const othersExtra = Math.floor((extraSpace - nameExtra) / 4);
     
     return {
         name: minWidths.name + nameExtra,

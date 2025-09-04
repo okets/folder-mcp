@@ -20,9 +20,9 @@ export const sampleConfigurationNodes: ConfigurationNode[] = [
         type: 'text',
         label: 'Embedding Model',
         description: 'Model to use for semantic embeddings',
-        value: 'nomic-embed-text',
-        defaultValue: 'nomic-embed-text',
-        placeholder: 'e.g., nomic-embed-text',
+        value: 'cpu:xenova-multilingual-e5-small',
+        defaultValue: 'cpu:xenova-multilingual-e5-small',
+        placeholder: 'e.g., cpu:xenova-multilingual-e5-small',
         destructive: {
             level: 'critical',
             title: 'Model Change Impact',

@@ -162,3 +162,147 @@ export function isValidHuggingfaceModelId(huggingfaceId: string): boolean {
     const allSupported = getSupportedGpuModelHuggingfaceIds();
     return allSupported.includes(huggingfaceId);
 }
+
+/**
+ * Get supported languages for a model (derived from languagePerformance keys)
+ */
+export function getModelLanguages(modelId: string): string[] {
+    const model = getModelById(modelId);
+    if (!model || !(model as any).languagePerformance) {
+        return ['EN']; // Default fallback
+    }
+    
+    // Extract language codes from languagePerformance object
+    const langCodes = Object.keys((model as any).languagePerformance);
+    
+    // Convert language codes to display format
+    const languages = langCodes.map(code => code.toUpperCase()).slice(0, 3);
+    
+    // If many languages, show "Multi" instead
+    if (languages.length > 5) {
+        return ['Multi'];
+    }
+    
+    return languages.length > 0 ? languages : ['EN'];
+}
+
+/**
+ * Get backend type for a model (derived from model ID prefix)
+ */
+export function getModelBackend(modelId: string): 'python' | 'onnx' | 'ollama' {
+    if (modelId.startsWith('gpu:')) {
+        return 'python';  // folder-mcp backend for GPU models
+    } else if (modelId.startsWith('cpu:')) {
+        return 'onnx';    // folder-mcp backend for CPU models
+    } else if (modelId.startsWith('ollama:')) {
+        return 'ollama';
+    } else {
+        // Legacy models without prefix - assume ollama
+        return 'ollama';
+    }
+}
+
+/**
+ * Check if model requires GPU (derived from model ID prefix)
+ */
+export function isGpuRequired(modelId: string): boolean {
+    return modelId.startsWith('gpu:');
+}
+
+/**
+ * Get model parameters/size display string (derived from modelSizeMB)
+ */
+export function getModelParams(modelId: string): string {
+    const model = getModelById(modelId);
+    if (!model || !model.modelSizeMB) {
+        return 'Unknown';
+    }
+    
+    const sizeMB = model.modelSizeMB;
+    
+    // Convert to appropriate units
+    if (sizeMB >= 1000) {
+        return `${(sizeMB / 1000).toFixed(1)}GB`;
+    } else {
+        return `${sizeMB}M`;
+    }
+}
+
+/**
+ * Get UI-friendly backend name 
+ */
+export function getModelBackendDisplay(modelId: string): 'folder-mcp' | 'ollama' {
+    const backend = getModelBackend(modelId);
+    return backend === 'ollama' ? 'ollama' : 'folder-mcp';
+}
+
+/**
+ * Get model display name (from displayName field in curated models)
+ */
+export function getModelDisplayName(modelId: string): string {
+    const model = getModelById(modelId);
+    return model?.displayName || modelId;
+}
+
+/**
+ * Interface for model metadata used by UI components
+ */
+export interface ModelMetadata {
+    name: string;
+    displayName: string;
+    languages: string[];
+    params: string;
+    gpuRequired: boolean;
+    backend: 'folder-mcp' | 'ollama';
+    description?: string;
+}
+
+/**
+ * Get complete metadata for a model (for UI components)
+ */
+export function getModelMetadata(modelId: string): ModelMetadata | null {
+    const model = getModelById(modelId);
+    if (!model) {
+        return null;
+    }
+    
+    return {
+        name: modelId,
+        displayName: getModelDisplayName(modelId),
+        languages: getModelLanguages(modelId),
+        params: getModelParams(modelId),
+        gpuRequired: isGpuRequired(modelId),
+        backend: getModelBackendDisplay(modelId),
+        description: model.description
+    };
+}
+
+/**
+ * Get models by backend type
+ */
+export function getModelsByBackend(backend: 'python' | 'onnx' | 'ollama'): any[] {
+    const models = loadCuratedModels();
+    const allModels = [...models.gpuModels.models, ...models.cpuModels.models];
+    
+    if (backend === 'python') {
+        return allModels.filter((model: any) => model.id.startsWith('gpu:'));
+    } else if (backend === 'onnx') {
+        return allModels.filter((model: any) => model.id.startsWith('cpu:'));
+    } else if (backend === 'ollama') {
+        return allModels.filter((model: any) => model.id.startsWith('ollama:'));
+    }
+    
+    return [];
+}
+
+/**
+ * Get metadata for all available models
+ */
+export function getAllModelMetadata(): ModelMetadata[] {
+    const config = loadCuratedModels();
+    const allModels = [...config.gpuModels.models, ...config.cpuModels.models];
+    
+    return allModels
+        .map(model => getModelMetadata(model.id))
+        .filter((metadata): metadata is ModelMetadata => metadata !== null);
+}

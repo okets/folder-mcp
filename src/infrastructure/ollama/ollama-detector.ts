@@ -78,7 +78,7 @@ export class OllamaDetector {
       const detectedModels = await this.queryOllamaModels();
       
       // Convert to basic model info (no curated catalog lookup)
-      const basicModels = this.convertToBasicModels(detectedModels);
+      const basicModels = await this.convertToBasicModels(detectedModels);
 
       return {
         isRunning: true,
@@ -203,34 +203,40 @@ export class OllamaDetector {
   /**
    * Convert detected Ollama models to basic model info
    */
-  private convertToBasicModels(detected: OllamaModelInfo[]): OllamaBasicModel[] {
-    return detected.map(model => ({
+  private async convertToBasicModels(detected: OllamaModelInfo[]): Promise<OllamaBasicModel[]> {
+    return Promise.all(detected.map(async model => ({
       id: `ollama:${model.name}`,
       modelName: model.name,
-      displayName: this.generateDisplayName(model.name),
+      displayName: await this.generateDisplayName(model.name),
       description: `User-managed Ollama model${model.size ? ` (${Math.round(model.size / 1024 / 1024)}MB)` : ''}`,
       size: model.size
-    }));
+    })));
   }
 
   /**
    * Generate a human-readable display name from model name
    */
-  private generateDisplayName(modelName: string): string {
-    // Convert model names to display names
-    const displayNameMap: Record<string, string> = {
-      'granite-embedding:278m': 'Granite Embedding (278M)',
-      'snowflake-arctic-embed2:305m': 'Arctic Embed2 (305M)',
-      'snowflake-arctic-embed2:568m': 'Arctic Embed2 (568M)',
-      'nomic-embed-text': 'Nomic Embed Text',
-      'all-minilm:l6-v2': 'All-MiniLM-L6-v2',
-      'bge-m3': 'BGE-M3'
-    };
-
-    // Check for exact match first
-    if (displayNameMap[modelName]) {
-      return displayNameMap[modelName];
+  private async generateDisplayName(modelName: string): Promise<string> {
+    // First try to get display name from model registry
+    try {
+      const { getModelDisplayName, getModelById } = await import('../../config/model-registry.js');
+      
+      // Try direct lookup first
+      const model = getModelById(modelName);
+      if (model) {
+        return getModelDisplayName(modelName);
+      }
+      
+      // Try with ollama: prefix
+      const ollamaModel = getModelById(`ollama:${modelName}`);
+      if (ollamaModel) {
+        return getModelDisplayName(`ollama:${modelName}`);
+      }
+    } catch (error) {
+      // Fall back to local mapping if registry fails
     }
+
+    // No local fallback - all display names should come from model registry or be generated
 
     // Generate display name from model name
     const parts = modelName.split(':');
@@ -341,10 +347,10 @@ export class OllamaDetector {
   /**
    * Get basic model recommendations (no curated catalog dependencies)
    */
-  getModelRecommendations(languages: string[]): {
+  async getModelRecommendations(languages: string[]): Promise<{
     recommended: string[];
     reasons: string[];
-  } {
+  }> {
     const recommended: string[] = [];
     const reasons: string[] = [];
 
@@ -352,20 +358,22 @@ export class OllamaDetector {
     const hasNonEnglish = languages.some(lang => lang !== 'en');
     const hasCJK = languages.some(lang => ['zh', 'ja', 'ko'].includes(lang));
 
-    if (hasCJK) {
-      recommended.push('granite-embedding:278m');
-      reasons.push('Granite Embedding good for CJK languages');
-    }
-
-    if (languages.includes('en') || !hasNonEnglish) {
-      recommended.push('snowflake-arctic-embed2:305m');
-      reasons.push('Arctic Embed2 strong for English and European languages');
-    }
-
-    // Default fallback
-    if (recommended.length === 0) {
-      recommended.push('nomic-embed-text');
-      reasons.push('General purpose embedding model');
+    // Try to get Ollama models from registry
+    try {
+      const { getModelsByBackend } = await import('../../config/model-registry.js');
+      const ollamaModels = getModelsByBackend('ollama');
+      
+      if (ollamaModels.length > 0) {
+        // Recommend the first available Ollama model from registry
+        recommended.push(ollamaModels[0].id.replace('ollama:', ''));
+        reasons.push('Recommended Ollama model from registry');
+      } else {
+        // No Ollama models in registry - cannot provide recommendations
+        throw new Error('No Ollama models available in model registry for recommendations');
+      }
+    } catch (error) {
+      // Cannot provide recommendations without registry data
+      throw new Error('Unable to provide model recommendations: registry unavailable or no Ollama models configured');
     }
 
     return { recommended, reasons };
