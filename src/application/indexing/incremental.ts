@@ -82,14 +82,21 @@ export class IncrementalIndexer implements IncrementalIndexing {
       return this.createEmptyResult();
     }
     
+    // Log counts at info level for production
     this.loggingService.info('📌 indexChanges called', {
       newFilesCount: changes.newFiles?.length || 0,
-      newFiles: changes.newFiles || [],
       modifiedFilesCount: changes.modifiedFiles?.length || 0,
-      modifiedFiles: changes.modifiedFiles || [],
-      deletedFilesCount: changes.deletedFiles?.length || 0,
-      deletedFiles: changes.deletedFiles || []
+      deletedFilesCount: changes.deletedFiles?.length || 0
     });
+    
+    // Log full arrays only in debug mode
+    if (process.env.NODE_ENV !== 'production') {
+      this.loggingService.debug('Detailed change arrays', {
+        newFiles: changes.newFiles || [],
+        modifiedFiles: changes.modifiedFiles || [],
+        deletedFiles: changes.deletedFiles || []
+      });
+    }
     
     const filesToProcess = [
       ...changes.newFiles,

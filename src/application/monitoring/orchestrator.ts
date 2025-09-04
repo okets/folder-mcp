@@ -444,12 +444,6 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
             }
           };
           
-          // Debug log the changes object
-          this.loggingService.info(`📝 Changes to be processed`, {
-            newFiles: changes.newFiles,
-            modifiedFiles: changes.modifiedFiles,
-            deletedFiles: changes.deletedFiles
-          });
           
           // Check if incremental indexer is available
           if (!this.incrementalIndexer) {

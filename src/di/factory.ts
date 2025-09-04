@@ -273,8 +273,8 @@ export class ServiceFactory implements IServiceFactory {
   }
   async createMonitoringOrchestrator(container: DependencyContainer): Promise<any> {
     const { MonitoringOrchestrator } = await import('../application/monitoring/orchestrator.js');
-    const { IncrementalIndexer } = await import('../application/indexing/incremental.js');
     const incrementalIndexer = await container.resolveAsync(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING) as IncrementalIndexer;
+    // …rest of the function…
     return new MonitoringOrchestrator(
       container.resolve(SERVICE_TOKENS.FILE_PARSING),
       container.resolve(SERVICE_TOKENS.CACHE),
