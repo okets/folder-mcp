@@ -147,10 +147,12 @@ recreating steps:
 4. restart the daemon. a full re-indexing starts again eventhough it should not.
 
 **MCP endpoint Folder name concerns**
-When querying the MCP endpoint, we need to ensure that the folder names are handled correctly. This includes:
-1. Normalizing folder names to avoid issues with casing or special characters. (I am not sure we really have an issue here, but we need to check.)
-2. Ensuring that folder names are unique. This means that if we index two folders with different paths but the same name, we need to differentiate between them in the MCP.
+following Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md implementation. I have a concern about how folder names are handled in the MCP.
+When querying the MCP endpoint, we need to ensure that the folder names are handled correctly.
+This means that if we index two folders with different paths but the same name the mcp interface might break or have unexpected behavior.
+I am also concerned about normalizing folder names to avoid issues with casing or special characters. (I am not sure we really have an issue here, but we need to check.)
 I need advice on how to implement this effectively.
+you have a special expertise I need, you are a coding agent, my folder-mcp endpoints are designed for you as a tool.
 
 
 **Ultimate end to end test**
