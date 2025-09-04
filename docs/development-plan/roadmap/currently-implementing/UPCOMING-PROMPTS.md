@@ -137,10 +137,6 @@ If you need a Human to reconnect the MCP. (we are working on it live, it might b
 This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Tasks
-**Autorun Daemon**
-When running the mcp server, if the daemon is not found, I thought maybe we can bring it up online instead of failing the request. can we do that or is there a an architectural difficulty?
-this will ensure that the daemon will run when an LLM wants it.
-Since you are an agent, you have better undestanding than mine about when mcp-server.js runs. as a human, All I had to do was to give you a connection string with a "node" command. but I don't know when you call it. it's part of your coding.
 
 **re-indexing bug ??Verify that is still exists as we changed the indexing process**
 re-indexing when no changes bug:
@@ -152,7 +148,7 @@ recreating steps:
 
 **MCP endpoint Folder name concerns**
 When querying the MCP endpoint, we need to ensure that the folder names are handled correctly. This includes:
-1. Normalizing folder names to avoid issues with casing or special characters. I am not sure we have an issue here, but we need to check.
+1. Normalizing folder names to avoid issues with casing or special characters. (I am not sure we really have an issue here, but we need to check.)
 2. Ensuring that folder names are unique. This means that if we index two folders with different paths but the same name, we need to differentiate between them in the MCP.
 I need advice on how to implement this effectively.
 
@@ -174,3 +170,5 @@ in /Users/hanan/Projects/folder-mcp/src/config/model-registry.ts
 this method: getModelsByBackend(backend: 'python' | 'onnx' | 'ollama'): any[]
 should return installed Ollama models.
 ─────────────────────────────────────────────────────────────────────────────────────
+-------------------Code Rabbit
+My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!

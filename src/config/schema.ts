@@ -170,6 +170,7 @@ export interface LocalConfig {
   // Daemon configuration
   daemon?: {
     enabled?: boolean;
+    autoSpawn?: boolean;
     port?: number;
     pidFile?: string;
     healthCheck?: {
@@ -534,6 +535,13 @@ export const VALIDATION_RULES: ValidationRule[] = [
     default: 10000,
     message: 'Shutdown timeout must be between 1 and 60 seconds',
     fix: 'Set shutdown timeout between 1000 and 60000 milliseconds'
+  },
+  {
+    field: 'daemon.autoSpawn',
+    type: 'boolean',
+    default: true,
+    message: 'Auto-spawn daemon must be a boolean value',
+    fix: 'Set daemon.autoSpawn to true or false'
   }
 ];
 
@@ -635,6 +643,7 @@ export const DEFAULT_VALUES = {
   
   daemon: {
     enabled: false,
+    autoSpawn: true,
     port: undefined as number | undefined,
     pidFile: undefined as string | undefined,
     healthCheck: {
@@ -761,6 +770,7 @@ export function getTransportDefaults(): TransportConfig {
 export function getDaemonDefaults() {
   return {
     enabled: DEFAULT_VALUES.daemon.enabled,
+    autoSpawn: DEFAULT_VALUES.daemon.autoSpawn,
     port: DEFAULT_VALUES.daemon.port,
     pidFile: DEFAULT_VALUES.daemon.pidFile,
     healthCheck: { ...DEFAULT_VALUES.daemon.healthCheck },

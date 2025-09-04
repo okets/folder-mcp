@@ -370,26 +370,74 @@ export class EmbeddingService implements IEmbeddingService {
 
   /**
    * Helper function to safely load embedding service with error handling
+   * Supports both named and default exports with comprehensive validation
    */
   private async loadEmbeddingService<T extends IEmbeddingService>(
     modulePath: string, 
     constructorName: string, 
     options: Record<string, any>
   ): Promise<T> {
+    let chosenExportKey: string = '';
+    let ServiceConstructor: any = null;
+    
     try {
       const module = await import(modulePath);
-      const ServiceConstructor = module[constructorName];
       
-      if (!ServiceConstructor) {
-        throw new Error(`Constructor ${constructorName} not found in module ${modulePath}`);
+      // Try named export first, then default export
+      if (module[constructorName]) {
+        ServiceConstructor = module[constructorName];
+        chosenExportKey = constructorName;
+      } else if (module.default) {
+        ServiceConstructor = module.default;
+        chosenExportKey = 'default';
+      } else {
+        throw new Error(
+          `Neither named export '${constructorName}' nor default export found in module ${modulePath}. ` +
+          `Available exports: ${Object.keys(module).join(', ')}`
+        );
       }
       
-      return new ServiceConstructor(options);
+      // Validate that the resolved export is constructable
+      if (typeof ServiceConstructor !== 'function') {
+        throw new Error(
+          `Export '${chosenExportKey}' in module ${modulePath} is not a constructable function/class. ` +
+          `Got: ${typeof ServiceConstructor}`
+        );
+      }
+      
+      // Instantiate the service
+      let instance: T;
+      try {
+        instance = new ServiceConstructor(options);
+      } catch (constructorError) {
+        throw new Error(
+          `Failed to instantiate ${chosenExportKey} from module ${modulePath}: ${constructorError instanceof Error ? constructorError.message : String(constructorError)}`
+        );
+      }
+      
+      // Validate the created instance implements the expected embedding API
+      const requiredMethods = ['initialize', 'generateEmbeddings', 'generateQueryEmbedding', 'generateSingleEmbedding', 'calculateSimilarity', 'getModelConfig'];
+      const missingMethods = requiredMethods.filter(method => 
+        typeof instance[method as keyof T] !== 'function'
+      );
+      
+      if (missingMethods.length > 0) {
+        throw new Error(
+          `Instance from ${chosenExportKey} export in module ${modulePath} does not implement required embedding API. ` +
+          `Missing methods: ${missingMethods.join(', ')}. ` +
+          `Available methods: ${Object.getOwnPropertyNames(Object.getPrototypeOf(instance)).filter(name => name !== 'constructor' && typeof instance[name as keyof T] === 'function').join(', ')}`
+        );
+      }
+      
+      return instance;
+      
     } catch (error) {
       this.loggingService.error('Failed to load embedding service', error instanceof Error ? error : new Error(String(error)), { 
         modulePath, 
-        constructorName, 
-        options 
+        requestedConstructor: constructorName,
+        chosenExportKey: chosenExportKey || 'none',
+        options,
+        validationStage: ServiceConstructor ? (chosenExportKey ? 'instance_validation' : 'export_resolution') : 'module_import'
       });
       throw error; // Re-throw to allow caller to handle
     }

@@ -60,6 +60,8 @@ export interface PerformanceConfig {
 export interface DaemonConfig {
   /** Enable daemon mode */
   enabled: boolean;
+  /** Automatically start daemon if not running (for MCP server) */
+  autoSpawn?: boolean;
   /** Optional port for daemon communication (if needed) */
   port?: number;
   /** Path to PID file for process tracking */
@@ -83,6 +85,7 @@ export interface DaemonConfig {
  */
 export const DEFAULT_DAEMON_CONFIG: DaemonConfig = {
   enabled: false, // Disabled by default for safety
+  autoSpawn: true, // Auto-spawn enabled by default for better UX
   // port and pidFile are optional and undefined by default
   healthCheck: {
     enabled: true,
