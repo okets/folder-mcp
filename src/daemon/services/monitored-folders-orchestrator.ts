@@ -779,7 +779,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     // Shutdown resource manager first to stop accepting new operations
     try {
       this.logger.info('[ORCHESTRATOR] Shutting down resource manager');
-      await this.resourceManager.shutdown();
+      await this.resourceManager.shutdown(false);
       this.logger.info('[ORCHESTRATOR] Resource manager shutdown complete');
     } catch (error) {
       this.logger.error('[ORCHESTRATOR] Error shutting down resource manager:', error instanceof Error ? error : new Error(String(error)));

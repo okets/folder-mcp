@@ -169,7 +169,8 @@ We offer 5 models, 2 CPU and 3 GPU models. *Run this test 5 times! one for each 
  - query the database, see that the embeddings are correct and using the same dimensions as the selected model.
  - now YOU are the final test! use folder-mcp mcp server and use the semantic search endpoint to ask about the secret. see if it's being fetched.
 
-
+**planning Ollama support:**
+in /Users/hanan/Projects/folder-mcp/src/config/model-registry.ts
+this method: getModelsByBackend(backend: 'python' | 'onnx' | 'ollama'): any[]
+should return installed Ollama models.
 ─────────────────────────────────────────────────────────────────────────────────────
---------------------- Code Rabbit
-My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!

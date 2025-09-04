@@ -27,6 +27,7 @@ import { useFMDM, useConfiguredFolders, useFMDMOperations, useFMDMConnection } f
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
+import { getDefaultModelId } from '../../config/model-registry';
 import { FolderIndexingStatus } from '../../daemon/models/fmdm';
 import { createValidationResult, ValidationState } from './components/core/ValidationState';
 import { spawn } from 'child_process';
@@ -308,7 +309,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         if (folder.model && folder.model !== 'unknown') {
                             return folder.model;
                         }
-                        throw new Error(`No valid model found for folder ${folderPath}. Model registry may be corrupted or folder configuration is invalid.`);
+                        // Log error but use fallback to prevent UI crash
+                        console.error(`Warning: No valid model found for folder ${folderPath}. Using default model.`);
+                        return getDefaultModelId(); // Fallback to default model
                     })(),
                     isValid: folderValid,
                     folderStatus: (() => {

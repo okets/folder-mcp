@@ -271,18 +271,6 @@ export class ServiceFactory implements IServiceFactory {
       throw error;
     }
   }
-  async createMonitoringOrchestrator(container: DependencyContainer): Promise<any> {
-    const { MonitoringOrchestrator } = await import('../application/monitoring/orchestrator.js');
-    const incrementalIndexer = await container.resolveAsync(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING) as IncrementalIndexer;
-    // …rest of the function…
-    return new MonitoringOrchestrator(
-      container.resolve(SERVICE_TOKENS.FILE_PARSING),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      incrementalIndexer
-    );
-  }
   async createHealthMonitoringService(container: DependencyContainer): Promise<any> {
     const { HealthMonitoringService } = await import('../application/monitoring/health.js');
     return new HealthMonitoringService(

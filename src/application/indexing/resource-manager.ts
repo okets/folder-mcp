@@ -235,14 +235,34 @@ export class ResourceManager extends EventEmitter {
 
     /**
      * Shutdown the resource manager
+     * @param force If true, performs immediate shutdown without waiting for active operations
      */
-    async shutdown(): Promise<void> {
+    async shutdown(force: boolean = false): Promise<void> {
         this.isShuttingDown = true;
 
         // Cancel all operations
         await this.cancelAll();
 
-        // Wait for active operations
+        if (force) {
+            // Immediate shutdown: forcibly clear active operations
+            this.logger?.warn(`Forcing immediate shutdown with ${this.activeOperations.size} active operations`);
+            
+            // Reject all active operations
+            for (const [operationId, operation] of this.activeOperations) {
+                try {
+                    operation.reject(new Error('Resource manager forced shutdown'));
+                } catch (error) {
+                    this.logger?.error(`Error rejecting operation ${operationId} during forced shutdown`, error instanceof Error ? error : new Error(String(error)));
+                }
+            }
+            
+            // Forcibly clear the active operations map
+            this.activeOperations.clear();
+            this.logger?.info('Forced shutdown completed - all active operations terminated');
+            return;
+        }
+
+        // Normal shutdown: wait for active operations
         const timeout = 30000; // 30 seconds
         const startTime = Date.now();
         

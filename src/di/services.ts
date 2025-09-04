@@ -368,19 +368,69 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
+  /**
+   * Helper function to safely load embedding service with error handling
+   */
+  private async loadEmbeddingService<T extends IEmbeddingService>(
+    modulePath: string, 
+    constructorName: string, 
+    options: Record<string, any>
+  ): Promise<T> {
+    try {
+      const module = await import(modulePath);
+      const ServiceConstructor = module[constructorName];
+      
+      if (!ServiceConstructor) {
+        throw new Error(`Constructor ${constructorName} not found in module ${modulePath}`);
+      }
+      
+      return new ServiceConstructor(options);
+    } catch (error) {
+      this.loggingService.error('Failed to load embedding service', error instanceof Error ? error : new Error(String(error)), { 
+        modulePath, 
+        constructorName, 
+        options 
+      });
+      throw error; // Re-throw to allow caller to handle
+    }
+  }
+
+  /**
+   * Helper function to get model name with proper error handling
+   * curated-models.json is the ONLY source of truth - no hardcoded fallbacks allowed
+   */
+  private async getModelNameWithFallback(): Promise<string> {
+    // If we have a configured model name, use it
+    if (this.config.modelName) {
+      return this.config.modelName;
+    }
+
+    // Import from registry - this should never fail as curated-models.json is a static file
+    try {
+      const { getDefaultModelId } = await import('../config/model-registry.js');
+      return getDefaultModelId();
+    } catch (error) {
+      this.loggingService.error('FATAL: Failed to import getDefaultModelId from model registry - this indicates a serious system problem', error instanceof Error ? error : new Error(String(error)));
+      
+      // Re-throw the error - model registry import failure is fatal
+      // curated-models.json is our single source of truth and must be available
+      throw new Error(`Failed to load model registry: ${error instanceof Error ? error.message : String(error)}. This is a fatal error as curated-models.json is the only source of truth for model information.`);
+    }
+  }
+
   private async initializePythonService(): Promise<void> {
-    const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
+    const modelName = await this.getModelNameWithFallback();
     
-    // Use model name from registry directly - no mapping needed
-    const { getDefaultModelId } = await import('../config/model-registry.js');
-    const modelName = this.config.modelName || getDefaultModelId();
-    
-    this.embeddingModel = new PythonEmbeddingService({
-      modelName,
-      timeout: 30000,
-      maxRetries: 3,
-      healthCheckInterval: 30000
-    });
+    this.embeddingModel = await this.loadEmbeddingService<IEmbeddingService>(
+      '../infrastructure/embeddings/python-embedding-service.js',
+      'PythonEmbeddingService',
+      {
+        modelName,
+        timeout: 30000,
+        maxRetries: 3,
+        healthCheckInterval: 30000
+      }
+    );
     
     await this.embeddingModel.initialize();
     this.initialized = true;
@@ -393,11 +443,15 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
   private async initializeOllamaService(): Promise<void> {
-    const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
-    const { getDefaultModelId } = await import('../config/model-registry.js');
-    this.embeddingModel = new OllamaEmbeddingService({
-      model: this.config.modelName || getDefaultModelId()
-    });
+    const modelName = await this.getModelNameWithFallback();
+    
+    this.embeddingModel = await this.loadEmbeddingService<IEmbeddingService>(
+      '../infrastructure/embeddings/ollama-embedding-service.js',
+      'OllamaEmbeddingService',
+      {
+        model: modelName
+      }
+    );
     
     await this.embeddingModel.initialize();
     this.initialized = true;

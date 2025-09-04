@@ -313,7 +313,7 @@ export class MultiFolderIndexingWorkflow implements IMultiFolderIndexingWorkflow
         });
         
         // Shutdown resource manager
-        await this.resourceManager.shutdown();
+        await this.resourceManager.shutdown(false);
         this.resourceManager = null;
       }
     }

@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { getSupportedGpuModelIds, getModelDisplayName } from '../../../config/model-registry.js';
 
 export interface ModelInfo {
   name: string;
@@ -19,7 +20,6 @@ export interface ModelInfo {
  * For Phase 8 Task 10, we use curated Python models only
  */
 export function getPythonModels(): ModelInfo[] {
-  const { getSupportedGpuModelIds, getModelDisplayName } = require('../../../config/model-registry.js');
   const gpuModelIds = getSupportedGpuModelIds();
   
   if (gpuModelIds.length === 0) {
