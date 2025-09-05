@@ -53,11 +53,13 @@
    - Sprint 6: Document Operations (Document Content + Outline Endpoints) ✅
    - **Action**: Create PR after Sprint 6 completion ← **NOW**
 
-3. **Sprints 7-9**: Create new branch `phase-9-search-integration`
-   - Sprint 7: Search Implementation
-   - Sprint 7.5: Performance & Optimization and use real data. no mocks!
+3. **Sprints 7-10**: Create new branch `phase-9-search-integration`
+   - Sprint 7: Search Implementation ✅
+   - Sprint 7.5: Performance & Optimization and use real data. no mocks! ✅
    - Sprint 8: Legacy Cleanup
-   - **Action**: Create PR after Sprint 8 completion
+   - Sprint 9: Fix ONNX Model Performance & Embeddings/Metadata Alignment 
+   - Sprint 10: Semantic Metadata Enhancement
+   - **Action**: Create PR after Sprint 10 completion
 
 ---
 
@@ -118,7 +120,7 @@
 ## Executive Summary
 **Executive Summary**: Transform MCP endpoints from single-folder to multi-folder architecture using a hybrid approach: **REST API for MCP operations (stateless)** + **WebSocket for TUI updates (real-time)**, with complete legacy code removal.
 
-**Timeline**: 9 sprints over 18 days (includes legacy cleanup sprint)
+**Timeline**: 10 sprints over 22 days (includes legacy cleanup and semantic enhancement sprints)
 **Approach**: No backward compatibility - clean break to multi-folder only
 
 ## 🚀 ARCHITECTURAL VISION
@@ -1704,6 +1706,210 @@ Each sprint is considered complete only when ALL criteria are met:
 - [x] **Performance Tuning**: Optimization strategies, benchmarking, scaling considerations  
 - [x] **Security Guide**: Authentication setup, best practices, threat mitigation
 - [x] **Monitoring & Logging**: Observability setup, alerting, debugging procedures
+
+---
+
+## Sprint 10: Semantic Metadata Enhancement (Days 21-22)
+**🎯 Goal**: Enhance MCP endpoints with semantic metadata (key phrases, topics, readability) extracted from content without LLMs
+
+### Problem Statement
+The ContentProcessingService exists but is completely orphaned - never imported or used anywhere in the codebase. Meanwhile, MCP endpoints like `list_folders`, `list_documents`, and `get_document_outline` provide only basic structural information without semantic insight.
+
+**Discovery Method**: Tree-sitter analysis confirmed ContentProcessingService contains semantic extraction functions (`extractKeyPhrases`, `detectTopics`, `calculateReadabilityScore`) but has zero usage throughout the codebase.
+
+### Features to Deliver
+
+#### 1. Semantic Content Analysis During Indexing
+**WHAT**: Every document chunk gets analyzed for semantic meaning during the indexing process
+- **Key phrase extraction**: Identify the most important phrases that represent chunk content
+- **Topic detection**: Categorize content by subject matter themes
+- **Readability scoring**: Measure content complexity and accessibility
+- **Error resilience**: System continues working even when semantic analysis fails
+  - Documents with failed semantic extraction still get indexed with embeddings
+  - Failed chunks marked as `semantic_processed: false` but remain searchable
+  - Folder summaries computed from successfully processed chunks only
+  - MCP endpoints show "semantic data unavailable" for failed extractions
+
+#### 2. Folder-Level Semantic Summaries  
+**WHAT**: Each folder gets an intelligent summary of its collective content
+- **Top topics**: Most common themes across all documents in the folder
+- **Key phrase overview**: Most frequent important phrases across folder content
+- **Readability profile**: Average complexity level of folder's documents  
+- **Content insights**: High-level understanding of what the folder contains
+
+#### 3. Enhanced MCP Endpoint Responses
+**WHAT**: MCP tools return richer, more intelligent information about content
+
+**list_folders with semantic previews**:
+- Show top 3 topics per folder (e.g., "Software Development, API Design, Database")
+- Include readability indicators (Simple/Standard/Complex)
+- Optional semantic data via parameter flag
+
+**list_documents with content hints**:
+- Display key phrases per document for quick content understanding
+- Show primary topic classification per document
+- Enable filtering by topic or complexity level
+
+**get_document_outline with semantic navigation**:
+- Identify main themes within document sections
+- Extract key phrases for each outline section
+- Enable topic-based navigation through document structure
+
+#### 4. Smart Recalculation System
+**WHAT**: Semantic summaries stay up-to-date automatically without performance impact
+- **Change detection**: Only recalculate when folder content actually changes
+- **Efficient updates**: Leverage database capabilities for fast aggregation
+- **Zero query overhead**: All semantic data pre-calculated for instant retrieval
+- **Migration support**: Existing indexed folders automatically get semantic enhancement on first access without full re-indexing
+
+### Success Criteria
+
+#### Functional Requirements
+- [ ] **ContentProcessingService integrated**: Service successfully wired into indexing pipeline with all functions operational
+- [ ] **Database schema extended**: New semantic columns created and populated during indexing
+- [ ] **Folder semantic aggregation**: Folder-level topic and readability summaries computed and cached
+- [ ] **Enhanced MCP endpoints**: All three endpoints return meaningful semantic metadata
+- [ ] **Graceful degradation**: System continues working when semantic extraction fails
+
+#### Performance Requirements  
+- [ ] **Indexing overhead < 15%**: Semantic extraction adds minimal time to indexing process
+- [ ] **Aggregation time < 1s**: Folder semantic recalculation completes quickly even for large folders
+- [ ] **Endpoint response time < 200ms**: Pre-calculated semantic data retrieval is very fast
+- [ ] **Selective recalculation**: Only folders with actual document changes trigger reaggregation
+- [ ] **Dynamic update accuracy**: Folder keyword summaries reflect document additions/removals/updates within one recalculation cycle
+
+#### Quality Requirements
+- [ ] **Key phrases relevance**: 80%+ of extracted phrases should be meaningful content identifiers (validated through subagent testing)
+- [ ] **Topic accuracy**: Topics should align with document subjects as confirmed by fresh-context agent evaluation
+- [ ] **Readability correlation**: Scores should show meaningful differences between simple vs complex documents in same folder
+- [ ] **Aggregation accuracy**: Folder-level summaries should represent the majority themes across constituent documents
+- [ ] **Error resilience**: System functions normally even when 30%+ of documents have semantic extraction failures
+
+### Testing Strategy
+
+#### Fresh-Context Subagent Discovery Testing (Primary)
+**Methodology**: Deploy subagent with zero prior knowledge of semantic features to test natural discovery patterns.
+
+**Test Scenarios**:
+
+**Scenario 1: Folder Content Discovery**
+```markdown
+**Subagent Task**: "I need to understand what's in the 'folder-mcp' folder. Help me get a quick overview of its contents and themes."
+
+**Expected Discovery Path**:
+1. Agent calls mcp__folder-mcp__list_folders
+2. Discovers topic previews (e.g., "Software Development, Database, API")
+3. Discovers readability indicators automatically
+4. Reports: "I found topic summaries that helped me understand folder content immediately"
+
+**Validation Questions**:
+- Did the agent discover semantic previews naturally?
+- Were the topic previews helpful for understanding folder content?
+- Was the information easy to find and interpret?
+```
+
+**Scenario 2: Document Content Navigation**
+```markdown
+**Subagent Task**: "Find documents related to 'database' topics in the folder-mcp folder. I want to understand what's available without reading full documents."
+
+**Expected Discovery Path**:
+1. Agent calls mcp__folder-mcp__list_documents with folder-mcp
+2. Discovers key phrases and topic classifications per document
+3. Identifies database-related documents via semantic hints
+4. Reports: "I found documents with 'database' topics clearly labeled, plus key phrases that helped me understand content without reading"
+
+**Validation Questions**:
+- Could the agent find relevant documents using semantic hints?
+- Were key phrases informative enough to understand document content?
+- Was topic-based filtering discoverable and useful?
+```
+
+**Scenario 3: Document Structure Understanding**
+```markdown
+**Subagent Task**: "I need to navigate through a complex document to find sections about 'performance'. Help me understand the document structure."
+
+**Expected Discovery Path**:
+1. Agent calls mcp__folder-mcp__get_document_outline for a large document
+2. Discovers section-level topics and key phrases
+3. Uses semantic navigation to locate performance-related sections
+4. Reports: "I found section topics that helped me navigate directly to performance content"
+
+**Validation Questions**:
+- Did section-level semantics help with document navigation?
+- Were the semantic hints accurate for finding specific topics?
+- Was the semantic navigation intuitive to use?
+```
+
+**Success Criteria for Each Scenario**:
+- [ ] **Natural Discovery**: Agent finds semantic features without guidance
+- [ ] **Usability Positive**: Agent reports features were "easy to find" and "helpful"
+- [ ] **Accuracy Validation**: Semantic data correctly represents actual content
+- [ ] **Performance Acceptable**: Agent doesn't report delays or slowness
+
+**Scenario 4: Dynamic Keyword Updates**
+```markdown
+**Subagent Task**: "I want to verify that folder topic summaries accurately reflect changes when documents are modified. Help me test this by observing folder semantics before and after document changes."
+
+**Expected Discovery Path**:
+1. Agent calls mcp__folder-mcp__list_folders to establish baseline topics
+2. Test conductor adds new document with distinct topics (e.g., "blockchain", "cryptocurrency")
+3. Agent calls mcp__folder-mcp__list_folders again
+4. Agent observes new topics appear in folder summary
+5. Test conductor removes document with specific topics
+6. Agent verifies those topics disappear from folder summary
+7. Test conductor updates existing document content significantly
+8. Agent confirms folder topics reflect the content changes
+
+**Validation Questions**:
+- Do new document topics appear in folder summaries automatically?
+- Do removed document topics disappear from folder summaries?
+- Do updated document changes reflect in aggregated folder topics?
+- Are topic frequency rankings updated correctly?
+- Does the agent find the semantic changes intuitive and accurate?
+
+**Test Data Requirements**:
+- Documents with clearly distinct topics for easy validation
+- Content changes that significantly alter semantic profile
+- Verification that changes propagate within reasonable time
+```
+
+#### Database Validation
+```bash
+# Check semantic data storage
+sqlite3 .folder-mcp/embeddings.db "
+SELECT file_path, key_phrases, topics, readability_score 
+FROM chunks 
+WHERE semantic_processed = 1 
+LIMIT 5;"
+
+# Verify folder-level aggregations
+sqlite3 .folder-mcp/embeddings.db "
+SELECT folder_path, top_topics, avg_readability, doc_count 
+FROM folder_semantic_summary;"
+```
+
+#### Performance Testing
+- **Indexing benchmarks**: Compare indexing speed with/without semantic extraction
+- **Aggregation benchmarks**: Measure SQL aggregation time for different folder sizes (100, 1K, 10K documents)
+- **Endpoint response times**: Verify pre-calculated semantic data retrieval speed
+- **Change detection accuracy**: Ensure recalculation only occurs when actually needed
+
+### Implementation Priority
+1. **Semantic content analysis** (Day 21 AM) - Enable semantic extraction during indexing
+   - *Test after completion*: Verify chunks get semantic metadata, error handling works
+2. **Folder-level summaries** (Day 21 PM) - Aggregate semantic data per folder  
+   - *Test after completion*: Verify folder summaries reflect chunk data accurately
+3. **Smart recalculation** (Day 22 AM) - Efficient update system for semantic summaries
+   - *Test after completion*: Verify change detection and selective recalculation
+4. **Enhanced MCP endpoints** (Day 22 PM) - Deliver semantic data through MCP tools
+   - *Test after completion*: Deploy fresh-context subagent discovery testing
+
+### Technical Approach
+- **No LLM dependency**: All semantic extraction uses rule-based algorithms, no external AI services
+- **Database-driven aggregation**: Use SQL capabilities for efficient folder-level summaries
+- **Change-triggered updates**: Smart recalculation only when content actually changes
+- **Embedding preservation**: Semantic data supplements existing vector search capabilities  
+- **Performance first**: Zero query-time overhead through pre-calculated summaries
 
 ---
 

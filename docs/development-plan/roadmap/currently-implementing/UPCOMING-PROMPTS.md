@@ -137,23 +137,17 @@ If you need a Human to reconnect the MCP. (we are working on it live, it might b
 This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Tasks
+**mcp-server recovery**
+if calling the MCP server fails because the daemon was shut down, and an agent (such as yourself) that already connected, tries calling any of our endpoints, we need to try and bring the daemon online before returning an error. once an mcp-server endpoint fails, it's a pain to make the agent use it again.
 
-**re-indexing bug ??Verify that is still exists as we changed the indexing process**
+**re-indexing bug**
 re-indexing when no changes bug:
 recreating steps:
 1. index a folder.
 2. remove .folder-mcp of this folder
 3. restart the daemon. a full re-indexing should take place as it should!
 4. restart the daemon. a full re-indexing starts again eventhough it should not.
-
-**MCP endpoint Folder name concerns**
-following Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md implementation. I have a concern about how folder names are handled in the MCP.
-When querying the MCP endpoint, we need to ensure that the folder names are handled correctly.
-This means that if we index two folders with different paths but the same name the mcp interface might break or have unexpected behavior.
-I am also concerned about normalizing folder names to avoid issues with casing or special characters. (I am not sure we really have an issue here, but we need to check.)
-I need advice on how to implement this effectively.
-you have a special expertise I need, you are a coding agent, my folder-mcp endpoints are designed for you as a tool.
-
+You should know that just a regular daemon restarts does not cause this bug. Just this scenario.
 
 **Ultimate end to end test**
 I want to test that all of our curated models are working properly.

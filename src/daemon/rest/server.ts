@@ -21,6 +21,7 @@ import type { TextChunk, EmbeddingVector } from '../../types/index.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
 import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
+import { PathNormalizer } from '../utils/path-normalizer.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -450,8 +451,8 @@ export class RESTAPIServer {
         return;
       }
 
-      // Find folder directly by path
-      const folder = folders.find(f => f.path === folderPath);
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
       if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
@@ -543,8 +544,8 @@ export class RESTAPIServer {
         return;
       }
 
-      // Find folder directly by path
-      const folder = folders.find(f => f.path === folderPath);
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
       if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
@@ -636,8 +637,8 @@ export class RESTAPIServer {
         return;
       }
 
-      // Find folder directly by path
-      const folder = folders.find(f => f.path === folderPath);
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
       if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
@@ -750,8 +751,8 @@ export class RESTAPIServer {
         return;
       }
 
-      // Find folder directly by path and validate folder exists
-      const folder = folders.find(f => f.path === folderPath);
+      // Find folder using normalized path matching and validate folder exists
+      const folder = PathNormalizer.findByPath(folders, folderPath);
       if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
