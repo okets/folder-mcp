@@ -538,33 +538,6 @@ export class DocumentService {
     return metadata;
   }
 
-  /**
-   * Resolve folder ID to actual folder path from FMDM
-   */
-  static resolveFolderPath(folderId: string, folders: any[]): { path: string; folder: any } | null {
-    // Find folder by generating ID from each path and comparing
-    for (const folder of folders) {
-      const generatedId = DocumentService.generateFolderId(folder.path);
-      if (generatedId === folderId) {
-        return { path: folder.path, folder };
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Generate folder ID from path (same logic as in REST server)
-   */
-  static generateFolderId(folderPath: string): string {
-    const pathParts = folderPath.split(/[/\\]/);
-    const lastPart = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2] || 'unknown';
-    
-    return lastPart
-      .toLowerCase()
-      .replace(/[^a-z0-9\-_]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  }
 
   /**
    * Resolve document ID to actual file path (Sprint 6)

@@ -19,7 +19,15 @@ export interface FolderConfig {
   status: 'active' | 'indexing' | 'pending' | 'error';
   documentCount?: number;
   lastIndexed?: string;
-  topics?: string[];
+  // Topics will be added in Sprint 10
+  // topics?: string[];
+  
+  // Enhanced metadata for better decision making
+  indexingProgress?: number;      // 0-100 for indexing status
+  errorMessage?: string;           // Error details if status is 'error'
+  documentTypes?: Record<string, number>;  // e.g., {"pdf": 45, "docx": 30}
+  totalSize?: number;              // Total size in bytes
+  lastAccessed?: string;           // ISO timestamp of last access
 }
 
 export interface DaemonRESTClientOptions {
@@ -260,7 +268,7 @@ export class DaemonRESTClient {
    * List documents in a specific folder (Sprint 5)
    */
   async getDocuments(
-    folderId: string, 
+    folderPath: string, 
     options: {
       limit?: number;
       offset?: number;
@@ -306,7 +314,8 @@ export class DaemonRESTClient {
     if (options.type) params.append('type', options.type);
 
     const queryString = params.toString();
-    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents${queryString ? '?' + queryString : ''}`;
+    // Use path as identifier - encode it properly for URL
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents${queryString ? '?' + queryString : ''}`;
 
     return await this.makeRequest(path);
   }
@@ -315,7 +324,7 @@ export class DaemonRESTClient {
    * Get specific document content (Sprint 6)
    */
   async getDocumentData(
-    folderId: string,
+    folderPath: string,
     docId: string
   ): Promise<{
     folderContext: {
@@ -334,7 +343,7 @@ export class DaemonRESTClient {
       metadata: any;
     };
   }> {
-    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}`;
     return await this.makeRequest(path);
   }
 
@@ -342,7 +351,7 @@ export class DaemonRESTClient {
    * Get document outline/structure (Sprint 6)
    */
   async getDocumentOutline(
-    folderId: string,
+    folderPath: string,
     docId: string
   ): Promise<{
     folderContext: {
@@ -383,7 +392,7 @@ export class DaemonRESTClient {
       }>;
     };
   }> {
-    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/documents/${encodeURIComponent(docId)}/outline`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/outline`;
     return await this.makeRequest(path);
   }
 
@@ -391,7 +400,7 @@ export class DaemonRESTClient {
    * Search within a specific folder (Sprint 7)
    */
   async searchFolder(
-    folderId: string,
+    folderPath: string,
     searchParams: {
       query: string;
       limit?: number;
@@ -434,7 +443,7 @@ export class DaemonRESTClient {
       throw new Error('Not connected to daemon. Call connect() first.');
     }
 
-    const path = `/api/v1/folders/${encodeURIComponent(folderId)}/search`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/search`;
     
     // Make POST request with search parameters in body
     return await this.makeRequest(path, {

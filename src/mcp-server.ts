@@ -225,9 +225,9 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           inputSchema: {
             type: 'object',
             properties: {
-              folder_id: {
+              folder_path: {
                 type: 'string',
-                description: 'Folder ID to list documents from'
+                description: 'Full path of the folder to list documents from'
               },
               limit: {
                 type: 'number',
@@ -236,7 +236,7 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
                 maximum: 100
               }
             },
-            required: ['folder_id']
+            required: ['folder_path']
           }
         },
         {
@@ -249,9 +249,9 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
                 type: 'string',
                 description: 'Search query'
               },
-              folder_id: {
+              folder_path: {
                 type: 'string',
-                description: 'Folder ID to search within (required for folder-specific search)'
+                description: 'Full path of the folder to search within (required for folder-specific search)'
               },
               threshold: {
                 type: 'number',
@@ -268,7 +268,7 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
                 default: 10
               }
             },
-            required: ['query', 'folder_id']
+            required: ['query', 'folder_path']
           }
         },
         {
@@ -277,16 +277,16 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           inputSchema: {
             type: 'object',
             properties: {
-              folder_id: {
+              folder_path: {
                 type: 'string',
-                description: 'Folder ID containing the document'
+                description: 'Full path of the folder containing the document'
               },
               document_id: {
                 type: 'string',
                 description: 'Document ID (filename or generated ID)'
               }
             },
-            required: ['folder_id', 'document_id']
+            required: ['folder_path', 'document_id']
           }
         },
         {
@@ -295,16 +295,16 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           inputSchema: {
             type: 'object',
             properties: {
-              folder_id: {
+              folder_path: {
                 type: 'string',
-                description: 'Folder ID containing the document'
+                description: 'Full path of the folder containing the document'
               },
               document_id: {
                 type: 'string',
                 description: 'Document ID (filename or generated ID)'
               }
             },
-            required: ['folder_id', 'document_id']
+            required: ['folder_path', 'document_id']
           }
         }
       ]
@@ -328,35 +328,35 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
         }
         
         case 'list_documents': {
-          const folderId = args?.folder_id as string;
+          const folderPath = args?.folder_path as string;
           const limit = args?.limit as number | undefined;
-          const result = await daemonEndpoints.listDocuments(folderId, limit);
+          const result = await daemonEndpoints.listDocuments(folderPath, limit);
           return result as any;
         }
         
         case 'search': {
           const query = args?.query as string || '';
-          const folderId = args?.folder_id as string | undefined;
+          const folderPath = args?.folder_path as string | undefined;
           const threshold = args?.threshold as number | undefined;
           const limit = args?.limit as number | undefined;
           const options: { threshold?: number; limit?: number } = {};
           if (threshold !== undefined) options.threshold = threshold;
           if (limit !== undefined) options.limit = limit;
-          const result = await daemonEndpoints.search(query, folderId, options);
+          const result = await daemonEndpoints.search(query, folderPath, options);
           return result as any;
         }
         
         case 'get_document_data': {
-          const folderId = args?.folder_id as string;
+          const folderPath = args?.folder_path as string;
           const documentId = args?.document_id as string;
-          const result = await daemonEndpoints.getDocument(folderId, documentId);
+          const result = await daemonEndpoints.getDocument(folderPath, documentId);
           return result as any;
         }
         
         case 'get_document_outline': {
-          const folderId = args?.folder_id as string;
+          const folderPath = args?.folder_path as string;
           const documentId = args?.document_id as string;
-          const result = await daemonEndpoints.getDocumentOutline(folderId, documentId);
+          const result = await daemonEndpoints.getDocumentOutline(folderPath, documentId);
           return result as any;
         }
         

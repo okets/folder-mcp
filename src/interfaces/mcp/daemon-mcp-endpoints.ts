@@ -68,26 +68,97 @@ export class DaemonMCPEndpoints {
 
   /**
    * List available folders via daemon REST API
+   * Shows path as primary identifier with all metadata for decision-making
    */
   async listFolders(): Promise<MCPToolResponse> {
     try {
-      // For now, use the mock implementation from DaemonRESTClient
-      // This will be replaced with actual /api/v1/folders endpoint in Sprint 5
+      // Get folders configuration from daemon
       const folders = await this.daemonClient.getFoldersConfig();
       
-      // Transform to MCP tool response format
-      const folderText = folders.map(folder => 
-        `📁 ${folder.name} (${folder.status})\n` +
-        `   Path: ${folder.path}\n` +
-        `   Model: ${folder.model}\n` +
-        `   Documents: ${folder.documentCount || 0}\n` +
-        `   Last indexed: ${folder.lastIndexed || 'Never'}`
-      ).join('\n\n');
+      // Count folders by status
+      const activeFolders = folders.filter(f => f.status === 'active').length;
+      const indexingFolders = folders.filter(f => f.status === 'indexing').length;
+      const errorFolders = folders.filter(f => f.status === 'error').length;
+      const pendingFolders = folders.filter(f => f.status === 'pending').length;
+      
+      // Extract folder name from path
+      const extractFolderName = (path: string): string => {
+        return path.split('/').pop() || path;
+      };
+      
+      // Format each folder with path as primary identifier
+      const folderText = folders.map(folder => {
+        const statusEmoji = {
+          'active': '✅',
+          'indexing': '⏳',
+          'error': '❌',
+          'pending': '⏸️'
+        }[folder.status] || '❓';
+        
+        let lines = [
+          `📁 ${folder.path}`,
+          `   Name: ${folder.name || extractFolderName(folder.path)}`,
+          `   Status: ${statusEmoji} ${folder.status}`
+        ];
+        
+        // Add indexing progress if applicable
+        if (folder.status === 'indexing' && folder.indexingProgress !== undefined) {
+          lines.push(`   Progress: ${folder.indexingProgress}%`);
+        }
+        
+        // Add error message if applicable
+        if (folder.status === 'error' && folder.errorMessage) {
+          lines.push(`   Error: ${folder.errorMessage}`);
+        }
+        
+        lines.push(
+          `   Model: ${folder.model}`,
+          `   Documents: ${folder.documentCount || 0}`
+        );
+        
+        // Add total size if available
+        if (folder.totalSize !== undefined) {
+          lines.push(`   Total Size: ${this.formatBytes(folder.totalSize)}`);
+        }
+        
+        // Add document types breakdown if available
+        if (folder.documentTypes) {
+          const typesStr = Object.entries(folder.documentTypes)
+            .map(([type, count]) => `${type.toUpperCase()} (${count})`)
+            .join(', ');
+          if (typesStr) {
+            lines.push(`   Types: ${typesStr}`);
+          }
+        }
+        
+        lines.push(`   Last indexed: ${folder.lastIndexed || 'Never'}`);
+        
+        // Add last accessed if available
+        if (folder.lastAccessed) {
+          lines.push(`   Last accessed: ${folder.lastAccessed}`);
+        }
+        
+        return lines.join('\n');
+      }).join('\n\n');
+      
+      // Create header with summary
+      const header = [
+        `🗂️ Available Folders (${folders.length} total)`,
+        `════════════════════════════════════`,
+        ''
+      ];
+      
+      if (folders.length > 0) {
+        header.push(`Status Summary: ${activeFolders} active, ${indexingFolders} indexing, ${pendingFolders} pending, ${errorFolders} errors`);
+        header.push('');
+      }
+      
+      const responseText = header.join('\n') + (folderText || 'No folders configured.');
       
       return {
         content: [{
           type: 'text' as const,
-          text: `Available Folders:\n\n${folderText}`
+          text: responseText
         }]
       };
     } catch (error) {
@@ -102,22 +173,22 @@ export class DaemonMCPEndpoints {
 
   /**
    * Search within a specific folder (Sprint 7 implementation)
-   * Note: folderId is REQUIRED for folder-specific search
+   * Note: folderPath is REQUIRED for folder-specific search
    */
-  async search(query: string, folderId?: string, options?: { threshold?: number; limit?: number }): Promise<MCPToolResponse> {
+  async search(query: string, folderPath?: string, options?: { threshold?: number; limit?: number }): Promise<MCPToolResponse> {
     try {
       // Sprint 7: Folder parameter is now required for search
-      if (!folderId) {
+      if (!folderPath) {
         return {
           content: [{
             type: 'text' as const,
-            text: '❌ Error: Folder ID is required for search.\nPlease specify which folder to search in.\n\nUsage: search(query, folderId)\nExample: search("revenue report", "sales")'
+            text: '❌ Error: Folder path is required for search.\nPlease specify which folder to search in.\n\nUsage: search(query, folderPath)\nExample: search("revenue report", "/Users/alice/Work/Sales")'
           }]
         };
       }
 
       // Call daemon REST API search endpoint with bounds enforcement
-      const searchResponse = await this.daemonClient.searchFolder(folderId, {
+      const searchResponse = await this.daemonClient.searchFolder(folderPath, {
         query,
         limit: Math.min(options?.limit || DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT),
         threshold: options?.threshold ?? SEMANTIC_THRESHOLD,
@@ -129,7 +200,7 @@ export class DaemonMCPEndpoints {
         return {
           content: [{
             type: 'text' as const,
-            text: `🔍 No results found for "${query}" in folder '${folderId}'.\n\nTry:\n• Different search terms\n• Checking if the folder is indexed\n• Verifying the folder ID is correct`
+            text: `🔍 No results found for "${query}" in folder '${folderPath}'.\n\nTry:\n• Different search terms\n• Checking if the folder is indexed\n• Verifying the folder path is correct`
           }]
         };
       }
@@ -173,7 +244,7 @@ export class DaemonMCPEndpoints {
       return {
         content: [{
           type: 'text' as const,
-          text: `❌ Error searching in folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `❌ Error searching in folder '${folderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
@@ -182,10 +253,10 @@ export class DaemonMCPEndpoints {
   /**
    * List documents in a folder (Sprint 5 implementation)
    */
-  async listDocuments(folderId: string, limit: number = 20): Promise<MCPToolResponse> {
+  async listDocuments(folderPath: string, limit: number = 20): Promise<MCPToolResponse> {
     try {
       // Get documents from daemon REST API
-      const response = await this.daemonClient.getDocuments(folderId, { limit });
+      const response = await this.daemonClient.getDocuments(folderPath, { limit });
       
       // Transform to MCP tool response format
       const documentText = response.documents.map(doc => 
@@ -228,7 +299,7 @@ export class DaemonMCPEndpoints {
       return {
         content: [{
           type: 'text' as const,
-          text: `Error listing documents in folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `Error listing documents in folder '${folderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
@@ -237,10 +308,10 @@ export class DaemonMCPEndpoints {
   /**
    * Get document content (Sprint 6)
    */
-  async getDocument(folderId: string, documentId: string): Promise<MCPToolResponse> {
+  async getDocument(folderPath: string, documentId: string): Promise<MCPToolResponse> {
     try {
       // Get document data from daemon REST API
-      const response = await this.daemonClient.getDocumentData(folderId, documentId);
+      const response = await this.daemonClient.getDocumentData(folderPath, documentId);
       
       // Transform to MCP tool response format
       const document = response.document;
@@ -275,7 +346,7 @@ export class DaemonMCPEndpoints {
       return {
         content: [{
           type: 'text' as const,
-          text: `Error retrieving document '${documentId}' from folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `Error retrieving document '${documentId}' from folder '${folderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
@@ -284,10 +355,10 @@ export class DaemonMCPEndpoints {
   /**
    * Get document outline/structure (Sprint 6)
    */
-  async getDocumentOutline(folderId: string, documentId: string): Promise<MCPToolResponse> {
+  async getDocumentOutline(folderPath: string, documentId: string): Promise<MCPToolResponse> {
     try {
       // Get document outline from daemon REST API
-      const response = await this.daemonClient.getDocumentOutline(folderId, documentId);
+      const response = await this.daemonClient.getDocumentOutline(folderPath, documentId);
       
       // Transform to MCP tool response format
       const outline = response.outline;
@@ -374,7 +445,7 @@ export class DaemonMCPEndpoints {
       return {
         content: [{
           type: 'text' as const,
-          text: `Error retrieving outline for document '${documentId}' from folder '${folderId}': ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `Error retrieving outline for document '${documentId}' from folder '${folderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }
