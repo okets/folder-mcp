@@ -5,7 +5,6 @@
  */
 
 import { Worker } from 'worker_threads';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { EventEmitter } from 'events';
@@ -170,7 +169,7 @@ export class ONNXWorkerPool extends EventEmitter {
 
     return new Promise((resolve, reject) => {
       const task: EmbeddingTask = {
-        id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
         texts,
         options
       };
@@ -199,7 +198,6 @@ export class ONNXWorkerPool extends EventEmitter {
     }
 
     // Round-robin selection
-    const startIndex = this.roundRobinIndex;
     let attempts = 0;
 
     while (attempts < this.workers.length) {
@@ -324,13 +322,26 @@ export class ONNXWorkerPool extends EventEmitter {
         }, 5000); // Allow more time for cleanup
         
         // Listen for shutdown acknowledgment
-        workerInfo.worker.once('message', (msg: WorkerResponse) => {
+        const messageHandler = (msg: WorkerResponse) => {
           if (msg.type === 'ready') { // Worker acknowledged shutdown
             clearTimeout(shutdownTimeout);
+            workerInfo.worker.off('message', messageHandler);
             workerInfo.worker.terminate();
             resolve();
           }
-        });
+        };
+        
+        workerInfo.worker.on('message', messageHandler);
+        
+        // Also handle worker exit (in case it exits before sending ready)
+        const exitHandler = () => {
+          clearTimeout(shutdownTimeout);
+          workerInfo.worker.off('message', messageHandler);
+          workerInfo.worker.off('exit', exitHandler);
+          resolve();
+        };
+        
+        workerInfo.worker.once('exit', exitHandler);
       });
     });
 

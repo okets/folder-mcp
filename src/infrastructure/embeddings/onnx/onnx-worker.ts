@@ -153,6 +153,49 @@ async function processEmbeddings(texts: string[], options: any, taskId: string):
 }
 
 /**
+ * Handle graceful shutdown with proper cleanup
+ */
+async function handleShutdown(): Promise<void> {
+  console.log(`[Worker ${workerId}] Shutting down`);
+  
+  // Gracefully clean up ONNX model resources before exit
+  if (model) {
+    try {
+      // If the model has a dispose method, call it
+      if (typeof model.dispose === 'function') {
+        await model.dispose();
+      }
+      // Clear reference
+      model = null;
+      console.log(`[Worker ${workerId}] Model resources cleaned up`);
+    } catch (error) {
+      console.error(`[Worker ${workerId}] Error during model cleanup:`, error);
+    }
+  }
+  
+  // Force garbage collection if available to help with ArrayBuffer cleanup
+  if (global.gc) {
+    try {
+      global.gc();
+      console.log(`[Worker ${workerId}] Forced garbage collection`);
+    } catch (error) {
+      console.error(`[Worker ${workerId}] GC error:`, error);
+    }
+  }
+  
+  // Send acknowledgment to parent
+  parentPort?.postMessage({ 
+    type: 'ready' // Acknowledged shutdown 
+  } as WorkerResponse);
+  
+  // Give time for cleanup to complete before exit
+  setTimeout(() => {
+    console.log(`[Worker ${workerId}] Exiting`);
+    process.exit(0);
+  }, 100);
+}
+
+/**
  * Handle messages from main thread
  */
 function handleMessage(message: WorkerMessage): void {
@@ -193,11 +236,12 @@ function handleMessage(message: WorkerMessage): void {
       break;
       
     case 'shutdown':
-      console.log(`[Worker ${workerId}] Shutting down`);
-      if (model) {
-        model = null;
-      }
-      process.exit(0);
+      // Handle shutdown asynchronously
+      handleShutdown().catch(error => {
+        console.error(`[Worker ${workerId}] Fatal shutdown error:`, error);
+        process.exit(1);
+      });
+      break;
       
     default:
       console.error(`[Worker ${workerId}] Unknown message type: ${message.type}`);
