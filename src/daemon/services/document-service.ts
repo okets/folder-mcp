@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DocumentInfo, FolderContext, PaginationInfo, DocumentData, DocumentDataResponse, DocumentOutline, DocumentOutlineResponse } from '../rest/types.js';
 import { IndexingTracker } from './indexing-tracker.js';
+import { PathNormalizer } from '../utils/path-normalizer.js';
 import pdfParse from 'pdf-parse';
 import XLSX from 'xlsx';
 import mammoth from 'mammoth';
@@ -139,7 +140,7 @@ export class DocumentService {
 
     // Convert to DocumentInfo format with real indexing status
     const documents: DocumentInfo[] = paginatedFiles.map(file => ({
-      id: this.generateDocumentId(file.path),
+      id: this.generateDocumentId(file.relativePath),  // Use relative path for ID generation
       name: file.name,
       path: file.relativePath,
       type: path.extname(file.path).toLowerCase().substring(1),
@@ -497,15 +498,11 @@ export class DocumentService {
   }
 
   /**
-   * Generate a document ID from file path
+   * Generate a document ID from relative file path
+   * Uses PathNormalizer for consistent cross-platform path handling
    */
-  private generateDocumentId(filePath: string): string {
-    const basename = path.basename(filePath);
-    return basename
-      .toLowerCase()
-      .replace(/[^a-z0-9\-_.]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
+  private generateDocumentId(relativePath: string): string {
+    return PathNormalizer.generateDocumentId(relativePath);
   }
 
   /**
@@ -540,21 +537,17 @@ export class DocumentService {
 
 
   /**
-   * Resolve document ID to actual file path (Sprint 6)
+   * Resolve document ID to actual file path
+   * Uses relative path-based IDs for uniqueness
    */
   private async resolveDocumentPath(folderPath: string, docId: string): Promise<string | null> {
     // Get all files in the folder
     const allFiles = await this.getAllFiles(folderPath);
     
-    // Try to find file by ID (generated from filename)
+    // Find file by matching generated ID from relative path
     for (const file of allFiles) {
-      const generatedId = this.generateDocumentId(file.path);
+      const generatedId = this.generateDocumentId(file.relativePath);
       if (generatedId === docId) {
-        return file.path;
-      }
-      
-      // Also try exact filename match (without extension processing)
-      if (file.name === docId || path.basename(file.path, path.extname(file.path)) === docId) {
         return file.path;
       }
     }

@@ -156,6 +156,41 @@ export class PathNormalizer {
   }
 
   /**
+   * Generate a URL-safe document ID from a relative path
+   * Normalizes the path and converts it to a safe identifier
+   */
+  static generateDocumentId(relativePath: string): string {
+    if (!relativePath || typeof relativePath !== 'string') {
+      throw new Error('Relative path must be a non-empty string');
+    }
+
+    // 1. URL decode if needed
+    let normalizedPath = relativePath;
+    try {
+      normalizedPath = decodeURIComponent(normalizedPath);
+    } catch {
+      // If decoding fails, continue with original path
+    }
+
+    // 2. Normalize path separators and handle case sensitivity
+    normalizedPath = path.normalize(normalizedPath);
+    normalizedPath = normalizedPath.toLowerCase();
+
+    // 3. Replace path separators and special characters with hyphens for URL safety
+    normalizedPath = normalizedPath
+      .replace(/[\/\\]/g, '-')  // Replace path separators with hyphens
+      .replace(/[^a-z0-9\-_.]/g, '-')  // Replace other special chars
+      .replace(/-+/g, '-')  // Remove duplicate hyphens
+      .replace(/^-|-$/g, '');  // Remove leading/trailing hyphens
+
+    if (!normalizedPath) {
+      throw new Error('Path normalization resulted in empty string');
+    }
+
+    return normalizedPath;
+  }
+
+  /**
    * Debug helper: show normalization steps for a path
    */
   static debugNormalization(inputPath: string, options: PathNormalizationOptions = {}): {
