@@ -137,9 +137,6 @@ If you need a Human to reconnect the MCP. (we are working on it live, it might b
 This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Tasks
-**mcp-server recovery**
-if calling the MCP server fails because the daemon was shut down, and an agent (such as yourself) that already connected, tries calling any of our endpoints, we need to try and bring the daemon online before returning an error. once an mcp-server endpoint fails, it's a pain to make the agent use it again.
-
 **re-indexing bug**
 re-indexing when no changes bug:
 recreating steps:
