@@ -128,8 +128,9 @@ export class ServiceFactory implements IServiceFactory {
     try {
       await service.loadIndex(dbPath);
       loggingService.debug(`SQLite vector index loaded successfully from ${dbPath}`);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Database file not found')) {
+    } catch (error: any) {
+      // Check for file not found error using error code (more reliable than message matching)
+      if (error?.code === 'ENOENT') {
         loggingService.debug(`Database file not found at ${dbPath}, service created but not ready for search`);
         // Service is created but not ready - this is acceptable for test scenarios
       } else {

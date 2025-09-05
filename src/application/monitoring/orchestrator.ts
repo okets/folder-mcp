@@ -447,8 +447,9 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
           
           // Check if incremental indexer is available
           if (!this.incrementalIndexer) {
-            this.loggingService.error('❌ Incremental indexer is not initialized!', new Error('IncrementalIndexer is null or undefined'));
-            return;
+            const error = new Error('IncrementalIndexer is not initialized - cannot process file changes');
+            this.loggingService.error('❌ Incremental indexer is not initialized!', error);
+            throw error; // Propagate error instead of silent return
           }
           
           this.loggingService.info(`📍 About to call incrementalIndexer.indexChanges`);

@@ -1246,16 +1246,27 @@ export class MCPEndpoints implements IMCPEndpoints {
   }
 
   private resolveDocumentPath(documentId: string, folderName?: string): string {
-    if (this.folderManager && folderName) {
+    // Check if folder parameter is provided
+    if (!folderName) {
+      throw new Error('Missing required parameter: folderName. Please specify which folder contains the document you want to access.');
+    }
+    
+    if (this.folderManager) {
       // Use folder manager to resolve path for specific folder
       const folder = this.folderManager.getFolderByName(folderName);
       if (folder) {
         return path.join(folder.resolvedPath, documentId);
       }
+      
+      // Folder name provided but not found - provide helpful error
+      const availableFolders = this.folderManager.getAllFolders()
+        .map((f: any) => f.name)
+        .join(', ');
+      throw new Error(`Folder '${folderName}' not found. Available folders: ${availableFolders || 'none'}`);
     }
     
-    // Phase 9: No single-folder fallback - folder must be specified
-    throw new Error(`Document resolution requires folder context. Folder '${folderName}' not found.`);
+    // Folder manager not initialized
+    throw new Error('Folder manager is not initialized. Please ensure the system is properly configured.');
   }
 
   private resolveFolderPath(folder: string): string {
