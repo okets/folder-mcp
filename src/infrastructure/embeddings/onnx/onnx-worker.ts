@@ -121,6 +121,13 @@ async function processEmbeddings(texts: string[], options: any, taskId: string):
       // Handle tensor result
       const data = Array.from(results.data) as number[];
       const embeddingDim = modelConfig?.dimensions || 384;
+      const expectedLength = texts.length * embeddingDim;
+      
+      // Validate tensor data length before processing
+      if (data.length !== expectedLength) {
+        console.error(`ONNX tensor validation failed: expected ${expectedLength} values (${texts.length} texts × ${embeddingDim} dimensions), got ${data.length}`);
+        throw new Error(`Tensor data length mismatch: expected ${expectedLength}, got ${data.length}`);
+      }
       
       // Split tensor data into individual embeddings
       for (let i = 0; i < texts.length; i++) {

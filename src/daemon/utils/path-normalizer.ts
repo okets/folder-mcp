@@ -70,7 +70,11 @@ export class PathNormalizer {
     // 4. Handle trailing slashes
     if (!opts.preserveTrailingSlash) {
       // Remove trailing slash except for root directories
-      if (normalizedPath.length > 1 && normalizedPath.endsWith(path.sep)) {
+      const parsedPath = path.parse(normalizedPath);
+      const isRoot = normalizedPath === parsedPath.root;
+      
+      // Only remove trailing separator if not a root path
+      if (!isRoot && normalizedPath.endsWith(path.sep)) {
         normalizedPath = normalizedPath.slice(0, -1);
       }
     }

@@ -854,8 +854,15 @@ class FileWatcher {
         
         // If no stats available, check if path looks like a directory (no extension and ends with folder name)
         const hasExtension = path.extname(filePath) !== '';
-        if (!hasExtension && (filePath === this.folderPath || filePath.endsWith('/'))) {
-          return false; // Never ignore directories
+        if (!hasExtension) {
+          // Normalize paths for cross-platform comparison
+          const normalizedFilePath = path.normalize(filePath);
+          const normalizedFolderPath = path.normalize(this.folderPath);
+          
+          // Check if it's the folder path itself or ends with a path separator
+          if (normalizedFilePath === normalizedFolderPath || normalizedFilePath.endsWith(path.sep)) {
+            return false; // Never ignore directories
+          }
         }
         
         // First check if file has supported extension

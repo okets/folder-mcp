@@ -8,6 +8,7 @@
  */
 
 import { DaemonRESTClient } from './daemon-rest-client.js';
+import * as path from 'path';
 import type { ServerInfoResponse } from './daemon-rest-client.js';
 import { SEMANTIC_THRESHOLD, DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT } from '../../constants/search.js';
 
@@ -81,9 +82,9 @@ export class DaemonMCPEndpoints {
       const errorFolders = folders.filter(f => f.status === 'error').length;
       const pendingFolders = folders.filter(f => f.status === 'pending').length;
       
-      // Extract folder name from path
-      const extractFolderName = (path: string): string => {
-        return path.split('/').pop() || path;
+      // Extract folder name from path (cross-platform)
+      const extractFolderName = (folderPath: string): string => {
+        return path.basename(folderPath) || folderPath;
       };
       
       // Format each folder with path as primary identifier
