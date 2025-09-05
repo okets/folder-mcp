@@ -49,6 +49,20 @@ console.warn = (...args) => process.stderr.write(`[WARN] ${args.join(' ')}\n`);
 console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`);
 
 /**
+ * Check if an error indicates the daemon is down
+ * @param error The error to check
+ * @returns true if the error suggests daemon is not running
+ */
+function isDaemonDownError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return message.includes('econnrefused') || 
+         message.includes('connection refused') ||
+         message.includes('connect econnrefused') ||
+         message.includes('failed to connect to daemon') ||
+         (error.name === 'FetchError' && message.includes('request to'));
+}
+
+/**
  * Attempt to auto-spawn the daemon process
  * @returns Promise<boolean> true if daemon was successfully started, false otherwise
  */
@@ -369,10 +383,32 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           } as any;
       }
     } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      
+      // Check if this is a daemon-down error
+      if (isDaemonDownError(errorObj)) {
+        debug(`Daemon appears down for tool ${name}, attempting auto-recovery...`);
+        
+        // Start daemon restart asynchronously (don't wait)
+        attemptDaemonAutoStart().catch(err => 
+          debug(`Background daemon restart failed: ${err}`)
+        );
+        
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `🔄 The folder-mcp backend is starting up. This usually takes 5-10 seconds.
+
+Please try your "${name}" request again in a moment. If the issue persists after a few attempts, the daemon may need manual restart.`
+          }]
+        } as any;
+      }
+      
+      // Original error handling for other errors
       return {
         content: [{
           type: 'text' as const,
-          text: `Error calling tool ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          text: `Error calling tool ${name}: ${errorObj.message}`
         }]
       } as any;
     }

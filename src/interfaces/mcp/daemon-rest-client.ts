@@ -8,8 +8,12 @@
  * Auto-discovers daemon just like TUI does - no configuration needed!
  */
 
-import fetch, { RequestInit, Response } from 'node-fetch';
+import fetch, { RequestInit } from 'node-fetch';
 import { DaemonRegistry } from '../../daemon/registry/daemon-registry.js';
+import { spawn } from 'child_process';
+import { resolve, dirname } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 export interface FolderConfig {
   id: string;
@@ -65,6 +69,101 @@ export interface ErrorResponse {
   message: string;
   timestamp: string;
   path?: string;
+}
+
+/**
+ * Check if an error indicates the daemon is down
+ */
+function isDaemonDownError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return message.includes('econnrefused') || 
+         message.includes('connection refused') ||
+         message.includes('connect econnrefused') ||
+         message.includes('failed to connect') ||
+         (error.name === 'FetchError' && message.includes('request to'));
+}
+
+/**
+ * Find the daemon executable path
+ */
+function findDaemonExecutable(): string | null {
+  // Get the directory of the current module
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  
+  // Try different possible paths relative to current script
+  const possiblePaths = [
+    // Build output structure from mcp client
+    resolve(currentDir, '..', '..', 'daemon', 'index.js'),
+    // Development structure
+    resolve(currentDir, '..', '..', '..', 'dist', 'daemon', 'index.js'),
+    // Same directory structure as mcp-server
+    resolve(currentDir, '..', '..', 'dist', 'src', 'daemon', 'index.js'),
+  ];
+  
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Attempt to auto-spawn the daemon process
+ */
+async function attemptDaemonAutoStart(): Promise<boolean> {
+  // Check if auto-spawn is disabled
+  if (process.env.FOLDER_MCP_AUTO_SPAWN_DAEMON === 'false') {
+    return false;
+  }
+  
+  try {
+    // Find the daemon executable
+    const daemonPath = findDaemonExecutable();
+    if (!daemonPath) {
+      return false;
+    }
+    
+    // Spawn daemon process with detachment
+    const daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'],
+      env: {
+        ...process.env,
+        NODE_ENV: process.env.NODE_ENV || 'production'
+      }
+    });
+    
+    // Unref so parent can exit without waiting
+    daemonProcess.unref();
+    
+    // Wait for daemon to be ready with polling
+    const startTime = Date.now();
+    const timeoutMs = 10000; // 10 seconds
+    const pollInterval = 500; // 500ms
+    
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const tempClient = new DaemonRESTClient();
+        await tempClient.connect();
+        const health = await tempClient.getHealth();
+        tempClient.close();
+        
+        if (health.status === 'healthy' || health.status === 'starting') {
+          return true;
+        }
+      } catch (error) {
+        // Daemon not ready yet, continue polling
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    
+    return false;
+  } catch (error) {
+    return false;
+  }
 }
 
 /**
@@ -227,7 +326,34 @@ export class DaemonRESTClient {
       }
     }
 
-    throw lastError || new Error(`Failed to make request to ${url}`);
+    // Before giving up, attempt daemon recovery if this appears to be a daemon-down error
+    const finalError = lastError || new Error(`Failed to make request to ${url}`);
+    
+    if (isDaemonDownError(finalError)) {
+      console.error('[DaemonRESTClient] Daemon appears down, attempting recovery...');
+      
+      try {
+        // Attempt to restart the daemon
+        const recoverySuccess = await attemptDaemonAutoStart();
+        
+        if (recoverySuccess) {
+          console.error('[DaemonRESTClient] Daemon restarted, reconnecting and retrying request...');
+          
+          // Reconnect this client
+          this.isConnected = false;
+          await this.connect();
+          
+          // Retry the original request once more
+          return await this.makeRequest(path, options);
+        } else {
+          console.error('[DaemonRESTClient] Daemon restart failed');
+        }
+      } catch (recoveryError) {
+        console.error('[DaemonRESTClient] Recovery attempt failed:', recoveryError);
+      }
+    }
+    
+    throw finalError;
   }
 
   /**
