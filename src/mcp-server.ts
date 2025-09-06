@@ -159,10 +159,12 @@ async function waitForDaemonReady(timeoutMs: number): Promise<boolean> {
   debug(`Waiting for daemon to be ready (timeout: ${timeoutMs}ms)`);
   
   while (Date.now() - startTime < timeoutMs) {
-    // Create a temporary REST client to check daemon health
-    const tempClient = new DaemonRESTClient();
+    // Declare tempClient outside try block for proper cleanup
+    let tempClient: DaemonRESTClient | undefined;
     
     try {
+      // Create a temporary REST client to check daemon health
+      tempClient = new DaemonRESTClient();
       await tempClient.connect();
       const health = await tempClient.getHealth();
       
@@ -177,8 +179,14 @@ async function waitForDaemonReady(timeoutMs: number): Promise<boolean> {
       debug(`Daemon not ready yet: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       // Always close the temp client to prevent resource leaks
-      if (tempClient && tempClient.connected) {
-        tempClient.close();
+      // Close regardless of connected state - the close method handles this safely
+      if (tempClient && typeof tempClient.close === 'function') {
+        try {
+          tempClient.close();
+        } catch (closeError) {
+          // Log but don't throw - cleanup errors shouldn't mask the original error
+          debug(`Error closing temp client during cleanup: ${closeError instanceof Error ? closeError.message : 'Unknown error'}`);
+        }
       }
     }
     

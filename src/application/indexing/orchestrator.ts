@@ -682,11 +682,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         };
         
         try {
-          const fs = await import('fs');
-          fs.appendFileSync(perfLogPath, JSON.stringify(perfData) + '\n');
+          const fs = await import('fs/promises');
+          await fs.appendFile(perfLogPath, JSON.stringify(perfData) + '\n');
           this.loggingService.info(`[PERFORMANCE] CPM: ${chunksPerMinute.toFixed(1)}, EPM: ${embeddingsPerMinute.toFixed(1)}, Files: ${this.performanceMetrics.filesProcessed}`);
         } catch (e) {
-          // Ignore file write errors
+          // Ignore file write errors - performance logging is non-critical
         }
         
         this.performanceMetrics.lastReportTime = now;

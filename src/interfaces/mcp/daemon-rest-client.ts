@@ -74,13 +74,45 @@ export interface ErrorResponse {
 /**
  * Check if an error indicates the daemon is down
  */
-function isDaemonDownError(error: Error): boolean {
-  const message = error.message.toLowerCase();
-  return message.includes('econnrefused') || 
-         message.includes('connection refused') ||
-         message.includes('connect econnrefused') ||
-         message.includes('failed to connect') ||
-         (error.name === 'FetchError' && message.includes('request to'));
+function isDaemonDownError(error: any): boolean {
+  // Check error codes first (most reliable)
+  if (error.code) {
+    const daemonDownCodes = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH'];
+    if (daemonDownCodes.includes(error.code)) {
+      return true;
+    }
+  }
+  
+  // Check error names
+  if (error.name) {
+    const daemonDownNames = ['FetchError', 'AbortError', 'TypeError', 'NetworkError'];
+    if (daemonDownNames.includes(error.name)) {
+      return true;
+    }
+  }
+  
+  // Check message patterns (case-insensitive)
+  const message = error.message?.toLowerCase() || '';
+  const daemonDownPatterns = [
+    'econnrefused',
+    'connection refused',
+    'connect econnrefused',
+    'failed to connect',
+    'socket hang up',
+    'connection reset',
+    'network timeout',
+    'request to http',
+    'fetch failed',
+    'unable to connect',
+    'connection failed',
+    'connection dropped',
+    'connection closed',
+    'enotfound',
+    'etimedout',
+    'ehostunreach'
+  ];
+  
+  return daemonDownPatterns.some(pattern => message.includes(pattern));
 }
 
 /**
@@ -118,6 +150,10 @@ async function attemptDaemonAutoStart(): Promise<boolean> {
     return false;
   }
   
+  let daemonProcess: any = null;
+  let healthCheckTimeout: NodeJS.Timeout | null = null;
+  let processCleanedUp = false;
+  
   try {
     // Find the daemon executable
     const daemonPath = findDaemonExecutable();
@@ -126,17 +162,82 @@ async function attemptDaemonAutoStart(): Promise<boolean> {
     }
     
     // Spawn daemon process with detachment
-    const daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
+    daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
       detached: true,
-      stdio: ['ignore', 'ignore', 'ignore'],
+      stdio: ['ignore', 'pipe', 'pipe'], // Capture stderr/stdout for debugging
       env: {
         ...process.env,
         NODE_ENV: process.env.NODE_ENV || 'production'
       }
     });
     
-    // Unref so parent can exit without waiting
-    daemonProcess.unref();
+    // Set up error and exit listeners to detect immediate failures
+    const handleProcessError = (error: Error) => {
+      if (!processCleanedUp) {
+        console.error('[DaemonRESTClient] Daemon process error:', error);
+        cleanupDaemonProcess();
+      }
+    };
+    
+    const handleProcessExit = (code: number | null, signal: string | null) => {
+      if (!processCleanedUp && (code !== 0 || signal)) {
+        console.error(`[DaemonRESTClient] Daemon process exited unexpectedly: code=${code}, signal=${signal}`);
+        cleanupDaemonProcess();
+      }
+    };
+    
+    // Function to cleanup the daemon process
+    const cleanupDaemonProcess = () => {
+      if (processCleanedUp) return;
+      processCleanedUp = true;
+      
+      if (daemonProcess) {
+        // Remove listeners
+        daemonProcess.removeListener('error', handleProcessError);
+        daemonProcess.removeListener('exit', handleProcessExit);
+        
+        // Try to kill the process group
+        try {
+          // Kill the entire process group (negative PID)
+          process.kill(-daemonProcess.pid, 'SIGTERM');
+        } catch (killError) {
+          // If group kill fails, try killing just the process
+          try {
+            daemonProcess.kill('SIGTERM');
+          } catch (err) {
+            console.error('[DaemonRESTClient] Failed to kill daemon process:', err);
+          }
+        }
+      }
+      
+      if (healthCheckTimeout) {
+        clearTimeout(healthCheckTimeout);
+        healthCheckTimeout = null;
+      }
+    };
+    
+    // Attach error and exit listeners
+    daemonProcess.on('error', handleProcessError);
+    daemonProcess.on('exit', handleProcessExit);
+    
+    // Capture and log stderr for debugging (but don't block on it)
+    if (daemonProcess.stderr) {
+      daemonProcess.stderr.on('data', (data: Buffer) => {
+        console.error('[DaemonRESTClient] Daemon stderr:', data.toString());
+      });
+    }
+    
+    // Set up cleanup on parent process exit
+    const cleanupOnExit = () => {
+      if (!processCleanedUp) {
+        console.error('[DaemonRESTClient] Parent process exiting, cleaning up daemon...');
+        cleanupDaemonProcess();
+      }
+    };
+    
+    process.once('exit', cleanupOnExit);
+    process.once('SIGINT', cleanupOnExit);
+    process.once('SIGTERM', cleanupOnExit);
     
     // Wait for daemon to be ready with polling
     const startTime = Date.now();
@@ -144,24 +245,67 @@ async function attemptDaemonAutoStart(): Promise<boolean> {
     const pollInterval = 500; // 500ms
     
     while (Date.now() - startTime < timeoutMs) {
+      let tempClient: DaemonRESTClient | null = null;
       try {
-        const tempClient = new DaemonRESTClient();
+        tempClient = new DaemonRESTClient();
         await tempClient.connect();
         const health = await tempClient.getHealth();
-        tempClient.close();
         
         if (health.status === 'healthy' || health.status === 'starting') {
+          // Health check succeeded - daemon is ready
+          // Clean up parent process exit handlers since daemon is now independent
+          process.removeListener('exit', cleanupOnExit);
+          process.removeListener('SIGINT', cleanupOnExit);
+          process.removeListener('SIGTERM', cleanupOnExit);
+          
+          // Remove error/exit listeners from daemon process
+          if (daemonProcess) {
+            daemonProcess.removeListener('error', handleProcessError);
+            daemonProcess.removeListener('exit', handleProcessExit);
+            
+            // Now safe to unref so parent can exit without waiting
+            daemonProcess.unref();
+          }
+          
+          processCleanedUp = true;
           return true;
         }
       } catch (error) {
         // Daemon not ready yet, continue polling
+      } finally {
+        // Always close the client to prevent resource leaks
+        if (tempClient) {
+          try {
+            tempClient.close();
+          } catch (closeError) {
+            // Log but don't throw - cleanup should never abort the caller
+            console.error('[DaemonRESTClient] Error closing temp client during health polling:', closeError);
+          }
+        }
       }
       
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
     
+    // Health check timed out - cleanup and fail
+    console.error('[DaemonRESTClient] Daemon health check timed out after', timeoutMs, 'ms');
+    cleanupDaemonProcess();
     return false;
+    
   } catch (error) {
+    console.error('[DaemonRESTClient] Failed to spawn daemon:', error);
+    // Ensure cleanup happens even on unexpected errors
+    if (!processCleanedUp && daemonProcess) {
+      try {
+        process.kill(-daemonProcess.pid, 'SIGTERM');
+      } catch (killError) {
+        try {
+          daemonProcess.kill('SIGTERM');
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    }
     return false;
   }
 }
@@ -259,7 +403,8 @@ export class DaemonRESTClient {
    */
   private async makeRequest<T>(
     path: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    recoveryAttempted: boolean = false
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     let lastError: Error | null = null;
@@ -329,7 +474,8 @@ export class DaemonRESTClient {
     // Before giving up, attempt daemon recovery if this appears to be a daemon-down error
     const finalError = lastError || new Error(`Failed to make request to ${url}`);
     
-    if (isDaemonDownError(finalError)) {
+    // Only attempt recovery once to prevent infinite recursion
+    if (!recoveryAttempted && isDaemonDownError(finalError)) {
       console.error('[DaemonRESTClient] Daemon appears down, attempting recovery...');
       
       try {
@@ -343,8 +489,8 @@ export class DaemonRESTClient {
           this.isConnected = false;
           await this.connect();
           
-          // Retry the original request once more
-          return await this.makeRequest(path, options);
+          // Retry the original request once more, marking recovery as attempted
+          return await this.makeRequest(path, options, true);
         } else {
           console.error('[DaemonRESTClient] Daemon restart failed');
         }
