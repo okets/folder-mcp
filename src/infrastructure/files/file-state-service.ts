@@ -8,6 +8,7 @@ import { SqliteFileStateStorage } from '../storage/sqlite-file-state-storage.js'
 import type { ILoggingService } from '../../di/interfaces.js';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
+import Database from 'better-sqlite3';
 
 /**
  * File state service implementation using SQLite storage
@@ -17,13 +18,15 @@ export class FileStateService implements IFileStateService {
   private storage: SqliteFileStateStorage;
 
   constructor(
-    private databasePath: string,
+    databaseOrPath: string | Database.Database,
     private logger: ILoggingService
   ) {
-    this.storage = new SqliteFileStateStorage(this.databasePath);
+    // Support both path (for backward compatibility) and database instance
+    this.storage = new SqliteFileStateStorage(databaseOrPath);
     this.fileStateManager = new FileStateManager(this.storage);
     
-    this.logger.debug(`[FILE-STATE-SERVICE] Initialized with database: ${this.databasePath}`);
+    const dbInfo = typeof databaseOrPath === 'string' ? databaseOrPath : 'shared connection';
+    this.logger.debug(`[FILE-STATE-SERVICE] Initialized with database: ${dbInfo}`);
   }
 
   async makeProcessingDecision(filePath: string, contentHash: string): Promise<{

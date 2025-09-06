@@ -468,15 +468,31 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // 4. Build vector index if embeddings were created
     if (result.embeddingsCreated > 0) {
       try {
-        this.loggingService.info('Building vector index', { 
-          embeddingsCount: result.embeddingsCreated 
+        this.loggingService.info('[FILE-STATE-DEBUG] Building vector index', { 
+          embeddingsCount: result.embeddingsCreated,
+          filesProcessed: result.filesProcessed
         });
           // For now, just enable the index (actual implementation TBD)
         await this.vectorSearchService.buildIndex(allEmbeddings, allMetadata);
         
-        this.loggingService.info('Vector index built successfully');
+        this.loggingService.info('[FILE-STATE-DEBUG] Vector index built successfully');
+        
+        // Force WAL checkpoint to ensure file_states are persisted
+        // This is critical for fixing the re-indexing bug on first restart
+        if ('getDatabaseManager' in this.vectorSearchService) {
+          const storage = this.vectorSearchService as any;
+          const dbManager = storage.getDatabaseManager();
+          if (dbManager && typeof dbManager.checkpoint === 'function') {
+            await dbManager.checkpoint();
+            this.loggingService.info('[FILE-STATE-DEBUG] Forced WAL checkpoint after indexing');
+          }
+        }
+        
+        // Debug: Check if file states were persisted
+        this.loggingService.info('[FILE-STATE-DEBUG] Checking file state persistence after indexing');
+        
       } catch (error) {
-        this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
+        this.loggingService.error('[FILE-STATE-DEBUG] Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
         // Don't fail the whole indexing for vector index issues
       }
     }

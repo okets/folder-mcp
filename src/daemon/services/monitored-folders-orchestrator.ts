@@ -429,9 +429,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.logger.debug(`[ORCHESTRATOR] Created .folder-mcp directory: ${folderMcpDir}`);
       }
       
-      // Create per-folder FileStateService using the same database as embeddings
-      const folderDbPath = `${path}/.folder-mcp/embeddings.db`;
-      const folderFileStateService = new FileStateService(folderDbPath, this.logger);
+      // We need to ensure the database is initialized before sharing the connection
+      // The DatabaseManager in storage initializes on first use, so we need to trigger it
+      // We'll call getDatabaseManager which will initialize if needed
+      const dbManager = storage.getDatabaseManager();
+      await dbManager.initialize(); // This ensures database and tables are created
+      
+      // Create per-folder FileStateService using the SAME database connection as embeddings
+      // This is critical to avoid WAL isolation issues
+      const database = dbManager.getDatabase();
+      const folderFileStateService = new FileStateService(database, this.logger);
       
       // Get max concurrent files from ONNX configuration
       const maxConcurrentFiles = await this.onnxConfiguration.getMaxConcurrentFiles();

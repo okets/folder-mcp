@@ -137,15 +137,6 @@ If you need a Human to reconnect the MCP. (we are working on it live, it might b
 This is a foolproof way to test everything about our system.
 ─────────────────────────────────────────────────────────────────────────────────────
 ---------------------Next Tasks
-**re-indexing bug**
-re-indexing when no changes bug:
-recreating steps:
-1. index a folder.
-2. remove .folder-mcp of this folder
-3. restart the daemon. a full re-indexing should take place as it should!
-4. restart the daemon. a full re-indexing starts again eventhough it should not.
-You should know that just a regular daemon restarts does not cause this bug. Just this scenario.
-
 **Ultimate end to end test**
 I want to test that all of our curated models are working properly.
 To do so, we need to create a simple but very effective TMOAT + agent-to-endpoint test suite.

@@ -634,13 +634,16 @@ return;
             const fileName = stateTask.file.split('/').pop() || stateTask.file;
             
             if (chunkCount > 0) {
-              this.logger.info(`[HUGE-DEBUG] ${fileName}: Found ${chunkCount} chunks in database, marking as success`);
+              this.logger.info(`[FILE-STATE-DEBUG] ${fileName}: Found ${chunkCount} chunks in database, marking as success`);
               try {
+                console.error(`[FILE-STATE-DEBUG] About to call markProcessingSuccess for ${stateTask.file}`);
                 await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
-                this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully marked as indexed in file_states table`);
+                this.logger.info(`[FILE-STATE-DEBUG] ${fileName}: Successfully marked as indexed in file_states table`);
+                console.error(`[FILE-STATE-DEBUG] File state marked successfully for ${stateTask.file}`);
               } catch (stateError) {
                 const error = stateError as Error;
-                this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to mark as success in file_states: ${error.message}`, error);
+                this.logger.error(`[FILE-STATE-DEBUG] ${fileName}: Failed to mark as success in file_states: ${error.message}`, error);
+                console.error(`[FILE-STATE-DEBUG] ERROR marking file state: ${error.message}`);
               }
               
               // Log successful processing for huge files
