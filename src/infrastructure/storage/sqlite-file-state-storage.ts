@@ -92,15 +92,25 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     private getFilesByStateStmt!: Database.Statement;
     private getProcessingStatsStmt!: Database.Statement;
     private getTotalCountStmt!: Database.Statement;
+    private ownConnection: boolean;
 
-    constructor(databasePath: string) {
-        this.db = new Database(databasePath);
-        
-        try {
+    constructor(databaseOrPath: string | Database.Database) {
+        // Support both path (for backward compatibility) and database instance
+        if (typeof databaseOrPath === 'string') {
+            this.db = new Database(databaseOrPath);
+            this.ownConnection = true;
+            
             // Enable foreign keys and WAL mode for better performance
             this.db.pragma('foreign_keys = ON');
             this.db.pragma('journal_mode = WAL');
-            
+        } else {
+            // Use provided database connection
+            this.db = databaseOrPath;
+            this.ownConnection = false;
+            // Don't set pragmas as they should be set by the owner
+        }
+        
+        try {
             // Create table and indexes
             this.initializeSchema();
             
@@ -109,28 +119,40 @@ export class SqliteFileStateStorage implements IFileStateStorage {
         } catch (error) {
             // If database initialization fails (e.g., corrupted database),
             // close the connection to prevent Windows file locking issues
-            try {
-                this.db.close();
-            } catch (closeError) {
-                // Ignore close errors, we're already in an error state
+            // But only if we own the connection
+            if (this.ownConnection) {
+                try {
+                    this.db.close();
+                } catch (closeError) {
+                    // Ignore close errors, we're already in an error state
+                }
             }
             
             // Re-throw the original error with context
             if (error instanceof Error) {
-                throw new Error(`Failed to initialize database ${databasePath}: ${error.message}`);
+                throw new Error(`Failed to initialize file state storage: ${error.message}`);
             }
             throw error;
         }
     }
 
     private initializeSchema(): void {
+        console.error(`[FILE-STATE-DEBUG] Initializing file_states table schema`);
+        
         // Create file_states table
         this.db.exec(FILE_STATES_TABLE);
+        console.error(`[FILE-STATE-DEBUG] file_states table created/verified`);
         
         // Create indexes
         for (const index of FILE_STATES_INDEXES) {
             this.db.exec(index);
         }
+        console.error(`[FILE-STATE-DEBUG] file_states indexes created/verified`);
+        
+        // Check if table is empty (new database)
+        const countStmt = this.db.prepare('SELECT COUNT(*) as count FROM file_states');
+        const result = countStmt.get() as { count: number };
+        console.error(`[FILE-STATE-DEBUG] Current file_states row count: ${result.count}`);
     }
 
     private prepareStatements(): void {
@@ -151,7 +173,10 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     }
 
     async setFileState(state: FileState): Promise<void> {
-        this.insertFileStateStmt.run(
+        console.error(`[FILE-STATE-DEBUG] Setting file state for: ${state.filePath}`);
+        console.error(`[FILE-STATE-DEBUG]   State: ${state.processingState}, ChunkCount: ${state.chunkCount}`);
+        
+        const result = this.insertFileStateStmt.run(
             state.filePath,
             state.contentHash,
             state.processingState,
@@ -161,6 +186,8 @@ export class SqliteFileStateStorage implements IFileStateStorage {
             state.attemptCount,
             state.chunkCount || null
         );
+        
+        console.error(`[FILE-STATE-DEBUG]   Database changes: ${result.changes}`);
     }
 
     async updateProcessingState(
@@ -176,11 +203,24 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     }
 
     async markFileProcessed(filePath: string, chunkCount: number): Promise<void> {
-        this.markFileProcessedStmt.run(
+        console.error(`[FILE-STATE-DEBUG] Marking file as processed: ${filePath}`);
+        console.error(`[FILE-STATE-DEBUG]   Chunks: ${chunkCount}, State: ${FileProcessingState.INDEXED}`);
+        
+        const result = this.markFileProcessedStmt.run(
             FileProcessingState.INDEXED,
             chunkCount,
             filePath
         );
+        
+        console.error(`[FILE-STATE-DEBUG]   Database changes after marking processed: ${result.changes}`);
+        
+        // Verify the update worked
+        const verifyRow = this.getFileStateStmt.get(filePath) as any;
+        if (verifyRow) {
+            console.error(`[FILE-STATE-DEBUG]   Verification: State=${verifyRow.processing_state}, Chunks=${verifyRow.chunk_count}`);
+        } else {
+            console.error(`[FILE-STATE-DEBUG]   WARNING: File not found in database after marking processed!`);
+        }
     }
 
     async getFilesByState(state: FileProcessingState): Promise<FileState[]> {
@@ -219,7 +259,8 @@ export class SqliteFileStateStorage implements IFileStateStorage {
             [FileProcessingState.INDEXED]: 0,
             [FileProcessingState.FAILED]: 0,
             [FileProcessingState.SKIPPED]: 0,
-            [FileProcessingState.CORRUPTED]: 0
+            [FileProcessingState.CORRUPTED]: 0,
+            [FileProcessingState.DELETED]: 0
         };
 
         for (const row of statsRows) {
@@ -244,10 +285,12 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     }
 
     /**
-     * Close the database connection
+     * Close the database connection (only if we own it)
      */
     close(): void {
-        this.db.close();
+        if (this.ownConnection) {
+            this.db.close();
+        }
     }
 
     /**

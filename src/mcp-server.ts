@@ -25,6 +25,10 @@ import { CliArgumentParser, type CliArguments } from './application/config/CliAr
 import { getSupportedExtensions } from './domain/files/supported-extensions.js';
 import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
 import { DaemonMCPEndpoints } from './interfaces/mcp/daemon-mcp-endpoints.js';
+import { spawn, type ChildProcess } from 'child_process';
+import { join, resolve, dirname } from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 
 // CRITICAL: Claude Desktop expects ONLY valid JSON-RPC messages on stdout
 // All logs MUST go to stderr ONLY
@@ -43,6 +47,426 @@ console.log = (...args) => process.stderr.write(`[LOG] ${args.join(' ')}\n`);
 console.info = (...args) => process.stderr.write(`[INFO] ${args.join(' ')}\n`);
 console.warn = (...args) => process.stderr.write(`[WARN] ${args.join(' ')}\n`);
 console.error = (...args) => process.stderr.write(`[ERROR] ${args.join(' ')}\n`);
+
+/**
+ * Check if an error indicates the daemon is down
+ * @param error The error to check
+ * @returns true if the error suggests daemon is not running
+ */
+function isDaemonDownError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return message.includes('econnrefused') || 
+         message.includes('connection refused') ||
+         message.includes('connect econnrefused') ||
+         message.includes('failed to connect to daemon') ||
+         (error.name === 'FetchError' && message.includes('request to'));
+}
+
+/**
+ * Attempt to auto-spawn the daemon process
+ * @returns Promise<boolean> true if daemon was successfully started, false otherwise
+ */
+async function attemptDaemonAutoStart(): Promise<boolean> {
+  debug('Attempting to auto-spawn daemon...');
+  
+  // Check if auto-spawn is disabled via environment variable
+  if (process.env.FOLDER_MCP_AUTO_SPAWN_DAEMON === 'false') {
+    debug('Auto-spawn disabled via FOLDER_MCP_AUTO_SPAWN_DAEMON=false');
+    return false;
+  }
+  
+  try {
+    // Find the daemon executable
+    const daemonPath = findDaemonExecutable();
+    if (!daemonPath) {
+      debug('Daemon executable not found');
+      return false;
+    }
+    
+    debug(`Starting daemon at: ${daemonPath}`);
+    
+    // Spawn daemon process with detachment for independence
+    const daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', 'ignore'], // Detach completely
+      env: {
+        ...process.env,
+        NODE_ENV: process.env.NODE_ENV || 'production'
+      }
+    });
+    
+    // Unref so parent can exit without waiting for daemon
+    daemonProcess.unref();
+    
+    debug(`Daemon process spawned with PID: ${daemonProcess.pid}`);
+    
+    // Wait for daemon to be ready
+    const isReady = await waitForDaemonReady(10000); // 10 second timeout
+    
+    if (isReady) {
+      debug('Daemon successfully started and is ready');
+      return true;
+    } else {
+      debug('Daemon startup timeout - daemon may still be initializing');
+      return false;
+    }
+    
+  } catch (error) {
+    debug(`Failed to auto-start daemon: ${error}`);
+    return false;
+  }
+}
+
+/**
+ * Find the daemon executable path
+ * @returns string|null Path to daemon executable or null if not found
+ */
+function findDaemonExecutable(): string | null {
+  // Get the directory of the current module (ES module equivalent of __dirname)
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  
+  // Try different possible paths relative to current script
+  const possiblePaths = [
+    // Same directory as mcp-server.js
+    resolve(currentDir, 'daemon', 'index.js'),
+    // Build output structure
+    resolve(currentDir, '..', 'daemon', 'index.js'),
+    // Development structure
+    resolve(currentDir, '..', '..', 'dist', 'daemon', 'index.js'),
+  ];
+  
+  for (const path of possiblePaths) {
+    debug(`Checking daemon path: ${path}`);
+    if (existsSync(path)) {
+      debug(`Found daemon at: ${path}`);
+      return path;
+    }
+  }
+  
+  debug('No daemon executable found in expected locations');
+  return null;
+}
+
+/**
+ * Wait for daemon to be ready by polling health endpoint
+ * @param timeoutMs Maximum wait time in milliseconds
+ * @returns Promise<boolean> true if daemon is ready, false if timeout
+ */
+async function waitForDaemonReady(timeoutMs: number): Promise<boolean> {
+  const startTime = Date.now();
+  const pollInterval = 500; // Poll every 500ms
+  
+  debug(`Waiting for daemon to be ready (timeout: ${timeoutMs}ms)`);
+  
+  while (Date.now() - startTime < timeoutMs) {
+    // Declare tempClient outside try block for proper cleanup
+    let tempClient: DaemonRESTClient | undefined;
+    
+    try {
+      // Create a temporary REST client to check daemon health
+      tempClient = new DaemonRESTClient();
+      await tempClient.connect();
+      const health = await tempClient.getHealth();
+      
+      if (health.status === 'healthy' || health.status === 'starting') {
+        debug(`Daemon ready with status: ${health.status}`);
+        return true;
+      }
+      
+      debug(`Daemon status: ${health.status}, continuing to wait...`);
+    } catch (error) {
+      // Daemon not ready yet, continue polling
+      debug(`Daemon not ready yet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Always close the temp client to prevent resource leaks
+      // Close regardless of connected state - the close method handles this safely
+      if (tempClient && typeof tempClient.close === 'function') {
+        try {
+          tempClient.close();
+        } catch (closeError) {
+          // Log but don't throw - cleanup errors shouldn't mask the original error
+          debug(`Error closing temp client during cleanup: ${closeError instanceof Error ? closeError.message : 'Unknown error'}`);
+        }
+      }
+    }
+    
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
+  }
+  
+  debug('Timeout waiting for daemon to be ready');
+  return false;
+}
+
+/**
+ * Set up the MCP server with daemon-backed tools
+ * @param daemonClient Connected daemon REST client
+ */
+async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
+  // Create daemon MCP endpoints
+  const daemonEndpoints = new DaemonMCPEndpoints(daemonClient);
+  
+  // Create MCP server with daemon-backed tools
+  const server = new Server(
+    {
+      name: 'folder-mcp',
+      version: '2.0.0',
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+    }
+  );
+  
+  // Register MCP tools that forward to daemon
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: [
+        {
+          name: 'get_server_info',
+          description: 'Get information about the folder-mcp server and daemon status',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: 'list_folders',
+          description: 'List all configured folders in the multi-folder system',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: []
+          }
+        },
+        {
+          name: 'list_documents',
+          description: 'List documents in a specific folder',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              folder_path: {
+                type: 'string',
+                description: 'Full path of the folder to list documents from'
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of documents to return (default: 20)',
+                minimum: 1,
+                maximum: 100
+              }
+            },
+            required: ['folder_path']
+          }
+        },
+        {
+          name: 'search',
+          description: 'Search for documents within a specific folder using semantic search',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'Search query'
+              },
+              folder_path: {
+                type: 'string',
+                description: 'Full path of the folder to search within (required for folder-specific search)'
+              },
+              threshold: {
+                type: 'number',
+                description: 'Minimum relevance threshold (0.0-1.0). Lower values return more results; higher values return only very relevant results.',
+                minimum: 0.0,
+                maximum: 1.0,
+                default: 0.3
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of results to return.',
+                minimum: 1,
+                maximum: 100,
+                default: 10
+              }
+            },
+            required: ['query', 'folder_path']
+          }
+        },
+        {
+          name: 'get_document_data',
+          description: 'Get document content and metadata from a specific folder',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              folder_path: {
+                type: 'string',
+                description: 'Full path of the folder containing the document'
+              },
+              document_id: {
+                type: 'string',
+                description: 'Document ID (filename or generated ID)'
+              }
+            },
+            required: ['folder_path', 'document_id']
+          }
+        },
+        {
+          name: 'get_document_outline',
+          description: 'Get document structure and outline from a specific folder',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              folder_path: {
+                type: 'string',
+                description: 'Full path of the folder containing the document'
+              },
+              document_id: {
+                type: 'string',
+                description: 'Document ID (filename or generated ID)'
+              }
+            },
+            required: ['folder_path', 'document_id']
+          }
+        }
+      ]
+    };
+  });
+  
+  // Handle tool calls by forwarding to daemon endpoints
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    
+    try {
+      switch (name) {
+        case 'get_server_info': {
+          const result = await daemonEndpoints.getServerInfo();
+          return result as any;
+        }
+        
+        case 'list_folders': {
+          const result = await daemonEndpoints.listFolders();
+          return result as any;
+        }
+        
+        case 'list_documents': {
+          const folderPath = args?.folder_path as string;
+          const limit = args?.limit as number | undefined;
+          const result = await daemonEndpoints.listDocuments(folderPath, limit);
+          return result as any;
+        }
+        
+        case 'search': {
+          const query = args?.query as string || '';
+          const folderPath = args?.folder_path as string | undefined;
+          const threshold = args?.threshold as number | undefined;
+          const limit = args?.limit as number | undefined;
+          const options: { threshold?: number; limit?: number } = {};
+          if (threshold !== undefined) options.threshold = threshold;
+          if (limit !== undefined) options.limit = limit;
+          const result = await daemonEndpoints.search(query, folderPath, options);
+          return result as any;
+        }
+        
+        case 'get_document_data': {
+          const folderPath = args?.folder_path as string;
+          const documentId = args?.document_id as string;
+          const result = await daemonEndpoints.getDocument(folderPath, documentId);
+          return result as any;
+        }
+        
+        case 'get_document_outline': {
+          const folderPath = args?.folder_path as string;
+          const documentId = args?.document_id as string;
+          const result = await daemonEndpoints.getDocumentOutline(folderPath, documentId);
+          return result as any;
+        }
+        
+        default:
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Unknown tool: ${name}`
+            }]
+          } as any;
+      }
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      
+      // Check if this is a daemon-down error
+      if (isDaemonDownError(errorObj)) {
+        debug(`Daemon appears down for tool ${name}, attempting auto-recovery...`);
+        
+        // Start daemon restart asynchronously (don't wait)
+        attemptDaemonAutoStart().catch(err => 
+          debug(`Background daemon restart failed: ${err}`)
+        );
+        
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `🔄 The folder-mcp backend is starting up. This usually takes 5-10 seconds.
+
+Please try your "${name}" request again in a moment. If the issue persists after a few attempts, the daemon may need manual restart.`
+          }]
+        } as any;
+      }
+      
+      // Original error handling for other errors
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error calling tool ${name}: ${errorObj.message}`
+        }]
+      } as any;
+    }
+  });
+  
+  // Start the stdio transport
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  debug('MCP server started in daemon mode with tools registered');
+  
+  // Keep the process running with proper shutdown handling
+  await new Promise<void>((resolve) => {
+    // Set up signal handlers for graceful shutdown
+    const shutdown = async (signal: string) => {
+      debug(`Received ${signal}, shutting down gracefully...`);
+      
+      // Clean up daemon client
+      if (daemonClient) {
+        daemonClient.close();
+      }
+      
+      // Close the MCP server connection if method exists
+      if (server && typeof (server as any).close === 'function') {
+        try {
+          await (server as any).close();
+        } catch (error) {
+          debug(`Error closing server: ${error}`);
+        }
+      }
+      
+      resolve();
+      process.exit(0);
+    };
+    
+    // Handle termination signals
+    process.once('SIGINT', () => shutdown('SIGINT'));
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    
+    // Also handle uncaught exceptions and rejections
+    process.once('uncaughtException', (error) => {
+      console.error('Uncaught exception:', error);
+      shutdown('uncaughtException');
+    });
+    
+    process.once('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled rejection at:', promise, 'reason:', reason);
+      shutdown('unhandledRejection');
+    });
+  });
+}
 
 export async function main(): Promise<void> {
   debug('main() function called');
@@ -97,639 +521,54 @@ export async function main(): Promise<void> {
         // Sprint 2: Connection established, ready for endpoint migration
         debug('Daemon REST connection verified - MCP server ready for multi-folder operations');
         
-        // Sprint 3: Create daemon MCP endpoints
-        const daemonEndpoints = new DaemonMCPEndpoints(daemonClient);
-        
-        // Create MCP server with daemon-backed tools
-        const server = new Server(
-          {
-            name: 'folder-mcp',
-            version: '2.0.0',
-          },
-          {
-            capabilities: {
-              tools: {},
-            },
-          }
-        );
-        
-        // Register MCP tools that forward to daemon
-        server.setRequestHandler(ListToolsRequestSchema, async () => {
-          return {
-            tools: [
-              {
-                name: 'get_server_info',
-                description: 'Get information about the folder-mcp server and daemon status',
-                inputSchema: {
-                  type: 'object',
-                  properties: {},
-                  required: []
-                }
-              },
-              {
-                name: 'list_folders',
-                description: 'List all configured folders in the multi-folder system',
-                inputSchema: {
-                  type: 'object',
-                  properties: {},
-                  required: []
-                }
-              },
-              {
-                name: 'list_documents',
-                description: 'List documents in a specific folder',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    folder_id: {
-                      type: 'string',
-                      description: 'Folder ID to list documents from'
-                    },
-                    limit: {
-                      type: 'number',
-                      description: 'Maximum number of documents to return (default: 20)',
-                      minimum: 1,
-                      maximum: 100
-                    }
-                  },
-                  required: ['folder_id']
-                }
-              },
-              {
-                name: 'search',
-                description: 'Search for documents across folders (coming in Sprint 7)',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    query: {
-                      type: 'string',
-                      description: 'Search query'
-                    },
-                    folder_id: {
-                      type: 'string',
-                      description: 'Optional folder ID to search within'
-                    }
-                  },
-                  required: ['query']
-                }
-              },
-              {
-                name: 'get_document_data',
-                description: 'Get document content and metadata from a specific folder',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    folder_id: {
-                      type: 'string',
-                      description: 'Folder ID containing the document'
-                    },
-                    document_id: {
-                      type: 'string',
-                      description: 'Document ID (filename or generated ID)'
-                    }
-                  },
-                  required: ['folder_id', 'document_id']
-                }
-              },
-              {
-                name: 'get_document_outline',
-                description: 'Get document structure and outline from a specific folder',
-                inputSchema: {
-                  type: 'object',
-                  properties: {
-                    folder_id: {
-                      type: 'string',
-                      description: 'Folder ID containing the document'
-                    },
-                    document_id: {
-                      type: 'string',
-                      description: 'Document ID (filename or generated ID)'
-                    }
-                  },
-                  required: ['folder_id', 'document_id']
-                }
-              }
-            ]
-          };
-        });
-        
-        // Handle tool calls by forwarding to daemon endpoints
-        server.setRequestHandler(CallToolRequestSchema, async (request) => {
-          const { name, arguments: args } = request.params;
-          
-          try {
-            switch (name) {
-              case 'get_server_info': {
-                const result = await daemonEndpoints.getServerInfo();
-                return result as any;
-              }
-              
-              case 'list_folders': {
-                const result = await daemonEndpoints.listFolders();
-                return result as any;
-              }
-              
-              case 'list_documents': {
-                const folderId = args?.folder_id as string;
-                const limit = args?.limit as number | undefined;
-                const result = await daemonEndpoints.listDocuments(folderId, limit);
-                return result as any;
-              }
-              
-              case 'search': {
-                const query = args?.query as string || '';
-                const folderId = args?.folder_id as string | undefined;
-                const result = await daemonEndpoints.search(query, folderId);
-                return result as any;
-              }
-              
-              case 'get_document_data': {
-                const folderId = args?.folder_id as string;
-                const documentId = args?.document_id as string;
-                const result = await daemonEndpoints.getDocument(folderId, documentId);
-                return result as any;
-              }
-              
-              case 'get_document_outline': {
-                const folderId = args?.folder_id as string;
-                const documentId = args?.document_id as string;
-                const result = await daemonEndpoints.getDocumentOutline(folderId, documentId);
-                return result as any;
-              }
-              
-              default:
-                return {
-                  content: [{
-                    type: 'text' as const,
-                    text: `Unknown tool: ${name}`
-                  }]
-                } as any;
-            }
-          } catch (error) {
-            return {
-              content: [{
-                type: 'text' as const,
-                text: `Error calling tool ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-              }]
-            } as any;
-          }
-        });
-        
-        // Start the stdio transport
-        const transport = new StdioServerTransport();
-        await server.connect(transport);
-        debug('MCP server started in daemon mode with tools registered');
-        
-        // Keep the process running with proper shutdown handling
-        await new Promise<void>((resolve) => {
-          // Set up signal handlers for graceful shutdown
-          const shutdown = async (signal: string) => {
-            debug(`Received ${signal}, shutting down gracefully...`);
-            
-            // Clean up daemon client
-            if (daemonClient) {
-              daemonClient.close();
-            }
-            
-            // Close the MCP server connection if method exists
-            if (server && typeof (server as any).close === 'function') {
-              try {
-                await (server as any).close();
-              } catch (error) {
-                debug(`Error closing server: ${error}`);
-              }
-            }
-            
-            resolve();
-            process.exit(0);
-          };
-          
-          // Handle termination signals
-          process.once('SIGINT', () => shutdown('SIGINT'));
-          process.once('SIGTERM', () => shutdown('SIGTERM'));
-          
-          // Also handle uncaught exceptions and rejections
-          process.once('uncaughtException', (error) => {
-            console.error('Uncaught exception:', error);
-            shutdown('uncaughtException');
-          });
-          
-          process.once('unhandledRejection', (reason, promise) => {
-            console.error('Unhandled rejection at:', promise, 'reason:', reason);
-            shutdown('unhandledRejection');
-          });
-        });
+        // Sprint 3: Set up MCP server with daemon endpoints
+        await setupMCPServer(daemonClient);
         return;
       } catch (error) {
         debug(`Failed to connect to daemon: ${error}`);
-        debug('Please ensure the daemon is running with REST API on port 3002');
-        debug('Start the daemon with: npm run daemon:restart');
-        process.exit(1);
-      }
-    }
-    
-    // Legacy single-folder mode
-    debug('Running in legacy single-folder mode');
-    
-    if (!folderPath) {
-      debug('Error: folderPath is undefined in single-folder mode');
-      process.exit(1);
-    }
-    
-    // Load configuration using DEAD SIMPLE approach
-    const { loadHybridConfiguration, convertToResolvedConfig } = await import('./application/config/HybridConfigLoader.js');
-    
-    // Create CLI overrides object
-    const cliOverrides: any = {};
-    if (theme) {
-      cliOverrides.theme = theme;
-      debug(`CLI theme override: ${theme}`);
-    }
-    
-    const simpleConfig = await loadHybridConfiguration(folderPath, cliOverrides);
-    
-    debug(`Configuration loaded successfully`);
-    debug(`System config keys: ${Object.keys(simpleConfig.system || {}).join(', ')}`);
-    debug(`User config keys: ${Object.keys(simpleConfig.user || {}).join(', ')}`);
-    debug(`Folders configured: ${simpleConfig.folders.length}`);
-    
-    // Convert to ResolvedConfig format for DI compatibility
-    const config = convertToResolvedConfig(simpleConfig);
-    
-    debug('Setting up dependency injection...');
-    
-    const container = setupDependencyInjection({
-      config,
-      folderPath,
-      logLevel: 'info' as const
-    });
-
-    // Create the official MCP SDK server
-    debug('Creating official MCP SDK server...');
-    const server = new Server(
-      {
-        name: 'folder-mcp',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
-    );
-
-    // Create our custom endpoints handler
-    debug('Setting up custom endpoints...');
-    const vectorSearchService = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH);
-    const fileParsingService = await container.resolveAsync(SERVICE_TOKENS.FILE_PARSING);
-    const embeddingService = await container.resolveAsync(SERVICE_TOKENS.EMBEDDING);
-    const fileSystemService = await container.resolveAsync(SERVICE_TOKENS.FILE_SYSTEM);
-    const fileSystem = container.resolve(SERVICE_TOKENS.FILE_SYSTEM);
-    const logger = container.resolve(SERVICE_TOKENS.LOGGING);
-
-    // Get multi-folder services
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
-    const multiFolderStorageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER);
-    
-    // Add the command-line folder to the folder manager
-    debug(`Adding command-line folder to folder manager: ${folderPath}`);
-    // Ensure we have a model configured - no fallback to reveal configuration issues
-    const modelName = config.embeddings?.model;
-    if (!modelName) {
-      throw new Error(`No embedding model configured. Check embeddings.model in configuration.`);
-    }
-    
-    await folderManager.addFolder({
-      path: folderPath,
-      model: modelName
-    });
-    
-    debug('Multi-folder services initialized');
-
-    const endpoints = new MCPEndpoints(
-      process.cwd(), // Base directory for multi-folder mode
-      vectorSearchService as any,
-      fileParsingService as any,
-      embeddingService as any,
-      fileSystemService as any,
-      fileSystem as any,
-      logger as any,
-      folderManager,
-      multiFolderStorageProvider
-    );
-
-    // Register tool handlers with the official SDK
-    debug('Registering tool handlers...');
-    
-    // Register list tools handler
-    server.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          {
-            name: 'search',
-            description: 'Semantic search across documents with optional folder filtering',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'Search query' },
-                mode: { type: 'string', enum: ['semantic', 'regex'], description: 'Search mode', default: 'semantic' },
-                scope: { type: 'string', enum: ['documents', 'chunks'], description: 'Search scope', default: 'documents' },
-                filters: {
-                  type: 'object',
-                  properties: {
-                    folder: { type: 'string', description: 'Folder name to search in' },
-                    fileType: { type: 'string', description: 'File type filter' }
-                  }
-                },
-                limit: { type: 'number', description: 'Maximum results to return' },
-                max_tokens: { type: 'number', description: 'Maximum tokens in response' }
-              },
-              required: ['query']
-            }
-          },
-          {
-            name: 'get_document_outline',
-            description: 'Get the structure/outline of a document',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                filePath: { type: 'string', description: 'Path to the document' }
-              },
-              required: ['filePath']
-            }
-          },
-          {
-            name: 'get_document_data', 
-            description: 'Get document content and metadata',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                filePath: { type: 'string', description: 'Path to the document' },
-                format: { type: 'string', enum: ['raw', 'chunks', 'metadata'], description: 'Output format', default: 'raw' }
-              },
-              required: ['filePath']
-            }
-          },
-          {
-            name: 'list_folders',
-            description: 'List all folders in the knowledge base',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
-          },
-          {
-            name: 'list_documents',
-            description: 'List documents in a specific folder',
-            inputSchema: {
-              type: 'object', 
-              properties: {
-                folderPath: { type: 'string', description: 'Path to the folder' }
-              }
-            }
-          },
-          {
-            name: 'get_sheet_data',
-            description: 'Extract data from spreadsheet files',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                filePath: { type: 'string', description: 'Path to the spreadsheet' },
-                sheetName: { type: 'string', description: 'Name of the sheet' }
-              },
-              required: ['filePath']
-            }
-          },
-          {
-            name: 'get_slides',
-            description: 'Extract slides from presentation files',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                filePath: { type: 'string', description: 'Path to the presentation' },
-                slideNumbers: { type: 'array', items: { type: 'number' }, description: 'Specific slide numbers' }
-              },
-              required: ['filePath']
-            }
-          },
-          {
-            name: 'get_pages',
-            description: 'Extract specific pages from documents',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                filePath: { type: 'string', description: 'Path to the document' },
-                pageNumbers: { type: 'array', items: { type: 'number' }, description: 'Specific page numbers' }
-              },
-              required: ['filePath']
-            }
-          },
-          {
-            name: 'get_status',
-            description: 'Get system status and health information',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
-          },
-          {
-            name: 'get_folder_info',
-            description: 'Get comprehensive folder information with status, document counts, and settings',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
+        debug('Attempting to auto-start daemon...');
+        
+        // Try to auto-start the daemon
+        const autoStartSuccess = await attemptDaemonAutoStart();
+        
+        if (autoStartSuccess) {
+          debug('Daemon auto-start successful, attempting connection...');
+          
+          try {
+            // Retry connection after successful auto-start
+            await daemonClient.connect();
+            debug('Successfully connected to auto-started daemon');
+            
+            // Get server info to verify connection
+            const serverInfo = await daemonClient.getServerInfo();
+            debug(`Daemon info: v${serverInfo.version}, ${serverInfo.daemon.folderCount} folders configured`);
+            debug(`  - Active folders: ${serverInfo.daemon.activeFolders}`);
+            debug(`  - Indexing folders: ${serverInfo.daemon.indexingFolders}`);
+            debug(`  - Total documents: ${serverInfo.daemon.totalDocuments}`);
+            
+            // Success! Set up MCP server with auto-started daemon
+            await setupMCPServer(daemonClient);
+            return;
+            
+          } catch (retryError) {
+            debug(`Failed to connect to auto-started daemon: ${retryError}`);
+            debug('Auto-started daemon may need more time to initialize');
+            debug('Please wait a moment and try again, or start manually with: npm run daemon:restart');
+            process.exit(1);
           }
-        ]
-      };
-    });
-
-    // Register call tool handler that bridges to our endpoints
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const { name, arguments: args } = request.params;
-      
-      try {
-        let result;
-        
-        switch (name) {
-          case 'search':
-            result = await endpoints.search(args as any);
-            break;
-          case 'get_document_outline':
-            result = await endpoints.getDocumentOutline(args as any);
-            break;
-          case 'get_document_data':
-            result = await endpoints.getDocumentData(args as any);
-            break;
-          case 'list_folders':
-            result = await endpoints.listFolders();
-            break;
-          case 'list_documents':
-            result = await endpoints.listDocuments(args as any);
-            break;
-          case 'get_sheet_data':
-            result = await endpoints.getSheetData(args as any);
-            break;
-          case 'get_slides':
-            result = await endpoints.getSlides(args as any);
-            break;
-          case 'get_pages':
-            result = await endpoints.getPages(args as any);
-            break;
-          case 'get_status':
-            result = await endpoints.getStatus(args as any);
-            break;
-          case 'get_folder_info':
-            result = await endpoints.getFolderInfo();
-            break;
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-        
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result, null, 2)
-            }
-          ]
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        debug(`Error in tool ${name}:`, errorMessage);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Error: ${errorMessage}`
-            }
-          ],
-          isError: true
-        };
-      }
-    });
-
-    // Connect to stdio transport
-    debug('Connecting to stdio transport...');
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    debug('MCP server connected successfully');
-
-    // Initialize development mode (after server is connected)
-    debug('Initializing development mode...');
-    try {
-      const enableEnhancedFeatures = process.env.FOLDER_MCP_DEVELOPMENT_ENABLED === 'true';
-      if (enableEnhancedFeatures) {
-        const { DEFAULT_ENHANCED_MCP_CONFIG } = await import('./config/enhanced-mcp.js');
-        const restartCallback = () => {
-          debug('🔥 Hot reload requested - restarting server...');
-          debug('Server restart would happen here (not implemented yet)');
-        };
-        
-        devModeManager = await initializeDevMode(DEFAULT_ENHANCED_MCP_CONFIG, logger as any, restartCallback);
-        if (devModeManager) {
-          debug('✅ Development mode initialized with hot reload');
-        }
-      } else {
-        debug('Enhanced MCP features not enabled - skipping development mode');
-      }
-    } catch (error) {
-      debug('Development mode initialization failed (non-critical):', error);
-    }
-
-    // Defer indexing to avoid initialization timeout (MCP server is already responding)
-    debug('Scheduling background multi-folder indexing...');
-    setTimeout(async () => {
-      try {
-        const multiFolderIndexing = await container.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW) as any;
-        const indexingResult = await multiFolderIndexing.indexAllFolders({
-          forceReindex: true,
-          continueOnError: true
-        });
-        
-        debug(`Multi-folder indexing completed: ${indexingResult.totalFoldersProcessed} folders, ${indexingResult.totalFilesProcessed} files`);
-        if (indexingResult.errors.length > 0) {
-          debug(`Multi-folder indexing had ${indexingResult.errors.length} errors (continuing anyway)`);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        debug('Auto-indexing failed (non-critical):', errorMessage);
-      }
-    }, 1000);
-
-    // Defer file watching
-    debug('Scheduling background multi-folder file watching...');
-    setTimeout(async () => {
-      try {
-        const multiFolderMonitoring = await container.resolveAsync(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
-        const watchingResult = await multiFolderMonitoring.startMonitoringAllFolders({
-          baseOptions: {
-            includeFileTypes: getSupportedExtensions(),
-            excludePatterns: ['node_modules', '.git', '.folder-mcp'],
-            debounceMs: 1000,
-            enableBatchProcessing: true,
-            batchSize: 10
-          },
-          continueOnError: true
-        });
-        
-        if (watchingResult.success) {
-          debug(`✅ Multi-folder monitoring started successfully - ${watchingResult.activeWatchers} active watchers`);
-          debug(`📁 Monitoring ${watchingResult.folderResults.length} folders`);
         } else {
-          debug(`❌ Multi-folder monitoring failed: ${watchingResult.systemErrors.join(', ')}`);
+          debug('Failed to auto-start daemon');
+          debug('Please ensure the daemon is running with REST API on port 3002');
+          debug('Start the daemon with: npm run daemon:restart');
+          process.exit(1);
         }
-      } catch (error) {
-        debug('File watching startup failed (non-critical):', error);
       }
-    }, 500);
-
-    // Handle graceful shutdown
-    const shutdown = async () => {
-      debug('Shutting down MCP server...');
-      try {
-        // Clean up daemon client if in daemon mode
-        if (daemonClient) {
-          daemonClient.close();
-          debug('Daemon client connection closed');
-        }
-        
-        if (devModeManager) {
-          await devModeManager.stopWatching();
-          debug('Development mode file watcher stopped');
-        }
-        
-        try {
-          const multiFolderMonitoring = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW) as any;
-          await multiFolderMonitoring.stopMonitoringAllFolders();
-          debug('Multi-folder monitoring stopped successfully');
-        } catch (error) {
-          debug('File watching shutdown failed (non-critical):', error);
-        }
-        
-        // Close server transport
-        await server.close();
-        debug('MCP server closed');
-        process.exit(0);
-      } catch (error) {
-        debug('Error during shutdown:', error);
-        process.exit(1);
-      }
-    };
-
-    // Register shutdown handlers
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
-    process.on('uncaughtException', (error) => {
-      debug('Uncaught exception:', error);
-      shutdown();
-    });
-    process.on('unhandledRejection', (reason) => {
-      debug('Unhandled rejection:', reason);
-      shutdown();
-    });
-
-    debug('MCP server is running. Press Ctrl+C to stop.');
+    }
+    
+    // Phase 9: No single-folder mode support
+    // MCP server now only works with daemon for multi-folder support
+    debug('MCP server requires daemon mode. Please ensure daemon is running on port 3002.');
+    process.exit(1);
 
   } catch (error) {
     const errorObj = error instanceof Error ? error : new Error(String(error));
@@ -739,22 +578,12 @@ export async function main(): Promise<void> {
   }
 }
 
-// Run if this file is executed directly
-debug('Script loaded, checking if should run main()');
-debug('import.meta.url:', import.meta.url);
-debug('process.argv[1]:', process.argv[1]);
-
-// Convert process.argv[1] to file URL format for comparison
-const argv1 = process.argv[1];
-if (argv1) {
-  const scriptPath = argv1.replace(/\\/g, '/');
-  const expectedUrl = `file://${scriptPath}`;
-  debug('expectedUrl:', expectedUrl);
-
-  if (import.meta.url === expectedUrl) {
-    debug('Running main()');
+// Only run main() if this file is executed directly
+if (process.argv[1]) {
+  if (process.argv[1].endsWith('mcp-server.js') || process.argv[1].endsWith('mcp-server.ts')) {
+    // Start the server
     main().catch((error) => {
-      debug('Fatal error:', error);
+      console.error('Fatal error:', error);
       process.exit(1);
     });
   } else {

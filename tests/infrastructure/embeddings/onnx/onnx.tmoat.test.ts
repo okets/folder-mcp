@@ -136,7 +136,7 @@ describe('ONNX System TMOAT', () => {
         'Machine learning is fascinating'
       ];
 
-      const result = await embeddingService.generateEmbeddings(testTexts);
+      const result = await embeddingService.generateEmbeddingsFromStrings(testTexts);
       
       expect(result.embeddings.length).toBe(3);
       expect(result.dimensions).toBe(384); // As specified in catalog
@@ -168,7 +168,7 @@ describe('ONNX System TMOAT', () => {
 
     it('handles mean pooling and normalization correctly', async () => {
       const singleText = 'Test normalization';
-      const result = await embeddingService.generateEmbeddings([singleText]);
+      const result = await embeddingService.generateEmbeddingsFromStrings([singleText]);
       
       const embedding = result.embeddings[0];
       expect(embedding).toBeDefined();
@@ -200,7 +200,7 @@ describe('ONNX System TMOAT', () => {
         'Hallo Welt', // German
       ];
 
-      const result = await embeddingService.generateEmbeddings(multilingualTexts);
+      const result = await embeddingService.generateEmbeddingsFromStrings(multilingualTexts);
       
       expect(result.embeddings.length).toBe(5);
       
@@ -275,7 +275,7 @@ describe('ONNX System TMOAT', () => {
       
       for (let i = 0; i < runs; i++) {
         const startTime = Date.now();
-        await embeddingService.generateEmbeddings(testTexts);
+        await embeddingService.generateEmbeddingsFromStrings(testTexts);
         const duration = Date.now() - startTime;
         times.push(duration);
       }
@@ -315,14 +315,14 @@ describe('ONNX System TMOAT', () => {
 
     describe('Error Handling and Edge Cases', () => {
       it('handles empty text arrays', async () => {
-        const result = await embeddingService.generateEmbeddings([]);
+        const result = await embeddingService.generateEmbeddingsFromStrings([]);
         expect(result.embeddings).toEqual([]);
         expect(result.dimensions).toBe(384);
       });
 
       it('handles very long texts with truncation', async () => {
         const longText = 'word '.repeat(1000); // Very long text
-        const result = await embeddingService.generateEmbeddings([longText]);
+        const result = await embeddingService.generateEmbeddingsFromStrings([longText]);
         
         expect(result.embeddings.length).toBe(1);
         expect(result.embeddings[0]!.length).toBe(384);

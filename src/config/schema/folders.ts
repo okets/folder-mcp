@@ -85,7 +85,7 @@ export const DEFAULT_FOLDERS_CONFIG: FoldersConfig = {
       // model is undefined by default, uses global setting
     },
     performance: {
-      batchSize: 32,     // Reasonable default for most systems
+      batchSize: 1,      // Optimal performance from CPM testing (was 32)
       maxConcurrency: 4  // Conservative default
     }
   },

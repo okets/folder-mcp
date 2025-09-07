@@ -109,12 +109,60 @@ being able to instantly figure out how our change is reflected all the way to th
 The goal is to have all endpoints migrated to the new architecture as described in the PRD and fully tested by the agent.
 If the PRD has contradicting instructions, these instructions take precedence. tell me if you find any discrepancies.
 
------------------------------Next Sprint
-'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md'
-we have finished sprint 5.
-let's plan for sprint 6. we do it agent-to-daemon method, read about it in memory mcp.
-
 
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
-You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faster.
+You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste
+
+search memory mcp on how we do agent-to-endpoint testing. it doesn't involve creating scripts. its direct polling by using the mcp server we are building as a tool.
+agent-to-endpoint is not TMOAT, both serve similar purposes but when testing endpoints, a2e is superior. I want you to add an agent-to-endpoint testing instructions. Think like a human. A human would have looked at the project which is indexed by the folder-mcp system, Would have asked a question that it already knows the answer for. Then compare the result with the answer it expected to get.You can read files, specific files within our project's document and use the endpoint to see if you get real information. You have access for both the project and its files and the endpoints that query the same files.
+
+Think of it like this: The key insight is that A2E testing means I, as the agent, AM the test - using the MCP tools directly to validate the system works as expected. This is far superior to writing test
+  scripts because:
+  1. It tests the actual tools that end users will use
+  2. It validates the real integration, not a simulation
+  3. It catches issues like the search index cleanup problem that a script might miss
+----------------------------end-to-end TMOAT+agent-to-endpoint
+Let me tell you how to run this test end-to-end using a mix of TMOAT and agent-to-endpoint techniques.
+If anything fails during this process we fix the root cause and we start the entire sequence over again.
+TMOAT part:
+1. run the daemon in a background service using 'npm run daemon:restart' no need to kill previous instances, the daemon:restart will handle this for you. monitor the logs when you need to figure out what the daemon is doing.
+2. connect to the websocket interface, Remove  /Users/hanan/Projects/folder-mcp from indexing list. if we are testing multiple folders, remove /Users/hanan/Projects/folder-mcp-copy too. (The ./TMOAT folder contains a lot of scripts that does this exactly, see how they connect and copy the behavior)
+3. Monitor the FMDM and query the database embeddings directly. see if the indexing went as expected. (Again, look at the ./TMOAT folder for examples)
+4. Then re-add the folders using the model you want to test (Python or ONNX or one of each). monitor the indexing process closely.
+A2E part:
+now that the indexing works, you can start testing the endpoints directly. Use the MCP server to query the indexed documents and verify the responses.
+If you need a Human to reconnect the MCP. (we are working on it live, it might be disconnected when we kill the daemon during development)
+
+This is a foolproof way to test everything about our system.
+─────────────────────────────────────────────────────────────────────────────────────
+---------------------Next Tasks
+**Ultimate end to end test**
+I want to test that all of our curated models are working properly.
+To do so, we need to create a simple but very effective TMOAT + agent-to-endpoint test suite.
+This is the flow:
+1. Run the daemon in a background process.
+2. Connect to the websocket interface and remove the folders from the indexing list.
+We offer 5 models, 2 CPU and 3 GPU models. *Run this test 5 times! one for each model*
+ - Add the following folder path to the indexing list using the websocket interface: /Users/hanan/Projects/folder-mcp/tmp/small-test-folder
+ - once indexing is finished, add a text file with a secret to the folder something like "Cats likes blue bananas". it should be picked up and indexed right away. (use a different secret for each model)
+ - query the database, see that the embeddings are correct and using the same dimensions as the selected model.
+ - now YOU are the final test! use folder-mcp mcp server and use the semantic search endpoint to ask about the secret. see if it's being fetched.
+
+**planning Ollama support:**
+in /Users/hanan/Projects/folder-mcp/src/config/model-registry.ts
+this method: getModelsByBackend(backend: 'python' | 'onnx' | 'ollama'): any[]
+should return installed Ollama models.
+─────────────────────────────────────────────────────────────────────────────────────
+-------------------Code Rabbit
+My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
+The automated Code review system does not know what we worked on. I want you to: 
+- read /Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md
+- read the commit messages for all of the changes in our branch. Once you understand the tasks We worked on during this sprint you should evaluate each of the suggestions.
+- Don't fix anything yet!
+- decide which suggestions are valid and which do not.
+- group related valid suggestions together.
+- create an md file with the groupped task list.
+
+MY Code review system's suggestions:
+

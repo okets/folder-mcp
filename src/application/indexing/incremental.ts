@@ -17,7 +17,8 @@ import { getSupportedExtensions } from '../../domain/files/supported-extensions.
 // Domain service interfaces
 import { 
   IFileSystemService,
-  ILoggingService 
+  ILoggingService,
+  IVectorSearchService 
 } from '../../di/interfaces.js';
 
 // Domain types
@@ -36,7 +37,8 @@ export class IncrementalIndexer implements IncrementalIndexing {
     private readonly fileSystemService: IFileSystemService,
     private readonly fileStateStorage: IFileStateStorage,
     private readonly loggingService: ILoggingService,
-    private readonly indexingOrchestrator: IndexingOrchestrator
+    private readonly indexingOrchestrator: IndexingOrchestrator,
+    private readonly vectorStorage: IVectorSearchService
   ) {}
 
   async detectChanges(folderPath: string): Promise<ChangeDetectionResult> {
@@ -74,12 +76,35 @@ export class IncrementalIndexer implements IncrementalIndexing {
     changes: ChangeDetectionResult, 
     options: IndexingOptions = {}
   ): Promise<IndexingResult> {
+    // Check if we have valid changes object
+    if (!changes) {
+      this.loggingService.error('❌ No changes object provided to indexChanges');
+      return this.createEmptyResult();
+    }
+    
+    // Log counts at info level for production
+    this.loggingService.info('📌 indexChanges called', {
+      newFilesCount: changes.newFiles?.length || 0,
+      modifiedFilesCount: changes.modifiedFiles?.length || 0,
+      deletedFilesCount: changes.deletedFiles?.length || 0
+    });
+    
+    // Log full arrays only in debug mode
+    if (process.env.NODE_ENV !== 'production') {
+      this.loggingService.debug('Detailed change arrays', {
+        newFiles: changes.newFiles || [],
+        modifiedFiles: changes.modifiedFiles || [],
+        deletedFiles: changes.deletedFiles || []
+      });
+    }
+    
     const filesToProcess = [
       ...changes.newFiles,
       ...changes.modifiedFiles
     ];
 
-    if (filesToProcess.length === 0) {
+    // Check if there are any changes at all (including deletions)
+    if (filesToProcess.length === 0 && changes.deletedFiles.length === 0) {
       this.loggingService.info('No changes to process');
       return this.createEmptyResult();
     }
@@ -87,11 +112,16 @@ export class IncrementalIndexer implements IncrementalIndexing {
     this.loggingService.info('Processing incremental changes', {
       newFiles: changes.newFiles.length,
       modifiedFiles: changes.modifiedFiles.length,
-      deletedFiles: changes.deletedFiles.length
+      deletedFiles: changes.deletedFiles.length,
+      filesToProcess: filesToProcess
     });
 
     // Handle deletions first
     await this.handleDeletions(changes.deletedFiles);
+
+    // CRITICAL: Delete old embeddings for modified files before re-indexing
+    // This prevents accumulation of duplicate embeddings
+    await this.handleModifiedFiles(changes.modifiedFiles);
 
     // Process new and modified files
     const result = await this.indexingOrchestrator.indexFiles(filesToProcess, {
@@ -178,11 +208,50 @@ export class IncrementalIndexer implements IncrementalIndexing {
 
     for (const filePath of deletedFiles) {
       try {
-        // Since removeFromCache isn't available, we'll log the deletion
-        // In a real implementation, this would clean up related cache entries
-        this.loggingService.debug('File deleted', { filePath });
+        // Remove the document and its embeddings from the vector storage
+        // This will cascade delete all chunks and embeddings due to foreign key constraints
+        await this.vectorStorage.removeDocument(filePath);
+        
+        // Update file state to reflect deletion
+        await this.fileStateStorage.updateProcessingState(
+          filePath,
+          FileProcessingState.DELETED
+        );
+        
+        this.loggingService.debug('File and embeddings deleted successfully', { filePath });
       } catch (error) {
-        this.loggingService.warn('Failed to handle deletion', { filePath, error });
+        this.loggingService.warn('Failed to handle deletion', { 
+          filePath, 
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle modified files by removing old embeddings before re-indexing
+   * This ensures we don't accumulate duplicate embeddings for the same file
+   */
+  private async handleModifiedFiles(modifiedFiles: string[]): Promise<void> {
+    if (modifiedFiles.length === 0) return;
+
+    this.loggingService.info('Removing old embeddings for modified files', { 
+      count: modifiedFiles.length 
+    });
+
+    for (const filePath of modifiedFiles) {
+      try {
+        // Remove old embeddings for this file
+        // The CASCADE DELETE will remove all related chunks and embeddings
+        await this.vectorStorage.removeDocument(filePath);
+        
+        this.loggingService.debug('Old embeddings removed for modified file', { filePath });
+      } catch (error) {
+        // Log but don't fail - the file might be new or already removed
+        this.loggingService.debug('Could not remove old embeddings for modified file', { 
+          filePath, 
+          error: error instanceof Error ? error.message : String(error)
+        });
       }
     }
   }
@@ -238,12 +307,14 @@ export function createIncrementalIndexer(
   fileSystemService: IFileSystemService,
   fileStateStorage: IFileStateStorage,
   loggingService: ILoggingService,
-  indexingOrchestrator: IndexingOrchestrator
+  indexingOrchestrator: IndexingOrchestrator,
+  vectorStorage: IVectorSearchService
 ): IncrementalIndexer {
   return new IncrementalIndexer(
     fileSystemService,
     fileStateStorage,
     loggingService,
-    indexingOrchestrator
+    indexingOrchestrator,
+    vectorStorage
   );
 }

@@ -1017,26 +1017,9 @@ export class MCPEndpoints implements IMCPEndpoints {
           }
         }
       } else {
-        // Fall back to single-folder mode
-        try {
-          const files = await this.listFiles(this.folderPath);
-          const folderStats = await this.getFolderStats(this.folderPath);
-          totalDocuments = files.length;
-
-          folders.push({
-            name: 'default',
-            path: this.folderPath,
-            enabled: true,
-            documentCount: files.length,
-            indexingStatus: 'ready',
-            lastIndexed: new Date().toISOString(),
-            size: this.formatFileSize(folderStats.totalSize),
-            settings: {}
-          });
-        } catch (error) {
-          this.logger.error('Failed to get single-folder info:', error as Error);
-          systemStatus = 'error';
-        }
+        // Phase 9: No single-folder mode fallback
+        this.logger.error('Daemon client not available. MCP server requires daemon for multi-folder support.');
+        systemStatus = 'error';
       }
 
       return {
@@ -1263,16 +1246,27 @@ export class MCPEndpoints implements IMCPEndpoints {
   }
 
   private resolveDocumentPath(documentId: string, folderName?: string): string {
-    if (this.folderManager && folderName) {
+    // Check if folder parameter is provided
+    if (!folderName) {
+      throw new Error('Missing required parameter: folderName. Please specify which folder contains the document you want to access.');
+    }
+    
+    if (this.folderManager) {
       // Use folder manager to resolve path for specific folder
       const folder = this.folderManager.getFolderByName(folderName);
       if (folder) {
         return path.join(folder.resolvedPath, documentId);
       }
+      
+      // Folder name provided but not found - provide helpful error
+      const availableFolders = this.folderManager.getAllFolders()
+        .map((f: any) => f.name)
+        .join(', ');
+      throw new Error(`Folder '${folderName}' not found. Available folders: ${availableFolders || 'none'}`);
     }
     
-    // Fall back to single-folder resolution
-    return path.join(this.folderPath, documentId);
+    // Folder manager not initialized
+    throw new Error('Folder manager is not initialized. Please ensure the system is properly configured.');
   }
 
   private resolveFolderPath(folder: string): string {

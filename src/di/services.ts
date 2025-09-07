@@ -368,18 +368,117 @@ export class EmbeddingService implements IEmbeddingService {
     }
   }
 
+  /**
+   * Helper function to safely load embedding service with error handling
+   * Supports both named and default exports with comprehensive validation
+   */
+  private async loadEmbeddingService<T extends IEmbeddingService>(
+    modulePath: string, 
+    constructorName: string, 
+    options: Record<string, any>
+  ): Promise<T> {
+    let chosenExportKey: string = '';
+    let ServiceConstructor: any = null;
+    
+    try {
+      const module = await import(modulePath);
+      
+      // Try named export first, then default export
+      if (module[constructorName]) {
+        ServiceConstructor = module[constructorName];
+        chosenExportKey = constructorName;
+      } else if (module.default) {
+        ServiceConstructor = module.default;
+        chosenExportKey = 'default';
+      } else {
+        throw new Error(
+          `Neither named export '${constructorName}' nor default export found in module ${modulePath}. ` +
+          `Available exports: ${Object.keys(module).join(', ')}`
+        );
+      }
+      
+      // Validate that the resolved export is constructable
+      if (typeof ServiceConstructor !== 'function') {
+        throw new Error(
+          `Export '${chosenExportKey}' in module ${modulePath} is not a constructable function/class. ` +
+          `Got: ${typeof ServiceConstructor}`
+        );
+      }
+      
+      // Instantiate the service
+      let instance: T;
+      try {
+        instance = new ServiceConstructor(options);
+      } catch (constructorError) {
+        throw new Error(
+          `Failed to instantiate ${chosenExportKey} from module ${modulePath}: ${constructorError instanceof Error ? constructorError.message : String(constructorError)}`
+        );
+      }
+      
+      // Validate the created instance implements the expected embedding API
+      const requiredMethods = ['initialize', 'generateEmbeddings', 'generateQueryEmbedding', 'generateSingleEmbedding', 'calculateSimilarity', 'getModelConfig'];
+      const missingMethods = requiredMethods.filter(method => 
+        typeof instance[method as keyof T] !== 'function'
+      );
+      
+      if (missingMethods.length > 0) {
+        throw new Error(
+          `Instance from ${chosenExportKey} export in module ${modulePath} does not implement required embedding API. ` +
+          `Missing methods: ${missingMethods.join(', ')}. ` +
+          `Available methods: ${Object.getOwnPropertyNames(Object.getPrototypeOf(instance)).filter(name => name !== 'constructor' && typeof instance[name as keyof T] === 'function').join(', ')}`
+        );
+      }
+      
+      return instance;
+      
+    } catch (error) {
+      this.loggingService.error('Failed to load embedding service', error instanceof Error ? error : new Error(String(error)), { 
+        modulePath, 
+        requestedConstructor: constructorName,
+        chosenExportKey: chosenExportKey || 'none',
+        options,
+        validationStage: ServiceConstructor ? (chosenExportKey ? 'instance_validation' : 'export_resolution') : 'module_import'
+      });
+      throw error; // Re-throw to allow caller to handle
+    }
+  }
+
+  /**
+   * Helper function to get model name with proper error handling
+   * curated-models.json is the ONLY source of truth - no hardcoded fallbacks allowed
+   */
+  private async getModelNameWithFallback(): Promise<string> {
+    // If we have a configured model name, use it
+    if (this.config.modelName) {
+      return this.config.modelName;
+    }
+
+    // Import from registry - this should never fail as curated-models.json is a static file
+    try {
+      const { getDefaultModelId } = await import('../config/model-registry.js');
+      return getDefaultModelId();
+    } catch (error) {
+      this.loggingService.error('FATAL: Failed to import getDefaultModelId from model registry - this indicates a serious system problem', error instanceof Error ? error : new Error(String(error)));
+      
+      // Re-throw the error - model registry import failure is fatal
+      // curated-models.json is our single source of truth and must be available
+      throw new Error(`Failed to load model registry: ${error instanceof Error ? error.message : String(error)}. This is a fatal error as curated-models.json is the only source of truth for model information.`);
+    }
+  }
+
   private async initializePythonService(): Promise<void> {
-    const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
+    const modelName = await this.getModelNameWithFallback();
     
-    // Map Ollama model names to sentence-transformer equivalents
-    const modelName = this.mapModelNameForPython(this.config.modelName || 'nomic-embed-text');
-    
-    this.embeddingModel = new PythonEmbeddingService({
-      modelName,
-      timeout: 30000,
-      maxRetries: 3,
-      healthCheckInterval: 30000
-    });
+    this.embeddingModel = await this.loadEmbeddingService<IEmbeddingService>(
+      '../infrastructure/embeddings/python-embedding-service.js',
+      'PythonEmbeddingService',
+      {
+        modelName,
+        timeout: 30000,
+        maxRetries: 3,
+        healthCheckInterval: 30000
+      }
+    );
     
     await this.embeddingModel.initialize();
     this.initialized = true;
@@ -392,10 +491,15 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
   private async initializeOllamaService(): Promise<void> {
-    const { OllamaEmbeddingService } = await import('../infrastructure/embeddings/ollama-embedding-service.js');
-    this.embeddingModel = new OllamaEmbeddingService({
-      model: this.config.modelName || 'nomic-embed-text'
-    });
+    const modelName = await this.getModelNameWithFallback();
+    
+    this.embeddingModel = await this.loadEmbeddingService<IEmbeddingService>(
+      '../infrastructure/embeddings/ollama-embedding-service.js',
+      'OllamaEmbeddingService',
+      {
+        model: modelName
+      }
+    );
     
     await this.embeddingModel.initialize();
     this.initialized = true;
@@ -407,29 +511,6 @@ export class EmbeddingService implements IEmbeddingService {
   }
 
 
-  private mapModelNameForPython(ollamaModelName: string): string {
-    // Map common Ollama model names to sentence-transformer equivalents
-    const modelMap: Record<string, string> = {
-      'nomic-embed-text': 'all-MiniLM-L6-v2',
-      'nomic-embed-text-v1.5': 'all-MiniLM-L12-v2', 
-      'mxbai-embed-large': 'all-mpnet-base-v2',
-      'all-minilm-l6-v2': 'all-MiniLM-L6-v2',
-      'all-minilm-l12-v2': 'all-MiniLM-L12-v2',
-      'all-mpnet-base-v2': 'all-mpnet-base-v2'
-    };
-
-    const mapped = modelMap[ollamaModelName.toLowerCase()];
-    if (mapped) {
-      this.loggingService.debug('Mapped Ollama model to sentence-transformer model', { 
-        from: ollamaModelName, 
-        to: mapped 
-      });
-      return mapped;
-    }
-
-    // If no mapping found, assume it's already a sentence-transformer model name
-    return ollamaModelName;
-  }
 
   async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
     if (!this.initialized) {
@@ -517,79 +598,6 @@ export class EmbeddingService implements IEmbeddingService {
   }
 }
 
-// =============================================================================
-// =============================================================================
-// DEPRECATED Logging Service Implementation
-// =============================================================================
-// NOTE: This LoggingService has been replaced by the enhanced infrastructure
-// in src/infrastructure/logging/. The old implementation is kept here for
-// reference but should not be used. Use the factory to get the new service.
-
-/*
-export class LoggingService implements ILoggingService {
-  private level: 'debug' | 'info' | 'warn' | 'error' = 'info';
-  private readonly levels = { debug: 0, info: 1, warn: 2, error: 3 };
-
-  constructor(config?: { level?: 'debug' | 'info' | 'warn' | 'error' }) {
-    if (config?.level) {
-      this.level = config.level;
-    }
-  }
-
-  debug(message: string, context?: any): void {
-    this.log('debug', message, context);
-  }
-
-  info(message: string, context?: any): void {
-    this.log('info', message, context);
-  }
-
-  warn(message: string, context?: any): void {
-    this.log('warn', message, context);
-  }
-
-  error(message: string, error?: Error, context?: any): void {
-    const errorContext = error ? { 
-      error: error.message, 
-      stack: error.stack,
-      ...context 
-    } : context;
-    
-    this.log('error', message, errorContext);
-  }
-
-  setLevel(level: 'debug' | 'info' | 'warn' | 'error'): void {
-    this.level = level;
-  }
-  private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, context?: any): void {
-    if (this.levels[level] < this.levels[this.level]) {
-      return;
-    }
-
-    const timestamp = new Date().toISOString();
-    const prefix = this.getPrefix(level);
-    
-    if (context) {
-      // Properly serialize context objects to avoid [object Object]
-      const contextStr = typeof context === 'object' ? JSON.stringify(context, null, 2) : String(context);
-      // Fixed: Use console.error to send to stderr instead of stdout (MCP protocol requirement)
-      console.error(`${prefix} [${timestamp}] ${message} ${contextStr}`);
-    } else {
-      console.error(`${prefix} [${timestamp}] ${message}`);
-    }
-  }
-
-  private getPrefix(level: string): string {
-    switch (level) {
-      case 'debug': return '🔍';
-      case 'info': return 'ℹ️';
-      case 'warn': return '⚠️';
-      case 'error': return '❌';
-      default: return '📝';
-    }
-  }
-}
-*/
 
 // =============================================================================
 // Additional Service Implementations

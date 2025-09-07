@@ -69,7 +69,7 @@ describe('FolderLifecycleService', () => {
       getFileMetadata: vi.fn().mockResolvedValue(null),
       removeFileEmbeddings: vi.fn().mockResolvedValue(true),
       getDocumentFingerprints: vi.fn().mockResolvedValue(new Map()),
-      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      isReady: vi.fn().mockReturnValue(true), // Fix: storage should be ready
       buildIndex: vi.fn().mockResolvedValue(void 0), // Add missing buildIndex method
       loadIndex: vi.fn().mockResolvedValue(void 0), // Fix: Add missing loadIndex method
       addEmbeddings: vi.fn().mockResolvedValue(void 0), // Add missing addEmbeddings method
@@ -256,7 +256,8 @@ describe('FolderLifecycleService', () => {
       const progress = orchestrator.getProgress();
       expect(progress.completedTasks).toBe(1);
       expect(progress.totalTasks).toBe(2);
-      expect(progress.percentage).toBe(50);
+      // Progress is now file-size weighted: file1 (1000 bytes) out of total 3000 bytes = 33%
+      expect(progress.percentage).toBe(33);
     });
   });
 
@@ -333,7 +334,7 @@ describe('FolderLifecycleService', () => {
       // Simulate task processing
       await orchestrator.processTask(taskId);
       
-      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalledWith('/test/file.pdf', 'test-model');
+      expect(mockIndexingOrchestrator.processFile).toHaveBeenCalledWith('/test/file.pdf', 'test-model', {}, expect.any(Function));
     });
   });
 

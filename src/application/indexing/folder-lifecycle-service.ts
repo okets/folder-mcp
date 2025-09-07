@@ -17,6 +17,9 @@ import { FolderLifecycleStateMachine } from '../../domain/folders/folder-lifecyc
 import { FolderTaskQueue } from '../../domain/folders/folder-task-queue.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { EmbeddingErrors } from '../../infrastructure/embeddings/embedding-errors.js';
+import { gitIgnoreService } from '../../infrastructure/filesystem/gitignore-service.js';
+import { getIndexingLogger } from '../../utils/indexing-logger.js';
+import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 
 /**
  * Service that manages the complete lifecycle of a single folder
@@ -27,6 +30,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   private taskQueue: FolderTaskQueue;
   private state: FolderLifecycleState;
   private pendingIndexingTasks: Map<string, Promise<any>> = new Map();
+  private indexingLogger = getIndexingLogger();
   private model: string;
   private active = true;
 
@@ -39,14 +43,28 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     private fileStateService: IFileStateService,
     private logger: ILoggingService,
     model?: string,
+    maxConcurrentFiles?: number,
   ) {
     super();
     this.model = model || 'unknown';
     this.stateMachine = new FolderLifecycleStateMachine();
+    // Use provided value or fallback to environment variable or default
+    const concurrentFiles = maxConcurrentFiles ?? 
+      (process.env.MAX_CONCURRENT_FILES 
+        ? parseInt(process.env.MAX_CONCURRENT_FILES, 10)
+        : 4); // Fallback default from CPM testing
+    
+    // Log configuration for debugging
+    this.logger.debug(`[FolderLifecycleService] Initialized with maxConcurrentFiles=${concurrentFiles} (source: ${
+      maxConcurrentFiles !== undefined ? 'constructor param' : 
+      process.env.MAX_CONCURRENT_FILES ? 'ENV var' : 
+      'default'
+    })`);
+      
     this.taskQueue = new FolderTaskQueue({
       maxRetries: 3,
       retryDelayMs: 1000,
-      maxConcurrentTasks: 2,
+      maxConcurrentTasks: concurrentFiles,
     });
     
     this.state = {
@@ -174,7 +192,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug(`[MANAGER-SCAN] Supported extensions: ${supportedExtensions.join(', ')}`);
       
       // Extract and filter file paths by supported extensions
-      const filePaths = scanResult.files
+      const extensionFilteredPaths = scanResult.files
         .map(file => typeof file === 'string' ? file : file.path || file.filePath || file.absolutePath)
         .filter((path): path is string => {
           if (!path) return false;
@@ -186,7 +204,27 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
           }
           return isSupported;
         });
-      this.logger.debug(`[MANAGER-SCAN] Filtered to ${filePaths.length} supported files`);
+      this.logger.debug(`[MANAGER-SCAN] Filtered to ${extensionFilteredPaths.length} supported files`);
+      
+      // Apply .gitignore filtering (optimized to avoid per-file logging)
+      this.logger.debug(`[MANAGER-SCAN] Loading .gitignore rules from ${this.folderPath}`);
+      const gitIgnore = await gitIgnoreService.loadGitIgnore(this.folderPath);
+      
+      const filePaths: string[] = [];
+      let ignoredCount = 0;
+      
+      for (const path of extensionFilteredPaths) {
+        if (!path) continue;
+        
+        const shouldIgnore = gitIgnoreService.shouldIgnore(gitIgnore, path, this.folderPath);
+        if (shouldIgnore) {
+          ignoredCount++;
+        } else {
+          filePaths.push(path);
+        }
+      }
+      
+      this.logger.debug(`[MANAGER-SCAN] After .gitignore filtering: ${filePaths.length} files (${ignoredCount} excluded by .gitignore)`);
       
       const changes = await this.detectChanges(filePaths);
       this.logger.debug(`[MANAGER-SCAN] Detected ${changes.length} changes in ${this.folderPath}`);
@@ -234,6 +272,10 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.debug('[MANAGER-PROCESS] Model and embedding validation passed, transitioning to active');
       
       if (this.stateMachine.canTransitionTo('active')) {
+        // Collect indexing statistics before transitioning to active
+        const indexingStats = await this.collectIndexingStatistics();
+        this.logger.debug(`[MANAGER-PROCESS] Collected indexing statistics for no-changes path: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
+        
         this.stateMachine.transitionTo('active');
         this.updateState({ 
           status: 'active',
@@ -242,8 +284,12 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         });
         // Clear progress message when becoming active
         delete this.state.progressMessage;
+        
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
+        
+        // Also emit indexComplete event with statistics for consistency
+        this.emit('indexComplete', { ...this.getState(), indexingStats });
         this.logger.debug('[MANAGER-PROCESS] Successfully transitioned to active state');
       } else {
         this.logger.error(`[MANAGER-PROCESS] Cannot transition to active from ${this.state.status}`);
@@ -277,6 +323,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       retryCount: 0,
       maxRetries: 3,
       createdAt: new Date(),
+      fileSize: change.size,
     }));
 
     this.logger.info(`[MANAGER-PROCESS] Created ${tasks.length} tasks from ${changes.length} detected changes`, {
@@ -335,6 +382,9 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   }
 
   private async processTaskQueue(): Promise<void> {
+    let lastProgressEmit = Date.now();
+    const PROGRESS_THROTTLE_MS = 1000; // Only emit progress every 1 second
+    
     // Process all tasks in queue, respecting concurrency limits
     while (this.active && this.state.status === 'indexing') {
       // Check if all tasks are complete
@@ -345,11 +395,18 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       
       // Check if the task queue was cleared (fail-fast scenario)
       const stats = this.taskQueue.getStatistics();
-      if (stats.pendingTasks === 0 && this.pendingIndexingTasks.size === 0) {
+      if (stats.pendingTasks === 0 && stats.inProgressTasks === 0 && this.pendingIndexingTasks.size === 0) {
         // Check if there are failed tasks indicating a model loading error
         const failedTasks = this.state.fileEmbeddingTasks.filter(t => t.status === 'error');
         if (failedTasks.length > 0 && failedTasks.some(t => t.errorMessage?.includes('model loading failure'))) {
           this.logger.warn('[MANAGER-QUEUE] Stopping task processing due to model loading failure');
+          break;
+        }
+        
+        // If no tasks at all and none in progress, we're done
+        if (stats.completedTasks > 0 || stats.failedTasks > 0) {
+          this.logger.info('[MANAGER-QUEUE] All tasks processed');
+          await this.transitionToActive();
           break;
         }
       }
@@ -358,14 +415,24 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       const taskId = this.getNextTask();
       if (taskId) {
         this.startTask(taskId);
+        
+        // Throttled progress update when starting new task
+        const now = Date.now();
+        if (now - lastProgressEmit > PROGRESS_THROTTLE_MS) {
+          this.updateProgress();
+          lastProgressEmit = now;
+        }
       } else {
-        // No tasks available (either due to concurrency limit or no pending tasks)
-        // Wait a bit and check again
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // No tasks available - either at concurrency limit or waiting for tasks
+        // Only wait if we have tasks in progress OR tasks scheduled for retry
+        if (stats.inProgressTasks > 0 || this.pendingIndexingTasks.size > 0 || stats.retryingTasks > 0) {
+          await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 500ms
+        } else {
+          // No tasks in progress, none pending, and none retrying - break to avoid infinite loop
+          this.logger.debug('[MANAGER-QUEUE] No tasks available, none in progress, and none retrying');
+          break;
+        }
       }
-      
-      // Small delay to prevent tight loop
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
@@ -402,11 +469,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
       this.logger.warn(`[MANAGER-START-TASK] State task ${taskId} not found in fileEmbeddingTasks`);
     }
 
-    // Update progress immediately when starting a task
-    // This makes the progress bar more responsive
-    this.updateProgress();
-
     // Start async processing
+    // Progress updates are now throttled in the main processing loop
     const processingPromise = this.processTask(taskId);
     this.pendingIndexingTasks.set(taskId, processingPromise);
     
@@ -432,26 +496,57 @@ return;
       case 'CreateEmbeddings':
       case 'UpdateEmbeddings':
         try {
+          // Create progress callback to update chunk progress
+          const progressCallback = (totalChunks: number, processedChunks: number) => {
+            // Update task in state with chunk progress
+            const stateTask = this.state.fileEmbeddingTasks.find(t => t.id === taskId);
+            if (stateTask) {
+              stateTask.totalChunks = totalChunks;
+              stateTask.processedChunks = processedChunks;
+              
+              // Trigger progress update to refresh the message
+              this.updateProgress();
+            }
+          };
+          
           // Process file with IndexingOrchestrator to get embeddings and metadata
           // Using per-folder model configuration for embeddings
-          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model);
+          const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model, {}, progressCallback);
           
           // Store results in SQLiteVecStorage if we have embeddings
+          const fileName = task.file.split('/').pop() || task.file;
           if (fileResult.embeddings && fileResult.metadata && fileResult.embeddings.length > 0) {
-            this.logger.debug(`[MANAGER-STORE] Storing ${fileResult.embeddings.length} embeddings for ${task.file}`);
+            this.logger.info(`[HUGE-DEBUG] ${fileName}: Starting to store ${fileResult.embeddings.length} embeddings`);
             
             // Ensure database is initialized
             if (!this.sqliteVecStorage.isReady()) {
               // Load existing index or initialize if empty (does not wipe existing data)
               const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Loading database index from ${dbPath}`);
               await this.sqliteVecStorage.loadIndex(dbPath);
             }
             
             // Store embeddings in SQLite database incrementally
-            await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
-            this.logger.info(`[MANAGER-STORE] Successfully stored ${fileResult.embeddings.length} embeddings for ${task.file}`);
+            try {
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Calling addEmbeddings with ${fileResult.embeddings.length} embeddings and ${fileResult.metadata.length} metadata`);
+              
+              // Validate that embeddings and metadata arrays have matching lengths
+              // This should now always be true due to orchestrator fixes, but keep validation
+              if (fileResult.embeddings.length !== fileResult.metadata.length) {
+                const errorMsg = `CRITICAL: Embeddings/metadata count mismatch in ${fileName}: ${fileResult.embeddings.length} embeddings vs ${fileResult.metadata.length} metadata`;
+                this.logger.error(`[HUGE-DEBUG] ${errorMsg}`);
+                throw new Error(errorMsg);
+              }
+              
+              await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully stored embeddings`);
+            } catch (dbError) {
+              const error = dbError as Error;
+              this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to store embeddings: ${error.message}`, error);
+              throw dbError;
+            }
           } else {
-            this.logger.warn(`[MANAGER-STORE] No embeddings generated for ${task.file}`);
+            this.logger.warn(`[HUGE-DEBUG] ${fileName}: No embeddings generated (embeddings: ${!!fileResult.embeddings}, metadata: ${!!fileResult.metadata}, length: ${fileResult.embeddings?.length || 0})`);
           }
         } catch (error: any) {
           // Check if this is a model loading error - if so, fail fast
@@ -536,10 +631,33 @@ return;
             const result = stmt.get(stateTask.file) as { chunk_count: number };
             const chunkCount = result?.chunk_count || 0;
             
+            const fileName = stateTask.file.split('/').pop() || stateTask.file;
+            
             if (chunkCount > 0) {
-              await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
+              this.logger.info(`[FILE-STATE-DEBUG] ${fileName}: Found ${chunkCount} chunks in database, marking as success`);
+              try {
+                console.error(`[FILE-STATE-DEBUG] About to call markProcessingSuccess for ${stateTask.file}`);
+                await this.fileStateService.markProcessingSuccess(stateTask.file, chunkCount);
+                this.logger.info(`[FILE-STATE-DEBUG] ${fileName}: Successfully marked as indexed in file_states table`);
+                console.error(`[FILE-STATE-DEBUG] File state marked successfully for ${stateTask.file}`);
+              } catch (stateError) {
+                const error = stateError as Error;
+                this.logger.error(`[FILE-STATE-DEBUG] ${fileName}: Failed to mark as success in file_states: ${error.message}`, error);
+                console.error(`[FILE-STATE-DEBUG] ERROR marking file state: ${error.message}`);
+              }
+              
+              // Log successful processing for huge files
+              if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+                this.indexingLogger.logProcessingComplete(
+                  stateTask.file,
+                  'SUCCESS',
+                  chunkCount,
+                  true,
+                  'indexed'
+                );
+              }
             } else {
-              this.logger.warn(`No chunks found for successfully processed file: ${stateTask.file}`);
+              this.logger.warn(`[PROCESSING] ${fileName}: No chunks found in database after processing`);
             }
           } catch (error) {
             this.logger.warn(`Failed to mark file as processed in database: ${stateTask.file}`, error);
@@ -571,7 +689,7 @@ return;
       }
     }
 
-    // Update progress
+    // Update progress (throttled internally)
     this.updateProgress();
     
     // Check if all tasks are complete (this will be handled by the processTaskQueue loop)
@@ -585,6 +703,8 @@ return;
 
   private isAllTasksComplete(): boolean {
     const stats = this.taskQueue.getStatistics();
+    // All tasks are complete when there are no pending, in-progress, or retrying tasks
+    // Failed tasks are considered "complete" (they won't be retried anymore)
     return stats.totalTasks > 0 && 
            stats.pendingTasks === 0 && 
            stats.inProgressTasks === 0 &&
@@ -604,6 +724,10 @@ return;
         return;
       }
       
+      // Collect indexing statistics before transitioning to active
+      const indexingStats = await this.collectIndexingStatistics();
+      this.logger.debug(`[MANAGER-TRANSITION] Collected indexing statistics: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
+      
       this.stateMachine.transitionTo('active');
       
       // Set progress to 100% when transitioning to active
@@ -620,8 +744,11 @@ return;
       // Clear progress message when becoming active
       delete this.state.progressMessage;
       
-      // Emit indexComplete event
-      this.emit('indexComplete', this.getState());
+      // Emit final 100% progress event
+      this.emit('progressUpdate', finalProgress);
+      
+      // Emit indexComplete event with statistics
+      this.emit('indexComplete', { ...this.getState(), indexingStats });
       this.logger.debug('[MANAGER-TRANSITION] Successfully transitioned to active state after model validation');
     }
   }
@@ -629,28 +756,48 @@ return;
   getProgress(): FolderProgress {
     const stats = this.taskQueue.getStatistics();
     
-    // Calculate percentage based on completed files vs total files
-    // Show actual percentage for accurate progress tracking
-    let percentage = 0;
-    
-    if (stats.totalTasks > 0) {
-      // Include in-progress tasks as partially complete (50% weight)
-      // This prevents the progress from appearing stuck while processing large files
-      const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
-      percentage = Math.round((effectiveCompleted / stats.totalTasks) * 100);
-      
-      // Ensure we don't exceed 99% until truly complete
-      if (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) {
-        percentage = 99;
-      }
+    // Calculate total file size across all tasks for weighted progress
+    let totalSize = 0;
+    for (const task of this.state.fileEmbeddingTasks) {
+      totalSize += task.fileSize || 0;
     }
+    
+    // Calculate file-size weighted progress to prevent regression on large files
+    let weightedProgress = 0;
+    
+    if (totalSize > 0) {
+      for (const task of this.state.fileEmbeddingTasks) {
+        const fileWeight = (task.fileSize || 0) / totalSize;
+        
+        if (task.status === 'success') {
+          // Completed files contribute their full weight
+          weightedProgress += fileWeight * 100;
+        } else if (task.status === 'in-progress' && task.totalChunks && task.totalChunks > 0) {
+          // In-progress files contribute partial weight based on chunks
+          const chunkProgress = (task.processedChunks || 0) / task.totalChunks;
+          weightedProgress += fileWeight * chunkProgress * 100;
+        }
+        // Pending and failed files contribute 0
+      }
+    } else if (stats.totalTasks > 0) {
+      // Fallback to task-based calculation if no file size info available
+      const effectiveCompleted = stats.completedTasks + (stats.inProgressTasks * 0.5);
+      weightedProgress = (effectiveCompleted / stats.totalTasks) * 100;
+    }
+    
+    const percentage = Math.round(weightedProgress);
+    
+    // Ensure we don't exceed 99% until truly complete
+    const cappedPercentage = (percentage > 99 && (stats.pendingTasks > 0 || stats.inProgressTasks > 0)) 
+      ? 99 
+      : Math.min(percentage, 100);
 
     return {
       totalTasks: stats.totalTasks,
       completedTasks: stats.completedTasks,
       failedTasks: stats.failedTasks,
       inProgressTasks: stats.inProgressTasks,
-      percentage,
+      percentage: cappedPercentage
     };
   }
 
@@ -671,12 +818,22 @@ return;
     this.logger.debug(`[MANAGER-DETECT] Starting intelligent scanning for ${currentFiles.length} files`);
     const changes: FileChangeInfo[] = [];
     
+    // Log scan started
+    this.indexingLogger.logScanStarted(this.folderPath, currentFiles.length);
+    
     try {
       // Ensure database is initialized before attempting to get fingerprints
       if (!this.sqliteVecStorage.isReady()) {
         this.logger.debug('[MANAGER-DETECT] Database not ready, loading existing index...');
         const dbPath = `${this.folderPath}/.folder-mcp/embeddings.db`;
         await this.sqliteVecStorage.loadIndex(dbPath);
+      }
+      
+      // Check if embeddings exist - if not, force reprocessing of all files
+      const embeddingCount = await this.getEmbeddingCount();
+      const forceReprocess = embeddingCount === 0;
+      if (forceReprocess) {
+        this.logger.info('[MANAGER-DETECT] No embeddings found in database, forcing reprocessing of all files');
       }
       
       // Phase 1: Intelligent processing decisions using file states
@@ -716,7 +873,40 @@ return;
         // Make intelligent processing decision
         const decision = await this.fileStateService.makeProcessingDecision(filePath, contentHash);
         
+        // Override decision if we're forcing reprocessing due to missing embeddings
+        if (forceReprocess && !decision.shouldProcess) {
+          decision.shouldProcess = true;
+          decision.action = 'process';
+          decision.reason = 'No embeddings in database - forcing reprocess';
+        }
+        
         this.logger.debug(`[MANAGER-DETECT] File ${filePath}: ${decision.action} (${decision.reason})`);
+        
+        // Log file detection decision for debugging
+        const fileName = filePath.split('/').pop() || filePath;
+        if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+          // Get additional file state info for huge files
+          let fileStateInfo: any = {};
+          const decisionWithState = decision as any; // Type workaround for logging
+          if (decisionWithState.currentState) {
+            fileStateInfo = {
+              processingState: decisionWithState.currentState.processingState,
+              chunkCount: decisionWithState.currentState.chunkCount,
+              attemptCount: decisionWithState.currentState.attemptCount
+            };
+          }
+          
+          const storedHash = decisionWithState.currentState?.contentHash || null;
+          
+          this.indexingLogger.logFileDetected(
+            filePath,
+            contentHash,
+            storedHash,
+            decision.shouldProcess ? (decision.action === 'retry' ? 'RETRY' : 'PROCESS') : 'SKIP',
+            decision.reason,
+            fileStateInfo
+          );
+        }
         
         if (decision.shouldProcess) {
           toProcessCount++;
@@ -749,7 +939,28 @@ return;
           });
           
           // Record the start of processing for this file
-          await this.fileStateService.startProcessing(filePath, contentHash);
+          const fileName = filePath.split('/').pop() || filePath;
+          
+          if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+            this.logger.info(`[HUGE-DEBUG] ${fileName}: Recording processing start in file_states`);
+          }
+          
+          try {
+            await this.fileStateService.startProcessing(filePath, contentHash);
+            if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+              this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully recorded in file_states`);
+            }
+          } catch (stateError) {
+            const error = stateError as Error;
+            this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to record processing start: ${error.message}`, error);
+          }
+          
+          // Log processing start for huge files
+          if (fileName === 'huge_test.txt' || fileName === 'huge_text.txt') {
+            const decisionWithState = decision as any; // Type workaround for logging
+            const attemptCount = decisionWithState.currentState?.attemptCount || 1;
+            this.indexingLogger.logProcessingStart(filePath, contentHash, attemptCount);
+          }
         } else {
           skippedCount++;
           this.logger.debug(`[MANAGER-DETECT] File skipped: ${filePath} - ${decision.reason}`);
@@ -807,6 +1018,9 @@ return;
       this.logger.info(`[MANAGER-DETECT]   Files skipped: ${skippedCount}`);
       this.logger.info(`[MANAGER-DETECT]   Efficiency: ${((skippedCount / processedCount) * 100).toFixed(1)}% avoided unnecessary processing`);
       
+      // Log scan completion
+      this.indexingLogger.logScanCompleted(this.folderPath, toProcessCount, skippedCount);
+      
       // Clear scanning progress when done
       this.clearScanningProgress();
       
@@ -827,11 +1041,17 @@ return;
       const content = readFileSync(filePath);
       const stats = statSync(filePath);
       const hash = createHash('md5');
+      
+      // Generate stable hash based on content only (not mtime)
+      // This prevents re-indexing when files are accessed but not modified
       hash.update(filePath); // Include path for uniqueness
       hash.update(content);
-      hash.update(stats.size.toString()); // Include size
-      hash.update(stats.mtime.toISOString()); // Include modification time
-      return hash.digest('hex');
+      hash.update(stats.size.toString()); // Include size for quick change detection
+      // NOTE: Deliberately NOT including mtime to prevent infinite indexing loops
+      // when large files update their access times during processing
+      
+      const finalHash = hash.digest('hex');
+      return finalHash;
     } catch (error) {
       this.logger.warn(`[MANAGER-HASH] Cannot generate hash for ${filePath}:`, error);
       throw error;
@@ -854,27 +1074,57 @@ return;
     this.emit('stateChange', this.getState());
   }
 
+  private lastProgressUpdateTime = 0;
+  private readonly PROGRESS_UPDATE_THROTTLE = 1000; // Minimum 1 second between updates
+
   private updateProgress(): void {
+    // Throttle progress updates to prevent excessive event emissions
+    const now = Date.now();
+    if (now - this.lastProgressUpdateTime < this.PROGRESS_UPDATE_THROTTLE) {
+      return; // Skip this update, too soon since last one
+    }
+    this.lastProgressUpdateTime = now;
+    
     const progress = this.getProgress();
     this.state.progress = progress;
     
-    // CRITICAL DEBUG: Always log progress updates to diagnose 0% stuck issue
+    // Log progress updates at reasonable intervals
     const stats = this.taskQueue.getStatistics();
-    this.logger.debug(`[MANAGER-PROGRESS-DEBUG] Progress: ${progress.percentage}% | Queue stats: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}, failed=${stats.failedTasks}, retrying=${stats.retryingTasks}`);
+    this.logger.debug(`[MANAGER-PROGRESS] Progress: ${progress.percentage}% | Queue stats: total=${stats.totalTasks}, pending=${stats.pendingTasks}, inProgress=${stats.inProgressTasks}, completed=${stats.completedTasks}, failed=${stats.failedTasks}, retrying=${stats.retryingTasks}`);
     
     // Add detailed progress message for better UX
     if (this.state.status === 'indexing' && progress.totalTasks > 0) {
-      const filesRemaining = progress.totalTasks - progress.completedTasks;
-      let progressMessage = `Processing ${progress.completedTasks} of ${progress.totalTasks} files`;
+      // Get in-progress tasks with chunk progress
+      const inProgressTasks = this.state.fileEmbeddingTasks.filter(t => t.status === 'in-progress');
       
-      if (progress.inProgressTasks > 0) {
-        progressMessage += ` (${progress.inProgressTasks} in progress)`;
+      let progressMessage = '';
+      
+      // Build message showing individual file progress (original format)
+      if (inProgressTasks.length > 0) {
+        const fileProgresses = inProgressTasks.map(task => {
+          const filename = task.file.split('/').pop() || task.file;
+          
+          // Calculate percentage based on chunks for smooth updates
+          let percentage = 0;
+          if (task.totalChunks && task.totalChunks > 0) {
+            percentage = Math.round(((task.processedChunks || 0) / task.totalChunks) * 100);
+          }
+          
+          return `${filename} (${percentage}%)`;
+        });
+        
+        progressMessage = fileProgresses.join(', ');
+        progressMessage += ` • ${progress.completedTasks}/${progress.totalTasks} files processed`;
+        progressMessage += ` • ${inProgressTasks.length} in progress`;
+      } else {
+        // Fallback to simpler message when no files are actively processing
+        progressMessage = `Processing ${progress.completedTasks} of ${progress.totalTasks} files`;
+        
+        const filesRemaining = progress.totalTasks - progress.completedTasks;
+        if (filesRemaining > 0 && filesRemaining <= 5) {
+          progressMessage += ` - Almost done!`;
+        }
       }
-      
-      if (filesRemaining > 0 && filesRemaining <= 5) {
-        progressMessage += ` - Almost done!`;
-      }
-      
       
       // Store progress message in state for UI display
       this.state.progressMessage = progressMessage;
@@ -1203,6 +1453,61 @@ return;
     } catch (error) {
       this.logger.debug(`[MANAGER-FILE-STATE-COUNT] Error accessing database:`, error);
       return 0;
+    }
+  }
+
+  /**
+   * Collect indexing statistics for FMDM informational messages
+   */
+  private async collectIndexingStatistics(): Promise<{ fileCount: number; indexingTimeSeconds: number }> {
+    try {
+      // Get file count from embeddings database (most accurate)
+      let fileCount = 0;
+      try {
+        const embeddingCount = await this.getEmbeddingCount();
+        // Get distinct file count by querying the documents table
+        if (this.sqliteVecStorage && this.sqliteVecStorage.isReady()) {
+          const db = this.sqliteVecStorage.getDatabaseManager().getDatabase();
+          const result = db.prepare('SELECT COUNT(DISTINCT file_path) as file_count FROM documents').get() as { file_count: number };
+          fileCount = result?.file_count || 0;
+          this.logger.debug(`[STATISTICS] Database file count: ${fileCount}`);
+        }
+      } catch (error) {
+        this.logger.debug(`[STATISTICS] Could not get database file count, using task count fallback:`, error);
+        // Fallback to task queue statistics
+        const taskStats = this.taskQueue.getStatistics();
+        fileCount = taskStats.totalTasks || 0;
+      }
+      
+      // Calculate indexing duration
+      let indexingTimeSeconds = 0;
+      const now = new Date();
+      
+      if (this.state.lastIndexStarted) {
+        // Indexing path - use time from index start
+        indexingTimeSeconds = Math.round((now.getTime() - this.state.lastIndexStarted.getTime()) / 1000);
+        this.logger.debug(`[STATISTICS] Using indexing duration from lastIndexStarted: ${indexingTimeSeconds}s`);
+      } else if (this.state.lastScanStarted) {
+        // No-changes path - use time from scan start  
+        indexingTimeSeconds = Math.round((now.getTime() - this.state.lastScanStarted.getTime()) / 1000);
+        this.logger.debug(`[STATISTICS] Using scan duration as indexing time: ${indexingTimeSeconds}s`);
+      } else {
+        // Fallback - minimal time for immediate transitions
+        indexingTimeSeconds = 1;
+        this.logger.debug(`[STATISTICS] Using fallback duration: ${indexingTimeSeconds}s`);
+      }
+      
+      return {
+        fileCount: Math.max(0, fileCount),
+        indexingTimeSeconds: Math.max(1, indexingTimeSeconds) // Minimum 1 second for display
+      };
+    } catch (error) {
+      this.logger.warn(`[STATISTICS] Error collecting indexing statistics:`, error);
+      // Return safe fallback values
+      return {
+        fileCount: 0,
+        indexingTimeSeconds: 1
+      };
     }
   }
 

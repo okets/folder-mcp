@@ -360,8 +360,11 @@ export class ConfigurationRegistry {
       name: 'Embedding Model',
       description: 'Name of the embedding model to use. Must be available in your embedding backend.',
       type: 'string',
-      defaultValue: 'nomic-embed-text',
-      examples: ['nomic-embed-text', 'nomic-embed-text-v1.5', 'mxbai-embed-large'],
+      defaultValue: () => {
+        const { getDefaultModelId } = require('./model-registry.js');
+        return getDefaultModelId();
+      },
+      examples: ['gpu:bge-m3', 'cpu:xenova-multilingual-e5-small', 'cpu:xenova-multilingual-e5-large'],
       category: 'processing',
       tags: ['embedding', 'model', 'quality'],
       envVar: 'FOLDER_MCP_PROCESSING_MODEL_NAME',

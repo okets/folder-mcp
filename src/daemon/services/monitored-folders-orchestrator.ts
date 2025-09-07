@@ -16,13 +16,11 @@ import { FolderConfig, FolderIndexingStatus } from '../models/fmdm.js';
 import { getSupportedExtensions } from '../../domain/files/supported-extensions.js';
 import { ResourceManager, ResourceLimits, ResourceStats } from '../../application/indexing/resource-manager.js';
 import { WindowsPerformanceService, IWindowsPerformanceService } from './windows-performance-service.js';
-import { IntelligentMemoryMonitor, MemoryAlert, MemoryBaseline } from '../../domain/daemon/intelligent-memory-monitor.js';
-import { SimpleSystemMonitor } from '../../infrastructure/daemon/simple-system-monitor.js';
-import { SystemPerformanceTelemetry, PerformanceSnapshot } from '../../domain/daemon/system-performance-telemetry.js';
 import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import { getDefaultModelId } from '../../config/model-registry.js';
+import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -106,9 +104,10 @@ function createFolderLifecycleService(
   storage: any,
   fileStateService: any,
   logger: ILoggingService,
-  model?: string
+  model?: string,
+  maxConcurrentFiles?: number
 ): IFolderLifecycleManager {
-  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger, model);
+  return new FolderLifecycleService(id, path, indexingOrchestrator, fileSystemService, storage, fileStateService, logger, model, maxConcurrentFiles);
 }
 
 export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonitoredFoldersOrchestrator {
@@ -117,8 +116,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private monitoringOrchestrator: any; // Will be imported dynamically when needed
   private folderValidationTimer?: NodeJS.Timeout;
   private resourceManager: ResourceManager;
-  private intelligentMemoryMonitor?: IntelligentMemoryMonitor;
-  private systemPerformanceTelemetry?: SystemPerformanceTelemetry;
+  private onnxConfiguration: OnnxConfiguration;
   private windowsPerformanceService: IWindowsPerformanceService;
   private modelDownloadManager: IModelDownloadManager;
   private folderIndexingQueue: FolderIndexingQueue;
@@ -134,6 +132,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     modelDownloadManager?: IModelDownloadManager
   ) {
     super();
+    
+    // Initialize ONNX configuration service with config component
+    this.onnxConfiguration = new OnnxConfiguration(this.configService);
     
     // Initialize Windows performance service (default if not provided)
     this.windowsPerformanceService = windowsPerformanceService || new WindowsPerformanceService(this.logger);
@@ -159,133 +160,27 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     // Wire ONNX downloader to model download manager
     this.initializeONNXDownloader();
     
-    // Initialize resource manager with daemon-appropriate limits
+    // Initialize resource manager with simple concurrency limits
     const resourceLimits: Partial<ResourceLimits> = {
-      maxConcurrentOperations: 2, // Conservative limit for daemon
-      maxMemoryMB: 512,           // 512MB limit for daemon operations
-      maxCpuPercent: 60,          // 60% CPU limit to leave room for other processes
-      maxQueueSize: 20,           // Reasonable queue size for folders
-      checkIntervalMs: 2000,      // Check every 2 seconds
-      adaptiveThrottling: true    // Enable adaptive throttling
+      maxConcurrentOperations: 2, // Optimal limit from testing
+      maxQueueSize: 20           // Reasonable queue size for folders
     };
     
     this.resourceManager = new ResourceManager(this.logger, resourceLimits);
     
-    // Monitor resource usage
+    // Optional: Log resource stats for monitoring (informational only)
     this.resourceManager.on('stats', (stats: ResourceStats) => {
-      if (stats.isThrottled) {
-        this.logger.warn('[ORCHESTRATOR] Resource throttling active', {
-          memoryUsedMB: Math.round(stats.memoryUsedMB),
-          cpuPercent: Math.round(stats.cpuPercent),
-          throttleFactor: stats.throttleFactor,
-          activeOperations: stats.activeOperations,
-          queuedOperations: stats.queuedOperations
-        });
-      } else if (stats.activeOperations > 0) {
+      if (stats.activeOperations > 0) {
         this.logger.debug('[ORCHESTRATOR] Resource usage', {
           memoryUsedMB: Math.round(stats.memoryUsedMB),
-          cpuPercent: Math.round(stats.cpuPercent),
           activeOperations: stats.activeOperations,
           queuedOperations: stats.queuedOperations
         });
       }
     });
 
-    // Initialize intelligent memory monitor (only if enabled in configuration)
-    const memoryMonitorEnabled = this.configService?.get?.('daemon.memoryMonitor.enabled') ?? 
-                                 this.configService?.get?.('memoryMonitor.enabled') ?? 
-                                 false;
-    
-    if (memoryMonitorEnabled) {
-      const systemMonitor = new SimpleSystemMonitor(this.logger);
-      this.intelligentMemoryMonitor = new IntelligentMemoryMonitor(systemMonitor, this.logger);
-      this.logger.info('[ORCHESTRATOR] Intelligent memory monitoring enabled via configuration');
-      
-      // Initialize system performance telemetry
-      this.systemPerformanceTelemetry = new SystemPerformanceTelemetry(
-        this.logger,
-        systemMonitor,
-        this.indexingOrchestrator
-      );
-      this.logger.info('[ORCHESTRATOR] System performance telemetry initialized');
-      
-      // Set up intelligent memory monitoring event handlers
-      this.intelligentMemoryMonitor.on('baselineEstablished', (baseline: MemoryBaseline) => {
-      this.logger.info('[ORCHESTRATOR] Memory baseline established - monitoring for genuine issues', {
-        baselineHeapMB: Math.round(baseline.heapUsedMB),
-        baselineUtilization: Math.round(baseline.heapUtilizationPercent),
-        sampleCount: baseline.sampleCount,
-        isStable: baseline.isStable
-      });
-    });
-
-    this.intelligentMemoryMonitor.on('memoryAlert', (alert: MemoryAlert) => {
-      // Memory alerts are now handled with full context and recommendations
-      const logData = {
-        level: alert.level,
-        currentMemoryMB: Math.round(alert.heapUsedMB),
-        baselineDeviationMB: Math.round(alert.baselineDeviation),
-        growthRateMBPerHour: Math.round(alert.growthRateMBPerHour * 100) / 100,
-        trend: alert.trend,
-        recommendations: alert.recommendations,
-        systemMemoryMB: alert.systemContext.totalSystemMemoryMB,
-        activeFolders: this.folderManagers.size
-      };
-
-      if (alert.level === 'critical') {
-        this.logger.error('[ORCHESTRATOR] CRITICAL memory situation detected', undefined, logData);
-        
-        // Force garbage collection for critical alerts
-        if (global.gc) {
-          this.logger.info('[ORCHESTRATOR] Triggering garbage collection due to critical memory alert');
-          global.gc();
-        }
-      } else if (alert.level === 'elevated') {
-        this.logger.warn('[ORCHESTRATOR] Elevated memory usage detected', logData);
-      }
-      });
-      
-      // Set up system performance telemetry event handlers
-      if (this.systemPerformanceTelemetry) {
-        this.systemPerformanceTelemetry.on('snapshot', (snapshot: PerformanceSnapshot) => {
-          // Snapshots are automatically logged by the telemetry service
-          // We can add additional processing here if needed
-        });
-        
-        this.systemPerformanceTelemetry.on('healthAlert', (issue: string, severity: 'warning' | 'critical') => {
-          if (severity === 'critical') {
-            this.logger.error(`[ORCHESTRATOR] Critical system health alert: ${issue}`);
-          } else {
-            this.logger.warn(`[ORCHESTRATOR] System health warning: ${issue}`);
-          }
-        });
-        
-        this.systemPerformanceTelemetry.on('performanceDegradation', (metric: string, currentValue: number, baselineValue: number) => {
-          const degradationPercent = Math.round(((currentValue - baselineValue) / baselineValue) * 100);
-          this.logger.warn(`[ORCHESTRATOR] Performance degradation detected`, {
-            metric,
-            currentValue: Math.round(currentValue),
-            baselineValue: Math.round(baselineValue),
-            degradationPercent: `${degradationPercent}%`
-          });
-        });
-      }
-    } else {
-      this.logger.debug('[ORCHESTRATOR] Intelligent memory monitoring disabled via configuration');
-    }
-    
     // Start periodic folder validation (every 30 seconds)
     this.startFolderValidation();
-    
-    // Start intelligent memory monitoring (only if enabled)
-    if (this.intelligentMemoryMonitor) {
-      this.intelligentMemoryMonitor.startMonitoring();
-    }
-    
-    // Start system performance telemetry (only if monitoring is enabled)
-    if (this.systemPerformanceTelemetry) {
-      this.systemPerformanceTelemetry.startTelemetry();
-    }
   }
   
   async addFolder(path: string, model: string): Promise<void> {
@@ -534,9 +429,20 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.logger.debug(`[ORCHESTRATOR] Created .folder-mcp directory: ${folderMcpDir}`);
       }
       
-      // Create per-folder FileStateService using the same database as embeddings
-      const folderDbPath = `${path}/.folder-mcp/embeddings.db`;
-      const folderFileStateService = new FileStateService(folderDbPath, this.logger);
+      // We need to ensure the database is initialized before sharing the connection
+      // The DatabaseManager in storage initializes on first use, so we need to trigger it
+      // We'll call getDatabaseManager which will initialize if needed
+      const dbManager = storage.getDatabaseManager();
+      await dbManager.initialize(); // This ensures database and tables are created
+      
+      // Create per-folder FileStateService using the SAME database connection as embeddings
+      // This is critical to avoid WAL isolation issues
+      const database = dbManager.getDatabase();
+      const folderFileStateService = new FileStateService(database, this.logger);
+      
+      // Get max concurrent files from ONNX configuration
+      const maxConcurrentFiles = await this.onnxConfiguration.getMaxConcurrentFiles();
+      this.logger.debug(`[ORCHESTRATOR] Using maxConcurrentFiles=${maxConcurrentFiles} from ONNX configuration`);
       
       // Use factory function to create folder lifecycle manager
       const folderManager = createFolderLifecycleService(
@@ -547,7 +453,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         storage,
         folderFileStateService, // Use per-folder service instead of global
         this.logger,
-        model // Pass the model parameter
+        model, // Pass the model parameter
+        maxConcurrentFiles // Pass the configured max concurrent files
       );
       
       // Subscribe to manager events
@@ -791,31 +698,24 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
 
   /**
-   * Record connection event for telemetry
+   * Record connection event (no-op after telemetry removal)
    */
   recordConnection(duration?: number, isError = false): void {
-    if (this.systemPerformanceTelemetry) {
-      this.systemPerformanceTelemetry.recordConnection(duration, isError);
-    }
+    // No-op: telemetry removed
   }
 
   /**
-   * Record query performance for telemetry
+   * Record query performance (no-op after telemetry removal)
    */
   recordQuery(durationMs: number, cacheHit = false): void {
-    if (this.systemPerformanceTelemetry) {
-      this.systemPerformanceTelemetry.recordQuery(durationMs, cacheHit);
-    }
+    // No-op: telemetry removed
   }
 
   /**
-   * Get performance telemetry statistics
+   * Get performance telemetry statistics (no-op after telemetry removal)
    */
   getTelemetryStatistics(): any {
-    if (this.systemPerformanceTelemetry) {
-      return this.systemPerformanceTelemetry.getStatistics();
-    }
-    return null;
+    return null; // Telemetry removed
   }
   
   async startAll(): Promise<void> {
@@ -859,8 +759,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.logger.info('Orchestrator startup completed', {
       startupDurationMs: startupDuration,
       foldersManaged: this.folderManagers.size,
-      telemetryEnabled: !!this.systemPerformanceTelemetry,
-      memoryMonitorEnabled: !!this.intelligentMemoryMonitor
+      telemetryEnabled: false,
+      memoryMonitorEnabled: false
     });
   }
   
@@ -881,20 +781,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.error('[ORCHESTRATOR] Error stopping folder indexing queue:', error instanceof Error ? error : new Error(String(error)));
     }
     
-    // Stop intelligent memory monitoring (only if enabled)
-    if (this.intelligentMemoryMonitor) {
-      this.intelligentMemoryMonitor.stopMonitoring();
-    }
-    
-    // Stop system performance telemetry (only if enabled)
-    if (this.systemPerformanceTelemetry) {
-      this.systemPerformanceTelemetry.stopTelemetry();
-    }
+    // Memory monitoring and telemetry removed
     
     // Shutdown resource manager first to stop accepting new operations
     try {
       this.logger.info('[ORCHESTRATOR] Shutting down resource manager');
-      await this.resourceManager.shutdown();
+      await this.resourceManager.shutdown(false);
       this.logger.info('[ORCHESTRATOR] Resource manager shutdown complete');
     } catch (error) {
       this.logger.error('[ORCHESTRATOR] Error shutting down resource manager:', error instanceof Error ? error : new Error(String(error)));
@@ -933,8 +825,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.logger.info('Orchestrator shutdown completed', {
       shutdownDurationMs: shutdownDuration,
       previouslyManagedFolders: 0, // folderManagers was cleared
-      telemetryWasEnabled: !!this.systemPerformanceTelemetry,
-      memoryMonitorWasEnabled: !!this.intelligentMemoryMonitor
+      telemetryWasEnabled: false,
+      memoryMonitorWasEnabled: false
     });
   }
   
@@ -1045,6 +937,22 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async onIndexComplete(folderPath: string, state: any): Promise<void> {
     this.logger.info(`[ORCHESTRATOR] Indexing complete for ${folderPath}, starting file watching`);
+    
+    // Create and emit FMDM informational message for active state
+    if (state.indexingStats) {
+      const { fileCount, indexingTimeSeconds } = state.indexingStats;
+      const infoMessage = `▶ ${folderPath} [active] i ${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`;
+      
+      this.logger.info(`[ORCHESTRATOR] ${infoMessage}`);
+      
+      // Update folder status to 'active' with permanent completion notification
+      this.fmdmService.updateFolderStatus(folderPath, 'active', {
+        message: `${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`,
+        type: 'info'
+      });
+    } else {
+      this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folderPath}`);
+    }
     
     // Check for Windows performance issues when folder becomes active after indexing
     await this.checkWindowsPerformanceForFolder(folderPath, state.model);
@@ -1224,6 +1132,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private getCurrentFolderConfigs(): FolderConfig[] {
     const folders: FolderConfig[] = [];
     
+    // Get current FMDM state to preserve existing notifications
+    const currentFMDM = this.fmdmService.getFMDM();
+    
     // Add folders with managers
     for (const [path, manager] of this.folderManagers) {
       const state = manager.getState();
@@ -1246,10 +1157,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         }
       } else if (state.status === 'active') {
         folderConfig.progress = 100; // Active folders are 100% complete
-        // Clear progress notification when active - should not show "Processing X files" anymore
-        // Only clear info notifications (progress), keep error/warning notifications
-        if (folderConfig.notification?.type === 'info') {
-          delete folderConfig.notification;
+        
+        // Preserve completion notifications for active folders from current FMDM
+        const existingFolder = currentFMDM.folders.find(f => f.path === path);
+        if (existingFolder?.notification) {
+          // Only preserve completion notifications (contain "files indexed")
+          // Clear progress notifications (contain "processing" or "in progress")
+          if (existingFolder.notification.message.includes('files indexed')) {
+            folderConfig.notification = existingFolder.notification;
+          }
         }
       } else {
         // Clear progress notification for other states
@@ -1452,7 +1368,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   /**
-   * Get intelligent memory monitoring statistics
+   * Get intelligent memory monitoring statistics (removed)
    */
   getIntelligentMemoryStatistics(): {
     baselineEstablished: boolean;
@@ -1462,16 +1378,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     baselineDeviation?: number;
     monitoringDuration: number;
   } {
-    if (!this.intelligentMemoryMonitor) {
-      return {
-        baselineEstablished: false,
-        samplesCollected: 0,
-        currentHeapUsedMB: 0,
-        currentHeapUtilization: 0,
-        monitoringDuration: 0
-      };
-    }
-    return this.intelligentMemoryMonitor.getStatistics();
+    // Memory monitoring removed
+    return {
+      baselineEstablished: false,
+      samplesCollected: 0,
+      currentHeapUsedMB: 0,
+      currentHeapUtilization: 0,
+      monitoringDuration: 0
+    };
   }
   
   /**
@@ -1479,7 +1393,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   getMemoryStatistics(): {
     process: NodeJS.MemoryUsage;
-    heapUtilizationPercent: number;
+    rssMemoryMB: number;
     resourceManager: ResourceStats;
     folders: {
       managed: number;
@@ -1487,12 +1401,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     };
   } {
     const memUsage = process.memoryUsage();
-    const heapUtilization = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+    const rssMemoryMB = memUsage.rss / (1024 * 1024); // Use RSS for actual memory footprint
     const resourceStats = this.resourceManager.getStats();
     
     return {
       process: memUsage,
-      heapUtilizationPercent: heapUtilization,
+      rssMemoryMB: rssMemoryMB,
       resourceManager: resourceStats,
       folders: {
         managed: this.folderManagers.size,
@@ -1614,8 +1528,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           reason,
           activeOperations: stats.activeOperations,
           queuedOperations: stats.queuedOperations,
-          memoryUsedMB: Math.round(stats.memoryUsedMB),
-          isThrottled: stats.isThrottled
+          memoryUsedMB: Math.round(stats.memoryUsedMB)
         });
       }
       

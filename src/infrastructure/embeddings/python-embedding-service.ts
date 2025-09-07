@@ -43,6 +43,7 @@ interface PythonEmbeddingRequest {
   immediate?: boolean;
   model_name?: string;
   request_id?: string;
+  text_type?: 'query' | 'passage';  // Add text type for prefix handling
 }
 
 interface PythonEmbeddingResponse {
@@ -119,12 +120,13 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private lastRestartTime = 0;
   private restartTimer: NodeJS.Timeout | null = null;
   private downloadProgressCallback?: (progress: number) => void;
+  private modelConfig?: any;  // Store model config for prefix requirements
   
   // Service degradation state for graceful failure handling
   private isDegraded = false;
   private degradationReason: string | null = null;
 
-  constructor(config?: Partial<PythonEmbeddingConfig>) {
+  constructor(config?: Partial<PythonEmbeddingConfig>, modelConfig?: any) {
     // Try to detect the correct Python command for the platform
     const defaultPythonPath = process.platform === 'win32' ? 'python' : 'python3';
     
@@ -140,6 +142,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       restartDelay: 2000, // 2 seconds
       ...config
     };
+    this.modelConfig = modelConfig; // Store model config for prefix requirements
   }
 
   /**
@@ -179,8 +182,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
   /**
    * Generate a single embedding
+   * @param text - Text to embed
+   * @param textType - Type of text: 'query' for search queries, 'passage' for document text
    */
-  async generateSingleEmbedding(text: string): Promise<EmbeddingVector> {
+  async generateSingleEmbedding(text: string, textType: 'query' | 'passage' = 'query'): Promise<EmbeddingVector> {
     const response = await this.generateEmbeddings([{ 
       content: text, 
       chunkIndex: 0, 
@@ -193,7 +198,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         totalChunks: 1,
         hasOverlap: false
       }
-    }]);
+    }], textType);
     
     if (response.length === 0) {
       throw new Error('No embedding generated');
@@ -209,8 +214,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
   /**
    * Generate embeddings for multiple chunks
+   * @param chunks - Text chunks to embed
+   * @param textType - Type of text: 'query' for search queries, 'passage' for document chunks
    */
-  async generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]> {
+  async generateEmbeddings(chunks: TextChunk[], textType: 'query' | 'passage' = 'passage'): Promise<EmbeddingVector[]> {
     // Check if service is degraded
     if (this.isDegraded) {
       console.error(`Embedding request rejected: Service is degraded (${this.degradationReason})`);
@@ -229,11 +236,13 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     }
 
     const texts = chunks.map(chunk => chunk.content);
+
     const request: PythonEmbeddingRequest = {
       texts,
-      immediate: true, // Single requests are considered immediate
+      immediate: true, // Prioritize interactive embedding requests
       model_name: this.config.modelName,
-      request_id: `req_${this.nextRequestId++}`
+      request_id: `req_${this.nextRequestId++}`,
+      text_type: textType  // Pass textType to Python process
     };
 
     const response = await this.sendJsonRpcRequest('generate_embeddings', request);
@@ -287,8 +296,11 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
   /**
    * Process embeddings in batches
+   * @param chunks - Text chunks to embed
+   * @param batchSize - Size of each batch
+   * @param textType - Type of text: 'query' for search queries, 'passage' for document chunks
    */
-  async processBatch(chunks: TextChunk[], batchSize: number = 32): Promise<EmbeddingResult[]> {
+  async processBatch(chunks: TextChunk[], batchSize: number = 32, textType: 'query' | 'passage' = 'passage'): Promise<EmbeddingResult[]> {
     if (!this.initialized) {
       await this.initialize();
     }
@@ -298,13 +310,15 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     // Process in batches
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize);
+      
       const texts = batch.map(chunk => chunk.content);
       
       const request: PythonEmbeddingRequest = {
         texts,
         immediate: false, // Batch requests are not immediate
         model_name: this.config.modelName,
-        request_id: `batch_${this.nextRequestId++}`
+        request_id: `batch_${this.nextRequestId++}`,
+        text_type: textType  // Pass textType to Python process
       };
 
       const startTime = Date.now();
@@ -1168,5 +1182,33 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       console.error('[PYTHON-EMBEDDING] Failed to unload model:', error);
       throw new Error(`Failed to unload model: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * Generate embedding for a single query (implements IEmbeddingService interface)
+   */
+  async generateQueryEmbedding(query: string): Promise<EmbeddingVector> {
+    const chunks: TextChunk[] = [{
+      content: query,
+      startPosition: 0,
+      endPosition: query.length,
+      tokenCount: Math.ceil(query.length / 4), // Rough estimate
+      chunkIndex: 0,
+      metadata: {
+        sourceFile: 'query',
+        sourceType: 'query',
+        totalChunks: 1,
+        hasOverlap: false
+      }
+    }];
+    
+    const embeddings = await this.generateEmbeddings(chunks, 'query');
+    
+    return embeddings[0] ?? {
+      vector: [],
+      dimensions: 0,
+      model: this.config.modelName,
+      createdAt: new Date().toISOString()
+    };
   }
 }

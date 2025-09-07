@@ -11,9 +11,17 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
+import path from 'node:path';
 import { FMDMService } from '../services/fmdm-service.js';
-import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse } from './types.js';
+import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse } from './types.js';
 import { DocumentService } from '../services/document-service.js';
+import { IModelRegistry } from '../services/model-registry.js';
+import { IVectorSearchService } from '../../di/interfaces.js';
+import type { TextChunk, EmbeddingVector } from '../../types/index.js';
+import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
+import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
+import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
+import { PathNormalizer } from '../utils/path-normalizer.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -66,6 +74,8 @@ export class RESTAPIServer {
   constructor(
     private fmdmService: FMDMService,
     private documentService: DocumentService,
+    private modelRegistry: IModelRegistry,
+    private vectorSearchService: IVectorSearchService,
     private logger: {
       info: (message: string, ...args: any[]) => void;
       warn: (message: string, ...args: any[]) => void;
@@ -121,11 +131,14 @@ export class RESTAPIServer {
 
     // Folder operations endpoints (Sprint 5)
     this.app.get('/api/v1/folders', this.handleListFolders.bind(this));
-    this.app.get('/api/v1/folders/:folderId/documents', this.handleListDocuments.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocuments.bind(this));
 
     // Document operations endpoints (Sprint 6) 
-    this.app.get('/api/v1/folders/:folderId/documents/:docId', this.handleGetDocument.bind(this));
-    this.app.get('/api/v1/folders/:folderId/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
+
+    // Search operations endpoints (Sprint 7)
+    this.app.post('/api/v1/folders/:folderPath/search', this.handleSearch.bind(this));
 
     // Root path for API discovery
     this.app.get('/api/v1', this.handleApiRoot.bind(this));
@@ -228,13 +241,30 @@ export class RESTAPIServer {
         // Continue with empty folders array
       }
       
-      // Get supported models (placeholder - will be enhanced in future sprints)
-      const supportedModels = ['all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'nomic-embed-text'];
+      // Get supported models from registry
+      const { getSupportedGpuModelIds, getSupportedCpuModelIds } = await import('../../config/model-registry.js');
+      const supportedModels = [...getSupportedGpuModelIds(), ...getSupportedCpuModelIds()];
       
-      // Calculate total documents (placeholder - will be implemented in future sprints)
-      const totalDocuments = folders.reduce((total: number, folder: any) => {
-        return total + (folder.documentCount || 0);
-      }, 0);
+      // Calculate total documents by getting real counts from databases
+      let totalDocuments = 0;
+      for (const folder of folders) {
+        try {
+          const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+          const fs = await import('fs/promises');
+          try {
+            await fs.access(dbPath);
+            const Database = await import('better-sqlite3');
+            const db = Database.default(dbPath);
+            const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+            totalDocuments += result?.count || 0;
+            db.close();
+          } catch (dbError) {
+            // Database doesn't exist, skip this folder
+          }
+        } catch (error) {
+          // Error accessing folder, skip
+        }
+      }
 
       const response: ServerInfoResponse = {
         version: '2.0.0-dev',
@@ -284,27 +314,52 @@ export class RESTAPIServer {
         // Continue with empty folders array
       }
 
-      // Transform FMDM folders to REST API format
-      const folderInfos: FolderInfo[] = folders.map((folder: any) => {
-        // Generate folder ID from path (sanitized)
-        const folderId = this.generateFolderId(folder.path);
-        
+      // Transform FMDM folders to REST API format with real document counts
+      const folderInfos: FolderInfo[] = await Promise.all(folders.map(async (folder: any) => {
         // Extract folder name from path
         const folderName = this.extractFolderName(folder.path);
         
+        // Get real document count from database
+        let documentCount = 0;
+        try {
+          // Try to get document count from the vector search service
+          if (this.vectorSearchService && 'getDocumentCount' in this.vectorSearchService) {
+            documentCount = await (this.vectorSearchService as any).getDocumentCount(folder.path);
+          } else {
+            // Fallback: check if database exists and count documents
+            const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+            const fs = await import('fs/promises');
+            try {
+              await fs.access(dbPath);
+              // Use sqlite to count documents
+              const Database = await import('better-sqlite3');
+              const db = Database.default(dbPath);
+              const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+              documentCount = result?.count || 0;
+              db.close();
+            } catch (dbError) {
+              // Database doesn't exist or can't be read
+              documentCount = 0;
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`[REST] Could not get document count for ${folder.path}:`, error);
+          documentCount = folder.documentCount || 0; // Fallback to FMDM value
+        }
+        
         return {
-          id: folderId,
+          id: folder.path, // Use path as identifier
           name: folderName,
           path: folder.path,
           model: folder.model || 'all-MiniLM-L6-v2',
           status: folder.status || 'pending',
-          documentCount: folder.documentCount || 0,
+          documentCount,
           lastIndexed: folder.lastIndexed,
           topics: [], // Placeholder for future implementation
           progress: folder.progress,
           notification: folder.notification
         };
-      });
+      }));
 
       const response: FoldersListResponse = {
         folders: folderInfos,
@@ -332,11 +387,11 @@ export class RESTAPIServer {
    */
   private async handleListDocuments(req: Request, res: Response): Promise<void> {
     try {
-      const folderId = req.params.folderId;
-      if (!folderId) {
+      const encodedFolderPath = req.params.folderPath;
+      if (!encodedFolderPath) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder ID is required',
+          message: 'Folder path is required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -344,7 +399,8 @@ export class RESTAPIServer {
         return;
       }
       
-      this.logger.debug(`[REST] Listing documents for folder: ${folderId}`);
+      const folderPath = decodeURIComponent(encodedFolderPath);
+      this.logger.debug(`[REST] Listing documents for folder: ${folderPath}`);
 
       // Parse query parameters
       const params: DocumentListParams = {
@@ -395,12 +451,12 @@ export class RESTAPIServer {
         return;
       }
 
-      // Resolve folder ID to path
-      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
-      if (!folderResolution) {
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
+      if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
-          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          message: `Folder '${folderPath}' not found. Available folders: ${folders.map(f => f.path || 'unknown').join(', ')}`,
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -408,13 +464,12 @@ export class RESTAPIServer {
         return;
       }
 
-      const { path: folderPath, folder } = folderResolution;
       const folderName = this.extractFolderName(folderPath);
 
       // List documents using document service
       const result = await this.documentService.listDocuments(
         folderPath,
-        folderId,
+        folderPath, // Use path as identifier
         folderName,
         folder.model || 'all-MiniLM-L6-v2',
         folder.status || 'pending',
@@ -423,7 +478,7 @@ export class RESTAPIServer {
 
       const response: DocumentsListResponse = result;
 
-      this.logger.debug(`[REST] Returning ${result.documents.length} documents from folder ${folderId}`);
+      this.logger.debug(`[REST] Returning ${result.documents.length} documents from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] List documents failed:', error);
@@ -457,11 +512,11 @@ export class RESTAPIServer {
    */
   private async handleGetDocument(req: Request, res: Response): Promise<void> {
     try {
-      const { folderId, docId } = req.params;
-      if (!folderId || !docId) {
+      const { folderPath: encodedFolderPath, docId } = req.params;
+      if (!encodedFolderPath || !docId) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder ID and document ID are required',
+          message: 'Folder path and document ID are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -469,7 +524,8 @@ export class RESTAPIServer {
         return;
       }
 
-      this.logger.debug(`[REST] Getting document ${docId} from folder ${folderId}`);
+      const folderPath = decodeURIComponent(encodedFolderPath);
+      this.logger.debug(`[REST] Getting document ${docId} from folder ${folderPath}`);
 
       // Get folders from FMDM service
       let folders: any[] = [];
@@ -488,12 +544,12 @@ export class RESTAPIServer {
         return;
       }
 
-      // Resolve folder ID to path
-      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
-      if (!folderResolution) {
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
+      if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
-          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          message: `Folder '${folderPath}' not found. Available folders: ${folders.map(f => f.path || 'unknown').join(', ')}`,
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -501,13 +557,12 @@ export class RESTAPIServer {
         return;
       }
 
-      const { path: folderPath, folder } = folderResolution;
       const folderName = this.extractFolderName(folderPath);
 
       // Get document data using document service
       const result = await this.documentService.getDocumentData(
         folderPath,
-        folderId,
+        folderPath, // Use path as identifier
         folderName,
         folder.model || 'all-MiniLM-L6-v2',
         folder.status || 'pending',
@@ -516,7 +571,7 @@ export class RESTAPIServer {
 
       const response: DocumentDataResponse = result;
 
-      this.logger.debug(`[REST] Returning document data for ${docId} from folder ${folderId}`);
+      this.logger.debug(`[REST] Returning document data for ${docId} from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document failed:', error);
@@ -550,11 +605,11 @@ export class RESTAPIServer {
    */
   private async handleGetDocumentOutline(req: Request, res: Response): Promise<void> {
     try {
-      const { folderId, docId } = req.params;
-      if (!folderId || !docId) {
+      const { folderPath: encodedFolderPath, docId } = req.params;
+      if (!encodedFolderPath || !docId) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder ID and document ID are required',
+          message: 'Folder path and document ID are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -562,7 +617,8 @@ export class RESTAPIServer {
         return;
       }
 
-      this.logger.debug(`[REST] Getting document outline for ${docId} from folder ${folderId}`);
+      const folderPath = decodeURIComponent(encodedFolderPath);
+      this.logger.debug(`[REST] Getting document outline for ${docId} from folder ${folderPath}`);
 
       // Get folders from FMDM service
       let folders: any[] = [];
@@ -581,12 +637,12 @@ export class RESTAPIServer {
         return;
       }
 
-      // Resolve folder ID to path
-      const folderResolution = DocumentService.resolveFolderPath(folderId, folders);
-      if (!folderResolution) {
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, folderPath);
+      if (!folder) {
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
-          message: `Folder '${folderId}' not found. Available folders: ${folders.map(f => f.path ? this.generateFolderId(f.path) : 'unknown').join(', ')}`,
+          message: `Folder '${folderPath}' not found. Available folders: ${folders.map(f => f.path || 'unknown').join(', ')}`,
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -594,13 +650,12 @@ export class RESTAPIServer {
         return;
       }
 
-      const { path: folderPath, folder } = folderResolution;
       const folderName = this.extractFolderName(folderPath);
 
       // Get document outline using document service
       const result = await this.documentService.getDocumentOutline(
         folderPath,
-        folderId,
+        folderPath, // Use path as identifier
         folderName,
         folder.model || 'all-MiniLM-L6-v2',
         folder.status || 'pending',
@@ -609,7 +664,7 @@ export class RESTAPIServer {
 
       const response: DocumentOutlineResponse = result;
 
-      this.logger.debug(`[REST] Returning document outline for ${docId} from folder ${folderId}`);
+      this.logger.debug(`[REST] Returning document outline for ${docId} from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document outline failed:', error);
@@ -635,6 +690,271 @@ export class RESTAPIServer {
       };
       
       res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Search for documents within a folder (Sprint 7)
+   */
+  private async handleSearch(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderPath: encodedFolderPath } = req.params;
+      if (!encodedFolderPath) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder path is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const folderPath = decodeURIComponent(encodedFolderPath);
+
+      // Parse search request body
+      const searchRequest = req.body as SearchRequest;
+      if (!searchRequest || !searchRequest.query || typeof searchRequest.query !== 'string') {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Search query is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const { query } = searchRequest;
+
+      // Parse and validate parameters - fix threshold 0.0 handling
+      const limit = Math.min(Math.max((typeof searchRequest.limit === 'number' ? searchRequest.limit : 10), 1), 100);
+      const threshold = Math.min(Math.max((typeof searchRequest.threshold === 'number' ? searchRequest.threshold : 0.3), 0.0), 1.0);
+      const includeContent = searchRequest.includeContent !== false; // default true
+
+      this.logger.debug(`[REST] Searching folder ${folderPath} for: "${query}" (limit: ${limit}, threshold: ${threshold})`);
+
+      // Get folders from FMDM service to validate folder exists
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for search:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Find folder using normalized path matching and validate folder exists
+      const folder = PathNormalizer.findByPath(folders, folderPath);
+      if (!folder) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${folderPath}' not found. Available folders: ${folders.map(f => f.path || 'unknown').join(', ')}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+      const folderName = this.extractFolderName(folderPath);
+      const modelName = folder.model || 'all-MiniLM-L6-v2';
+
+      // Sprint 7: Implement actual search functionality with model registry
+      const startTime = Date.now();
+      
+      // Load or get model for this folder
+      const modelLoadResult = await this.modelRegistry.getModelForFolder(folderPath, folderPath, modelName);
+      
+      if (!modelLoadResult.success) {
+        const errorResponse: ErrorResponse = {
+          error: 'Service Unavailable',
+          message: `Failed to load embedding model '${modelName}' for folder '${folderPath}': ${modelLoadResult.error}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(503).json(errorResponse);
+        return;
+      }
+
+      // Get the loaded model instance
+      const loadedModel = this.modelRegistry.getLoadedModel(modelName);
+      if (!loadedModel) {
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: `Model '${modelName}' loaded but not accessible`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Sprint 7: Implement actual vector search using the loaded model and vector search service
+      const searchStartTime = Date.now();
+      let searchResults: any[] = [];
+      
+      try {
+        // Generate embedding for the search query using the loaded model's service
+        this.logger.debug(`[REST] Generating embedding for query: "${query}"`);
+        let queryEmbeddings: EmbeddingVector[];
+        
+        // Check service type and call appropriate method
+        if (loadedModel.service instanceof PythonEmbeddingService) {
+          // PythonEmbeddingService - expects TextChunk[]
+          const chunks: TextChunk[] = [{
+            content: query,
+            chunkIndex: 0,
+            startPosition: 0,
+            endPosition: query.length,
+            tokenCount: undefined as any, // let service compute if needed
+            metadata: {
+              sourceFile: 'search-query',
+              sourceType: 'text',
+              totalChunks: 1,
+              hasOverlap: false
+            }
+          }];
+          queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
+        } else if (loadedModel.service instanceof ONNXEmbeddingService) {
+          // ONNXEmbeddingService - expects string[] and returns EmbeddingResult
+          const embeddingResult: EmbeddingResult = await loadedModel.service.generateEmbeddingsFromStrings([query], 'query');
+          // Convert EmbeddingResult to EmbeddingVector[]
+          queryEmbeddings = embeddingResult.embeddings.map((embedding, index) => ({
+            vector: embedding,
+            dimensions: embeddingResult.dimensions,
+            model: embeddingResult.modelUsed,
+            createdAt: new Date().toISOString()
+          }));
+        } else {
+          // Unknown service type
+          throw new Error(`Model service type doesn't support embedding generation: ${typeof loadedModel.service}`);
+        }
+        
+        if (!queryEmbeddings || queryEmbeddings.length === 0) {
+          this.logger.error(`[REST] Failed to generate embedding for query: "${query}"`);
+          const errorResponse: ErrorResponse = {
+            error: 'Internal Server Error',
+            message: 'Failed to generate embedding for search query',
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(500).json(errorResponse);
+          return;
+        }
+
+        // Perform vector search - request more results for folder filtering
+        this.logger.debug(`[REST] Performing vector search with threshold: ${threshold}, initial limit: ${limit * 2}`);
+        
+        const firstEmbedding = queryEmbeddings[0];
+        if (!firstEmbedding) {
+          throw new Error('Generated embedding is empty or invalid');
+        }
+        
+        // Request more results to account for folder filtering
+        // Use folder-specific search if the service supports it
+        let vectorSearchResults: any[];
+        if (this.vectorSearchService instanceof MultiFolderVectorSearchService) {
+          // Use folder-specific database for search
+          vectorSearchResults = await (this.vectorSearchService as MultiFolderVectorSearchService)
+            .searchInFolder(firstEmbedding, folderPath, limit * 2, threshold);
+        } else {
+          // Fallback to legacy search
+          vectorSearchResults = await this.vectorSearchService.search(firstEmbedding, limit * 2, threshold);
+        }
+        
+        // Filter results to current folder - fix folder scoping security issue
+        const normalizedFolder = path.resolve(folderPath);
+        const folderFilteredResults = vectorSearchResults.filter(result => {
+          const rawPath = result.documentId || result.folderPath || '';
+          const normalizedResult = path.resolve(rawPath);
+          const rel = path.relative(normalizedFolder, normalizedResult);
+          const belongsToFolder = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+          
+          if (!belongsToFolder) {
+            this.logger.debug(`[REST] Filtering out result from different folder: ${rawPath} (expected under: ${normalizedFolder})`);
+          }
+          
+          return belongsToFolder;
+        });
+
+        // Log if filtering reduced results
+        if (folderFilteredResults.length !== vectorSearchResults.length) {
+          this.logger.info(`[REST] Folder filtering reduced results from ${vectorSearchResults.length} to ${folderFilteredResults.length} for folder ${folderPath}`);
+        }
+
+        // Apply final limit after folder filtering
+        const finalResults = folderFilteredResults.slice(0, limit);
+        
+        // Transform vector search results to REST API format
+        searchResults = finalResults.map(result => ({
+          documentId: result.documentId,
+          documentName: this.extractFileNameFromPath(result.documentId || ''),
+          relevance: result.score,
+          snippet: includeContent && result.content
+            ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
+            : undefined,
+          pageNumber: result.metadata?.page,
+          chunkId: result.id,
+          documentType: this.getDocumentType(result.documentId || ''),
+          documentPath: result.documentId
+        }));
+
+        this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);
+        
+      } catch (searchError) {
+        this.logger.error(`[REST] Vector search failed for query "${query}":`, searchError);
+        
+        // Fallback to empty results on search error (fail gracefully)
+        searchResults = [];
+      }
+
+      const searchTime = Date.now() - searchStartTime;
+      const totalTime = Date.now() - startTime;
+      
+      const response: SearchResponse = {
+        folderContext: {
+          id: folderPath, // Use path as identifier
+          name: folderName,
+          path: folderPath,
+          model: modelName,
+          status: folder.status || 'pending'
+        },
+        results: searchResults,
+        performance: {
+          searchTime,
+          modelLoadTime: modelLoadResult.loadTime,
+          documentsSearched: folder.documentCount || 0,
+          totalResults: searchResults.length,
+          modelUsed: modelName
+        },
+        query,
+        parameters: {
+          limit,
+          threshold,
+          includeContent
+        }
+      };
+
+      this.logger.debug(`[REST] Search completed in ${totalTime}ms for folder ${folderPath} (model load: ${modelLoadResult.loadTime}ms, search: ${searchTime}ms)`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Search failed:', error);
+      
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: 'Search operation failed',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      
+      res.status(500).json(errorResponse);
     }
   }
 
@@ -719,21 +1039,6 @@ export class RESTAPIServer {
     return this.app;
   }
 
-  /**
-   * Generate a folder ID from a path
-   */
-  private generateFolderId(folderPath: string): string {
-    // Extract the last directory name and sanitize it
-    const pathParts = folderPath.split(/[/\\]/);
-    const lastPart = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2] || 'unknown';
-    
-    // Sanitize the name to create a valid ID
-    return lastPart
-      .toLowerCase()
-      .replace(/[^a-z0-9\-_]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  }
 
   /**
    * Extract a human-friendly folder name from a path
@@ -779,5 +1084,23 @@ export class RESTAPIServer {
 
     // Final fallback
     return 'Unknown Folder';
+  }
+
+  /**
+   * Extract filename from a file path
+   */
+  private extractFileNameFromPath(filePath: string): string {
+    if (!filePath) return 'Unknown Document';
+    const pathParts = filePath.split(/[/\\]/);
+    return pathParts[pathParts.length - 1] || 'Unknown Document';
+  }
+
+  /**
+   * Get document type from file path or document ID
+   */
+  private getDocumentType(documentId: string): string {
+    if (!documentId) return 'unknown';
+    const extension = documentId.split('.').pop()?.toLowerCase();
+    return extension || 'unknown';
   }
 }

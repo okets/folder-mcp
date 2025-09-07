@@ -19,7 +19,7 @@ import { SystemCapabilities } from '../config/schema.js';
  */
 export interface IIndexingOrchestrator {
   indexFolder(path: string, options?: any): Promise<any>;
-  processFile(filePath: string, modelId: string): Promise<any>;
+  processFile(filePath: string, modelId: string, options?: any, progressCallback?: (totalChunks: number, processedChunks: number) => void): Promise<any>;
   removeFile(filePath: string): Promise<any>;
   pauseFolder(path: string): void;
   resumeFolder(path: string): void;
@@ -137,6 +137,42 @@ export interface IEmbeddingService {
    * Check if service is initialized
    */
   isInitialized(): boolean;
+}
+
+/**
+ * ONNX Configuration service interface
+ * Provides optimal performance defaults based on CPM testing
+ */
+export interface IOnnxConfiguration {
+  /**
+   * Get optimal worker pool size (default: 2)
+   */
+  getWorkerPoolSize(): Promise<number>;
+  
+  /**
+   * Get optimal number of threads per worker (default: 2)  
+   */
+  getNumThreadsPerWorker(): Promise<number>;
+  
+  /**
+   * Get optimal batch size for embedding processing (default: 1)
+   */
+  getBatchSize(): Promise<number>;
+  
+  /**
+   * Get optimal maximum concurrent files (default: 4)
+   */
+  getMaxConcurrentFiles(): Promise<number>;
+  
+  /**
+   * Get complete ONNX configuration object
+   */
+  getConfig(): Promise<{
+    workerPoolSize: number;
+    numThreads: number;
+    batchSize: number;
+    maxConcurrentFiles: number;
+  }>;
 }
 
 /**
@@ -540,6 +576,7 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   FILE_PARSING: Symbol('FileParsingService'),
   CHUNKING: Symbol('ChunkingService'),
   EMBEDDING: Symbol('EmbeddingService'),
+  ONNX_CONFIG: Symbol('OnnxConfiguration'),
   VECTOR_SEARCH: Symbol('VectorSearchService'),
   CACHE: Symbol('CacheService'),
   FILE_SYSTEM: Symbol('FileSystemService'),

@@ -61,11 +61,18 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     
     mockStorage = {
       getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
-      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      isReady: vi.fn().mockReturnValue(true), // Fix: storage should be ready
       buildIndex: vi.fn().mockResolvedValue(void 0), // Add missing buildIndex method
       loadIndex: vi.fn().mockResolvedValue(void 0), // Fix: Add missing loadIndex method
       addEmbeddings: vi.fn().mockResolvedValue(void 0), // Add missing addEmbeddings method
-      removeDocument: vi.fn().mockResolvedValue(void 0) // Add missing removeDocument method
+      removeDocument: vi.fn().mockResolvedValue(void 0), // Add missing removeDocument method
+      getDatabaseManager: vi.fn().mockReturnValue({
+        getDatabase: vi.fn().mockReturnValue({
+          prepare: vi.fn().mockReturnValue({
+            get: vi.fn().mockReturnValue({ chunk_count: 1 }) // Mock successful chunk count
+          })
+        })
+      })
     };
     
     // Create mock logger
@@ -305,7 +312,9 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     
     await orchestrator.startScanning();
     
-    // Start multiple tasks up to concurrency limit (3)
+    // Start multiple tasks up to concurrency limit 
+    // NOTE: This value comes from config-defaults.yaml onnx.maxConcurrentFiles
+    // If this test fails, check if the configuration value changed
     const taskIds: string[] = [];
     for (let i = 0; i < 5; i++) {
       const taskId = orchestrator.getNextTask();
@@ -315,12 +324,13 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
       }
     }
     
-    // Should only start 2 tasks (concurrency limit)
-    expect(taskIds.length).toBe(2);
+    // Should only start 4 tasks (maxConcurrentFiles: 4 from config-defaults.yaml)
+    // NOTE: If this assertion fails, verify the value in config-defaults.yaml onnx.maxConcurrentFiles
+    expect(taskIds.length).toBe(4);
     
-    // Verify in-progress count
+    // Verify in-progress count matches concurrency limit
     const state = orchestrator.currentState;
     const inProgress = state.fileEmbeddingTasks.filter((t: any) => t.status === 'in-progress');
-    expect(inProgress.length).toBe(2);
+    expect(inProgress.length).toBe(4);
   });
 });

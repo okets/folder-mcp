@@ -20,8 +20,7 @@ import { ONNXEmbeddingService } from '../onnx/onnx-embedding-service.js';
 import { ModelCompatibilityEvaluator } from '../../../domain/models/model-evaluator.js';
 import { 
   createModelCompatibilityEvaluator,
-  createONNXDownloader,
-  createONNXEmbeddingService 
+  createONNXDownloader
 } from '../../../daemon/factories/model-factories.js';
 import path from 'path';
 import os from 'os';
@@ -127,8 +126,8 @@ export class ONNXModelBridge implements IEmbeddingModel {
         message: 'Initializing ONNX runtime',
       });
 
-      // Create ONNX service
-      this.onnxService = createONNXEmbeddingService({
+      // Create ONNX service directly - NO singleton manager
+      this.onnxService = new ONNXEmbeddingService({
         modelId: this.modelConfig.modelId,
         cacheDirectory: this.cacheDir,
         batchSize: this.modelConfig.batchSize ?? 32,
@@ -212,8 +211,8 @@ export class ONNXModelBridge implements IEmbeddingModel {
     // Extract text from chunks
     const texts = chunks.map(chunk => chunk.content);
 
-    // Generate embeddings using ONNX service
-    const result = await this.onnxService.generateEmbeddings(texts);
+    // Generate embeddings using ONNX service (TextChunk[] are document passages)
+    const result = await this.onnxService.generateEmbeddingsFromStrings(texts, 'passage');
 
     // Convert to EmbeddingVector format
     const modelName = this.modelConfig.modelName ?? this.modelConfig.modelId;
@@ -240,7 +239,7 @@ export class ONNXModelBridge implements IEmbeddingModel {
     }
 
     // Generate embedding for single text
-    const result = await this.onnxService.generateEmbeddings([text]);
+    const result = await this.onnxService.generateEmbeddingsFromStrings([text], 'query');
 
     if (!result.embeddings || result.embeddings.length === 0) {
       throw new Error('Failed to generate embedding');
@@ -284,7 +283,7 @@ export class ONNXModelBridge implements IEmbeddingModel {
       const batch = chunks.slice(i, i + effectiveBatchSize);
       const texts = batch.map(chunk => chunk.content);
       
-      const batchResult = await this.onnxService.generateEmbeddings(texts);
+      const batchResult = await this.onnxService.generateEmbeddingsFromStrings(texts, 'passage');
       
       // Convert to EmbeddingResult format
       const modelName = this.modelConfig.modelName ?? this.modelConfig.modelId;

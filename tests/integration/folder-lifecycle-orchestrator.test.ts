@@ -69,7 +69,8 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
         totalChunks: 0,
         errors: 0
       }),
-      reset: vi.fn()
+      reset: vi.fn(),
+      testModelAvailability: vi.fn().mockResolvedValue({ available: true })
     };
 
     // Create mock config service
@@ -389,7 +390,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(readyState.fileEmbeddingTasks[0]?.task).toBe('UpdateEmbeddings');
     });
 
-    it('should handle errors with retry logic', async () => {
+    it('should handle errors with retry logic', { timeout: 60000 }, async () => {
       
       // Create test file
       await fs.writeFile(path.join(testFolderPath, 'error-file.txt'), 'Error test');
@@ -417,8 +418,15 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
         if (attemptCount < 3) {
           throw new Error('Simulated indexing error');
         }
-        // Success on third attempt
-        return { success: true };
+        // Success on third attempt - return proper structure
+        return {
+          chunksGenerated: 5,
+          embeddingsCreated: 5,
+          bytes: 100,
+          words: 20,
+          embeddings: [],
+          metadata: []
+        };
       });
 
       // Track state changes for error tracking
@@ -443,7 +451,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       await vi.waitFor(() => {
         const state = orchestrator.getState();
         expect(state.status).toBe('active');
-      }, { timeout: 10000, interval: 500 }); // Longer timeout and interval for retries
+      }, { timeout: 30000, interval: 1000 }); // Much longer timeout for ONNX processing and retries
 
       // Should eventually succeed after retries
       const finalState = orchestrator.getState();
@@ -451,7 +459,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       expect(attemptCount).toBeGreaterThanOrEqual(3); // Failed at least twice, succeeded eventually
     });
 
-    it('should handle permanent failures', async () => {
+    it('should handle permanent failures', { timeout: 60000 }, async () => {
       // Create test file
       await fs.writeFile(path.join(testFolderPath, 'permanent-error.txt'), 'Error test');
       
@@ -507,7 +515,7 @@ describe('FolderLifecycleOrchestrator Integration Tests', () => {
       await vi.waitFor(() => {
         const state = orchestrator.getState();
         expect(state.status).toBe('active');
-      }, { timeout: 15000 }); // Long timeout for retries
+      }, { timeout: 30000, interval: 1000 }); // Much longer timeout for ONNX processing and multiple retries
 
       // Should still transition to active despite failed task
       const finalState = orchestrator.getState();

@@ -465,6 +465,24 @@ export class DatabaseManager {
     }
 
     /**
+     * Force WAL checkpoint to ensure all changes are written to main database file
+     * This is critical for ensuring file_states persist correctly
+     */
+    async checkpoint(): Promise<void> {
+        if (!this.db) throw new Error('Database not initialized');
+        
+        try {
+            // TRUNCATE mode ensures all WAL changes are written to main database
+            // and the WAL file is truncated to zero size
+            const result = this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+            this.config.logger?.debug('[DATABASE] WAL checkpoint completed');
+        } catch (error) {
+            this.config.logger?.error('[DATABASE] WAL checkpoint failed:', error);
+            // Don't throw - checkpoint failure shouldn't block operation
+        }
+    }
+
+    /**
      * Get database file path
      */
     getDatabasePath(): string {

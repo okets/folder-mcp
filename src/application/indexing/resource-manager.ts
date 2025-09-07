@@ -1,8 +1,8 @@
 /**
  * Resource Manager for Concurrent Indexing
  * 
- * Manages system resources to prevent overload during concurrent indexing operations.
- * Implements queue management, memory limits, and CPU throttling.
+ * Manages concurrent indexing operations through queue management.
+ * Provides simple concurrency control without throttling.
  */
 
 import { EventEmitter } from 'events';
@@ -11,35 +11,17 @@ import { ILoggingService } from '../../di/interfaces.js';
 export interface ResourceLimits {
     /** Maximum concurrent indexing operations */
     maxConcurrentOperations: number;
-    /** Maximum memory usage in MB */
-    maxMemoryMB: number;
-    /** Maximum CPU percentage (0-100) */
-    maxCpuPercent: number;
     /** Maximum queue size */
     maxQueueSize: number;
-    /** Check interval in ms */
-    checkIntervalMs: number;
-    /** Enable adaptive throttling */
-    adaptiveThrottling: boolean;
 }
 
 export interface ResourceStats {
     /** Current memory usage in MB */
     memoryUsedMB: number;
-    /** Memory limit in MB */
-    memoryLimitMB: number;
-    /** Memory usage percentage */
-    memoryPercent: number;
-    /** Current CPU usage percentage */
-    cpuPercent: number;
     /** Number of active operations */
     activeOperations: number;
     /** Number of queued operations */
     queuedOperations: number;
-    /** Whether system is throttled */
-    isThrottled: boolean;
-    /** Current throttle factor (0-1) */
-    throttleFactor: number;
 }
 
 export interface QueuedOperation {
@@ -57,9 +39,6 @@ export class ResourceManager extends EventEmitter {
     private limits: Required<ResourceLimits>;
     private activeOperations: Map<string, QueuedOperation> = new Map();
     private operationQueue: QueuedOperation[] = [];
-    private checkInterval: NodeJS.Timeout | null = null;
-    private throttleFactor: number = 1.0;
-    private lastCpuUsage: NodeJS.CpuUsage | null = null;
     private isShuttingDown: boolean = false;
 
     constructor(
@@ -69,15 +48,9 @@ export class ResourceManager extends EventEmitter {
         super();
         
         this.limits = {
-            maxConcurrentOperations: limits.maxConcurrentOperations ?? 3,
-            maxMemoryMB: limits.maxMemoryMB ?? 1024, // 1GB default
-            maxCpuPercent: limits.maxCpuPercent ?? 70,
-            maxQueueSize: limits.maxQueueSize ?? 100,
-            checkIntervalMs: limits.checkIntervalMs ?? 1000,
-            adaptiveThrottling: limits.adaptiveThrottling ?? true
+            maxConcurrentOperations: limits.maxConcurrentOperations ?? 2, // Optimal from testing
+            maxQueueSize: limits.maxQueueSize ?? 100
         };
-
-        this.startMonitoring();
     }
 
     /**
@@ -132,18 +105,12 @@ export class ResourceManager extends EventEmitter {
      */
     getStats(): ResourceStats {
         const memUsage = process.memoryUsage();
-        const memoryUsedMB = memUsage.heapUsed / 1024 / 1024;
-        const memoryPercent = (memoryUsedMB / this.limits.maxMemoryMB) * 100;
+        const memoryUsedMB = memUsage.rss / 1024 / 1024; // Use RSS for actual memory footprint
 
         return {
             memoryUsedMB,
-            memoryLimitMB: this.limits.maxMemoryMB,
-            memoryPercent,
-            cpuPercent: this.getCurrentCpuPercent(),
             activeOperations: this.activeOperations.size,
-            queuedOperations: this.operationQueue.length,
-            isThrottled: this.throttleFactor < 1.0,
-            throttleFactor: this.throttleFactor
+            queuedOperations: this.operationQueue.length
         };
     }
 
@@ -177,19 +144,11 @@ export class ResourceManager extends EventEmitter {
     }
 
     /**
-     * Execute a single operation with resource tracking
+     * Execute a single operation
      */
     private async executeOperation(operation: QueuedOperation): Promise<void> {
         try {
-            // Apply throttling if needed
-            if (this.throttleFactor < 1.0 && this.limits.adaptiveThrottling) {
-                const delay = Math.floor((1 - this.throttleFactor) * 1000);
-                if (delay > 0) {
-                    await this.sleep(delay);
-                }
-            }
-
-            // Execute the operation
+            // Execute the operation directly without throttling
             const result = await operation.execute();
             operation.resolve(result);
             
@@ -211,106 +170,13 @@ export class ResourceManager extends EventEmitter {
     }
 
     /**
-     * Check if we can start a new operation based on resource limits
+     * Check if we can start a new operation based on concurrency limit
      */
     private canStartOperation(): boolean {
-        // Check concurrent operation limit
-        if (this.activeOperations.size >= this.limits.maxConcurrentOperations) {
-            return false;
-        }
-
-        // Check memory limit
-        const memUsage = process.memoryUsage();
-        const memoryUsedMB = memUsage.heapUsed / 1024 / 1024;
-        if (memoryUsedMB > this.limits.maxMemoryMB * 0.9) { // 90% threshold
-            this.logger?.warn('Memory limit reached, waiting for resources', {
-                memoryUsedMB,
-                limitMB: this.limits.maxMemoryMB
-            });
-            return false;
-        }
-
-        // Check CPU limit (if high CPU, reduce concurrency)
-        const cpuPercent = this.getCurrentCpuPercent();
-        if (cpuPercent > this.limits.maxCpuPercent) {
-            this.logger?.warn('CPU limit reached, waiting for resources', {
-                cpuPercent,
-                limitPercent: this.limits.maxCpuPercent
-            });
-            return false;
-        }
-
-        return true;
+        // Only check concurrent operation limit
+        return this.activeOperations.size < this.limits.maxConcurrentOperations;
     }
 
-    /**
-     * Start resource monitoring
-     */
-    private startMonitoring(): void {
-        if (this.checkInterval) {
-            return;
-        }
-
-        this.checkInterval = setInterval(() => {
-            this.checkResources();
-        }, this.limits.checkIntervalMs);
-
-        // Initialize CPU tracking
-        this.lastCpuUsage = process.cpuUsage();
-    }
-
-    /**
-     * Check system resources and adjust throttling
-     */
-    private checkResources(): void {
-        const stats = this.getStats();
-
-        // Adaptive throttling based on resource usage
-        if (this.limits.adaptiveThrottling) {
-            const memoryPressure = stats.memoryPercent / 100;
-            const cpuPressure = stats.cpuPercent / 100;
-            
-            // Calculate throttle factor (lower = more throttling)
-            const pressure = Math.max(memoryPressure, cpuPressure);
-            if (pressure > 0.9) {
-                this.throttleFactor = 0.25; // Heavy throttling
-            } else if (pressure > 0.7) {
-                this.throttleFactor = 0.5; // Moderate throttling
-            } else if (pressure > 0.5) {
-                this.throttleFactor = 0.75; // Light throttling
-            } else {
-                this.throttleFactor = 1.0; // No throttling
-            }
-        }
-
-        // Emit stats for monitoring
-        this.emit('stats', stats);
-
-        // Force garbage collection if memory pressure is high
-        if (stats.memoryPercent > 80 && global.gc) {
-            this.logger?.info('Triggering garbage collection due to memory pressure');
-            global.gc();
-        }
-    }
-
-    /**
-     * Get current CPU usage percentage
-     */
-    private getCurrentCpuPercent(): number {
-        if (!this.lastCpuUsage) {
-            this.lastCpuUsage = process.cpuUsage();
-            return 0;
-        }
-
-        const currentUsage = process.cpuUsage(this.lastCpuUsage);
-        const totalTime = currentUsage.user + currentUsage.system;
-        
-        // Calculate percentage based on interval
-        const percent = (totalTime / (this.limits.checkIntervalMs * 1000)) * 100;
-        
-        this.lastCpuUsage = process.cpuUsage();
-        return Math.min(percent, 100);
-    }
 
     /**
      * Sort queue by priority (higher priority first)
@@ -369,20 +235,34 @@ export class ResourceManager extends EventEmitter {
 
     /**
      * Shutdown the resource manager
+     * @param force If true, performs immediate shutdown without waiting for active operations
      */
-    async shutdown(): Promise<void> {
+    async shutdown(force: boolean = false): Promise<void> {
         this.isShuttingDown = true;
-
-        // Stop monitoring
-        if (this.checkInterval) {
-            clearInterval(this.checkInterval);
-            this.checkInterval = null;
-        }
 
         // Cancel all operations
         await this.cancelAll();
 
-        // Wait for active operations
+        if (force) {
+            // Immediate shutdown: forcibly clear active operations
+            this.logger?.warn(`Forcing immediate shutdown with ${this.activeOperations.size} active operations`);
+            
+            // Reject all active operations
+            for (const [operationId, operation] of this.activeOperations) {
+                try {
+                    operation.reject(new Error('Resource manager forced shutdown'));
+                } catch (error) {
+                    this.logger?.error(`Error rejecting operation ${operationId} during forced shutdown`, error instanceof Error ? error : new Error(String(error)));
+                }
+            }
+            
+            // Forcibly clear the active operations map
+            this.activeOperations.clear();
+            this.logger?.info('Forced shutdown completed - all active operations terminated');
+            return;
+        }
+
+        // Normal shutdown: wait for active operations
         const timeout = 30000; // 30 seconds
         const startTime = Date.now();
         
@@ -452,8 +332,7 @@ export class ResourceManager extends EventEmitter {
             this.logger?.info(`Resource cleanup completed for operation: ${operation.id}`, {
                 memoryUsedMB: Math.round(stats.memoryUsedMB),
                 activeOperations: stats.activeOperations,
-                queuedOperations: stats.queuedOperations,
-                isThrottled: stats.isThrottled
+                queuedOperations: stats.queuedOperations
             });
             
         } catch (cleanupError) {

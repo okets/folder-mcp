@@ -475,7 +475,7 @@ export function createConfigurationPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'Embedding Model',
-            'nomic-embed-text',
+            'cpu:xenova-multilingual-e5-small',
             false,
             false,
             undefined,
@@ -484,7 +484,7 @@ export function createConfigurationPanelItems(): IListItem[] {
             (newValue) => console.log('Embedding model changed to:', newValue),
             [],
             false,
-            'e.g., text-embedding-3-large',
+            'e.g., cpu:xenova-multilingual-e5-small',
             {
                 level: 'critical',
                 title: 'Model Change Impact',

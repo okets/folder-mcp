@@ -67,7 +67,7 @@ logging:
       // Should load system constants
       expect(config.system).toBeDefined();
       expect(config.system.model.name).toBe('nomic-embed-text');
-      expect(config.system.model.batchSize).toBe(32);
+      expect(config.system.model.batchSize).toBe(32); // Updated to match Sprint 10 ONNX optimization
       expect(config.system.fileProcessing.extensions).toContain('.txt');
     });
 
@@ -78,7 +78,7 @@ logging:
       expect(config.user).toBeDefined();
       expect(config.user.theme).toBe('auto');
       expect(config.user.development.enabled).toBe(false);
-      expect(config.user.performance.batchSize).toBe(32);
+      expect(config.user.performance.batchSize).toBe(32); // Updated to match Sprint 10 ONNX optimization
     });
 
     it('should load user overrides when config.yaml exists', async () => {
@@ -146,7 +146,7 @@ development:
       const resolved = convertToResolvedConfig(hybridConfig);
 
       // Should use defaults
-      expect(resolved.batchSize).toBe(32); // System default
+      expect(resolved.batchSize).toBe(32); // Updated to match Sprint 10 ONNX optimization default
       expect(resolved.modelName).toBe('nomic-embed-text'); // System constant
       expect(resolved.fileExtensions).toBeDefined(); // System constants
     });

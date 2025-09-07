@@ -3,12 +3,16 @@ import { pipeline, env } from '@xenova/transformers';
 import path from 'path';
 import fs from 'fs/promises';
 import { ModelCompatibilityEvaluator, CuratedModel } from '../../../domain/models/model-evaluator.js';
+import { ONNXWorkerPool } from './onnx-worker-pool.js';
 
 export interface ONNXEmbeddingOptions {
   modelId: string;
   cacheDirectory?: string;
   maxSequenceLength?: number;
   batchSize?: number;
+  useWorkerThreads?: boolean; // Option to enable/disable worker threads
+  workerPoolSize?: number; // Number of worker threads in the pool
+  numThreads?: number; // Number of threads per ONNX worker
 }
 
 export interface EmbeddingResult {
@@ -23,10 +27,14 @@ export class ONNXEmbeddingService {
   private modelConfig: CuratedModel | null = null;
   private evaluator: ModelCompatibilityEvaluator;
   private cacheDir: string;
+  private workerPool: ONNXWorkerPool | null = null;
+  private useWorkerThreads: boolean;
 
   constructor(private options: ONNXEmbeddingOptions) {
     this.evaluator = new ModelCompatibilityEvaluator();
     this.cacheDir = options.cacheDirectory || path.join(process.env.HOME || '~', '.cache', 'folder-mcp', 'onnx-models');
+    // Enable worker threads by default for better performance
+    this.useWorkerThreads = options.useWorkerThreads !== false;
     
     // Configure Transformers.js environment
     env.allowLocalModels = true;
@@ -54,18 +62,33 @@ export class ONNXEmbeddingService {
       // Ensure cache directory exists
       await fs.mkdir(this.cacheDir, { recursive: true });
 
-      // Load the model using Transformers.js pipeline
-      const modelPath = await this.ensureModelDownloaded();
-      
-      this.model = await pipeline(
-        'feature-extraction',
-        this.modelConfig.huggingfaceId!,
-        {
-          local_files_only: false,
-          cache_dir: this.cacheDir,
-          revision: 'main'
-        }
-      );
+      if (this.useWorkerThreads) {
+        // Initialize worker pool instead of loading model in main thread
+        console.log(`[ONNXEmbeddingService] Using worker threads for ${this.options.modelId}`);
+        
+        // CPM-optimized defaults (2 workers, 2 threads each provides best performance)
+        const poolSize = this.options.workerPoolSize || 2;
+        const numThreads = this.options.numThreads !== undefined ? this.options.numThreads : 2;
+        console.error(`[ONNXEmbeddingService] Creating worker pool with ${poolSize} workers, ${numThreads || 'auto'} threads each for ${this.options.modelId}`);
+        
+        this.workerPool = new ONNXWorkerPool(this.options.modelId, this.modelConfig, poolSize, numThreads);
+        await this.workerPool.initialize();
+        console.log(`✅ ONNX worker pool initialized: ${this.modelConfig.displayName}`);
+      } else {
+        // Fallback to main thread loading (original behavior)
+        console.log(`[ONNXEmbeddingService] Using main thread for ${this.options.modelId}`);
+        const modelPath = await this.ensureModelDownloaded();
+        
+        this.model = await pipeline(
+          'feature-extraction',
+          this.modelConfig.huggingfaceId!,
+          {
+            local_files_only: false,
+            cache_dir: this.cacheDir,
+            revision: 'main'
+          }
+        );
+      }
 
       const initTime = Date.now() - startTime;
       console.log(`✅ ONNX model initialized in ${initTime}ms: ${this.modelConfig.displayName}`);
@@ -75,8 +98,25 @@ export class ONNXEmbeddingService {
     }
   }
 
-  async generateEmbeddings(texts: string[]): Promise<EmbeddingResult> {
-    if (!this.model || !this.modelConfig) {
+  // Implement IEmbeddingService interface method
+  async generateEmbeddings(chunks: any[]): Promise<any[]> {
+    // Extract text content from chunks
+    const texts = chunks.map(chunk => 
+      typeof chunk === 'string' ? chunk : chunk.content
+    );
+    
+    const result = await this.generateEmbeddingsFromStrings(texts, 'passage');
+    
+    // Convert to expected format
+    return result.embeddings.map((embedding, index) => ({
+      vector: embedding,
+      dimensions: result.dimensions,
+      metadata: chunks[index]?.metadata || {}
+    }));
+  }
+
+  async generateEmbeddingsFromStrings(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<EmbeddingResult> {
+    if (!this.modelConfig || (!this.model && !this.workerPool)) {
       throw new Error('Model not initialized. Call initialize() first.');
     }
 
@@ -89,16 +129,22 @@ export class ONNXEmbeddingService {
 
       for (let i = 0; i < texts.length; i += batchSize) {
         const batch = texts.slice(i, i + batchSize);
-        const batchResults = await this.processBatch(batch);
+        const batchResults = await this.processBatch(batch, textType);
         allEmbeddings.push(...batchResults);
+        
+        // Yield to event loop between batches to prevent blocking connections
+        // This allows WebSocket handshakes and HTTP requests to be processed
+        if (i + batchSize < texts.length) {
+          await new Promise(resolve => setImmediate(resolve));
+        }
       }
 
       const processingTime = Date.now() - startTime;
 
       return {
         embeddings: allEmbeddings,
-        dimensions: this.modelConfig.dimensions,
-        modelUsed: this.modelConfig.displayName,
+        dimensions: this.modelConfig!.dimensions,
+        modelUsed: this.modelConfig!.displayName,
         processingTime
       };
 
@@ -107,19 +153,52 @@ export class ONNXEmbeddingService {
     }
   }
 
-  private async processBatch(texts: string[]): Promise<number[][]> {
-    // Apply E5 prefix if required by model
-    const processedTexts = this.modelConfig?.requirements?.prefixes
-      ? texts.map(text => `query: ${text}`)
-      : texts;
-
-    // Truncate texts if they exceed max sequence length
-    const maxLength = this.options.maxSequenceLength || 512;
+  private async processBatch(texts: string[], textType: 'query' | 'passage' = 'query'): Promise<number[][]> {
+    // If using worker threads, delegate to worker pool
+    if (this.useWorkerThreads && this.workerPool) {
+      try {
+        // Worker pool handles prefixes and truncation internally
+        const embeddings = await this.workerPool.processEmbeddings(texts, {
+          textType,
+          pooling: 'mean',
+          normalize: true
+        });
+        return embeddings;
+      } catch (error) {
+        console.error('[ONNXEmbeddingService] Worker pool error, falling back to main thread:', error);
+        // Fall through to main thread processing if worker fails
+      }
+    }
+    
+    // Main thread processing (original behavior)
+    if (!this.model) {
+      throw new Error('Model not initialized for main thread processing');
+    }
+    
+    // Apply prefixes if the model requires them
+    let processedTexts = texts;
+    if (this.modelConfig?.requirements?.prefixes) {
+      const prefix = textType === 'query' 
+        ? this.modelConfig.requirements.prefixes.query || ''
+        : this.modelConfig.requirements.prefixes.passage || '';
+      
+      if (prefix) {
+        processedTexts = texts.map(text => prefix + text);
+      }
+    }
+    
+    // Use model's actual context window for proper token-based truncation
+    // The Xenova transformer pipeline handles tokenization internally
+    // For now, we'll do a simple character-based estimation (avg 4 chars per token)
+    const contextWindow = this.modelConfig?.contextWindow || 512;
+    const maxChars = contextWindow * 4; // Rough estimate: 4 chars per token
+    
+    // Truncate if needed (temporary until proper tokenization)
     const truncatedTexts = processedTexts.map(text => 
-      text.length > maxLength ? text.substring(0, maxLength) : text
+      text.length > maxChars ? text.substring(0, maxChars) : text
     );
-
-    // Generate embeddings using the pipeline
+    
+    // Generate embeddings - the pipeline will do its own tokenization
     const results = await this.model(truncatedTexts, {
       pooling: 'mean',
       normalize: true
@@ -141,24 +220,37 @@ export class ONNXEmbeddingService {
     } else if (results && results.data) {
       // Handle tensor result - may contain multiple embeddings
       const data = Array.from(results.data) as number[];
-      const embeddingDim = 384; // E5-Small dimension
+      const embeddingDim = this.modelConfig!.dimensions; // Use actual model dimension
       
-      // If data length is multiple of embedding dimension, split into individual embeddings
-      if (data.length % embeddingDim === 0) {
-        const numEmbeddings = data.length / embeddingDim;
-        for (let i = 0; i < numEmbeddings; i++) {
+      // Validate that we have the right number of embeddings for the input batch
+      const expectedDataLength = texts.length * embeddingDim;
+      
+      if (data.length === expectedDataLength) {
+        // Split tensor data into individual embeddings
+        for (let i = 0; i < texts.length; i++) {
           const start = i * embeddingDim;
           const end = start + embeddingDim;
           embeddings.push(data.slice(start, end));
         }
+      } else if (data.length === embeddingDim) {
+        // Single embedding case - should only happen with 1 text
+        if (texts.length === 1) {
+          embeddings.push(data);
+        } else {
+          throw new Error(`ONNX tensor data mismatch: expected ${expectedDataLength} values for ${texts.length} texts, got ${data.length}`);
+        }
       } else {
-        // Single embedding case
-        embeddings.push(data);
+        throw new Error(`ONNX tensor data mismatch: expected ${expectedDataLength} values for ${texts.length} texts (${embeddingDim} dims each), got ${data.length}`);
       }
     } else {
       throw new Error('No embeddings generated from ONNX model');
     }
 
+    // Validate that the number of embeddings matches the number of input texts
+    if (embeddings.length !== texts.length) {
+      throw new Error(`ONNX embedding count mismatch: expected ${texts.length} embeddings for ${texts.length} texts, got ${embeddings.length}`);
+    }
+    
     return embeddings;
   }
 
@@ -210,6 +302,13 @@ export class ONNXEmbeddingService {
   }
 
   async dispose(): Promise<void> {
+    // Clean up worker pool if used
+    if (this.workerPool) {
+      console.log('[ONNXEmbeddingService] Shutting down worker pool');
+      await this.workerPool.shutdown();
+      this.workerPool = null;
+    }
+    
     if (this.model) {
       // Clean up model resources if needed
       this.model = null;
@@ -217,10 +316,60 @@ export class ONNXEmbeddingService {
     this.modelConfig = null;
   }
 
+  // Implement IEmbeddingService interface methods for compatibility
+  async generateQueryEmbedding(query: string): Promise<any> {
+    const result = await this.generateEmbeddingsFromStrings([query], 'query');
+    return {
+      vector: result.embeddings[0],
+      dimensions: result.dimensions
+    };
+  }
+  
+  async generateSingleEmbedding(text: string): Promise<any> {
+    const result = await this.generateEmbeddingsFromStrings([text], 'query');
+    return {
+      vector: result.embeddings[0],
+      dimensions: result.dimensions
+    };
+  }
+  
+  calculateSimilarity(vector1: any, vector2: any): number {
+    // Cosine similarity calculation
+    const v1 = Array.isArray(vector1) ? vector1 : vector1.vector;
+    const v2 = Array.isArray(vector2) ? vector2 : vector2.vector;
+    
+    if (!v1 || !v2 || v1.length !== v2.length) {
+      throw new Error('Vectors must have the same dimensions for similarity calculation');
+    }
+    
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    
+    for (let i = 0; i < v1.length; i++) {
+      dotProduct += v1[i] * v2[i];
+      norm1 += v1[i] * v1[i];
+      norm2 += v2[i] * v2[i];
+    }
+    
+    const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+    const similarity = denominator === 0 ? 0 : dotProduct / denominator;
+    // Clamp to [-1, 1] range to handle floating point errors
+    return Math.max(-1, Math.min(1, similarity));
+  }
+  
+  getModelConfig(): any {
+    return this.modelConfig;
+  }
+  
+  isInitialized(): boolean {
+    return this.modelConfig !== null && (this.model !== null || this.workerPool !== null);
+  }
+  
   // Test method to verify model works correctly
   async testEmbedding(): Promise<boolean> {
     try {
-      const testResult = await this.generateEmbeddings(['Hello world']);
+      const testResult = await this.generateEmbeddingsFromStrings(['Hello world']);
       
       return (
         testResult.embeddings.length === 1 &&

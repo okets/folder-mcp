@@ -9,6 +9,7 @@
 import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../../config/model-registry.js';
+import { PathNormalizer } from '../utils/path-normalizer.js';
 
 /**
  * FMDM Service interface for dependency injection
@@ -181,9 +182,9 @@ export class FMDMService implements IFMDMService {
     try {
       const configFolders = await this.configService.getFolders();
       
-      // Convert config folders to FMDM format with default status
+      // Convert config folders to FMDM format with normalized paths and default status
       const fmdmFolders: FolderConfig[] = configFolders.map(folder => ({
-        path: folder.path,
+        path: PathNormalizer.normalize(folder.path),
         model: folder.model,
         status: 'pending' as const  // Default status for loaded folders
       }));
@@ -212,8 +213,14 @@ export class FMDMService implements IFMDMService {
     // Don't preserve notifications - orchestrator is the authoritative source
     // The old code was preserving stale notifications and overwriting fresh ones from orchestrator
     
-    // Update folders array with current data from orchestrator
-    this.fmdm.folders = [...folders]; // Create a copy
+    // Normalize all folder paths before storing in FMDM
+    const normalizedFolders = folders.map(folder => ({
+      ...folder,
+      path: PathNormalizer.normalize(folder.path)
+    }));
+    
+    // Update folders array with normalized paths
+    this.fmdm.folders = [...normalizedFolders]; // Create a copy
     
     this.fmdm.version = this.generateVersion();
     this.logger.debug(`FMDM folders updated: ${folders.length} folders`);

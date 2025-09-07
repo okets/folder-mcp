@@ -35,6 +35,7 @@
     "dist",
     "src/interfaces/tui-ink-old/**/*",
     "src/interfaces/tui/**/*",
+    "tests/legacy/**/*",
     "tests/integration/folder-lifecycle-*.test.ts",
     "tests/integration/folder-lifecycle-orchestrator.test.ts",
     "tests/integration/folder-lifecycle-simple-real.test.ts"

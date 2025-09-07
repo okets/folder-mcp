@@ -236,7 +236,7 @@ export function createStatusPanelItems(): IListItem[] {
         new ConfigurationListItem(
             '·',
             'Embedding Model',
-            'nomic-embed-text',
+            'cpu:xenova-multilingual-e5-small',
             false,
             false,
             undefined,

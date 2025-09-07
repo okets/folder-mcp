@@ -60,7 +60,6 @@ import { ResolvedConfig } from '../config/schema.js';
 import { DependencyContainer } from './container.js';
 import { IndexingOrchestrator } from '../application/indexing/orchestrator.js';
 import { IncrementalIndexer } from '../application/indexing/incremental.js';
-import { MCPServer } from '../interfaces/mcp/server.js';
 
 /**
  * Default service factory implementation
@@ -117,13 +116,30 @@ export class ServiceFactory implements IServiceFactory {
   async createVectorSearchService(cacheDir: string): Promise<IVectorSearchService> {
     const loggingService = this.getLoggingService();
     
-    // TODO: Task 12 - Use full SQLiteVecStorage for multi-folder search
-    // For Step 7 priority testing, use BasicVectorSearchService
+    // Use SQLite-backed vector search service to connect to real embeddings database
+    const dbPath = `${cacheDir}/embeddings.db`;
+    loggingService.info(`Creating SQLiteVectorSearchService with database: ${dbPath}`);
     
-    loggingService.info(`Creating BasicVectorSearchService for testing priority system: ${cacheDir}`);
+    const { SQLiteVectorSearchService } = await import('../infrastructure/storage/sqlite-vector-search.js');
+    const service = new SQLiteVectorSearchService(dbPath, loggingService);
     
-    const { BasicVectorSearchService } = await import('../infrastructure/storage/basic-vector-search.js');
-    return new BasicVectorSearchService(loggingService);
+    // Try to load index if database exists, but don't fail if it doesn't
+    // This allows services to be created in test environments or when database hasn't been created yet
+    try {
+      await service.loadIndex(dbPath);
+      loggingService.debug(`SQLite vector index loaded successfully from ${dbPath}`);
+    } catch (error: any) {
+      // Check for file not found error using error code (more reliable than message matching)
+      if (error?.code === 'ENOENT') {
+        loggingService.debug(`Database file not found at ${dbPath}, service created but not ready for search`);
+        // Service is created but not ready - this is acceptable for test scenarios
+      } else {
+        loggingService.warn(`Failed to load SQLite vector index: ${error instanceof Error ? error.message : String(error)}`);
+        // Don't throw - allow service to be created even if index loading fails
+      }
+    }
+    
+    return service;
   }
 
   createCacheService(folderPath: string): ICacheService {
@@ -178,17 +194,20 @@ export class ServiceFactory implements IServiceFactory {
       container.resolve(SERVICE_TOKENS.CACHE),
       container.resolve(SERVICE_TOKENS.LOGGING),
       await container.resolveAsync(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(SERVICE_TOKENS.FILE_SYSTEM)
+      container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
+      container.resolve(SERVICE_TOKENS.ONNX_CONFIG)
     );
   }
   async createIncrementalIndexer(container: DependencyContainer): Promise<IncrementalIndexer> {
     const indexingOrchestrator = await this.createIndexingOrchestrator(container);
+    const vectorStorage = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH) as IVectorSearchService;
 
     return new IncrementalIndexer(
       container.resolve(SERVICE_TOKENS.FILE_SYSTEM),
       container.resolve(SERVICE_TOKENS.FILE_STATE_STORAGE),
       container.resolve(SERVICE_TOKENS.LOGGING),
-      indexingOrchestrator
+      indexingOrchestrator,
+      vectorStorage
     );
   } async createContentServingOrchestrator(container: DependencyContainer): Promise<any> {
     // Create the actual ContentServingOrchestrator with proper dependencies
@@ -252,16 +271,6 @@ export class ServiceFactory implements IServiceFactory {
       loggingService.error('Failed to create KnowledgeOperationsService', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
-  }
-  async createMonitoringOrchestrator(container: DependencyContainer): Promise<any> {
-    const { MonitoringOrchestrator } = await import('../application/monitoring/orchestrator.js');
-    return new MonitoringOrchestrator(
-      container.resolve(SERVICE_TOKENS.FILE_PARSING),
-      container.resolve(SERVICE_TOKENS.CACHE),
-      container.resolve(SERVICE_TOKENS.LOGGING),
-      container.resolve(SERVICE_TOKENS.CONFIGURATION),
-      container.resolve(MODULE_TOKENS.APPLICATION.INCREMENTAL_INDEXING)
-    );
   }
   async createHealthMonitoringService(container: DependencyContainer): Promise<any> {
     const { HealthMonitoringService } = await import('../application/monitoring/health.js');

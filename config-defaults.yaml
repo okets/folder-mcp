@@ -21,6 +21,13 @@ development:
 memoryMonitor:
   enabled: false
 
+# ONNX Performance Optimization Settings (testing configuration system)
+onnx:
+  workerPoolSize: 2        # Testing showed optimal 2
+  threadsPerWorker: 2      # Testing showed optimal 2
+  batchSize: 1             # Testing showed optimal 1
+  maxConcurrentFiles: 4    # Testing showed optimal 4
+
 # Logging configuration
 logging:
   level: info

@@ -301,7 +301,7 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
       console.log('✅ Language-prioritized scoring:', results);
     });
 
-    it('architecture maintains clean separation between curated and runtime models', () => {
+    it('architecture maintains clean separation between curated and runtime models', async () => {
       // Verify curated models (GPU/CPU) are properly loaded
       const curatedModels = (evaluator as any).getAllAvailableModels('assisted');
       expect(curatedModels.length).toBeGreaterThan(0);
@@ -314,16 +314,20 @@ describe('Intelligent Recommendations Architecture TMOAT', () => {
         expect(Object.keys(model.languagePerformance).length).toBeGreaterThan(10);
       }
 
-      // Verify runtime models (Ollama) would have minimal info
-      const recommendations = ollamaDetector.getModelRecommendations(['en', 'zh']);
-      expect(recommendations.recommended).toBeInstanceOf(Array);
-      expect(recommendations.reasons).toBeInstanceOf(Array);
+      // Verify runtime models (Ollama) now throw errors instead of providing fallbacks
+      try {
+        const recommendations = await ollamaDetector.getModelRecommendations(['en', 'zh']);
+        expect(false).toBe(true); // Should not reach here
+      } catch (error) {
+        expect(error instanceof Error).toBe(true);
+        expect((error as Error).message).toContain('Unable to provide model recommendations');
+      }
 
       console.log('✅ Architecture separation:', {
         curatedModelCount: curatedModels.length,
         sampleCuratedLanguages: Object.keys(curatedModels[0]?.languagePerformance || {}).length,
-        ollamaRecommendations: recommendations.recommended,
-        ollamaReasons: recommendations.reasons
+        ollamaRecommendationsNowThrow: true,
+        noMoreHardcodedFallbacks: true
       });
     });
   });

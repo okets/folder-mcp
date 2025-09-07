@@ -51,17 +51,31 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     };
     
     mockIndexingOrchestrator = {
-      processFile: vi.fn(() => Promise.resolve({ success: true })),
+      processFile: vi.fn(() => Promise.resolve({
+        chunksGenerated: 5,
+        embeddingsCreated: 5,
+        bytes: 100,
+        words: 20,
+        embeddings: [],
+        metadata: []
+      })),
       removeFile: vi.fn(() => Promise.resolve({ success: true }))
     };
     
     mockStorage = {
       getDocumentFingerprints: vi.fn(() => Promise.resolve(new Map())),
       removeDocument: vi.fn(() => Promise.resolve()),
-      isReady: vi.fn().mockReturnValue(false), // Add missing isReady method
+      isReady: vi.fn().mockReturnValue(true), // Fix: storage should be ready
       buildIndex: vi.fn().mockResolvedValue(void 0), // Add missing buildIndex method
       loadIndex: vi.fn().mockResolvedValue(void 0), // Fix: Add missing loadIndex method
-      addEmbeddings: vi.fn().mockResolvedValue(void 0) // Add missing addEmbeddings method
+      addEmbeddings: vi.fn().mockResolvedValue(void 0), // Add missing addEmbeddings method
+      getDatabaseManager: vi.fn().mockReturnValue({
+        getDatabase: vi.fn().mockReturnValue({
+          prepare: vi.fn().mockReturnValue({
+            get: vi.fn().mockReturnValue({ chunk_count: 1 }) // Mock successful chunk count
+          })
+        })
+      })
     };
     
     // Create mock logger
@@ -78,7 +92,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     const mockFileStateService = {
       makeProcessingDecision: vi.fn().mockImplementation((filePath: string) => {
         // For test files, always process them to satisfy test expectations
-        if (filePath.includes('/test/') || filePath.includes('test-knowledge-base')) {
+        if (filePath.includes('/test/path/') || filePath.includes('test-knowledge-base')) {
           return Promise.resolve({ shouldProcess: true, reason: 'Test file needs processing', action: 'process' });
         }
         return Promise.resolve({ shouldProcess: false, reason: 'File skipped', action: 'skip' });
@@ -113,7 +127,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
   it('should start in scanning state and transition properly', async () => {
     // Mock successful scan
     mockFileSystemService.scanFolder.mockResolvedValue({
-      files: ['/test/file1.txt', '/test/file2.txt'],
+      files: ['/test/path/file1.txt', '/test/path/file2.txt'],
       errors: []
     });
     
@@ -173,7 +187,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
   it('should create correct task types', async () => {
     // Mock scan with different scenarios
     mockFileSystemService.scanFolder.mockResolvedValue({
-      files: ['/test/new.txt', '/test/existing.txt'],
+      files: ['/test/path/new.txt', '/test/path/existing.txt'],
       errors: []
     });
     
@@ -182,14 +196,14 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     
     // Mock the file state service to return different decisions for different files
     const testFileStateService = orchestrator['fileStateService'] as any;
-    testFileStateService.makeProcessingDecision.mockImplementation((filePath: string, contentHash: string) => {
-      if (filePath === '/test/new.txt') {
+    testFileStateService.makeProcessingDecision.mockImplementation((filePath: string) => {
+      if (filePath === '/test/path/new.txt') {
         return Promise.resolve({ 
           shouldProcess: true, 
           reason: 'New file needs processing', 
           action: 'process' 
         });
-      } else if (filePath === '/test/existing.txt') {
+      } else if (filePath === '/test/path/existing.txt') {
         return Promise.resolve({ 
           shouldProcess: true, 
           reason: 'File content changed', 
@@ -210,15 +224,15 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     expect(tasks.length).toBe(2);
     
     // New file should get CreateEmbeddings
-    expect(tasks.find(t => t.file === '/test/new.txt')?.task).toBe('CreateEmbeddings');
+    expect(tasks.find(t => t.file === '/test/path/new.txt')?.task).toBe('CreateEmbeddings');
     
     // Existing file with different hash should get UpdateEmbeddings
-    expect(tasks.find(t => t.file === '/test/existing.txt')?.task).toBe('UpdateEmbeddings');
+    expect(tasks.find(t => t.file === '/test/path/existing.txt')?.task).toBe('UpdateEmbeddings');
   });
   
   it('should process tasks and update progress', async () => {
     mockFileSystemService.scanFolder.mockResolvedValue({
-      files: ['/test/file1.txt'],
+      files: ['/test/path/file1.txt'],
       errors: []
     });
     
@@ -249,8 +263,8 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     // Start indexing to properly transition state machine
     await orchestrator.startIndexing();
     
-    // Wait for async processing to complete
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for async processing to complete (longer timeout for ONNX models)
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Should have progress updates
     expect(progressUpdates.length).toBeGreaterThan(0);
@@ -261,7 +275,7 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
   
   it('should handle task failures with retry', async () => {
     mockFileSystemService.scanFolder.mockResolvedValue({
-      files: ['/test/file1.txt'],
+      files: ['/test/path/file1.txt'],
       errors: []
     });
     
@@ -277,7 +291,14 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     // Mock failure on first attempt, success on retry
     mockIndexingOrchestrator.processFile
       .mockRejectedValueOnce(new Error('Temporary failure'))
-      .mockResolvedValueOnce({ success: true });
+      .mockResolvedValueOnce({
+        chunksGenerated: 5,
+        embeddingsCreated: 5,
+        bytes: 100,
+        words: 20,
+        embeddings: [],
+        metadata: []
+      });
     
     await orchestrator.startScanning();
     
@@ -293,8 +314,8 @@ describe('FolderLifecycleOrchestrator - Basic Integration', () => {
     // Start indexing to process all tasks including retries
     await orchestrator.startIndexing();
     
-    // Wait for retry processing to complete 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for retry processing to complete (longer timeout for ONNX models)
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Check if tasks actually completed
     const finalState = orchestrator.currentState;

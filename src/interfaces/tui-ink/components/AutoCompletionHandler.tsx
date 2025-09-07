@@ -82,7 +82,7 @@ export const AutoCompletionHandler: React.FC<AutoCompletionHandlerProps> = ({
                 setDirError('Failed to load directory information');
                 setModelError('Failed to load model information');
                 setAutoCompletedDir(process.cwd());
-                setAutoCompletedModel('nomic-embed-text');
+                setAutoCompletedModel('cpu:xenova-multilingual-e5-small');
                 setLoading(false);
             }
         };

@@ -24,8 +24,13 @@ import {
   ICacheService,
   ILoggingService,
   IConfigurationService,
-  IFileSystemService
+  IFileSystemService,
+  IOnnxConfiguration
 } from '../../di/interfaces.js';
+
+// Required for path operations
+import path from 'path';
+import os from 'os';
 
 // Domain types
 import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js';
@@ -33,6 +38,17 @@ import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js'
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
   private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
+  private embeddingServiceCreationPromises: Map<string, Promise<IEmbeddingService>> = new Map();
+  
+  // Performance tracking for benchmarking
+  private performanceMetrics = {
+    startTime: Date.now(), // Initialize with current time
+    chunksProcessed: 0,
+    embeddingsProcessed: 0,
+    filesProcessed: 0,
+    lastReportTime: Date.now(), // Initialize with current time
+    lastChunkMilestone: 0 // Track chunk milestones for CPM calculation
+  };
   constructor(
     private readonly fileParsingService: IFileParsingService,
     private readonly chunkingService: IChunkingService,
@@ -41,7 +57,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
     private readonly configService: IConfigurationService,
-    private readonly fileSystemService: IFileSystemService
+    private readonly fileSystemService: IFileSystemService,
+    private readonly onnxConfiguration: IOnnxConfiguration
   ) {}
 
   /**
@@ -53,19 +70,125 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       return this.embeddingServiceCache.get(modelId)!;
     }
 
-    // For now, just use the fallback embedding service for all models
-    // TODO: Implement proper model-specific embedding service creation
-    // This will require updates to the ServiceFactory to accept model parameters
-    this.loggingService.debug(`Using fallback embedding service for model: ${modelId}`);
+    // Check if creation is already in progress
+    if (this.embeddingServiceCreationPromises.has(modelId)) {
+      // Wait for the existing creation to complete
+      const service = await this.embeddingServiceCreationPromises.get(modelId)!;
+      return service;
+    }
+    // Start creation and store the promise to prevent duplicate creation
+    const creationPromise = this.createEmbeddingService(modelId);
+    this.embeddingServiceCreationPromises.set(modelId, creationPromise);
+
+    try {
+      const service = await creationPromise;
+      // Cache the completed service
+      this.embeddingServiceCache.set(modelId, service);
+      // Clean up the creation promise
+      this.embeddingServiceCreationPromises.delete(modelId);
+      return service;
+    } catch (error) {
+      // Clean up on error
+      this.embeddingServiceCreationPromises.delete(modelId);
+      throw error;
+    }
+  }
+
+  /**
+   * Actually create the embedding service (separated for atomic creation)
+   */
+  private async createEmbeddingService(modelId: string): Promise<IEmbeddingService> {
+    // Import necessary modules
+    const { ModelCompatibilityEvaluator } = await import('../../domain/models/model-evaluator.js');
+    const evaluator = new ModelCompatibilityEvaluator();
     
-    // Cache the fallback service for this model
-    this.embeddingServiceCache.set(modelId, this.embeddingService);
+    // Parse model ID format: "provider:model-name" (e.g., "cpu:xenova-multilingual-e5-large")
+    if (!modelId.includes(':')) {
+      throw new Error(`Invalid model ID format: ${modelId}. Must specify provider (e.g., "cpu:model-name" or "gpu:model-name")`);
+    }
+    const [provider, modelName] = modelId.split(':');
     
-    return this.embeddingService;
+    // Look up model in curated catalog
+    const modelConfig = evaluator.getModelById(modelId);
+    
+    if (!modelConfig) {
+      throw new Error(
+        `Model ${modelId} not found in curated catalog. ` +
+        `Available models can be found in src/config/curated-models.json`
+      );
+    }
+    
+    let embeddingService: IEmbeddingService;
+    
+    // Create appropriate service based on provider type
+    if (provider === 'cpu' || provider === 'onnx') {
+      // Direct ONNX service creation - NO DI, NO singleton manager
+      const { ONNXEmbeddingService } = await import('../../infrastructure/embeddings/onnx/onnx-embedding-service.js');
+      
+      // Use ONNX configuration service with 3-tier priority system
+      // Priority: ENV var > config system > optimal default
+      console.error(`[ORCHESTRATOR-DEBUG] Getting ONNX configuration values...`);
+      const batchSize = await this.onnxConfiguration.getBatchSize();
+      const workerPoolSize = await this.onnxConfiguration.getWorkerPoolSize();
+      const numThreads = await this.onnxConfiguration.getNumThreadsPerWorker();
+      console.error(`[ORCHESTRATOR-DEBUG] Got values: batchSize=${batchSize}, workerPoolSize=${workerPoolSize}, numThreads=${numThreads}`);
+      
+      const onnxConfig: any = {
+        modelId: modelId,
+        cacheDirectory: path.join(os.homedir(), '.cache', 'folder-mcp', 'onnx-models'),
+        maxSequenceLength: 512,
+        batchSize,
+        workerPoolSize,
+        numThreads
+      };
+      
+      embeddingService = new ONNXEmbeddingService(onnxConfig);
+      
+      await embeddingService.initialize();
+      
+    } else if (provider === 'gpu' || provider === 'python') {
+      // Python models for GPU
+      const { PythonEmbeddingService } = await import('../../infrastructure/embeddings/python-embedding-service.js');
+      
+      embeddingService = new PythonEmbeddingService({
+        modelName: modelName || modelId // Use full modelId if modelName is undefined
+      }, modelConfig); // Pass model config as second parameter for prefix support
+      
+      // Initialize the service
+      await embeddingService.initialize();
+      
+    } else {
+      throw new Error(
+        `Unknown model provider: ${provider}. ` +
+        `Expected 'cpu' (ONNX) or 'gpu' (Python). ` +
+        `Model ID format should be 'provider:model-name'`
+      );
+    }
+    
+    this.loggingService.info('Created embedding service for model', { 
+      modelId, 
+      provider, 
+      modelName,
+      modelDisplayName: modelConfig.displayName 
+    });
+    
+    return embeddingService;
   }
 
   async indexFolder(path: string, options: IndexingOptions = {}): Promise<IndexingResult> {
     const startTime = Date.now();
+    
+    // Reset performance metrics for this indexing run
+    this.performanceMetrics = {
+      startTime,
+      chunksProcessed: 0,
+      embeddingsProcessed: 0,
+      filesProcessed: 0,
+      lastReportTime: startTime,
+      lastChunkMilestone: 0
+    };
+    
+    console.error(`[CPM-LOG] START TIME=${startTime} CONFIG=${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t PATH=${path}`);
     
     // Embedding model MUST be provided - no fallback to reveal configuration issues
     if (!options.embeddingModel) {
@@ -179,7 +302,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         if (!options.embeddingModel) {
           throw new Error(`No embedding model specified for file: ${filePath}`);
         }
-        const fileResult = await this.processFile(filePath, options.embeddingModel, options);
+        const fileResult = await this.processFile(filePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
       } catch (error) {
         const indexingError: IndexingError = {
@@ -314,7 +437,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         if (!options.embeddingModel) {
           throw new Error(`No embedding model specified for file: ${absoluteFilePath}`);
         }
-        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options);
+        const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
         
         // Collect embeddings and metadata for vector index
@@ -345,15 +468,31 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // 4. Build vector index if embeddings were created
     if (result.embeddingsCreated > 0) {
       try {
-        this.loggingService.info('Building vector index', { 
-          embeddingsCount: result.embeddingsCreated 
+        this.loggingService.info('[FILE-STATE-DEBUG] Building vector index', { 
+          embeddingsCount: result.embeddingsCreated,
+          filesProcessed: result.filesProcessed
         });
           // For now, just enable the index (actual implementation TBD)
         await this.vectorSearchService.buildIndex(allEmbeddings, allMetadata);
         
-        this.loggingService.info('Vector index built successfully');
+        this.loggingService.info('[FILE-STATE-DEBUG] Vector index built successfully');
+        
+        // Force WAL checkpoint to ensure file_states are persisted
+        // This is critical for fixing the re-indexing bug on first restart
+        if ('getDatabaseManager' in this.vectorSearchService) {
+          const storage = this.vectorSearchService as any;
+          const dbManager = storage.getDatabaseManager();
+          if (dbManager && typeof dbManager.checkpoint === 'function') {
+            await dbManager.checkpoint();
+            this.loggingService.info('[FILE-STATE-DEBUG] Forced WAL checkpoint after indexing');
+          }
+        }
+        
+        // Debug: Check if file states were persisted
+        this.loggingService.info('[FILE-STATE-DEBUG] Checking file state persistence after indexing');
+        
       } catch (error) {
-        this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
+        this.loggingService.error('[FILE-STATE-DEBUG] Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
         // Don't fail the whole indexing for vector index issues
       }
     }
@@ -366,7 +505,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     
     return result;
   }
-  async processFile(filePath: string, modelId: string, options: IndexingOptions = {}): Promise<{
+  async processFile(
+    filePath: string, 
+    modelId: string, 
+    options: IndexingOptions = {},
+    progressCallback?: (totalChunks: number, processedChunks: number) => void
+  ): Promise<{
     chunksGenerated: number;
     embeddingsCreated: number;
     bytes: number;
@@ -386,6 +530,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunkResult = await this.chunkingService.chunkText(parsedContent);
     const chunks = chunkResult.chunks;
 
+    // Report total chunks
+    if (progressCallback) {
+      progressCallback(chunks.length, 0);
+    }
+
     // Generate embeddings if not skipped
     let embeddingsCreated = 0;
     let embeddings: any[] = [];
@@ -394,8 +543,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
       // Use model-specific embedding service
       const embeddingService = await this.getEmbeddingServiceForModel(modelId);
-      embeddings = await embeddingService.generateEmbeddings(chunks);
-      embeddingsCreated = embeddings.length;
       
       // Calculate file hash for proper fingerprinting
       let fileHash = '';
@@ -409,20 +556,170 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.debug('Using content-based hash for file', { filePath, hash: fileHash });
       }
       
-      // Create metadata for each chunk
-      metadata = chunks.map((chunk, index) => ({
-        filePath,
-        chunkId: `${filePath}_chunk_${index}`,
-        chunkIndex: index,
-        content: chunk.content,
-        startPosition: chunk.startPosition,
-        endPosition: chunk.endPosition,
-        fileHash // Include file hash for fingerprinting
-      }));
+      // Process embeddings in batches and create metadata only for successful embeddings
+      const batchSize = 10; // Process 10 chunks at a time
+      let totalProcessed = 0; // Track actual number of successfully processed embeddings
+      
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+        const batchStartIndex = i; // Store the starting index for this batch
+        
+        try {
+          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+          
+          // Only add embeddings and metadata if generation succeeded
+          if (batchEmbeddings && batchEmbeddings.length > 0) {
+            // Iterate over returned embeddings and use their positions to build metadata
+            // This ensures proper alignment even if some embeddings failed or were filtered
+            const successfulEmbeddings: any[] = [];
+            const successfulMetadata: any[] = [];
+            
+            batchEmbeddings.forEach((embedding, embeddingIndex) => {
+              // Skip null/undefined/failed embeddings
+              if (embedding && embedding.vector && embedding.vector.length > 0) {
+                successfulEmbeddings.push(embedding);
+                
+                // Use the original chunk index to maintain proper alignment
+                const originalChunkIndex = batchStartIndex + embeddingIndex;
+                
+                // Only create metadata if we have a corresponding chunk
+                if (embeddingIndex < batch.length) {
+                  const chunk = batch[embeddingIndex];
+                  if (chunk) {
+                    successfulMetadata.push({
+                      filePath,
+                      chunkId: `${filePath}_chunk_${originalChunkIndex}`,
+                      chunkIndex: originalChunkIndex,
+                      content: chunk.content,
+                      startPosition: chunk.startPosition,
+                      endPosition: chunk.endPosition,
+                      fileHash
+                    });
+                  }
+                }
+              }
+            });
+            
+            // Only add successful embeddings and their metadata
+            if (successfulEmbeddings.length > 0) {
+              embeddings.push(...successfulEmbeddings);
+              metadata.push(...successfulMetadata);
+              totalProcessed += successfulEmbeddings.length;
+            }
+            
+            // Log if some embeddings failed
+            if (successfulEmbeddings.length < batch.length) {
+              this.loggingService.warn(
+                `Partial embedding generation for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}: ` +
+                `${successfulEmbeddings.length}/${batch.length} succeeded`
+              );
+            }
+          } else {
+            this.loggingService.warn(`Failed to generate embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}`);
+          }
+        } catch (batchError) {
+          const error = batchError as Error;
+          this.loggingService.error(`Error generating embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}:`, error);
+          // Continue with next batch rather than failing entire file
+        }
+        
+        // Report progress based on actual processed embeddings
+        if (progressCallback) {
+          progressCallback(chunks.length, totalProcessed);
+          
+          // TUI progress-based continuous CPM logging as suggested by user
+          const currentTime = Date.now();
+          const firstChunkTime = this.performanceMetrics.startTime;
+          const chunksProcessedSoFar = this.performanceMetrics.chunksProcessed + totalProcessed;
+          
+          if (chunksProcessedSoFar > 0 && firstChunkTime > 0) {
+            const elapsedMs = currentTime - firstChunkTime;
+            const elapsedMin = elapsedMs / 60000;
+            const avgTimePerChunk = elapsedMs / chunksProcessedSoFar;
+            const currentCpm = chunksProcessedSoFar / elapsedMin;
+            
+            // Log continuous CPM data (user's exact format suggestion)
+            console.error(`[CONTINUOUS-CPM] current_time:${currentTime}, first_chunk_time:${firstChunkTime}, chunks_so_far:${chunksProcessedSoFar}, avg_time_per_chunk:${avgTimePerChunk.toFixed(2)}ms, CPM:${currentCpm.toFixed(1)}, config:${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t`);
+          }
+        }
+      }
+      embeddingsCreated = embeddings.length;
+      
+      // Track performance metrics
+      this.performanceMetrics.chunksProcessed += chunks.length;
+      this.performanceMetrics.embeddingsProcessed += embeddings.length;
+      
+      // Strategic CPM logging every 100 chunks for precise measurement
+      const chunkMilestone = Math.floor(this.performanceMetrics.chunksProcessed / 100) * 100;
+      if (chunkMilestone > this.performanceMetrics.lastChunkMilestone && chunkMilestone > 0) {
+        const now = Date.now();
+        const elapsedMs = now - this.performanceMetrics.startTime;
+        const elapsedMin = elapsedMs / 60000;
+        const currentCpm = this.performanceMetrics.chunksProcessed / elapsedMin;
+        
+        console.error(`[CPM-LOG] MILESTONE=${chunkMilestone} TOTAL=${this.performanceMetrics.chunksProcessed} TIME=${now} ELAPSED=${elapsedMs}ms CPM=${currentCpm.toFixed(1)} CONFIG=${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t`);
+        
+        this.performanceMetrics.lastChunkMilestone = chunkMilestone;
+      }
+      
+      // Report performance every 30 seconds
+      const now = Date.now();
+      const timeSinceLastReport = now - this.performanceMetrics.lastReportTime;
+      
+      if (timeSinceLastReport > 30000) {
+        // Safety check: ensure startTime is reasonable (within last 24 hours)
+        const maxReasonableAge = 24 * 60 * 60 * 1000; // 24 hours in ms
+        const startTimeAge = now - this.performanceMetrics.startTime;
+        
+        if (startTimeAge > maxReasonableAge || this.performanceMetrics.startTime < 1000000000000) {
+          console.error(`[PERF WARNING] Resetting corrupted startTime. Age: ${startTimeAge}ms, startTime: ${this.performanceMetrics.startTime}`);
+          this.performanceMetrics.startTime = now - 30000; // Assume started 30 seconds ago
+          this.performanceMetrics.lastReportTime = now - 30000;
+        }
+        
+        const elapsed = (now - this.performanceMetrics.startTime) / 60000; // minutes
+        const chunksPerMinute = this.performanceMetrics.chunksProcessed / elapsed;
+        const embeddingsPerMinute = this.performanceMetrics.embeddingsProcessed / elapsed;
+        
+        // Write to performance log file
+        const perfLogPath = './tmp/onnx-performance-log.jsonl';
+        const perfData = {
+          timestamp: new Date().toISOString(),
+          elapsed: elapsed.toFixed(2),
+          chunksProcessed: this.performanceMetrics.chunksProcessed,
+          embeddingsProcessed: this.performanceMetrics.embeddingsProcessed,
+          filesProcessed: this.performanceMetrics.filesProcessed,
+          chunksPerMinute: chunksPerMinute.toFixed(1),
+          embeddingsPerMinute: embeddingsPerMinute.toFixed(1),
+          model: modelId,
+          workerPoolSize: process.env.WORKER_POOL_SIZE || 'default',
+          numThreads: process.env.NUM_THREADS || 'default',
+          batchSize: options.batchSize || 32
+        };
+        
+        try {
+          const fs = await import('fs/promises');
+          await fs.appendFile(perfLogPath, JSON.stringify(perfData) + '\n');
+          this.loggingService.info(`[PERFORMANCE] CPM: ${chunksPerMinute.toFixed(1)}, EPM: ${embeddingsPerMinute.toFixed(1)}, Files: ${this.performanceMetrics.filesProcessed}`);
+        } catch (e) {
+          // Ignore file write errors - performance logging is non-critical
+        }
+        
+        this.performanceMetrics.lastReportTime = now;
+      }
+      
+      // Validate that embeddings and metadata arrays match
+      if (embeddings.length !== metadata.length) {
+        this.loggingService.error(`CRITICAL: Embeddings/metadata count mismatch in ${filePath}: ${embeddings.length} embeddings vs ${metadata.length} metadata`);
+        throw new Error(`Embeddings/metadata count mismatch: ${embeddings.length} embeddings vs ${metadata.length} metadata`);
+      }
     }
 
     // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
     // No need for duplicate caching - chunks are already saved via VectorSearchService
+    
+    // Track file completion
+    this.performanceMetrics.filesProcessed++;
     
     return {
       chunksGenerated: chunks.length,

@@ -51,6 +51,9 @@ import { FMDMService } from '../daemon/services/fmdm-service.js';
 import { DaemonFolderValidationService } from '../daemon/services/folder-validation-service.js';
 import { MonitoredFoldersOrchestrator } from '../daemon/services/monitored-folders-orchestrator.js';
 
+// Import ONNX configuration
+import { OnnxConfiguration } from '../infrastructure/config/onnx-configuration.js';
+
 // Import WebSocket services
 import { FolderHandlers } from '../daemon/websocket/handlers/folder-handlers.js';
 import { ModelHandlers } from '../daemon/websocket/handlers/model-handlers.js';
@@ -96,6 +99,13 @@ export function setupDependencyInjection(options: {
 
   container.registerSingleton(SERVICE_TOKENS.DOMAIN_PATH_PROVIDER, () => {
     return new NodePathProvider();
+  });
+
+  // Register ONNX configuration service with configuration system integration
+  container.registerSingleton(SERVICE_TOKENS.ONNX_CONFIG, () => {
+    // Use ConfigurationComponent as the unified configuration interface
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
+    return new OnnxConfiguration(configurationComponent);
   });
 
   // Register folder domain services as singletons
@@ -150,17 +160,17 @@ export function setupDependencyInjection(options: {
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_INDEXING_WORKFLOW, async () => {
     const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
     const storageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER) as any;
-    const singleFolderIndexing = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
+    const indexingWorkflow = await container.resolveAsync(SERVICE_TOKENS.INDEXING_WORKFLOW) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
-    return new MultiFolderIndexingWorkflow(folderManager, storageProvider, singleFolderIndexing, loggingService);
+    return new MultiFolderIndexingWorkflow(folderManager, storageProvider, indexingWorkflow, loggingService);
   });
 
   // Register multi-folder monitoring workflow
   container.registerSingleton(SERVICE_TOKENS.MULTI_FOLDER_MONITORING_WORKFLOW, () => {
     const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
-    const singleFolderMonitoring = container.resolve(SERVICE_TOKENS.MONITORING_WORKFLOW) as any;
+    const monitoringWorkflow = container.resolve(SERVICE_TOKENS.MONITORING_WORKFLOW) as any;
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
-    return new MultiFolderMonitoringWorkflow(folderManager, singleFolderMonitoring, loggingService);
+    return new MultiFolderMonitoringWorkflow(folderManager, monitoringWorkflow, loggingService);
   });
 
   // Register configuration services

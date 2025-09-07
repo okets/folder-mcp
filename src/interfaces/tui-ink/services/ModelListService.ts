@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { getSupportedGpuModelIds, getModelDisplayName } from '../../../config/model-registry.js';
 
 export interface ModelInfo {
   name: string;
@@ -19,16 +20,18 @@ export interface ModelInfo {
  * For Phase 8 Task 10, we use curated Python models only
  */
 export function getPythonModels(): ModelInfo[] {
-  // TEMPORARY: Hardcoded fallback when daemon call fails
-  // This should rarely be used since wizard now fetches from daemon
-  return [
-    {
-      name: 'gpu:all-MiniLM-L6-v2',
-      displayName: 'All-MiniLM-L6-v2 (Recommended)',
-      backend: 'python',
-      recommended: true
-    }
-  ];
+  const gpuModelIds = getSupportedGpuModelIds();
+  
+  if (gpuModelIds.length === 0) {
+    throw new Error('No GPU models available in model registry. Cannot provide Python models.');
+  }
+  
+  return gpuModelIds.map((modelId: string) => ({
+    name: modelId,
+    displayName: getModelDisplayName(modelId),
+    backend: 'python' as const,
+    recommended: false // Use recommendation algorithm instead of hardcoded flags
+  }));
 }
 
 /**

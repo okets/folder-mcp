@@ -220,3 +220,75 @@ export interface DocumentOutlineResponse {
   /** Structured document outline */
   outline: DocumentOutline;
 }
+
+/**
+ * Search request body for POST /api/v1/folders/{id}/search - Sprint 7
+ */
+export interface SearchRequest {
+  /** Search query string */
+  query: string;
+  /** Maximum number of results to return (default: 10, max: 100) */
+  limit?: number;
+  /** Minimum relevance threshold (0.0-1.0, default: 0.3) */
+  threshold?: number;
+  /** Whether to include document content in results (default: true) */
+  includeContent?: boolean;
+}
+
+/**
+ * Individual search result
+ */
+export interface SearchResult {
+  /** Document identifier */
+  documentId: string;
+  /** Document filename */
+  documentName: string;
+  /** Relevance score (0.0-1.0) */
+  relevance: number;
+  /** Matching text snippet */
+  snippet: string;
+  /** Page/section number where match was found */
+  pageNumber?: number;
+  /** Chunk identifier for the matching text */
+  chunkId?: string;
+  /** Document type */
+  documentType?: string;
+  /** Full document path relative to folder */
+  documentPath?: string;
+}
+
+/**
+ * Performance metrics for search operation
+ */
+export interface SearchPerformance {
+  /** Total search time in milliseconds */
+  searchTime: number;
+  /** Model loading time in milliseconds (0 if already loaded) */
+  modelLoadTime: number;
+  /** Number of documents searched */
+  documentsSearched: number;
+  /** Total number of matching results (before limit applied) */
+  totalResults: number;
+  /** Model used for this search */
+  modelUsed: string;
+}
+
+/**
+ * Response for POST /api/v1/folders/{id}/search - Sprint 7
+ */
+export interface SearchResponse {
+  /** Context about the folder being searched */
+  folderContext: FolderContext;
+  /** Search results ordered by relevance */
+  results: SearchResult[];
+  /** Search performance metrics */
+  performance: SearchPerformance;
+  /** Query used for search (for verification) */
+  query: string;
+  /** Search parameters used */
+  parameters: {
+    limit: number;
+    threshold: number;
+    includeContent: boolean;
+  };
+}

@@ -10,6 +10,7 @@ import { EventEmitter } from 'events';
 import type { ILoggingService } from '../../di/interfaces.js';
 import type { IEmbeddingModel, ModelLoadProgress } from '../../domain/models/embedding-model-interface.js';
 import type { IFolderLifecycleManager } from '../../domain/folders/folder-lifecycle-manager.js';
+import { getModelById } from '../../config/model-registry.js';
 
 export interface QueuedFolder {
   folderPath: string;
@@ -378,10 +379,17 @@ export class FolderIndexingQueue extends EventEmitter {
     } : undefined;
 
     try {
+      // Get model info from curated models registry to get the proper HuggingFace ID
+      const modelInfo = getModelById(modelId);
+      const modelName = modelInfo?.huggingfaceId; // This will be the clean HuggingFace ID without prefix
+      
+      this.logger.debug(`[QUEUE] Model ID: ${modelId}, HuggingFace ID: ${modelName || 'not found'}`);
+      
       // Create and load the model
       this.currentModel = await this.modelFactory.createModel({
         modelId,
-        modelType: this.getModelType(modelId)
+        modelType: this.getModelType(modelId),
+        modelName // Pass the clean HuggingFace ID to Python service
       });
 
       if (this.currentModel) {
