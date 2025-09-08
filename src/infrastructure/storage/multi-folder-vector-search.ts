@@ -7,7 +7,7 @@
 
 import { IVectorSearchService, ILoggingService } from '../../di/interfaces.js';
 import { EmbeddingVector } from '../../types/index.js';
-import { BasicSearchResult } from './basic-vector-search.js';
+import { BasicSearchResult } from '../../types/search.js';
 import { DEFAULT_MAX_RESULTS, SEMANTIC_THRESHOLD, MAX_RESULTS_LIMIT, MIN_SEMANTIC_THRESHOLD, MAX_SEMANTIC_THRESHOLD } from '../../constants/search.js';
 import Database from 'better-sqlite3';
 import { existsSync } from 'fs';
@@ -153,6 +153,9 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
           e.embedding,
           c.content,
           c.chunk_index,
+          c.key_phrases,
+          c.topics,
+          c.readability_score,
           d.file_path,
           d.mime_type,
           cm.page_number,
@@ -187,6 +190,10 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
               content: row.content,
               folderPath: folderPath, // Add required field
               modelId: 'unknown', // Add required field
+              // Add semantic metadata from database
+              keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : [],
+              topics: row.topics ? JSON.parse(row.topics) : [],
+              readabilityScore: row.readability_score || 0,
               metadata: {
                 chunkIndex: row.chunk_index,
                 mimeType: row.mime_type,

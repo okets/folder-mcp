@@ -327,7 +327,9 @@ export class DocumentService {
       content: content,
       metadata: {
         ...metadata,
-        lastModified: stats.mtime.toISOString()
+        lastModified: stats.mtime.toISOString(),
+        // Include the actual file path for semantic metadata lookup
+        filePath: docPath
       }
     };
 
@@ -421,6 +423,12 @@ export class DocumentService {
       status: status
     };
 
+    // Add file path to outline metadata for semantic enrichment
+    if (!outline.metadata) {
+      outline.metadata = {};
+    }
+    outline.metadata.filePath = docPath;
+    
     this.logger.debug(`[DOC-SERVICE] Returning document outline for ${docId}, type: ${outline.type}`);
 
     return {

@@ -233,6 +233,36 @@ export interface ProcessedContent extends ParsedContent {
 }
 
 /**
+ * Semantic metadata for AI agent navigation (Sprint 10)
+ */
+export interface SemanticMetadata {
+  /** Extracted key phrases from the chunk */
+  keyPhrases: string[];
+  /** Detected topics in the chunk */
+  topics: string[];
+  /** Flesch Reading Ease score (0-100, higher = easier) */
+  readabilityScore: number | null;
+  /** Whether semantic extraction was successful */
+  semanticProcessed: boolean;
+  /** Unix timestamp of semantic processing */
+  semanticTimestamp: number;
+}
+
+/**
+ * Helper to create default semantic metadata when extraction hasn't happened yet
+ * Used during chunking before semantic extraction in pipeline
+ */
+export function createDefaultSemanticMetadata(): SemanticMetadata {
+  return {
+    keyPhrases: [],
+    topics: ['unprocessed'],
+    readabilityScore: null,
+    semanticProcessed: false,
+    semanticTimestamp: 0
+  };
+}
+
+/**
  * A chunk of text with position and metadata information
  */
 export interface TextChunk {
@@ -259,6 +289,8 @@ export interface TextChunk {
     /** Original metadata from the parsed file */
     originalMetadata?: DocumentMetadata;
   };
+  /** Semantic metadata for AI agent navigation (Sprint 10) */
+  semanticMetadata: SemanticMetadata;
 }
 
 /**

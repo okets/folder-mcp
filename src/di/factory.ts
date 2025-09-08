@@ -116,26 +116,26 @@ export class ServiceFactory implements IServiceFactory {
   async createVectorSearchService(cacheDir: string): Promise<IVectorSearchService> {
     const loggingService = this.getLoggingService();
     
-    // Use SQLite-backed vector search service to connect to real embeddings database
+    // Use MultiFolderVectorSearchService as the single canonical search service
+    // This service handles semantic metadata and multi-folder search capabilities
     const dbPath = `${cacheDir}/embeddings.db`;
-    loggingService.info(`Creating SQLiteVectorSearchService with database: ${dbPath}`);
+    loggingService.info(`Creating MultiFolderVectorSearchService with default database: ${dbPath}`);
     
-    const { SQLiteVectorSearchService } = await import('../infrastructure/storage/sqlite-vector-search.js');
-    const service = new SQLiteVectorSearchService(dbPath, loggingService);
+    const { MultiFolderVectorSearchService } = await import('../infrastructure/storage/multi-folder-vector-search.js');
+    const service = new MultiFolderVectorSearchService(dbPath, loggingService);
     
-    // Try to load index if database exists, but don't fail if it doesn't
-    // This allows services to be created in test environments or when database hasn't been created yet
+    // Pre-load the default database if it exists
     try {
       await service.loadIndex(dbPath);
-      loggingService.debug(`SQLite vector index loaded successfully from ${dbPath}`);
+      loggingService.debug(`Multi-folder vector search service initialized with default database: ${dbPath}`);
     } catch (error: any) {
       // Check for file not found error using error code (more reliable than message matching)
       if (error?.code === 'ENOENT') {
         loggingService.debug(`Database file not found at ${dbPath}, service created but not ready for search`);
         // Service is created but not ready - this is acceptable for test scenarios
       } else {
-        loggingService.warn(`Failed to load SQLite vector index: ${error instanceof Error ? error.message : String(error)}`);
-        // Don't throw - allow service to be created even if index loading fails
+        loggingService.warn(`Failed to initialize multi-folder vector search: ${error instanceof Error ? error.message : String(error)}`);
+        // Don't throw - allow service to be created even if initialization fails
       }
     }
     

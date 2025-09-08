@@ -176,6 +176,16 @@ export type GetDocumentDataResponse = StandardResponse<{
 // List folders/documents endpoint types
 export type ListFoldersResponse = StandardResponse<{
   folders: string[];
+  foldersWithSemantics?: Array<{
+    path: string;
+    name: string;
+    semanticPreview: {
+      topTopics: string[];
+      avgReadabilityScore: number | null;
+      totalDocuments: number;
+      semanticCoverage: number;
+    };
+  }>;
 }>;
 
 export interface ListDocumentsRequest {
@@ -286,4 +296,29 @@ export type FolderInfoResponse = StandardResponse<{
   folders: FolderInfo[];
   totalDocuments: number;
   systemStatus: 'ready' | 'partial' | 'error';
+}>;
+
+// Phase 5: Explore endpoint types for hierarchical navigation
+export interface ExploreRequest {
+  folder_path: string;
+  subfolder_path?: string;  // Optional: navigate to specific subfolder
+}
+
+export interface SubfolderInfo {
+  name: string;
+  relative_path: string;    // e.g., "/src", "/docs"
+  document_count: number;
+  semanticPreview: {
+    topTopics: string[];         // Most frequent topics in subfolder
+    avgReadabilityScore: number; // Average readability (0-100)
+    purpose?: string;            // AI-generated purpose description
+  };
+}
+
+export type ExploreResponse = StandardResponse<{
+  current_path: string;                // Current navigation path
+  available_subfolders: SubfolderInfo[]; // Subfolders at current level
+  documents_at_level: DocumentInfo[];    // Documents directly at this level (not paginated)
+  breadcrumb: string[];                  // Navigation breadcrumb
+  parent_path: string | null;            // Parent path for navigation
 }>;

@@ -49,8 +49,12 @@ export interface ContentProcessingOperations {
 
 /**
  * Content Processing Service - Core domain logic for content enhancement
+ * 
+ * Note: Methods are static for pure functional operations without instance state.
+ * The ContentProcessingOperations interface is preserved for type reference but
+ * not implemented since static methods cannot satisfy instance interfaces.
  */
-export class ContentProcessingService implements ContentProcessingOperations {
+export class ContentProcessingService {
   /**
    * Transform and normalize content
    */
@@ -78,7 +82,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
       // Wrap long lines while preserving paragraph structure
       const paragraphs = transformedContent.split(/\n\s*\n/);
       const wrappedParagraphs = paragraphs.map(paragraph => 
-        this.wrapText(paragraph, opts.maxLineLength!)
+        ContentProcessingService.wrapText(paragraph, opts.maxLineLength!)
       );
       transformedContent = wrappedParagraphs.join('\n\n');
     }
@@ -93,10 +97,10 @@ export class ContentProcessingService implements ContentProcessingOperations {
    * Enhance content with extracted metadata
    */
   enhanceContent(content: ParsedContent): EnhancedContent {
-    const keyPhrases = this.extractKeyPhrases(content.content);
-    const summary = this.generateSummary(content.content);
-    const topics = this.detectTopics(content.content);
-    const readabilityScore = this.calculateReadabilityScore(content.content);
+    const keyPhrases = ContentProcessingService.extractKeyPhrases(content.content);
+    const summary = ContentProcessingService.generateSummary(content.content);
+    const topics = ContentProcessingService.detectTopics(content.content);
+    const readabilityScore = ContentProcessingService.calculateReadabilityScore(content.content);
     
     return {
       ...content,
@@ -114,12 +118,17 @@ export class ContentProcessingService implements ContentProcessingOperations {
   /**
    * Extract key phrases from text using simple frequency analysis
    */
-  extractKeyPhrases(text: string, maxPhrases: number = 10): string[] {
+  static extractKeyPhrases(text: string, maxPhrases: number = 10): string[] {
+    // Input validation - return empty array for invalid input
+    if (!text || typeof text !== 'string') {
+      return [];
+    }
+    
     // Simple implementation - could be enhanced with NLP libraries
     const words = text.toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length > 3 && !this.isStopWord(word));
+      .filter(word => word.length > 3 && !ContentProcessingService.isStopWord(word));
     
     // Count word frequencies
     const wordCounts = new Map<string, number>();
@@ -137,8 +146,8 @@ export class ContentProcessingService implements ContentProcessingOperations {
   /**
    * Generate a simple extractive summary
    */
-  generateSummary(text: string, maxLength: number = 200): string {
-    const sentences = this.extractSentences(text);
+  static generateSummary(text: string, maxLength: number = 200): string {
+    const sentences = ContentProcessingService.extractSentences(text);
     
     if (sentences.length <= 2) {
       return text.substring(0, maxLength);
@@ -147,7 +156,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
     // Simple scoring based on sentence position and length
     const scoredSentences = sentences.map((sentence, index) => ({
       sentence,
-      score: this.scoreSentence(sentence, index, sentences.length)
+      score: ContentProcessingService.scoreSentence(sentence, index, sentences.length)
     }));
     
     // Sort by score and take top sentences
@@ -169,12 +178,17 @@ export class ContentProcessingService implements ContentProcessingOperations {
   /**
    * Detect topics using simple keyword clustering
    */
-  detectTopics(text: string): string[] {
-    const keyPhrases = this.extractKeyPhrases(text, 20);
+  static detectTopics(text: string): string[] {
+    // Input validation - return default topic for invalid input
+    if (!text || typeof text !== 'string') {
+      return ['general'];
+    }
+    
+    const keyPhrases = ContentProcessingService.extractKeyPhrases(text, 20);
     
     // Group related phrases (simple implementation)
     const topics: string[] = [];
-    const topicKeywords = this.getTopicKeywords();
+    const topicKeywords = ContentProcessingService.getTopicKeywords();
     
     for (const [topic, keywords] of Object.entries(topicKeywords)) {
       const matches = keyPhrases.filter(phrase => 
@@ -192,10 +206,15 @@ export class ContentProcessingService implements ContentProcessingOperations {
   /**
    * Calculate readability score (Flesch Reading Ease approximation)
    */
-  calculateReadabilityScore(text: string): number {
-    const sentences = this.extractSentences(text);
+  static calculateReadabilityScore(text: string): number {
+    // Input validation - return 0 for invalid or empty input
+    if (!text || typeof text !== 'string') {
+      return 0;
+    }
+    
+    const sentences = ContentProcessingService.extractSentences(text);
     const words = text.split(/\s+/).filter(w => w.length > 0);
-    const syllables = words.reduce((total, word) => total + this.countSyllables(word), 0);
+    const syllables = words.reduce((total, word) => total + ContentProcessingService.countSyllables(word), 0);
     
     if (sentences.length === 0 || words.length === 0) return 0;
     
@@ -212,7 +231,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
   /**
    * Private helper methods
    */
-  private wrapText(text: string, maxLength: number): string {
+  private static wrapText(text: string, maxLength: number): string {
     const words = text.split(' ');
     const lines: string[] = [];
     let currentLine = '';
@@ -230,7 +249,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
     return lines.join('\n');
   }
 
-  private isStopWord(word: string): boolean {
+  private static isStopWord(word: string): boolean {
     const stopWords = new Set([
       'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
       'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has',
@@ -240,13 +259,13 @@ export class ContentProcessingService implements ContentProcessingOperations {
     return stopWords.has(word.toLowerCase());
   }
 
-  private extractSentences(text: string): string[] {
+  private static extractSentences(text: string): string[] {
     return text.split(/[.!?]+/)
       .map(s => s.trim())
       .filter(s => s.length > 0);
   }
 
-  private scoreSentence(sentence: string, index: number, totalSentences: number): number {
+  private static scoreSentence(sentence: string, index: number, totalSentences: number): number {
     let score = 0;
     
     // Position bonus (first and early sentences are often important)
@@ -267,7 +286,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
     return score;
   }
 
-  private countSyllables(word: string): number {
+  private static countSyllables(word: string): number {
     word = word.toLowerCase();
     if (word.length <= 3) return 1;
     
@@ -292,7 +311,7 @@ export class ContentProcessingService implements ContentProcessingOperations {
     return Math.max(1, syllableCount);
   }
 
-  private getTopicKeywords(): Record<string, string[]> {
+  private static getTopicKeywords(): Record<string, string[]> {
     return {
       'technology': ['software', 'computer', 'digital', 'tech', 'system', 'data', 'code', 'program'],
       'business': ['company', 'market', 'revenue', 'profit', 'customer', 'strategy', 'management'],

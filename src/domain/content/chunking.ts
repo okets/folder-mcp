@@ -5,7 +5,7 @@
  * Contains algorithms for intelligent text segmentation without external dependencies.
  */
 
-import { ParsedContent, TextChunk, ChunkedContent } from '../../types/index.js';
+import { ParsedContent, TextChunk, ChunkedContent, createDefaultSemanticMetadata } from '../../types/index.js';
 
 /**
  * Chunking configuration options
@@ -159,7 +159,8 @@ export class ContentProcessor implements ContentOperations {
               totalChunks: 0,
               hasOverlap: false,
               ...(metadata && { originalMetadata: metadata })
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           });
           
           // Calculate overlap for next chunk
@@ -243,7 +244,8 @@ export class ContentProcessor implements ContentOperations {
                 totalChunks: 0,
                 hasOverlap: false,
                 ...(metadata && { originalMetadata: metadata })
-              }
+              },
+              semanticMetadata: createDefaultSemanticMetadata()
             });
           }
         }
@@ -260,7 +262,8 @@ export class ContentProcessor implements ContentOperations {
             totalChunks: 0,
             hasOverlap: false,
             ...(metadata && { originalMetadata: metadata })
-          }
+          },
+          semanticMetadata: createDefaultSemanticMetadata()
         });
       }
     }

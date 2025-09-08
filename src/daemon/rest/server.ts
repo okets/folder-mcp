@@ -18,10 +18,12 @@ import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
 import { IVectorSearchService } from '../../di/interfaces.js';
 import type { TextChunk, EmbeddingVector } from '../../types/index.js';
+import { createDefaultSemanticMetadata } from '../../types/index.js';
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
 import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
 import { PathNormalizer } from '../utils/path-normalizer.js';
+import { SemanticMetadataService } from '../services/semantic-metadata-service.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -70,6 +72,7 @@ export class RESTAPIServer {
   private app: Application;
   private server: Server | null = null;
   private startTime: Date;
+  private semanticService: SemanticMetadataService;
 
   constructor(
     private fmdmService: FMDMService,
@@ -85,6 +88,9 @@ export class RESTAPIServer {
   ) {
     this.app = express();
     this.startTime = new Date();
+    // Initialize semantic metadata service
+    // The SemanticMetadataService will use the default database path
+    this.semanticService = new SemanticMetadataService(this.logger);
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -319,46 +325,95 @@ export class RESTAPIServer {
         // Extract folder name from path
         const folderName = this.extractFolderName(folder.path);
         
-        // Get real document count from database
+        // Get real document count and last indexed time from database
         let documentCount = 0;
+        let lastIndexed: string | undefined;
         try {
           // Try to get document count from the vector search service
           if (this.vectorSearchService && 'getDocumentCount' in this.vectorSearchService) {
             documentCount = await (this.vectorSearchService as any).getDocumentCount(folder.path);
+            // For vector search service, we still need to query the database for lastIndexed
+            // Use direct SQLite query to get the timestamp
+            const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+            const fs = await import('fs/promises');
+            try {
+              await fs.access(dbPath);
+              const Database = await import('better-sqlite3');
+              const db = Database.default(dbPath);
+              const lastIndexedResult = db.prepare('SELECT MAX(last_indexed) as last_indexed FROM documents').get() as any;
+              if (lastIndexedResult?.last_indexed) {
+                lastIndexed = lastIndexedResult.last_indexed;
+              }
+              db.close();
+            } catch (dbError) {
+              // Database doesn't exist or can't be read
+              lastIndexed = undefined;
+            }
           } else {
             // Fallback: check if database exists and count documents
             const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
             const fs = await import('fs/promises');
             try {
               await fs.access(dbPath);
-              // Use sqlite to count documents
+              // Use sqlite to count documents and get last indexed time
               const Database = await import('better-sqlite3');
               const db = Database.default(dbPath);
               const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
               documentCount = result?.count || 0;
+              
+              // Get the most recent last_indexed timestamp from documents table
+              const lastIndexedResult = db.prepare('SELECT MAX(last_indexed) as last_indexed FROM documents').get() as any;
+              if (lastIndexedResult?.last_indexed) {
+                lastIndexed = lastIndexedResult.last_indexed;
+              }
+              
               db.close();
             } catch (dbError) {
               // Database doesn't exist or can't be read
               documentCount = 0;
+              lastIndexed = undefined;
             }
           }
         } catch (error) {
           this.logger.warn(`[REST] Could not get document count for ${folder.path}:`, error);
           documentCount = folder.documentCount || 0; // Fallback to FMDM value
+          lastIndexed = undefined;
         }
         
-        return {
+        const folderInfo: any = {
           id: folder.path, // Use path as identifier
           name: folderName,
           path: folder.path,
           model: folder.model || 'all-MiniLM-L6-v2',
           status: folder.status || 'pending',
           documentCount,
-          lastIndexed: folder.lastIndexed,
-          topics: [], // Placeholder for future implementation
+          topics: [], // Will be populated from semantic metadata
           progress: folder.progress,
           notification: folder.notification
         };
+        
+        // Only add lastIndexed if we have a value
+        if (lastIndexed) {
+          folderInfo.lastIndexed = lastIndexed;
+        }
+        
+        // Add semantic metadata for active folders (Sprint 10)
+        if (folder.status === 'active' && folder.path) {
+          try {
+            const semanticData = await this.semanticService.getFolderSemanticMetadata(folder.path);
+            if (semanticData) {
+              folderInfo.topics = semanticData.topTopics || [];
+              folderInfo.keyPhrases = semanticData.keyPhrases || [];
+              folderInfo.contentComplexity = semanticData.contentComplexity;
+              folderInfo.avgReadabilityScore = semanticData.avgReadabilityScore;
+            }
+          } catch (semanticError) {
+            this.logger.debug(`[REST] Could not get semantic metadata for ${folder.path}:`, semanticError);
+            // Continue without semantic metadata
+          }
+        }
+        
+        return folderInfo;
       }));
 
       const response: FoldersListResponse = {
@@ -476,6 +531,39 @@ export class RESTAPIServer {
         params
       );
 
+      // Add semantic metadata to each document (Sprint 10)
+      if (result.documents && result.documents.length > 0) {
+        try {
+          const enrichedDocuments = await Promise.all(result.documents.map(async (doc: any) => {
+            try {
+              // Get semantic data for this document from the database
+              const documentPath = path.join(folderPath, doc.path);
+              const semanticData = await this.semanticService.getDocumentSemanticSummary(documentPath);
+              
+              if (semanticData) {
+                doc.semanticSummary = {
+                  keyPhrases: semanticData.keyPhrases || [],
+                  topics: semanticData.topics || [],
+                  primaryPurpose: semanticData.primaryPurpose,
+                  contentType: semanticData.contentType
+                };
+              }
+              
+              return doc;
+            } catch (semanticError) {
+              this.logger.debug(`[REST] Could not get semantic data for ${doc.name}:`, semanticError);
+              // Return document without semantic data
+              return doc;
+            }
+          }));
+          
+          result.documents = enrichedDocuments;
+        } catch (enrichmentError) {
+          this.logger.warn('[REST] Failed to enrich documents with semantic data:', enrichmentError);
+          // Continue with unenriched documents
+        }
+      }
+
       const response: DocumentsListResponse = result;
 
       this.logger.debug(`[REST] Returning ${result.documents.length} documents from folder ${folderPath}`);
@@ -571,6 +659,39 @@ export class RESTAPIServer {
 
       const response: DocumentDataResponse = result;
 
+      // Add semantic metadata to document (Sprint 10)
+      if (response.document) {
+        try {
+          // Get the actual file path from the document metadata
+          const documentPath = response.document.metadata?.filePath;
+          
+          if (!documentPath) {
+            this.logger.debug(`[REST] No file path in metadata for document ${docId}`);
+            return;
+          }
+          
+          this.logger.debug(`[REST] Attempting to get semantic metadata for path: ${documentPath}`);
+          const semanticData = await this.semanticService.getDocumentSemanticSummary(documentPath);
+          
+          if (semanticData) {
+            response.document.semanticMetadata = {
+              primaryPurpose: semanticData.primaryPurpose,
+              keyPhrases: semanticData.keyPhrases || [],
+              topics: semanticData.topics || [],
+              complexityLevel: semanticData.complexityLevel,
+              contentType: semanticData.contentType,
+              hasCodeExamples: semanticData.hasCodeExamples,
+              hasDiagrams: semanticData.hasDiagrams
+            };
+            this.logger.debug(`[REST] Successfully added semantic metadata for document ${docId}`);
+          } else {
+            this.logger.debug(`[REST] No semantic data returned for ${documentPath}`);
+          }
+        } catch (semanticError) {
+          this.logger.debug(`[REST] Could not get semantic metadata for ${docId}:`, semanticError);
+        }
+      }
+
       this.logger.debug(`[REST] Returning document data for ${docId} from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
@@ -663,6 +784,160 @@ export class RESTAPIServer {
       );
 
       const response: DocumentOutlineResponse = result;
+
+      // Add semantic enrichment to outline sections (Sprint 10)
+      if (response.outline) {
+        try {
+          // Get the actual file path from the outline metadata
+          const documentPath = response.outline.metadata?.filePath;
+          
+          if (!documentPath) {
+            this.logger.debug(`[REST] No file path in outline metadata for document ${docId}`);
+          } else {
+            // For markdown/text files with headings, add semantic data
+            if (response.outline.headings) {
+              // Only process headings which have lineNumber
+              const headings = response.outline.headings || [];
+              
+              if (headings.length > 0) {
+                // Get all chunks for the document with their semantic data
+                this.logger.debug(`[REST] Attempting chunk-based enrichment for ${documentPath}`);
+                const chunks = await this.semanticService.getDocumentChunksForSections(documentPath);
+                
+                if (chunks && chunks.length > 0) {
+                  this.logger.debug(`[REST] Found ${chunks.length} chunks, proceeding with chunk-based mapping`);
+                  // Read the file to convert line numbers to byte offsets
+                  const fs = await import('fs');
+                  const fileContent = await fs.promises.readFile(documentPath, 'utf-8');
+                  const lines = fileContent.split('\n');
+                  
+                  // Create line-to-byte offset mapping
+                  const lineOffsets: number[] = [0]; // Line 1 starts at byte 0
+                  let currentOffset = 0;
+                  for (let i = 0; i < lines.length; i++) {
+                    currentOffset += Buffer.byteLength(lines[i] + '\n', 'utf-8');
+                    lineOffsets.push(currentOffset);
+                  }
+                  
+                  // Map chunks to sections based on position overlap
+                  for (const heading of headings) {
+                    // Get byte offset for this heading's line
+                    const lineNumber = heading.lineNumber || 0;
+                    if (lineNumber > 0 && lineNumber <= lineOffsets.length) {
+                      const sectionStartOffset = lineOffsets[lineNumber - 1];
+                      
+                      // Find the next heading to determine end offset
+                      const nextHeadingIndex = headings.findIndex((h, idx) => 
+                        idx > headings.indexOf(heading) && (h.lineNumber || 0) > lineNumber
+                      );
+                      const nextHeading = nextHeadingIndex >= 0 ? headings[nextHeadingIndex] : null;
+                      const sectionEndOffset = nextHeading && nextHeading.lineNumber && nextHeading.lineNumber > 0
+                        ? lineOffsets[nextHeading.lineNumber - 1]
+                        : currentOffset; // Use end of file if last section
+                      
+                      // Skip if we couldn't determine offsets
+                      if (typeof sectionStartOffset !== 'number' || typeof sectionEndOffset !== 'number') {
+                        continue;
+                      }
+                      
+                      // Find chunks that overlap with this section
+                      const overlappingChunks = chunks.filter(chunk =>
+                        chunk.start_offset < sectionEndOffset && chunk.end_offset > sectionStartOffset
+                      );
+                      
+                      if (overlappingChunks.length > 0) {
+                        // Aggregate semantic data from overlapping chunks
+                        const topicCounts = new Map<string, number>();
+                        const phraseCounts = new Map<string, number>();
+                        let hasCode = false;
+                        
+                        for (const chunk of overlappingChunks) {
+                          // Count topics
+                          for (const topic of chunk.topics) {
+                            topicCounts.set(topic, (topicCounts.get(topic) || 0) + 1);
+                          }
+                          
+                          // Count key phrases
+                          for (const phrase of chunk.keyPhrases) {
+                            phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1);
+                          }
+                          
+                          hasCode = hasCode || chunk.hasCode;
+                        }
+                        
+                        // Sort and select top items
+                        const topics = Array.from(topicCounts.entries())
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 5)
+                          .map(([topic]) => topic);
+                        
+                        const keyPhrases = Array.from(phraseCounts.entries())
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 5)
+                          .map(([phrase]) => phrase);
+                        
+                        // Add semantics to heading
+                        heading.semantics = {
+                          topics,
+                          keyPhrases,
+                          hasCodeExamples: hasCode,
+                          subsectionCount: 0, // Could be calculated from heading levels
+                          codeLanguages: [] // Would need code language detection
+                        };
+                      }
+                    }
+                  }
+                  
+                  const enrichedCount = headings.filter(h => h.semantics).length;
+                  this.logger.debug(`[REST] Added chunk-based semantic enrichment to ${enrichedCount} headings`);
+                } else {
+                  // Fallback to document-level semantics if no chunks found
+                  this.logger.debug(`[REST] No chunks found, using document-level fallback for ${documentPath}`);
+                  const semanticData = await this.semanticService.getDocumentSemanticSummary(documentPath);
+                  
+                  if (semanticData) {
+                    const enrichedHeadings = headings.slice(0, 20);
+                    for (const heading of enrichedHeadings) {
+                      heading.semantics = {
+                        topics: semanticData.topics || [],
+                        keyPhrases: semanticData.keyPhrases?.slice(0, 5) || [],
+                        hasCodeExamples: semanticData.hasCodeExamples || false,
+                        subsectionCount: 0,
+                        codeLanguages: []
+                      };
+                    }
+                    this.logger.debug(`[REST] Used document-level semantics (fallback) for ${enrichedHeadings.length} headings`);
+                  }
+                }
+              }
+            } else if (response.outline.sections) {
+              // Handle sections (Word/PDF) which don't have line numbers
+              // For these, we'll just apply document-level semantics
+              const sections = response.outline.sections || [];
+              
+              if (sections.length > 0) {
+                const semanticData = await this.semanticService.getDocumentSemanticSummary(documentPath);
+                
+                if (semanticData) {
+                  const enrichedSections = sections.slice(0, 20);
+                  for (const section of enrichedSections) {
+                    section.semantics = {
+                      topics: semanticData.topics || [],
+                      keyPhrases: semanticData.keyPhrases?.slice(0, 5) || [],
+                      hasCodeExamples: semanticData.hasCodeExamples || false,
+                      subsectionCount: 0,
+                      codeLanguages: []
+                    };
+                  }
+                  this.logger.debug(`[REST] Applied document-level semantics to ${enrichedSections.length} sections`);
+                }
+              }
+            }
+          }
+        } catch (semanticError) {
+          this.logger.debug(`[REST] Could not add semantic enrichment to outline:`, semanticError);
+        }
+      }
 
       this.logger.debug(`[REST] Returning document outline for ${docId} from folder ${folderPath}`);
       res.json(response);
@@ -819,7 +1094,8 @@ export class RESTAPIServer {
               sourceType: 'text',
               totalChunks: 1,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           }];
           queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
         } else if (loadedModel.service instanceof ONNXEmbeddingService) {
@@ -858,16 +1134,9 @@ export class RESTAPIServer {
         }
         
         // Request more results to account for folder filtering
-        // Use folder-specific search if the service supports it
-        let vectorSearchResults: any[];
-        if (this.vectorSearchService instanceof MultiFolderVectorSearchService) {
-          // Use folder-specific database for search
-          vectorSearchResults = await (this.vectorSearchService as MultiFolderVectorSearchService)
-            .searchInFolder(firstEmbedding, folderPath, limit * 2, threshold);
-        } else {
-          // Fallback to legacy search
-          vectorSearchResults = await this.vectorSearchService.search(firstEmbedding, limit * 2, threshold);
-        }
+        // Use folder-specific search with MultiFolderVectorSearchService
+        const vectorSearchResults = await (this.vectorSearchService as MultiFolderVectorSearchService)
+          .searchInFolder(firstEmbedding, folderPath, limit * 2, threshold);
         
         // Filter results to current folder - fix folder scoping security issue
         const normalizedFolder = path.resolve(folderPath);
@@ -892,19 +1161,22 @@ export class RESTAPIServer {
         // Apply final limit after folder filtering
         const finalResults = folderFilteredResults.slice(0, limit);
         
-        // Transform vector search results to REST API format
+        // Transform vector search results to REST API format with semantic metadata
         searchResults = finalResults.map(result => ({
-          documentId: result.documentId,
-          documentName: this.extractFileNameFromPath(result.documentId || ''),
-          relevance: result.score,
-          snippet: includeContent && result.content
-            ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
-            : undefined,
-          pageNumber: result.metadata?.page,
-          chunkId: result.id,
-          documentType: this.getDocumentType(result.documentId || ''),
-          documentPath: result.documentId
-        }));
+            documentId: result.documentId,
+            documentName: this.extractFileNameFromPath(result.documentId || ''),
+            relevance: result.score,
+            snippet: includeContent && result.content
+              ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
+              : undefined,
+            pageNumber: result.metadata?.page,
+            chunkId: result.id,
+            documentType: this.getDocumentType(result.documentId || ''),
+            documentPath: result.documentId,
+            // Add semantic metadata directly from the BasicSearchResult
+            keyPhrases: result.keyPhrases || [],
+            topics: result.topics || []
+          }));
 
         this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);
         

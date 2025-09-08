@@ -423,6 +423,12 @@ See `docs/configuration.md` for complete configuration documentation.
 
 **CRITICAL**: Agent-to-Endpoint testing requires the folder-mcp MCP server to be connected as a tool.
 
+**🚨 CRITICAL MCP CONNECTION MONITORING**: 
+- **WHEN MCP DISCONNECTS**: STOP EVERYTHING IMMEDIATELY AND TELL THE USER!
+- **Error Signs**: "Error: No such tool available: search" or any MCP tool errors
+- **Required Action**: Stop all work and say "The MCP server has disconnected. Please reconnect it."
+- **Do NOT Continue**: Never proceed with alternative approaches when MCP is needed
+
 **Common Issue**: "Error: No such tool available: search" or similar errors
 **Solution**: Tell user "The MCP server needs to be reconnected" and wait for reconnection
 

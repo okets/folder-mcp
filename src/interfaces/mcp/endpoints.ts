@@ -19,6 +19,7 @@ import type {
   GetEmbeddingRequest, GetEmbeddingResponse,
   GetStatusRequest, GetStatusResponse,
   FolderInfoResponse, FolderInfo,
+  ExploreRequest, ExploreResponse, SubfolderInfo,
   StandardResponse, DocumentMetadata, LocationInfo, ContextInfo
 } from './types.js';
 
@@ -51,6 +52,8 @@ export interface IMCPEndpoints {
   getStatus(request?: GetStatusRequest): Promise<GetStatusResponse>;
   // New multi-folder endpoint
   getFolderInfo(): Promise<FolderInfoResponse>;
+  // Phase 5: New hierarchical navigation endpoint
+  explore(request: ExploreRequest): Promise<ExploreResponse>;
 }
 
 /**
@@ -1047,7 +1050,69 @@ export class MCPEndpoints implements IMCPEndpoints {
       return this.createErrorResponse(error, 'folder_info_failed');
     }
   }
+  /**
+   * Phase 5: Explore endpoint for hierarchical navigation
+   * Discovers available subfolders with semantic previews for LLM navigation
+   */
+  async explore(request: ExploreRequest): Promise<ExploreResponse> {
+    try {
+      this.logger.debug('MCP Explore endpoint called', {
+        folder_path: request.folder_path,
+        subfolder_path: request.subfolder_path
+      });
 
+      // Input validation
+      if (!request.folder_path) {
+        throw new Error('folder_path is required');
+      }
+
+      // Build current path for navigation
+      const currentPath = request.subfolder_path || '/';
+      
+      // Build breadcrumb for navigation
+      const breadcrumb = request.subfolder_path ? 
+        request.subfolder_path.split('/').filter(p => p) :
+        [];
+
+      // Get parent path for navigation
+      const parentPath = request.subfolder_path && request.subfolder_path !== '/' ? 
+        ('/' + request.subfolder_path.split('/').slice(0, -1).filter(p => p).join('/')) || '/' :
+        null;
+
+      // Placeholder implementation - needs vector search service integration
+      const available_subfolders: SubfolderInfo[] = [];
+      const documents_at_level: any[] = [];
+
+      const tokenCount = JSON.stringify({
+        available_subfolders,
+        documents_at_level,
+        breadcrumb
+      }).length;
+
+      return {
+        data: {
+          current_path: currentPath,
+          available_subfolders,
+          documents_at_level,
+          breadcrumb,
+          parent_path: parentPath,
+          token_count: tokenCount
+        },
+        status: {
+          code: 'success',
+          message: `Explore endpoint ready - navigation at ${currentPath}`
+        },
+        continuation: {
+          has_more: false
+        },
+        actions: []
+      };
+
+    } catch (error: any) {
+      this.logger.error('Error in explore endpoint:', error);
+      return this.createErrorResponse(error, 'explore_failed');
+    }
+  }
   // ===== PRIVATE HELPER METHODS =====
 
   private async getFileStats(filePath: string) {

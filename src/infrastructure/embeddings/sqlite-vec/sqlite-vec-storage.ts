@@ -8,6 +8,7 @@
 import { IVectorSearchService, ILoggingService } from '../../../di/interfaces.js';
 import { EmbeddingVector, TextChunk } from '../../../types/index.js';
 import { SearchResult } from '../../../domain/search/index.js';
+import { ContentProcessingService, createContentProcessingService } from '../../../domain/content/processing.js';
 
 // Temporary type alias for compatibility with tests
 type EmbeddingVectorOrArray = EmbeddingVector | number[];
@@ -19,6 +20,7 @@ export interface SQLiteVecStorageConfig {
     modelName: string;
     modelDimension: number;
     logger?: ILoggingService;
+    contentProcessor?: ContentProcessingService;
 }
 
 export interface VectorMetadata {
@@ -47,10 +49,12 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private logger: ILoggingService | undefined;
     private ready: boolean = false;
     private config: SQLiteVecStorageConfig;
+    private contentProcessor: ContentProcessingService;
 
     constructor(config: SQLiteVecStorageConfig) {
         this.config = config;
         this.logger = config.logger;
+        this.contentProcessor = config.contentProcessor || createContentProcessingService();
 
         const dbConfig: DatabaseConfig = {
             folderPath: config.folderPath,
@@ -207,7 +211,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 // Convert distance back to similarity
                 const similarity = 1 - row.distance;
 
-                // Create TextChunk from database data
+                // Create TextChunk from database data with semantic metadata
                 const chunk: TextChunk = {
                     content: row.content,
                     startPosition: 0, // Will be populated from chunk data if available
@@ -219,6 +223,13 @@ export class SQLiteVecStorage implements IVectorSearchService {
                         sourceType: row.mime_type || 'unknown',
                         totalChunks: 1,
                         hasOverlap: false
+                    },
+                    semanticMetadata: {
+                        keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : [],
+                        topics: row.topics ? JSON.parse(row.topics) : [],
+                        readabilityScore: row.readability_score || 0,
+                        semanticProcessed: row.key_phrases !== null && row.topics !== null,
+                        semanticTimestamp: Date.now()
                     }
                 };
 
@@ -380,14 +391,24 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 const docId = documentMap.get(meta.filePath)!;
 
-                // Insert chunk
+                // Process chunk content for semantic metadata
+                const keyPhrases = ContentProcessingService.extractKeyPhrases(meta.content, 8);
+                const topics = ContentProcessingService.detectTopics(meta.content);
+                const readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
+                
+                // Insert chunk with semantic processing results
                 const chunkResult = insertChunkStmt.run(
                     docId,
                     meta.chunkIndex,
                     meta.content,
                     meta.startPosition,
                     meta.endPosition,
-                    Math.ceil(meta.content.length / 4) // Rough token count estimate
+                    Math.ceil(meta.content.length / 4), // Rough token count estimate
+                    JSON.stringify(keyPhrases), // key_phrases as JSON array
+                    JSON.stringify(topics), // topics as JSON array
+                    readabilityScore, // readability_score as number
+                    1,    // semantic_processed - true (1) since processed
+                    new Date().toISOString()  // semantic_timestamp - current timestamp
                 );
 
                 const chunkId = chunkResult.lastInsertRowid as number;

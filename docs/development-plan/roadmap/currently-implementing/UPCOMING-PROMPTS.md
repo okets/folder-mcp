@@ -11,6 +11,24 @@ Create the plan in a PAHSE_NUM_STEP_NUM.md under /Users/hanan/Projects/folder-mc
 - each change should be led by a user story and with clear user interface impact.
 - sub tasks should be prioritized and groupped to acomodate to the previous requirement.
 - backend changes must be verified using the agent led TMAOT method.
+
+*** A NEW VERSION OF THE ABOVE ***
+Let's create a plan in an MD document for sprint 10. get technical but don't get into implementation details.
+- each of the phases should be led by user stories where the user is YOU,
+the mcp client Claude.
+- each change should be led by a user story and with clear user interface
+impact.
+- sub tasks should be prioritized and groupped to acomodate to the
+previous requirement.
+the main user story for the sprint (kind of the grand finale, e2e test) is
+running subagent with a blank context to fetch information we know exists
+in our indexed folder and see if it was a smooth experience for him. if
+he knew what to look for, if the process was clear and so on.
+the subagent should ALWAYS fill a survey rating our interface on relevant
+metrics measured by a range going from very confusing to very
+straightforward.
+Think really hard how we can make this sprint make us the leaders of our
+industry by understanding how to serve AI agents.
 ────────────────────────────────────────────────────────────────────────
 ***REVIEW PLAN***
 1. Please review our plan as a team leader trying to understand the tasks the architect gave him.
@@ -70,7 +88,8 @@ You will need a TMOAT Script to add and remove folders consistently and clean up
 
 
 *** TMOAT Reminder ***
-I remind you that we don't go and blindly change code hoping we fixed an issue. you as an agent can run bash commands and access the daemon's websocket using scripts. we are on a correct course task and should be very careful!
+I remind you that we don't go and blindly change code hoping we fixed an issue.
+You as an agent can run bash commands, can call our endpoints directly using folder-mcp mcp server,  query databases and even access the daemon's websocket using scripts to add/remove folders from the indexing list. we are on a correct course task and should be very careful!
 Be a good TMOAT agent!
 
 ────────────────────────────────────────────────────────────────────
@@ -165,4 +184,5 @@ The automated Code review system does not know what we worked on. I want you to:
 - create an md file with the groupped task list.
 
 MY Code review system's suggestions:
+
 

@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { UnifiedModelFactory } from '../../src/daemon/factories/unified-model-factory.js';
 import type { IEmbeddingModel, EmbeddingModelConfig } from '../../src/domain/models/embedding-model-interface.js';
 import type { TextChunk } from '../../src/types/index.js';
+import { createDefaultSemanticMetadata } from '../../src/types/index.js';
 import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
@@ -126,7 +127,8 @@ describe('ONNX Model Bridge Integration', () => {
           sourceType: 'txt',
           totalChunks: 2,
           hasOverlap: false
-        }
+        },
+        semanticMetadata: createDefaultSemanticMetadata()
       },
       {
         content: 'Another test to verify batch processing works.',
@@ -139,7 +141,8 @@ describe('ONNX Model Bridge Integration', () => {
           sourceType: 'txt',
           totalChunks: 2,
           hasOverlap: false
-        }
+        },
+        semanticMetadata: createDefaultSemanticMetadata()
       }
     ];
     
@@ -193,7 +196,8 @@ describe('ONNX Model Bridge Integration', () => {
         sourceType: 'txt',
         totalChunks: 5,
         hasOverlap: false
-      }
+      },
+      semanticMetadata: createDefaultSemanticMetadata()
     }));
     
     const results = await model.processBatch(chunks, 2);
@@ -282,7 +286,8 @@ describe('ONNX Model Bridge Integration', () => {
         sourceType: 'txt',
         totalChunks: 1,
         hasOverlap: false
-      }
+      },
+      semanticMetadata: createDefaultSemanticMetadata()
     }];
     
     const results = await model.processBatch(chunks, 1, true);

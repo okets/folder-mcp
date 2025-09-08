@@ -13,6 +13,7 @@ import type {
   EmbeddingModelConfig 
 } from '../../../domain/models/embedding-model-interface.js';
 import type { TextChunk } from '../../../types/index.js';
+import { createDefaultSemanticMetadata } from '../../../types/index.js';
 import type { EmbeddingVector, EmbeddingResult } from '../../../domain/embeddings/index.js';
 import { PythonEmbeddingService } from '../python-embedding-service.js';
 import { createPythonEmbeddingService } from '../../../daemon/factories/model-factories.js';
@@ -185,8 +186,7 @@ export class PythonModelBridge implements IEmbeddingModel {
         sourceType: 'text',
         totalChunks: 1,
         hasOverlap: false
-      }
-    };
+      }, semanticMetadata: createDefaultSemanticMetadata() };
 
     // TODO: Pass immediate flag to Python service when supported
     const embeddings = await this.pythonService.generateEmbeddings([chunk]);

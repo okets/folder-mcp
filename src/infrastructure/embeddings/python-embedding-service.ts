@@ -9,6 +9,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
 import type { TextChunk } from '../../types/index.js';
+import { createDefaultSemanticMetadata } from '../../types/index.js';
 import type { 
   EmbeddingOperations, 
   EmbeddingVector, 
@@ -197,8 +198,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         sourceType: 'text',
         totalChunks: 1,
         hasOverlap: false
-      }
-    }], textType);
+      }, semanticMetadata: createDefaultSemanticMetadata() }], textType);
     
     if (response.length === 0) {
       throw new Error('No embedding generated');
@@ -1199,8 +1199,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         sourceType: 'query',
         totalChunks: 1,
         hasOverlap: false
-      }
-    }];
+      }, semanticMetadata: createDefaultSemanticMetadata() }];
     
     const embeddings = await this.generateEmbeddings(chunks, 'query');
     

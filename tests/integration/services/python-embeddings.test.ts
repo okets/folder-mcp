@@ -22,6 +22,7 @@ import { PythonEmbeddingService } from '../../../src/infrastructure/embeddings/p
 import { existsSync } from 'fs';
 import { join } from 'path';
 import type { TextChunk } from '../../../src/types/index.js';
+import { createDefaultSemanticMetadata } from '../../../src/types/index.js';
 import { performance } from 'perf_hooks';
 
 describe('Python Embeddings - Complete Test Suite', () => {
@@ -53,7 +54,8 @@ describe('Python Embeddings - Complete Test Suite', () => {
       sourceType: 'text',
       totalChunks: 3,
       hasOverlap: false
-    }
+    },
+    semanticMetadata: createDefaultSemanticMetadata()
   });
 
   // Helper to calculate average

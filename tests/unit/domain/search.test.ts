@@ -15,6 +15,7 @@ import {
   SearchContext,
   GroupedSearchResults
 } from '../../../src/domain/search/index.js';
+import { createDefaultSemanticMetadata } from '../../../src/types/index.js';
 
 describe('Domain Layer - Search Module', () => {
   let searchOps: SearchOperations;
@@ -36,7 +37,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test',
               totalChunks: k,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           },
           similarity: 1 - (i * 0.1),
           filePath: `test/file${i}.txt`,
@@ -65,7 +67,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test',
               totalChunks: k,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           },
           similarity: 1 - (i * 0.1),
           filePath: `test/file${i}.txt`,
@@ -103,7 +106,8 @@ describe('Domain Layer - Search Module', () => {
                 sourceType: result.chunk.metadata.sourceType,
                 totalChunks: result.chunk.metadata.totalChunks,
                 hasOverlap: false
-              }
+              },
+              semanticMetadata: createDefaultSemanticMetadata()
             },
             nextChunk: {
               content: 'Next context',
@@ -116,7 +120,8 @@ describe('Domain Layer - Search Module', () => {
                 sourceType: result.chunk.metadata.sourceType,
                 totalChunks: result.chunk.metadata.totalChunks,
                 hasOverlap: false
-              }
+              },
+              semanticMetadata: createDefaultSemanticMetadata()
             },
             documentSummary: 'Test document summary'
           },
@@ -158,7 +163,8 @@ describe('Domain Layer - Search Module', () => {
                   sourceType: result.chunk.metadata.sourceType,
                   totalChunks: result.chunk.metadata.totalChunks,
                   hasOverlap: false
-                }
+                },
+                semanticMetadata: createDefaultSemanticMetadata()
               },
               nextChunk: {
                 content: 'Next context',
@@ -171,7 +177,8 @@ describe('Domain Layer - Search Module', () => {
                   sourceType: result.chunk.metadata.sourceType,
                   totalChunks: result.chunk.metadata.totalChunks,
                   hasOverlap: false
-                }
+                },
+                semanticMetadata: createDefaultSemanticMetadata()
               }
             },
             ranking: {
@@ -260,7 +267,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test',
               totalChunks: 1,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           }, 
           filePath: 'file1', 
           metadata: {} 
@@ -278,7 +286,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test',
               totalChunks: 1,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           }, 
           filePath: 'file2', 
           metadata: {} 
@@ -296,7 +305,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test',
               totalChunks: 1,
               hasOverlap: false
-            }
+            },
+            semanticMetadata: createDefaultSemanticMetadata()
           }, 
           filePath: 'file3', 
           metadata: {} 
@@ -359,7 +369,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test', 
               totalChunks: 1,
               hasOverlap: false
-            } 
+            },
+            semanticMetadata: createDefaultSemanticMetadata() 
           }, 
           filePath: 'file1.txt', 
           metadata: {} 
@@ -377,7 +388,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test', 
               totalChunks: 2,
               hasOverlap: false
-            } 
+            },
+            semanticMetadata: createDefaultSemanticMetadata() 
           }, 
           filePath: 'file1.txt', 
           metadata: {} 
@@ -395,7 +407,8 @@ describe('Domain Layer - Search Module', () => {
               sourceType: 'test', 
               totalChunks: 1,
               hasOverlap: false
-            } 
+            },
+            semanticMetadata: createDefaultSemanticMetadata() 
           }, 
           filePath: 'file2.txt', 
           metadata: {} 

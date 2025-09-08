@@ -26,6 +26,12 @@ export interface FolderInfo {
   lastIndexed?: string;
   /** Folder topics/tags (placeholder for future) */
   topics?: string[];
+  /** Key phrases extracted from content (Sprint 10) */
+  keyPhrases?: string[];
+  /** Content complexity level (Sprint 10) */
+  contentComplexity?: string;
+  /** Average readability score (Sprint 10) */
+  avgReadabilityScore?: number;
   /** Progress percentage if indexing */
   progress?: number;
   /** Notification if any */
@@ -158,6 +164,23 @@ export interface DocumentData {
     /** Additional format-specific metadata */
     [key: string]: any;
   };
+  /** Semantic metadata - Sprint 10 */
+  semanticMetadata?: {
+    /** Primary purpose of the document */
+    primaryPurpose: string;
+    /** Key phrases extracted from content */
+    keyPhrases: string[];
+    /** Main topics covered */
+    topics: string[];
+    /** Complexity level */
+    complexityLevel: string;
+    /** Content type classification */
+    contentType: string;
+    /** Whether document contains code examples */
+    hasCodeExamples: boolean;
+    /** Whether document contains diagrams */
+    hasDiagrams: boolean;
+  };
 }
 
 /**
@@ -189,6 +212,14 @@ export interface DocumentOutline {
     level: number;
     title: string;
     pageNumber?: number;
+    /** Semantic enrichment for this section - Sprint 10 */
+    semantics?: {
+      topics: string[];
+      keyPhrases: string[];
+      hasCodeExamples: boolean;
+      subsectionCount?: number;
+      codeLanguages?: string[];
+    };
   }>;
   /** Excel outline - sheets */
   sheets?: Array<{
@@ -208,7 +239,20 @@ export interface DocumentOutline {
     level: number;
     title: string;
     lineNumber?: number;
+    /** Semantic enrichment for this heading - Sprint 10 */
+    semantics?: {
+      topics: string[];
+      keyPhrases: string[];
+      hasCodeExamples: boolean;
+      subsectionCount?: number;
+      codeLanguages?: string[];
+    };
   }>;
+  /** Metadata including file path for enrichment - Sprint 10 */
+  metadata?: {
+    filePath?: string;
+    [key: string]: any;
+  };
 }
 
 /**

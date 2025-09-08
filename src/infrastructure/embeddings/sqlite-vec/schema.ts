@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS documents (
 /**
  * Text chunks from documents
  * Each document is split into multiple chunks for embedding
+ * Enhanced with semantic metadata for AI agent navigation
  */
 export const CHUNKS_TABLE = `
 CREATE TABLE IF NOT EXISTS chunks (
@@ -53,6 +54,12 @@ CREATE TABLE IF NOT EXISTS chunks (
     start_offset INTEGER NOT NULL,
     end_offset INTEGER NOT NULL,
     token_count INTEGER,
+    -- Semantic metadata columns for Sprint 10
+    key_phrases TEXT,           -- JSON array of extracted key phrases
+    topics TEXT,                -- JSON array of detected topics
+    readability_score REAL,     -- Flesch Reading Ease score (0-100)
+    semantic_processed INTEGER DEFAULT 0,  -- Flag: 1 if semantic extraction succeeded
+    semantic_timestamp INTEGER, -- Unix timestamp of semantic processing
     UNIQUE(document_id, chunk_index)
 );`;
 
@@ -111,6 +118,9 @@ CREATE TABLE IF NOT EXISTS file_states (
     updated_at INTEGER DEFAULT (strftime('%s', 'now'))
 );`;
 
+// REMOVED: folder_semantic_summary table (Phase 5 cleanup)
+// Using pure runtime aggregation instead of caching for consistency
+
 /**
  * Schema version tracking table
  * Used to detect when database needs to be rebuilt due to schema changes
@@ -134,7 +144,10 @@ export const INDEXES = [
     'CREATE INDEX IF NOT EXISTS idx_chunks_content_search ON chunks(content);',
     'CREATE INDEX IF NOT EXISTS idx_file_states_hash ON file_states(content_hash);',
     'CREATE INDEX IF NOT EXISTS idx_file_states_state ON file_states(processing_state);',
-    'CREATE INDEX IF NOT EXISTS idx_file_states_last_attempt ON file_states(last_attempt);'
+    'CREATE INDEX IF NOT EXISTS idx_file_states_last_attempt ON file_states(last_attempt);',
+    // Semantic indexes for Sprint 10
+    'CREATE INDEX IF NOT EXISTS idx_chunks_semantic_processed ON chunks(semantic_processed);'
+    // REMOVED: idx_folder_summary_updated (Phase 5 cleanup - table no longer exists)
 ];
 
 /**
@@ -156,6 +169,7 @@ export function getAllTableStatements(embeddingDimension: number): string[] {
         CHUNK_METADATA_TABLE,
         EMBEDDING_CONFIG_TABLE,
         FILE_STATES_TABLE,
+        // REMOVED: FOLDER_SEMANTIC_SUMMARY_TABLE (Phase 5 cleanup - using runtime aggregation)
         SCHEMA_VERSION_TABLE,
         ...INDEXES
     ];
@@ -181,6 +195,7 @@ export const VALIDATION_QUERIES = {
     checkIntegrity: 'PRAGMA integrity_check;'
 };
 
+
 /**
  * Common queries for database operations
  */
@@ -195,11 +210,12 @@ export const QUERIES = {
     deleteDocument: 'DELETE FROM documents WHERE file_path = ?',
     markForReindex: 'UPDATE documents SET needs_reindex = 1 WHERE file_path = ?',
     
-    // Chunk operations
+    // Chunk operations (updated for Sprint 10 with semantic columns)
     insertChunk: `
         INSERT INTO chunks 
-        (document_id, chunk_index, content, start_offset, end_offset, token_count)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (document_id, chunk_index, content, start_offset, end_offset, token_count,
+         key_phrases, topics, readability_score, semantic_processed, semantic_timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     getChunksByDocument: 'SELECT * FROM chunks WHERE document_id = ? ORDER BY chunk_index',
     deleteChunksByDocument: 'DELETE FROM chunks WHERE document_id = ?',
@@ -225,6 +241,9 @@ export const QUERIES = {
             cm.section_name,
             cm.sheet_name,
             cm.slide_number,
+            c.key_phrases,
+            c.topics,
+            c.readability_score,
             (c.id * 0.1) as distance
         FROM embeddings e
         JOIN chunks c ON e.chunk_id = c.id
@@ -246,5 +265,88 @@ export const QUERIES = {
     getDocumentCount: 'SELECT COUNT(*) as count FROM documents',
     getChunkCount: 'SELECT COUNT(*) as count FROM chunks',
     getEmbeddingCount: 'SELECT COUNT(*) as count FROM embeddings',
-    getDatabaseSize: 'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()'
+    getDatabaseSize: 'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()',
+    
+    // REMOVED: folder semantic summary queries (Phase 5 cleanup)
+    // Using runtime aggregation with aggregateSemanticData query instead
+    
+    // Aggregation query for building folder summaries
+    aggregateSemanticData: `
+        SELECT 
+            COUNT(DISTINCT d.id) as document_count,
+            COUNT(c.id) as chunk_count,
+            AVG(c.readability_score) as avg_readability,
+            GROUP_CONCAT(c.key_phrases) as all_key_phrases,
+            GROUP_CONCAT(c.topics) as all_topics
+        FROM documents d
+        JOIN chunks c ON d.id = c.document_id
+        WHERE c.semantic_processed = 1
+    `,
+    
+    // Phase 5: Runtime path parsing for subfolder support
+    getSubfoldersWithSemanticData: `
+        WITH path_analysis AS (
+            SELECT 
+                d.file_path,
+                d.id,
+                CASE 
+                    WHEN d.file_path LIKE ? || '/%' 
+                    THEN SUBSTR(d.file_path, LENGTH(?) + 2)
+                    ELSE d.file_path 
+                END as relative_path
+            FROM documents d
+            WHERE d.file_path LIKE ? || '/%'
+        ),
+        subfolder_extraction AS (
+            SELECT 
+                CASE 
+                    WHEN relative_path LIKE '%/%' 
+                    THEN '/' || SUBSTR(relative_path, 1, INSTR(relative_path, '/') - 1)
+                    ELSE '/'  
+                END as subfolder_path,
+                relative_path,
+                id, file_path
+            FROM path_analysis
+        ),
+        subfolder_stats AS (
+            SELECT 
+                se.subfolder_path,
+                COUNT(DISTINCT se.id) as document_count,
+                AVG(c.readability_score) as avg_readability,
+                GROUP_CONCAT(DISTINCT json_extract(c.topics, '$[0]')) as top_topics,
+                GROUP_CONCAT(DISTINCT json_extract(c.key_phrases, '$[0]')) as key_phrases
+            FROM subfolder_extraction se
+            JOIN chunks c ON se.id = (SELECT id FROM documents WHERE file_path = se.file_path)
+            WHERE c.semantic_processed = 1
+            AND se.subfolder_path != '/'
+            GROUP BY se.subfolder_path
+        )
+        SELECT 
+            subfolder_path,
+            document_count,
+            ROUND(avg_readability, 1) as avg_readability,
+            top_topics,
+            key_phrases
+        FROM subfolder_stats
+        WHERE document_count > 0
+        ORDER BY subfolder_path
+    `,
+    
+    getDocumentsInSubfolder: `
+        SELECT d.*, 
+               json_group_array(
+                   json_object(
+                       'topic', json_extract(c.topics, '$[0]'),
+                       'key_phrase', json_extract(c.key_phrases, '$[0]'),
+                       'readability', c.readability_score
+                   )
+               ) as semantic_data
+        FROM documents d
+        JOIN chunks c ON d.id = c.document_id
+        WHERE d.file_path LIKE ? || '%'
+        AND c.semantic_processed = 1
+        GROUP BY d.id
+        ORDER BY d.last_modified DESC
+        LIMIT ? OFFSET ?
+    `
 };

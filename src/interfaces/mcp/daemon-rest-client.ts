@@ -23,8 +23,11 @@ export interface FolderConfig {
   status: 'active' | 'indexing' | 'pending' | 'error';
   documentCount?: number;
   lastIndexed?: string;
-  // Topics will be added in Sprint 10
-  // topics?: string[];
+  // Sprint 10: Semantic metadata
+  topics?: string[];
+  keyPhrases?: string[];
+  contentComplexity?: string;
+  avgReadabilityScore?: number;
   
   // Enhanced metadata for better decision making
   indexingProgress?: number;      // 0-100 for indexing status

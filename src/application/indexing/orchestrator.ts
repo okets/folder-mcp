@@ -33,12 +33,18 @@ import path from 'path';
 import os from 'os';
 
 // Domain types
-import { FileFingerprint, ParsedContent, TextChunk } from '../../types/index.js';
+import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../../types/index.js';
+
+// Semantic extraction service for Sprint 10
+import { ContentProcessingService } from '../../domain/content/processing.js';
 
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
   private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
   private embeddingServiceCreationPromises: Map<string, Promise<IEmbeddingService>> = new Map();
+  
+  // Semantic extraction service for Sprint 10
+  private readonly contentProcessingService: ContentProcessingService;
   
   // Performance tracking for benchmarking
   private performanceMetrics = {
@@ -59,7 +65,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly configService: IConfigurationService,
     private readonly fileSystemService: IFileSystemService,
     private readonly onnxConfiguration: IOnnxConfiguration
-  ) {}
+  ) {
+    // Initialize ContentProcessingService for semantic extraction
+    this.contentProcessingService = new ContentProcessingService();
+  }
 
   /**
    * Get or create embedding service for a specific model
@@ -530,6 +539,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunkResult = await this.chunkingService.chunkText(parsedContent);
     const chunks = chunkResult.chunks;
 
+    // Extract semantic metadata for each chunk (Sprint 10)
+    const chunksWithSemantics = await this.extractSemanticMetadata(chunks);
+
     // Report total chunks
     if (progressCallback) {
       progressCallback(chunks.length, 0);
@@ -796,6 +808,65 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       
       status.lastProgressLogTime = Date.now();
     }
+  }
+
+  /**
+   * Extract semantic metadata for ALL chunks (mandatory in Sprint 10)
+   * Always populates semantic fields, even on extraction failure
+   */
+  private async extractSemanticMetadata(chunks: TextChunk[]): Promise<TextChunk[]> {
+    const enhancedChunks: TextChunk[] = [];
+    
+    for (const chunk of chunks) {
+      let semanticMetadata: SemanticMetadata;
+      
+      try {
+        // Extract semantic metadata using ContentProcessingService
+        const keyPhrases = ContentProcessingService.extractKeyPhrases(chunk.content, 10);
+        const topics = ContentProcessingService.detectTopics(chunk.content);
+        const readabilityScore = ContentProcessingService.calculateReadabilityScore(chunk.content);
+        
+        semanticMetadata = {
+          keyPhrases,
+          topics,
+          readabilityScore,
+          semanticProcessed: true,
+          semanticTimestamp: Date.now()
+        };
+        
+        this.loggingService.debug('Semantic extraction successful', {
+          chunkIndex: chunk.chunkIndex,
+          keyPhrasesCount: keyPhrases.length,
+          topicsCount: topics.length,
+          readabilityScore
+        });
+        
+      } catch (error) {
+        // Error resilience: Use empty semantic data if extraction fails
+        this.loggingService.warn('Semantic extraction failed for chunk, using empty semantics', {
+          chunkIndex: chunk.chunkIndex,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        
+        semanticMetadata = {
+          keyPhrases: [],
+          topics: ['general'], // Default topic when extraction fails
+          readabilityScore: 0,
+          semanticProcessed: false,
+          semanticTimestamp: Date.now()
+        };
+      }
+      
+      // ALWAYS add semantic metadata (no longer optional)
+      const enhancedChunk: TextChunk = {
+        ...chunk,
+        semanticMetadata
+      };
+      
+      enhancedChunks.push(enhancedChunk);
+    }
+    
+    return enhancedChunks;
   }
 
   private getFileType(filePath: string): string {

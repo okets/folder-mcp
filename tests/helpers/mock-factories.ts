@@ -13,6 +13,7 @@ import type {
   DocumentMetadata,
   TextMetadata
 } from '../../src/types/index.js';
+import { createDefaultSemanticMetadata } from '../../src/types/index.js';
 import { vi } from "vitest";
 
 /**
@@ -55,6 +56,7 @@ export class MockFactory {
           lines: 10
         }
       },
+      semanticMetadata: createDefaultSemanticMetadata(),
       ...overrides
     };
   }
@@ -277,7 +279,8 @@ export class MockFactory {
                   totalChunks: 1,
                   hasOverlap: false,
                   originalMetadata: { ...metadata }
-                }
+                },
+                semanticMetadata: createDefaultSemanticMetadata()
               },
               score: similarity,
               context: {}
@@ -344,7 +347,8 @@ export class MockFactory {
                     totalChunks: 1,
                     hasOverlap: false,
                     originalMetadata: { ...metadata }
-                  }
+                  },
+                  semanticMetadata: createDefaultSemanticMetadata()
                 },
                 score: similarity,
                 context: {}

@@ -15,6 +15,7 @@ import {
   EmbeddingModel
 } from '../../../src/domain/embeddings/index.js';
 import type { TextChunk } from '../../../src/types/index.js';
+import { createDefaultSemanticMetadata } from '../../../src/types/index.js';
 
 describe('Domain Layer - Embeddings Module', () => {
   let embeddingOps: EmbeddingOperations;
@@ -119,7 +120,8 @@ describe('Domain Layer - Embeddings Module', () => {
               lastModified: new Date().toISOString(),
               lines: 1
             }
-          }
+          },
+          semanticMetadata: createDefaultSemanticMetadata()
         },
         {
           content: 'Second test chunk',
@@ -139,7 +141,8 @@ describe('Domain Layer - Embeddings Module', () => {
               lastModified: new Date().toISOString(),
               lines: 1
             }
-          }
+          },
+          semanticMetadata: createDefaultSemanticMetadata()
         }
       ];
 
@@ -208,7 +211,8 @@ describe('Domain Layer - Embeddings Module', () => {
             lastModified: new Date().toISOString(),
             lines: 25
           }
-        }
+        },
+        semanticMetadata: createDefaultSemanticMetadata()
       }));
 
       const results = await batchOps.processBatch(chunks, 10);
@@ -261,7 +265,8 @@ describe('Domain Layer - Embeddings Module', () => {
               lastModified: new Date().toISOString(),
               lines: 0
             }
-          }
+          },
+          semanticMetadata: createDefaultSemanticMetadata()
         }
       ];
 
