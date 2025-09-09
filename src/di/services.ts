@@ -297,17 +297,123 @@ export class ChunkingService implements IChunkingService {
   async chunkText(content: ParsedContent, chunkSize = 400, overlap = 10): Promise<{ chunks: TextChunk[]; totalChunks: number; }> {
     this.loggingService.debug('Chunking text', { 
       contentLength: content.content.length, 
+      contentType: content.type,
       chunkSize, 
       overlap 
     });
     
     try {
-      // Use existing chunking logic
+      // Use format-aware chunking for Word documents
+      if (content.type === 'word') {
+        this.loggingService.info('Using Word-aware chunking for document');
+        const { WordChunkingService } = await import('../domain/content/word-chunking.js');
+        const wordChunker = new WordChunkingService();
+        
+        // Convert chunk size from characters to tokens (roughly 4 chars per token)
+        const maxTokens = Math.ceil(chunkSize / 4);
+        const minTokens = Math.ceil(maxTokens * 0.2); // 20% of max as minimum
+        
+        const result = wordChunker.chunkWordDocument(content, maxTokens, minTokens);
+        
+        this.loggingService.info('Word document chunked successfully', {
+          totalChunks: result.chunks.length,
+          chunkingMethod: 'word-paragraph-aware',
+          averageChunkSize: result.chunks.length > 0 
+            ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / result.chunks.length)
+            : 0
+        });
+        
+        return {
+          chunks: result.chunks,
+          totalChunks: result.chunks.length
+        };
+      }
+      
+      // Use format-aware chunking for PDF documents
+      if (content.type === 'pdf') {
+        this.loggingService.info('Using PDF-aware chunking for document');
+        const { PdfChunkingService } = await import('../domain/content/pdf-chunking.js');
+        const pdfChunker = new PdfChunkingService();
+        
+        // Convert chunk size from characters to tokens (roughly 4 chars per token)
+        const maxTokens = Math.ceil(chunkSize / 4);
+        const minTokens = Math.ceil(maxTokens * 0.2); // 20% of max as minimum
+        
+        const result = pdfChunker.chunkPdfDocument(content, maxTokens, minTokens);
+        
+        this.loggingService.info('PDF document chunked successfully', {
+          totalChunks: result.chunks.length,
+          chunkingMethod: 'pdf-page-aware',
+          averageChunkSize: result.chunks.length > 0 
+            ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / result.chunks.length)
+            : 0
+        });
+        
+        return {
+          chunks: result.chunks,
+          totalChunks: result.chunks.length
+        };
+      }
+      
+      // Use format-aware chunking for Excel documents
+      if (content.type === 'excel') {
+        this.loggingService.info('Using Excel-aware chunking for document');
+        const { ExcelChunkingService } = await import('../domain/content/excel-chunking.js');
+        const excelChunker = new ExcelChunkingService();
+        
+        // Convert chunk size from characters to tokens (roughly 4 chars per token)
+        const maxTokens = Math.ceil(chunkSize / 4);
+        const minTokens = Math.ceil(maxTokens * 0.2); // 20% of max as minimum
+        
+        const result = excelChunker.chunkExcelDocument(content, maxTokens, minTokens);
+        
+        this.loggingService.info('Excel document chunked successfully', {
+          totalChunks: result.chunks.length,
+          chunkingMethod: 'excel-sheet-aware',
+          averageChunkSize: result.chunks.length > 0 
+            ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / result.chunks.length)
+            : 0
+        });
+        
+        return {
+          chunks: result.chunks,
+          totalChunks: result.chunks.length
+        };
+      }
+      
+      // Use format-aware chunking for PowerPoint documents
+      if (content.type === 'powerpoint') {
+        this.loggingService.info('Using PowerPoint-aware chunking for document');
+        const { PowerPointChunkingService } = await import('../domain/content/powerpoint-chunking.js');
+        const pptChunker = new PowerPointChunkingService();
+        
+        // Convert chunk size from characters to tokens (roughly 4 chars per token)
+        const maxTokens = Math.ceil(chunkSize / 4);
+        const minTokens = Math.ceil(maxTokens * 0.2); // 20% of max as minimum
+        
+        const result = pptChunker.chunkPowerPointDocument(content, maxTokens, minTokens);
+        
+        this.loggingService.info('PowerPoint document chunked successfully', {
+          totalChunks: result.chunks.length,
+          chunkingMethod: 'powerpoint-slide-aware',
+          averageChunkSize: result.chunks.length > 0 
+            ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / result.chunks.length)
+            : 0
+        });
+        
+        return {
+          chunks: result.chunks,
+          totalChunks: result.chunks.length
+        };
+      }
+      
+      // Use existing chunking logic for other file types
       const { chunkText } = await import('../domain/content/index.js');
       const result = chunkText(content, chunkSize, chunkSize + 100, overlap / 100);
       
       this.loggingService.info('Text chunked successfully', {
         totalChunks: result.totalChunks,
+        contentType: content.type,
         averageChunkSize: result.chunks.length > 0 
           ? Math.round(result.chunks.reduce((sum, chunk) => sum + chunk.tokenCount, 0) / result.chunks.length)
           : 0

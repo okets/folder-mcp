@@ -9,7 +9,7 @@ import * as mammoth from 'mammoth';
 import XLSX from 'xlsx';
 import JSZip from 'jszip';
 import * as xml2js from 'xml2js';
-import { parsePdf } from '../../utils/pdf-parser-wrapper.js';
+import PDF2Json from 'pdf2json';
 import { 
   ParsedContent, 
   TextMetadata, 
@@ -122,58 +122,107 @@ export class FileParser implements FileParsingOperations {
     // Read PDF file as buffer
     const dataBuffer = this.fileSystem.readFileBuffer(filePath);
     
-    // Parse PDF using our wrapper
-    const pdfData = await parsePdf(dataBuffer);
-    
-    // Extract page-by-page content if available
-    const pages: string[] = [];
-    if (pdfData.text) {
-      // Split content by common page break indicators
-      const pageBreaks = pdfData.text.split(/\f|\n\s*\n\s*\n/);
-      pageBreaks.forEach((pageContent: string) => {
-        const trimmedContent = pageContent.trim();
-        if (trimmedContent.length > 0) {
-          pages.push(trimmedContent);
+    // Parse PDF using pdf2json
+    return new Promise((resolve, reject) => {
+      const pdfParser = new (PDF2Json as any)();
+      
+      // Set up event handlers
+      pdfParser.on('pdfParser_dataError', (errData: any) => {
+        this.logger?.error('Error parsing PDF file', errData.parserError);
+        reject(new Error(`Failed to parse PDF: ${errData.parserError}`));
+      });
+      
+      pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+        try {
+          // Extract text from all pages
+          let fullText = '';
+          const pageTexts: string[] = [];
+          const pageStructures: any[] = [];
+          
+          // Process each page
+          if (pdfData.Pages && Array.isArray(pdfData.Pages)) {
+            pdfData.Pages.forEach((page: any, pageIndex: number) => {
+              let pageText = '';
+              const textBlocks: any[] = [];
+              
+              // Extract text from text blocks
+              if (page.Texts && Array.isArray(page.Texts)) {
+                page.Texts.forEach((textItem: any) => {
+                  if (textItem.R && Array.isArray(textItem.R)) {
+                    textItem.R.forEach((run: any) => {
+                      if (run.T) {
+                        // Decode URI component (pdf2json encodes text)
+                        const decodedText = decodeURIComponent(run.T);
+                        pageText += decodedText + ' ';
+                      }
+                    });
+                  }
+                  
+                  // Store text block info for chunking
+                  textBlocks.push({
+                    x: textItem.x,
+                    y: textItem.y,
+                    w: textItem.w,
+                    h: textItem.h,
+                    text: textItem.R?.map((r: any) => decodeURIComponent(r.T || '')).join(' ')
+                  });
+                });
+              }
+              
+              pageTexts.push(pageText.trim());
+              pageStructures.push({
+                pageIndex,
+                textBlocks,
+                width: page.Width,
+                height: page.Height
+              });
+              
+              if (pageText.trim()) {
+                fullText += pageText.trim() + '\n\n';
+              }
+            });
+          }
+          
+          // Extract metadata
+          const metadata: PDFMetadata = {
+            type: 'pdf',
+            originalPath: relativePath,
+            size: stats.size,
+            lastModified: stats.mtime.toISOString(),
+            pages: pdfData.Pages?.length || 0,
+            // Store page structures for chunking (extending the type)
+            ...(pageStructures.length > 0 && { pageStructures } as any),
+            // Extract metadata if available
+            ...(pdfData.Meta && {
+              author: pdfData.Meta.Author,
+              created: pdfData.Meta.CreationDate,
+              keywords: pdfData.Meta.Keywords || pdfData.Meta.Subject,
+              pdfInfo: {
+                title: pdfData.Meta.Title,
+                author: pdfData.Meta.Author,
+                subject: pdfData.Meta.Subject,
+                creator: pdfData.Meta.Creator,
+                producer: pdfData.Meta.Producer,
+                creationDate: pdfData.Meta.CreationDate,
+                modificationDate: pdfData.Meta.ModDate
+              }
+            })
+          };
+          
+          resolve({
+            content: fullText.trim(),
+            type: 'pdf',
+            originalPath: relativePath,
+            metadata
+          });
+        } catch (error) {
+          reject(error);
         }
       });
-    }
-    
-    // If no pages detected, use the full text as one page
-    if (pages.length === 0 && pdfData.text) {
-      pages.push(pdfData.text.trim());
-    }
-    
-    const metadata: PDFMetadata = {
-      type: 'pdf',
-      originalPath: relativePath,
-      size: stats.size,
-      lastModified: stats.mtime.toISOString(),
-      pages: pdfData.numpages || pages.length,
-      // Top-level fields for test compatibility
-      ...(pdfData.info && {
-        author: pdfData.info.Author,
-        created: pdfData.info.CreationDate,
-        keywords: pdfData.info.Keywords || pdfData.info.Subject,
-      }),
-      ...(pdfData.info && {
-        pdfInfo: {
-          title: pdfData.info.Title,
-          author: pdfData.info.Author,
-          subject: pdfData.info.Subject,
-          creator: pdfData.info.Creator,
-          producer: pdfData.info.Producer,
-          creationDate: pdfData.info.CreationDate,
-          modificationDate: pdfData.info.ModDate
-        }
-      })
-    };
-
-    return {
-      content: pdfData.text || '',
-      type: 'pdf',
-      originalPath: relativePath,
-      metadata
-    };
+      
+      // Parse the buffer
+      pdfParser.parseBuffer(dataBuffer);
+    });
   }
 
   /**
@@ -397,6 +446,46 @@ export class FileParser implements FileParsingOperations {
       return text;
     };
     
+    // First, map slides to their notes through relationships
+    const slideToNotesMap = new Map<number, string>();
+    
+    // Process relationship files to find notes associations
+    for (const [filename, file] of Object.entries(content.files)) {
+      if (filename.match(/ppt\/slides\/_rels\/slide\d+\.xml\.rels$/)) {
+        const slideNum = parseInt(filename.match(/slide(\d+)\.xml\.rels$/)?.[1] || '0');
+        const relsContent = await file.async('text');
+        
+        // Look for notes relationship
+        const notesMatch = relsContent.match(/Target="\.\.\/notesSlides\/notesSlide\d+\.xml"/);
+        if (notesMatch) {
+          const notesNum = notesMatch[0].match(/notesSlide(\d+)\.xml/)?.[1];
+          if (notesNum) {
+            slideToNotesMap.set(slideNum, `ppt/notesSlides/notesSlide${notesNum}.xml`);
+          }
+        }
+      }
+    }
+    
+    // Extract notes content
+    const notesContent = new Map<string, string>();
+    for (const [filename, file] of Object.entries(content.files)) {
+      if (filename.match(/ppt\/notesSlides\/notesSlide\d+\.xml$/)) {
+        const notesXml = await file.async('text');
+        const parser = new xml2js.Parser();
+        try {
+          const result = await parser.parseStringPromise(notesXml);
+          const notesText = extractTextFromNode(result);
+          // Clean up the notes text (remove slide numbers at the beginning)
+          const cleanedNotes = notesText.replace(/^\d+\s*/, '').trim();
+          if (cleanedNotes) {
+            notesContent.set(filename, cleanedNotes);
+          }
+        } catch (e) {
+          this.logger?.warn('Failed to parse notes file', { filename, error: e });
+        }
+      }
+    }
+    
     // Process each slide
     for (const [filename, file] of Object.entries(content.files)) {
       if (filename.startsWith('ppt/slides/slide') && filename.endsWith('.xml')) {
@@ -406,12 +495,24 @@ export class FileParser implements FileParsingOperations {
         
         // Extract text from slide
         const slideText = extractTextFromNode(result);
-        if (slideText.trim()) {
-          allTextContent += `\n\n=== Slide ${filename.match(/\d+/)?.[0] || '?'} ===\n${slideText}`;
+        const slideNumber = parseInt(filename.match(/\d+/)?.[0] || '0');
+        
+        // Get associated notes
+        const notesFile = slideToNotesMap.get(slideNumber);
+        const slideNotes = notesFile ? notesContent.get(notesFile) : undefined;
+        
+        // Add to overall text content
+        if (slideText.trim() || slideNotes) {
+          allTextContent += `\n\n=== Slide ${slideNumber} ===\n`;
+          if (slideText.trim()) {
+            allTextContent += slideText.trim();
+          }
+          if (slideNotes) {
+            allTextContent += `\n\n[Speaker Notes]\n${slideNotes}`;
+          }
         }
         
         // Extract slide metadata
-        const slideNumber = parseInt(filename.match(/\d+/)?.[0] || '0');
         const hasImages = slideContent.includes('<a:blip');
         const hasShapes = slideContent.includes('<p:sp');
         const hasTables = slideContent.includes('<a:tbl');
@@ -419,6 +520,8 @@ export class FileParser implements FileParsingOperations {
         slides.push({
           number: slideNumber,
           text: slideText,
+          notes: slideNotes || '',
+          hasNotes: !!slideNotes,
           hasImages,
           hasShapes,
           hasTables
@@ -440,6 +543,8 @@ export class FileParser implements FileParsingOperations {
       hasImages: slides.some(s => s.hasImages),
       hasShapes: slides.some(s => s.hasShapes),
       hasTables: slides.some(s => s.hasTables),
+      hasNotes: slides.some(s => s.hasNotes),
+      notesCount: slides.filter(s => s.hasNotes).length,
       slideData: slides
     };
     

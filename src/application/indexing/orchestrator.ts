@@ -598,7 +598,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                 if (embeddingIndex < batch.length) {
                   const chunk = batch[embeddingIndex];
                   if (chunk) {
-                    successfulMetadata.push({
+                    const metadataObj: any = {
                       filePath,
                       chunkId: `${filePath}_chunk_${originalChunkIndex}`,
                       chunkIndex: originalChunkIndex,
@@ -606,7 +606,16 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                       startPosition: chunk.startPosition,
                       endPosition: chunk.endPosition,
                       fileHash
-                    });
+                    };
+                    
+                    // Sprint 11: Pass through extraction params from format-aware chunking
+                    // The format-aware chunking services add extractionParams to metadata
+                    const chunkMetadata = chunk.metadata as any;
+                    if (chunkMetadata?.extractionParams) {
+                      metadataObj.extractionParams = chunkMetadata.extractionParams;
+                    }
+                    
+                    successfulMetadata.push(metadataObj);
                   }
                 }
               }

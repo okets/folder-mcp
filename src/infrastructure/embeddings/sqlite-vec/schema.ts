@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     content TEXT NOT NULL,
     start_offset INTEGER NOT NULL,
     end_offset INTEGER NOT NULL,
+    extraction_params TEXT NOT NULL,   -- JSON field for bidirectional extraction
     token_count INTEGER,
     -- Semantic metadata columns for Sprint 10
     key_phrases TEXT,           -- JSON array of extracted key phrases
@@ -74,18 +75,6 @@ CREATE TABLE IF NOT EXISTS embeddings (
     embedding TEXT
 );`;
 
-/**
- * Metadata for search results and document structure
- * Stores additional context for chunks (page numbers, sections, etc.)
- */
-export const CHUNK_METADATA_TABLE = `
-CREATE TABLE IF NOT EXISTS chunk_metadata (
-    chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
-    page_number INTEGER,
-    section_name TEXT,
-    sheet_name TEXT,
-    slide_number INTEGER
-);`;
 
 /**
  * Configuration tracking for the embedding model used
@@ -166,7 +155,6 @@ export function getAllTableStatements(embeddingDimension: number): string[] {
         DOCUMENTS_TABLE,
         CHUNKS_TABLE,
         createEmbeddingsTable(embeddingDimension),
-        CHUNK_METADATA_TABLE,
         EMBEDDING_CONFIG_TABLE,
         FILE_STATES_TABLE,
         // REMOVED: FOLDER_SEMANTIC_SUMMARY_TABLE (Phase 5 cleanup - using runtime aggregation)
@@ -182,7 +170,7 @@ export const VALIDATION_QUERIES = {
     checkTables: `
         SELECT name FROM sqlite_master 
         WHERE type='table' 
-        AND name IN ('documents', 'chunks', 'embeddings', 'chunk_metadata', 'embedding_config', 'file_states')
+        AND name IN ('documents', 'chunks', 'embeddings', 'embedding_config', 'file_states')
         ORDER BY name;
     `,
     checkIndexes: `
@@ -210,12 +198,12 @@ export const QUERIES = {
     deleteDocument: 'DELETE FROM documents WHERE file_path = ?',
     markForReindex: 'UPDATE documents SET needs_reindex = 1 WHERE file_path = ?',
     
-    // Chunk operations (updated for Sprint 10 with semantic columns)
+    // Chunk operations (updated for Sprint 11 with extraction_params)
     insertChunk: `
         INSERT INTO chunks 
-        (document_id, chunk_index, content, start_offset, end_offset, token_count,
+        (document_id, chunk_index, content, start_offset, end_offset, extraction_params, token_count,
          key_phrases, topics, readability_score, semantic_processed, semantic_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     getChunksByDocument: 'SELECT * FROM chunks WHERE document_id = ? ORDER BY chunk_index',
     deleteChunksByDocument: 'DELETE FROM chunks WHERE document_id = ?',
@@ -230,6 +218,7 @@ export const QUERIES = {
     `,
     
     // Search operations (temporarily simplified without vec0 functions)
+    // Sprint 11: Updated to use extraction_params instead of chunk_metadata table
     similaritySearch: `
         SELECT 
             c.id as chunk_id,
@@ -237,10 +226,7 @@ export const QUERIES = {
             c.chunk_index,
             d.file_path,
             d.mime_type,
-            cm.page_number,
-            cm.section_name,
-            cm.sheet_name,
-            cm.slide_number,
+            c.extraction_params,
             c.key_phrases,
             c.topics,
             c.readability_score,
@@ -248,7 +234,6 @@ export const QUERIES = {
         FROM embeddings e
         JOIN chunks c ON e.chunk_id = c.id
         JOIN documents d ON c.document_id = d.id
-        LEFT JOIN chunk_metadata cm ON c.id = cm.chunk_id
         ORDER BY c.id ASC
         LIMIT ?
     `,

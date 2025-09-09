@@ -9,6 +9,10 @@ import { IVectorSearchService, ILoggingService } from '../../../di/interfaces.js
 import { EmbeddingVector, TextChunk } from '../../../types/index.js';
 import { SearchResult } from '../../../domain/search/index.js';
 import { ContentProcessingService, createContentProcessingService } from '../../../domain/content/processing.js';
+import { 
+    ExtractionParamsFactory, 
+    ExtractionParamsValidator 
+} from '../../../domain/extraction/index.js';
 
 // Temporary type alias for compatibility with tests
 type EmbeddingVectorOrArray = EmbeddingVector | number[];
@@ -35,6 +39,7 @@ export interface VectorMetadata {
     sectionName?: string;
     sheetName?: string;
     slideNumber?: number;
+    extractionParams?: string;  // Sprint 11: Pre-computed extraction params from format-aware chunking
 }
 
 export interface FileMetadata {
@@ -333,7 +338,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
         const insertDocStmt = db.prepare(QUERIES.insertDocument);
         const insertChunkStmt = db.prepare(QUERIES.insertChunk);
         const insertEmbeddingStmt = db.prepare(QUERIES.insertEmbedding);
-        const insertMetadataStmt = db.prepare('INSERT INTO chunk_metadata (chunk_id, page_number, section_name, sheet_name, slide_number) VALUES (?, ?, ?, ?, ?)');
+        // Sprint 11: Removed insertMetadataStmt - metadata now stored in chunks.extraction_params
 
         // Execute in transaction
         const insertTransaction = db.transaction(() => {
@@ -396,13 +401,69 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 const topics = ContentProcessingService.detectTopics(meta.content);
                 const readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
                 
-                // Insert chunk with semantic processing results
+                // Sprint 11: Create normalized extraction params based on file type
+                let serializedParams: string;
+                
+                // First check if extraction params are already provided by format-aware chunking
+                if (meta.extractionParams) {
+                    // Use pre-computed extraction params from format-aware chunking services
+                    serializedParams = meta.extractionParams;
+                    this.logger?.debug(`[EXTRACTION-PARAMS] Using pre-computed params from format-aware chunking: ${serializedParams.substring(0, 100)}...`);
+                } else {
+                    // Fallback: Create extraction params based on metadata hints
+                    let extractionParams;
+                    
+                    // Determine file type from metadata and create appropriate params
+                    if (meta.sheetName) {
+                        // Excel file
+                        extractionParams = ExtractionParamsFactory.createExcelParams(
+                            meta.sheetName,
+                            meta.startPosition || 1,  // Use position as row for now
+                            meta.endPosition || 100,   // Will be improved with proper chunking
+                            'A',  // Default column range
+                            'Z'
+                        );
+                        this.logger?.debug(`[EXTRACTION-PARAMS] Fallback: Created Excel params for sheet: ${meta.sheetName}`);
+                    } else if (meta.slideNumber) {
+                        // PowerPoint file
+                        extractionParams = ExtractionParamsFactory.createPowerPointParams(
+                            meta.slideNumber,
+                            false  // includeNotes - will be determined by chunking service
+                        );
+                        this.logger?.debug(`[EXTRACTION-PARAMS] Fallback: Created PowerPoint params for slide: ${meta.slideNumber}`);
+                    } else if (meta.pageNumber) {
+                        // PDF or Word file (will differentiate later)
+                        extractionParams = ExtractionParamsFactory.createPdfParams(
+                            meta.pageNumber,
+                            1,  // Start line within page - will be calculated properly
+                            50  // End line within page - will be calculated properly
+                        );
+                        this.logger?.debug(`[EXTRACTION-PARAMS] Fallback: Created PDF params for page: ${meta.pageNumber}`);
+                    } else {
+                        // Default to text file
+                        // For now, use positions as pseudo line numbers
+                        // This will be replaced with actual line tracking in chunking service
+                        const ext = meta.filePath?.split('.').pop()?.toLowerCase();
+                        extractionParams = ExtractionParamsFactory.createTextParams(
+                            Math.max(1, meta.startPosition || 1),
+                            Math.max(1, meta.endPosition || meta.startPosition || 1)
+                        );
+                        this.logger?.debug(`[EXTRACTION-PARAMS] Fallback: Created Text params for file (ext: ${ext}): ${meta.filePath}`);
+                    }
+                    
+                    // Serialize using validator for consistency
+                    serializedParams = ExtractionParamsValidator.serialize(extractionParams);
+                    this.logger?.debug(`[EXTRACTION-PARAMS] Fallback: Serialized params: ${serializedParams.substring(0, 100)}...`);
+                }
+                
+                // Insert chunk with semantic processing results and extraction_params
                 const chunkResult = insertChunkStmt.run(
                     docId,
                     meta.chunkIndex,
                     meta.content,
                     meta.startPosition,
                     meta.endPosition,
+                    serializedParams, // Sprint 11: Normalized extraction_params
                     Math.ceil(meta.content.length / 4), // Rough token count estimate
                     JSON.stringify(keyPhrases), // key_phrases as JSON array
                     JSON.stringify(topics), // topics as JSON array
@@ -419,16 +480,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 const embeddingJson = JSON.stringify(embeddingArray);
                 insertEmbeddingStmt.run(chunkId, embeddingJson);
 
-                // Insert chunk metadata if available
-                if (meta.pageNumber || meta.sectionName || meta.sheetName || meta.slideNumber) {
-                    insertMetadataStmt.run(
-                        chunkId,
-                        meta.pageNumber || null,
-                        meta.sectionName || null,
-                        meta.sheetName || null,
-                        meta.slideNumber || null
-                    );
-                }
+                // Sprint 11: Removed chunk_metadata insert - now stored in chunks.extraction_params
             }
         });
 

@@ -8,7 +8,7 @@ import * as path from 'path';
 import { DocumentInfo, FolderContext, PaginationInfo, DocumentData, DocumentDataResponse, DocumentOutline, DocumentOutlineResponse } from '../rest/types.js';
 import { IndexingTracker } from './indexing-tracker.js';
 import { PathNormalizer } from '../utils/path-normalizer.js';
-import pdfParse from 'pdf-parse';
+import PDF2Json from 'pdf2json';
 import XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import JSZip from 'jszip';
@@ -226,12 +226,38 @@ export class DocumentService {
           // Extract text from PDF using pdf-parse
           try {
             const pdfBuffer = await fs.promises.readFile(docPath);
-            const pdfData = await pdfParse(pdfBuffer);
-            content = pdfData.text;
+            // Use pdf2json for parsing
+            content = await new Promise((resolve, reject) => {
+              const pdfParser = new (PDF2Json as any)();
+              pdfParser.on('pdfParser_dataError', (errData: any) => {
+                reject(new Error(`Failed to parse PDF: ${errData.parserError}`));
+              });
+              pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+                let fullText = '';
+                if (pdfData.Pages && Array.isArray(pdfData.Pages)) {
+                  pdfData.Pages.forEach((page: any) => {
+                    if (page.Texts && Array.isArray(page.Texts)) {
+                      page.Texts.forEach((textItem: any) => {
+                        if (textItem.R && Array.isArray(textItem.R)) {
+                          textItem.R.forEach((run: any) => {
+                            if (run.T) {
+                              fullText += decodeURIComponent(run.T) + ' ';
+                            }
+                          });
+                        }
+                      });
+                    }
+                    fullText += '\n\n';
+                  });
+                }
+                resolve(fullText.trim());
+              });
+              pdfParser.parseBuffer(pdfBuffer);
+            });
             metadata = {
-              pageCount: pdfData.numpages,
-              info: pdfData.info,
-              metadata: pdfData.metadata
+              pageCount: 0, // Will be set later if needed
+              info: {},
+              metadata: {}
             };
           } catch (pdfError) {
             this.logger.error(`[DOC-SERVICE] Failed to extract PDF content from ${docPath}: ${pdfError}`);
@@ -628,10 +654,21 @@ export class DocumentService {
   private async getPDFOutline(filePath: string): Promise<DocumentOutline> {
     try {
       const pdfBuffer = await fs.promises.readFile(filePath);
-      const pdfData = await pdfParse(pdfBuffer);
+      
+      // Parse PDF using pdf2json
+      const pdfData = await new Promise<any>((resolve, reject) => {
+        const pdfParser = new (PDF2Json as any)();
+        pdfParser.on('pdfParser_dataError', (errData: any) => {
+          reject(new Error(`Failed to parse PDF: ${errData.parserError}`));
+        });
+        pdfParser.on('pdfParser_dataReady', (data: any) => {
+          resolve(data);
+        });
+        pdfParser.parseBuffer(pdfBuffer);
+      });
       
       // Extract real page count and any available outline/bookmarks
-      const pageCount = pdfData.numpages || 1;
+      const pageCount = pdfData.Pages?.length || 1;
       
       // Create basic page structure
       const pages = Array.from({ length: pageCount }, (_, i) => ({
