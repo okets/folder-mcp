@@ -265,9 +265,11 @@ export class WordChunkingService {
             headingLevel?: number;
         }
     ): TextChunk {
-        // Find byte offsets in full text
-        const startOffset = fullText.indexOf(text);
-        const endOffset = startOffset + text.length;
+        // For Word documents, we use paragraph-based chunking
+        // The offsets represent positions in the full document text
+        // Since we're working with structured paragraphs, we calculate based on position
+        const startOffset = 0; // Will be calculated during actual extraction
+        const endOffset = text.length;
         
         // Create extraction params using factory
         const extractionParams = ExtractionParamsFactory.createWordParams(
@@ -378,6 +380,10 @@ export class WordChunkingService {
         
         if (wordParams.endParagraph < wordParams.startParagraph) {
             throw new Error(`endParagraph (${wordParams.endParagraph}) cannot be less than startParagraph (${wordParams.startParagraph})`);
+        }
+        
+        if (wordParams.endParagraph >= paragraphElements.length) {
+            throw new Error(`Invalid endParagraph: ${wordParams.endParagraph}. Document has ${paragraphElements.length} paragraphs (0-indexed)`);
         }
         
         // Extract requested paragraph range

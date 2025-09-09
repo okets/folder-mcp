@@ -56,13 +56,9 @@ export class PdfChunkingService {
         const pageStructures = (metadata as any).pageStructures as PdfPageStructure[];
         
         if (!pageStructures || pageStructures.length === 0) {
-            console.error('[PDF-CHUNKING] WARNING: No page structures found, using PDF fallback chunking');
-            console.error(`[PDF-CHUNKING] Metadata keys: ${Object.keys(metadata)}`);
             // Fallback to simple text chunking if no structure available
             return this.fallbackTextChunking(content, maxTokens, minTokens);
         }
-        
-        console.error(`[PDF-CHUNKING] Using page-aware chunking with ${pageStructures.length} page structures`);
         // Create chunks respecting page boundaries
         const chunks = this.createPageAwareChunks(
             pageStructures,
@@ -145,7 +141,7 @@ export class PdfChunkingService {
         
         for (let i = 0; i < pageStructure.textBlocks.length; i++) {
             const block = pageStructure.textBlocks[i];
-            if (!block) continue;
+            if (!block || !block.text) continue;
             const blockTokens = Math.ceil(block.text.length / 4);
             
             if (!currentChunk) {
@@ -295,7 +291,6 @@ export class PdfChunkingService {
         maxTokens: number,
         minTokens: number
     ): ChunkedContent {
-        console.error(`[PDF-CHUNKING] FALLBACK: Processing ${content.content.length} characters with PDF-specific extraction params`);
         const chunks: TextChunk[] = [];
         const text = content.content;
         const words = text.split(/\s+/);
@@ -371,12 +366,6 @@ export class PdfChunkingService {
             });
         }
         
-        console.error(`[PDF-CHUNKING] FALLBACK: Generated ${chunks.length} chunks with PDF extraction params`);
-        if (chunks.length > 0 && chunks[0]?.metadata && (chunks[0].metadata as any)?.extractionParams) {
-            const sampleParams = JSON.parse((chunks[0].metadata as any).extractionParams);
-            console.error(`[PDF-CHUNKING] FALLBACK: Sample extraction params: ${JSON.stringify(sampleParams)}`);
-        }
-        
         return {
             originalContent: content,
             chunks,
@@ -446,10 +435,10 @@ export class PdfChunkingService {
                         const textItem = page.Texts[i];
                         
                         // If coordinates are specified, verify the text block is within bounds
-                        if (pdfParams.x !== undefined && textItem.x < pdfParams.x - 1) {
+                        if (pdfParams.x !== undefined && textItem.x < pdfParams.x) {
                             continue; // Skip blocks outside x coordinate
                         }
-                        if (pdfParams.y !== undefined && textItem.y < pdfParams.y - 1) {
+                        if (pdfParams.y !== undefined && textItem.y < pdfParams.y) {
                             continue; // Skip blocks outside y coordinate
                         }
                         
@@ -457,9 +446,14 @@ export class PdfChunkingService {
                         if (textItem.R && Array.isArray(textItem.R)) {
                             textItem.R.forEach((run: any) => {
                                 if (run.T) {
-                                    // Decode URI component (pdf2json encodes text)
-                                    const decodedText = decodeURIComponent(run.T);
-                                    extractedText += decodedText + ' ';
+                                    try {
+                                        // Decode URI component (pdf2json encodes text)
+                                        const decodedText = decodeURIComponent(run.T);
+                                        extractedText += decodedText + ' ';
+                                    } catch (error) {
+                                        // If decoding fails, use the raw text
+                                        extractedText += run.T + ' ';
+                                    }
                                 }
                             });
                         }

@@ -1,15 +1,12 @@
 /**
- * import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, resolve, extname } from 'path';
-import { homedir } from 'os';vice implementations for dependency injection
+ * Service implementations for dependency injection
  * 
  * Contains concrete implementations of all service interfaces
  * with proper dependency injection support.
  */
 
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, unlinkSync } from 'fs';
-import { join, resolve, extname } from 'path';
-import { homedir } from 'os';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { join } from 'path';
 
 import {
   IConfigurationService,
@@ -26,7 +23,7 @@ import {
 } from './interfaces.js';
 
 import { FileFingerprint, TextChunk, ParsedContent, EmbeddingVector } from '../types/index.js';
-import { ResolvedConfig, CLIArgs } from '../config/schema.js';
+import { ResolvedConfig } from '../config/schema.js';
 import { RuntimeConfig } from '../config/schema.js';
 import { SystemCapabilities } from '../config/schema.js';
 // Temporary stub for getSystemCapabilities (was in removed system.js)
@@ -228,10 +225,10 @@ export class FileParsingService implements IFileParsingService {
     }
   }
 
-  private async parseWithDomainLayer(absolutePath: string, fileType: string): Promise<ParsedContent> {
+  private async parseWithDomainLayer(absolutePath: string, _fileType: string): Promise<ParsedContent> {
     // Import domain parser and infrastructure providers
     const { FileParser } = await import('../domain/files/parser.js');
-    const { NodeFileSystemProvider, NodeCryptographyProvider, NodePathProvider } = await import('../infrastructure/providers/node-providers.js');
+    const { NodeFileSystemProvider, NodePathProvider } = await import('../infrastructure/providers/node-providers.js');
     
     // Create infrastructure providers
     const fileSystemProvider = new NodeFileSystemProvider();
@@ -992,7 +989,7 @@ export class VectorSearchService implements IVectorSearchService {
   private isIndexReady = false;
 
   constructor(
-    private readonly cacheDir: string,
+    private readonly _cacheDir: string,
     private readonly loggingService: ILoggingService
   ) {}  async buildIndex(embeddings: EmbeddingVector[], metadata: any[]): Promise<void> {
     try {
@@ -1000,7 +997,7 @@ export class VectorSearchService implements IVectorSearchService {
       this.vectorIndex = {
         embeddings,
         metadata,
-        search: async (queryVector: EmbeddingVector, topK: number) => {
+        search: async (_queryVector: EmbeddingVector, topK: number) => {
           // Simple cosine similarity search
           const results = metadata.map((meta, index) => {
             // Calculate a simple similarity score (normally would use cosine similarity with actual vectors)
@@ -1143,7 +1140,7 @@ export class ErrorRecoveryService implements IErrorRecoveryService {
   private errorManager: any = null;
 
   constructor(
-    private readonly cacheDir: string,
+    private readonly _cacheDir: string,
     private readonly loggingService: ILoggingService
   ) {}
 
@@ -1151,7 +1148,7 @@ export class ErrorRecoveryService implements IErrorRecoveryService {
     if (!this.errorManager) {
       try {
         const { ErrorRecoveryManager } = await import('../infrastructure/errors/recovery.js');
-        this.errorManager = new ErrorRecoveryManager(this.cacheDir);
+        this.errorManager = new ErrorRecoveryManager(this._cacheDir);
       } catch (error) {
         this.loggingService.error('Failed to initialize error manager', error instanceof Error ? error : new Error(String(error)));
         throw error;
@@ -1332,7 +1329,7 @@ export class IndexingWorkflowService implements IIndexingWorkflow {
     }
   }
 
-  async getIndexingStatus(path: string): Promise<any> {
+  async getIndexingStatus(_path: string): Promise<any> {
     return {
       isIndexing: false,
       lastIndexed: new Date(),

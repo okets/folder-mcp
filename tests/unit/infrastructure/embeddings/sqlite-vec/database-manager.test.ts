@@ -94,8 +94,8 @@ describe('DatabaseManager', () => {
             expect(tableNames).toContain('documents');
             expect(tableNames).toContain('chunks');
             expect(tableNames).toContain('embeddings');
-            expect(tableNames).toContain('chunk_metadata');
             expect(tableNames).toContain('embedding_config');
+            expect(tableNames).toContain('file_states');
         });
 
         it('should create embedding_config with correct model info', async () => {

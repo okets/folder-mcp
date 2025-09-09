@@ -107,6 +107,7 @@ export const ExtractionParamsTypeGuards = {
     isTextParams(params: unknown): params is TextExtractionParams {
         const p = params as any;
         return p?.type === 'text' && 
+               typeof p.version === 'number' &&
                typeof p.startLine === 'number' && 
                typeof p.endLine === 'number';
     },
@@ -114,6 +115,7 @@ export const ExtractionParamsTypeGuards = {
     isMarkdownParams(params: unknown): params is MarkdownExtractionParams {
         const p = params as any;
         return p?.type === 'markdown' && 
+               typeof p.version === 'number' &&
                typeof p.startLine === 'number' && 
                typeof p.endLine === 'number';
     },
@@ -121,6 +123,7 @@ export const ExtractionParamsTypeGuards = {
     isPdfParams(params: unknown): params is PdfExtractionParams {
         const p = params as any;
         return p?.type === 'pdf' && 
+               typeof p.version === 'number' &&
                typeof p.page === 'number' &&
                typeof p.startTextBlock === 'number' && 
                typeof p.endTextBlock === 'number';
@@ -129,6 +132,7 @@ export const ExtractionParamsTypeGuards = {
     isExcelParams(params: unknown): params is ExcelExtractionParams {
         const p = params as any;
         return p?.type === 'excel' && 
+               typeof p.version === 'number' &&
                typeof p.sheet === 'string' &&
                typeof p.startRow === 'number' && 
                typeof p.endRow === 'number' &&
@@ -139,6 +143,7 @@ export const ExtractionParamsTypeGuards = {
     isPowerPointParams(params: unknown): params is PowerPointExtractionParams {
         const p = params as any;
         return p?.type === 'powerpoint' && 
+               typeof p.version === 'number' &&
                typeof p.slide === 'number' &&
                typeof p.includeNotes === 'boolean';
     },
@@ -146,6 +151,7 @@ export const ExtractionParamsTypeGuards = {
     isWordParams(params: unknown): params is WordExtractionParams {
         const p = params as any;
         return p?.type === 'word' && 
+               typeof p.version === 'number' &&
                typeof p.startParagraph === 'number' && 
                typeof p.endParagraph === 'number';
     }

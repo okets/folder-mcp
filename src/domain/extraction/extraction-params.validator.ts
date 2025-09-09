@@ -322,6 +322,7 @@ export class ExtractionParamsValidator {
      * Helper: Validate column letter format
      */
     private static isValidColumnLetter(col: string): boolean {
-        return /^[A-Z]{1,3}$/i.test(col);
+        // Validate column letters (A-ZZZ), uppercase the input for consistency
+        return /^[A-Z]{1,3}$/.test(col.toUpperCase());
     }
 }

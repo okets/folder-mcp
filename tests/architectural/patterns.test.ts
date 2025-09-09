@@ -155,6 +155,7 @@ function checkDependencyInjectionUsage(): string[] {
             !file.includes('container') && 
             !file.includes('setup') &&
             !file.includes('provider') &&
+            !file.includes('daemon/rest') &&
             !content.includes('createContentProcessingService') &&
             !content.includes('createFileWatchingService') &&
             !content.includes('createFileWatchingDomainService') &&

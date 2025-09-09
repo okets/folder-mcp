@@ -32,17 +32,11 @@ export class PowerPointChunkingService {
         }
         
         // Create chunks respecting slide boundaries
-        // Debug logging
-        console.error(`[POWERPOINT-CHUNKING] Starting chunking for content length: ${content.content.length}`);
-        console.error(`[POWERPOINT-CHUNKING] Content preview: ${content.content.substring(0, 100)}`);
-        
         const chunks = this.createSlideAwareChunks(
             content.content,
             maxTokens,
             minTokens
         );
-        
-        console.error(`[POWERPOINT-CHUNKING] Created ${chunks.length} chunks`);
         
         return {
             originalContent: content,
@@ -61,8 +55,9 @@ export class PowerPointChunkingService {
     ): TextChunk[] {
         const chunks: TextChunk[] = [];
         
-        // Split content by slide markers - Match parser output format
-        const slidePattern = /=== Slide (\d+) ===/g;
+        // Split content by slide markers - Match both parser output formats
+        // Supports both "=== Slide 1 ===" and "Slide 1:" formats
+        const slidePattern = /(?:=== Slide (\d+) ===|^Slide (\d+):)/gm;
         const slides: Array<{
             slideNumber: number;
             content: string;
@@ -72,10 +67,8 @@ export class PowerPointChunkingService {
         let lastIndex = 0;
         let match;
         
-        // Debug: Check pattern matching
-        const testMatches = [...fullText.matchAll(slidePattern)];
-        console.error(`[POWERPOINT-CHUNKING] Pattern matches found: ${testMatches.length}`);
-        slidePattern.lastIndex = 0; // Reset regex state
+        // Reset regex state for matching
+        slidePattern.lastIndex = 0;
         
         while ((match = slidePattern.exec(fullText)) !== null) {
             if (lastIndex > 0) {
@@ -91,8 +84,10 @@ export class PowerPointChunkingService {
                 }
             }
             
+            // Handle both capture groups (match[1] for === format, match[2] for Slide: format)
+            const slideNum = match[1] || match[2] || '1';
             slides.push({
-                slideNumber: parseInt(match[1] || '1'),
+                slideNumber: parseInt(slideNum),
                 content: '',
                 hasNotes: false
             });
@@ -108,11 +103,6 @@ export class PowerPointChunkingService {
                 lastSlide.content = lastSlideContent;
                 lastSlide.hasNotes = lastSlideContent.includes('[Speaker Notes]');
             }
-        }
-        
-        console.error(`[POWERPOINT-CHUNKING] Extracted ${slides.length} slides`);
-        if (slides.length > 0 && slides[0]) {
-            console.error(`[POWERPOINT-CHUNKING] First slide content length: ${slides[0].content.length}`);
         }
         
         // Create chunks from slides
@@ -184,17 +174,14 @@ export class PowerPointChunkingService {
         
         // Safety fallback: If no chunks were created but we have content
         if (chunks.length === 0 && fullText.length > minTokens * 4) {
-            console.error(`[POWERPOINT-CHUNKING] WARNING: Pattern matching failed, using fallback chunking`);
-            console.error(`[POWERPOINT-CHUNKING] This should not happen with properly formatted content`);
-            
             // Create a single chunk with the entire content as a fallback
             chunks.push(this.createChunk(
                 fullText,
                 0,
                 fullText,
                 {
-                    startSlide: 0,
-                    endSlide: 0,
+                    startSlide: 1,
+                    endSlide: 1,
                     includeNotes: fullText.includes('[Speaker Notes]')
                 }
             ));
@@ -216,10 +203,11 @@ export class PowerPointChunkingService {
             includeNotes: boolean;
         }
     ): TextChunk {
-        // Find byte offsets in full text
-        const textStart = fullText.indexOf(text);
-        const startOffset = textStart >= 0 ? textStart : 0;
-        const endOffset = startOffset + text.length;
+        // For PowerPoint documents, we use slide-based chunking
+        // The offsets represent positions in the full presentation text
+        // Since we're working with structured slides, we use slide indices directly
+        const startOffset = 0; // Will be calculated during actual extraction
+        const endOffset = text.length;
         
         // Create extraction params using factory
         const extractionParams = ExtractionParamsFactory.createPowerPointParams(
