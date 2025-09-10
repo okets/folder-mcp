@@ -311,7 +311,17 @@ export class PowerPointChunkingService {
         const textMatches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || [];
         const texts = textMatches.map(match => {
             const textMatch = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
-            return textMatch && textMatch[1] ? textMatch[1] : '';
+            if (textMatch && textMatch[1]) {
+                // Decode XML entities
+                let text = textMatch[1];
+                text = text.replace(/&amp;/g, '&');
+                text = text.replace(/&lt;/g, '<');
+                text = text.replace(/&gt;/g, '>');
+                text = text.replace(/&quot;/g, '"');
+                text = text.replace(/&apos;/g, "'");
+                return text;
+            }
+            return '';
         }).filter(text => text.trim());
         
         return texts.join(' ');

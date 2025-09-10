@@ -89,6 +89,7 @@ You will need a TMOAT Script to add and remove folders consistently and clean up
 
 *** TMOAT Reminder ***
 I remind you that we don't go and blindly change code hoping we fixed an issue.
+Also, remember that we are still in pre-production phase. we don't need to maintain backwards compatibility or design any migration plans. we don't keep stale code.
 You as an agent can run bash commands, can call our endpoints directly using folder-mcp mcp server,  query databases and even access the daemon's websocket using scripts to add/remove folders from the indexing list. we are on a correct course task and should be very careful!
 Be a good TMOAT agent!
 
@@ -184,4 +185,3 @@ The automated Code review system does not know what we worked on. I want you to:
 - create an md file with the groupped task list.
 
 MY Code review system's suggestions:
-

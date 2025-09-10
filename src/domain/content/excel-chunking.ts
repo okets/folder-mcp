@@ -80,10 +80,18 @@ export class ExcelChunkingService {
         minTokens: number
     ): TextChunk[] {
         const chunks: TextChunk[] = [];
+        let currentOffset = 0;
         
         for (const worksheet of worksheets) {
             if (!worksheet.csvContent || !worksheet.csvContent.trim()) {
                 continue;
+            }
+            
+            // Find the sheet's position in fullText
+            const sheetMarker = `=== Sheet: ${worksheet.name} ===`;
+            const sheetStart = fullText.indexOf(sheetMarker, currentOffset);
+            if (sheetStart >= 0) {
+                currentOffset = sheetStart + sheetMarker.length + 1; // +1 for newline
             }
             
             const sheetChunks = this.chunkSingleSheet(
@@ -91,10 +99,19 @@ export class ExcelChunkingService {
                 fullText,
                 chunks.length,
                 maxTokens,
-                minTokens
+                minTokens,
+                currentOffset
             );
             
             chunks.push(...sheetChunks);
+            
+            // Update offset to after this sheet's content
+            if (sheetChunks.length > 0) {
+                const lastChunk = sheetChunks[sheetChunks.length - 1];
+                if (lastChunk) {
+                    currentOffset = lastChunk.endPosition;
+                }
+            }
         }
         
         return chunks;
@@ -108,7 +125,8 @@ export class ExcelChunkingService {
         fullText: string,
         startChunkIndex: number,
         maxTokens: number,
-        minTokens: number
+        minTokens: number,
+        searchFromOffset: number = 0
     ): TextChunk[] {
         const chunks: TextChunk[] = [];
         
@@ -161,7 +179,8 @@ export class ExcelChunkingService {
                         startChunkIndex + chunks.length,
                         fullText,
                         worksheet.name,
-                        currentChunk
+                        currentChunk,
+                        searchFromOffset
                     ));
                     
                     // Start new chunk with header
@@ -191,7 +210,8 @@ export class ExcelChunkingService {
                 startChunkIndex + chunks.length,
                 fullText,
                 worksheet.name,
-                currentChunk
+                currentChunk,
+                searchFromOffset
             ));
         }
         
@@ -234,13 +254,13 @@ export class ExcelChunkingService {
             endRow: number;
             startCol: string;
             endCol: string;
-        }
+        },
+        searchFromOffset: number = 0
     ): TextChunk {
-        // Find byte offsets in full text
-        const sheetMarker = `=== Sheet: ${sheetName} ===`;
-        const sheetStart = fullText.indexOf(sheetMarker);
-        const textStart = fullText.indexOf(text, sheetStart);
-        const startOffset = textStart >= 0 ? textStart : 0;
+        // Find byte offsets in full text, searching from the correct position
+        // to handle repeating text across sheets
+        const textStart = fullText.indexOf(text, searchFromOffset);
+        const startOffset = textStart >= 0 ? textStart : searchFromOffset;
         const endOffset = startOffset + text.length;
         
         // Create extraction params using factory

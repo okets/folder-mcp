@@ -236,11 +236,12 @@ export class PdfChunkingService {
             minY?: number;
             maxWidth?: number;
             maxHeight?: number;
-        }
+        },
+        searchFromOffset: number = 0
     ): TextChunk {
-        // Find byte offsets in full text
-        const startOffset = fullText.indexOf(text);
-        const endOffset = startOffset + text.length;
+        // Find byte offsets in full text, searching from the correct position
+        const startOffset = fullText.indexOf(text, searchFromOffset);
+        const endOffset = startOffset >= 0 ? startOffset + text.length : searchFromOffset + text.length;
         
         // Create extraction params using factory
         const coordinates = chunkData.minX !== undefined && 

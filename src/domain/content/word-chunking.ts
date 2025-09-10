@@ -175,6 +175,21 @@ export class WordChunkingService {
         minTokens: number
     ): TextChunk[] {
         const chunks: TextChunk[] = [];
+        
+        // Build paragraph offset map for accurate position tracking
+        const paragraphOffsets: Map<number, { start: number; end: number }> = new Map();
+        let currentOffset = 0;
+        for (const paragraph of structureMap.paragraphs) {
+            const start = fullText.indexOf(paragraph.text, currentOffset);
+            if (start >= 0) {
+                paragraphOffsets.set(paragraph.index, {
+                    start,
+                    end: start + paragraph.text.length
+                });
+                currentOffset = start + paragraph.text.length;
+            }
+        }
+        
         let currentChunk: {
             paragraphs: WordParagraph[];
             text: string;
@@ -209,7 +224,8 @@ export class WordChunkingService {
                     currentChunk.text,
                     chunks.length,
                     fullText,
-                    currentChunk
+                    currentChunk,
+                    paragraphOffsets
                 ));
                 
                 // Start new chunk with this paragraph
@@ -244,7 +260,8 @@ export class WordChunkingService {
                 currentChunk.text,
                 chunks.length,
                 fullText,
-                currentChunk
+                currentChunk,
+                paragraphOffsets
             ));
         }
         
@@ -263,13 +280,24 @@ export class WordChunkingService {
             endParagraph: number;
             paragraphTypes: string[];
             headingLevel?: number;
-        }
+        },
+        paragraphOffsets?: Map<number, { start: number; end: number }>
     ): TextChunk {
-        // For Word documents, we use paragraph-based chunking
-        // The offsets represent positions in the full document text
-        // Since we're working with structured paragraphs, we calculate based on position
-        const startOffset = 0; // Will be calculated during actual extraction
-        const endOffset = text.length;
+        // Calculate actual offsets from paragraph map
+        let startOffset = 0;
+        let endOffset = text.length;
+        
+        if (paragraphOffsets) {
+            const startInfo = paragraphOffsets.get(chunkData.startParagraph);
+            const endInfo = paragraphOffsets.get(chunkData.endParagraph);
+            
+            if (startInfo) {
+                startOffset = startInfo.start;
+            }
+            if (endInfo) {
+                endOffset = endInfo.end;
+            }
+        }
         
         // Create extraction params using factory
         const extractionParams = ExtractionParamsFactory.createWordParams(

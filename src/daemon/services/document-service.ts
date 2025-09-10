@@ -227,13 +227,14 @@ export class DocumentService {
           try {
             const pdfBuffer = await fs.promises.readFile(docPath);
             // Use pdf2json for parsing
-            content = await new Promise((resolve, reject) => {
+            const pdfResult = await new Promise<{ content: string; pageCount: number }>((resolve, reject) => {
               const pdfParser = new (PDF2Json as any)();
               pdfParser.on('pdfParser_dataError', (errData: any) => {
                 reject(new Error(`Failed to parse PDF: ${errData.parserError}`));
               });
               pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
                 let fullText = '';
+                const pageCount = pdfData.Pages?.length || 0;
                 if (pdfData.Pages && Array.isArray(pdfData.Pages)) {
                   pdfData.Pages.forEach((page: any) => {
                     if (page.Texts && Array.isArray(page.Texts)) {
@@ -250,12 +251,13 @@ export class DocumentService {
                     fullText += '\n\n';
                   });
                 }
-                resolve(fullText.trim());
+                resolve({ content: fullText.trim(), pageCount });
               });
               pdfParser.parseBuffer(pdfBuffer);
             });
+            content = pdfResult.content;
             metadata = {
-              pageCount: 0, // Will be set later if needed
+              pageCount: pdfResult.pageCount,
               info: {},
               metadata: {}
             };
