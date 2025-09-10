@@ -140,6 +140,13 @@ export class ExcelChunkingService {
         const headerRow = rows[0] || '';
         const headerTokens = Math.ceil(headerRow.length / 4);
         
+        // Find where this sheet's actual content starts in fullText
+        const sheetMarker = `=== Sheet: ${worksheet.name} ===`;
+        const sheetMarkerPos = fullText.indexOf(sheetMarker, searchFromOffset);
+        const contentStartPos = sheetMarkerPos >= 0 
+            ? fullText.indexOf('\n', sheetMarkerPos) + 1  // After the marker line
+            : searchFromOffset;
+        
         let currentChunk: {
             rows: string[];
             text: string;
@@ -148,6 +155,7 @@ export class ExcelChunkingService {
             endRow: number;
             startCol: string;
             endCol: string;
+            dataStartPos?: number;  // Track actual position of data (without header)
         } | null = null;
         
         // Start from row 1 (skip header, we'll add it to each chunk)
@@ -257,10 +265,18 @@ export class ExcelChunkingService {
         },
         searchFromOffset: number = 0
     ): TextChunk {
-        // Find byte offsets in full text, searching from the correct position
-        // to handle repeating text across sheets
-        const textStart = fullText.indexOf(text, searchFromOffset);
-        const startOffset = textStart >= 0 ? textStart : searchFromOffset;
+        // For Excel chunks, the text includes headers that aren't at the same position
+        // in the original content. Since Sprint 11's goal is bidirectional translation
+        // using native coordinates (sheet/row/column), we rely on extraction params
+        // for precise extraction rather than text offsets.
+        
+        // We'll still provide approximate offsets for reference, but the extraction
+        // params are the authoritative source for Excel content extraction.
+        const sheetMarker = `=== Sheet: ${sheetName} ===`;
+        const sheetStart = fullText.indexOf(sheetMarker);
+        
+        // Use the sheet position as base offset (approximate)
+        const startOffset = sheetStart >= 0 ? sheetStart : 0;
         const endOffset = startOffset + text.length;
         
         // Create extraction params using factory
