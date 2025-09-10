@@ -2218,21 +2218,33 @@ tmp/bidirectional-chunk-translations/
 
 ---
 
-## Sprint 12: Bidirectional Chunk Translation - Navigation (Days 25-26)
-**🎯 Goal**: Implement get_document_segments endpoint for perfect content reconstruction using stored extraction parameters
+## Sprint 12: Complete Endpoint System with Extraction Coordinates (Days 25-26)
+**🎯 Goal**: Perfect endpoint system with accurate extraction coordinates for all 6 supported file types, enabling precise content navigation and search
 
-### Core Vision: Navigate Documents Using Natural Coordinates
+### Core Vision: Methodical Quality Assurance
 
-Enable users to request specific parts of documents using natural references like "page 3 of PDF", "Budget sheet from Excel", "slide 5 with notes", or "lines 100-200 of README.md". The system uses stored extraction parameters to perfectly reconstruct the requested content.
+Ensure every supported file type (PDF, DOCX, XLSX, PPTX, TXT, MD) has fully functional extraction coordinates that enable perfect bidirectional mapping between chunks and original content. Every endpoint must be thoroughly tested and verified to work with production-level quality.
 
 ### Problem Statement
-Current search workflow is fragmented:
-1. Search finds relevant chunks with extraction_params
-2. But no way to use those params to retrieve exact content
-3. Users must retrieve entire documents instead of specific segments
-4. No navigation by natural document structure (pages, sheets, slides, lines)
+Current issues preventing production readiness:
+1. Search endpoint returns poor quality results (not finding obvious matches)
+2. Extraction coordinates not verified for all file types
+3. No quality assurance that chunks map back to original content 1:1
+4. Search results don't include extraction parameters for navigation
 
-**Missing Link**: No endpoint to leverage extraction_params for precise content retrieval.
+**Critical Need**: Methodical testing and fixing of all endpoints for all file types.
+
+### IMPORTANT CONTEXT FOR FRESH START
+**Sprint 11 Status**: COMPLETED - Added extraction coordinates to chunking process
+- Database now contains extraction_params as JSON TEXT in chunks table
+- All 6 file types have format-specific extraction parameters stored
+- Foundation is ready but endpoints need to use these coordinates
+
+**Current Code State**:
+- `get_document_outline` endpoint exists but needs to show extraction coordinates
+- `get_document_segments` endpoint skeleton exists but needs implementation
+- Search endpoint has SQL error (references non-existent chunk_metadata table)
+- Document resolution may have case sensitivity issues
 
 ### Current State from Sprint 11
 **Database Status** (verified via SQLite queries):
@@ -2256,7 +2268,157 @@ sqlite3 /Users/hanan/Projects/folder-mcp/.folder-mcp/embeddings.db \
 - **PowerPoint**: `{"type":"powerpoint","version":1,"slide":7,"includeNotes":true}`
 - **Text/Markdown**: `{"type":"text","version":1,"startLine":1,"endLine":100}`
 
-### Features to Deliver
+### Implementation Plan
+
+**🚨 CRITICAL PREREQUISITE**: 
+The MCP server MUST be connected as a tool before starting. If you see "Error: No such tool available: mcp__folder-mcp__*", STOP immediately and tell the user to reconnect the MCP server.
+
+#### Step 1: Foundation Check (Quick)
+- Verify MCP connection: Call `mcp__folder-mcp__get_server_info` first
+- Remove any debug logging from document-service.ts
+- Build the project: `npm run build`
+- Verify current state of all three endpoints
+- Understand what's actually working vs broken
+
+#### Step 2: Test & Fix Each File Type Methodically
+
+We'll go through each file type ONE AT A TIME, testing thoroughly and fixing issues before moving to the next.
+
+**Testing Methodology - Agent-to-Endpoint (A2E)**:
+The CORRECT way to test is using MCP tools directly, NOT creating test scripts:
+1. Use `mcp__folder-mcp__get_document_outline` to check extraction coordinates
+2. Use `mcp__folder-mcp__get_document_segments` to retrieve specific content
+3. Use `mcp__folder-mcp__search` to test search functionality
+4. Use `Read` tool to compare with original file content
+5. NEVER create bash scripts or curl commands for testing
+
+**Available Tools for Testing**:
+- Direct MCP endpoint calls using mcp__folder-mcp tools (PRIMARY METHOD)
+- SQLite queries to check database: `sqlite3 /Users/hanan/Projects/folder-mcp/.folder-mcp/embeddings.db`
+- File reads to compare with original content
+- Daemon logs monitoring: `tail -f /tmp/daemon.log`
+- Re-indexing if needed: Delete `.folder-mcp` folder and restart daemon in background
+
+##### 2.1 TEXT Files (.txt)
+**Test File**: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/README.txt`
+- Test get_document_outline - verify extraction coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (line numbers)
+- Verify exact 1:1 text extraction
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+##### 2.2 MARKDOWN Files (.md)
+**Test File**: `/Users/hanan/Projects/folder-mcp/README.md`
+- Test get_document_outline - verify extraction coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (line numbers)
+- Verify exact 1:1 text extraction including headers
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+##### 2.3 PDF Files (.pdf)
+**Test File**: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Engineering/Architecture_Overview.pdf`
+- Test get_document_outline - verify page coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (page, text blocks)
+- Verify text extraction matches PDF content
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+##### 2.4 WORD Files (.docx)
+**Test File**: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Policies/Remote_Work_Policy.docx`
+- Test get_document_outline - verify paragraph/section coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (paragraphs)
+- Verify text extraction matches document content
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+##### 2.5 EXCEL Files (.xlsx)
+**Test File**: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Finance/Q2_Financial_Report.xlsx`
+- Test get_document_outline - verify sheet/cell coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (sheet, cell range)
+- Verify data extraction matches spreadsheet content
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+##### 2.6 POWERPOINT Files (.pptx)
+**Test File**: `/Users/hanan/Projects/folder-mcp/tests/fixtures/test-knowledge-base/Marketing/Product_Launch_Plan.pptx`
+- Test get_document_outline - verify slide coordinates
+- Test get_document_segments with chunk_id
+- Test get_document_segments with extraction_params (slide number, notes)
+- Verify text extraction matches presentation content
+- Fix any issues found
+- **HUMAN SAFETY STOP** - Show what's working, let you test
+
+#### Step 3: Search Endpoint Quality
+
+**⚠️ IMPORTANT**: Search snippets functionality will be temporarily broken after the ad hoc sprint to remove chunks.content field. This is expected and will be fixed as part of Step 3.
+
+##### 3.1 Fix Search Snippets (REQUIRED after ad hoc sprint)
+- **Current State**: Search returns results but snippets are undefined
+- **Root Cause**: chunks.content field removed to save database space
+- **Solution**: Implement on-demand content extraction using coordinates
+- Add extraction service calls in search endpoint
+- Cache frequently accessed chunks for performance
+
+##### 3.2 Fix Search Relevance
+- Test search with known content from each file type
+- Debug why "Model Context Protocol" doesn't find README.md
+- Fix embedding/similarity issues
+- Verify search returns relevant results
+
+##### 3.3 Add Extraction Coordinates to Search Results
+- Modify search response to include extraction_params
+- Format coordinates appropriately for each file type
+- Test that coordinates are accurate in search results
+- Implement content extraction for snippet generation
+
+##### 3.4 Search Quality Validation
+- Search for specific content from each file type
+- Verify correct documents are returned
+- Verify extraction coordinates are included and accurate
+- Verify snippets are generated from extraction (not from database)
+- **HUMAN SAFETY STOP** - Show search working perfectly, let you test
+
+### Methodology for Each Test
+
+**What "Methodical" Means**:
+- DON'T rush through steps just to mark them complete
+- DON'T accept "it runs" as "it works"
+- DON'T test only one file type and assume others work
+- DO verify actual accuracy of results, not just that endpoints return data
+- DO test edge cases and different content within each file type
+- DO compare extracted content character-by-character with source
+
+For each endpoint test:
+1. **Call the MCP endpoint directly** using available tools
+2. **Examine the actual response** - not just if it runs
+3. **Compare with source document** to verify accuracy
+4. **Fix issues immediately** if found
+5. **Re-test after fixes** to confirm resolution
+6. **Document what's working** before moving on
+
+### Success Criteria
+
+Each file type must:
+- ✅ Return accurate extraction coordinates in outline
+- ✅ Allow chunk retrieval by ID with correct content
+- ✅ Allow content extraction by coordinates with 1:1 accuracy
+- ✅ Be searchable with relevant results
+- ✅ Include extraction params in search results
+
+### Human Safety Stops
+
+At each safety stop:
+- Summarize what's now working
+- Show example successful calls for you to try
+- Wait for your feedback before proceeding
+- Fix any issues identified
+
+### Technical Details
 
 #### 1. get_document_segments MCP Endpoint
 **Purpose**: Retrieve exact content using stored extraction parameters from Sprint 11.
@@ -2543,13 +2705,16 @@ mcp__folder-mcp__get_document_segments \
 ```
 
 ### Step 3: Fix Search Endpoint and Return Chunk Coordinates
-**Goal**: Fix non-working search and include extraction_params in results
+**Goal**: Fix search functionality after chunks.content removal and include extraction_params in results
 
-**Current Issue**: Search returns no results (needs debugging)
+**Current State After Ad Hoc Sprint**:
+- Search returns results but without snippets (chunks.content field removed)
+- Extraction params are available but content must be extracted on-demand
 
 **Files to modify**:
-- `src/infrastructure/storage/multi-folder-vector-search.ts` - Add c.extraction_params to SQL query
-- `src/daemon/rest/server.ts` - Include extraction_params in search response
+- `src/infrastructure/storage/multi-folder-vector-search.ts` - Already returns c.extraction_params
+- `src/daemon/rest/server.ts` - Add content extraction for snippets using extraction_params
+- `src/daemon/services/document-service.ts` - Use extractContentByParams for snippet generation
 - `src/interfaces/mcp/daemon-mcp-endpoints.ts` - Display coordinates in search results
 
 **Debugging Search Issue First**:
