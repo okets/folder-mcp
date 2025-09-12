@@ -40,51 +40,41 @@ For this task, I want to try implementing with SCRUM. I never tried scrum and wo
 I need you to act as a scrum master tasked with this prd:
 '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-MCP-Endpoints-Multi-Folder-Support.md'
 explain your thought process and your prioritization. if you use SCRUM terms give a short explaination of what the term is the first time you use it.
-**2. TMOAT IT UP!**
-I love this approach.
-let me tell you my requirements for verifications for each user story.
-1. for user stories that starts with "As an LLM", they should be verified by a custom subagent that we create that can run our MCP server.
-this is the specification of creating a custom agent: 
-https://docs.anthropic.com/en/docs/claude-code/sub-agents
-using a subagent to test the mcp endpoints will speed development significantly. creating this subagent and adding our mcp endpoints to claude code should be a task in this phase.
-2. backend changes must be verified using the TMOAT method.
-  ***BE A GOOD TMOAT AGENT***
-This task to be tested hands-on.
-You need to think like a human engineer. break this into verifiable tests to validate your assumptions
-rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
-While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
-we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
-We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
-We can design end to end flows and see exactly where they fail. we have full visibility.
-I would actually like this task to be tested hands-on.
-You need to think like a human engineer. break this into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
-While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
-we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
-We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
-We can design end to end flows and see exactly where they fail. we have full visibility.
-3. TUI changes cannot be tested by an agent since you cannot run interactive terminals. these are the only tests that must be verified by a human in the loop.
 
+────────────────────────────────────────────────────────────────────────
+***Sprint Complete, cleanup before commit***
+ This sprint is now complete.
+   Go over the changes, some work was done in another context window.
+   1. Fix comments, we leave a lot of obscure comments such as we work such as "Sprint 12 fix" or "task 5- add buffer".
+   comments should be helpful, not confusing. fix the comments in all changed files.
+   2. standardize logging formats and improve readability. keep helpful logs, remove
+   spam or repetitive messages. A lot of messages from the same loop. and general
+   spamming of the logs.
 ────────────────────────────────────────────────────────────────────────
                               *TMOAT*
 ────────────────────────────────────────────────────────────────────────
 ***BE A GOOD TMOAT AGENT***
-This task to be tested hands-on.
-You need to think like a human engineer. break this into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
+This task is to be tested and built using an agent-led-testing approach.
+You need to think like a human engineer. break your assignments into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
 While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
-we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
-We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
-We can design end to end flows and see exactly where they fail. we have full visibility.
-I would actually like this task to be tested hands-on.
-You need to think like a human engineer. break this into verifiable tests to validate your assumptions rather than blindly changing a bunch of files and hoping you magically fixed all issues at the first shot. IT NEVER WORKS!
-While you don't have access to the TUI because you cannot run interactive terminals. the TUI is just a presentation layer, our issues can be verified through other means.
-we can query database files, see runtime files get changed or added, we can use TMOAT scripts to connect to websocket endpoints and listen for events or trigger actions.
-We can place logs in the Daemon's logs. it need to run in a background service but we always can spawn a new one using `npm run daemon:restart`. this will kill any other instance of the daemon and will run a fresh one.
-We can design end to end flows and see exactly where they fail. we have full visibility.
+TOOLS A GOOD TMOAT AGENT WILL USE:
+1. Query database files using sqlite3.
+2. See runtime files gets changed or added using file system.
+3. Use TMOAT scripts to connect to websocket endpoints and listen for events, listen to FMDM stream or trigger actions. (see ./TMOAT folder for examples)
+4. Run deamon in the background on demand: 
+- place logs in the Daemon's logs.
+- run `npm run daemon:restart` in a BACKGROUND, long running process. this command will kill any other instance of the daemon and will run a fresh one.
+5. Call MCP endpoints directly using `folder-mcp mcp server` command. This is the ultimate test for any change we make. if the MCP endpoints work, we are good.
+If a human is needed for reconnecting the MCP server STOP your work and ask for a human to reconnect the MCP server. (we are working on it live, it might be disconnected when we kill the daemon during development)
+6. Trigger re-indexing: remove the .folder-mcp folder (delete the database folder), then restart the daemon in the background.
+
+/Users/hanan/Projects/folder-mcp (our project's folder) is one of the indexed folders. we can use it to test our changes. as we know exactly what files are there and what content is in them. we can use it to test our changes.
+
+We can design end to end flows and see exactly where they fail. we have full visibility!
 
 We need to understand where in the folder lifecycle process the problems resides.
 We fix issues in the order they appear in the folder lifecycle, fixing "downloading model" issues before "indexing" issues for example.
 We need to work systematically towards a well defined, measurable goal that can be performed end-to-end by an AI agent.
-You will need a TMOAT Script to add and remove folders consistently and clean up between test iterations. see if you can utilize the existing TMOAT script that already does this.
 
 
 *** TMOAT Reminder ***
