@@ -440,6 +440,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       const database = dbManager.getDatabase();
       const folderFileStateService = new FileStateService(database, this.logger);
       
+      // Reset any files stuck in PROCESSING state from previous interrupted runs
+      // This allows them to be re-indexed on daemon restart
+      const resetCount = await folderFileStateService.resetProcessingFiles();
+      if (resetCount > 0) {
+        this.logger.info(`[ORCHESTRATOR] Reset ${resetCount} files from PROCESSING to PENDING for ${path}`);
+      }
+      
       // Get max concurrent files from ONNX configuration
       const maxConcurrentFiles = await this.onnxConfiguration.getMaxConcurrentFiles();
       this.logger.debug(`[ORCHESTRATOR] Using maxConcurrentFiles=${maxConcurrentFiles} from ONNX configuration`);

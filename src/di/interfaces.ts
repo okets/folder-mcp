@@ -357,6 +357,12 @@ export interface IFileStateService {
   }>;
   
   /**
+   * Reset all files stuck in PROCESSING state to PENDING
+   * This is used on daemon startup to recover from interrupted indexing
+   */
+  resetProcessingFiles(): Promise<number>;
+  
+  /**
    * Close database connections
    */
   close(): void;

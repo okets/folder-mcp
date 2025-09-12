@@ -139,6 +139,24 @@ export class FileStateService implements IFileStateService {
   }
 
   /**
+   * Reset all files stuck in PROCESSING state to PENDING
+   * This is used on daemon startup to recover from interrupted indexing
+   */
+  async resetProcessingFiles(): Promise<number> {
+    try {
+      const resetCount = await this.fileStateManager.resetProcessingFiles();
+      if (resetCount > 0) {
+        this.logger.info(`[FILE-STATE-RESET] Reset ${resetCount} files from PROCESSING to PENDING state`);
+      }
+      return resetCount;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[FILE-STATE-ERROR] Failed to reset processing files: ${errorMessage}`);
+      return 0;
+    }
+  }
+
+  /**
    * Clean up database connection
    */
   close(): void {

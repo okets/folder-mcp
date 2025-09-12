@@ -342,4 +342,24 @@ export class FileStateManager {
     const timeSinceLastAttempt = Date.now() - state.lastAttempt;
     return timeSinceLastAttempt >= FileStateManager.RETRY_DELAY_MS;
   }
+
+  /**
+   * Reset all files stuck in PROCESSING state to PENDING
+   * This is used on daemon startup to recover from interrupted indexing
+   */
+  async resetProcessingFiles(): Promise<number> {
+    const processingFiles = await this.storage.getFilesByState(FileProcessingState.PROCESSING);
+    let resetCount = 0;
+    
+    for (const file of processingFiles) {
+      await this.storage.updateProcessingState(
+        file.filePath,
+        FileProcessingState.PENDING,
+        'Reset on daemon startup - was interrupted during processing'
+      );
+      resetCount++;
+    }
+    
+    return resetCount;
+  }
 }

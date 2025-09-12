@@ -137,22 +137,13 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     }
 
     private initializeSchema(): void {
-        console.error(`[FILE-STATE-DEBUG] Initializing file_states table schema`);
-        
         // Create file_states table
         this.db.exec(FILE_STATES_TABLE);
-        console.error(`[FILE-STATE-DEBUG] file_states table created/verified`);
         
         // Create indexes
         for (const index of FILE_STATES_INDEXES) {
             this.db.exec(index);
         }
-        console.error(`[FILE-STATE-DEBUG] file_states indexes created/verified`);
-        
-        // Check if table is empty (new database)
-        const countStmt = this.db.prepare('SELECT COUNT(*) as count FROM file_states');
-        const result = countStmt.get() as { count: number };
-        console.error(`[FILE-STATE-DEBUG] Current file_states row count: ${result.count}`);
     }
 
     private prepareStatements(): void {
@@ -173,10 +164,7 @@ export class SqliteFileStateStorage implements IFileStateStorage {
     }
 
     async setFileState(state: FileState): Promise<void> {
-        console.error(`[FILE-STATE-DEBUG] Setting file state for: ${state.filePath}`);
-        console.error(`[FILE-STATE-DEBUG]   State: ${state.processingState}, ChunkCount: ${state.chunkCount}`);
-        
-        const result = this.insertFileStateStmt.run(
+        this.insertFileStateStmt.run(
             state.filePath,
             state.contentHash,
             state.processingState,
@@ -186,8 +174,6 @@ export class SqliteFileStateStorage implements IFileStateStorage {
             state.attemptCount,
             state.chunkCount || null
         );
-        
-        console.error(`[FILE-STATE-DEBUG]   Database changes: ${result.changes}`);
     }
 
     async updateProcessingState(
