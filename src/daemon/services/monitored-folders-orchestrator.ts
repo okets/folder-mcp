@@ -19,7 +19,7 @@ import { WindowsPerformanceService, IWindowsPerformanceService } from './windows
 import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
-import { getDefaultModelId } from '../../config/model-registry.js';
+import { getDefaultModelId, getSentenceTransformerIdFromModelId } from '../../config/model-registry.js';
 import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -1610,8 +1610,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       
       // Create Python embedding service with any valid config (not used for embedding)
       // This is just for model download capabilities, not for actual embedding
+      const defaultModelId = getDefaultModelId();
+      const defaultSentenceTransformerId = getSentenceTransformerIdFromModelId(defaultModelId);
       const pythonService = createPythonEmbeddingService({
-        modelName: 'sentence-transformers/all-MiniLM-L6-v2', // Any valid HF model ID for service init
+        modelName: defaultSentenceTransformerId, // Use dynamic default model from registry
         batchSize: 32,
         maxSequenceLength: 512
       });

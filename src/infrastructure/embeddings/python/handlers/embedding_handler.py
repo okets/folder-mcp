@@ -3,7 +3,9 @@ Core embedding handler with priority-based processing and crawling pause mechani
 """
 
 import asyncio
+import json
 import logging
+import sys
 import threading
 import time
 import traceback
@@ -65,23 +67,41 @@ class EmbeddingHandler:
     - Health monitoring and graceful shutdown
     """
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str):
         if not DEPENDENCIES_AVAILABLE:
             raise ImportError(
                 "Required dependencies not available. Please install: "
                 "sentence-transformers, torch, transformers"
             )
         
+        if not model_name:
+            raise ValueError("Model name is required - no defaults allowed")
+        
         self.model_name = model_name
         self.model: Optional[SentenceTransformer] = None
         self.device = "cpu"
         self.device_info = {}
+        
+        # Memory management settings
+        # This fraction is used consistently across all memory calculations:
+        # - PyTorch MPS memory allocation (set_per_process_memory_fraction)
+        # - Text size limits for chunk processing
+        # - Batch size calculations
+        # Using 70% leaves 30% for system, other processes, and safety margin
+        self.memory_fraction = 0.7  # Single source of truth for memory limits
+        self.min_batch_size = 1
+        self.max_batch_size = 32  # Will be adjusted based on available memory
         
         # Threading and queues
         self.request_queue = PriorityQueue()
         self.processing_thread: Optional[threading.Thread] = None
         self.shutdown_event = threading.Event()
         self.model_loaded_event = threading.Event()
+        
+        # State management for race condition prevention
+        self.state = 'IDLE'  # IDLE | WORKING | UNLOADING
+        self.state_lock = threading.Lock()
+        self.last_progress_time = 0
         
         # Load process management configuration
         self.process_config = get_process_management_config()
@@ -137,9 +157,9 @@ class EmbeddingHandler:
             # Apply device optimizations
             optimize_torch_settings(self.device)
             
-            # Set optimal batch size for detected device
-            self.optimal_batch_size = get_optimal_batch_size(self.device, self.model_name)
-            logger.info(f"Optimal batch size for {self.device}: {self.optimal_batch_size}")
+            # Calculate optimal batch size based on available memory
+            self.optimal_batch_size = self._calculate_optimal_batch_size()
+            logger.info(f"Calculated optimal batch size: {self.optimal_batch_size} for {self.device}")
             
             # Load model in background thread to avoid blocking
             model_loading_thread = threading.Thread(
@@ -164,280 +184,210 @@ class EmbeddingHandler:
             logger.error(traceback.format_exc())
             return False
     
+    def _send_progress(self, status: str, current: int = 0, total: int = 0, details: str = "") -> None:
+        """Send progress update to Node.js via stdout"""
+        progress_update = {
+            'jsonrpc': '2.0',
+            'method': 'progress_update',
+            'params': {
+                'type': 'progress',
+                'status': status,
+                'current': current,
+                'total': total,
+                'timestamp': time.time(),
+                'details': details,
+                'message': f"{status}: {current}/{total}" if total > 0 else status
+            }
+        }
+        
+        # Send to stdout for Node.js to receive
+        print(json.dumps(progress_update), flush=True)
+        self.last_progress_time = time.time()
+    
     def _load_model_sync(self) -> None:
         """Load the sentence transformer model synchronously in background thread"""
         try:
             logger.info(f"Loading model {self.model_name} on {self.device}...")
-            
-            # COMPREHENSIVE FIX: Based on GitHub issues and community research
-            # The intermittent "sometimes works, sometimes fails" behavior is caused by:
-            # 1. Incomplete MPS operation support in PyTorch
-            # 2. Cache state affecting code paths
-            # 3. Environment variable inconsistencies
-            # 4. Model initialization vs inference using different PyTorch operations
+            self._send_progress('loading_model', 0, 0, "Initializing model...")
             
             import os
             import torch
+            from sentence_transformers import SentenceTransformer
             
-            # CRITICAL: Set environment variables BEFORE any sentence-transformers operations
-            os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+            # Set MPS memory management
             if self.device == 'mps':
-                # Additional Apple Silicon optimizations from research
-                os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-                logger.info("✓ MPS environment configured for Apple Silicon")
+                os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+                
+                # Apply PyTorch memory management best practices
+                if hasattr(torch.mps, 'set_per_process_memory_fraction'):
+                    # Use conservative memory fraction to prevent OOM
+                    torch.mps.set_per_process_memory_fraction(self.memory_fraction)
+                    logger.info(f"✓ MPS memory fraction set to {self.memory_fraction * 100:.0f}%")
+                else:
+                    # Fallback for older PyTorch versions
+                    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+                    os.environ['PYTORCH_MPS_LOW_WATERMARK_RATIO'] = '0.0'
+                    logger.info("✓ MPS memory watermarks configured")
             
-            # ROBUST STRATEGY: Force CPU initialization to avoid MPS inconsistencies
-            # This is the most reliable approach found in GitHub issues
-            logger.info("Using FORCED CPU initialization strategy (Apple Silicon compatibility)")
+            # Check if model is already cached
+            from pathlib import Path
+            cache_dir = Path.home() / '.cache' / 'huggingface' / 'hub'
+            model_dir = cache_dir / f"models--{self.model_name.replace('/', '--')}"
             
-            # Clear any cached state that might cause inconsistencies
-            if self.device == 'mps':
-                try:
-                    if hasattr(torch.backends.mps, 'empty_cache'):
-                        torch.backends.mps.empty_cache()
-                    logger.debug("✓ MPS cache cleared")
-                except:
-                    pass
+            if model_dir.exists() and model_dir.is_dir():
+                logger.info(f"Model {self.model_name} found in cache")
+                os.environ['HF_HUB_OFFLINE'] = '1'
+                os.environ['TRANSFORMERS_OFFLINE'] = '1'
             
-            # FORCE CPU LOADING: Most reliable approach from community research
-            # This avoids all MPS-related initialization issues
-            logger.info("Force loading model on CPU to ensure consistent initialization...")
-            
-            # NUCLEAR OPTION: Use completely isolated model loading with environment reset
-            logger.info("Using nuclear option: complete environment isolation for model loading")
-            
-            # Save current process environment
-            original_env = dict(os.environ)
-            
+            # Load model directly on target device for MPS
             try:
-                # Create a completely clean environment for sentence-transformers
-                # This addresses the issue where PyTorch state is contaminated
+                self._send_progress('loading_model', 50, 100, "Loading model to device...")
                 
-                # Method 1: Try with completely minimal environment
-                logger.info("Attempting minimal environment approach...")
+                if self.device == 'mps':
+                    # For MPS, load directly on device to prevent memory fragmentation
+                    logger.info(f"Loading model directly on MPS device")
+                    if model_dir.exists():
+                        try:
+                            self.model = SentenceTransformer(self.model_name, device='mps', local_files_only=True)
+                            logger.info(f"✓ Model loaded on MPS from cache")
+                        except Exception:
+                            self.model = SentenceTransformer(self.model_name, device='mps')
+                            logger.info(f"✓ Model loaded on MPS")
+                    else:
+                        self.model = SentenceTransformer(self.model_name, device='mps')
+                        logger.info(f"✓ Model loaded on MPS")
+                else:
+                    # For CPU or CUDA, use existing approach
+                    self.model = SentenceTransformer(self.model_name, device=self.device)
+                    logger.info(f"✓ Model loaded on {self.device}")
                 
-                # Reset environment to minimal state
-                clean_env = {
-                    'PYTORCH_ENABLE_MPS_FALLBACK': '1',
-                    'PYTORCH_MPS_HIGH_WATERMARK_RATIO': '0.0',
-                    'TOKENIZERS_PARALLELISM': 'false',
-                    'OMP_NUM_THREADS': '1',
-                    'MKL_NUM_THREADS': '1',
-                    'PYTHONPATH': os.environ.get('PYTHONPATH', ''),
-                    'PATH': os.environ.get('PATH', ''),
-                    'HOME': os.environ.get('HOME', ''),
-                }
+                self._send_progress('loading_model', 100, 100, "Model ready")
                 
-                # Temporarily replace environment
-                os.environ.clear()
-                os.environ.update(clean_env)
+                # Verify model produces expected dimensions
+                with torch.no_grad():
+                    test_embedding = self.model.encode(["test"], convert_to_numpy=True)
+                    actual_dims = test_embedding.shape[1]
+                    logger.info(f"✓ Model produces {actual_dims}-dimensional embeddings")
                 
-                # Force reload of torch and sentence_transformers with clean environment
-                import sys
-                modules_to_reload = [
-                    'torch', 'torch.backends', 'torch.backends.mps',
-                    'sentence_transformers', 'transformers'
-                ]
+                # Clear any memory used during test
+                self._clear_mps_memory()
                 
-                for module_name in modules_to_reload:
-                    if module_name in sys.modules:
-                        del sys.modules[module_name]
-                
-                # Import with clean slate
-                import torch
-                from sentence_transformers import SentenceTransformer
-                
-                logger.info("Loading model with completely clean environment...")
-                self.model = SentenceTransformer(self.model_name)
-                logger.info("✓ Model loaded with nuclear option")
-                
-            except Exception as nuclear_error:
-                logger.error(f"Nuclear option failed: {nuclear_error}")
-                
-                # Final fallback: Create a mock model that uses external embeddings
-                logger.warning("Creating compatibility wrapper as absolute last resort")
-                self.model = self._create_compatibility_wrapper()
-                logger.info("✓ Compatibility wrapper created")
-                
-            finally:
-                # Restore original environment
-                os.environ.clear()
-                os.environ.update(original_env)
+            except Exception as load_error:
+                logger.error(f"Failed to load model {self.model_name}: {load_error}")
+                raise RuntimeError(f"Cannot load model {self.model_name}: {load_error}")
             
-            # IMPORTANT: Don't transfer model to GPU - keep it on CPU for stability
-            # sentence-transformers.encode() can still use MPS device for inference
-            # This gives us the best of both worlds: stable initialization + GPU acceleration
-            
-            if self.device != 'cpu':
-                logger.info(f"Model stays on CPU for stability, but will use {self.device} for inference")
-                logger.info("This approach provides GPU acceleration while avoiding initialization issues")
-            
-            # Verify model readiness
-            logger.info(f"Model initialization device: {getattr(self.model.device, 'type', 'unknown') if hasattr(self.model, 'device') else 'cpu'}")
-            logger.info(f"Target inference device: {self.device}")
+            logger.info(f"Model device: {getattr(self.model.device, 'type', self.device)}")
             
             self.model_loaded_event.set()
             self.model_loaded = True
             logger.info(f"✓ Model {self.model_name} ready for inference")
+            self._send_progress('idle', 0, 0, "Model loaded, process ready")
             
         except Exception as e:
             logger.error(f"FATAL: Model loading failed: {e}")
             logger.error(f"Full traceback: {traceback.format_exc()}")
             
-            # Enhanced error detection and guidance
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in ['meta tensor', 'mps', 'cumsum', 'not implemented']):
-                logger.error("★ APPLE SILICON COMPATIBILITY ERROR DETECTED")
-                logger.error("★ This is a known PyTorch + sentence-transformers issue")
-                logger.error("★ Possible solutions:")
-                logger.error("  1. Update PyTorch: pip install --upgrade torch")
-                logger.error("  2. Try PyTorch 2.0.1: pip install torch==2.0.1")
-                logger.error("  3. Force CPU mode in config")
+                logger.error("★ MPS compatibility error detected - check PyTorch version")
             
-            # Signal failure
             self.model = None
-            # Don't set model_loaded_event - this tells waiting code that loading failed
     
-    def _create_compatibility_wrapper(self):
+    def _calculate_optimal_batch_size(self) -> int:
         """
-        Create a compatibility wrapper that handles embeddings without loading sentence-transformers
-        This is used when all PyTorch-based loading methods fail
-        """
-        logger.warning("Creating compatibility wrapper for Apple Silicon compatibility")
+        Calculate optimal batch size based on device and model characteristics.
         
-        class CompatibilityModel:
-            """Mock model that provides basic embedding interface"""
+        PyTorch handles memory limits via set_per_process_memory_fraction(0.6),
+        so we just need sensible defaults based on device and model type.
+        """
+        # Base batch size by device type
+        if self.device == 'mps':
+            # MPS has specific memory allocation patterns
+            # Start conservative and let adaptive sizing increase if possible
+            base_batch_size = 4
             
-            def __init__(self, model_name):
-                self.model_name = model_name
-                self.device = 'cpu'  # Always use CPU for compatibility
+            # Further reduce for models with large context windows
+            if 'bge-m3' in self.model_name.lower():
+                # BGE-M3 with 8192 context needs batch_size=1 to prevent OOM
+                base_batch_size = 1
+            elif 'large' in self.model_name.lower():
+                # Large models need smaller batches
+                base_batch_size = 2
+            
+        elif self.device == 'cuda':
+            # CUDA generally handles batching well
+            base_batch_size = 16
+            
+            # Adjust for large models
+            if 'bge-m3' in self.model_name.lower() or 'large' in self.model_name.lower():
+                base_batch_size = 8
                 
-            def encode(self, texts, convert_to_numpy=True, show_progress_bar=False, device=None):
-                """
-                Provide basic embeddings using a semantic-aware approach
-                This is a fallback when sentence-transformers fails but provides reasonable similarity
-                """
-                logger.warning("Using compatibility mode embeddings (not sentence-transformers)")
-                
-                import numpy as np
-                import hashlib
-                import re
-                
-                def extract_semantic_features(text):
-                    """Extract enhanced semantic features from text for better similarity"""
-                    text_lower = text.lower()
-                    
-                    # Word-based features
-                    words = re.findall(r'\b\w+\b', text_lower)
-                    word_count = len(words)
-                    avg_word_length = sum(len(w) for w in words) / max(word_count, 1)
-                    unique_words = len(set(words))
-                    
-                    # Character-based features
-                    char_counts = {}
-                    for char in 'abcdefghijklmnopqrstuvwxyz':
-                        char_counts[char] = text_lower.count(char) / max(len(text), 1)
-                    
-                    # Enhanced semantic categories with more comprehensive matching
-                    categories = {
-                        'animals': ['cat', 'dog', 'animal', 'pet', 'kitten', 'puppy', 'feline', 'canine'],
-                        'science': ['quantum', 'physics', 'science', 'theory', 'research', 'atom', 'particle'],
-                        'technology': ['computer', 'software', 'tech', 'digital', 'data', 'code', 'program'],
-                        'nature': ['tree', 'forest', 'nature', 'environment', 'green', 'plant', 'leaf']
-                    }
-                    
-                    category_scores = {}
-                    for category, keywords in categories.items():
-                        score = sum(1 for word in words if any(kw in word for kw in keywords))
-                        category_scores[category] = score / max(word_count, 1)
-                    
-                    # Word overlap features (crucial for similarity)
-                    word_set = set(words)
-                    
-                    return {
-                        'word_count': word_count,
-                        'avg_word_length': avg_word_length,
-                        'unique_words': unique_words,
-                        'word_set': word_set,
-                        'char_counts': char_counts,
-                        'categories': category_scores,
-                        'length': len(text)
-                    }
-                
-                # Generate embeddings based on semantic features
-                embeddings = []
-                all_features = [extract_semantic_features(text) for text in texts]
-                
-                # Calculate global features for better relative positioning
-                all_word_sets = [f['word_set'] for f in all_features]
-                
-                for i, (text, features) in enumerate(zip(texts, all_features)):
-                    # Create 384-dimensional embedding
-                    embedding = np.zeros(384, dtype=np.float32)
-                    
-                    # Core semantic features (dimensions 0-3)
-                    embedding[0] = min(features['word_count'] / 20.0, 1.0)  # More sensitive word count
-                    embedding[1] = min(features['avg_word_length'] / 8.0, 1.0)  # More sensitive avg word length
-                    embedding[2] = min(features['unique_words'] / 20.0, 1.0)  # More sensitive vocabulary diversity
-                    embedding[3] = min(features['length'] / 100.0, 1.0)  # More sensitive text length
-                    
-                    # Character frequency features (dimensions 4-29) - enhanced importance
-                    for idx, char in enumerate('abcdefghijklmnopqrstuvwxyz'):
-                        if idx + 4 < 384:
-                            embedding[idx + 4] = features['char_counts'][char] * 2.0  # Enhanced weight
-                    
-                    # Category features (dimensions 30-33) - enhanced importance  
-                    for idx, (category, score) in enumerate(features['categories'].items()):
-                        if idx + 30 < 384:
-                            embedding[idx + 30] = score * 3.0  # Strong category signal
-                    
-                    # Word overlap features (dimensions 34-50) - NEW: crucial for similarity
-                    # Create features based on common word patterns
-                    word_set = features['word_set']
-                    common_words = ['and', 'the', 'is', 'a', 'to', 'of', 'in', 'for', 'with', 'on', 'as', 'by', 'at', 'or', 'an', 'are']
-                    for idx, common_word in enumerate(common_words):
-                        if idx + 34 < 384:
-                            embedding[idx + 34] = 1.0 if common_word in word_set else 0.0
-                    
-                    # Word length distribution (dimensions 50-60)
-                    word_lengths = [len(word) for word in features['word_set']]
-                    if word_lengths:
-                        for length in range(1, 11):  # lengths 1-10
-                            if 50 + length - 1 < 384:
-                                count = sum(1 for wl in word_lengths if wl == length)
-                                embedding[50 + length - 1] = count / len(word_lengths)
-                    
-                    # Remaining dimensions with structured text features instead of hash
-                    vowel_count = sum(1 for char in text.lower() if char in 'aeiou')
-                    consonant_count = len([c for c in text.lower() if c.isalpha() and c not in 'aeiou'])
-                    digit_count = sum(1 for char in text if char.isdigit())
-                    space_count = text.count(' ')
-                    
-                    embedding[61] = min(vowel_count / 20.0, 1.0)
-                    embedding[62] = min(consonant_count / 50.0, 1.0) 
-                    embedding[63] = min(digit_count / 10.0, 1.0)
-                    embedding[64] = min(space_count / 20.0, 1.0)
-                    
-                    # Fill remaining with controlled randomness based on text content
-                    text_hash = hashlib.md5(text.encode()).hexdigest()
-                    for dim in range(65, 384):
-                        hash_index = dim % len(text_hash)
-                        hash_char = text_hash[hash_index]
-                        # Reduce hash contribution for better similarity detection
-                        embedding[dim] = (ord(hash_char) - 48) / 15.0 * 0.05  # Smaller contribution
-                    
-                    # Normalize the embedding to unit length (cosine similarity friendly)
-                    norm = np.linalg.norm(embedding)
-                    if norm > 0:
-                        embedding = embedding / norm
-                    
-                    embeddings.append(embedding)
-                
-                result = np.array(embeddings, dtype=np.float32)
-                logger.info(f"Generated semantic-aware compatibility embeddings: {result.shape}")
-                return result
+        else:
+            # CPU - moderate batching
+            base_batch_size = 4
         
-        return CompatibilityModel(self.model_name)
+        # Ensure within configured bounds
+        return max(self.min_batch_size, min(base_batch_size, self.max_batch_size))
+    
+    def _adaptive_batch_size_on_oom(self, current_batch_size: int) -> int:
+        """
+        Reduce batch size on OOM error for adaptive recovery.
+        
+        Args:
+            current_batch_size: The batch size that caused OOM
+            
+        Returns:
+            New reduced batch size
+        """
+        new_batch_size = max(1, current_batch_size // 2)
+        logger.warning(f"OOM detected - reducing batch size from {current_batch_size} to {new_batch_size}")
+        return new_batch_size
+    
+    def _light_memory_cleanup(self) -> None:
+        """Lighter memory cleanup between batches"""
+        if self.device == 'mps':
+            import torch
+            # Synchronize before cleanup to avoid MPS errors
+            if hasattr(torch.mps, 'synchronize'):
+                torch.mps.synchronize()
+            if hasattr(torch.mps, 'empty_cache'):
+                torch.mps.empty_cache()
+    
+    def _get_memory_usage(self) -> float:
+        """Get current process memory usage in GB"""
+        try:
+            import psutil
+            import os
+            process = psutil.Process(os.getpid())
+            return process.memory_info().rss / (1024 * 1024 * 1024)  # Convert to GB
+        except:
+            return 0.0
+    
+    def _clear_mps_memory(self) -> None:
+        """Clear MPS memory cache and synchronize operations - aggressive cleanup for large models"""
+        if self.device == 'mps':
+            try:
+                import torch
+                import gc
+                
+                # Critical: synchronize MPS operations first
+                if hasattr(torch.mps, 'synchronize'):
+                    torch.mps.synchronize()
+                
+                # Clear the cache multiple times for thorough cleanup
+                if hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+                    
+                # Force Python garbage collection
+                gc.collect()
+                
+                # Clear cache again after GC
+                if hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+                    
+                logger.debug("MPS memory aggressively cleared")
+            except Exception as e:
+                logger.warning(f"Failed to clear MPS memory: {e}")
     
     def _unload_model(self) -> None:
         """Unload model from memory to free resources"""
@@ -447,25 +397,17 @@ class EmbeddingHandler:
             # Get memory usage before unload for comparison
             memory_before = self._get_memory_usage()
             
+            # Clear MPS memory BEFORE deleting model
+            self._clear_mps_memory()
+            
             # Clear the model
             del self.model
             self.model = None
             self.model_loaded = False
             self.model_loaded_event.clear()
             
-            # Clear GPU memory if using CUDA or MPS
-            try:
-                if self.device == 'cuda':
-                    import torch
-                    torch.cuda.empty_cache()
-                    logger.info("CUDA memory cache cleared")
-                elif self.device == 'mps':
-                    import torch
-                    if hasattr(torch.backends.mps, 'empty_cache'):
-                        torch.backends.mps.empty_cache()
-                    logger.info("MPS memory cache cleared")
-            except Exception as e:
-                logger.warning(f"Failed to clear GPU memory cache: {e}")
+            # Clear memory again AFTER deletion
+            self._clear_mps_memory()
             
             # Force garbage collection
             import gc
@@ -624,6 +566,9 @@ class EmbeddingHandler:
                 self._process_request(queued_request)
                 self.current_request = None
                 
+                # CRITICAL: Clear memory after EVERY request
+                self._clear_mps_memory()
+                
                 # Mark task as done
                 self.request_queue.task_done()
                 
@@ -638,6 +583,12 @@ class EmbeddingHandler:
         """Process a single embedding request"""
         start_time = time.time()
         request = queued_request.request
+        
+        # Set state to WORKING
+        with self.state_lock:
+            self.state = 'WORKING'
+        
+        logger.debug(f"Processing request {request.request_id} with {len(request.texts)} texts")
         
         try:
             # Wait for model to be loaded
@@ -669,22 +620,21 @@ class EmbeddingHandler:
                 self.batch_requests_processed += 1
             
             # Set result - need to do this in a thread-safe way for asyncio
-            logger.info(f"DEBUG: About to set result for request {request.request_id}")
             try:
-                # Try to get the event loop and schedule the result setting
                 import asyncio
                 loop = asyncio.get_event_loop()
                 loop.call_soon_threadsafe(queued_request.future.set_result, response)
-                logger.info(f"DEBUG: Successfully scheduled result for request {request.request_id}")
             except RuntimeError:
-                # Fallback to direct setting if no event loop
                 queued_request.future.set_result(response)
-                logger.info(f"DEBUG: Successfully set result directly for request {request.request_id}")
             
             logger.debug(
                 f"Processed {'immediate' if request.immediate else 'batch'} request "
                 f"with {len(request.texts)} texts in {processing_time_ms}ms"
             )
+            
+            # Set state back to IDLE
+            with self.state_lock:
+                self.state = 'IDLE'
             
         except Exception as e:
             logger.error(f"Error processing request: {e}")
@@ -707,35 +657,214 @@ class EmbeddingHandler:
                 loop.call_soon_threadsafe(queued_request.future.set_result, error_response)
             except RuntimeError:
                 queued_request.future.set_result(error_response)
+            
+            # Set state back to IDLE even on error
+            with self.state_lock:
+                self.state = 'IDLE'
     
     def _generate_embeddings_sync(self, texts: List[str]) -> List[EmbeddingVector]:
-        """Generate embeddings synchronously using sentence-transformers"""
+        """Generate embeddings synchronously using sentence-transformers with progress reporting"""
+        import time
+        start_time = time.time()
+        
+        total_texts = len(texts)
+        logger.debug(f"Generating embeddings for {total_texts} texts on {self.device}, batch size: {self.optimal_batch_size}")
+        
         if not self.model:
             raise RuntimeError("Model not loaded")
         
+        
+        # PyTorch already handles memory limits via set_per_process_memory_fraction(0.6)
+        # We just need to ensure chunks fit within the model's context window
+        # and aren't so large they cause issues even within the memory limit
+        
+        # Get context window for this model
+        context_window = 8192 if 'bge-m3' in self.model_name.lower() else 512
+        
+        # Use conservative portion of context window for actual text
+        # Reserve space for special tokens, padding, and processing overhead
+        max_safe_chars = context_window * 3  # Roughly 3 chars per token, conservative
+        
+        # For very large context models, apply additional safety factor
+        # Testing showed BGE-M3 with 8192 context can cause issues with very large chunks
+        if context_window >= 8192:
+            max_safe_chars = min(max_safe_chars, 12000)  # Cap at 12k chars for safety
+        
+        # Ensure minimum viable size
+        max_safe_chars = max(1000, max_safe_chars)
+        
+        # Only truncate if text exceeds safe size
+        processed_texts = []
+        truncated_count = 0
+        for i, text in enumerate(texts):
+            if len(text) > max_safe_chars:
+                logger.warning(f"Text {i} has {len(text)} chars, truncating to {max_safe_chars} to fit context window")
+                processed_texts.append(text[:max_safe_chars])
+                truncated_count += 1
+            else:
+                processed_texts.append(text)
+        
+        if truncated_count > 0:
+            logger.info(f"Truncated {truncated_count} oversized texts to prevent context overflow")
+        
+        texts = processed_texts
+        
+        # Report start
+        self._send_progress('processing_embeddings', 0, total_texts)
+        
         # Generate embeddings with proper device handling
-        # Even if model loading failed to transfer to GPU, sentence-transformers.encode()
-        # can still utilize the target device for inference computations
         try:
-            embeddings = self.model.encode(
-                texts,
-                convert_to_numpy=True,
-                show_progress_bar=False,
-                device=self.device  # This ensures GPU utilization during encoding
-            )
-            logger.debug(f"Generated embeddings using device: {self.device}")
+            logger.debug(f"Calling model.encode() with {total_texts} texts")
+            
+            # Process in batches with progress reporting and OOM recovery
+            embeddings_list = []
+            batch_size = self.optimal_batch_size
+            
+            import torch
+            import numpy as np
+            import gc
+            
+            i = 0
+            while i < total_texts:
+                batch_end = min(i + batch_size, total_texts)
+                batch = texts[i:batch_end]
+                batch_num = i // batch_size + 1
+                total_batches = (total_texts + batch_size - 1) // batch_size
+                
+                # Report batch progress
+                self._send_progress(
+                    'processing_batch',
+                    current=i,
+                    total=total_texts,
+                    details=f"Batch {batch_num}/{total_batches}"
+                )
+                
+                # Log memory only for first batch or every 50th batch to reduce spam
+                if batch_num == 1 or batch_num % 50 == 0:
+                    logger.debug(f"Processing batch {batch_num}/{total_batches}, memory: {self._get_memory_usage():.2f} GB")
+                
+                # Process batch with OOM recovery
+                batch_success = False
+                attempts = 0
+                current_batch_size = len(batch)
+                
+                while not batch_success and attempts < 3:
+                    try:
+                        with torch.no_grad():  # Disable gradient computation for inference
+                            if self.device == 'mps':
+                                # For MPS, don't specify device in encode() since model is already on MPS
+                                batch_embeddings = self.model.encode(
+                                    batch,
+                                    convert_to_numpy=True,
+                                    show_progress_bar=False,
+                                    batch_size=current_batch_size
+                                )
+                            else:
+                                batch_embeddings = self.model.encode(
+                                    batch,
+                                    convert_to_numpy=True,
+                                    show_progress_bar=False,
+                                    device=self.device,
+                                    batch_size=current_batch_size
+                                )
+                        
+                        # Success - append to list
+                        embeddings_list.append(batch_embeddings)
+                        batch_success = True
+                        
+                    except (RuntimeError, torch.cuda.OutOfMemoryError) as oom_error:
+                        attempts += 1
+                        error_str = str(oom_error).lower()
+                        
+                        if 'out of memory' in error_str or 'oom' in error_str or 'memory' in error_str:
+                            # Clear memory immediately
+                            self._clear_mps_memory()
+                            gc.collect()
+                            
+                            if current_batch_size > 1:
+                                # Reduce batch size and retry
+                                current_batch_size = self._adaptive_batch_size_on_oom(current_batch_size)
+                                batch = texts[i:i + current_batch_size]
+                                batch_end = i + current_batch_size
+                                logger.info(f"Retrying batch with reduced size: {current_batch_size}")
+                            else:
+                                # Already at minimum batch size, can't reduce further
+                                logger.error(f"OOM even with batch_size=1 for text at index {i}")
+                                raise
+                        else:
+                            # Not an OOM error, re-raise
+                            raise
+                
+                i = batch_end  # Move to next batch
+                
+                # Report completion of this batch
+                processed = min(i + batch_size, total_texts)
+                self._send_progress(
+                    'processing_embeddings',
+                    current=processed,
+                    total=total_texts,
+                    details=f"Completed {processed} embeddings"
+                )
+                
+                # Enhanced memory cleanup between batches
+                if i + batch_size < total_texts:
+                    if self.device == 'mps':
+                        self._send_progress('cleaning_memory', 0, 0)
+                        self._light_memory_cleanup()
+                    # Force garbage collection to free memory
+                    gc.collect()
+            
+            # Single concatenation at the end (much more memory efficient)
+            if len(embeddings_list) == 1:
+                embeddings = embeddings_list[0]
+            else:
+                embeddings = np.vstack(embeddings_list)
+            
+            # Free the list memory immediately
+            del embeddings_list
+            gc.collect()
+            
+            encode_duration = time.time() - start_time
+            logger.debug(f"model.encode() completed in {encode_duration:.3f}s")
+            logger.debug(f"Generated embeddings shape: {embeddings.shape}")
+            
+            # Report completion
+            self._send_progress('completed', total_texts, total_texts)
+            
+            # CRITICAL: Clear MPS memory immediately after successful encoding
+            self._clear_mps_memory()
             
         except Exception as encode_error:
-            # If encoding fails with target device, fallback to CPU but log warning
-            logger.warning(f"Encoding failed on {self.device}, falling back to CPU: {encode_error}")
-            embeddings = self.model.encode(
-                texts,
-                convert_to_numpy=True,
-                show_progress_bar=False,
-                device='cpu'
-            )
+            encode_duration = time.time() - start_time
+            logger.error(f"model.encode() FAILED after {encode_duration:.3f}s: {encode_error}")
+            
+            # Clear memory even on failure to prevent accumulation
+            self._clear_mps_memory()
+            
+            # Try CPU fallback
+            logger.warning(f"Attempting CPU fallback due to {self.device} failure")
+            
+            try:
+                import torch
+                with torch.no_grad():
+                    embeddings = self.model.encode(
+                        texts,
+                        convert_to_numpy=True,
+                        show_progress_bar=False,
+                        device='cpu',
+                        batch_size=self.optimal_batch_size
+                    )
+                logger.info("CPU fallback succeeded")
+            except Exception as cpu_error:
+                # Clear memory again before raising
+                self._clear_mps_memory()
+                raise RuntimeError(f"Encoding failed on both {self.device} and CPU: {cpu_error}")
         
         # Convert to EmbeddingVector objects
+        logger.debug("Converting to EmbeddingVector format...")
+        conversion_start = time.time()
+        import gc  # Import for garbage collection
+        
         results = []
         timestamp = datetime.utcnow().isoformat()
         
@@ -748,6 +877,20 @@ class EmbeddingHandler:
                 chunk_id=f"chunk_{i}_{int(time.time())}"
             )
             results.append(vector)
+        
+        # Delete embeddings numpy array to free memory
+        del embeddings
+        gc.collect()  # Force garbage collection
+        
+        # Final memory cleanup after conversion
+        self._clear_mps_memory()
+        gc.collect()  # Final cleanup
+        
+        conversion_duration = time.time() - conversion_start
+        total_duration = time.time() - start_time
+        
+        logger.debug(f"Conversion completed in {conversion_duration:.3f}s")
+        logger.debug(f"Total generation time: {total_duration:.3f}s for {len(results)} embeddings")
         
         return results
     
@@ -820,50 +963,32 @@ class EmbeddingHandler:
             
             logger.info(f"Downloading model {model_name}...")
             
-            # ULTIMATE FIX: Use huggingface-hub to download models instead of SentenceTransformer
-            # This completely bypasses the PyTorch MPS initialization issues
-            logger.info("Using huggingface-hub download to bypass MPS issues")
+            logger.info("Using safe download method for model")
             
             try:
-                # Method 1: Use huggingface_hub if available
+                # Try huggingface_hub for direct download
                 from huggingface_hub import snapshot_download
                 
-                # Download the model files without loading into PyTorch/SentenceTransformers
                 cache_dir = snapshot_download(
                     repo_id=model_name,
-                    cache_dir=None,  # Use default cache
-                    force_download=False  # Only download if not cached
+                    cache_dir=None,
+                    force_download=False
                 )
                 logger.info(f"Model {model_name} downloaded to {cache_dir}")
                 
-            except ImportError:
-                # Method 2: Fallback to minimal SentenceTransformer with extreme safety
-                logger.info("huggingface-hub not available, using minimal SentenceTransformer approach")
-                
-                import os
-                
-                # Set ALL known compatibility environment variables
-                os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-                os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-                os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-                os.environ['OMP_NUM_THREADS'] = '1'
-                
-                # Force CPU with no device inference capability
-                logger.info("Emergency CPU-only download for Apple Silicon")
-                model = SentenceTransformer(model_name, device='cpu')
-                
-                # Immediate cleanup
-                del model
-            
-            except Exception as download_error:
-                # If huggingface-hub download fails, try the minimal approach
-                logger.warning(f"Huggingface download failed: {download_error}")
-                logger.info("Falling back to minimal SentenceTransformer")
+            except (ImportError, Exception) as e:
+                # Fallback to SentenceTransformer download
+                logger.info("Using SentenceTransformer for model download")
                 
                 import os
                 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+                
+                # Download on CPU to avoid MPS issues
                 model = SentenceTransformer(model_name, device='cpu')
                 del model
+                
+                # Clear any memory used
+                self._clear_mps_memory()
             
             return {
                 'success': True,
@@ -874,13 +999,12 @@ class EmbeddingHandler:
         except Exception as e:
             logger.error(f"Failed to download model {model_name}: {e}")
             
-            # Enhanced error detection for Apple Silicon issues
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in ['meta tensor', 'mps', 'cumsum', 'not implemented']):
-                logger.error("★ APPLE SILICON DOWNLOAD ERROR: Model download failed due to MPS compatibility issue")
+                logger.error("MPS compatibility error during download")
                 return {
                     'success': False,
-                    'error': f'Apple Silicon compatibility error: {str(e)}. Try updating PyTorch or forcing CPU mode.',
+                    'error': f'MPS compatibility error: {str(e)}',
                     'progress': 0
                 }
             
@@ -893,7 +1017,6 @@ class EmbeddingHandler:
     def is_model_cached(self, model_name: str) -> bool:
         """Check if model is already in sentence-transformers cache"""
         try:
-            import os
             from pathlib import Path
             
             # Check new HuggingFace hub cache directory (current location)
@@ -947,18 +1070,17 @@ class EmbeddingHandler:
                     logger.warning(f"Processing thread did not stop within {thread_timeout}s timeout - proceeding anyway")
                     # Don't return False - continue with cleanup
             
-            # Clear model from GPU memory quickly
-            if self.model and self.device != 'cpu':
+            # Clear model and GPU memory
+            if self.model:
                 try:
-                    logger.info("Clearing GPU memory...")
+                    logger.info("Clearing model and memory...")
+                    self._clear_mps_memory()
                     del self.model
                     self.model = None
-                    if self.device == 'cuda':
-                        import torch
-                        torch.cuda.empty_cache()
-                        logger.info("GPU memory cleared")
+                    self._clear_mps_memory()
+                    logger.info("Model and memory cleared")
                 except Exception as gpu_error:
-                    logger.warning(f"Error clearing GPU memory (non-fatal): {gpu_error}")
+                    logger.warning(f"Error clearing memory (non-fatal): {gpu_error}")
             
             logger.info("EmbeddingHandler shutdown completed successfully")
             return True
@@ -994,19 +1116,36 @@ class EmbeddingHandler:
             logger.warning(f"Failed to reset keep-alive timer: {e}")
     
     def _handle_keep_alive_timeout(self) -> None:
-        """Handle keep-alive timeout - unload model but keep process alive"""
+        """Handle keep-alive timeout with atomic state check"""
         try:
-            logger.info(f"Keep-alive timeout reached ({self.keep_alive_duration}s since last activity)")
-            logger.info("Unloading model to free memory...")
+            with self.state_lock:
+                # Check all conditions atomically
+                if (self.state != 'IDLE' or 
+                    self.request_queue.qsize() > 0 or 
+                    self.current_request is not None):
+                    
+                    logger.debug(f"Cannot unload - state={self.state}, queue={self.request_queue.qsize()}")
+                    self._reset_keep_alive_timer()
+                    return
+                
+                # Mark as unloading to prevent new work
+                self.state = 'UNLOADING'
             
-            # Unload the model instead of shutting down
+            # Report unloading progress
+            self._send_progress('unloading_model', 0, 0, "Freeing GPU memory")
+            
+            # Safe to unload outside lock
+            logger.info(f"Keep-alive timeout reached ({self.keep_alive_duration}s since last activity)")
+            logger.info("Unloading model after idle timeout")
             self._unload_model()
             
-            # Don't set shutdown_event or is_running = False
-            # Process stays alive, ready for next request
+            # Reset state
+            with self.state_lock:
+                self.state = 'IDLE'
             
+            self._send_progress('idle', 0, 0, "Model unloaded, process ready")
             logger.info("Keep-alive timeout handled - model unloaded, process remains active")
-            
+                
         except Exception as e:
             logger.error(f"Error during model unloading: {e}")
             # If model unloading fails, fall back to graceful shutdown

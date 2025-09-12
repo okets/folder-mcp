@@ -107,7 +107,7 @@ def get_process_management_config() -> Dict[str, int]:
     # Default values (in seconds for internal use)
     defaults = {
         'crawling_pause_seconds': 60,      # 1 minute
-        'keep_alive_seconds': 300,         # 5 minutes  
+        'keep_alive_seconds': 3600,        # 60 minutes - extended for large indexing jobs
         'shutdown_grace_period_seconds': 30
     }
     
@@ -150,8 +150,9 @@ def get_process_management_config() -> Dict[str, int]:
 if __name__ == '__main__':
     # Test the utility functions
     print("Supported models:", get_supported_models())
-    print("Default model:", get_default_model())
-    print("Validate 'all-MiniLM-L6-v2':", validate_model('all-MiniLM-L6-v2'))
+    default_model = get_default_model()
+    print("Default model:", default_model)
+    print(f"Validate '{default_model}':", validate_model(default_model))
     print("Validate 'invalid-model':", validate_model('invalid-model'))
     print("All models info:", get_model_info())
     print("Process management config:", get_process_management_config())

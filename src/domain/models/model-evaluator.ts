@@ -29,10 +29,13 @@ export interface CuratedModel {
       recRAM?: number;
       expectedTokensPerSec?: number;
       optimalCpuFeatures?: string[];
+      notes?: string;
     };
     gpu?: {
       minVRAM?: number;
+      recommendedVRAM?: number;
       expectedTokensPerSec?: number;
+      notes?: string;
     };
     vram?: number; // For Ollama models
     installCommand?: string; // For Ollama models
@@ -227,7 +230,8 @@ export class ModelCompatibilityEvaluator {
     if (isGpuModel) {
       const gpuReq = model.requirements?.gpu;
       if (gpuReq && capabilities.gpu.type !== 'none') {
-        const requiredVRAM = gpuReq.minVRAM || 4096; // Default 4GB requirement
+        // Use recommended VRAM if available, otherwise fall back to minimum
+        const requiredVRAM = gpuReq.recommendedVRAM || gpuReq.minVRAM || 4096;
         const availableVRAM = capabilities.gpu.vramGB || 0;
 
         // Apply 20% safety margin for GPU VRAM (system stability)

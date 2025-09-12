@@ -17,6 +17,7 @@ interface ModelInfo {
     displayName: string;
     description: string;
     huggingfaceId: string;
+    sentenceTransformerId?: string; // New field for Python embedding service
     dimensions: number;
     modelSizeMB: number;
     isDefault?: boolean;
@@ -305,4 +306,35 @@ export function getAllModelMetadata(): ModelMetadata[] {
     return allModels
         .map(model => getModelMetadata(model.id))
         .filter((metadata): metadata is ModelMetadata => metadata !== null);
+}
+
+/**
+ * Convert model ID (e.g., 'gpu:bge-m3') to HuggingFace model ID
+ */
+export function getHuggingfaceIdFromModelId(modelId: string): string {
+    const model = getModelById(modelId);
+    if (!model) {
+        throw new Error(`Model not found in registry: ${modelId}`);
+    }
+    
+    return model.huggingfaceId;
+}
+
+/**
+ * Convert model ID (e.g., 'gpu:bge-m3') to sentence-transformers model ID
+ * This is what gets passed to the Python embedding service
+ */
+export function getSentenceTransformerIdFromModelId(modelId: string): string {
+    const model = getModelById(modelId);
+    if (!model) {
+        throw new Error(`Model not found in registry: ${modelId}`);
+    }
+    
+    // Use sentenceTransformerId if available, fallback to huggingfaceId
+    const sentenceTransformerId = model.sentenceTransformerId || model.huggingfaceId;
+    if (!sentenceTransformerId) {
+        throw new Error(`No sentence-transformers ID found for model: ${modelId}`);
+    }
+    
+    return sentenceTransformerId;
 }

@@ -1,5 +1,5 @@
 /**
- * Sprint 11: PDF Document Format-Aware Chunking
+ * PDF Document Format-Aware Chunking
  * 
  * Implements chunking that respects PDF page structure using pdf2json's
  * page and text block coordinate system for precise text location.
@@ -294,8 +294,69 @@ export class PdfChunkingService {
     ): ChunkedContent {
         const chunks: TextChunk[] = [];
         const text = content.content;
-        const words = text.split(/\s+/);
         
+        // Handle edge case: empty or very short content
+        if (!text || text.trim().length === 0) {
+            return {
+                originalContent: content,
+                chunks: [],
+                totalChunks: 0
+            };
+        }
+        
+        // Try to split by spaces first
+        let words = text.split(/\s+/).filter(w => w.length > 0);
+        
+        // CRITICAL FIX: If no spaces found (or very few), force character-based chunking
+        // This prevents creating one massive chunk that exceeds model context window
+        if (words.length <= 1) {
+            // No word boundaries found - likely corrupted PDF extraction
+            // Fall back to character-based chunking
+            const maxChars = maxTokens * 4; // Approximate 4 chars per token
+            const chunks: TextChunk[] = [];
+            
+            for (let i = 0; i < text.length; i += maxChars) {
+                const chunkContent = text.substring(i, Math.min(i + maxChars, text.length));
+                const tokenCount = Math.ceil(chunkContent.length / 4);
+                
+                chunks.push({
+                    content: chunkContent,
+                    startPosition: i,
+                    endPosition: Math.min(i + maxChars, text.length),
+                    tokenCount: tokenCount,
+                    chunkIndex: chunks.length,
+                    metadata: {
+                        sourceFile: '',
+                        sourceType: 'pdf',
+                        totalChunks: 0,
+                        hasOverlap: false,
+                        ...{
+                            extractionParams: ExtractionParamsValidator.serialize(
+                                ExtractionParamsFactory.createPdfParams(
+                                    0, // Default to page 0 in fallback mode
+                                    0, // Start at first text block
+                                    0  // End at first text block
+                                )
+                            )
+                        }
+                    },
+                    semanticMetadata: createDefaultSemanticMetadata()
+                });
+            }
+            
+            // Update total chunks
+            chunks.forEach(chunk => {
+                chunk.metadata.totalChunks = chunks.length;
+            });
+            
+            return {
+                originalContent: content,
+                chunks,
+                totalChunks: chunks.length
+            };
+        }
+        
+        // Normal word-based chunking when spaces are available
         let currentChunk = '';
         let currentTokens = 0;
         let chunkStart = 0;
@@ -340,31 +401,69 @@ export class PdfChunkingService {
             }
         }
         
-        // Save final chunk
+        // Save final chunk - but ONLY if it's within size limits
         if (currentChunk.trim()) {
-            chunks.push({
-                content: currentChunk.trim(),
-                startPosition: chunkStart,
-                endPosition: text.length,
-                tokenCount: currentTokens,
-                chunkIndex: chunks.length,
-                metadata: {
-                    sourceFile: '',
-                    sourceType: 'pdf',
-                    totalChunks: 0,
-                    hasOverlap: false,
-                    ...{
-                        extractionParams: ExtractionParamsValidator.serialize(
-                            ExtractionParamsFactory.createPdfParams(
-                                0, // Default to page 0 in fallback mode
-                                0, // Start at first text block
-                                0  // End at first text block
+            // CRITICAL FIX: Check if final chunk exceeds max tokens
+            // If it does, split it into smaller chunks
+            if (currentTokens > maxTokens) {
+                // Final chunk is too large - need to split it
+                const finalText = currentChunk.trim();
+                const maxChars = maxTokens * 4;
+                
+                for (let i = 0; i < finalText.length; i += maxChars) {
+                    const chunkContent = finalText.substring(i, Math.min(i + maxChars, finalText.length));
+                    const tokenCount = Math.ceil(chunkContent.length / 4);
+                    
+                    chunks.push({
+                        content: chunkContent,
+                        startPosition: chunkStart + i,
+                        endPosition: chunkStart + Math.min(i + maxChars, finalText.length),
+                        tokenCount: tokenCount,
+                        chunkIndex: chunks.length,
+                        metadata: {
+                            sourceFile: '',
+                            sourceType: 'pdf',
+                            totalChunks: 0,
+                            hasOverlap: false,
+                            ...{
+                                extractionParams: ExtractionParamsValidator.serialize(
+                                    ExtractionParamsFactory.createPdfParams(
+                                        0, // Default to page 0 in fallback mode
+                                        0, // Start at first text block
+                                        0  // End at first text block
+                                    )
+                                )
+                            }
+                        },
+                        semanticMetadata: createDefaultSemanticMetadata()
+                    });
+                }
+            } else {
+                // Final chunk is within limits
+                chunks.push({
+                    content: currentChunk.trim(),
+                    startPosition: chunkStart,
+                    endPosition: text.length,
+                    tokenCount: currentTokens,
+                    chunkIndex: chunks.length,
+                    metadata: {
+                        sourceFile: '',
+                        sourceType: 'pdf',
+                        totalChunks: 0,
+                        hasOverlap: false,
+                        ...{
+                            extractionParams: ExtractionParamsValidator.serialize(
+                                ExtractionParamsFactory.createPdfParams(
+                                    0, // Default to page 0 in fallback mode
+                                    0, // Start at first text block
+                                    0  // End at first text block
+                                )
                             )
-                        )
-                    }
-                },
-                semanticMetadata: createDefaultSemanticMetadata()
-            });
+                        }
+                    },
+                    semanticMetadata: createDefaultSemanticMetadata()
+                });
+            }
         }
         
         return {

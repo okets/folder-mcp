@@ -14,6 +14,7 @@ import type {
   TextMetadata
 } from '../../src/types/index.js';
 import { createDefaultSemanticMetadata } from '../../src/types/index.js';
+import { getSupportedGpuModelHuggingfaceIds, getSupportedCpuModelIds } from '../../src/config/model-registry.js';
 import { vi } from "vitest";
 
 /**
@@ -144,10 +145,17 @@ export class MockFactory {
    * Create embedding with specific model
    */
   static createEmbeddingWithModel(text: string, model: string): number[] {
-    // Support commonly used embedding models including nomic-embed-text
-    const validModels = ['text-embedding-ada-002', 'all-MiniLM-L6-v2', 'sentence-transformers', 'nomic-embed-text', 'mxbai-embed-large', 'text-embedding-3-small'];
+    // Use dynamic model validation from curated models registry - NO hardcoded model lists
+    const supportedGpuModels = getSupportedGpuModelHuggingfaceIds();
+    const supportedCpuModels = getSupportedCpuModelIds();
+    const allSupportedModels = [...supportedGpuModels, ...supportedCpuModels];
+    
+    // Also support common test models for backwards compatibility
+    const testModels = ['text-embedding-ada-002', 'sentence-transformers', 'nomic-embed-text', 'mxbai-embed-large', 'text-embedding-3-small'];
+    const validModels = [...allSupportedModels, ...testModels];
+    
     if (!validModels.some(valid => model.includes(valid))) {
-      throw new Error(`Unsupported embedding model: ${model}`);
+      throw new Error(`Unsupported embedding model: ${model}. Supported models: ${validModels.join(', ')}`);
     }
     
     const baseEmbedding = this.createEmbeddingForText(text);

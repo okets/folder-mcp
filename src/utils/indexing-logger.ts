@@ -2,47 +2,16 @@
  * Focused Indexing Logger
  * 
  * A specialized logger for debugging indexing decisions and file processing loops.
- * Writes to a dedicated log file with structured, concise output.
+ * Console-only output to avoid temp file pollution.
  */
 
-import * as fs from 'fs';
 import * as path from 'path';
 
 export class IndexingLogger {
-  private logFilePath: string;
-  private stream: fs.WriteStream | null = null;
+  // Console-only logging - no file writes to avoid temp file pollution
   
   constructor() {
-    // Create log file in project tmp directory
-    const projectRoot = path.resolve(process.cwd());
-    const logDir = path.join(projectRoot, 'tmp');
-    
-    // Ensure tmp directory exists
-    if (!fs.existsSync(logDir)) {
-      fs.mkdirSync(logDir, { recursive: true });
-    }
-    
-    this.logFilePath = path.join(logDir, 'indexing-decisions.log');
-    
-    // Clear previous log on startup
-    try {
-      if (fs.existsSync(this.logFilePath)) {
-        fs.unlinkSync(this.logFilePath);
-      }
-    } catch (e) {
-      console.warn('[INDEXING-LOGGER] Failed to clear previous log:', (e as Error).message);
-    }
-    // Create write stream
-    try {
-      this.stream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
-      this.stream.on('error', (err) => {
-        console.error('[INDEXING-LOGGER] Stream error:', err.message);
-        this.stream = null;
-      });
-    } catch (e) {
-      console.error('[INDEXING-LOGGER] Failed to open log file:', (e as Error).message);
-      this.stream = null;
-    }
+    // No file logging - console only
   }
   
   private formatTimestamp(): string {
@@ -54,10 +23,7 @@ export class IndexingLogger {
   }
   
   private write(message: string): void {
-    if (this.stream) {
-      this.stream.write(message + '\n');
-    }
-    // Also write to console for immediate visibility
+    // Console-only logging
     console.log('[INDEXING-LOGGER]', message);
   }
   
@@ -193,10 +159,7 @@ export class IndexingLogger {
    * Close the logger
    */
   close(): void {
-    if (this.stream) {
-      this.stream.end();
-      this.stream = null;
-    }
+    // No-op - no file stream to close
   }
 }
 

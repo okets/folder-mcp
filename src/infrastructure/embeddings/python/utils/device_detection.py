@@ -49,14 +49,15 @@ def detect_optimal_device() -> Tuple[str, Dict[str, Any]]:
                 logger.info(f"CUDA detected: {device_name} (devices: {device_count})")
                 return 'cuda', device_info
         
-        # Check for MPS (Apple Silicon)
+        # Check for MPS (Apple Silicon) - ENABLED after confirming BGE-M3 works with MPS
         if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
             device_info.update({
-                'device_type': 'mps',
-                'device_name': 'Apple Silicon GPU',
-                'memory_available': True
+                'device_type': 'mps',  # Use MPS for GPU acceleration
+                'device_name': 'Apple Silicon MPS',
+                'memory_available': True,
+                'unified_memory': True  # Apple Silicon uses unified memory architecture
             })
-            logger.info("Apple Silicon MPS detected")
+            logger.info("Apple Silicon MPS detected and enabled for GPU acceleration")
             return 'mps', device_info
             
     except Exception as e:

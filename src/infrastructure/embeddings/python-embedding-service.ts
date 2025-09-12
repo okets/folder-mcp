@@ -71,13 +71,23 @@ interface PythonEmbeddingResponse {
 }
 
 interface HealthCheckResponse {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'idle';
   model_loaded: boolean;
   gpu_available: boolean;
   memory_usage_mb: number;
   uptime_seconds: number;
   queue_size: number;
   request_id?: string;
+}
+
+interface ProgressUpdate {
+  type: 'progress';
+  status: string;
+  current: number;
+  total: number;
+  timestamp: number;
+  details: string;
+  message: string;
 }
 
 /**
@@ -89,7 +99,6 @@ interface PythonEmbeddingConfig {
   scriptPath?: string;
   timeout: number;
   maxRetries: number;
-  healthCheckInterval: number;
   autoRestart: boolean;
   maxRestartAttempts: number;
   restartDelay: number;
@@ -114,7 +123,6 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     reject: (error: Error) => void;
     timeout: NodeJS.Timeout;
   }>();
-  private healthCheckTimer: NodeJS.Timeout | null = null;
   private lastHealthCheck: HealthCheckResponse | null = null;
   private isShuttingDown = false;
   private restartAttempts = 0;
@@ -126,18 +134,33 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   // Service degradation state for graceful failure handling
   private isDegraded = false;
   private degradationReason: string | null = null;
+  
+  // Progress monitoring
+  private lastProgressUpdate: ProgressUpdate | null = null;
+  private progressWatchdog: NodeJS.Timeout | null = null;
+  private isProcessingActive = false;
+  private readonly PROGRESS_TIMEOUT_MS = 60000; // 1 minute without progress = problem
+  private readonly IDLE_TIMEOUT_MS = 300000; // 5 minutes truly idle = maybe restart
+  
+  // Track successful embeddings to use as health signal
+  private lastSuccessfulEmbedding: number = 0;
+  private totalEmbeddingsGenerated: number = 0;
+  private processStartTime: number = Date.now();
 
   constructor(config?: Partial<PythonEmbeddingConfig>, modelConfig?: any) {
     // Try to detect the correct Python command for the platform
     const defaultPythonPath = process.platform === 'win32' ? 'python' : 'python3';
     
+    if (!config?.modelName) {
+      throw new Error('Model name is required in config - no defaults allowed');
+    }
+
     this.config = {
-      modelName: 'all-MiniLM-L6-v2',
+      modelName: config.modelName, // REQUIRED - no default
       pythonPath: defaultPythonPath,
       scriptPath: join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
-      timeout: 30000, // 30 seconds
+      timeout: 180000, // 180 seconds (3 minutes) for large models like BGE-M3
       maxRetries: 3,
-      healthCheckInterval: 30000, // 30 seconds
       autoRestart: true,
       maxRestartAttempts: 5,
       restartDelay: 2000, // 2 seconds
@@ -169,10 +192,8 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         throw new Error(EmbeddingErrors.pythonDependenciesMissing(modelDisplayName));
       }
 
-      // Start periodic health checks
-      this.startHealthCheckTimer();
-
       this.initialized = true;
+      this.processStartTime = Date.now(); // Track when process started
       console.error('Python embedding service initialized successfully');
       
     } catch (error: any) {
@@ -221,14 +242,8 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     // Check if service is degraded
     if (this.isDegraded) {
       console.error(`Embedding request rejected: Service is degraded (${this.degradationReason})`);
-      // Return empty embeddings to allow system to continue without crashing
-      return chunks.map((chunk, index) => ({
-        vector: Array(384).fill(0), // Zero vector as placeholder
-        dimensions: 384,
-        model: this.config.modelName,
-        createdAt: new Date().toISOString(),
-        chunkId: `degraded_${index}`
-      }));
+      // FAIL LOUDLY - no silent fallbacks allowed
+      throw new Error(`Python embedding service is degraded: ${this.degradationReason}`);
     }
     
     if (!this.initialized) {
@@ -250,6 +265,11 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     if (!response.success) {
       throw new Error(response.error || 'Embedding generation failed');
     }
+
+    // Update successful embedding tracking for health check skipping
+    this.lastSuccessfulEmbedding = Date.now();
+    this.totalEmbeddingsGenerated += response.embeddings.length;
+    console.error(`[EMBEDDINGS] Successfully generated ${response.embeddings.length} embeddings (total: ${this.totalEmbeddingsGenerated})`);
 
     // Convert to EmbeddingVector format
     return response.embeddings.map((emb: any, index: number) => ({
@@ -355,65 +375,25 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
             }
           }
         } else {
-          // Handle batch failure
-          for (let j = 0; j < batch.length; j++) {
-            const chunk = batch[j];
-            if (chunk) {
-              results.push({
-                chunk,
-                embedding: {
-                  vector: new Array(384).fill(0), // Default dimensions
-                  dimensions: 384,
-                  model: this.config.modelName,
-                  createdAt: new Date().toISOString(),
-                  chunkId: `chunk_${i + j}_${chunk.chunkIndex}`,
-                  metadata: {
-                    generatedAt: new Date().toISOString(),
-                    modelVersion: this.config.modelName,
-                    tokensUsed: 0,
-                    confidence: 0
-                  }
-                },
-                processingTime,
-                success: false,
-                error: response.error || 'Batch processing failed'
-              });
-            }
-          }
+          // FAIL LOUDLY - no silent fallbacks allowed
+          throw new Error(`Batch embedding failed: ${response.error || 'Batch processing failed'}`);
         }
       } catch (error) {
-        // Handle individual batch errors
-        const processingTime = Date.now() - startTime;
-        for (let j = 0; j < batch.length; j++) {
-          const chunk = batch[j];
-          if (chunk) {
-            results.push({
-              chunk,
-              embedding: {
-                vector: new Array(384).fill(0),
-                dimensions: 384,
-                model: this.config.modelName,
-                createdAt: new Date().toISOString(),
-                chunkId: `chunk_${i + j}_${chunk.chunkIndex}`,
-                metadata: {
-                  generatedAt: new Date().toISOString(),
-                  modelVersion: this.config.modelName,
-                  tokensUsed: 0,
-                  confidence: 0
-                }
-              },
-              processingTime,
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error'
-            });
-          }
-        }
+        // FAIL LOUDLY - no silent fallbacks allowed
+        throw new Error(`Batch embedding error: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       // Small delay between batches to be nice to the system
       if (i + batchSize < chunks.length) {
         await new Promise(resolve => setTimeout(resolve, 10));
       }
+    }
+
+    // Track successful embedding generation
+    if (results.length > 0) {
+      this.lastSuccessfulEmbedding = Date.now();
+      this.totalEmbeddingsGenerated += results.length;
+      console.error(`[HEALTH-TRACKING] Successfully generated ${results.length} embeddings. Total: ${this.totalEmbeddingsGenerated}`);
     }
 
     return results;
@@ -496,12 +476,6 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         this.restartTimer = null;
       }
       
-      // Stop health check timer
-      if (this.healthCheckTimer) {
-        clearInterval(this.healthCheckTimer);
-        this.healthCheckTimer = null;
-      }
-
       // Send shutdown request to Python process
       if (this.pythonProcess) {
         try {
@@ -730,11 +704,19 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    */
   private handleJsonRpcResponse(responseStr: string): void {
     try {
-      const response: JsonRpcResponse = JSON.parse(responseStr);
+      const message = JSON.parse(responseStr);
       
+      // Check for progress updates (no 'id' field, just method)
+      if (message.method === 'progress_update') {
+        this.handleProgressUpdate(message.params);
+        return;
+      }
+      
+      // Normal response handling
+      const response: JsonRpcResponse = message;
       const pending = this.pendingRequests.get(response.id);
       if (pending) {
-        clearTimeout(pending.timeout);
+        clearTimeout(pending.timeout); // Clear timeout if any
         this.pendingRequests.delete(response.id);
         
         if (response.error) {
@@ -747,6 +729,92 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       }
     } catch (error) {
       console.error('Error parsing JSON-RPC response:', error, 'Raw:', responseStr);
+    }
+  }
+  
+  /**
+   * Handle progress update from Python process
+   */
+  private handleProgressUpdate(progress: ProgressUpdate): void {
+    // Store latest progress
+    this.lastProgressUpdate = progress;
+    this.isProcessingActive = true;
+    
+    // Log meaningful progress
+    if (progress.total > 0) {
+      const percentage = Math.round((progress.current / progress.total) * 100);
+      console.error(`[EMBEDDING PROGRESS] ${progress.status}: ${percentage}% (${progress.current}/${progress.total}) - ${progress.details}`);
+    } else {
+      console.error(`[EMBEDDING PROGRESS] ${progress.status}: ${progress.details || progress.message}`);
+    }
+    
+    // Reset watchdog - Python is alive!
+    this.resetProgressWatchdog();
+    
+    // Mark as idle when completed
+    if (progress.status === 'completed' || progress.status === 'idle') {
+      this.isProcessingActive = false;
+    }
+  }
+  
+  /**
+   * Reset the progress watchdog timer
+   */
+  private resetProgressWatchdog(): void {
+    // Clear existing watchdog
+    if (this.progressWatchdog) {
+      clearTimeout(this.progressWatchdog);
+    }
+    
+    // Only set watchdog if actively processing
+    if (this.isProcessingActive) {
+      this.progressWatchdog = setTimeout(() => {
+        this.checkProgressHealth();
+      }, this.PROGRESS_TIMEOUT_MS);
+    }
+  }
+  
+  /**
+   * Check progress health and take action if stuck
+   */
+  private checkProgressHealth(): void {
+    if (!this.lastProgressUpdate) {
+      console.error('[PROGRESS] No progress updates received');
+      return;
+    }
+    
+    const timeSinceLastUpdate = Date.now() - (this.lastProgressUpdate.timestamp * 1000);
+    
+    if (timeSinceLastUpdate > this.PROGRESS_TIMEOUT_MS) {
+      console.error(
+        `[PROGRESS WARNING] No progress for ${Math.round(timeSinceLastUpdate / 1000)}s ` +
+        `Last status: ${this.lastProgressUpdate.status}`
+      );
+      
+      // Only consider restart if REALLY stuck
+      if (timeSinceLastUpdate > this.IDLE_TIMEOUT_MS) {
+        console.error('[PROGRESS ERROR] Python appears stuck, considering restart');
+        this.handlePythonStuck();
+      }
+    } else {
+      // Still healthy, check again later
+      this.resetProgressWatchdog();
+    }
+  }
+  
+  /**
+   * Handle Python process that appears stuck
+   */
+  private async handlePythonStuck(): Promise<void> {
+    console.error('[PROGRESS] Attempting to recover from stuck Python process');
+    
+    // Try to restart the Python process
+    if (this.restartAttempts < this.config.maxRestartAttempts) {
+      await this.restartProcess();
+    } else {
+      console.error('[PROGRESS] Max restart attempts reached, service degraded');
+      this.isDegraded = true;
+      this.degradationReason = 'Python process repeatedly stuck';
     }
   }
 
@@ -767,17 +835,26 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     };
 
     return new Promise((resolve, reject) => {
-      // Use custom timeout if provided, otherwise default config timeout
-      const timeoutMs = customTimeout || this.config.timeout;
+      // NO TIMEOUT for embedding operations!
+      // We rely on progress updates instead
+      let timeout: NodeJS.Timeout | null = null;
       
-      // Set up timeout
-      const timeout = setTimeout(() => {
-        this.pendingRequests.delete(requestId);
-        reject(new Error(`Request timeout: ${method} (${timeoutMs}ms)`));
-      }, timeoutMs);
+      // Only add timeout for quick operations (health check, status)
+      if (method === 'health_check' || method === 'is_model_cached') {
+        timeout = setTimeout(() => {
+          this.pendingRequests.delete(requestId);
+          reject(new Error(`Request timeout: ${method} (30s)`));
+        }, 30000);
+      } else if (customTimeout) {
+        // Use custom timeout if explicitly provided (for non-embedding operations)
+        timeout = setTimeout(() => {
+          this.pendingRequests.delete(requestId);
+          reject(new Error(`Request timeout: ${method} (${customTimeout}ms)`));
+        }, customTimeout);
+      }
 
       // Store pending request
-      this.pendingRequests.set(requestId, { resolve, reject, timeout });
+      this.pendingRequests.set(requestId, { resolve, reject, timeout: timeout! });
 
       // Send request
       try {
@@ -788,67 +865,19 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
           throw new Error('Python process stdin not available');
         }
       } catch (error) {
-        clearTimeout(timeout);
+        if (timeout) clearTimeout(timeout);
         this.pendingRequests.delete(requestId);
         reject(error);
+      }
+      
+      // Start progress monitoring for embedding operations
+      if (method === 'generate_embeddings') {
+        this.isProcessingActive = true;
+        this.resetProgressWatchdog();
       }
     });
   }
 
-  /**
-   * Start periodic health checks
-   * Also monitors for process health and triggers restart if needed
-   */
-  private startHealthCheckTimer(): void {
-    this.healthCheckTimer = setInterval(async () => {
-      try {
-        const health = await this.healthCheck();
-        
-        // If health check indicates the process is unhealthy and auto-restart is enabled
-        if (health.status === 'unhealthy' && this.config.autoRestart && !this.isShuttingDown) {
-          console.error('Python process unhealthy, triggering restart...');
-          
-          // Don't let restartProcess throw and crash - handle gracefully
-          try {
-            await this.restartProcess();
-            // If restart succeeded, clear degradation
-            this.isDegraded = false;
-            this.degradationReason = null;
-            this.restartAttempts = 0; // Reset counter on successful restart
-          } catch (restartError) {
-            console.error('Restart failed, entering degraded mode:', restartError);
-            this.enterDegradedMode('Python embedding service restart failed');
-          }
-        } else if (health.status === 'healthy' && this.isDegraded) {
-          // Service recovered from degradation
-          console.error('Python service recovered from degradation');
-          this.isDegraded = false;
-          this.degradationReason = null;
-        }
-      } catch (error) {
-        console.error('Health check failed:', error);
-        
-        // If health check completely fails, consider restarting
-        if (this.config.autoRestart && !this.isShuttingDown && this.restartAttempts < this.config.maxRestartAttempts) {
-          console.error('Health check failed completely, attempting restart...');
-          
-          try {
-            await this.restartProcess();
-            // If restart succeeded, clear degradation
-            this.isDegraded = false;
-            this.degradationReason = null;
-            this.restartAttempts = 0;
-          } catch (restartError) {
-            console.error('Restart after health check failure failed:', restartError);
-            this.enterDegradedMode('Python service unavailable after multiple restart attempts');
-          }
-        } else if (this.restartAttempts >= this.config.maxRestartAttempts) {
-          // Max attempts reached, enter degraded mode
-          this.enterDegradedMode('Maximum restart attempts exceeded');
-        }
-      }
-    }, this.config.healthCheckInterval);
-  }
   
   /**
    * Enter degraded mode when Python service is unavailable
@@ -979,8 +1008,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       await new Promise(resolve => setTimeout(resolve, initWaitTime));
       
       // Now perform health check with retries
+      // BGE-M3 model loading takes 3-6 seconds, so allow more time
       let healthCheckAttempts = 0;
-      const maxHealthCheckAttempts = 3;
+      const maxHealthCheckAttempts = 5; // Increased from 3 to 5
       let health: HealthCheckResponse | null = null;
       
       while (healthCheckAttempts < maxHealthCheckAttempts) {
@@ -989,24 +1019,26 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         
         try {
           health = await this.healthCheck();
-          if (health.status === 'healthy') {
-            console.error('Health check passed!');
+          if (health.status === 'healthy' || health.status === 'idle') {
+            // Accept 'idle' during initialization - model is still loading
+            console.error(`Health check passed! Status: ${health.status}, Model loaded: ${health.model_loaded}`);
             break;
           }
-          console.error(`Health check returned unhealthy status, model_loaded: ${health.model_loaded}`);
+          console.error(`Health check returned status: ${health.status}, model_loaded: ${health.model_loaded}`);
         } catch (error) {
           console.error(`Health check attempt ${healthCheckAttempts} failed:`, error);
         }
         
         // Wait before next attempt (unless it's the last attempt)
         if (healthCheckAttempts < maxHealthCheckAttempts && (!health || health.status === 'unhealthy')) {
-          const retryWait = 2000 * healthCheckAttempts; // Increasing wait time
+          // Increased wait time for BGE-M3 model loading (3-6 seconds typical)
+          const retryWait = 3000 * healthCheckAttempts; // 3s, 6s, 9s, 12s progression
           console.error(`Waiting ${retryWait}ms before next health check...`);
           await new Promise(resolve => setTimeout(resolve, retryWait));
         }
       }
       
-      // Check final health status
+      // Check final health status - accept 'idle' as valid during initialization
       if (!health || health.status === 'unhealthy') {
         throw new Error(`Restarted process failed health check after ${maxHealthCheckAttempts} attempts`);
       }

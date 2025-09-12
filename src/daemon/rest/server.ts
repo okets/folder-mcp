@@ -24,6 +24,7 @@ import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embe
 import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
 import { PathNormalizer } from '../utils/path-normalizer.js';
 import { SemanticMetadataService } from '../services/semantic-metadata-service.js';
+import { getDefaultModelId } from '../../config/model-registry.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -384,7 +385,10 @@ export class RESTAPIServer {
           id: folder.path, // Use path as identifier
           name: folderName,
           path: folder.path,
-          model: folder.model || 'all-MiniLM-L6-v2',
+          model: folder.model || (() => {
+            const { getDefaultModelId } = require('../../config/model-registry.js');
+            return getDefaultModelId();
+          })(),
           status: folder.status || 'pending',
           documentCount,
           topics: [], // Will be populated from semantic metadata
@@ -522,11 +526,12 @@ export class RESTAPIServer {
       const folderName = this.extractFolderName(folderPath);
 
       // List documents using document service
+      const modelName = folder.model || getDefaultModelId();
       const result = await this.documentService.listDocuments(
         folderPath,
         folderPath, // Use path as identifier
         folderName,
-        folder.model || 'all-MiniLM-L6-v2',
+        modelName,
         folder.status || 'pending',
         params
       );
@@ -648,11 +653,12 @@ export class RESTAPIServer {
       const folderName = this.extractFolderName(folderPath);
 
       // Get document data using document service
+      const modelName = folder.model || getDefaultModelId();
       const result = await this.documentService.getDocumentData(
         folderPath,
         folderPath, // Use path as identifier
         folderName,
-        folder.model || 'all-MiniLM-L6-v2',
+        modelName,
         folder.status || 'pending',
         docId
       );
@@ -774,11 +780,12 @@ export class RESTAPIServer {
       const folderName = this.extractFolderName(folderPath);
 
       // Get document outline using document service
+      const modelName = folder.model || getDefaultModelId();
       const result = await this.documentService.getDocumentOutline(
         folderPath,
         folderPath, // Use path as identifier
         folderName,
-        folder.model || 'all-MiniLM-L6-v2',
+        modelName,
         folder.status || 'pending',
         docId
       );
@@ -1039,7 +1046,7 @@ export class RESTAPIServer {
         return;
       }
       const folderName = this.extractFolderName(folderPath);
-      const modelName = folder.model || 'all-MiniLM-L6-v2';
+      const modelName = folder.model || getDefaultModelId();
 
       // Sprint 7: Implement actual search functionality with model registry
       const startTime = Date.now();

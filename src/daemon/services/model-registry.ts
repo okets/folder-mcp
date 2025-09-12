@@ -10,6 +10,7 @@ import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-e
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
 import { ONNXSingletonManager } from '../../infrastructure/embeddings/onnx-singleton-manager.js';
+import { getSentenceTransformerIdFromModelId, getModelById } from '../../config/model-registry.js';
 
 /**
  * Loaded model instance with metadata
@@ -295,31 +296,31 @@ export class ModelRegistry implements IModelRegistry {
    * Get HuggingFace model ID for GPU models
    */
   private getHuggingFaceId(modelId: string): string {
-    // Map our curated model IDs to HuggingFace IDs
-    const modelMappings: Record<string, string> = {
-      'all-MiniLM-L6-v2': 'sentence-transformers/all-MiniLM-L6-v2',
-      'all-mpnet-base-v2': 'sentence-transformers/all-mpnet-base-v2',
-      'BAAI/bge-m3': 'BAAI/bge-m3',
-      'BAAI/bge-large-en-v1.5': 'BAAI/bge-large-en-v1.5'
-    };
-    
-    return modelMappings[modelId] || modelId; // Fall back to model ID if no mapping
+    try {
+      // Use dynamic lookup from curated models registry - NO hardcoded mappings
+      return getSentenceTransformerIdFromModelId(modelId);
+    } catch (error) {
+      // FAIL LOUDLY - no silent fallbacks allowed
+      throw new Error(`Failed to get HuggingFace ID for model ${modelId}: ${error instanceof Error ? error.message : error}`);
+    }
   }
   
   /**
    * Estimate memory usage for a model
    */
   private estimateMemoryUsage(modelId: string, modelType: 'gpu' | 'cpu'): number {
-    // Rough estimates in MB
-    const memoryEstimates: Record<string, number> = {
-      'all-MiniLM-L6-v2': 400,
-      'all-mpnet-base-v2': 500,
-      'BAAI/bge-m3': 600,
-      'BAAI/bge-large-en-v1.5': 1200,
-      'cpu:xenova-multilingual-e5-small': 200,
-      'cpu:xenova-multilingual-e5-large': 800
-    };
-    
-    return memoryEstimates[modelId] || (modelType === 'cpu' ? 300 : 500);
+    try {
+      // Use dynamic lookup from curated models registry - NO hardcoded estimates
+      const model = getModelById(modelId);
+      if (model?.modelSizeMB) {
+        return model.modelSizeMB;
+      }
+      
+      // FAIL LOUDLY - no silent fallbacks allowed
+      throw new Error(`Model size not found in registry for ${modelId}`);
+    } catch (error) {
+      // FAIL LOUDLY - no silent fallbacks allowed
+      throw new Error(`Failed to get memory estimate for model ${modelId}: ${error instanceof Error ? error.message : error}`);
+    }
   }
 }

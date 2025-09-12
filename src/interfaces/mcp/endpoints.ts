@@ -32,6 +32,7 @@ import type {
 } from '../../di/interfaces.js';
 import type { IFileSystem } from '../../domain/files/interfaces.js';
 import type { EmbeddingVector } from '../../types/index.js';
+import { getDefaultModelId } from '../../config/model-registry.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -141,7 +142,7 @@ export class MCPEndpoints implements IMCPEndpoints {
         
         // Get the target folder and its model ID
         let targetFolderPath = request.filters?.folder;
-        let modelId = 'all-MiniLM-L6-v2'; // Default model for basic testing
+        let modelId = getDefaultModelId(); // Use dynamic default model from registry
         
         if (targetFolderPath && this.folderManager) {
           // Get the folder config to determine which model was used for indexing

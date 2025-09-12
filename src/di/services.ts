@@ -406,7 +406,10 @@ export class ChunkingService implements IChunkingService {
       
       // Use existing chunking logic for other file types
       const { chunkText } = await import('../domain/content/index.js');
-      const result = chunkText(content, chunkSize, chunkSize + 100, overlap / 100);
+      // Convert chunk size from characters to tokens (roughly 4 chars per token)
+      const maxTokens = Math.ceil(chunkSize / 4);
+      const minTokens = Math.ceil(maxTokens * 0.8); // 80% of max as minimum
+      const result = chunkText(content, minTokens, maxTokens, overlap / 100);
       
       this.loggingService.info('Text chunked successfully', {
         totalChunks: result.totalChunks,

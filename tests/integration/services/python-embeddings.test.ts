@@ -66,7 +66,6 @@ describe('Python Embeddings - Complete Test Suite', () => {
     service = new PythonEmbeddingService({
       modelName: 'all-MiniLM-L6-v2',
       timeout: 30000,  // 30 seconds for model loading (must be long enough for initial load)
-      healthCheckInterval: 30000,  // 30 seconds between health checks
       autoRestart: false, // Disable for testing to verify keep-alive
       maxRestartAttempts: 0,  // Disable restarts to test pure keep-alive
       restartDelay: 1000,

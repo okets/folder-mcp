@@ -13,6 +13,7 @@
         "displayName": "BGE-M3 (Comprehensive)",
         "description": "Leading multilingual model, 100+ languages, 8192 token context",
         "huggingfaceId": "BAAI/bge-m3",
+        "sentenceTransformerId": "BAAI/bge-m3",
         "dimensions": 1024,
         "modelSizeMB": 2200,
         "languagePerformance": {
@@ -114,6 +115,7 @@
         "displayName": "E5-Large (Production)",
         "description": "Microsoft's proven multilingual model for production use",
         "huggingfaceId": "intfloat/multilingual-e5-large",
+        "sentenceTransformerId": "intfloat/multilingual-e5-large",
         "dimensions": 1024,
         "modelSizeMB": 2200,
         "languagePerformance": {
@@ -200,11 +202,16 @@
         "contextWindow": 512,
         "requirements": {
           "cpu": {
-            "expectedTokensPerSec": 100
+            "minRAM": 3072,
+            "recRAM": 4096,
+            "expectedTokensPerSec": 100,
+            "notes": "Smaller context window (512) allows efficient batch processing"
           },
           "gpu": {
             "minVRAM": 4096,
-            "expectedTokensPerSec": 200
+            "recommendedVRAM": 6144,
+            "expectedTokensPerSec": 200,
+            "notes": "Works well with default batch sizes on MPS"
           }
         }
       },
@@ -213,6 +220,7 @@
         "displayName": "MiniLM-L12 (Fast)",
         "description": "Fast multilingual model, 50+ languages, resource-friendly",
         "huggingfaceId": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        "sentenceTransformerId": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         "dimensions": 384,
         "modelSizeMB": 420,
         "languagePerformance": {
@@ -262,11 +270,15 @@
         "requirements": {
           "cpu": {
             "minRAM": 1024,
-            "expectedTokensPerSec": 300
+            "recRAM": 2048,
+            "expectedTokensPerSec": 300,
+            "notes": "Lightweight model with small context window (128)"
           },
           "gpu": {
             "minVRAM": 2048,
-            "expectedTokensPerSec": 650
+            "recommendedVRAM": 3072,
+            "expectedTokensPerSec": 650,
+            "notes": "Very efficient on all GPU types"
           }
         }
       }

@@ -175,7 +175,8 @@ export class ModelCacheChecker {
   }
 
   /**
-   * Check GPU models using a single Python service instance
+   * Check GPU models using a temporary, non-persistent Python service
+   * CRITICAL: This must NOT interfere with the singleton registry used for actual embeddings
    */
   private async checkGPUModels(): Promise<CuratedModelInfo[]> {
     const models: CuratedModelInfo[] = [];
@@ -188,16 +189,19 @@ export class ModelCacheChecker {
         return this.getDefaultGPUModels();
       }
       
-      // Create single Python service for all GPU checks
-      pythonService = this.pythonEmbeddingServiceFactory({
-        modelName: 'BAAI/bge-m3', // Any valid HuggingFace model ID works
+      // CRITICAL: Create a temporary Python service that bypasses the singleton registry
+      // This prevents interference with actual embedding generation
+      // NOTE: This is INTENTIONAL - we need a separate instance just for cache checking
+      // that won't interfere with the main embedding service instance
+      pythonService = new PythonEmbeddingService({
+        modelName: 'BAAI/bge-m3', // Minimal model for cache checking
         pythonPath: 'python3',
         timeout: 15000 // Extended timeout for Apple Silicon MPS initialization
       });
       
       await pythonService.initialize();
       
-      // Check all GPU models with the single service
+      // Check all GPU models with the temporary service
       const gpuModelMappings = this.getCuratedGPUModelMappings();
       
       for (const { id, huggingfaceId } of gpuModelMappings) {
@@ -214,14 +218,14 @@ export class ModelCacheChecker {
       return models;
       
     } finally {
-      // Always clean up Python service
+      // Always clean up temporary Python service immediately
       if (pythonService) {
         try {
-          // Use short timeout for model checking - we just need to exit quickly
+          // Shutdown the temporary service without affecting registry
           await pythonService.shutdown(5); // 5 seconds max
         } catch (error) {
           // Ignore shutdown errors
-          this.logger.debug('Python service shutdown error (ignored):', error);
+          this.logger.debug('Temporary Python service shutdown error (ignored):', error);
         }
       }
     }

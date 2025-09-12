@@ -38,6 +38,9 @@ import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../
 // Semantic extraction service for Sprint 10
 import { ContentProcessingService } from '../../domain/content/processing.js';
 
+// Model evaluation for context window detection
+import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
+
 export class IndexingOrchestrator implements IndexingWorkflow {
   private currentStatus: Map<string, IndexingStatus> = new Map();
   private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
@@ -156,12 +159,17 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       await embeddingService.initialize();
       
     } else if (provider === 'gpu' || provider === 'python') {
-      // Python models for GPU
-      const { PythonEmbeddingService } = await import('../../infrastructure/embeddings/python-embedding-service.js');
+      // Python models for GPU - USE FACTORY TO ENSURE SINGLETON
+      const { createPythonEmbeddingService } = await import('../../daemon/factories/model-factories.js');
+      const { getSentenceTransformerIdFromModelId } = await import('../../config/model-registry.js');
       
-      embeddingService = new PythonEmbeddingService({
-        modelName: modelName || modelId // Use full modelId if modelName is undefined
-      }, modelConfig); // Pass model config as second parameter for prefix support
+      // Get the sentence-transformers model ID from the registry
+      const sentenceTransformerId = getSentenceTransformerIdFromModelId(modelId);
+      
+      // Use factory function to get singleton instance
+      embeddingService = createPythonEmbeddingService({
+        modelName: sentenceTransformerId // Use sentence-transformers ID, not our internal ID
+      })
       
       // Initialize the service
       await embeddingService.initialize();
@@ -477,14 +485,14 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // 4. Build vector index if embeddings were created
     if (result.embeddingsCreated > 0) {
       try {
-        this.loggingService.info('[FILE-STATE-DEBUG] Building vector index', { 
+        this.loggingService.debug('Building vector index', { 
           embeddingsCount: result.embeddingsCreated,
           filesProcessed: result.filesProcessed
         });
           // For now, just enable the index (actual implementation TBD)
         await this.vectorSearchService.buildIndex(allEmbeddings, allMetadata);
         
-        this.loggingService.info('[FILE-STATE-DEBUG] Vector index built successfully');
+        this.loggingService.debug('Vector index built successfully');
         
         // Force WAL checkpoint to ensure file_states are persisted
         // This is critical for fixing the re-indexing bug on first restart
@@ -493,15 +501,15 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           const dbManager = storage.getDatabaseManager();
           if (dbManager && typeof dbManager.checkpoint === 'function') {
             await dbManager.checkpoint();
-            this.loggingService.info('[FILE-STATE-DEBUG] Forced WAL checkpoint after indexing');
+            this.loggingService.debug('Forced WAL checkpoint after indexing');
           }
         }
         
         // Debug: Check if file states were persisted
-        this.loggingService.info('[FILE-STATE-DEBUG] Checking file state persistence after indexing');
+        this.loggingService.debug('Checking file state persistence');
         
       } catch (error) {
-        this.loggingService.error('[FILE-STATE-DEBUG] Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
+        this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
         // Don't fail the whole indexing for vector index issues
       }
     }
@@ -527,6 +535,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     embeddings?: any[];
     metadata?: any[];
   }> {
+    // Log file processing start
+    this.loggingService.debug(`Indexing file: ${filePath}`, { modelId });
+    
+    try {
+    
     // Parse file content - need to determine file type
     const fileType = this.getFileType(filePath);
     if (!this.fileParsingService.isSupported(fileType)) {
@@ -535,8 +548,48 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
     const parsedContent = await this.fileParsingService.parseFile(filePath, fileType);
     
-    // Chunk content
-    const chunkResult = await this.chunkingService.chunkText(parsedContent);
+    // Chunk content with model-specific context window
+    // Get model configuration to determine context window
+    const evaluator = new ModelCompatibilityEvaluator();
+    const modelConfig = evaluator.getModelById(modelId);
+    
+    // Calculate chunk size based on model's context window
+    // Use a conservative approach: use 1/4 of context window for chunk size to allow for:
+    // - Overlap between chunks
+    // - Query tokens in search scenarios  
+    // - Safety margin for edge cases
+    const contextWindow = modelConfig?.contextWindow || 512; // Default to 512 if not specified
+    const maxChunkTokens = Math.floor(contextWindow / 4); // Conservative: 1/4 of context window
+    const baseChunkSize = maxChunkTokens * 4; // Convert tokens to approximate characters (4 chars per token)
+    
+    // Calculate safe chunk size based on model characteristics
+    // Large context models require smaller chunks to prevent memory issues
+    let chunkSizeMultiplier = 1.0;
+    if (contextWindow >= 8192) {
+      // Very large context (BGE-M3): use 50% of calculated size
+      chunkSizeMultiplier = 0.5;
+    } else if (contextWindow >= 2048) {
+      // Large context: use 75% of calculated size
+      chunkSizeMultiplier = 0.75;
+    }
+    
+    const chunkSize = Math.floor(baseChunkSize * chunkSizeMultiplier);
+    
+    // Ensure minimum viable chunk size
+    const MIN_CHUNK_SIZE = 500; // Minimum for meaningful content
+    const finalChunkSize = Math.max(MIN_CHUNK_SIZE, chunkSize);
+    
+    this.loggingService.info('Chunking with model-aware settings', {
+      modelId,
+      contextWindow,
+      maxChunkTokens,
+      baseChunkSize,
+      chunkSizeMultiplier,
+      finalChunkSize,
+      documentLength: parsedContent.content.length
+    });
+    
+    const chunkResult = await this.chunkingService.chunkText(parsedContent, finalChunkSize);
     const chunks = chunkResult.chunks;
 
     // Extract semantic metadata for each chunk (Sprint 10)
@@ -608,8 +661,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                       fileHash
                     };
                     
-                    // Sprint 11: Pass through extraction params from format-aware chunking
-                    // The format-aware chunking services add extractionParams to metadata
+                    // Pass through extraction params from format-aware chunking
+                    // Format-aware chunking services add extractionParams for accurate content reconstruction
                     const chunkMetadata = chunk.metadata as any;
                     if (chunkMetadata?.extractionParams) {
                       metadataObj.extractionParams = chunkMetadata.extractionParams;
@@ -702,29 +755,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         const chunksPerMinute = this.performanceMetrics.chunksProcessed / elapsed;
         const embeddingsPerMinute = this.performanceMetrics.embeddingsProcessed / elapsed;
         
-        // Write to performance log file
-        const perfLogPath = './tmp/onnx-performance-log.jsonl';
-        const perfData = {
-          timestamp: new Date().toISOString(),
-          elapsed: elapsed.toFixed(2),
-          chunksProcessed: this.performanceMetrics.chunksProcessed,
-          embeddingsProcessed: this.performanceMetrics.embeddingsProcessed,
-          filesProcessed: this.performanceMetrics.filesProcessed,
-          chunksPerMinute: chunksPerMinute.toFixed(1),
-          embeddingsPerMinute: embeddingsPerMinute.toFixed(1),
-          model: modelId,
-          workerPoolSize: process.env.WORKER_POOL_SIZE || 'default',
-          numThreads: process.env.NUM_THREADS || 'default',
-          batchSize: options.batchSize || 32
-        };
-        
-        try {
-          const fs = await import('fs/promises');
-          await fs.appendFile(perfLogPath, JSON.stringify(perfData) + '\n');
-          this.loggingService.info(`[PERFORMANCE] CPM: ${chunksPerMinute.toFixed(1)}, EPM: ${embeddingsPerMinute.toFixed(1)}, Files: ${this.performanceMetrics.filesProcessed}`);
-        } catch (e) {
-          // Ignore file write errors - performance logging is non-critical
-        }
+        // Log performance metrics periodically
+        this.loggingService.debug(`Performance: ${chunksPerMinute.toFixed(0)} CPM, ${embeddingsPerMinute.toFixed(0)} EPM, ${this.performanceMetrics.filesProcessed} files processed`);
         
         this.performanceMetrics.lastReportTime = now;
       }
@@ -742,6 +774,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Track file completion
     this.performanceMetrics.filesProcessed++;
     
+    // Log file processing completion
+    this.loggingService.info(`Indexed ${filePath}: ${embeddingsCreated} embeddings created`, {
+      modelId,
+      chunks: chunks.length
+    });
+    
     return {
       chunksGenerated: chunks.length,
       embeddingsCreated,
@@ -750,7 +788,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       embeddings,
       metadata
     };
+  } catch (error) {
+    // Log file processing failure
+    this.loggingService.error(`[INDEXING FAILED] Failed to index file: ${filePath}`, error instanceof Error ? error : new Error(String(error)));
+    throw error; // Re-throw to maintain existing error handling
   }
+}
 
   private estimateWordCount(content: string): number {
     return content.trim().split(/\s+/).filter(word => word.length > 0).length;

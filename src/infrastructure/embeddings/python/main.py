@@ -16,6 +16,18 @@ All logging goes to stderr to avoid interfering with JSON-RPC communication.
 import os
 import sys
 
+# Set offline mode early if model is cached to prevent HuggingFace rate limiting
+# This must be done before importing transformers/sentence-transformers
+from pathlib import Path
+cache_dir = Path.home() / '.cache' / 'huggingface' / 'hub'
+if len(sys.argv) > 1:
+    model_name = sys.argv[1]
+    model_dir = cache_dir / f"models--{model_name.replace('/', '--')}"
+    if model_dir.exists() and model_dir.is_dir():
+        os.environ['HF_HUB_OFFLINE'] = '1'
+        os.environ['TRANSFORMERS_OFFLINE'] = '1'
+        os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+
 # ★ CRITICAL: Check all dependencies BEFORE any imports that might fail
 # This ensures we catch missing packages and report them properly to Node.js
 def check_dependencies():
@@ -109,7 +121,9 @@ from models.embedding_request import (
 class EmbeddingRPCServer:
     """JSON-RPC server for embedding operations"""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str):
+        if not model_name:
+            raise ValueError("Model name is required - no defaults allowed")
         self.model_name = model_name
         self.handler: Optional[EmbeddingHandler] = None
         self.is_running = False
@@ -513,10 +527,13 @@ class StdioJSONRPCServer:
 
 async def main():
     """Main entry point"""
-    # Get model name from command line args
-    model_name = "all-MiniLM-L6-v2"  # Default model
-    if len(sys.argv) > 1:
-        model_name = sys.argv[1]
+    # Get model name from command line args - REQUIRED, no defaults
+    if len(sys.argv) < 2:
+        error_msg = "FATAL: Model name is required as command line argument. Usage: python main.py <model_name>"
+        print(error_msg, file=sys.stderr, flush=True)
+        sys.exit(1)
+    
+    model_name = sys.argv[1]
     
     logger.info(f"Starting Python embeddings service with model: {model_name}")
     
