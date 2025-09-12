@@ -189,11 +189,3 @@ MY Code review system's suggestions:
 
 
 ----------
- MiniLM-L12 (Fast)-  i 316 files indexed • indexing time 680s  
- E5-Large- i 316 files indexed • indexing time 1067s 
- E5-Large- limites- 316 files indexed • indexing time 1483s 
-
-There is a bug in our scanning phase.
-when we first start the daemon, a folder should be scanned and compared against the database, compare hashes and only index new or changed files, and remove deleted files from the database.
-in case the indexing fails or the daemon is killed during indexing, the next time we start the daemon it should resume indexing from where it left off.
-currently, it has a strange behaviour, if it indexed 43 files and then was killed, the next time we start the daemon it will think that the folder only contains 43 files and will not index the rest of the files.
