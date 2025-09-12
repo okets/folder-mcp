@@ -90,8 +90,9 @@ You will need a TMOAT Script to add and remove folders consistently and clean up
 *** TMOAT Reminder ***
 I remind you that we don't go and blindly change code hoping we fixed an issue.
 Also, remember that we are still in pre-production phase. we don't need to maintain backwards compatibility or design any migration plans. we don't keep stale code.
+fix documentation spam if you encounter it (don't hesitate to remove unnecessary comments or logs)
 You as an agent can run bash commands, can call our endpoints directly using folder-mcp mcp server,  query databases and even access the daemon's websocket using scripts to add/remove folders from the indexing list. we are on a correct course task and should be very careful!
-Be a good TMOAT agent!
+Be a good TMOAT agent and verify your changes! it doesn't have to be on every single change, but it should be done regularly to ensure stability and correctness.
 
 ────────────────────────────────────────────────────────────────────
                      ***Upcoming Prompts***
@@ -185,3 +186,14 @@ The automated Code review system does not know what we worked on. I want you to:
 - create an md file with the groupped task list.
 
 MY Code review system's suggestions:
+
+
+----------
+ MiniLM-L12 (Fast)-  i 316 files indexed • indexing time 680s  
+ E5-Large- i 316 files indexed • indexing time 1067s 
+ E5-Large- limites- 316 files indexed • indexing time 1483s 
+
+There is a bug in our scanning phase.
+when we first start the daemon, a folder should be scanned and compared against the database, compare hashes and only index new or changed files, and remove deleted files from the database.
+in case the indexing fails or the daemon is killed during indexing, the next time we start the daemon it should resume indexing from where it left off.
+currently, it has a strange behaviour, if it indexed 43 files and then was killed, the next time we start the daemon it will think that the folder only contains 43 files and will not index the rest of the files.
