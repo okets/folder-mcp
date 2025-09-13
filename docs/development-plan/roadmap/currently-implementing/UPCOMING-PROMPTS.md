@@ -76,6 +76,8 @@ We need to understand where in the folder lifecycle process the problems resides
 We fix issues in the order they appear in the folder lifecycle, fixing "downloading model" issues before "indexing" issues for example.
 We need to work systematically towards a well defined, measurable goal that can be performed end-to-end by an AI agent.
 
+I remind you that we are in pre production and do not need to keep ANY backwards compatibility! we do what is logically right and remove stale code!
+We write informative comments, not "task 2 related" type of comments you like to leave. if you encounter bad documentation, fix/remove it.
 
 *** TMOAT Reminder ***
 I remind you that we don't go and blindly change code hoping we fixed an issue.

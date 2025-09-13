@@ -157,15 +157,10 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
           c.topics,
           c.readability_score,
           d.file_path,
-          d.mime_type,
-          cm.page_number,
-          cm.section_name,
-          cm.sheet_name,
-          cm.slide_number
+          d.mime_type
         FROM embeddings e
         JOIN chunks c ON e.chunk_id = c.id
         JOIN documents d ON c.document_id = d.id
-        LEFT JOIN chunk_metadata cm ON c.id = cm.chunk_id
       `;
       
       const stmt = folderDb.db.prepare(query);
@@ -196,11 +191,7 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
               readabilityScore: row.readability_score || 0,
               metadata: {
                 chunkIndex: row.chunk_index,
-                mimeType: row.mime_type,
-                page: row.page_number,
-                section: row.section_name,
-                sheet: row.sheet_name,
-                slide: row.slide_number
+                mimeType: row.mime_type
               }
             };
             

@@ -6,9 +6,6 @@
  */
 
 import { ParsedContent, TextChunk, ChunkedContent, createDefaultSemanticMetadata } from '../../types/index.js';
-import { ExtractionParamsFactory } from '../extraction/extraction-params.factory.js';
-import { ExtractionParamsValidator } from '../extraction/extraction-params.validator.js';
-import { PowerPointExtractionParams } from '../extraction/extraction-params.types.js';
 import JSZip from 'jszip';
 import { promises as fs } from 'fs';
 
@@ -209,18 +206,7 @@ export class PowerPointChunkingService {
         const startOffset = 0; // Will be calculated during actual extraction
         const endOffset = text.length;
         
-        // Create extraction params using factory
-        const extractionParams = ExtractionParamsFactory.createPowerPointParams(
-            chunkData.startSlide,
-            chunkData.includeNotes,
-            false // includeComments - we don't extract comments yet
-        );
-        
-        // For multi-slide chunks, we'll use the start slide params
-        // and the extraction will handle the range
-        
-        // Serialize extraction params
-        const serializedParams = ExtractionParamsValidator.serialize(extractionParams);
+        // No longer tracking extraction params - lazy loading retrieves content by chunk ID
         
         return {
             content: text,
@@ -232,98 +218,10 @@ export class PowerPointChunkingService {
                 sourceFile: '',
                 sourceType: 'powerpoint',
                 totalChunks: 0,
-                hasOverlap: false,
-                // Store extraction params in metadata
-                ...{ extractionParams: serializedParams }
+                hasOverlap: false
             },
             semanticMetadata: createDefaultSemanticMetadata()
         };
     }
     
-    /**
-     * Extract content using PowerPoint extraction parameters
-     * This enables bidirectional chunk translation
-     */
-    public async extractByParams(
-        filePath: string,
-        extractionParams: string
-    ): Promise<string> {
-        const params = ExtractionParamsValidator.deserialize(extractionParams);
-        
-        if (params.type !== 'powerpoint') {
-            throw new Error('Invalid extraction params type for PowerPoint document');
-        }
-        
-        const pptParams = params as PowerPointExtractionParams;
-        
-        // Read the PowerPoint file as a zip
-        const fileBuffer = await fs.readFile(filePath);
-        const zip = await JSZip.loadAsync(fileBuffer);
-        
-        // Extract the specified slide
-        const slideFile = `ppt/slides/slide${pptParams.slide}.xml`;
-        const slideXml = await zip.file(slideFile)?.async('string');
-        
-        if (!slideXml) {
-            throw new Error(`Slide ${pptParams.slide} not found in PowerPoint file`);
-        }
-        
-        // Extract text from slide XML
-        let slideText = this.extractTextFromXml(slideXml);
-        
-        // If notes are requested, extract them
-        if (pptParams.includeNotes) {
-            // First check for relationship to find notes
-            const relsFile = `ppt/slides/_rels/slide${pptParams.slide}.xml.rels`;
-            const relsXml = await zip.file(relsFile)?.async('string');
-            
-            if (relsXml) {
-                // Look for notes relationship
-                const notesMatch = relsXml.match(/Target="\.\.\/notesSlides\/(notesSlide\d+\.xml)"/);
-                if (notesMatch && notesMatch[1]) {
-                    const notesFile = `ppt/notesSlides/${notesMatch[1]}`;
-                    const notesXml = await zip.file(notesFile)?.async('string');
-                    
-                    if (notesXml) {
-                        const notesText = this.extractTextFromXml(notesXml);
-                        if (notesText && notesText.trim()) {
-                            slideText += '\n\n[Speaker Notes]\n' + notesText;
-                        }
-                    }
-                }
-            }
-        }
-        
-        // If comments are requested, extract them (future enhancement)
-        if (pptParams.includeComments) {
-            // Comments extraction would go here
-            // PowerPoint stores comments in ppt/comments/ directory
-        }
-        
-        return `Slide ${pptParams.slide}:\n${slideText}`;
-    }
-    
-    /**
-     * Extract text from PowerPoint XML
-     */
-    private extractTextFromXml(xml: string): string {
-        // Extract text from <a:t> tags (PowerPoint text elements)
-        const textMatches = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || [];
-        const texts = textMatches.map(match => {
-            const textMatch = match.match(/<a:t[^>]*>([^<]*)<\/a:t>/);
-            if (textMatch && textMatch[1]) {
-                // Decode XML entities
-                let text = textMatch[1];
-                text = text.replace(/&amp;/g, '&');
-                text = text.replace(/&lt;/g, '<');
-                text = text.replace(/&gt;/g, '>');
-                text = text.replace(/&quot;/g, '"');
-                text = text.replace(/&apos;/g, "'");
-                return text;
-            }
-            return '';
-        }).filter(text => text.trim());
-        
-        return texts.join(' ');
-    }
 }

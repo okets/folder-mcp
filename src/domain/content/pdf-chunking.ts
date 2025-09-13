@@ -6,9 +6,6 @@
  */
 
 import { ParsedContent, TextChunk, ChunkedContent, PDFMetadata, createDefaultSemanticMetadata } from '../../types/index.js';
-import { ExtractionParamsFactory } from '../extraction/extraction-params.factory.js';
-import { ExtractionParamsValidator } from '../extraction/extraction-params.validator.js';
-import { PdfExtractionParams } from '../extraction/extraction-params.types.js';
 
 /**
  * Represents a text block from pdf2json
@@ -256,15 +253,7 @@ export class PdfChunkingService {
             }
             : undefined;
         
-        const extractionParams = ExtractionParamsFactory.createPdfParams(
-            pageIndex,
-            chunkData.startBlockIndex,
-            chunkData.endBlockIndex,
-            coordinates
-        );
-        
-        // Serialize extraction params
-        const serializedParams = ExtractionParamsValidator.serialize(extractionParams);
+        // No longer tracking extraction params - lazy loading retrieves content by chunk ID
         
         return {
             content: text,
@@ -276,9 +265,7 @@ export class PdfChunkingService {
                 sourceFile: '',
                 sourceType: 'pdf',
                 totalChunks: 0,
-                hasOverlap: false,
-                // Store extraction params in metadata (extending base type)
-                ...{ extractionParams: serializedParams }
+                hasOverlap: false
             },
             semanticMetadata: createDefaultSemanticMetadata()
         };
@@ -329,16 +316,7 @@ export class PdfChunkingService {
                         sourceFile: '',
                         sourceType: 'pdf',
                         totalChunks: 0,
-                        hasOverlap: false,
-                        ...{
-                            extractionParams: ExtractionParamsValidator.serialize(
-                                ExtractionParamsFactory.createPdfParams(
-                                    0, // Default to page 0 in fallback mode
-                                    0, // Start at first text block
-                                    0  // End at first text block
-                                )
-                            )
-                        }
+                        hasOverlap: false
                     },
                     semanticMetadata: createDefaultSemanticMetadata()
                 });
@@ -376,17 +354,7 @@ export class PdfChunkingService {
                         sourceFile: '',
                         sourceType: 'pdf',
                         totalChunks: 0,
-                        hasOverlap: false,
-                        // Extraction params for fallback chunking (extending base type)
-                        ...{
-                            extractionParams: ExtractionParamsValidator.serialize(
-                                ExtractionParamsFactory.createPdfParams(
-                                    0, // Default to page 0 in fallback mode
-                                    0, // Start at first text block
-                                    0  // End at first text block
-                                )
-                            )
-                        }
+                        hasOverlap: false
                     },
                     semanticMetadata: createDefaultSemanticMetadata()
                 });
@@ -424,16 +392,7 @@ export class PdfChunkingService {
                             sourceFile: '',
                             sourceType: 'pdf',
                             totalChunks: 0,
-                            hasOverlap: false,
-                            ...{
-                                extractionParams: ExtractionParamsValidator.serialize(
-                                    ExtractionParamsFactory.createPdfParams(
-                                        0, // Default to page 0 in fallback mode
-                                        0, // Start at first text block
-                                        0  // End at first text block
-                                    )
-                                )
-                            }
+                            hasOverlap: false
                         },
                         semanticMetadata: createDefaultSemanticMetadata()
                     });
@@ -450,16 +409,7 @@ export class PdfChunkingService {
                         sourceFile: '',
                         sourceType: 'pdf',
                         totalChunks: 0,
-                        hasOverlap: false,
-                        ...{
-                            extractionParams: ExtractionParamsValidator.serialize(
-                                ExtractionParamsFactory.createPdfParams(
-                                    0, // Default to page 0 in fallback mode
-                                    0, // Start at first text block
-                                    0  // End at first text block
-                                )
-                            )
-                        }
+                        hasOverlap: false
                     },
                     semanticMetadata: createDefaultSemanticMetadata()
                 });
@@ -473,108 +423,4 @@ export class PdfChunkingService {
         };
     }
     
-    /**
-     * Extract content using PDF extraction parameters
-     * This enables bidirectional chunk translation
-     */
-    public async extractByParams(
-        filePath: string,
-        extractionParams: string
-    ): Promise<string> {
-        const params = ExtractionParamsValidator.deserialize(extractionParams);
-        
-        if (params.type !== 'pdf') {
-            throw new Error('Invalid extraction params type for PDF document');
-        }
-        
-        const pdfParams = params as PdfExtractionParams;
-        
-        // Import PDF2Json dynamically
-        const PDF2Json = (await import('pdf2json')).default;
-        
-        // Parse the PDF document
-        return new Promise((resolve, reject) => {
-            const pdfParser = new (PDF2Json as any)();
-            
-            // Set up error handler
-            pdfParser.on('pdfParser_dataError', (errData: any) => {
-                reject(new Error(`Failed to parse PDF: ${errData.parserError}`));
-            });
-            
-            // Set up success handler
-            pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
-                try {
-                    // Validate page index
-                    if (!pdfData.Pages || !Array.isArray(pdfData.Pages)) {
-                        throw new Error('PDF has no pages');
-                    }
-                    
-                    if (pdfParams.page < 0 || pdfParams.page >= pdfData.Pages.length) {
-                        throw new Error(`Invalid page index: ${pdfParams.page}. Document has ${pdfData.Pages.length} pages`);
-                    }
-                    
-                    // Get the specified page
-                    const page = pdfData.Pages[pdfParams.page];
-                    
-                    if (!page.Texts || !Array.isArray(page.Texts)) {
-                        throw new Error(`Page ${pdfParams.page} has no text blocks`);
-                    }
-                    
-                    // Extract text blocks in the specified range
-                    const startIdx = Math.max(0, pdfParams.startTextBlock);
-                    const endIdx = Math.min(page.Texts.length - 1, pdfParams.endTextBlock);
-                    
-                    if (startIdx > endIdx) {
-                        throw new Error(`Invalid text block range: ${startIdx}-${endIdx}`);
-                    }
-                    
-                    let extractedText = '';
-                    
-                    // Process text blocks in range
-                    for (let i = startIdx; i <= endIdx; i++) {
-                        const textItem = page.Texts[i];
-                        
-                        // If coordinates are specified, verify the text block is within bounds
-                        if (pdfParams.x !== undefined && textItem.x < pdfParams.x) {
-                            continue; // Skip blocks outside x coordinate
-                        }
-                        if (pdfParams.y !== undefined && textItem.y < pdfParams.y) {
-                            continue; // Skip blocks outside y coordinate
-                        }
-                        
-                        // Extract text from the text block
-                        if (textItem.R && Array.isArray(textItem.R)) {
-                            textItem.R.forEach((run: any) => {
-                                if (run.T) {
-                                    try {
-                                        // Decode URI component (pdf2json encodes text)
-                                        const decodedText = decodeURIComponent(run.T);
-                                        extractedText += decodedText + ' ';
-                                    } catch (error) {
-                                        // If decoding fails, use the raw text
-                                        extractedText += run.T + ' ';
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    
-                    // Clean up the extracted text
-                    extractedText = extractedText
-                        .replace(/\s+/g, ' ')  // Normalize whitespace
-                        .trim();
-                    
-                    resolve(extractedText);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-            
-            // Read and parse the PDF file
-            import('fs').then(fs => {
-                const pdfBuffer = fs.readFileSync(filePath);
-                pdfParser.parseBuffer(pdfBuffer);
-            }).catch(reject);
-        });
-    }
 }

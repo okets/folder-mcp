@@ -20,6 +20,7 @@ import type {
   GetStatusRequest, GetStatusResponse,
   FolderInfoResponse, FolderInfo,
   ExploreRequest, ExploreResponse, SubfolderInfo,
+  GetChunksContentRequest, GetChunksContentResponse, ChunkContent,
   StandardResponse, DocumentMetadata, LocationInfo, ContextInfo
 } from './types.js';
 
@@ -51,6 +52,8 @@ export interface IMCPEndpoints {
   getPages(request: GetPagesRequest): Promise<GetPagesResponse>;
   getEmbedding(request: GetEmbeddingRequest): Promise<GetEmbeddingResponse>;
   getStatus(request?: GetStatusRequest): Promise<GetStatusResponse>;
+  // Lazy loading endpoint for chunk content retrieval
+  getChunksContent(request: GetChunksContentRequest): Promise<GetChunksContentResponse>;
   // New multi-folder endpoint
   getFolderInfo(): Promise<FolderInfoResponse>;
   // Phase 5: New hierarchical navigation endpoint
@@ -194,19 +197,22 @@ export class MCPEndpoints implements IMCPEndpoints {
             const folderName = result.folderName || null;
             
             const searchResult: SearchResult = {
+              chunk_id: String(result.chunkId || result.chunk_id || '0'),
               document_id: documentId,
-              preview: this.truncateText(result.content || result.text || '', 200),
-              score: result.score || result.similarity || 0,
+              relevance_score: result.score || result.similarity || 0,
               location: {
                 page: result.metadata?.page || null,
                 section: result.metadata?.section || null,
                 sheet: result.metadata?.sheet || null,
                 slide: result.metadata?.slide || null
               },
-              context: {
-                before: result.metadata?.before || '',
-                after: result.metadata?.after || ''
+              semantic_context: {
+                matched_topics: result.chunk?.semanticMetadata?.topics || [],
+                key_phrases: result.chunk?.semanticMetadata?.keyPhrases || [],
+                readability_score: result.chunk?.semanticMetadata?.readabilityScore || 0,
+                chunk_index: result.chunk?.chunkIndex || 0
               },
+              content_available: true,
               metadata: await this.getDocumentMetadata(documentId, folderName)
             };
 
@@ -221,11 +227,17 @@ export class MCPEndpoints implements IMCPEndpoints {
           
           for (const result of mockResults) {
             const searchResult: SearchResult = {
+              chunk_id: String(result.chunkId || '1'), // Mock chunk ID
               document_id: result.documentId || result.id || 'unknown',
-              preview: this.truncateText(result.content || '', 200),
-              score: result.score || 0,
+              relevance_score: result.score || 0,
               location: this.extractLocationInfo(result),
-              context: this.extractContextInfo(result),
+              semantic_context: {
+                matched_topics: [],
+                key_phrases: [],
+                readability_score: 75,
+                chunk_index: 0
+              },
+              content_available: true,
               metadata: await this.getDocumentMetadata(result.documentId || result.id || 'unknown')
             };
 
@@ -242,11 +254,17 @@ export class MCPEndpoints implements IMCPEndpoints {
         
         for (const result of regexResults) {
           const searchResult: SearchResult = {
+            chunk_id: String(result.chunkId || '1'), // Mock chunk ID for regex
             document_id: result.documentId,
-            preview: this.truncateText(result.content, 200),
-            score: 1.0, // Regex matches are binary
+            relevance_score: 1.0, // Regex matches are binary
             location: this.extractLocationInfo(result),
-            context: this.extractContextInfo(result),
+            semantic_context: {
+              matched_topics: [],
+              key_phrases: [],
+              readability_score: 75,
+              chunk_index: 0
+            },
+            content_available: true,
             metadata: await this.getDocumentMetadata(result.documentId)
           };
 
@@ -900,6 +918,76 @@ export class MCPEndpoints implements IMCPEndpoints {
     } catch (error) {
       this.logger.error('GetPages endpoint error', error as Error, { request });
       return this.createErrorResponse(error, 'pages_failed');
+    }
+  }
+
+  /**
+   * Get chunks content for lazy loading
+   * Batch retrieves actual content for specific chunk IDs
+   */
+  async getChunksContent(request: GetChunksContentRequest): Promise<GetChunksContentResponse> {
+    try {
+      this.logger.debug('MCP GetChunksContent endpoint called', { chunk_ids: request.chunk_ids });
+      
+      // Record MCP activity for 3-minute keep-alive window
+      this.recordMcpActivity();
+      
+      const { chunk_ids } = request;
+      
+      if (!Array.isArray(chunk_ids) || chunk_ids.length === 0) {
+        return {
+          data: {
+            chunks: {},
+            token_count: 0
+          },
+          status: { 
+            code: 'error', 
+            message: 'chunk_ids must be a non-empty array' 
+          },
+          continuation: {
+            has_more: false
+          }
+        };
+      }
+      
+      // Use the vector search service to get chunk content
+      if (!this.vectorSearchService.getChunksContent) {
+        throw new Error('getChunksContent not implemented in vector search service');
+      }
+      const contentMap = await this.vectorSearchService.getChunksContent(chunk_ids);
+      
+      // Convert Map to object for JSON response
+      const chunks: Record<string, ChunkContent> = {};
+      contentMap.forEach((content, id) => {
+        chunks[id] = {
+          content: content.content,
+          file_path: content.filePath,
+          semantic_metadata: content.semanticMetadata
+        };
+      });
+      
+      // Calculate token count for retrieved content
+      let totalTokens = 0;
+      Object.values(chunks).forEach(chunk => {
+        totalTokens += Math.ceil(chunk.content.length / 4);
+      });
+      
+      return {
+        data: {
+          chunks,
+          token_count: totalTokens
+        },
+        status: { 
+          code: 'success', 
+          message: `Retrieved ${contentMap.size} of ${chunk_ids.length} chunks` 
+        },
+        continuation: {
+          has_more: false
+        }
+      };
+    } catch (error) {
+      this.logger.error('GetChunksContent endpoint error', error as Error, { request });
+      return this.createErrorResponse(error, 'chunks_content_failed');
     }
   }
 

@@ -102,16 +102,40 @@ export interface SearchRequest {
 }
 
 export interface SearchResult {
+  chunk_id: string;           // For lazy content retrieval (string to avoid precision issues)
   document_id: string;
-  preview: string;
-  score: number;
+  relevance_score: number;
   location: LocationInfo;
-  context: ContextInfo;
+  semantic_context: {
+    matched_topics: string[];
+    key_phrases: string[];
+    readability_score: number;
+    chunk_index: number;
+  };
+  content_available: boolean; // Always true for now
   metadata: DocumentMetadata;
 }
 
 export type SearchResponse = StandardResponse<{
   results: SearchResult[];
+}>;
+
+// Chunk content retrieval endpoint types (for lazy loading)
+export interface GetChunksContentRequest {
+  chunk_ids: string[];
+}
+
+export interface ChunkContent {
+  content: string;
+  file_path: string;
+  semantic_metadata?: {
+    key_phrases: string[];
+    topics: string[];
+  };
+}
+
+export type GetChunksContentResponse = StandardResponse<{
+  chunks: Record<string, ChunkContent>;
 }>;
 
 // Document outline endpoint types

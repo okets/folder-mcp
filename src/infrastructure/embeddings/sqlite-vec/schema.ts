@@ -53,9 +53,8 @@ CREATE TABLE IF NOT EXISTS chunks (
     content TEXT NOT NULL,
     start_offset INTEGER NOT NULL,
     end_offset INTEGER NOT NULL,
-    extraction_params TEXT NOT NULL,   -- JSON field for bidirectional extraction
     token_count INTEGER,
-    -- Semantic metadata columns for Sprint 10
+    -- Semantic metadata for AI agent navigation
     key_phrases TEXT,           -- JSON array of extracted key phrases
     topics TEXT,                -- JSON array of detected topics
     readability_score REAL,     -- Flesch Reading Ease score (0-100)
@@ -198,12 +197,12 @@ export const QUERIES = {
     deleteDocument: 'DELETE FROM documents WHERE file_path = ?',
     markForReindex: 'UPDATE documents SET needs_reindex = 1 WHERE file_path = ?',
     
-    // Chunk operations (updated for Sprint 11 with extraction_params)
+    // Chunk operations
     insertChunk: `
         INSERT INTO chunks 
-        (document_id, chunk_index, content, start_offset, end_offset, extraction_params, token_count,
+        (document_id, chunk_index, content, start_offset, end_offset, token_count,
          key_phrases, topics, readability_score, semantic_processed, semantic_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     getChunksByDocument: 'SELECT * FROM chunks WHERE document_id = ? ORDER BY chunk_index',
     deleteChunksByDocument: 'DELETE FROM chunks WHERE document_id = ?',
@@ -217,16 +216,16 @@ export const QUERIES = {
         )
     `,
     
-    // Search operations (temporarily simplified without vec0 functions)
-    // Sprint 11: Updated to use extraction_params instead of chunk_metadata table
+    // Search operations - returns metadata only for lazy loading
     similaritySearch: `
         SELECT 
             c.id as chunk_id,
-            c.content,
             c.chunk_index,
             d.file_path,
             d.mime_type,
-            c.extraction_params,
+            c.start_offset,
+            c.end_offset,
+            c.token_count,
             c.key_phrases,
             c.topics,
             c.readability_score,
@@ -236,6 +235,20 @@ export const QUERIES = {
         JOIN documents d ON c.document_id = d.id
         ORDER BY c.id ASC
         LIMIT ?
+    `,
+    
+    // Batch content retrieval for lazy loading
+    getChunksContent: `
+        SELECT 
+            c.id as chunk_id,
+            c.content,
+            c.chunk_index,
+            d.file_path,
+            c.key_phrases,
+            c.topics
+        FROM chunks c
+        JOIN documents d ON c.document_id = d.id
+        WHERE c.id IN (/*PLACEHOLDER*/)
     `,
     
     // Configuration operations

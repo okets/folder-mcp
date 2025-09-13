@@ -6,7 +6,7 @@
  */
 
 // Import types from shared types module
-import type { TextChunk, EmbeddingVector } from '../../types/index.js';
+import type { TextChunk, TextChunkMetadata, EmbeddingVector, ChunkId } from '../../types/index.js';
 
 // Core domain services
 export interface SearchOperations {
@@ -24,6 +24,14 @@ export interface EnhancedSearchOperations {
 // Domain types
 export interface SearchResult {
   chunk: TextChunk;
+  similarity: number;
+  filePath: string;
+  metadata: SearchResultMetadata;
+}
+
+// Lazy loading search result without content
+export interface LazySearchResult {
+  chunk: TextChunkMetadata;  // Metadata only, no content field
   similarity: number;
   filePath: string;
   metadata: SearchResultMetadata;
@@ -54,6 +62,7 @@ export interface SearchResultMetadata {
   score: number;
   distance: number;
   chunkIndex: number;
+  chunkId?: ChunkId;  // Database ID for lazy loading content retrieval
   documentId: string;
   relevanceFactors: RelevanceFactor[];
 }

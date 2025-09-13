@@ -196,6 +196,11 @@ export interface IVectorSearchService {
   search(queryVector: EmbeddingVector, topK?: number, threshold?: number): Promise<any[]>;
   
   /**
+   * Batch retrieve chunk content for lazy loading
+   */
+  getChunksContent?(chunkIds: string[]): Promise<Map<string, any>>;
+  
+  /**
    * Check if index is loaded and ready
    */
   isReady(): boolean;

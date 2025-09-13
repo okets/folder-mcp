@@ -10,15 +10,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Show results** - Let you review the changes and outcomes
 - ⚠️ **Confirm git commits only** - Always ask before `git commit` or `git push`
 
-**Testing Requirements (Integrated TDD)**:
-- 🔴 **MANDATORY**: Check automated tests AND TMOAT before starting any feature
-- 🤖 **AUTOMATED FIRST**: Create unit/integration tests for all features
-- 👤 **MANUAL SECOND**: Add TMOAT steps for end-to-end validation
-- ✅ **DUAL VALIDATION**: Both automated AND manual tests must pass
-- 📍 **Location**: `TMOAT/THE_MOTHER_OF_ALL_TESTS.md`
-- ⏱️ **Time**: Automated (2 mins) + Manual smoke test (5-10 mins)
+**Testing Requirements - BE A GOOD TMOAT AGENT:**
 
-**TMOAT integrates with automated testing** - They work together, not in isolation. Every feature needs both automated and manual test coverage.
+**Agent-Led Testing Approach**: Think like a human engineer. Break assignments into verifiable tests to validate assumptions rather than blindly changing files and hoping for magical fixes. IT NEVER WORKS!
+
+**TOOLS A GOOD TMOAT AGENT WILL USE:**
+1. **Query database files** using sqlite3 - verify data persistence and state
+2. **Monitor runtime files** using file system - track changes and additions
+3. **Use TMOAT scripts** to connect to websocket endpoints, listen to FMDM stream, trigger actions (see `./TMOAT` folder for examples)
+4. **Run daemon on demand:**
+   - Place logs in the Daemon's logs
+   - Run `npm run daemon:restart` in a BACKGROUND, long running process
+   - This kills any other instance and runs a fresh daemon
+5. **Call MCP endpoints directly** using `folder-mcp mcp server` command
+   - This is the ultimate test for any change we make
+   - If MCP endpoints work, we are good
+   - If MCP server disconnects, STOP and ask human to reconnect
+6. **Trigger re-indexing**: Remove `.folder-mcp` folder (delete database), then restart daemon in background
+
+**Test Environment**: `/Users/hanan/Projects/folder-mcp` is an indexed folder - use it to test changes with known files and content
+
+**Systematic Approach**:
+- Design end-to-end flows and see exactly where they fail
+- Understand where in the folder lifecycle process problems reside
+- Fix issues in order of appearance (e.g., "downloading model" before "indexing")
+- Work systematically towards well-defined, measurable goals that can be performed end-to-end by an AI agent
 
 ## 🚨 CRITICAL: Test Failure Protocol
 
@@ -40,7 +56,12 @@ When any test fails:
 
 **Skipped Tests**: All `.skip()` tests must be evaluated - either unskip and fix, or delete entirely. No stale code allowed.
 
-**Rationale**: Git provides complete rollback protection. Focus on efficient development, not file permission overhead. TMOAT ensures system integrity through continuous test evolution.
+**Development Philosophy**:
+- **Pre-production mode**: No backward compatibility needed - do what is logically right and remove stale code
+- **Documentation standards**: Write informative comments explaining WHY, not generic placeholders
+- **Fix bad documentation**: When encountering unclear or outdated documentation, fix or remove it
+- **Git rollback protection**: Focus on efficient development, not file permission overhead
+- **System integrity**: TMOAT ensures system integrity through continuous test evolution
 
 ## Essential Commands
 
@@ -118,29 +139,39 @@ mcp__tree-sitter__run_query --project "folder-mcp" --query "(method_definition n
 # analyze interfaces, and identify implementation gaps that cause test failures
 ```
 
-**TMOAT - Integrated Manual + Automated Testing:**
+**TMOAT - Agent-Led Testing Workflow:**
 ```bash
-# ⚠️ INTEGRATED TDD - Both automated and manual tests required
 # Full documentation: docs/testing/THE_MOTHER_OF_ALL_TESTS.md
+# Location: TMOAT/THE_MOTHER_OF_ALL_TESTS.md
 
-# Integrated TDD Workflow:
-1. CHECK: Do automated tests AND TMOAT cover your feature?
-2. AUTOMATED: If no, add unit/integration test first
-3. MANUAL: If no, add TMOAT steps second  
-4. TEST: Run npm test (should fail) + TMOAT (should fail)
-5. BUILD: Implement the feature
-6. VERIFY: Run npm test (should pass) + TMOAT (should pass)
+# TMOAT Agent Testing Flow:
+1. VALIDATE ASSUMPTIONS: Break tasks into verifiable tests
+2. QUERY STATE: Use sqlite3 to check database state
+3. MONITOR FILES: Track runtime file changes
+4. TEST WEBSOCKETS: Use TMOAT scripts for real-time events
+5. RESTART DAEMON: npm run daemon:restart (background process)
+6. TEST MCP: Call endpoints with folder-mcp mcp server
+7. VERIFY END-TO-END: Ensure complete flow works
 
-# Complete test run (7-12 mins):
-npm test                                    # Automated tests first (2 mins)
-npm run build                               # Then build (1 min)
-node dist/src/daemon/index.js --restart     # Start daemon
-# Follow TMOAT smoke test (5-10 mins)
+# Daemon Management:
+npm run daemon:restart                      # Kill old, start fresh (run in background)
+rm -rf .folder-mcp && npm run daemon:restart # Trigger re-indexing
 
-# BOTH automated AND manual tests must pass!
-# - Automated tests catch regressions and unit logic
-# - TMOAT validates end-to-end real-world scenarios
-# - They complement each other, don't replace each other
+# MCP Testing:
+folder-mcp mcp server                       # Test MCP endpoints directly
+# If disconnected: STOP and ask human to reconnect
+
+# Database Verification:
+sqlite3 .folder-mcp/database.db            # Query database state
+
+# WebSocket Testing:
+node TMOAT/scripts/websocket-test.js       # Test real-time events
+
+# Full Test Visibility:
+# - Design end-to-end flows
+# - See exactly where failures occur
+# - Fix issues in lifecycle order
+# - Achieve measurable, agent-testable goals
 ```
 
 **Configuration Testing:**
@@ -806,4 +837,6 @@ console.error(`=== END COMPONENT WIDTH ===\\n`);
 ```
 
 This methodology has proven highly effective for resolving TUI visual bugs through systematic character-level analysis.
-- memorize what "Run a CPM test" means. you should ask which factors to test for and run our beautiful test routine.
+
+### CPM Test (placeholder)
+“CPM test” is not defined in this doc. Before running it, ask which factors to measure and which routine to execute. Once defined, link the routine here and add exact steps/commands.

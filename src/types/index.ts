@@ -1,6 +1,12 @@
 // Types used across the application
 
 /**
+ * Centralized type for chunk IDs to ensure consistency
+ * Using string to avoid numeric precision issues with 64-bit database IDs
+ */
+export type ChunkId = string;
+
+/**
  * Represents a unique fingerprint for a file based on its content and metadata
  */
 export interface FileFingerprint {
@@ -263,11 +269,10 @@ export function createDefaultSemanticMetadata(): SemanticMetadata {
 }
 
 /**
- * A chunk of text with position and metadata information
+ * Metadata-only version of TextChunk for lazy loading search results
+ * Used when content is not needed immediately to save tokens
  */
-export interface TextChunk {
-  /** The text content of this chunk */
-  content: string;
+export interface TextChunkMetadata {
   /** Starting character position in the original content */
   startPosition: number;
   /** Ending character position in the original content */
@@ -276,6 +281,8 @@ export interface TextChunk {
   tokenCount: number;
   /** Index of this chunk in the sequence */
   chunkIndex: number;
+  /** Chunk ID for lazy loading content retrieval */
+  chunkId?: ChunkId;
   /** Metadata about this chunk and its source */
   metadata: {
     /** Path to the source file */
@@ -291,6 +298,14 @@ export interface TextChunk {
   };
   /** Semantic metadata for AI agent navigation (Sprint 10) */
   semanticMetadata: SemanticMetadata;
+}
+
+/**
+ * A chunk of text with position and metadata information
+ */
+export interface TextChunk extends TextChunkMetadata {
+  /** The text content of this chunk */
+  content: string;
 }
 
 /**
@@ -324,7 +339,7 @@ export interface EmbeddingVector {
  */
 export interface EmbeddingResult {
   /** Unique identifier for the chunk */
-  chunkId: string;
+  chunkId: ChunkId;
   /** Path to the source file */
   sourceFile: string;
   /** Index of the chunk within its source file */

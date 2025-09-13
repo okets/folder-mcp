@@ -7,9 +7,6 @@
 
 import XLSX from 'xlsx';
 import { ParsedContent, TextChunk, ChunkedContent, ExcelMetadata, createDefaultSemanticMetadata } from '../../types/index.js';
-import { ExtractionParamsFactory } from '../extraction/extraction-params.factory.js';
-import { ExtractionParamsValidator } from '../extraction/extraction-params.validator.js';
-import { ExcelExtractionParams } from '../extraction/extraction-params.types.js';
 
 /**
  * Represents a worksheet structure for chunking
@@ -279,18 +276,6 @@ export class ExcelChunkingService {
         const startOffset = sheetStart >= 0 ? sheetStart : 0;
         const endOffset = startOffset + text.length;
         
-        // Create extraction params using factory
-        const extractionParams = ExtractionParamsFactory.createExcelParams(
-            sheetName,
-            chunkData.startRow,
-            chunkData.endRow,
-            chunkData.startCol,
-            chunkData.endCol
-        );
-        
-        // Serialize extraction params
-        const serializedParams = ExtractionParamsValidator.serialize(extractionParams);
-        
         return {
             content: text,
             startPosition: startOffset,
@@ -301,73 +286,52 @@ export class ExcelChunkingService {
                 sourceFile: '',
                 sourceType: 'excel',
                 totalChunks: 0,
-                hasOverlap: false,
-                // Store extraction params in metadata
-                ...{ extractionParams: serializedParams }
+                hasOverlap: false
             },
             semanticMetadata: createDefaultSemanticMetadata()
         };
     }
     
     /**
-     * Extract content using Excel extraction parameters
-     * This enables bidirectional chunk translation
+     * Extract content by sheet and row range
      */
-    public async extractByParams(
+    public async extractByRange(
         filePath: string,
-        extractionParams: string
+        sheetName: string,
+        startRow: number,
+        endRow: number
     ): Promise<string> {
-        const params = ExtractionParamsValidator.deserialize(extractionParams);
-        
-        if (params.type !== 'excel') {
-            throw new Error('Invalid extraction params type for Excel document');
-        }
-        
-        const excelParams = params as ExcelExtractionParams;
-        
         // Read the Excel file
         const workbook = XLSX.readFile(filePath);
         
         // Validate sheet exists
-        if (!workbook.SheetNames.includes(excelParams.sheet)) {
-            throw new Error(`Sheet '${excelParams.sheet}' not found. Available sheets: ${workbook.SheetNames.join(', ')}`);
+        if (!workbook.SheetNames.includes(sheetName)) {
+            throw new Error(`Sheet '${sheetName}' not found. Available sheets: ${workbook.SheetNames.join(', ')}`);
         }
         
         // Get the worksheet
-        const worksheet = workbook.Sheets[excelParams.sheet];
+        const worksheet = workbook.Sheets[sheetName];
         if (!worksheet) {
-            throw new Error(`Failed to load sheet '${excelParams.sheet}'`);
+            throw new Error(`Failed to load sheet '${sheetName}'`);
         }
         
         // Get sheet range
         const sheetRange = worksheet['!ref'] ? XLSX.utils.decode_range(worksheet['!ref']) : null;
         if (!sheetRange) {
-            throw new Error(`Sheet '${excelParams.sheet}' has no data`);
+            throw new Error(`Sheet '${sheetName}' has no data`);
         }
         
-        // Convert column letters to indices
-        const startColIndex = XLSX.utils.decode_col(excelParams.startCol);
-        const endColIndex = XLSX.utils.decode_col(excelParams.endCol);
-        
-        // Validate row and column ranges
+        // Validate row ranges
         // Convert 1-based rows to 0-based for internal use
-        const startRow0 = excelParams.startRow - 1;
-        const endRow0 = excelParams.endRow - 1;
+        const startRow0 = startRow - 1;
+        const endRow0 = endRow - 1;
         
         if (startRow0 < sheetRange.s.r || startRow0 > sheetRange.e.r) {
-            throw new Error(`Start row ${excelParams.startRow} is out of range. Sheet has rows ${sheetRange.s.r + 1} to ${sheetRange.e.r + 1}`);
+            throw new Error(`Start row ${startRow} is out of range. Sheet has rows ${sheetRange.s.r + 1} to ${sheetRange.e.r + 1}`);
         }
         
         if (endRow0 < startRow0 || endRow0 > sheetRange.e.r) {
-            throw new Error(`End row ${excelParams.endRow} is out of range. Sheet has rows ${sheetRange.s.r + 1} to ${sheetRange.e.r + 1}`);
-        }
-        
-        if (startColIndex < sheetRange.s.c || startColIndex > sheetRange.e.c) {
-            throw new Error(`Start column ${excelParams.startCol} is out of range`);
-        }
-        
-        if (endColIndex < startColIndex || endColIndex > sheetRange.e.c) {
-            throw new Error(`End column ${excelParams.endCol} is out of range`);
+            throw new Error(`End row ${endRow} is out of range. Sheet has rows ${sheetRange.s.r + 1} to ${sheetRange.e.r + 1}`);
         }
         
         // Extract the specified range
@@ -375,7 +339,8 @@ export class ExcelChunkingService {
         
         for (let r = startRow0; r <= endRow0; r++) {
             const row: string[] = [];
-            for (let c = startColIndex; c <= endColIndex; c++) {
+            // Extract all columns in the sheet for simplicity
+            for (let c = sheetRange.s.c; c <= sheetRange.e.c; c++) {
                 const cellAddress = XLSX.utils.encode_cell({ r, c });
                 const cell = worksheet[cellAddress];
                 

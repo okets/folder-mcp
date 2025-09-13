@@ -6,9 +6,6 @@
  */
 
 import { ParsedContent, TextChunk, ChunkedContent, WordMetadata, createDefaultSemanticMetadata } from '../../types/index.js';
-import { ExtractionParamsFactory } from '../extraction/extraction-params.factory.js';
-import { ExtractionParamsValidator } from '../extraction/extraction-params.validator.js';
-import { WordExtractionParams } from '../extraction/extraction-params.types.js';
 
 /**
  * Represents a parsed paragraph from Word HTML
@@ -299,19 +296,7 @@ export class WordChunkingService {
             }
         }
         
-        // Create extraction params using factory
-        const extractionParams = ExtractionParamsFactory.createWordParams(
-            chunkData.startParagraph,
-            chunkData.endParagraph,
-            {
-                paragraphTypes: chunkData.paragraphTypes,
-                hasFormatting: true,
-                ...(chunkData.headingLevel !== undefined && { headingLevel: chunkData.headingLevel })
-            }
-        );
-        
-        // Serialize extraction params
-        const serializedParams = ExtractionParamsValidator.serialize(extractionParams);
+        // No longer tracking extraction params - lazy loading retrieves content by chunk ID
         
         return {
             content: text,
@@ -323,107 +308,9 @@ export class WordChunkingService {
                 sourceFile: '',
                 sourceType: 'word',
                 totalChunks: 0,
-                hasOverlap: false,
-                // Store extraction params in metadata (extending the type)
-                ...(serializedParams && { extractionParams: serializedParams } as any)
+                hasOverlap: false
             },
             semanticMetadata: createDefaultSemanticMetadata()
         };
-    }
-    
-    /**
-     * Extract content using Word extraction parameters
-     * This enables bidirectional chunk translation
-     */
-    public async extractByParams(
-        filePath: string,
-        extractionParams: string
-    ): Promise<string> {
-        const params = ExtractionParamsValidator.deserialize(extractionParams);
-        
-        if (params.type !== 'word') {
-            throw new Error('Invalid extraction params type for Word document');
-        }
-        
-        const wordParams = params as WordExtractionParams;
-        
-        // Import mammoth dynamically
-        const mammoth = await import('mammoth');
-        
-        // Extract both text and HTML from the Word document
-        const [textResult, htmlResult] = await Promise.all([
-            mammoth.extractRawText({ path: filePath }),
-            mammoth.convertToHtml({ path: filePath })
-        ]);
-        
-        // Check for extraction errors
-        if (!textResult.value && !htmlResult.value) {
-            throw new Error('Failed to extract content from Word document');
-        }
-        
-        // Parse HTML to get paragraph structure
-        const htmlContent = htmlResult.value;
-        
-        // Simple HTML parsing to extract paragraphs
-        // We'll use a regex approach to avoid adding cheerio dependency
-        const paragraphElements: string[] = [];
-        
-        // Match all paragraph-like elements
-        const elementRegex = /<(p|h[1-6]|li)[^>]*>(.*?)<\/\1>/gs;
-        let match;
-        
-        while ((match = elementRegex.exec(htmlContent)) !== null) {
-            // Extract text content from HTML element
-            const htmlMatch = match[2];
-            if (!htmlMatch) continue;
-            
-            const textContent = htmlMatch
-                .replace(/<[^>]*>/g, '') // Remove nested HTML tags
-                .replace(/&nbsp;/g, ' ')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&amp;/g, '&')
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .trim();
-            
-            if (textContent) {
-                paragraphElements.push(textContent);
-            }
-        }
-        
-        // If no paragraphs found through HTML, fall back to text splitting
-        if (paragraphElements.length === 0) {
-            // Split raw text into paragraphs
-            paragraphElements.push(...textResult.value
-                .split(/\n\s*\n/)
-                .filter(p => p.trim().length > 0)
-            );
-        }
-        
-        // Validate paragraph indices
-        if (wordParams.startParagraph < 0 || wordParams.startParagraph >= paragraphElements.length) {
-            throw new Error(`Invalid startParagraph: ${wordParams.startParagraph}. Document has ${paragraphElements.length} paragraphs`);
-        }
-        
-        if (wordParams.endParagraph < wordParams.startParagraph) {
-            throw new Error(`endParagraph (${wordParams.endParagraph}) cannot be less than startParagraph (${wordParams.startParagraph})`);
-        }
-        
-        if (wordParams.endParagraph >= paragraphElements.length) {
-            throw new Error(`Invalid endParagraph: ${wordParams.endParagraph}. Document has ${paragraphElements.length} paragraphs (0-indexed)`);
-        }
-        
-        // Extract requested paragraph range
-        const endIndex = Math.min(wordParams.endParagraph + 1, paragraphElements.length);
-        const extractedParagraphs = paragraphElements.slice(
-            wordParams.startParagraph,
-            endIndex
-        );
-        
-        // Join paragraphs with double newline
-        const extractedText = extractedParagraphs.join('\n\n');
-        
-        return extractedText;
     }
 }
