@@ -130,5 +130,16 @@ export interface DocumentMetadata {
 // export { EnhancedSearch } from './enhanced.js';
 // export { ResultRanker } from './ranking.js';
 
+// Semantic aggregation for Sprint 1
+export {
+  SemanticAggregationService,
+  type ISemanticAggregationService,
+  type ISemanticDataProvider,
+  type SemanticPreview,
+  type FolderWithSemanticPreview,
+  type DocumentSemanticData,
+  type TopicFrequency
+} from './semantic-aggregation.js';
+
 // Export types for other modules
 export type { TextChunk, EmbeddingVector };
