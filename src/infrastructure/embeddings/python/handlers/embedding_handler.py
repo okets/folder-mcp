@@ -755,6 +755,7 @@ class EmbeddingHandler:
                                 # For MPS, don't specify device in encode() since model is already on MPS
                                 batch_embeddings = self.model.encode(
                                     batch,
+                                    normalize_embeddings=True,
                                     convert_to_numpy=True,
                                     show_progress_bar=False,
                                     batch_size=current_batch_size
@@ -762,6 +763,7 @@ class EmbeddingHandler:
                             else:
                                 batch_embeddings = self.model.encode(
                                     batch,
+                                    normalize_embeddings=True,
                                     convert_to_numpy=True,
                                     show_progress_bar=False,
                                     device=self.device,
@@ -849,6 +851,7 @@ class EmbeddingHandler:
                 with torch.no_grad():
                     embeddings = self.model.encode(
                         texts,
+                        normalize_embeddings=True,
                         convert_to_numpy=True,
                         show_progress_bar=False,
                         device='cpu',
