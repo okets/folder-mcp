@@ -55,7 +55,13 @@ def check_dependencies():
         import jsonrpclib
     except ImportError:
         missing_packages.append("jsonrpclib-pelix")
-    
+
+    # Check KeyBERT for semantic extraction (Sprint 1 requirement)
+    try:
+        import keybert
+    except ImportError:
+        missing_packages.append("keybert")
+
     if missing_packages:
         # Output specific error that Node.js can detect and parse
         error_msg = f"DEPENDENCY_ERROR: Missing packages: {', '.join(missing_packages)}"
@@ -86,6 +92,8 @@ import asyncio
 import json
 import logging
 import signal
+import time
+import threading
 import traceback
 from typing import Dict, Any, Optional
 
@@ -108,9 +116,10 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
 from handlers.embedding_handler import EmbeddingHandler
+from handlers.semantic_handler import SemanticExtractionHandler
 from models.embedding_request import (
     EmbeddingRequest,
-    EmbeddingResponse, 
+    EmbeddingResponse,
     HealthCheckRequest,
     HealthCheckResponse,
     ShutdownRequest,
@@ -120,32 +129,66 @@ from models.embedding_request import (
 
 class EmbeddingRPCServer:
     """JSON-RPC server for embedding operations"""
-    
-    def __init__(self, model_name: str):
-        if not model_name:
-            raise ValueError("Model name is required - no defaults allowed")
+
+    def __init__(self, model_name: Optional[str] = None):
+        # Model name is now optional - Python can start without a model
         self.model_name = model_name
         self.handler: Optional[EmbeddingHandler] = None
+        self.semantic_handler: Optional[SemanticExtractionHandler] = None
         self.is_running = False
         self.request_count = 0
+
+        # State management for model transitions
+        # Start in 'idle' if no model, 'loading' if model provided
+        self.state = 'idle' if not model_name else 'loading'
+        self.loading_progress = 0
+        self.start_time = time.time()
+        self.model_loaded_event = threading.Event()
         
     async def initialize(self) -> bool:
-        """Initialize the RPC server and embedding handler"""
+        """Initialize the RPC server and optionally load initial model"""
         try:
+            # If no model specified, just start in idle state
+            if not self.model_name:
+                logger.info("Initializing EmbeddingRPCServer in idle state (no model)")
+                self.state = 'idle'
+                self.loading_progress = 0
+                self.is_running = True
+                logger.info("EmbeddingRPCServer initialized in idle state, ready to load models on demand")
+                return True
+
+            # If model specified, load it
             logger.info(f"Initializing EmbeddingRPCServer with model: {self.model_name}")
-            
+
+            # Update state to loading
+            self.state = 'loading'
+            self.loading_progress = 10
+
             # Create and initialize handler
             self.handler = EmbeddingHandler(self.model_name)
+            self.loading_progress = 30
+
             success = await self.handler.initialize()
-            
+
             if not success:
                 logger.error("Failed to initialize embedding handler")
+                self.state = 'error'
                 return False
-            
+
+            # Update state to ready
+            self.state = 'ready'
+            self.loading_progress = 100
+            self.model_loaded_event.set()
+
+            # Initialize semantic handler if model is loaded
+            if self.handler and self.handler.model:
+                from handlers.semantic_handler import SemanticExtractionHandler
+                self.semantic_handler = SemanticExtractionHandler(self.handler.model)
+
             self.is_running = True
             logger.info("EmbeddingRPCServer initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize EmbeddingRPCServer: {e}")
             logger.error(traceback.format_exc())
@@ -184,7 +227,7 @@ class EmbeddingRPCServer:
             
             # Generate embeddings - since we're in an async context, await directly
             response = await self.handler.generate_embeddings(request)
-            
+
             logger.info(
                 f"Completed request {self.request_count}: "
                 f"success={response.success}, time={response.processing_time_ms}ms"
@@ -206,37 +249,48 @@ class EmbeddingRPCServer:
     def health_check(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Get health status of the embedding service.
-        
+
         JSON-RPC method: health_check
-        
+
         Args:
             request_data: Optional HealthCheckRequest data
-            
+
         Returns:
             Dictionary containing HealthCheckResponse data
         """
         try:
-            if not self.handler:
-                return {
-                    'status': 'unhealthy',
-                    'model_loaded': False,
-                    'gpu_available': False,
-                    'memory_usage_mb': 0.0,
-                    'uptime_seconds': 0,
-                    'queue_size': 0,
-                    'request_id': request_data.get('request_id') if request_data else None
-                }
-            
-            response = self.handler.get_health_status()
-            if request_data:
-                response.request_id = request_data.get('request_id')
-            
-            return response.to_dict()
-            
+            # Build base response with state information
+            response = {
+                'status': 'healthy' if self.state == 'ready' else self.state,
+                'state': self.state,  # Current state machine state
+                'loading_progress': self.loading_progress,  # Loading progress percentage
+                'current_model': self.model_name,  # Currently loaded model name
+                'model_loaded': self.state == 'ready',
+                'gpu_available': False,
+                'memory_usage_mb': 0.0,
+                'uptime_seconds': time.time() - self.start_time if hasattr(self, 'start_time') else 0,
+                'queue_size': 0,
+                'request_id': request_data.get('request_id') if request_data else None
+            }
+
+            # Get additional info from handler if available
+            if self.handler:
+                handler_health = self.handler.get_health_status()
+                response.update({
+                    'gpu_available': handler_health.gpu_available,
+                    'memory_usage_mb': handler_health.memory_usage_mb,
+                    'queue_size': handler_health.queue_size
+                })
+
+            return response
+
         except Exception as e:
             logger.error(f"Error in health_check: {e}")
             return {
-                'status': 'unhealthy',
+                'status': 'error',
+                'state': 'error',
+                'loading_progress': 0,
+                'current_model': self.model_name,
                 'model_loaded': False,
                 'gpu_available': False,
                 'memory_usage_mb': 0.0,
@@ -244,7 +298,156 @@ class EmbeddingRPCServer:
                 'queue_size': 0,
                 'error': str(e)
             }
-    
+
+    def get_status(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get simple status of the embedding service for state machine tracking.
+
+        JSON-RPC method: get_status
+
+        Args:
+            request_data: Optional request data (not used)
+
+        Returns:
+            Dictionary containing state information
+        """
+        # Map internal states to the expected state machine states
+        if self.state == 'idle':
+            state = 'idle'
+        elif self.state == 'loading':
+            state = 'loading'
+        elif self.state == 'ready':
+            state = 'ready'
+        elif self.state == 'unloading':
+            state = 'unloading'
+        elif self.state == 'error':
+            state = 'error'
+        else:
+            # Default to idle for any unknown state
+            state = 'idle'
+
+        return {
+            'state': state,
+            'model': self.model_name,
+            'progress': self.loading_progress
+        }
+
+    def extract_keyphrases(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract key phrases using KeyBERT.
+
+        JSON-RPC method: extract_keyphrases
+
+        Args:
+            request_data: Dictionary containing:
+                - text: Input text
+                - ngram_range: Optional tuple [min, max] (default: [1, 3])
+                - use_mmr: Optional bool for diversity (default: True)
+                - diversity: Optional float 0-1 (default: 0.5)
+                - top_n: Optional int for number of phrases (default: 10)
+
+        Returns:
+            Dictionary containing:
+                - keyphrases: List of extracted phrases
+                - success: Boolean indicating success
+                - error: Optional error message
+        """
+        try:
+            # Ensure semantic handler is initialized if model is available
+            self._ensure_semantic_handler()
+
+            if not self.semantic_handler:
+                return {
+                    'keyphrases': [],
+                    'success': False,
+                    'error': 'Semantic handler not initialized'
+                }
+
+            if not self.semantic_handler.is_available():
+                return {
+                    'keyphrases': [],
+                    'success': False,
+                    'error': 'KeyBERT not available'
+                }
+
+            # Extract parameters
+            text = request_data.get('text', '')
+            ngram_range = tuple(request_data.get('ngram_range', [1, 3]))
+            use_mmr = request_data.get('use_mmr', True)
+            diversity = request_data.get('diversity', 0.5)
+            top_n = request_data.get('top_n', 10)
+
+            # Extract key phrases
+            keyphrases = self.semantic_handler.extract_keyphrases(
+                text=text,
+                ngram_range=ngram_range,
+                use_mmr=use_mmr,
+                diversity=diversity,
+                top_n=top_n
+            )
+
+            return {
+                'keyphrases': keyphrases,
+                'success': True
+            }
+
+        except Exception as e:
+            logger.error(f"Error in extract_keyphrases: {e}")
+            return {
+                'keyphrases': [],
+                'success': False,
+                'error': str(e)
+            }
+
+    def _ensure_semantic_handler(self):
+        """
+        Ensure semantic handler is initialized with the current model.
+        The semantic handler is now managed by the embedding handler.
+        """
+        # Wait for model to be loaded if not already
+        if self.handler and not self.handler.model_loaded:
+            logger.info("Waiting for model to load before accessing semantic handler...")
+            success = self.handler.model_loaded_event.wait(timeout=30)
+            if not success:
+                logger.error("Timeout waiting for model to load")
+                return
+
+        # Update our reference to the handler's semantic handler
+        if self.handler and self.handler.semantic_handler:
+            self.semantic_handler = self.handler.semantic_handler
+            logger.info(f"Using semantic handler from embedding handler, is_available={self.semantic_handler.is_available()}")
+        else:
+            logger.error(f"Semantic handler not available: handler={self.handler is not None}, model_loaded={self.handler.model_loaded if self.handler else False}, handler.semantic_handler={self.handler.semantic_handler is not None if self.handler else False}")
+
+    def is_keybert_available(self) -> Dict[str, Any]:
+        """
+        Check if KeyBERT is available.
+
+        JSON-RPC method: is_keybert_available
+
+        Returns:
+            Dictionary containing:
+                - available: Boolean indicating if KeyBERT is available
+        """
+        try:
+            logger.debug("is_keybert_available RPC method called")
+
+            # Ensure semantic handler is initialized if model is available
+            self._ensure_semantic_handler()
+
+            available = (
+                self.semantic_handler is not None and
+                self.semantic_handler.is_available()
+            )
+
+            logger.info(f"KeyBERT availability check: semantic_handler={self.semantic_handler is not None}, available={available}")
+
+            return {'available': available}
+        except Exception as e:
+            logger.error(f"Error checking KeyBERT availability: {e}")
+            logger.error(traceback.format_exc())
+            return {'available': False}
+
     async def shutdown(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Gracefully shutdown the embedding service.
@@ -375,40 +578,245 @@ class EmbeddingRPCServer:
         """
         Unload the current model from memory to free resources.
         The process remains alive for faster reloading.
-        
+
         JSON-RPC method: unload_model
-        
+
         Args:
             request_data: Optional dictionary (not used)
-            
+
         Returns:
             Dictionary containing unload status
         """
         try:
-            if not self.handler:
+            if self.state == 'idle':
                 return {
-                    'success': False,
-                    'error': 'Handler not initialized'
+                    'success': True,
+                    'message': 'No model loaded',
+                    'state': 'idle'
                 }
-            
-            logger.info("Unloading model from memory")
-            
+
+            if not self.handler:
+                logger.warning("No handler but state is not idle, resetting to idle")
+                self.state = 'idle'
+                self.model_name = None
+                return {
+                    'success': True,
+                    'message': 'Reset to idle state',
+                    'state': 'idle'
+                }
+
+            logger.info(f"Unloading model {self.model_name} from memory")
+
+            # Set state to unloading
+            self.state = 'unloading'
+
             # Use the internal unload method
             self.handler._unload_model()
-            
+
+            # Clean up handler and semantic handler
+            self.handler = None
+            self.semantic_handler = None
+
+            # Force memory cleanup
+            import gc
+            gc.collect()
+
+            # Reset to idle state
+            self.state = 'idle'
+            self.model_name = None
+            self.loading_progress = 0
+
             result = {
                 'success': True,
-                'message': 'Model unloaded successfully'
+                'message': 'Model unloaded successfully',
+                'state': 'idle'
             }
-            
+
             logger.info(f"Model unload result: {result}")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error in unload_model: {e}")
             logger.error(traceback.format_exc())
+            self.state = 'error'
             return {
                 'success': False,
+                'error': str(e),
+                'state': 'error'
+            }
+
+    async def load_model(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Load a different model, properly unloading the current one and freeing memory.
+        The Python process stays alive for fast model switching.
+
+        JSON-RPC method: load_model
+
+        Args:
+            request_data: Dictionary with 'model_name' key
+
+        Returns:
+            Dictionary with success status and model info
+        """
+        try:
+            new_model = request_data.get('model_name')
+            if not new_model:
+                return {
+                    'success': False,
+                    'error': 'model_name parameter required'
+                }
+
+            # If same model already loaded, just return success
+            if self.model_name == new_model and self.handler and self.handler.model_loaded:
+                logger.info(f"Model {new_model} already loaded, skipping reload")
+                return {
+                    'success': True,
+                    'message': 'Model already loaded',
+                    'current_model': self.model_name,
+                    'state': 'ready'
+                }
+
+            logger.info(f"=== MODEL SWITCH: {self.model_name} → {new_model} ===")
+
+            # Step 1: Set state to unloading
+            self.state = 'unloading'
+            self.loading_progress = 0
+
+            # Step 2: Unload current model if exists
+            if self.handler:
+                logger.info(f"Unloading current model: {self.model_name}")
+
+                # Unload the model (frees PyTorch tensors)
+                if hasattr(self.handler, 'model') and self.handler.model:
+                    self.handler._unload_model()
+                    logger.info("Model unloaded from handler")
+
+                # Clean up semantic handler
+                if self.semantic_handler:
+                    self.semantic_handler = None
+                    logger.info("Semantic handler cleared")
+
+                # Stop handler threads
+                if hasattr(self.handler, 'shutdown_event'):
+                    self.handler.shutdown_event.set()
+
+                # Clear handler reference
+                self.handler = None
+                logger.info("Handler reference cleared")
+
+            # Step 3: Force memory cleanup
+            import gc
+            import torch
+
+            # Clear CUDA cache if using GPU
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.info("CUDA cache cleared")
+
+            # Clear MPS cache if on Apple Silicon
+            if hasattr(torch, 'mps') and torch.mps.is_available():
+                # MPS doesn't have empty_cache, but we can try to free memory
+                torch.mps.synchronize()
+                logger.info("MPS synchronized")
+
+            # Force garbage collection (multiple passes for thorough cleanup)
+            for i in range(3):
+                gc.collect()
+
+            logger.info(f"Memory cleanup completed (3 GC passes)")
+
+            # Step 4: Update state to loading
+            self.state = 'loading'
+            self.loading_progress = 10
+            self.model_name = new_model
+
+            logger.info(f"Loading new model: {new_model}")
+
+            # Step 5: Create new handler with new model
+            self.handler = EmbeddingHandler(new_model)
+            self.loading_progress = 30
+
+            # Step 6: Initialize the new handler (loads model)
+            success = await self.handler.initialize()
+
+            if success:
+                self.state = 'ready'
+                self.loading_progress = 100
+                self.model_loaded_event.set()
+
+                # Initialize semantic handler with new model
+                if self.handler.model:
+                    from handlers.semantic_handler import SemanticExtractionHandler
+                    self.semantic_handler = SemanticExtractionHandler(self.handler.model)
+                    logger.info("Semantic handler initialized with new model")
+
+                logger.info(f"✓ Model {new_model} loaded successfully")
+
+                return {
+                    'success': True,
+                    'message': f'Model switched to {new_model}',
+                    'current_model': self.model_name,
+                    'state': 'ready'
+                }
+            else:
+                self.state = 'error'
+                logger.error(f"Failed to load model {new_model}")
+
+                return {
+                    'success': False,
+                    'error': f'Failed to initialize model {new_model}',
+                    'state': 'error'
+                }
+
+        except Exception as e:
+            logger.error(f"Error in load_model: {e}")
+            logger.error(traceback.format_exc())
+            self.state = 'error'
+
+            return {
+                'success': False,
+                'error': str(e),
+                'state': 'error'
+            }
+
+
+    def get_status(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Get simple status of the Python embedding service.
+
+        JSON-RPC method: get_status
+
+        Returns:
+            Dictionary containing state information
+        """
+        try:
+            # Simple status without psutil dependency
+            # Map internal states to the expected state machine states
+            if self.state == 'loading':
+                state = 'loading'
+            elif self.state == 'ready':
+                state = 'ready'
+            elif self.state == 'unloading':
+                state = 'unloading'
+            elif self.state == 'error':
+                state = 'error'
+            else:
+                state = 'idle'  # Default to idle for any other state
+
+            status = {
+                'state': state,
+                'model': self.model_name,
+                'progress': self.loading_progress
+            }
+
+            logger.info(f"Status: {status}")
+            return status
+
+        except Exception as e:
+            logger.error(f"Error in get_status: {e}")
+            return {
+                'state': 'error',
+                'model': self.model_name,
                 'error': str(e)
             }
 
@@ -482,6 +890,14 @@ class StdioJSONRPCServer:
                 result = self.embedding_server.is_model_cached(params)
             elif method == 'unload_model':
                 result = self.embedding_server.unload_model(params)
+            elif method == 'load_model':
+                result = await self.embedding_server.load_model(params)
+            elif method == 'extract_keyphrases_keybert':
+                result = self.embedding_server.extract_keyphrases(params)
+            elif method == 'is_keybert_available':
+                result = self.embedding_server.is_keybert_available()
+            elif method == 'get_status':
+                result = self.embedding_server.get_status(params)
             elif method == 'shutdown':
                 # Note: Shutdown method is preserved for explicit shutdown requests
                 # but keep-alive timeout no longer triggers shutdown
@@ -527,18 +943,16 @@ class StdioJSONRPCServer:
 
 async def main():
     """Main entry point"""
-    # Get model name from command line args - REQUIRED, no defaults
-    if len(sys.argv) < 2:
-        error_msg = "FATAL: Model name is required as command line argument. Usage: python main.py <model_name>"
-        print(error_msg, file=sys.stderr, flush=True)
-        sys.exit(1)
-    
-    model_name = sys.argv[1]
-    
-    logger.info(f"Starting Python embeddings service with model: {model_name}")
-    
+    # Model name is now OPTIONAL - can start without a model
+    model_name = None
+    if len(sys.argv) >= 2:
+        model_name = sys.argv[1]
+        logger.info(f"Starting Python embeddings service with model: {model_name}")
+    else:
+        logger.info("Starting Python embeddings service in idle state (no model)")
+
     try:
-        # Create and initialize embedding server
+        # Create and initialize embedding server (model is optional)
         embedding_server = EmbeddingRPCServer(model_name)
         
         if not await embedding_server.initialize():

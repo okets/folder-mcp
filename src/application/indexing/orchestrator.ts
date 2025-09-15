@@ -35,8 +35,9 @@ import os from 'os';
 // Domain types
 import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../../types/index.js';
 
-// Semantic extraction service for Sprint 10
-import { ContentProcessingService } from '../../domain/content/processing.js';
+// Semantic extraction service - using new KeyBERT-based service
+import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
+import { IPythonSemanticService } from '../../domain/semantic/interfaces.js';
 
 // Model evaluation for context window detection
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
@@ -46,8 +47,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   private embeddingServiceCache: Map<string, IEmbeddingService> = new Map();
   private embeddingServiceCreationPromises: Map<string, Promise<IEmbeddingService>> = new Map();
   
-  // Semantic extraction service for Sprint 10
-  private readonly contentProcessingService: ContentProcessingService;
+  // Semantic extraction service - using new KeyBERT-based service
+  private semanticExtractionService: ISemanticExtractionService | null = null;
   
   // Performance tracking for benchmarking
   private performanceMetrics = {
@@ -69,8 +70,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly fileSystemService: IFileSystemService,
     private readonly onnxConfiguration: IOnnxConfiguration
   ) {
-    // Initialize ContentProcessingService for semantic extraction
-    this.contentProcessingService = new ContentProcessingService();
+    // Semantic extraction service will be initialized when needed
+    // to access the Python service from the embedding service
   }
 
   /**
@@ -167,7 +168,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       const sentenceTransformerId = getSentenceTransformerIdFromModelId(modelId);
       
       // Use factory function to get singleton instance
-      embeddingService = createPythonEmbeddingService({
+      embeddingService = await createPythonEmbeddingService({
         modelName: sentenceTransformerId // Use sentence-transformers ID, not our internal ID
       })
       
@@ -593,11 +594,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunks = chunkResult.chunks;
 
     // Extract semantic metadata for each chunk (Sprint 10)
-    const chunksWithSemantics = await this.extractSemanticMetadata(chunks);
+    const chunksWithSemantics = await this.extractSemanticMetadata(chunks, modelId);
 
     // Report total chunks
     if (progressCallback) {
-      progressCallback(chunks.length, 0);
+      progressCallback(chunksWithSemantics.length, 0);
     }
 
     // Generate embeddings if not skipped
@@ -624,9 +625,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       // Process embeddings in batches and create metadata only for successful embeddings
       const batchSize = 10; // Process 10 chunks at a time
       let totalProcessed = 0; // Track actual number of successfully processed embeddings
-      
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+
+      for (let i = 0; i < chunksWithSemantics.length; i += batchSize) {
+        const batch = chunksWithSemantics.slice(i, Math.min(i + batchSize, chunksWithSemantics.length));
         const batchStartIndex = i; // Store the starting index for this batch
         
         try {
@@ -660,14 +661,35 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                       endPosition: chunk.endPosition,
                       fileHash
                     };
-                    
+
                     // Pass through extraction params from format-aware chunking
                     // Format-aware chunking services add extractionParams for accurate content reconstruction
                     const chunkMetadata = chunk.metadata as any;
                     if (chunkMetadata?.extractionParams) {
                       metadataObj.extractionParams = chunkMetadata.extractionParams;
                     }
-                    
+
+                    // Add semantic metadata from KeyBERT extraction
+                    if (chunk.semanticMetadata) {
+                      // Store semantic fields directly in metadata for database storage
+                      metadataObj.keyPhrases = chunk.semanticMetadata.keyPhrases || [];
+                      metadataObj.topics = chunk.semanticMetadata.topics || [];
+                      metadataObj.readabilityScore = chunk.semanticMetadata.readabilityScore || 50;
+
+                      // Log that we're including semantic metadata
+                      if (chunk.semanticMetadata.keyPhrases && chunk.semanticMetadata.keyPhrases.length > 0) {
+                        this.loggingService.debug('Including semantic metadata in storage', {
+                          chunkIndex: originalChunkIndex,
+                          keyPhraseCount: chunk.semanticMetadata.keyPhrases.length,
+                          samplePhrases: chunk.semanticMetadata.keyPhrases.slice(0, 3)
+                        });
+                      }
+                    } else {
+                      // FAIL LOUDLY if semantic metadata is missing
+                      this.loggingService.error('CRITICAL: Semantic metadata missing for chunk!');
+                      this.loggingService.error(`Details: chunkIndex=${originalChunkIndex}, filePath=${filePath}`);
+                    }
+
                     successfulMetadata.push(metadataObj);
                   }
                 }
@@ -863,61 +885,236 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   }
 
   /**
-   * Extract semantic metadata for ALL chunks (mandatory in Sprint 10)
-   * Always populates semantic fields, even on extraction failure
+   * Initialize semantic extraction service if not already initialized
+   * @param embeddingService The embedding service to check for KeyBERT support (either fallback or model-specific)
    */
-  private async extractSemanticMetadata(chunks: TextChunk[]): Promise<TextChunk[]> {
-    const enhancedChunks: TextChunk[] = [];
-    
-    for (const chunk of chunks) {
-      let semanticMetadata: SemanticMetadata;
-      
+  private async initializeSemanticService(embeddingService?: IEmbeddingService): Promise<void> {
+    this.loggingService.debug('[SEMANTIC-INIT] Starting semantic service initialization');
+
+    if (this.semanticExtractionService) {
+      this.loggingService.debug('[SEMANTIC-INIT] Service already initialized, returning');
+      return; // Already initialized
+    }
+
+    // Try to get Python service from embedding service
+    let pythonService: IPythonSemanticService | null = null;
+
+    // Use the provided embedding service or fallback to the default one
+    const serviceToCheck = embeddingService || this.embeddingService;
+
+    // Check if the embedding service is a PythonEmbeddingService with semantic methods
+    const embeddingServiceAny = serviceToCheck as any;
+    this.loggingService.debug('[SEMANTIC-INIT] Checking embedding service for semantic methods', {
+      hasIsKeyBERT: typeof embeddingServiceAny.isKeyBERTAvailable === 'function',
+      hasExtractKeyPhrases: typeof embeddingServiceAny.extractKeyPhrasesKeyBERT === 'function',
+      embeddingServiceType: embeddingServiceAny.constructor?.name,
+      isProvidedService: !!embeddingService
+    });
+
+    if (typeof embeddingServiceAny.isKeyBERTAvailable === 'function' &&
+        typeof embeddingServiceAny.extractKeyPhrasesKeyBERT === 'function') {
+      // Check if KeyBERT is actually available (not just that the methods exist)
+      // Add retry logic as the Python model might still be loading
       try {
-        // Extract semantic metadata using ContentProcessingService
-        const keyPhrases = ContentProcessingService.extractKeyPhrases(chunk.content, 10);
-        const topics = ContentProcessingService.detectTopics(chunk.content);
-        const readabilityScore = ContentProcessingService.calculateReadabilityScore(chunk.content);
-        
-        semanticMetadata = {
-          keyPhrases,
-          topics,
-          readabilityScore,
-          semanticProcessed: true,
-          semanticTimestamp: Date.now()
-        };
-        
-        this.loggingService.debug('Semantic extraction successful', {
-          chunkIndex: chunk.chunkIndex,
-          keyPhrasesCount: keyPhrases.length,
-          topicsCount: topics.length,
-          readabilityScore
+        let isKeyBERTAvailable = false;
+        const maxRetries = 5;
+        const retryDelay = 1000; // 1 second between retries
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            isKeyBERTAvailable = await embeddingServiceAny.isKeyBERTAvailable();
+            this.loggingService.debug(`[SEMANTIC-INIT] KeyBERT availability check attempt ${attempt}/${maxRetries}:`, { isKeyBERTAvailable });
+
+            if (isKeyBERTAvailable) {
+              break; // Success!
+            }
+
+            // If not available yet and not the last attempt, wait and retry
+            if (attempt < maxRetries) {
+              this.loggingService.debug(`[SEMANTIC-INIT] KeyBERT not ready yet, waiting ${retryDelay}ms before retry...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+          } catch (attemptError) {
+            this.loggingService.debug(`[SEMANTIC-INIT] KeyBERT check attempt ${attempt} failed:`, attemptError);
+            if (attempt === maxRetries) {
+              throw attemptError; // Re-throw on last attempt
+            }
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+
+        if (isKeyBERTAvailable) {
+          // The embedding service itself implements the semantic methods and KeyBERT is available
+          pythonService = embeddingServiceAny as IPythonSemanticService;
+          this.loggingService.info('[SEMANTIC-INIT] Using KeyBERT from Python embedding service for semantic extraction');
+        } else {
+          // Methods exist but KeyBERT is not actually available after retries
+          const errorMsg = '[SEMANTIC-INIT] CRITICAL: KeyBERT is not available in Python environment after retries. ' +
+                          'GPU models require Python with KeyBERT installed.';
+          this.loggingService.error(errorMsg);
+          throw new Error(errorMsg);
+        }
+      } catch (checkError) {
+        // Error checking KeyBERT availability
+        const errorMsg = `[SEMANTIC-INIT] CRITICAL: Failed to check KeyBERT availability: ${checkError}. ` +
+                        'GPU models require Python with KeyBERT installed.';
+        this.loggingService.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+    } else {
+      // Python service is REQUIRED for semantic extraction with GPU models
+      const errorMsg = '[SEMANTIC-INIT] CRITICAL: Python service with KeyBERT methods not available - cannot perform semantic extraction. ' +
+                      'GPU models require Python with KeyBERT installed.';
+      this.loggingService.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    // Create the semantic extraction service with Python support
+    this.loggingService.debug('[SEMANTIC-INIT] Creating semantic extraction service');
+    this.semanticExtractionService = createSemanticExtractionService(
+      pythonService,
+      this.loggingService
+    );
+    this.loggingService.debug('[SEMANTIC-INIT] Semantic extraction service created successfully');
+  }
+
+  /**
+   * Extract semantic metadata for ALL chunks using KeyBERT-based service
+   * FAILS LOUDLY if extraction fails - no silent failures!
+   * @param chunks The text chunks to process
+   * @param modelId The model ID being used for embeddings (to get the correct service)
+   */
+  private async extractSemanticMetadata(chunks: TextChunk[], modelId?: string): Promise<TextChunk[]> {
+    this.loggingService.debug('[SEMANTIC-EXTRACT] Starting semantic extraction', {
+      chunkCount: chunks.length
+    });
+
+    // Get the model-specific embedding service if modelId is provided
+    let embeddingService: IEmbeddingService | undefined;
+    let isONNXModel = false;
+
+    if (modelId) {
+      // Check if it's a CPU/ONNX model from the model ID
+      const isCPUModelId = modelId.startsWith('cpu:') || modelId.startsWith('onnx:');
+
+      if (isCPUModelId) {
+        this.loggingService.info('[SEMANTIC-EXTRACT] Skipping semantic extraction for ONNX/CPU model - KeyBERT only available with GPU models', {
+          modelId
         });
-        
+        // Return chunks without semantic metadata
+        return chunks.map(chunk => ({
+          ...chunk,
+          semanticMetadata: {
+            keyPhrases: [],
+            topics: [],
+            readabilityScore: 0,
+            semanticProcessed: false,
+            semanticTimestamp: Date.now()
+          }
+        }));
+      }
+
+      try {
+        embeddingService = await this.getEmbeddingServiceForModel(modelId);
+        this.loggingService.debug('[SEMANTIC-EXTRACT] Got model-specific embedding service', {
+          modelId,
+          serviceType: (embeddingService as any).constructor?.name
+        });
+
+        // Check if it's an ONNX model
+        const embeddingServiceAny = embeddingService as any;
+        isONNXModel = embeddingServiceAny.constructor?.name === 'ONNXEmbeddingService' ||
+                            embeddingServiceAny.constructor?.name === 'ONNXBridge' ||
+                            embeddingServiceAny.constructor?.name === 'ONNXEmbeddingServiceAdapter';
       } catch (error) {
-        // Error resilience: Use empty semantic data if extraction fails
-        this.loggingService.warn('Semantic extraction failed for chunk, using empty semantics', {
-          chunkIndex: chunk.chunkIndex,
-          error: error instanceof Error ? error.message : String(error)
-        });
-        
-        semanticMetadata = {
+        this.loggingService.error('[SEMANTIC-EXTRACT] Failed to get model-specific embedding service', error instanceof Error ? error : new Error(String(error)));
+        // Will fall back to default service
+      }
+    } else {
+      // No model ID provided, check the default service
+      const embeddingServiceAny = this.embeddingService as any;
+      isONNXModel = embeddingServiceAny.constructor?.name === 'ONNXEmbeddingService' ||
+                          embeddingServiceAny.constructor?.name === 'ONNXBridge' ||
+                          embeddingServiceAny.constructor?.name === 'ONNXEmbeddingServiceAdapter';
+    }
+
+    if (isONNXModel) {
+      this.loggingService.info('[SEMANTIC-EXTRACT] Skipping semantic extraction for ONNX/CPU model - KeyBERT only available with GPU models', {
+        serviceType: embeddingService ? (embeddingService as any).constructor?.name : 'default service'
+      });
+      // Return chunks without semantic metadata
+      return chunks.map(chunk => ({
+        ...chunk,
+        semanticMetadata: {
           keyPhrases: [],
-          topics: ['general'], // Default topic when extraction fails
+          topics: [],
           readabilityScore: 0,
           semanticProcessed: false,
           semanticTimestamp: Date.now()
-        };
-      }
-      
-      // ALWAYS add semantic metadata (no longer optional)
-      const enhancedChunk: TextChunk = {
-        ...chunk,
-        semanticMetadata
-      };
-      
-      enhancedChunks.push(enhancedChunk);
+        }
+      }));
     }
-    
+
+    // Initialize semantic service if needed - pass the model-specific service if available
+    try {
+      await this.initializeSemanticService(embeddingService);
+    } catch (error) {
+      this.loggingService.error('[SEMANTIC-EXTRACT] Failed to initialize semantic service: ' +
+        (error instanceof Error ? error.message : String(error)));
+      throw error;
+    }
+
+    if (!this.semanticExtractionService) {
+      throw new Error('Semantic extraction service not initialized');
+    }
+
+    const enhancedChunks: TextChunk[] = [];
+
+    for (const chunk of chunks) {
+      this.loggingService.debug('[SEMANTIC-EXTRACT] Processing chunk', {
+        chunkIndex: chunk.chunkIndex,
+        contentLength: chunk.content.length
+      });
+
+      try {
+        // Extract semantic data using new KeyBERT-based service
+        const semanticData = await this.semanticExtractionService.extractFromText(chunk.content);
+
+        const semanticMetadata: SemanticMetadata = {
+          keyPhrases: semanticData.keyPhrases,
+          topics: semanticData.topics,
+          readabilityScore: semanticData.readabilityScore,
+          semanticProcessed: true,
+          semanticTimestamp: Date.now()
+        };
+
+        this.loggingService.info('Semantic extraction with KeyBERT successful', {
+          chunkIndex: chunk.chunkIndex,
+          keyPhrasesCount: semanticData.keyPhrases.length,
+          topicsCount: semanticData.topics.length,
+          readabilityScore: semanticData.readabilityScore,
+          extractionMethod: semanticData.extractionMethod,
+          multiwordRatio: semanticData.qualityMetrics?.multiwordRatio
+        });
+
+        // ALWAYS add semantic metadata
+        const enhancedChunk: TextChunk = {
+          ...chunk,
+          semanticMetadata
+        };
+
+        enhancedChunks.push(enhancedChunk);
+
+      } catch (error) {
+        // FAIL LOUDLY - no silent failures!
+        this.loggingService.error(`CRITICAL: Semantic extraction failed for chunk ${chunk.chunkIndex}: ` +
+          (error instanceof Error ? error.message : String(error)));
+
+        // Re-throw to fail the indexing process
+        throw new Error(`Semantic extraction failed for chunk ${chunk.chunkIndex}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     return enhancedChunks;
   }
 

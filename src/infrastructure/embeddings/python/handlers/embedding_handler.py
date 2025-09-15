@@ -79,6 +79,7 @@ class EmbeddingHandler:
         
         self.model_name = model_name
         self.model: Optional[SentenceTransformer] = None
+        self.semantic_handler = None  # Will be initialized after model loads
         self.device = "cpu"
         self.device_info = {}
         
@@ -102,6 +103,7 @@ class EmbeddingHandler:
         self.state = 'IDLE'  # IDLE | WORKING | UNLOADING
         self.state_lock = threading.Lock()
         self.last_progress_time = 0
+        self.model_loaded = False  # Track if model is loaded
         
         # Load process management configuration
         self.process_config = get_process_management_config()
@@ -280,6 +282,21 @@ class EmbeddingHandler:
             
             self.model_loaded_event.set()
             self.model_loaded = True
+
+            # Initialize semantic handler with the loaded model
+            # This is critical for KeyBERT support after model switching
+            if self.model:
+                try:
+                    from handlers.semantic_handler import SemanticExtractionHandler
+                    self.semantic_handler = SemanticExtractionHandler(self.model)
+                    if self.semantic_handler.is_available():
+                        logger.info("✅ SemanticExtractionHandler initialized with KeyBERT after model load")
+                    else:
+                        logger.warning("⚠️ SemanticExtractionHandler initialized but KeyBERT not available")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize semantic handler: {e}")
+                    self.semantic_handler = None
+
             logger.info(f"✓ Model {self.model_name} ready for inference")
             self._send_progress('idle', 0, 0, "Model loaded, process ready")
             
@@ -422,12 +439,18 @@ class EmbeddingHandler:
     def _ensure_model_loaded(self) -> bool:
         """Ensure model is loaded before processing"""
         if self.model is None or not self.model_loaded:
-            logger.info("Model not loaded, loading now...")
-            try:
-                self._load_model_sync()
-                return self.model is not None and self.model_loaded
-            except Exception as e:
-                logger.error(f"Failed to load model: {e}")
+            logger.info("Model not loaded yet, waiting for background loading to complete...")
+            # Wait for the model loading thread to complete
+            # This prevents double loading which causes MPS errors
+            if self.model_loaded_event.wait(timeout=60):  # 60 second timeout
+                if self.model is not None and self.model_loaded:
+                    logger.info("Model loading completed successfully")
+                    return True
+                else:
+                    logger.error("Model loading event set but model not available")
+                    return False
+            else:
+                logger.error("Timeout waiting for model to load")
                 return False
         return True
     

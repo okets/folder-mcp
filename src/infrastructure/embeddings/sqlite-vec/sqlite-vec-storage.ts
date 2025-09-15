@@ -36,6 +36,10 @@ export interface VectorMetadata {
     sheetName?: string;
     slideNumber?: number;
     extractionParams?: string;  // Sprint 11: Pre-computed extraction params from format-aware chunking
+    // Semantic metadata fields from KeyBERT extraction
+    keyPhrases?: string[];
+    topics?: string[];
+    readabilityScore?: number;
 }
 
 export interface FileMetadata {
@@ -431,11 +435,30 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 const docId = documentMap.get(meta.filePath)!;
 
-                // Process chunk content for semantic metadata
-                const keyPhrases = ContentProcessingService.extractKeyPhrases(meta.content, 8);
-                const topics = ContentProcessingService.detectTopics(meta.content);
-                const readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
-                
+                // Use semantic metadata from orchestrator if available, otherwise use fallback
+                let keyPhrases: string[] = [];
+                let topics: string[] = [];
+                let readabilityScore: number = 50;
+
+                if (meta.keyPhrases && meta.topics && meta.readabilityScore !== undefined) {
+                    // Use the KeyBERT-extracted semantic metadata from orchestrator
+                    keyPhrases = meta.keyPhrases;
+                    topics = meta.topics;
+                    readabilityScore = meta.readabilityScore;
+
+                    this.logger?.debug(`Using KeyBERT semantic metadata for chunk ${meta.chunkIndex}`, {
+                        keyPhraseCount: keyPhrases.length,
+                        multiwordRatio: keyPhrases.filter(p => p.includes(' ')).length / Math.max(1, keyPhrases.length),
+                        samplePhrases: keyPhrases.slice(0, 3)
+                    });
+                } else {
+                    // Fallback to old extraction (should not happen if orchestrator is working)
+                    this.logger?.warn(`CRITICAL: No semantic metadata from orchestrator for chunk ${meta.chunkIndex}, using fallback`);
+                    keyPhrases = ContentProcessingService.extractKeyPhrases(meta.content, 8);
+                    topics = ContentProcessingService.detectTopics(meta.content);
+                    readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
+                }
+
                 // Insert chunk with semantic processing results
                 const chunkResult = insertChunkStmt.run(
                     docId,

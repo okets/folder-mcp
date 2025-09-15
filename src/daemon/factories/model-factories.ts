@@ -8,71 +8,114 @@
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
+import { join } from 'path';
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
 
 /**
- * Singleton registry for PythonEmbeddingService instances
- * Ensures only one instance per model exists across the entire application
+ * Singleton registry for PythonEmbeddingService
+ * Maintains ONE Python process that switches models as needed
  */
 class PythonEmbeddingServiceRegistry {
   private static instance: PythonEmbeddingServiceRegistry;
-  private services: Map<string, PythonEmbeddingService> = new Map();
-  
+  private singletonService: PythonEmbeddingService | null = null;
+  private currentModelName: string | null = null;
+
   private constructor() {}
-  
+
   public static getInstance(): PythonEmbeddingServiceRegistry {
     if (!PythonEmbeddingServiceRegistry.instance) {
       PythonEmbeddingServiceRegistry.instance = new PythonEmbeddingServiceRegistry();
     }
     return PythonEmbeddingServiceRegistry.instance;
   }
-  
+
   /**
-   * Get or create a PythonEmbeddingService instance for the specified model
+   * Get the singleton PythonEmbeddingService, switching models if needed
    */
-  public getService(config: any): PythonEmbeddingService {
-    const key = config.modelName || 'default';
-    
-    if (!this.services.has(key)) {
-      console.log(`[PYTHON-REGISTRY] Creating NEW PythonEmbeddingService for ${key}`);
-      const service = new PythonEmbeddingService(config);
-      this.services.set(key, service);
-    } else {
-      console.log(`[PYTHON-REGISTRY] REUSING existing PythonEmbeddingService for ${key}`);
+  public async getService(config: any): Promise<PythonEmbeddingService> {
+    const requestedModel = config.modelName;
+
+    // Create singleton ONCE, without model
+    if (!this.singletonService) {
+      console.log(`[PYTHON-REGISTRY] Creating SINGLETON PythonEmbeddingService (no model)`);
+
+      // Use venv Python to ensure KeyBERT and other dependencies are available
+      const venvPythonPath = join(process.cwd(), 'src/infrastructure/embeddings/python/venv/bin/python3');
+      const enhancedConfig = {
+        ...config,
+        pythonPath: venvPythonPath,  // Use venv Python instead of system Python
+        modelName: ''  // Start empty - no model loaded initially
+      };
+
+      this.singletonService = new PythonEmbeddingService(enhancedConfig);
+      await this.singletonService.initialize();
+
+      // The service is already initialized and in idle state after initialize() completes
+      console.log(`[PYTHON-REGISTRY] Singleton initialized in idle state`);
     }
-    
-    return this.services.get(key)!;
+
+    // Load model if requested and different from current
+    if (requestedModel && this.currentModelName !== requestedModel) {
+      console.log(`[PYTHON-REGISTRY] Loading model: ${requestedModel} (current: ${this.currentModelName || 'none'})`);
+
+      // If a model is currently loaded, unload it first
+      if (this.currentModelName) {
+        console.log(`[PYTHON-REGISTRY] Unloading current model: ${this.currentModelName}`);
+        await this.singletonService.unloadModel();
+        await this.singletonService.waitForState('idle');
+        this.currentModelName = null;
+      }
+
+      // Load new model via RPC
+      await this.singletonService.loadModel(requestedModel);
+      await this.singletonService.waitForState('ready');
+      this.currentModelName = requestedModel;
+
+      console.log(`[PYTHON-REGISTRY] Successfully loaded model: ${requestedModel}`);
+    } else if (!requestedModel && this.currentModelName) {
+      // If no model requested but one is loaded, keep it for efficiency
+      console.log(`[PYTHON-REGISTRY] No model requested, keeping current: ${this.currentModelName}`);
+    } else if (requestedModel === this.currentModelName) {
+      console.log(`[PYTHON-REGISTRY] REUSING singleton with model: ${requestedModel}`);
+    }
+
+    return this.singletonService;
   }
   
   /**
    * Get registry status for debugging
    */
   public getStatus(): { [key: string]: any } {
-    const status: { [key: string]: any } = {};
-    for (const [key, service] of this.services.entries()) {
-      status[key] = {
-        initialized: (service as any).initialized,
-        processRunning: (service as any).pythonProcess !== null
-      };
+    if (!this.singletonService) {
+      return { singleton: 'No service initialized' };
     }
-    return status;
+
+    return {
+      singleton: {
+        currentModel: this.currentModelName,
+        initialized: (this.singletonService as any).initialized,
+        processRunning: (this.singletonService as any).pythonProcess !== null
+      }
+    };
   }
-  
+
   /**
-   * Cleanup all services
+   * Cleanup the singleton service
    */
   public async cleanup(): Promise<void> {
-    console.log(`[PYTHON-REGISTRY] Cleaning up ${this.services.size} services`);
-    const cleanupPromises = Array.from(this.services.values()).map(service => service.shutdown());
-    await Promise.all(cleanupPromises);
-    this.services.clear();
+    if (this.singletonService) {
+      console.log(`[PYTHON-REGISTRY] Cleaning up singleton service with model: ${this.currentModelName}`);
+      await this.singletonService.shutdown();
+      this.singletonService = null;
+      this.currentModelName = null;
+    }
   }
 }
 
 /**
  * Factory function for creating PythonEmbeddingService (now uses singleton registry)
  */
-export function createPythonEmbeddingService(config: any): PythonEmbeddingService {
+export async function createPythonEmbeddingService(config: any): Promise<PythonEmbeddingService> {
   const registry = PythonEmbeddingServiceRegistry.getInstance();
   return registry.getService(config);
 }

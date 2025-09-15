@@ -15,26 +15,17 @@ import { PythonModelBridge } from '../../infrastructure/embeddings/bridges/pytho
 import { ONNXModelBridge } from '../../infrastructure/embeddings/bridges/onnx-model-bridge.js';
 
 export class UnifiedModelFactory implements IEmbeddingModelFactory {
-  private modelCache = new Map<string, IEmbeddingModel>();
-  
+  // Model caching removed - always create fresh instances to avoid reusing disposed models
+
   constructor(
     private logger: ILoggingService,
   ) {}
 
   async createModel(config: EmbeddingModelConfig): Promise<IEmbeddingModel> {
-    const cacheKey = `${config.modelType}:${config.modelId}`;
-    
-    // Check cache for existing instance
-    if (this.modelCache.has(cacheKey)) {
-      this.logger.debug(`[MODEL-FACTORY] Returning cached model: ${cacheKey}`);
-      const cachedModel = this.modelCache.get(cacheKey);
-      if (!cachedModel) {
-        throw new Error(`Cached model not found: ${cacheKey}`);
-      }
-      return cachedModel;
-    }
+    const modelKey = `${config.modelType}:${config.modelId}`;
 
-    this.logger.info(`[MODEL-FACTORY] Creating new model: ${cacheKey}`);
+    // Always create fresh model bridge instance
+    this.logger.info(`[MODEL-FACTORY] Creating new model bridge: ${modelKey}`);
 
     let model: IEmbeddingModel;
 
@@ -42,22 +33,19 @@ export class UnifiedModelFactory implements IEmbeddingModelFactory {
       case 'python':
         model = new PythonModelBridge(config, this.logger);
         break;
-        
+
       case 'onnx':
         model = new ONNXModelBridge(config, this.logger);
         break;
-        
+
       case 'ollama':
         // TODO: Implement OllamaModelBridge if needed
         throw new Error('Ollama models not yet implemented in unified system');
-        
+
       default:
         throw new Error(`Unsupported model type: ${config.modelType}`);
     }
 
-    // Cache the model instance
-    this.modelCache.set(cacheKey, model);
-    
     return model;
   }
 
@@ -70,20 +58,11 @@ export class UnifiedModelFactory implements IEmbeddingModelFactory {
   }
 
   /**
-   * Clear the model cache
+   * Clear the model cache (no-op since caching removed)
    */
   clearCache(): void {
-    this.logger.info('[MODEL-FACTORY] Clearing model cache');
-    
-    // Dispose all cached models
-    for (const [key, model] of this.modelCache.entries()) {
-      this.logger.debug(`[MODEL-FACTORY] Disposing cached model: ${key}`);
-      model.dispose().catch(error => {
-        this.logger.error(`[MODEL-FACTORY] Error disposing model ${key}:`, error);
-      });
-    }
-    
-    this.modelCache.clear();
+    // No-op: caching has been removed to ensure fresh instances
+    this.logger.debug('[MODEL-FACTORY] clearCache called (no-op - caching removed)');
   }
 
   /**

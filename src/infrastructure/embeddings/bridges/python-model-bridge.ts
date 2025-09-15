@@ -90,17 +90,57 @@ export class PythonModelBridge implements IEmbeddingModel {
         pythonConfig.pythonPath = this.modelConfig.pythonPath;
       }
 
-      this.pythonService = createPythonEmbeddingService(pythonConfig);
+      this.pythonService = await createPythonEmbeddingService(pythonConfig);
 
       // Initialize the service (which starts the Python process)
       await this.pythonService.initialize();
 
-      // Check if model needs downloading by attempting a health check
-      const health = await this.pythonService.healthCheck();
-      
-      // The Python service will handle model downloading internally
-      // and report progress through its own mechanisms
-      
+      // Wait for model to actually load by checking health status
+      // Poll until model_loaded is true
+      let modelActuallyLoaded = false;
+      let attempts = 0;
+      const maxAttempts = 300; // 5 minutes max wait (1 second intervals)
+
+      this.logger?.info(`[PYTHON-BRIDGE] Waiting for model ${this.modelConfig.modelId} to load...`);
+
+      while (!modelActuallyLoaded && attempts < maxAttempts) {
+        try {
+          const health = await this.pythonService.healthCheck();
+
+          if (health.model_loaded === true) {
+            modelActuallyLoaded = true;
+            this.logger?.info(`[PYTHON-BRIDGE] Model ${this.modelConfig.modelId} confirmed loaded after ${attempts} seconds`);
+          } else {
+            // Model still loading, wait and retry
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+
+            // Report progress to caller
+            if (onProgress && attempts % 5 === 0) {
+              onProgress({
+                stage: 'loading',
+                progress: Math.min(90, attempts / 2), // Assume ~60s typical load time
+                message: `Loading model... (${attempts}s elapsed)`
+              });
+            }
+
+            // Log progress every 10 seconds
+            if (attempts % 10 === 0) {
+              this.logger?.info(`[PYTHON-BRIDGE] Still waiting for model ${this.modelConfig.modelId} to load... (${attempts}s elapsed)`);
+            }
+          }
+        } catch (error) {
+          // Health check failed, wait and retry
+          this.logger?.warn(`[PYTHON-BRIDGE] Health check failed, retrying... (attempt ${attempts})`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          attempts++;
+        }
+      }
+
+      if (!modelActuallyLoaded) {
+        throw new Error(`Model ${this.modelConfig.modelId} failed to load after ${maxAttempts} seconds`);
+      }
+
       this.isModelLoaded = true;
       this.lastUsed = new Date();
 
@@ -255,15 +295,28 @@ export class PythonModelBridge implements IEmbeddingModel {
       await this.unload();
     }
 
-    // Now shutdown the Python service completely
-    if (this.pythonService) {
-      try {
-        await this.pythonService.shutdown();
-      } catch (error) {
-        const errorObj = error instanceof Error ? error : new Error(String(error));
-        this.logger?.error(`[PYTHON-BRIDGE] Error shutting down Python service:`, errorObj);
-      }
-      this.pythonService = null;
+    // IMPORTANT: Do NOT shutdown the Python service here!
+    // The service is now a singleton managed by PythonEmbeddingServiceRegistry
+    // It should stay alive for other models to use
+    // Just clear our reference to it
+    this.pythonService = null;
+  }
+
+  // Expose KeyBERT methods for semantic extraction
+  async isKeyBERTAvailable(): Promise<boolean> {
+    if (!this.pythonService || !this.isModelLoaded) {
+      return false;
     }
+    return this.pythonService.isKeyBERTAvailable();
+  }
+
+  async extractKeyPhrasesKeyBERT(
+    text: string,
+    options?: any
+  ): Promise<string[]> {
+    if (!this.pythonService || !this.isModelLoaded) {
+      throw new Error('Python service not loaded - KeyBERT extraction requires Python with GPU model');
+    }
+    return this.pythonService.extractKeyPhrasesKeyBERT(text, options);
   }
 }

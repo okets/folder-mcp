@@ -22,6 +22,7 @@ export interface QueuedFolder {
   completedAt?: Date;
   status: 'pending' | 'loading-model' | 'indexing' | 'completed' | 'failed';
   error?: string;
+  retryCount?: number; // Track retry attempts
 }
 
 export interface QueueStatus {
@@ -346,13 +347,35 @@ export class FolderIndexingQueue extends EventEmitter {
       const errorObj = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`[QUEUE] Failed to process folder ${folder.folderPath}:`, errorObj);
       this.emit('queue:failed', folder, errorObj);
+
+      // Increment retry count
+      folder.retryCount = (folder.retryCount || 0) + 1;
+
+      // Retry up to 3 times
+      if (folder.retryCount < 3) {
+        this.logger.info(`[QUEUE] Retrying folder ${folder.folderPath} (attempt ${folder.retryCount + 1}/3)`);
+        // Re-add to queue with normal priority for retry
+        const retryFolder: QueuedFolder = {
+          folderPath: folder.folderPath,
+          modelId: folder.modelId,
+          manager: folder.manager,
+          priority: folder.priority,
+          addedAt: folder.addedAt,
+          status: 'pending',
+          retryCount: folder.retryCount
+        };
+        this.queue.push(retryFolder);
+      } else {
+        this.logger.error(`[QUEUE] Folder ${folder.folderPath} failed after 3 attempts, giving up`);
+      }
     } finally {
       this.currentFolder = null;
       this.isProcessing = false;
 
       // Process next folder
       if (this.queue.length > 0) {
-        setImmediate(() => this.processNext());
+        // Add a small delay before retrying to avoid rapid failure loops
+        setTimeout(() => this.processNext(), 2000);
       } else {
         this.emit('queue:empty');
         // Unload model when queue is empty

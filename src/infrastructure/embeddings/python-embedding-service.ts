@@ -121,7 +121,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private pendingRequests = new Map<string | number, {
     resolve: (value: any) => void;
     reject: (error: Error) => void;
-    timeout: NodeJS.Timeout;
+    timeout: NodeJS.Timeout | null;  // null for embedding requests that rely on progress monitoring
   }>();
   private lastHealthCheck: HealthCheckResponse | null = null;
   private isShuttingDown = false;
@@ -150,22 +150,35 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   constructor(config?: Partial<PythonEmbeddingConfig>, modelConfig?: any) {
     // Try to detect the correct Python command for the platform
     const defaultPythonPath = process.platform === 'win32' ? 'python' : 'python3';
-    
-    if (!config?.modelName) {
-      throw new Error('Model name is required in config - no defaults allowed');
-    }
 
-    this.config = {
-      modelName: config.modelName, // REQUIRED - no default
+    // Model name is now optional - Python can start without a model
+    // If no model name provided, Python will start in idle state
+
+    // No hard timeouts for embeddings - we rely on progress monitoring
+    // Keep a short timeout only for health checks and other quick operations
+    const defaultTimeout = 30000; // 30 seconds for health checks only
+
+    // Build config with defaults first, then spread config (excluding undefined values)
+    const baseConfig = {
+      modelName: '', // Default to idle state
       pythonPath: defaultPythonPath,
       scriptPath: join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
-      timeout: 180000, // 180 seconds (3 minutes) for large models like BGE-M3
+      timeout: defaultTimeout,
       maxRetries: 3,
       autoRestart: true,
       maxRestartAttempts: 5,
       restartDelay: 2000, // 2 seconds
-      ...config
     };
+
+    // Merge config, filtering out undefined/null values
+    this.config = {
+      ...baseConfig,
+      ...(config ? Object.fromEntries(
+        Object.entries(config).filter(([_, v]) => v !== undefined && v !== null)
+      ) : {})
+    };
+
+
     this.modelConfig = modelConfig; // Store model config for prefix requirements
   }
 
@@ -510,7 +523,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
       // Reject all pending requests
       for (const [id, pending] of this.pendingRequests) {
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         pending.reject(new Error('Service shutting down'));
       }
       this.pendingRequests.clear();
@@ -520,6 +533,52 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
     } catch (error) {
       console.error('Error during shutdown:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unload the current model from the Python service
+   * Frees memory and puts Python in idle state
+   */
+  async unloadModel(): Promise<void> {
+    await this.requestModelUnload();
+    this.config.modelName = '';  // Clear model name to reflect idle state
+  }
+
+  /**
+   * Load a different model without restarting the Python process
+   * This maintains the singleton pattern and just switches the model
+   */
+  async loadModel(modelName: string): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Python embedding service not initialized');
+    }
+
+    if (this.config.modelName === modelName) {
+      console.error(`[PYTHON-EMBEDDING] Model ${modelName} is already loaded`);
+      return;
+    }
+
+    console.error(`[PYTHON-EMBEDDING] Loading model ${modelName} via RPC...`);
+
+    try {
+      // Send load_model request to Python process
+      const response = await this.sendJsonRpcRequest('load_model', {
+        model_name: modelName,
+        request_id: `load_model_${this.nextRequestId++}`
+      }, 60000); // 60 second timeout for model loading
+
+      if (response.success) {
+        // Update the config with the new model name
+        (this.config as any).modelName = modelName;
+        console.error(`[PYTHON-EMBEDDING] Successfully loaded model ${modelName}`);
+        console.error(`[PYTHON-EMBEDDING] Model info:`, response.model_info);
+      } else {
+        throw new Error(response.error || 'Failed to load model');
+      }
+    } catch (error) {
+      console.error(`[PYTHON-EMBEDDING] Error loading model ${modelName}:`, error);
       throw error;
     }
   }
@@ -557,10 +616,18 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
       // Windows compatibility: Use 'python' on Windows, 'python3' on Unix
       const defaultPythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-      this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, [
-        this.config.scriptPath || join(process.cwd(), 'src/infrastructure/embeddings/python/main.py'),
-        this.config.modelName
-      ], {
+
+      // Build args array - only include model name if provided
+      const args = [
+        this.config.scriptPath || join(process.cwd(), 'src/infrastructure/embeddings/python/main.py')
+      ];
+
+      // Only add model name if it's not empty (empty means start in idle state)
+      if (this.config.modelName && this.config.modelName.trim() !== '') {
+        args.push(this.config.modelName);
+      }
+
+      this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: env
       });
@@ -662,7 +729,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         
         // Reject all pending requests
         for (const [id, pending] of this.pendingRequests) {
-          clearTimeout(pending.timeout);
+          if (pending.timeout) clearTimeout(pending.timeout);
           pending.reject(new Error(`Python process exited: code=${code}, signal=${signal}`));
         }
         this.pendingRequests.clear();
@@ -716,7 +783,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       const response: JsonRpcResponse = message;
       const pending = this.pendingRequests.get(response.id);
       if (pending) {
-        clearTimeout(pending.timeout); // Clear timeout if any
+        if (pending.timeout) clearTimeout(pending.timeout); // Clear timeout if any
         this.pendingRequests.delete(response.id);
         
         if (response.error) {
@@ -807,7 +874,16 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    */
   private async handlePythonStuck(): Promise<void> {
     console.error('[PROGRESS] Attempting to recover from stuck Python process');
-    
+
+    // Reject all pending requests with a clear error
+    for (const [id, pending] of this.pendingRequests) {
+      if (pending.timeout) {
+        clearTimeout(pending.timeout);
+      }
+      pending.reject(new Error('Python process stopped responding - no progress updates received'));
+    }
+    this.pendingRequests.clear();
+
     // Try to restart the Python process
     if (this.restartAttempts < this.config.maxRestartAttempts) {
       await this.restartProcess();
@@ -839,12 +915,17 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       // We rely on progress updates instead
       let timeout: NodeJS.Timeout | null = null;
       
-      // Only add timeout for quick operations (health check, status)
+      // Add timeout for all operations
       if (method === 'health_check' || method === 'is_model_cached') {
         timeout = setTimeout(() => {
           this.pendingRequests.delete(requestId);
           reject(new Error(`Request timeout: ${method} (30s)`));
         }, 30000);
+      } else if (method === 'generate_embeddings') {
+        // NO HARD TIMEOUT for embeddings - rely on progress monitoring instead
+        // The progress watchdog will detect if Python stops sending updates
+        // This avoids machine-dependent timeout issues
+        console.error(`[PYTHON-EMBEDDING] Starting embedding generation for ${this.config.modelName} - no hard timeout, relying on progress monitoring`);
       } else if (customTimeout) {
         // Use custom timeout if explicitly provided (for non-embedding operations)
         timeout = setTimeout(() => {
@@ -853,8 +934,8 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         }, customTimeout);
       }
 
-      // Store pending request
-      this.pendingRequests.set(requestId, { resolve, reject, timeout: timeout! });
+      // Store pending request (timeout may be null for embedding requests)
+      this.pendingRequests.set(requestId, { resolve, reject, timeout: timeout || null });
 
       // Send request
       try {
@@ -891,7 +972,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       
       // Clear any pending requests
       for (const [id, pending] of this.pendingRequests) {
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         pending.reject(new Error(`Service degraded: ${reason}`));
       }
       this.pendingRequests.clear();
@@ -993,7 +1074,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       
       // Clear any pending requests with restart error
       for (const [id, pending] of this.pendingRequests) {
-        clearTimeout(pending.timeout);
+        if (pending.timeout) clearTimeout(pending.timeout);
         pending.reject(new Error('Python process restarting'));
       }
       this.pendingRequests.clear();
@@ -1213,6 +1294,97 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     } catch (error) {
       console.error('[PYTHON-EMBEDDING] Failed to unload model:', error);
       throw new Error(`Failed to unload model: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Check if KeyBERT is available in the Python environment
+   */
+  async isKeyBERTAvailable(): Promise<boolean> {
+    if (!this.pythonProcess) {
+      return false;
+    }
+
+    try {
+      const response = await this.sendJsonRpcRequest('is_keybert_available', {});
+      return response.available === true;
+    } catch (error) {
+      console.error('[PYTHON-EMBEDDING] Failed to check KeyBERT availability:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Extract key phrases using KeyBERT
+   */
+  async extractKeyPhrasesKeyBERT(
+    text: string,
+    options?: any
+  ): Promise<string[]> {
+    if (!this.pythonProcess) {
+      throw new Error('Python process not initialized');
+    }
+
+    try {
+      const response = await this.sendJsonRpcRequest('extract_keyphrases_keybert', {
+        text,
+        ngram_range: options?.ngramRange || [1, 3],
+        use_mmr: options?.useMmr !== false,
+        diversity: options?.diversity || 0.5,
+        top_n: options?.maxKeyPhrases || 10
+      });
+
+      return response.keyphrases || [];
+    } catch (error) {
+      console.error('[PYTHON-EMBEDDING] KeyBERT extraction failed:', error);
+      throw new Error(`KeyBERT extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Wait for Python service to reach a specific state
+   */
+  async waitForState(targetState: string, timeoutMs: number = 30000): Promise<void> {
+    console.log(`[PYTHON-EMBEDDING] waitForState: waiting for '${targetState}' (timeout: ${timeoutMs}ms)`);
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const status = await this.getStatus();
+      console.log(`[PYTHON-EMBEDDING] waitForState: current state = '${status.state}', target = '${targetState}'`);
+      if (status.state === targetState) {
+        console.log(`[PYTHON-EMBEDDING] waitForState: reached target state '${targetState}'`);
+        return;
+      }
+      if (status.state === 'error') {
+        console.error(`[PYTHON-EMBEDDING] waitForState: error state detected, status:`, JSON.stringify(status));
+        throw new Error('Python service entered error state');
+      }
+      // Wait 100ms before checking again
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timeout waiting for state ${targetState}`);
+  }
+
+  /**
+   * Get detailed status of the Python service
+   */
+  async getStatus(): Promise<any> {
+    try {
+      if (!this.pythonProcess) {
+        return {
+          state: 'uninitialized',
+          error: 'Python process not started'
+        };
+      }
+
+      const response = await this.sendJsonRpcRequest('get_status', {});
+      console.log(`[PYTHON-EMBEDDING] getStatus response:`, JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error(`[PYTHON-EMBEDDING] getStatus error:`, error);
+      return {
+        state: 'error',
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 

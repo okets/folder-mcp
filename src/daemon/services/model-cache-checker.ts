@@ -7,13 +7,13 @@
 
 import { CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
-import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
+import { join } from 'path';
 import { getSupportedGpuModelIds, getModelById } from '../../config/model-registry.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { MachineCapabilitiesDetector } from '../../domain/models/machine-capabilities.js';
 
 // Factory functions for dependency injection
-export type PythonEmbeddingServiceFactory = (config: any) => PythonEmbeddingService;
+export type PythonEmbeddingServiceFactory = (config: any) => any; // Simplified - no longer creates processes
 export type ONNXDownloaderFactory = () => ONNXDownloader;
 
 /**
@@ -175,59 +175,52 @@ export class ModelCacheChecker {
   }
 
   /**
-   * Check GPU models using a temporary, non-persistent Python service
-   * CRITICAL: This must NOT interfere with the singleton registry used for actual embeddings
+   * Check GPU models by checking if they are cached in HuggingFace hub
+   * No longer creates temporary Python processes - uses file system check instead
    */
   private async checkGPUModels(): Promise<CuratedModelInfo[]> {
     const models: CuratedModelInfo[] = [];
-    let pythonService: PythonEmbeddingService | null = null;
-    
+
     try {
       // Skip GPU model check if factory not provided
       if (!this.pythonEmbeddingServiceFactory) {
         this.logger.debug('Python embedding service factory not provided, skipping GPU model checks');
         return this.getDefaultGPUModels();
       }
-      
-      // CRITICAL: Create a temporary Python service that bypasses the singleton registry
-      // This prevents interference with actual embedding generation
-      // NOTE: This is INTENTIONAL - we need a separate instance just for cache checking
-      // that won't interfere with the main embedding service instance
-      pythonService = new PythonEmbeddingService({
-        modelName: 'BAAI/bge-m3', // Minimal model for cache checking
-        pythonPath: 'python3',
-        timeout: 15000 // Extended timeout for Apple Silicon MPS initialization
-      });
-      
-      await pythonService.initialize();
-      
-      // Check all GPU models with the temporary service
+
+      // Check GPU models by looking at HuggingFace cache directory
+      // This avoids creating extra Python processes
       const gpuModelMappings = this.getCuratedGPUModelMappings();
-      
+      const { homedir } = await import('os');
+      const { existsSync } = await import('fs');
+      const path = await import('path');
+
+      const cacheDir = path.join(homedir(), '.cache', 'huggingface', 'hub');
+
       for (const { id, huggingfaceId } of gpuModelMappings) {
         try {
-          const installed = await pythonService.isModelCached(huggingfaceId);
+          // Check if model directory exists in cache
+          const modelDirName = `models--${huggingfaceId.replace('/', '--')}`;
+          const modelPath = path.join(cacheDir, modelDirName);
+          const installed = existsSync(modelPath);
+
           models.push({ id, installed, type: 'gpu' });
+
+          if (installed) {
+            this.logger.debug(`GPU model ${id} found in cache at ${modelPath}`);
+          }
         } catch (error) {
           // Individual model check failed - assume not installed
           models.push({ id, installed: false, type: 'gpu' });
           this.logger.debug(`GPU model check failed for ${id}:`, error);
         }
       }
-      
+
       return models;
-      
-    } finally {
-      // Always clean up temporary Python service immediately
-      if (pythonService) {
-        try {
-          // Shutdown the temporary service without affecting registry
-          await pythonService.shutdown(5); // 5 seconds max
-        } catch (error) {
-          // Ignore shutdown errors
-          this.logger.debug('Temporary Python service shutdown error (ignored):', error);
-        }
-      }
+
+    } catch (error) {
+      this.logger.error('Failed to check GPU models:', error instanceof Error ? error : new Error(String(error)));
+      return this.getDefaultGPUModels();
     }
   }
 

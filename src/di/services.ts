@@ -574,12 +574,16 @@ export class EmbeddingService implements IEmbeddingService {
 
   private async initializePythonService(): Promise<void> {
     const modelName = await this.getModelNameWithFallback();
-    
+
+    // Use venv Python to ensure KeyBERT and other dependencies are available
+    const venvPythonPath = join(process.cwd(), 'src/infrastructure/embeddings/python/venv/bin/python3');
+
     this.embeddingModel = await this.loadEmbeddingService<IEmbeddingService>(
       '../infrastructure/embeddings/python-embedding-service.js',
       'PythonEmbeddingService',
       {
         modelName,
+        pythonPath: venvPythonPath,  // Use venv Python instead of system Python
         timeout: 30000,
         maxRetries: 3,
         healthCheckInterval: 30000

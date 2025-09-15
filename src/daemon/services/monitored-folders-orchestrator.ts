@@ -121,6 +121,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private modelDownloadManager: IModelDownloadManager;
   private folderIndexingQueue: FolderIndexingQueue;
   private modelFactory: UnifiedModelFactory;
+  private pythonInitializationPromise?: Promise<void>;
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -155,8 +156,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.setupQueueEventHandlers();
     
     // Wire Python embedding service to model download manager
-    this.initializePythonEmbeddingService();
-    
+    // Store the promise so we can wait for it in startAll()
+    this.pythonInitializationPromise = this.initializePythonEmbeddingService();
+
     // Wire ONNX downloader to model download manager
     this.initializeONNXDownloader();
     
@@ -728,12 +730,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   async startAll(): Promise<void> {
     const startupStartTime = Date.now();
     this.logger.info('Starting all configured folders...');
-    
+
+    // Wait for Python to be initialized if any GPU folders are configured
+    if (this.pythonInitializationPromise) {
+      this.logger.info('Waiting for Python embedding service to initialize...');
+      try {
+        await this.pythonInitializationPromise;
+        this.logger.info('Python embedding service ready');
+      } catch (error) {
+        this.logger.warn('Python embedding service initialization failed, GPU models will not be available', error as Error);
+      }
+    }
+
     // Get current FMDM state to see which folders are already loaded
     const currentFMDM = this.fmdmService.getFMDM();
     const fmdmFolders = currentFMDM.folders.map(f => f.path);
     this.logger.debug(`FMDM already contains ${fmdmFolders.length} folders: ${fmdmFolders.join(', ')}`);
-    
+
     // Start lifecycle management for folders already in FMDM
     if (fmdmFolders.length > 0) {
       this.logger.info(`Starting lifecycle management for ${fmdmFolders.length} folders already in FMDM`);
@@ -1610,25 +1623,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async initializePythonEmbeddingService(): Promise<void> {
     try {
-      this.logger.debug('[ORCHESTRATOR] Initializing Python embedding service for model downloads...');
-      
+      this.logger.debug('[ORCHESTRATOR] Initializing Python embedding service in idle state...');
+
       // Import factory function (same as daemon uses)
       const { createPythonEmbeddingService } = await import('../factories/model-factories.js');
-      
-      // Create Python embedding service with any valid config (not used for embedding)
-      // This is just for model download capabilities, not for actual embedding
-      const defaultModelId = getDefaultModelId();
-      const defaultSentenceTransformerId = getSentenceTransformerIdFromModelId(defaultModelId);
-      const pythonService = createPythonEmbeddingService({
-        modelName: defaultSentenceTransformerId, // Use dynamic default model from registry
+
+      // Create Python embedding service WITHOUT a model - starts in idle state
+      // The service will load models on demand when needed for each folder
+      const pythonService = await createPythonEmbeddingService({
+        // No modelName - Python starts empty in idle state
         batchSize: 32,
         maxSequenceLength: 512
       });
-      
+
       // Wire the service to the model download manager
       this.modelDownloadManager.setPythonEmbeddingService(pythonService);
-      
-      this.logger.info('[ORCHESTRATOR] Python embedding service wired to model download manager');
+
+      this.logger.info('[ORCHESTRATOR] Python embedding service initialized in idle state, ready for on-demand model loading');
       
     } catch (error) {
       this.logger.error('[ORCHESTRATOR] Failed to initialize Python embedding service for downloads:', error instanceof Error ? error : new Error(String(error)));

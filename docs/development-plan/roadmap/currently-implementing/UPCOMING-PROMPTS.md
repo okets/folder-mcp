@@ -181,3 +181,16 @@ MY Code review system's suggestions:
 
 
 ----------
+The final test for Sprint 1 is end to end indexing of a small folder. then check the database directly to see if the embeddings are inserted using the right dimensions and the keywords and topics are extracted (with the same crappy quality we currently have).
+1. create a small test folder with a few text files. (you can use /Users/hanan/Projects/folder-mcp/tmp/small-test-folder), copy it 5 times, one for each model.
+2. run the daemon in the background using `npm run daemon:restart`
+3. ask the user to add the folders to the indexing list manually.
+4. monitor the indexing process using the daemon logs.
+5. if there is an error, fix it, delete that folder's .folder-mcp folder and restart the daemon. it will trigger indexing again.
+
+
+rename src/domain/semantic/providers/onnx/BGE_M3_ONNX_Provider.ts
+and src/domain/semantic/providers/pytorch/gpu-bge-m3-provider.ts
+we should have a convention for naming provider files.
+i suggest <backend>-<model_name>-provider.ts
+eg: onnx-bge_m3-provider.ts, pytorch-bge_m3-provider.ts
