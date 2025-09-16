@@ -107,36 +107,42 @@ export interface IEmbeddingService {
    * Initialize the embedding model
    */
   initialize(): Promise<void>;
-  
+
   /**
    * Generate embeddings for text chunks
    */
   generateEmbeddings(chunks: TextChunk[]): Promise<EmbeddingVector[]>;
-  
+
   /**
    * Generate single embedding for query text
    */
   generateQueryEmbedding(query: string): Promise<EmbeddingVector>;
-  
+
   /**
    * Generate single embedding for any text (alias for generateQueryEmbedding)
    */
   generateSingleEmbedding(text: string): Promise<EmbeddingVector>;
-  
+
   /**
    * Calculate cosine similarity between two embedding vectors
    */
   calculateSimilarity(vector1: EmbeddingVector, vector2: EmbeddingVector): number;
-  
+
   /**
    * Get current model configuration
    */
   getModelConfig(): any;
-  
+
   /**
    * Check if service is initialized
    */
   isInitialized(): boolean;
+
+  /**
+   * Get the service type (for type-safe detection)
+   * @returns 'onnx' for ONNX-based services, 'gpu' for GPU-based services
+   */
+  getServiceType(): 'onnx' | 'gpu';
 }
 
 /**

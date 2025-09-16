@@ -211,3 +211,7 @@ This is my design for where the python comes in play in our lifecycle, (infer
   request) then we load the model used for the MCP request and keep it loaded
   for 5 minutes, just to keep it responsive for the LLM using it.
 
+Run the test routine to trigger re-indexing: 
+1. for each of our indexed folders, remove the .folder-mcp folder we created that contains our database files.
+2. kill any running daemon and run a new instance of our daemon in the background using this single command 'npm run daemon:restart'
+3. read the daemon logs, wait for all folders to index fully, check the databases, see that we managed to index all 5 folders one by one successfully.

@@ -365,6 +365,10 @@ export class ONNXEmbeddingService {
   isInitialized(): boolean {
     return this.modelConfig !== null && (this.model !== null || this.workerPool !== null);
   }
+
+  getServiceType(): 'onnx' | 'gpu' {
+    return 'onnx';
+  }
   
   // Test method to verify model works correctly
   async testEmbedding(): Promise<boolean> {

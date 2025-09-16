@@ -69,7 +69,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'This is the first test chunk',
                     startPosition: 0,
-                    endPosition: 28
+                    endPosition: 28,
+                    keyPhrases: ['first test', 'test chunk'],
+                    topics: ['testing'],
+                    readabilityScore: 85.5
                 },
                 {
                     filePath: 'test1.txt',
@@ -77,7 +80,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 1,
                     content: 'This is the second test chunk',
                     startPosition: 28,
-                    endPosition: 57
+                    endPosition: 57,
+                    keyPhrases: ['second test', 'test chunk'],
+                    topics: ['testing'],
+                    readabilityScore: 85.5
                 },
                 {
                     filePath: 'test2.txt',
@@ -85,7 +91,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'This is a chunk from another document',
                     startPosition: 0,
-                    endPosition: 37
+                    endPosition: 37,
+                    keyPhrases: ['chunk document', 'another document'],
+                    topics: ['documentation'],
+                    readabilityScore: 82.3
                 }
             ];
 
@@ -116,7 +125,10 @@ describe('SQLiteVecStorage', () => {
                 chunkIndex: 0,
                 content: 'First content',
                 startPosition: 0,
-                endPosition: 13
+                endPosition: 13,
+                keyPhrases: ['first content'],
+                topics: ['content'],
+                readabilityScore: 90.0
             }];
 
             await storage.buildIndex(embeddings1, metadata1);
@@ -135,7 +147,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'Second content',
                     startPosition: 0,
-                    endPosition: 14
+                    endPosition: 14,
+                    keyPhrases: ['second content'],
+                    topics: ['content'],
+                    readabilityScore: 88.0
                 },
                 {
                     filePath: 'third.txt',
@@ -143,7 +158,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'Third content',
                     startPosition: 0,
-                    endPosition: 13
+                    endPosition: 13,
+                    keyPhrases: ['third content'],
+                    topics: ['content'],
+                    readabilityScore: 88.0
                 }
             ];
 
@@ -169,7 +187,10 @@ describe('SQLiteVecStorage', () => {
                 chunkIndex: 0,
                 content: 'Test content',
                 startPosition: 0,
-                endPosition: 12
+                endPosition: 12,
+                keyPhrases: ['test content'],
+                topics: ['testing'],
+                readabilityScore: 85.0
             }];
 
             await storage.buildIndex(embeddings, metadata);
@@ -208,7 +229,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'Content very similar to query',
                     startPosition: 0,
-                    endPosition: 28
+                    endPosition: 28,
+                    keyPhrases: ['similar query', 'content similar'],
+                    topics: ['similarity', 'search'],
+                    readabilityScore: 87.5
                 },
                 {
                     filePath: 'doc2.txt',
@@ -216,7 +240,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'Content somewhat similar to query',
                     startPosition: 0,
-                    endPosition: 33
+                    endPosition: 33,
+                    keyPhrases: ['somewhat similar', 'similar query'],
+                    topics: ['similarity', 'search'],
+                    readabilityScore: 86.0
                 },
                 {
                     filePath: 'doc3.txt',
@@ -224,7 +251,10 @@ describe('SQLiteVecStorage', () => {
                     chunkIndex: 0,
                     content: 'Content not very similar to query',
                     startPosition: 0,
-                    endPosition: 33
+                    endPosition: 33,
+                    keyPhrases: ['not similar', 'similar query'],
+                    topics: ['dissimilarity', 'search'],
+                    readabilityScore: 84.0
                 }
             ];
 
@@ -308,7 +338,10 @@ describe('SQLiteVecStorage', () => {
                 chunkIndex: 0,
                 content: 'Test content',
                 startPosition: 0,
-                endPosition: 12
+                endPosition: 12,
+                keyPhrases: ['test content'],
+                topics: ['testing'],
+                readabilityScore: 85.0
             }];
 
             await storage.buildIndex(embeddings, metadata);

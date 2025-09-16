@@ -685,6 +685,12 @@ export class EmbeddingService implements IEmbeddingService {
     return this.initialized;
   }
 
+  getServiceType(): 'onnx' | 'gpu' {
+    // This is a generic service that can use either backend
+    const backend = (this.config as any).embeddingBackend || 'python';
+    return backend === 'python' ? 'gpu' : 'onnx';
+  }
+
   /**
    * Cleanup the embedding service and shutdown any background processes
    */

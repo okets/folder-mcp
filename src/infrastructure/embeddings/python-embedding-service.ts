@@ -429,6 +429,13 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   }
 
   /**
+   * Get the service type (for type-safe detection)
+   */
+  getServiceType(): 'onnx' | 'gpu' {
+    return 'gpu';
+  }
+
+  /**
    * Get model configuration
    */
   getModelConfig(): any {

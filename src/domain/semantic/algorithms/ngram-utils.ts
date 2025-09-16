@@ -21,7 +21,8 @@ const STOP_WORDS = new Set([
  * Token representing a word with its properties
  */
 interface Token {
-  word: string;
+  word: string;  // Lowercase version for matching
+  originalWord: string;  // Original casing preserved
   isStopWord: boolean;
   isNumber: boolean;
   isPunctuation: boolean;
@@ -32,18 +33,21 @@ interface Token {
  */
 function tokenize(text: string): Token[] {
   // Split on whitespace and punctuation, keeping some punctuation as separate tokens
-  const words = text
-    .toLowerCase()
+  const originalWords = text
     .replace(/([.!?,;:])/g, ' $1 ')  // Add spaces around punctuation
     .split(/\s+/)
     .filter(w => w.length > 0);
 
-  return words.map(word => ({
-    word,
-    isStopWord: STOP_WORDS.has(word),
-    isNumber: /^\d+$/.test(word),
-    isPunctuation: /^[.!?,;:]+$/.test(word)
-  }));
+  return originalWords.map(originalWord => {
+    const word = originalWord.toLowerCase();
+    return {
+      word,
+      originalWord,  // Preserve original casing
+      isStopWord: STOP_WORDS.has(word),
+      isNumber: /^\d+$/.test(word),
+      isPunctuation: /^[.!?,;:]+$/.test(word)
+    };
+  });
 }
 
 /**
@@ -85,8 +89,14 @@ export function extractNGrams(
         }
       }
 
-      const ngram = ngramTokens.map(t => t.word).join(' ');
-      ngrams.add(ngram);
+      // Create n-gram using original casing for better technical term detection
+      const ngram = ngramTokens.map(t => t.originalWord).join(' ');
+      // But also store the lowercase version for deduplication
+      const ngramLower = ngramTokens.map(t => t.word).join(' ');
+      // Only add if we haven't seen this n-gram (case-insensitive)
+      if (!Array.from(ngrams).some(n => n.toLowerCase() === ngramLower)) {
+        ngrams.add(ngram);
+      }
     }
   }
 
@@ -210,6 +220,7 @@ export function scoreTechnicalRelevance(
   if (isTechnicalTerm(ngram)) score += 0.3;
 
   // Boost phrases with capital letters (likely proper nouns, acronyms)
+  // Now this will actually work since we preserve original casing
   const hasCapital = words.some(w => /[A-Z]/.test(w));
   if (hasCapital) score += 0.1;
 

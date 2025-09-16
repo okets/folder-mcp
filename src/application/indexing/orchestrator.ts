@@ -963,10 +963,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       }
     } else {
       // Check if we have an ONNX embedding service for N-gram extraction
-      const embeddingServiceAny = serviceToCheck as any;
-      const isONNXModel = embeddingServiceAny.constructor?.name === 'ONNXEmbeddingService' ||
-                          embeddingServiceAny.constructor?.name === 'ONNXBridge' ||
-                          embeddingServiceAny.constructor?.name === 'ONNXEmbeddingServiceAdapter';
+      const isONNXModel = serviceToCheck.getServiceType() === 'onnx';
 
       if (!isONNXModel) {
         // Only fail for GPU models that need Python
@@ -989,43 +986,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Create an adapter for the embedding service if it's ONNX
     let embeddingModelAdapter: any = null;
     if (!pythonService && serviceToCheck) {
-      // Create adapter that implements IEmbeddingModel interface
-      embeddingModelAdapter = {
-        generateEmbedding: async (text: string) => {
-          // Create a minimal TextChunk for the embedding service
-          const chunk: TextChunk = {
-            content: text,
-            metadata: {
-              sourceFile: 'ngram-extraction',
-              sourceType: 'text',
-              totalChunks: 1,
-              hasOverlap: false
-            },
-            startPosition: 0,
-            endPosition: text.length,
-            tokenCount: Math.ceil(text.length / 4),
-            chunkIndex: 0,
-            semanticMetadata: {
-              keyPhrases: [],
-              topics: [],
-              readabilityScore: 50,
-              semanticProcessed: false,
-              semanticTimestamp: Date.now()
-            }
-          };
-          const result = await serviceToCheck.generateEmbeddings([chunk]);
-          return result[0]?.vector || new Float32Array(0);
-        },
-        getModelDimensions: () => {
-          // Try to get dimensions from the service
-          const serviceAny = serviceToCheck as any;
-          if (typeof serviceAny.getModelDimensions === 'function') {
-            return serviceAny.getModelDimensions();
-          }
-          // Default to common ONNX dimensions
-          return 384; // E5-small dimension
-        }
-      };
+      embeddingModelAdapter = this.createEmbeddingAdapter(serviceToCheck);
     }
 
     this.semanticExtractionService = createSemanticExtractionService(
@@ -1102,50 +1063,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.info('[SEMANTIC-EXTRACT] Recreating semantic extraction service with ONNX adapter for dynamic embedding service');
 
         // Create an adapter for the dynamically created embedding service
-        const embeddingModelAdapter = {
-          generateEmbedding: async (text: string) => {
-            // Create a minimal TextChunk for the embedding service
-            const chunk: TextChunk = {
-              content: text,
-              metadata: {
-                sourceFile: 'ngram-extraction',
-                sourceType: 'text',
-                totalChunks: 1,
-                hasOverlap: false
-              },
-              startPosition: 0,
-              endPosition: text.length,
-              tokenCount: Math.ceil(text.length / 4),
-              chunkIndex: 0,
-              semanticMetadata: {
-                keyPhrases: [],
-                topics: [],
-                readabilityScore: 50,
-                semanticProcessed: false,
-                semanticTimestamp: Date.now()
-              }
-            };
-
-            const embeddings = await embeddingService.generateEmbeddings([chunk]);
-            if (embeddings && embeddings.length > 0 && embeddings[0]) {
-              const embedding = embeddings[0];
-              // Ensure it's a Float32Array
-              return embedding.vector instanceof Float32Array
-                ? embedding.vector
-                : new Float32Array(embedding.vector);
-            }
-            throw new Error('Failed to generate embedding');
-          },
-          getModelDimensions: () => {
-            // Get dimensions based on service type or model name
-            const serviceAny = embeddingService as any;
-            if (typeof serviceAny.getModelDimensions === 'function') {
-              return serviceAny.getModelDimensions();
-            }
-            // Default to common ONNX dimensions
-            return 384; // E5-small dimension
-          }
-        };
+        const embeddingModelAdapter = this.createEmbeddingAdapter(embeddingService);
 
         // Recreate the semantic extraction service with the new adapter
         this.semanticExtractionService = createSemanticExtractionService(
@@ -1364,7 +1282,58 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     this.loggingService.debug(`[ORCHESTRATOR-MODEL-TEST] Deprecated method called for ${modelName}`);
     return { available: false, error: 'Model validation has been simplified - use lightweight checks instead' };
   }
-  
+
+  /**
+   * Create an embedding adapter for N-gram extraction
+   * Extracted to avoid code duplication
+   */
+  private createEmbeddingAdapter(embeddingService: IEmbeddingService): any {
+    return {
+      generateEmbedding: async (text: string) => {
+        // Create a minimal TextChunk for the embedding service
+        const chunk: TextChunk = {
+          content: text,
+          metadata: {
+            sourceFile: 'ngram-extraction',
+            sourceType: 'text',
+            totalChunks: 1,
+            hasOverlap: false
+          },
+          startPosition: 0,
+          endPosition: text.length,
+          tokenCount: Math.ceil(text.length / 4),
+          chunkIndex: 0,
+          semanticMetadata: {
+            keyPhrases: [],
+            topics: [],
+            readabilityScore: 50,
+            semanticProcessed: false,
+            semanticTimestamp: Date.now()
+          }
+        };
+
+        const embeddings = await embeddingService.generateEmbeddings([chunk]);
+        if (embeddings && embeddings.length > 0 && embeddings[0]) {
+          const embedding = embeddings[0];
+          // Ensure it's a Float32Array
+          return embedding.vector instanceof Float32Array
+            ? embedding.vector
+            : new Float32Array(embedding.vector);
+        }
+        throw new Error('Failed to generate embedding');
+      },
+      getModelDimensions: () => {
+        // Get dimensions based on service type or model name
+        const serviceAny = embeddingService as any;
+        if (typeof serviceAny.getModelDimensions === 'function') {
+          return serviceAny.getModelDimensions();
+        }
+        // Default to common ONNX dimensions
+        return 384; // E5-small dimension
+      }
+    };
+  }
+
   /**
    * Get database statistics for completion logging
    */
