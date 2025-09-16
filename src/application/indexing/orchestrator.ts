@@ -962,18 +962,76 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         throw new Error(errorMsg);
       }
     } else {
-      // Python service is REQUIRED for semantic extraction with GPU models
-      const errorMsg = '[SEMANTIC-INIT] CRITICAL: Python service with KeyBERT methods not available - cannot perform semantic extraction. ' +
-                      'GPU models require Python with KeyBERT installed.';
-      this.loggingService.error(errorMsg);
-      throw new Error(errorMsg);
+      // Check if we have an ONNX embedding service for N-gram extraction
+      const embeddingServiceAny = serviceToCheck as any;
+      const isONNXModel = embeddingServiceAny.constructor?.name === 'ONNXEmbeddingService' ||
+                          embeddingServiceAny.constructor?.name === 'ONNXBridge' ||
+                          embeddingServiceAny.constructor?.name === 'ONNXEmbeddingServiceAdapter';
+
+      if (!isONNXModel) {
+        // Only fail for GPU models that need Python
+        const errorMsg = '[SEMANTIC-INIT] CRITICAL: Python service with KeyBERT methods not available for GPU model. ' +
+                        'GPU models require Python with KeyBERT installed.';
+        this.loggingService.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // For ONNX, we'll use N-gram extraction
+      this.loggingService.info('[SEMANTIC-INIT] ONNX model detected - will use N-gram extraction');
     }
 
-    // Create the semantic extraction service with Python support
-    this.loggingService.debug('[SEMANTIC-INIT] Creating semantic extraction service');
+    // Create the semantic extraction service with Python support or ONNX fallback
+    this.loggingService.debug('[SEMANTIC-INIT] Creating semantic extraction service', {
+      hasPython: !!pythonService,
+      hasEmbeddingService: !!serviceToCheck
+    });
+
+    // Create an adapter for the embedding service if it's ONNX
+    let embeddingModelAdapter: any = null;
+    if (!pythonService && serviceToCheck) {
+      // Create adapter that implements IEmbeddingModel interface
+      embeddingModelAdapter = {
+        generateEmbedding: async (text: string) => {
+          // Create a minimal TextChunk for the embedding service
+          const chunk: TextChunk = {
+            content: text,
+            metadata: {
+              sourceFile: 'ngram-extraction',
+              sourceType: 'text',
+              totalChunks: 1,
+              hasOverlap: false
+            },
+            startPosition: 0,
+            endPosition: text.length,
+            tokenCount: Math.ceil(text.length / 4),
+            chunkIndex: 0,
+            semanticMetadata: {
+              keyPhrases: [],
+              topics: [],
+              readabilityScore: 50,
+              semanticProcessed: false,
+              semanticTimestamp: Date.now()
+            }
+          };
+          const result = await serviceToCheck.generateEmbeddings([chunk]);
+          return result[0]?.vector || new Float32Array(0);
+        },
+        getModelDimensions: () => {
+          // Try to get dimensions from the service
+          const serviceAny = serviceToCheck as any;
+          if (typeof serviceAny.getModelDimensions === 'function') {
+            return serviceAny.getModelDimensions();
+          }
+          // Default to common ONNX dimensions
+          return 384; // E5-small dimension
+        }
+      };
+    }
+
     this.semanticExtractionService = createSemanticExtractionService(
       pythonService,
-      this.loggingService
+      this.loggingService,
+      embeddingModelAdapter
     );
     this.loggingService.debug('[SEMANTIC-INIT] Semantic extraction service created successfully');
   }
@@ -998,20 +1056,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       const isCPUModelId = modelId.startsWith('cpu:') || modelId.startsWith('onnx:');
 
       if (isCPUModelId) {
-        this.loggingService.info('[SEMANTIC-EXTRACT] Skipping semantic extraction for ONNX/CPU model - KeyBERT only available with GPU models', {
+        isONNXModel = true;
+        this.loggingService.info('[SEMANTIC-EXTRACT] Detected ONNX/CPU model - will use N-gram extraction', {
           modelId
         });
-        // Return chunks without semantic metadata
-        return chunks.map(chunk => ({
-          ...chunk,
-          semanticMetadata: {
-            keyPhrases: [],
-            topics: [],
-            readabilityScore: 0,
-            semanticProcessed: false,
-            semanticTimestamp: Date.now()
-          }
-        }));
       }
 
       try {
@@ -1039,25 +1087,75 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     }
 
     if (isONNXModel) {
-      this.loggingService.info('[SEMANTIC-EXTRACT] Skipping semantic extraction for ONNX/CPU model - KeyBERT only available with GPU models', {
+      this.loggingService.info('[SEMANTIC-EXTRACT] Using N-gram extraction for ONNX model', {
         serviceType: embeddingService ? (embeddingService as any).constructor?.name : 'default service'
       });
-      // Return chunks without semantic metadata
-      return chunks.map(chunk => ({
-        ...chunk,
-        semanticMetadata: {
-          keyPhrases: [],
-          topics: [],
-          readabilityScore: 0,
-          semanticProcessed: false,
-          semanticTimestamp: Date.now()
-        }
-      }));
     }
 
     // Initialize semantic service if needed - pass the model-specific service if available
     try {
       await this.initializeSemanticService(embeddingService);
+
+      // For ONNX models, we need to recreate the semantic extraction service with a proper adapter
+      // when we have a dynamically created embedding service
+      if (isONNXModel && embeddingService) {
+        this.loggingService.info('[SEMANTIC-EXTRACT] Recreating semantic extraction service with ONNX adapter for dynamic embedding service');
+
+        // Create an adapter for the dynamically created embedding service
+        const embeddingModelAdapter = {
+          generateEmbedding: async (text: string) => {
+            // Create a minimal TextChunk for the embedding service
+            const chunk: TextChunk = {
+              content: text,
+              metadata: {
+                sourceFile: 'ngram-extraction',
+                sourceType: 'text',
+                totalChunks: 1,
+                hasOverlap: false
+              },
+              startPosition: 0,
+              endPosition: text.length,
+              tokenCount: Math.ceil(text.length / 4),
+              chunkIndex: 0,
+              semanticMetadata: {
+                keyPhrases: [],
+                topics: [],
+                readabilityScore: 50,
+                semanticProcessed: false,
+                semanticTimestamp: Date.now()
+              }
+            };
+
+            const embeddings = await embeddingService.generateEmbeddings([chunk]);
+            if (embeddings && embeddings.length > 0 && embeddings[0]) {
+              const embedding = embeddings[0];
+              // Ensure it's a Float32Array
+              return embedding.vector instanceof Float32Array
+                ? embedding.vector
+                : new Float32Array(embedding.vector);
+            }
+            throw new Error('Failed to generate embedding');
+          },
+          getModelDimensions: () => {
+            // Get dimensions based on service type or model name
+            const serviceAny = embeddingService as any;
+            if (typeof serviceAny.getModelDimensions === 'function') {
+              return serviceAny.getModelDimensions();
+            }
+            // Default to common ONNX dimensions
+            return 384; // E5-small dimension
+          }
+        };
+
+        // Recreate the semantic extraction service with the new adapter
+        this.semanticExtractionService = createSemanticExtractionService(
+          null, // No Python service for ONNX models
+          this.loggingService,
+          embeddingModelAdapter
+        );
+
+        this.loggingService.debug('[SEMANTIC-EXTRACT] Semantic extraction service recreated with ONNX adapter');
+      }
     } catch (error) {
       this.loggingService.error('[SEMANTIC-EXTRACT] Failed to initialize semantic service: ' +
         (error instanceof Error ? error.message : String(error)));
@@ -1068,17 +1166,78 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       throw new Error('Semantic extraction service not initialized');
     }
 
+    // For ONNX models, we need to generate embeddings FIRST before semantic extraction
+    // because N-gram extraction requires embeddings to calculate cosine similarity
+    let chunkEmbeddings: Map<number, Float32Array> | undefined;
+
+    this.loggingService.debug('[SEMANTIC-EXTRACT] Pre-embedding check', {
+      isONNXModel,
+      hasEmbeddingService: !!embeddingService,
+      embeddingServiceType: embeddingService ? (embeddingService as any).constructor?.name : 'none'
+    });
+
+    if (isONNXModel && embeddingService) {
+      this.loggingService.info('[SEMANTIC-EXTRACT] Generating embeddings first for ONNX N-gram extraction');
+      chunkEmbeddings = new Map<number, Float32Array>();
+
+      const batchSize = 10;
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+
+        try {
+          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+
+          // Store embeddings for each chunk
+          batchEmbeddings.forEach((embedding, idx) => {
+            if (embedding && embedding.vector && embedding.vector.length > 0) {
+              const chunkIndex = i + idx;
+              // Ensure it's a Float32Array
+              const vector = embedding.vector instanceof Float32Array
+                ? embedding.vector
+                : new Float32Array(embedding.vector);
+              chunkEmbeddings!.set(chunkIndex, vector);
+              this.loggingService.debug('[SEMANTIC-EXTRACT] Stored embedding for chunk', {
+                chunkIndex,
+                vectorLength: embedding.vector.length
+              });
+            }
+          });
+        } catch (error) {
+          this.loggingService.error('[SEMANTIC-EXTRACT] Failed to generate embeddings for batch', error instanceof Error ? error : new Error(String(error)));
+          // Continue with other batches
+        }
+      }
+
+      this.loggingService.info('[SEMANTIC-EXTRACT] Generated embeddings for chunks', {
+        totalChunks: chunks.length,
+        embeddingsGenerated: chunkEmbeddings.size
+      });
+    }
+
     const enhancedChunks: TextChunk[] = [];
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]!;
       this.loggingService.debug('[SEMANTIC-EXTRACT] Processing chunk', {
         chunkIndex: chunk.chunkIndex,
-        contentLength: chunk.content.length
+        contentLength: chunk.content.length,
+        hasEmbedding: isONNXModel ? chunkEmbeddings?.has(i) : false
       });
 
       try {
-        // Extract semantic data using new KeyBERT-based service
-        const semanticData = await this.semanticExtractionService.extractFromText(chunk.content);
+        // For ONNX models, pass the embedding to extractFromText
+        let semanticData;
+        if (isONNXModel && chunkEmbeddings?.has(i)) {
+          const chunkEmbedding = chunkEmbeddings.get(i);
+          this.loggingService.debug('[SEMANTIC-EXTRACT] Using N-gram extraction with embedding', {
+            chunkIndex: i,
+            embeddingLength: chunkEmbedding?.length
+          });
+          semanticData = await this.semanticExtractionService.extractFromText(chunk.content, chunkEmbedding);
+        } else {
+          // For GPU models or if no embedding available, use KeyBERT
+          semanticData = await this.semanticExtractionService.extractFromText(chunk.content);
+        }
 
         const semanticMetadata: SemanticMetadata = {
           keyPhrases: semanticData.keyPhrases,

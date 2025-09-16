@@ -441,34 +441,39 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 let topics: string[] = [];
                 let readabilityScore: number = 50;
 
-                // Use KeyBERT-extracted key phrases if available
+                // Key phrases MUST be provided by orchestrator - no fallbacks!
                 if (meta.keyPhrases && meta.keyPhrases.length > 0) {
                     keyPhrases = meta.keyPhrases;
-                    this.logger?.debug(`Using KeyBERT key phrases for chunk ${meta.chunkIndex}`, {
+                    this.logger?.debug(`Using semantic key phrases for chunk ${meta.chunkIndex}`, {
                         keyPhraseCount: keyPhrases.length,
                         multiwordRatio: keyPhrases.filter(p => p.includes(' ')).length / Math.max(1, keyPhrases.length),
                         samplePhrases: keyPhrases.slice(0, 3)
                     });
                 } else {
-                    // Fallback for key phrases only if not provided
-                    this.logger?.debug(`No key phrases from orchestrator for chunk ${meta.chunkIndex}, using fallback`);
-                    keyPhrases = ContentProcessingService.extractKeyPhrases(meta.content, 8);
+                    // FAIL LOUDLY - no silent failures!
+                    const errorMsg = `CRITICAL: No key phrases provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;
+                    this.logger?.error(errorMsg);
+                    throw new Error(errorMsg);
                 }
 
-                // Use provided topics if available
+                // Topics MUST be provided by orchestrator - no fallbacks!
                 if (meta.topics && meta.topics.length > 0) {
                     topics = meta.topics;
                 } else {
-                    // Fallback for topics only if not provided
-                    topics = ContentProcessingService.detectTopics(meta.content);
+                    // FAIL LOUDLY - no silent failures!
+                    const errorMsg = `CRITICAL: No topics provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;
+                    this.logger?.error(errorMsg);
+                    throw new Error(errorMsg);
                 }
 
-                // Use provided readability score if available
-                if (meta.readabilityScore !== undefined && meta.readabilityScore !== null) {
+                // Readability score MUST be provided by orchestrator - no fallbacks!
+                if (meta.readabilityScore !== undefined && meta.readabilityScore !== null && meta.readabilityScore > 0) {
                     readabilityScore = meta.readabilityScore;
                 } else {
-                    // Fallback for readability score only if not provided
-                    readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
+                    // FAIL LOUDLY - no silent failures!
+                    const errorMsg = `CRITICAL: No readability score provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;
+                    this.logger?.error(errorMsg);
+                    throw new Error(errorMsg);
                 }
 
                 // Insert chunk with semantic processing results

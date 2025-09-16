@@ -107,11 +107,6 @@ MY Code review system's suggestions:
 ────────────────────────────────────────────────────────────────────
                      ***Upcoming Prompts***
 ────────────────────────────────────────────────────────────────────
-Lets start working on '/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md' 
-We are working one task at a time, start sprint 1, task 1.
-I just want to make it clear we're not eliminating the CLI parameter -d, We are removing the need to specify folders in the mcp connection string only.
-let me know when the test passes.
-
 
 I want you to help me create an epic document from the PRD "/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md"
 **Epic Creation Guidelines:**

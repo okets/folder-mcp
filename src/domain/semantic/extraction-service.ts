@@ -12,6 +12,12 @@ import {
   IPythonSemanticService
 } from './interfaces.js';
 import { ILoggingService } from '../../di/interfaces.js';
+import {
+  NGramCosineExtractor,
+  createNGramCosineExtractor,
+  IEmbeddingModel,
+  NGramExtractionOptions
+} from './algorithms/ngram-cosine-extractor.js';
 
 /**
  * Default extraction options
@@ -33,12 +39,21 @@ const DEFAULT_OPTIONS: SemanticExtractionOptions = {
  */
 export class SemanticExtractionService implements ISemanticExtractionService {
   private options: SemanticExtractionOptions;
+  private ngramExtractor: NGramCosineExtractor | null = null;
 
   constructor(
     private pythonService: IPythonSemanticService | null,
-    private logger: ILoggingService
+    private logger: ILoggingService,
+    private embeddingModel?: IEmbeddingModel | null
   ) {
     this.options = DEFAULT_OPTIONS;
+
+    // Initialize N-gram extractor if no Python service available
+    // This is for ONNX models that run in Node.js
+    if (!pythonService && embeddingModel) {
+      this.ngramExtractor = createNGramCosineExtractor(embeddingModel, logger);
+      this.logger.info('Initialized N-gram extractor for ONNX model semantic extraction');
+    }
   }
 
   /**
@@ -93,41 +108,67 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   }
 
   /**
-   * Extract key phrases using KeyBERT (required for GPU models)
+   * Extract key phrases using KeyBERT for GPU models or N-gram for ONNX models
    */
   async extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<string[]> {
-    // Python service with KeyBERT is REQUIRED - no fallbacks
-    if (!this.pythonService) {
-      throw new Error('Python service not available - KeyBERT extraction requires Python with GPU model support');
+    // Try KeyBERT first (for GPU models)
+    if (this.pythonService) {
+      try {
+        // Check if KeyBERT is available
+        const available = await this.pythonService.isKeyBERTAvailable();
+
+        if (!available) {
+          throw new Error('KeyBERT not available in Python environment');
+        }
+
+        // Extract key phrases using KeyBERT
+        const phrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, this.options);
+        this.logger.debug('KeyBERT extraction successful', {
+          phraseCount: phrases.length,
+          sample: phrases.slice(0, 3),
+          multiwordRatio: this.calculateMultiwordRatio(phrases)
+        });
+        return phrases;
+
+      } catch (error) {
+        this.logger.error('KeyBERT extraction failed', error instanceof Error ? error : new Error(String(error)));
+        // Continue to N-gram fallback if available
+      }
     }
 
-    try {
-      // Check if KeyBERT is available (it should be since it's a required dependency)
-      const available = await this.pythonService.isKeyBERTAvailable();
+    // Use N-gram extractor for ONNX models
+    if (this.ngramExtractor && embeddings) {
+      this.logger.info('Using N-gram + Cosine similarity for ONNX model');
 
-      if (!available) {
-        // This should never happen since KeyBERT is checked at Python startup
-        throw new Error('KeyBERT not available in Python environment - this is a required dependency');
+      try {
+        const extractOptions: Partial<NGramExtractionOptions> = {};
+        if (this.options.ngramRange) extractOptions.ngramRange = this.options.ngramRange;
+        if (this.options.maxKeyPhrases !== undefined) extractOptions.topK = this.options.maxKeyPhrases;
+        if (this.options.diversity !== undefined) extractOptions.diversityFactor = this.options.diversity;
+
+        const phrases = await this.ngramExtractor.extractKeyPhrases(
+          text,
+          embeddings,
+          extractOptions
+        );
+
+        this.logger.debug('N-gram extraction successful', {
+          phraseCount: phrases.length,
+          multiwordRatio: this.calculateMultiwordRatio(phrases)
+        });
+
+        return phrases;
+      } catch (error) {
+        this.logger.error('N-gram extraction failed', error instanceof Error ? error : new Error(String(error)));
+        throw new Error(`Semantic extraction failed: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      // Extract key phrases using KeyBERT
-      const phrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, this.options);
-      this.logger.debug('KeyBERT extraction successful', {
-        phraseCount: phrases.length,
-        sample: phrases.slice(0, 3),
-        multiwordRatio: this.calculateMultiwordRatio(phrases)
-      });
-      return phrases;
-
-    } catch (error) {
-      // FAIL LOUDLY - no silent failures!
-      this.logger.error('CRITICAL: KeyBERT extraction failed!');
-      this.logger.error('Error details: ' + (error instanceof Error ? error.message : String(error)));
-      if (error instanceof Error && error.stack) {
-        this.logger.error('Stack trace: ' + error.stack);
-      }
-      throw error; // Re-throw to propagate the failure
     }
+
+    // No extraction method available - FAIL LOUDLY
+    throw new Error(
+      'CRITICAL: No semantic extraction method available! ' +
+      'GPU models require Python with KeyBERT, ONNX models require embeddings for N-gram extraction.'
+    );
   }
 
   /**
@@ -300,9 +341,10 @@ export class SemanticExtractionService implements ISemanticExtractionService {
  */
 export function createSemanticExtractionService(
   pythonService: IPythonSemanticService | null,
-  logger: ILoggingService
+  logger: ILoggingService,
+  embeddingModel?: IEmbeddingModel | null
 ): ISemanticExtractionService {
-  return new SemanticExtractionService(pythonService, logger);
+  return new SemanticExtractionService(pythonService, logger, embeddingModel);
 }
 
 // Export the interface for import elsewhere
