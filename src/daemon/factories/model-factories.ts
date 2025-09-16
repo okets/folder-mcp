@@ -8,7 +8,7 @@
 import { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { ONNXEmbeddingService } from '../../infrastructure/embeddings/onnx/onnx-embedding-service.js';
-import { join } from 'path';
+import { getVenvPythonPath } from '../../utils/python-venv-path.js';
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
 
 /**
@@ -40,7 +40,7 @@ class PythonEmbeddingServiceRegistry {
       console.log(`[PYTHON-REGISTRY] Creating SINGLETON PythonEmbeddingService (no model)`);
 
       // Use venv Python to ensure KeyBERT and other dependencies are available
-      const venvPythonPath = join(process.cwd(), 'src/infrastructure/embeddings/python/venv/bin/python3');
+      const venvPythonPath = getVenvPythonPath();
       const enhancedConfig = {
         ...config,
         pythonPath: venvPythonPath,  // Use venv Python instead of system Python

@@ -18,6 +18,21 @@ import type { EmbeddingVector, EmbeddingResult } from '../../../domain/embedding
 import { PythonEmbeddingService } from '../python-embedding-service.js';
 import { createPythonEmbeddingService } from '../../../daemon/factories/model-factories.js';
 import type { ILoggingService } from '../../../di/interfaces.js';
+import type { SemanticExtractionOptions } from '../../../domain/semantic/interfaces.js';
+
+/**
+ * Configuration interface for Python embedding service
+ */
+interface PythonServiceConfig {
+  modelName: string;
+  pythonPath?: string;
+  timeout: number;
+  maxRetries: number;
+  healthCheckInterval: number;
+  autoRestart: boolean;
+  maxRestartAttempts: number;
+  restartDelay: number;
+}
 
 export class PythonModelBridge implements IEmbeddingModel {
   private pythonService: PythonEmbeddingService | null = null;
@@ -76,7 +91,7 @@ export class PythonModelBridge implements IEmbeddingModel {
       });
 
       // Create Python service with configuration
-      const pythonConfig: any = {
+      const pythonConfig: PythonServiceConfig = {
         modelName: this.modelConfig.modelName || this.modelConfig.modelId,
         timeout: this.modelConfig.timeout || 60000,
         maxRetries: this.modelConfig.maxRetries || 3,
@@ -312,7 +327,7 @@ export class PythonModelBridge implements IEmbeddingModel {
 
   async extractKeyPhrasesKeyBERT(
     text: string,
-    options?: any
+    options?: SemanticExtractionOptions
   ): Promise<string[]> {
     if (!this.pythonService || !this.isModelLoaded) {
       throw new Error('Python service not loaded - KeyBERT extraction requires Python with GPU model');

@@ -285,13 +285,16 @@ describe('SQLiteVecStorage', () => {
 
             // Check SearchResult structure
             expect(result?.chunk).toBeDefined();
-            expect(result?.chunk.content).toBe('Content very similar to query');
+            // Content is lazy loaded - empty string is expected until getChunksContent is called
+            expect(result?.chunk.content).toBe('');
+            expect(result?.chunk.chunkId).toBeDefined(); // Chunk ID for lazy loading
             expect(result?.similarity).toBeGreaterThan(0);
             expect(result?.filePath).toBe('doc1.txt');
             expect(result?.metadata).toBeDefined();
             expect(result?.metadata.score).toBe(result?.similarity);
             expect(result?.metadata.chunkIndex).toBe(0);
             expect(result?.metadata.documentId).toBe('doc1.txt');
+            expect(result?.metadata.chunkId).toBeDefined(); // Chunk ID in metadata for retrieval
         });
     });
 

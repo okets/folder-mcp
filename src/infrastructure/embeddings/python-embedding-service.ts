@@ -10,13 +10,14 @@ import { spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
 import type { TextChunk } from '../../types/index.js';
 import { createDefaultSemanticMetadata } from '../../types/index.js';
-import type { 
-  EmbeddingOperations, 
-  EmbeddingVector, 
-  EmbeddingResult, 
-  BatchEmbeddingOperations 
+import type {
+  EmbeddingOperations,
+  EmbeddingVector,
+  EmbeddingResult,
+  BatchEmbeddingOperations
 } from '../../domain/embeddings/index.js';
 import { EmbeddingErrors } from './embedding-errors.js';
+import type { SemanticExtractionOptions } from '../../domain/semantic/interfaces.js';
 
 /**
  * JSON-RPC 2.0 interfaces for communication
@@ -1319,7 +1320,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    */
   async extractKeyPhrasesKeyBERT(
     text: string,
-    options?: any
+    options?: SemanticExtractionOptions
   ): Promise<string[]> {
     if (!this.pythonProcess) {
       throw new Error('Python process not initialized');

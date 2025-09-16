@@ -86,6 +86,24 @@ fix documentation spam if you encounter it (don't hesitate to remove unnecessary
 You as an agent can run bash commands, can call our endpoints directly using folder-mcp mcp server,  query databases and even access the daemon's websocket using scripts to add/remove folders from the indexing list. we are on a correct course task and should be very careful!
 Be a good TMOAT agent and verify your changes! it doesn't have to be on every single change, but it should be done regularly to ensure stability and correctness.
 
+
+─────────────────────────────────────────────────────────────────────────────
+-------------------           Code Rabbit        ----------------------------
+─────────────────────────────────────────────────────────────────────────────
+My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
+The automated Code review system does not know what we worked on. I want you to: 
+- read docs/development-plan/roadmap/currently-implementing/Semantic-Data-Extraction/semantic-data-extraction-sprint-1.md and docs/development-plan/roadmap/currently-implementing/Fix-Python-Orchestration-Plan.md
+- read the commit messages for all of the changes in our branch. Once you understand the tasks We worked on during this sprint you should evaluate each of the suggestions.
+- Don't fix anything yet!
+- decide which suggestions are valid and which do not.
+- group related valid suggestions together.
+- create an md file with the groupped task list.
+- the automated code review system might suggest changes that contradict our instruction to never silently fall back when critical errors happen. we want to fail loudly and visibly so we can fix the root cause. do not accept suggestions that contradict this principle.
+- the automated code review system might suggest changes that contradict our instruction not keep backwards compatibility. we are in pre-production and can do radical changes. do not accept suggestions that contradict this principle.
+
+MY Code review system's suggestions:
+1. 
+
 ────────────────────────────────────────────────────────────────────
                      ***Upcoming Prompts***
 ────────────────────────────────────────────────────────────────────
@@ -166,18 +184,6 @@ We offer 5 models, 2 CPU and 3 GPU models. *Run this test 5 times! one for each 
 in /Users/hanan/Projects/folder-mcp/src/config/model-registry.ts
 this method: getModelsByBackend(backend: 'python' | 'onnx' | 'ollama'): any[]
 should return installed Ollama models.
-─────────────────────────────────────────────────────────────────────────────────────
--------------------Code Rabbit
-My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
-The automated Code review system does not know what we worked on. I want you to: 
-- read /Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-Implementation-epic.md
-- read the commit messages for all of the changes in our branch. Once you understand the tasks We worked on during this sprint you should evaluate each of the suggestions.
-- Don't fix anything yet!
-- decide which suggestions are valid and which do not.
-- group related valid suggestions together.
-- create an md file with the groupped task list.
-
-MY Code review system's suggestions:
 
 
 ----------
@@ -189,8 +195,24 @@ The final test for Sprint 1 is end to end indexing of a small folder. then check
 5. if there is an error, fix it, delete that folder's .folder-mcp folder and restart the daemon. it will trigger indexing again.
 
 
-rename src/domain/semantic/providers/onnx/BGE_M3_ONNX_Provider.ts
-and src/domain/semantic/providers/pytorch/gpu-bge-m3-provider.ts
-we should have a convention for naming provider files.
-i suggest <backend>-<model_name>-provider.ts
-eg: onnx-bge_m3-provider.ts, pytorch-bge_m3-provider.ts
+
+This is my design for where the python comes in play in our lifecycle, (infer
+  what should the responsibilities of the python singleton be):
+
+  1. when the daemon first starts, it loads python just to check that python
+  exists and the required dependencies are there.
+  If it loads, don't load any model, but leave our singleton ready.
+  this tells the daemon that it's ok to offer gpu models.
+  2. then, also during the daemon startup, it needs to figure out which models
+  were already downloaded so it can prioritize them through the recommendation
+  algorithm. if the singleton is already running at this stage, this should be
+  very straightforward.
+  3. now the daemon starts looking for folders to index. it has a queue, it
+  loads one model at a time, index it's folder in the background. once done, it
+  unloads the model, moves to the next folder.
+
+  4. if an mcp request comes in. all indexing activity should halt. models
+  should unload (Unless it is the model that we need to load for the MCP
+  request) then we load the model used for the MCP request and keep it loaded
+  for 5 minutes, just to keep it responsive for the LLM using it.
+

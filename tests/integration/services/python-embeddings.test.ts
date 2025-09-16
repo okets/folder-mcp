@@ -24,6 +24,7 @@ import { join } from 'path';
 import type { TextChunk } from '../../../src/types/index.js';
 import { createDefaultSemanticMetadata } from '../../../src/types/index.js';
 import { performance } from 'perf_hooks';
+import { getVenvPythonPath } from '../../../src/utils/python-venv-path.js';
 
 describe('Python Embeddings - Complete Test Suite', () => {
   let service: PythonEmbeddingService;
@@ -62,9 +63,13 @@ describe('Python Embeddings - Complete Test Suite', () => {
   const average = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
   beforeAll(() => {
+    // Get the venv Python path for testing
+    const venvPythonPath = getVenvPythonPath();
+
     // Create service once for ALL tests - this verifies keep-alive works
     service = new PythonEmbeddingService({
       modelName: 'all-MiniLM-L6-v2',
+      pythonPath: venvPythonPath,  // Use venv Python instead of system python3
       timeout: 30000,  // 30 seconds for model loading (must be long enough for initial load)
       autoRestart: false, // Disable for testing to verify keep-alive
       maxRestartAttempts: 0,  // Disable restarts to test pure keep-alive
@@ -75,7 +80,7 @@ describe('Python Embeddings - Complete Test Suite', () => {
         shutdownGracePeriodSeconds: 3   // SHORTER shutdown time for faster tests
       }
     });
-    
+
     processMetrics.startTime = Date.now();
   });
 

@@ -299,39 +299,6 @@ class EmbeddingRPCServer:
                 'error': str(e)
             }
 
-    def get_status(self, request_data: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Get simple status of the embedding service for state machine tracking.
-
-        JSON-RPC method: get_status
-
-        Args:
-            request_data: Optional request data (not used)
-
-        Returns:
-            Dictionary containing state information
-        """
-        # Map internal states to the expected state machine states
-        if self.state == 'idle':
-            state = 'idle'
-        elif self.state == 'loading':
-            state = 'loading'
-        elif self.state == 'ready':
-            state = 'ready'
-        elif self.state == 'unloading':
-            state = 'unloading'
-        elif self.state == 'error':
-            state = 'error'
-        else:
-            # Default to idle for any unknown state
-            state = 'idle'
-
-        return {
-            'state': state,
-            'model': self.model_name,
-            'progress': self.loading_progress
-        }
-
     def extract_keyphrases(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Extract key phrases using KeyBERT.

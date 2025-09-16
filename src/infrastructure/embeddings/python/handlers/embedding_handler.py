@@ -132,7 +132,6 @@ class EmbeddingHandler:
         # State
         self.is_running = False
         self.current_request: Optional[QueuedRequest] = None
-        self.model_loaded = False  # Track model loading state separately from event
         
         # Batch optimization
         self.optimal_batch_size = 32  # Will be updated after device detection
@@ -410,30 +409,36 @@ class EmbeddingHandler:
         """Unload model from memory to free resources"""
         if self.model is not None:
             logger.info(f"Unloading model {self.model_name} from memory...")
-            
+
             # Get memory usage before unload for comparison
             memory_before = self._get_memory_usage()
-            
+
             # Clear MPS memory BEFORE deleting model
             self._clear_mps_memory()
-            
+
+            # Clear semantic handler (KeyBERT) to release its resources
+            if self.semantic_handler is not None:
+                logger.info("Clearing semantic handler (KeyBERT) resources")
+                del self.semantic_handler
+                self.semantic_handler = None
+
             # Clear the model
             del self.model
             self.model = None
             self.model_loaded = False
             self.model_loaded_event.clear()
-            
+
             # Clear memory again AFTER deletion
             self._clear_mps_memory()
-            
+
             # Force garbage collection
             import gc
             gc.collect()
-            
+
             # Get memory usage after unload
             memory_after = self._get_memory_usage()
             memory_freed = max(0, memory_before - memory_after)
-            
+
             logger.info(f"Model unloaded successfully. Memory freed: ~{memory_freed:.1f}MB")
     
     def _ensure_model_loaded(self) -> bool:

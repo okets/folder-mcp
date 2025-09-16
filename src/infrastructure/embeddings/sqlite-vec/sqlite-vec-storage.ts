@@ -436,26 +436,38 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 const docId = documentMap.get(meta.filePath)!;
 
                 // Use semantic metadata from orchestrator if available, otherwise use fallback
+                // Handle partial semantic metadata - each field independently
                 let keyPhrases: string[] = [];
                 let topics: string[] = [];
                 let readabilityScore: number = 50;
 
-                if (meta.keyPhrases && meta.topics && meta.readabilityScore !== undefined) {
-                    // Use the KeyBERT-extracted semantic metadata from orchestrator
+                // Use KeyBERT-extracted key phrases if available
+                if (meta.keyPhrases && meta.keyPhrases.length > 0) {
                     keyPhrases = meta.keyPhrases;
-                    topics = meta.topics;
-                    readabilityScore = meta.readabilityScore;
-
-                    this.logger?.debug(`Using KeyBERT semantic metadata for chunk ${meta.chunkIndex}`, {
+                    this.logger?.debug(`Using KeyBERT key phrases for chunk ${meta.chunkIndex}`, {
                         keyPhraseCount: keyPhrases.length,
                         multiwordRatio: keyPhrases.filter(p => p.includes(' ')).length / Math.max(1, keyPhrases.length),
                         samplePhrases: keyPhrases.slice(0, 3)
                     });
                 } else {
-                    // Fallback to old extraction (should not happen if orchestrator is working)
-                    this.logger?.warn(`CRITICAL: No semantic metadata from orchestrator for chunk ${meta.chunkIndex}, using fallback`);
+                    // Fallback for key phrases only if not provided
+                    this.logger?.debug(`No key phrases from orchestrator for chunk ${meta.chunkIndex}, using fallback`);
                     keyPhrases = ContentProcessingService.extractKeyPhrases(meta.content, 8);
+                }
+
+                // Use provided topics if available
+                if (meta.topics && meta.topics.length > 0) {
+                    topics = meta.topics;
+                } else {
+                    // Fallback for topics only if not provided
                     topics = ContentProcessingService.detectTopics(meta.content);
+                }
+
+                // Use provided readability score if available
+                if (meta.readabilityScore !== undefined && meta.readabilityScore !== null) {
+                    readabilityScore = meta.readabilityScore;
+                } else {
+                    // Fallback for readability score only if not provided
                     readabilityScore = ContentProcessingService.calculateReadabilityScore(meta.content);
                 }
 

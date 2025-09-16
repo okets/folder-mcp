@@ -192,7 +192,7 @@ export class ModelCacheChecker {
       // This avoids creating extra Python processes
       const gpuModelMappings = this.getCuratedGPUModelMappings();
       const { homedir } = await import('os');
-      const { existsSync } = await import('fs');
+      const { promises: fs } = await import('fs');
       const path = await import('path');
 
       const cacheDir = path.join(homedir(), '.cache', 'huggingface', 'hub');
@@ -202,7 +202,15 @@ export class ModelCacheChecker {
           // Check if model directory exists in cache
           const modelDirName = `models--${huggingfaceId.replace('/', '--')}`;
           const modelPath = path.join(cacheDir, modelDirName);
-          const installed = existsSync(modelPath);
+
+          // Use async file system operation
+          let installed = false;
+          try {
+            await fs.access(modelPath);
+            installed = true;
+          } catch {
+            installed = false;
+          }
 
           models.push({ id, installed, type: 'gpu' });
 

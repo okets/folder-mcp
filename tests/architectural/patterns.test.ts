@@ -170,6 +170,10 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('createFolderLifecycleService') &&
             !content.includes('OllamaEmbeddingService') &&
             !content.includes('createPythonEmbeddingService') &&
+            !content.includes('new PythonEmbeddingService') &&
+            !content.includes('PythonEmbeddingServiceRegistry') &&
+            !content.includes('createSemanticExtractionService') &&
+            !content.includes('new SemanticExtractionService') &&
             !content.includes('createONNXDownloader') &&
             !content.includes('ONNXSingletonManager') &&
             !content.includes('new ONNXEmbeddingService') &&

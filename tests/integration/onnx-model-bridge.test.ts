@@ -310,20 +310,6 @@ describe('ONNX Model Bridge Integration', () => {
     expect(estimatedTime).toBeLessThan(10000); // Less than 10 seconds for 100 chunks
   });
 
-  it('should cache model instances in factory', async () => {
-    const config: EmbeddingModelConfig = {
-      modelId: 'cpu:xenova-multilingual-e5-small',
-      modelType: 'onnx',
-      cacheDirectory: testCacheDir
-    };
-
-    const model1 = await factory.createModel(config);
-    const model2 = await factory.createModel(config);
-    
-    // Should return the same instance
-    expect(model1).toBe(model2);
-    
-    // Clean up
-    model = model1; // Will be disposed in afterEach
-  });
+  // REMOVED: Caching test removed as factory no longer caches instances
+  // The factory now creates fresh instances to ensure proper lifecycle management
 });
