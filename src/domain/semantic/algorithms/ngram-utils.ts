@@ -65,6 +65,7 @@ export function extractNGrams(
 ): string[] {
   const tokens = tokenize(text);
   const ngrams = new Set<string>();
+  const ngramsLower = new Set<string>(); // Track lowercase versions for O(1) deduplication
 
   // For each n from minN to maxN
   for (let n = minN; n <= maxN; n++) {
@@ -93,9 +94,11 @@ export function extractNGrams(
       const ngram = ngramTokens.map(t => t.originalWord).join(' ');
       // But also store the lowercase version for deduplication
       const ngramLower = ngramTokens.map(t => t.word).join(' ');
-      // Only add if we haven't seen this n-gram (case-insensitive)
-      if (!Array.from(ngrams).some(n => n.toLowerCase() === ngramLower)) {
+
+      // O(1) lookup instead of O(n) - massive performance improvement
+      if (!ngramsLower.has(ngramLower)) {
         ngrams.add(ngram);
+        ngramsLower.add(ngramLower);
       }
     }
   }
