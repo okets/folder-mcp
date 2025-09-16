@@ -18,6 +18,21 @@ export interface IReadabilityCalculator {
 }
 
 /**
+ * Detailed readability metrics interface
+ */
+export interface ReadabilityMetrics {
+  sentences: number;
+  words: number;
+  letters: number;
+  avgLettersPerWord: number;
+  avgWordsPerSentence: number;
+  L?: number; // Letters per 100 words
+  S?: number; // Sentences per 100 words
+  rawScore: number;
+  finalScore: number;
+}
+
+/**
  * Coleman-Liau Readability Calculator
  *
  * Uses character counts instead of syllable estimation for more reliable
@@ -30,36 +45,22 @@ export class ReadabilityCalculator implements IReadabilityCalculator {
    * Calibrated for technical documentation (40-60 range)
    */
   calculate(text: string): number {
-    // Input validation - return default middle score for invalid input
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return 50; // Default middle score for edge cases
-    }
+    return this.getDetailedMetrics(text).finalScore;
+  }
 
-    // Count basic metrics
-    const sentences = this.countSentences(text);
-    const words = this.countWords(text);
-    const letters = this.countLetters(text);
-
-    // Avoid division by zero
-    if (words === 0 || sentences === 0) {
-      return 50; // Default middle score for edge cases
-    }
-
-    // Coleman-Liau formula components
-    const L = (letters / words) * 100;  // Letters per 100 words
-    const S = (sentences / words) * 100; // Sentences per 100 words
-
-    // Calculate raw Coleman-Liau score
-    // CLI = 0.0588 * L - 0.296 * S - 15.8
-    const rawScore = 0.0588 * L - 0.296 * S - 15.8;
-
-    // Calibrate for technical documents (40-60 range)
-    // Raw scores can vary widely (-5 to 40+), we need better mapping
-    // Using adjusted mapping to spread scores across 40-60 range
-    const calibrated = 40 + (rawScore * 0.5);
-
-    // Clamp to valid range for technical documentation
-    return Math.max(40, Math.min(60, Math.round(calibrated)));
+  /**
+   * Get default/empty readability metrics
+   */
+  private getDefaultMetrics(sentences = 0, words = 0, letters = 0): ReadabilityMetrics {
+    return {
+      sentences,
+      words,
+      letters,
+      avgLettersPerWord: 0,
+      avgWordsPerSentence: 0,
+      rawScore: 0,
+      finalScore: 50
+    };
   }
 
   /**
@@ -94,17 +95,9 @@ export class ReadabilityCalculator implements IReadabilityCalculator {
    * Get detailed metrics for debugging and validation
    * Useful for understanding calculation components
    */
-  getDetailedMetrics(text: string) {
+  getDetailedMetrics(text: string): ReadabilityMetrics {
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return {
-        sentences: 0,
-        words: 0,
-        letters: 0,
-        avgLettersPerWord: 0,
-        avgWordsPerSentence: 0,
-        rawScore: 0,
-        finalScore: 50
-      };
+      return this.getDefaultMetrics();
     }
 
     const sentences = this.countSentences(text);
@@ -112,15 +105,7 @@ export class ReadabilityCalculator implements IReadabilityCalculator {
     const letters = this.countLetters(text);
 
     if (words === 0 || sentences === 0) {
-      return {
-        sentences,
-        words,
-        letters,
-        avgLettersPerWord: 0,
-        avgWordsPerSentence: 0,
-        rawScore: 0,
-        finalScore: 50
-      };
+      return this.getDefaultMetrics(sentences, words, letters);
     }
 
     const L = (letters / words) * 100;
