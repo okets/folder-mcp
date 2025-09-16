@@ -66,10 +66,6 @@ export interface ISemanticExtractionService {
    */
   extractTopics(text: string, embeddings?: Float32Array): Promise<string[]>;
 
-  /**
-   * Calculate readability score
-   */
-  calculateReadability(text: string): number;
 
   /**
    * Validate extraction quality

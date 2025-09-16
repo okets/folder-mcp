@@ -18,6 +18,10 @@ import {
   IEmbeddingModel,
   NGramExtractionOptions
 } from './algorithms/ngram-cosine-extractor.js';
+import {
+  IReadabilityCalculator,
+  createReadabilityCalculator
+} from './algorithms/readability-calculator.js';
 
 /**
  * Default extraction options
@@ -40,6 +44,7 @@ const DEFAULT_OPTIONS: SemanticExtractionOptions = {
 export class SemanticExtractionService implements ISemanticExtractionService {
   private options: SemanticExtractionOptions;
   private ngramExtractor: NGramCosineExtractor | null = null;
+  private readabilityCalculator: IReadabilityCalculator;
 
   constructor(
     private pythonService: IPythonSemanticService | null,
@@ -47,6 +52,9 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     private embeddingModel?: IEmbeddingModel | null
   ) {
     this.options = DEFAULT_OPTIONS;
+
+    // Initialize Coleman-Liau readability calculator (always available)
+    this.readabilityCalculator = createReadabilityCalculator();
 
     // Initialize N-gram extractor if no Python service available
     // This is for ONNX models that run in Node.js
@@ -69,8 +77,8 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       // Extract topics (for now using simple approach, will upgrade in Sprint 3)
       const topics = await this.extractTopics(text, embeddings);
 
-      // Calculate readability (will upgrade to hybrid in Sprint 2)
-      const readabilityScore = this.calculateReadability(text);
+      // Calculate readability using Coleman-Liau (Sprint 2 implementation)
+      const readabilityScore = this.readabilityCalculator.calculate(text);
 
       // Calculate quality metrics
       const qualityMetrics = this.options.calculateMetrics
@@ -215,32 +223,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     return topics;
   }
 
-  /**
-   * Calculate readability score
-   * TODO: Implement hybrid approach in Sprint 2
-   */
-  calculateReadability(text: string): number {
-    // For now, use a simple but more realistic formula
-    // Will be replaced with hybrid approach in Sprint 2
-    const sentences = this.countSentences(text);
-    const words = this.countWords(text);
-    const syllables = this.estimateSyllables(text);
-
-    if (sentences === 0 || words === 0) return 50; // Default for empty text
-
-    // Flesch Reading Ease formula (adjusted for technical content)
-    const avgWordsPerSentence = words / sentences;
-    const avgSyllablesPerWord = syllables / words;
-
-    // Modified formula that produces more realistic scores for technical docs
-    let score = 206.835 - (1.015 * avgWordsPerSentence) - (84.6 * avgSyllablesPerWord);
-
-    // Adjust for technical content (typically scores lower)
-    score = score * 0.7 + 15; // Shift range to be more realistic
-
-    // Clamp to reasonable range for technical documentation
-    return Math.max(30, Math.min(70, Math.round(score)));
-  }
 
   /**
    * Validate extraction quality
@@ -292,48 +274,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     };
   }
 
-  /**
-   * Count sentences in text
-   */
-  private countSentences(text: string): number {
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    return Math.max(1, sentences.length);
-  }
-
-  /**
-   * Count words in text
-   */
-  private countWords(text: string): number {
-    const words = text.split(/\s+/).filter(w => w.length > 0);
-    return words.length;
-  }
-
-  /**
-   * Estimate syllables (improved from broken version)
-   */
-  private estimateSyllables(text: string): number {
-    const words = text.toLowerCase().split(/\s+/);
-    let totalSyllables = 0;
-
-    for (const word of words) {
-      if (word.length <= 3) {
-        totalSyllables += 1;
-      } else {
-        // Count vowel groups as syllables
-        const vowelGroups = word.match(/[aeiou]+/g) || [];
-        let syllables = vowelGroups.length;
-
-        // Adjust for silent e
-        if (word.endsWith('e') && syllables > 1) {
-          syllables--;
-        }
-
-        totalSyllables += Math.max(1, syllables);
-      }
-    }
-
-    return totalSyllables;
-  }
 }
 
 /**
