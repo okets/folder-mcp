@@ -8,7 +8,11 @@
  */
 
 import { ContentProcessingService } from './processing.js';
-import { EnhancedTopicClusteringService, type ExtractedTopics } from './topic-clustering.js';
+import {
+  EnhancedTopicClusteringService,
+  type ExtractedTopics,
+  createTopicClusteringService
+} from './topic-clustering.js';
 import type { ILoggingService } from '../../di/interfaces.js';
 
 export interface SemanticMetadata {
@@ -22,7 +26,7 @@ export class EnhancedContentProcessingService {
   private topicClusteringService: EnhancedTopicClusteringService;
 
   constructor(private readonly logger: ILoggingService) {
-    this.topicClusteringService = new EnhancedTopicClusteringService(logger);
+    this.topicClusteringService = createTopicClusteringService(logger);
   }
 
   /**

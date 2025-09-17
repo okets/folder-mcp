@@ -174,6 +174,7 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('PythonEmbeddingServiceRegistry') &&
             !content.includes('createSemanticExtractionService') &&
             !content.includes('new SemanticExtractionService') &&
+            !content.includes('createTopicClusteringService') &&
             !content.includes('createONNXDownloader') &&
             !content.includes('ONNXSingletonManager') &&
             !content.includes('new ONNXEmbeddingService') &&

@@ -22,7 +22,10 @@ import {
   IReadabilityCalculator,
   createReadabilityCalculator
 } from './algorithms/readability-calculator.js';
-import { EnhancedTopicClusteringService } from '../content/topic-clustering.js';
+import {
+  EnhancedTopicClusteringService,
+  createTopicClusteringService
+} from '../content/topic-clustering.js';
 
 /**
  * Default extraction options
@@ -59,7 +62,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     this.readabilityCalculator = createReadabilityCalculator();
 
     // Initialize topic clustering service (Sprint 3)
-    this.topicClusteringService = new EnhancedTopicClusteringService(logger);
+    this.topicClusteringService = createTopicClusteringService(logger);
 
     // Initialize N-gram extractor for ONNX models (which don't use Python service)
     // ONNX models run entirely in Node.js and use N-gram extraction

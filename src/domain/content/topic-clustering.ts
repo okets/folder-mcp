@@ -390,3 +390,10 @@ export class EnhancedTopicClusteringService {
     return refined;
   }
 }
+
+/**
+ * Factory function for creating enhanced topic clustering service
+ */
+export function createTopicClusteringService(logger: ILoggingService): EnhancedTopicClusteringService {
+  return new EnhancedTopicClusteringService(logger);
+}
