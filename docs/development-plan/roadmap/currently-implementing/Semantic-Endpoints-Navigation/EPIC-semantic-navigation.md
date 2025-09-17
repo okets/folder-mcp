@@ -10,7 +10,7 @@
 
 Transform folder-mcp from a basic file server into an intelligent knowledge navigator that LLMs can explore semantically. Every endpoint returns rich semantic metadata enabling agents to make informed decisions without wasting context.
 
-## Current State (Post Lazy-Load Sprint)
+## Current State (Post Semantic Extraction Sprint 1-3)
 
 ### ✅ What's Working
 - **Lazy loading implemented**: Search returns metadata only, not content
@@ -18,13 +18,16 @@ Transform folder-mcp from a basic file server into an intelligent knowledge navi
 - **Type safety fixed**: String chunk IDs, snake_case naming
 - **99.17% token reduction**: Achieved in search endpoint
 - **Database schema clean**: No dead extraction_params code
+- **Semantic extraction COMPLETE**: KeyBERT, readability, and topic clustering working
+- **E5 indexing optimizations**: Passage prefixes and L2 normalization implemented
+- **Model capabilities system**: Configuration-driven optimizations in curated-models.json
 
-### ❌ Critical Gaps
+### ❌ Remaining Gaps for Navigation
 - **No semantic data in navigation**: list_folders, list_documents return empty semantic fields
 - **No intelligent previews**: Can't tell what's in a folder without opening it
 - **No document summaries**: Can't understand document purpose without reading it
-- **No chunk metadata**: Can't identify relevant sections without fetching content
-- **Python embeddings broken**: MPS tensor errors preventing quality testing
+- **Search accuracy needs improvement**: Missing tokenization-aware hybrid search
+- **E5 search optimization missing**: Query prefixes not implemented yet
 
 ## Success Criteria
 
@@ -35,13 +38,13 @@ Transform folder-mcp from a basic file server into an intelligent knowledge navi
 4. **Search Relevance**: Top results consistently match query intent
 5. **Performance**: All endpoints respond in <200ms
 
-### Curated Model Excellence
-Our curated models are specifically chosen for quality extraction:
-- **BGE-M3**: Comprehensive multilingual coverage (100+ languages)
-- **paraphrase-multilingual-MiniLM-L12-v2**: Fast and resource-friendly
-- **multilingual-e5-large**: Strong multilingual performance
-- **Arctic Embed 2.0**: Excellent European language support
-All models are pre-validated for semantic extraction quality.
+### Curated Model Excellence (ACHIEVED)
+Our curated models are delivering quality extraction after Sprint 1-3:
+- **BGE-M3**: Comprehensive multilingual coverage (100+ languages) ✅
+- **paraphrase-multilingual-MiniLM-L12-v2**: Fast and resource-friendly ✅
+- **multilingual-e5-large**: Strong multilingual performance + optimized prefixes ✅
+- **multilingual-e5-small**: Efficient performance + optimized prefixes ✅
+All models validated and optimized for semantic extraction quality.
 
 ### Validation Methodology
 - **A2E Testing**: Agent-to-Endpoint validation using MCP tools directly
@@ -289,12 +292,34 @@ async explore(currentPath: string) {
 
 ---
 
-### Sprint 5: Fix and Perfect search Endpoint (4-5 hours)
-**Goal**: Intelligent search with semantic ranking and explanations
+### Sprint 5: Perfect search Endpoint with E5 Optimization (4-5 hours)
+**Goal**: Intelligent search with proper E5 query optimization and semantic ranking
 
-**Implementation**:
+**Critical E5 Implementation**:
 ```typescript
-// Target (explainable search)
+// E5 query optimization (matches Sprint 3 passage prefixes)
+async function generateQueryEmbedding(query: string, modelCapabilities: ModelCapabilities) {
+    let processedQuery = query;
+
+    // Apply E5 query prefix to match indexing-side passage prefixes
+    if (modelCapabilities.requiresPrefix && modelCapabilities.prefixFormat?.query) {
+        processedQuery = modelCapabilities.prefixFormat.query.replace('{text}', query);
+        // Result: "query: how to use TMOAT for testing"
+    }
+
+    const embedding = await embeddingService.generate(processedQuery);
+
+    // Apply L2 normalization to match indexing-side normalization
+    if (modelCapabilities.requiresNormalization) {
+        return normalizeVector(embedding, modelCapabilities.normalizationType);
+    }
+
+    return embedding;
+}
+```
+
+**Target Search Response**:
+```typescript
 {
   results: [
     {
@@ -302,34 +327,32 @@ async explore(currentPath: string) {
       relevance_score: 0.92,
       file_path: "/policies/remote_work.md",
       semantic_context: {
-        why_relevant: "Exact match on 'VPN requirements' in security section",
+        why_relevant: "Strong E5 similarity match with query optimization",
         matched_concepts: ["VPN", "security", "remote access"],
-        surrounding_topics: ["authentication", "network security"],
-        importance: "critical policy requirement"
+        optimization_applied: "E5 query prefix + L2 normalization",
+        search_strategy: "semantic_optimized"
       }
     }
   ],
   search_insights: {
     query_interpretation: "Looking for VPN setup requirements",
-    expanded_terms: ["virtual private network", "remote access"],
-    filtered_noise: ["general IT policies"],
-    confidence: 0.88
+    model_optimization: "E5 query prefix applied",
+    confidence: 0.94  // Higher confidence with proper E5 optimization
   }
 }
 ```
 
-**Fix Python Embeddings First**:
-- Resolve MPS tensor copy error
-- Test with multiple embedding models
-- Validate embedding quality
+**Critical Requirements**:
+- **E5 Query Prefixes**: MUST implement "query:" prefix for E5 models
+- **L2 Normalization**: Query embeddings need same normalization as passages
+- **Consistency Validation**: Ensure search and indexing optimizations match
 
 **Validation**:
-- Search explanations match actual relevance
-- Quality models produce accurate results (using our curated models)
-- Semantic search outperforms keyword search
-- A2E test: Complex queries return relevant results
+- E5 query optimization improves relevance scores significantly
+- Search explanations reflect optimization benefits
+- A2E test: E5-optimized queries return better results than non-optimized
 
-**Human Safety Stop**: Extensive search quality validation
+**Human Safety Stop**: Validate E5 consistency and search quality improvement
 
 ---
 
@@ -448,6 +471,146 @@ async search(query: string) {
 
 ---
 
+### Sprint 5.7: Tokenization-Aware Hybrid Search (3-4 hours)
+**Goal**: Boost search accuracy for domain-specific terms that don't tokenize well
+
+**The Problem**:
+Some terms critical to your domain (like "TMOAT", "BGE-M3", "multilingual-e5-large") get poorly tokenized by language models because they weren't in the training data. This causes semantic search to miss them even when they appear in documents.
+
+**Solution: SQL-Based Keyword Boosting**:
+```typescript
+async function hybridSearch(query: string, semanticResults: SearchResult[]) {
+    // 1. Analyze query for poor-tokenizing terms
+    const poorTokenizers = await detectPoorTokenizingTerms(query);
+    // Returns: ["TMOAT", "BGE-M3"] for query "How to use TMOAT with BGE-M3 model"
+
+    if (poorTokenizers.length === 0) {
+        return semanticResults; // No keyword boosting needed
+    }
+
+    // 2. SQL-based exact keyword matching
+    const keywordMatches = await db.query(`
+        SELECT chunk_id, file_path, content,
+               COUNT(*) as keyword_frequency
+        FROM chunks
+        WHERE ${poorTokenizers.map(term => `content LIKE '%${term}%'`).join(' OR ')}
+        GROUP BY chunk_id
+        ORDER BY keyword_frequency DESC
+    `);
+
+    // 3. Boost semantic results that also have keyword matches
+    const boostedResults = semanticResults.map(result => {
+        const keywordMatch = keywordMatches.find(km => km.chunk_id === result.chunk_id);
+        if (keywordMatch) {
+            return {
+                ...result,
+                relevance_score: result.relevance_score * 1.3, // 30% boost
+                search_strategy: 'hybrid_boosted',
+                keyword_matches: poorTokenizers.filter(term =>
+                    keywordMatch.content.includes(term)
+                ),
+                boost_applied: true
+            };
+        }
+        return result;
+    });
+
+    // 4. Add pure keyword matches that weren't in semantic results
+    const pureKeywordResults = keywordMatches
+        .filter(km => !semanticResults.some(sr => sr.chunk_id === km.chunk_id))
+        .map(km => ({
+            chunk_id: km.chunk_id,
+            file_path: km.file_path,
+            relevance_score: 0.75, // High but not perfect score
+            search_strategy: 'keyword_only',
+            keyword_matches: poorTokenizers.filter(term => km.content.includes(term)),
+            boost_applied: false
+        }));
+
+    return [...boostedResults, ...pureKeywordResults]
+        .sort((a, b) => b.relevance_score - a.relevance_score);
+}
+
+async function detectPoorTokenizingTerms(query: string): Promise<string[]> {
+    const terms = query.split(/\s+/);
+    const poorTokenizers = [];
+
+    for (const term of terms) {
+        // Check if term is likely to tokenize poorly
+        if (
+            term.length > 3 &&
+            (
+                /^[A-Z]+(-[A-Z0-9]+)*$/.test(term) ||  // ALL_CAPS or BGE-M3
+                /^[a-z]+-[a-z0-9-]+$/.test(term) ||   // kebab-case like multilingual-e5-large
+                /^[A-Z][a-z]*[A-Z]/.test(term) ||     // CamelCase
+                term.includes('_') ||                  // snake_case
+                /^[a-z]+\d+/.test(term)               // alpha-numeric like e5-large
+            )
+        ) {
+            poorTokenizers.push(term);
+        }
+    }
+
+    return poorTokenizers;
+}
+```
+
+**Enhanced Search Response with Hybrid Boosting**:
+```typescript
+{
+  results: [
+    {
+      chunk_id: "chunk_789",
+      file_path: "/docs/testing/TMOAT-guide.md",
+      relevance_score: 0.89, // Boosted from 0.68 due to exact "TMOAT" match
+      semantic_context: {
+        why_relevant: "Semantic match + exact keyword boost",
+        search_strategy: "hybrid_boosted",
+        keyword_matches: ["TMOAT"],
+        boost_applied: true,
+        original_score: 0.68,
+        boost_reason: "Exact match for domain-specific term"
+      }
+    },
+    {
+      chunk_id: "chunk_456",
+      file_path: "/docs/models/BGE-M3-setup.md",
+      relevance_score: 0.75,
+      semantic_context: {
+        why_relevant: "Keyword-only match for BGE-M3",
+        search_strategy: "keyword_only",
+        keyword_matches: ["BGE-M3"],
+        boost_applied: false,
+        boost_reason: "Found via SQL exact match"
+      }
+    }
+  ],
+  search_insights: {
+    query_interpretation: "Looking for TMOAT testing with BGE-M3 model",
+    search_strategy: "hybrid_semantic_plus_keyword_boost",
+    poor_tokenizers_detected: ["TMOAT", "BGE-M3"],
+    boost_strategy: "SQL exact matching for domain terms"
+  }
+}
+```
+
+**Performance Benefits**:
+- **Domain Accuracy**: Find "TMOAT", "BGE-M3", "multilingual-e5-large" reliably
+- **Hybrid Intelligence**: Combines semantic understanding with exact matching
+- **Fast SQL**: Keyword matching adds <10ms to search time
+- **Configurable**: Easy to add new domain-specific terms
+
+**Validation**:
+- Test: Query "TMOAT testing approach" finds TMOAT documentation
+- Test: Query "BGE-M3 model setup" finds BGE-M3 specific files
+- Test: Query "multilingual-e5-large optimization" finds E5 configuration
+- Test: Regular semantic queries still work without degradation
+- A2E test: Domain-specific searches return authoritative results
+
+**Human Safety Stop**: Verify keyword boosting improves domain-specific search accuracy
+
+---
+
 ### Sprint 6: Integration Testing & Validation (3-4 hours)
 **Goal**: Ensure all endpoints work together seamlessly
 
@@ -518,16 +681,16 @@ if (!semanticData) {
 ## Risk Mitigation
 
 ### Technical Risks
-1. **Python Embeddings Broken**: Fix MPS compatibility first
-2. **Semantic Quality**: Use our curated models (BGE-M3 for best quality, paraphrase-multilingual-MiniLM-L12-v2 for speed)
-3. **Performance**: On-demand aggregation fast enough (<100ms) - no caching needed
+1. **Aggregation Performance**: On-demand aggregation must stay <100ms for good UX
+2. **Semantic Quality**: Continue using our curated models (BGE-M3 for best quality, paraphrase-multilingual-MiniLM-L12-v2 for speed)
+3. **Database Load**: Multiple endpoint calls could create DB pressure - monitor query patterns
 4. **Storage**: Semantic data adds ~20% to database size
 
 ### Quality Risks
-1. **Poor Extraction**: Validate with known documents
+1. **Poor Navigation UX**: Validate semantic hints actually help LLMs navigate
 2. **Irrelevant Topics**: Human review after each sprint
-3. **Missing Context**: Ensure comprehensive extraction
-4. **Inconsistency**: Standardize extraction methods
+3. **Missing Context**: Ensure comprehensive semantic aggregation
+4. **Inconsistency**: Standardize semantic metadata across endpoints
 
 ## Definition of Done
 
@@ -540,7 +703,8 @@ if (!semanticData) {
 
 ### Epic Complete
 - [ ] All 6 endpoints semantically enhanced
-- [ ] Python embeddings working with quality models
+- [ ] E5 query optimization implemented for consistent search quality
+- [ ] Hybrid search working for domain-specific terms
 - [ ] Full A2E test suite passing
 - [ ] Performance benchmarks met
 - [ ] Human validation of semantic quality
@@ -566,7 +730,7 @@ if (!semanticData) {
 
 **Sprint 1: Perfect list_folders Endpoint**
 
-Begin by fixing Python embeddings, then implement semantic extraction for folders. Each folder should tell its story through topics and themes, enabling LLMs to navigate intelligently without opening every document.
+Implement semantic navigation for folders using the completed extraction system. Each folder should tell its story through topics and themes, enabling LLMs to navigate intelligently without opening every document.
 
 ---
 

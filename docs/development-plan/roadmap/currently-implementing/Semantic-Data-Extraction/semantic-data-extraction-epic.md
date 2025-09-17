@@ -146,43 +146,7 @@ Our semantic extraction system produces unusable results: 71% of content incorre
 
 ---
 
-### Sprint 3: BERTopic Topic Extraction (Week 2-3)
-**Goal**: Replace hardcoded dictionaries with semantic clustering-based topic extraction
-
-**Scope:**
-- Implement BERTopic (UMAP + HDBSCAN + c-TF-IDF) for automatic topic discovery
-- Configure clustering parameters for technical document domains
-- Integrate hierarchical topic labeling with meaningful category names
-- Handle both document-level and paragraph-level topic assignment
-
-**Key Deliverables:**
-- BERTopic integration with existing embedding pipeline
-- Automatic cluster parameter tuning based on document characteristics
-- Semantic topic labeling producing domain-relevant categories
-- Fallback mechanisms for documents that don't cluster well
-
-**Success Criteria:**
-- **Measurable**: >90% domain-specific topics (vs current 29%)
-- **Quality**: Extract ["machine learning", "embedding systems", "semantic search"] instead of ["general"]
-- **Coherence**: Topics should be semantically meaningful and non-overlapping
-- **Coverage**: Handle both short documents and long technical documentation
-
-**TMOAT Validation Approach:**
-1. **Topic Quality Assessment**: Manually review generated topics for semantic coherence
-2. **Domain Relevance**: Verify topics reflect actual document content domains
-3. **Cluster Stability**: Test consistency across multiple runs with same data
-4. **Coverage Analysis**: Ensure high percentage of documents get meaningful topics
-5. **Integration Testing**: Verify MCP search can filter by meaningful topic categories
-
-**Human Safety Stop Questions:**
-- Are generated topics semantically meaningful and domain-relevant?
-- Do topics help users understand document content better than generic categories?
-- Is clustering performance acceptable for real-time processing?
-- Should we proceed to model-specific optimizations or refine current approach?
-
----
-
-### Sprint 4: Model-Specific Optimizations (Week 3)
+### Sprint 3: Model-Specific Optimizations (Week 2-3)
 **Goal**: Leverage unique capabilities of BGE-M3 and E5 models for enhanced extraction quality
 
 **Scope:**
@@ -215,42 +179,6 @@ Our semantic extraction system produces unusable results: 71% of content incorre
 - Is the added complexity worth the performance gains?
 - Are all 5 models still producing consistent, high-quality results?
 - Should we proceed to chunking optimization or focus on stability?
-
----
-
-### Sprint 5: Chunking Strategy Optimization (Week 4)
-**Goal**: Transition from fixed-token chunks to paragraph-aware semantic segmentation
-
-**Scope:**
-- Implement paragraph-boundary chunking while respecting model context windows
-- Maintain overlap strategy for context preservation
-- Update embedding generation pipeline for new chunking approach
-- Reindex test data to validate improved semantic coherence
-
-**Key Deliverables:**
-- Context-aware chunking algorithm that respects paragraph boundaries
-- Backward-compatible chunk storage with migration strategy
-- Updated indexing pipeline supporting new chunking method
-- Performance benchmarks comparing old vs new chunking approaches
-
-**Success Criteria:**
-- **Measurable**: +15% context preservation in semantic extraction
-- **Quality**: Better topic coherence from maintaining paragraph integrity
-- **Performance**: Chunking time should remain acceptable for real-time processing
-- **Compatibility**: Seamless integration with existing embedding models
-
-**TMOAT Validation Approach:**
-1. **Chunk Quality Assessment**: Compare paragraph vs token-based chunks for coherence
-2. **Context Preservation**: Verify topics/phrases maintain better semantic integrity
-3. **Performance Impact**: Measure indexing time differences with new chunking
-4. **Migration Testing**: Validate smooth transition from old to new chunk format
-5. **End-to-End Validation**: Full re-indexing test with quality measurements
-
-**Human Safety Stop Questions:**
-- Does paragraph-aware chunking improve semantic extraction quality?
-- Are processing times still acceptable for production use?
-- Is the migration path clear for existing indexed content?
-- Are we ready for production deployment of the complete semantic extraction overhaul?
 
 ---
 
