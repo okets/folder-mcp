@@ -22,6 +22,7 @@ import {
   IReadabilityCalculator,
   createReadabilityCalculator
 } from './algorithms/readability-calculator.js';
+import { EnhancedTopicClusteringService } from '../content/topic-clustering.js';
 
 /**
  * Default extraction options
@@ -45,6 +46,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   private options: SemanticExtractionOptions;
   private ngramExtractor: NGramCosineExtractor | null = null;
   private readabilityCalculator: IReadabilityCalculator;
+  private topicClusteringService: EnhancedTopicClusteringService;
 
   constructor(
     private pythonService: IPythonSemanticService | null,
@@ -56,8 +58,11 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     // Initialize Coleman-Liau readability calculator (always available)
     this.readabilityCalculator = createReadabilityCalculator();
 
-    // Initialize N-gram extractor if no Python service available
-    // This is for ONNX models that run in Node.js
+    // Initialize topic clustering service (Sprint 3)
+    this.topicClusteringService = new EnhancedTopicClusteringService(logger);
+
+    // Initialize N-gram extractor for ONNX models (which don't use Python service)
+    // ONNX models run entirely in Node.js and use N-gram extraction
     if (!pythonService && embeddingModel) {
       this.ngramExtractor = createNGramCosineExtractor(embeddingModel, logger);
       this.logger.info('Initialized N-gram extractor for ONNX model semantic extraction');
@@ -139,8 +144,11 @@ export class SemanticExtractionService implements ISemanticExtractionService {
         return phrases;
 
       } catch (error) {
-        this.logger.error('KeyBERT extraction failed', error instanceof Error ? error : new Error(String(error)));
-        // Continue to N-gram fallback if available
+        this.logger.error('KeyBERT extraction failed for GPU model', error instanceof Error ? error : new Error(String(error)));
+        // FAIL LOUDLY - GPU models require KeyBERT
+        throw new Error(
+          `CRITICAL: KeyBERT extraction failed for GPU model! ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
 
@@ -189,38 +197,62 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   }
 
   /**
-   * Extract topics from text
-   * TODO: Implement BERTopic in Sprint 3
+   * Extract topics from text using enhanced clustering approach
    */
   async extractTopics(text: string, embeddings?: Float32Array): Promise<string[]> {
-    // For now, return more specific topics based on content analysis
-    // This will be replaced with BERTopic in Sprint 3
-    const topics: string[] = [];
-    const lowerText = text.toLowerCase();
+    // SPRINT 3: Use enhanced topic clustering service
+    try {
+      // Extract topics using the enhanced clustering service
+      const extractedTopics = this.topicClusteringService.extractTopics(
+        [], // Will extract key phrases internally if needed
+        text,
+        {
+          maxTopics: this.options.maxTopics || 5,
+          minConfidence: 0.3,
+          cleanMarkdown: true,
+          diversityThreshold: 0.5
+        }
+      );
 
-    // Domain-specific topic detection (temporary)
-    const topicPatterns = [
-      { pattern: /machine learning|neural|ai|artificial intelligence/i, topic: 'machine learning' },
-      { pattern: /semantic search|embedding|vector|similarity/i, topic: 'semantic search' },
-      { pattern: /document|text|content|file/i, topic: 'document processing' },
-      { pattern: /database|storage|index|query/i, topic: 'data storage' },
-      { pattern: /transform|model|bert|gpt/i, topic: 'transformer models' },
-      { pattern: /python|javascript|typescript|code/i, topic: 'programming' },
-      { pattern: /api|endpoint|service|server/i, topic: 'web services' }
-    ];
+      // Combine primary and secondary topics
+      const topics = [
+        ...extractedTopics.primary,
+        ...extractedTopics.secondary.slice(0, (this.options.maxTopics || 5) - extractedTopics.primary.length)
+      ];
 
-    for (const { pattern, topic } of topicPatterns) {
-      if (pattern.test(lowerText) && topics.length < (this.options.maxTopics || 5)) {
-        topics.push(topic);
+      this.logger.debug('Enhanced topic extraction (Sprint 3)', {
+        topicCount: topics.length,
+        topics,
+        primary: extractedTopics.primary,
+        secondary: extractedTopics.secondary
+      });
+
+      return topics.length > 0 ? topics : ['technical documentation'];
+    } catch (error) {
+      this.logger.error('Enhanced topic extraction failed, using fallback', error as Error);
+
+      // Fallback to simple pattern matching if enhanced clustering fails
+      const topics: string[] = [];
+      const lowerText = text.toLowerCase();
+
+      const topicPatterns = [
+        { pattern: /machine learning|neural|ai|artificial intelligence/i, topic: 'machine learning' },
+        { pattern: /semantic search|embedding|vector|similarity/i, topic: 'semantic search' },
+        { pattern: /document|text|content|file/i, topic: 'document processing' },
+        { pattern: /database|storage|index|query/i, topic: 'data storage' },
+        { pattern: /transform|model|bert|gpt/i, topic: 'transformer models' },
+        { pattern: /python|javascript|typescript|code/i, topic: 'programming' },
+        { pattern: /api|endpoint|service|server/i, topic: 'web services' }
+      ];
+
+      for (const { pattern, topic } of topicPatterns) {
+        if (pattern.test(lowerText) && topics.length < (this.options.maxTopics || 5)) {
+          topics.push(topic);
+        }
       }
-    }
 
-    // If no specific topics found, add a general one based on content
-    if (topics.length === 0) {
-      topics.push('technical documentation');
+      return topics.length > 0 ? topics : ['technical documentation'];
     }
-
-    return topics;
   }
 
 
