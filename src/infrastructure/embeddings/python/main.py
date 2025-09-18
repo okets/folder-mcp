@@ -699,8 +699,12 @@ class EmbeddingRPCServer:
 
             logger.info(f"Loading new model: {new_model}")
 
-            # Step 5: Create new handler with new model
-            self.handler = EmbeddingHandler(new_model)
+            # Extract capabilities from request (configuration-driven approach)
+            capabilities = request_data.get('capabilities', {})
+            logger.info(f"Model capabilities: {capabilities}")
+
+            # Step 5: Create new handler with new model and capabilities
+            self.handler = EmbeddingHandler(new_model, capabilities=capabilities)
             self.loading_progress = 30
 
             # Step 6: Initialize the new handler (loads model)

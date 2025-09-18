@@ -216,6 +216,8 @@ This is my design for where the python comes in play in our lifecycle, (infer
 ────────────────────────────────────────────────────────────────────
                      ***Smoke test***
 ────────────────────────────────────────────────────────────────────
+looking for a good Smoke test? these are our currently indexed folders [Image #1] each indexed using a different model.
+DB path example: tmp/test-cpu-xenova-multilingual-e5-large/.folder-mcp/embeddings.db
 Run the test routine to trigger re-indexing: 
 1. for each of our indexed folders, remove the .folder-mcp folder we created that contains our database files.
 2. kill any running daemon and run a new instance of our daemon in the background using this single command 'npm run daemon:restart'

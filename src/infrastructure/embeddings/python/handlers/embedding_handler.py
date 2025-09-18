@@ -67,17 +67,18 @@ class EmbeddingHandler:
     - Health monitoring and graceful shutdown
     """
     
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, capabilities: Optional[Dict[str, Any]] = None):
         if not DEPENDENCIES_AVAILABLE:
             raise ImportError(
                 "Required dependencies not available. Please install: "
                 "sentence-transformers, torch, transformers"
             )
-        
+
         if not model_name:
             raise ValueError("Model name is required - no defaults allowed")
-        
+
         self.model_name = model_name
+        self.model_capabilities = capabilities or {}  # Store model capabilities for configuration-driven behavior
         self.model: Optional[SentenceTransformer] = None
         self.semantic_handler = None  # Will be initialized after model loads
         self.device = "cpu"
@@ -689,7 +690,80 @@ class EmbeddingHandler:
             # Set state back to IDLE even on error
             with self.state_lock:
                 self.state = 'IDLE'
-    
+
+    def _apply_model_optimizations(self, texts: List[str]) -> List[str]:
+        """
+        Apply model-specific optimizations for better embedding quality.
+
+        For E5 models:
+        - Adds "passage: " prefix to document content during indexing
+        - This optimization matches the model's training methodology
+        """
+        # Check if this model requires passage prefixes (configuration-driven)
+        if self._model_requires_prefix():
+            logger.info(f"Applying E5 passage prefixes to {len(texts)} texts for model: {self.model_name}")
+            optimized_texts = []
+            for text in texts:
+                # Add passage prefix for document content (indexing phase)
+                prefixed_text = f"passage: {text}"
+                optimized_texts.append(prefixed_text)
+
+            # Log sample for verification (first text only, truncated)
+            if optimized_texts:
+                sample = optimized_texts[0][:100] + "..." if len(optimized_texts[0]) > 100 else optimized_texts[0]
+                logger.debug(f"E5 prefix sample: '{sample}'")
+
+            return optimized_texts
+        else:
+            # No optimizations needed for non-E5 models
+            return texts
+
+    def _model_requires_prefix(self) -> bool:
+        """Check if the current model requires prefixes (configuration-driven)"""
+        if not hasattr(self, 'model_capabilities') or not self.model_capabilities:
+            return False
+        return self.model_capabilities.get('requiresPrefix', False)
+
+    def _apply_e5_normalization(self, embeddings):
+        """
+        Apply L2 normalization to E5 model embeddings for optimal similarity matching.
+
+        E5 models benefit from explicit L2 normalization beyond what sentence-transformers provides.
+        This ensures consistent similarity calculations as described in the E5 paper.
+        """
+        if self._model_requires_prefix():
+            try:
+                import torch
+                import torch.nn.functional as F
+                import numpy as np
+
+                logger.debug(f"Applying E5 L2 normalization for model: {self.model_name}")
+
+                # Convert to tensor if needed
+                if isinstance(embeddings, np.ndarray):
+                    tensor_embeddings = torch.tensor(embeddings, dtype=torch.float32)
+                else:
+                    tensor_embeddings = embeddings
+
+                # Apply L2 normalization
+                normalized_embeddings = F.normalize(tensor_embeddings, p=2, dim=1)
+
+                # Convert back to numpy for consistency
+                if isinstance(embeddings, np.ndarray):
+                    result = normalized_embeddings.numpy()
+                else:
+                    result = normalized_embeddings
+
+                logger.debug("E5 L2 normalization applied successfully")
+                return result
+
+            except Exception as e:
+                logger.warning(f"E5 L2 normalization failed, using original embeddings: {e}")
+                return embeddings
+        else:
+            # No additional normalization needed for non-E5 models
+            return embeddings
+
     def _generate_embeddings_sync(self, texts: List[str]) -> List[EmbeddingVector]:
         """Generate embeddings synchronously using sentence-transformers with progress reporting"""
         import time
@@ -736,7 +810,10 @@ class EmbeddingHandler:
             logger.info(f"Truncated {truncated_count} oversized texts to prevent context overflow")
         
         texts = processed_texts
-        
+
+        # Apply E5 model optimizations (passage prefixes for document content)
+        texts = self._apply_model_optimizations(texts)
+
         # Report start
         self._send_progress('processing_embeddings', 0, total_texts)
         
@@ -891,6 +968,9 @@ class EmbeddingHandler:
                 self._clear_mps_memory()
                 raise RuntimeError(f"Encoding failed on both {self.device} and CPU: {cpu_error}")
         
+        # Apply E5 model post-processing (L2 normalization)
+        embeddings = self._apply_e5_normalization(embeddings)
+
         # Convert to EmbeddingVector objects
         logger.debug("Converting to EmbeddingVector format...")
         conversion_start = time.time()

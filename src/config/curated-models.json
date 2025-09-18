@@ -213,6 +213,12 @@
             "expectedTokensPerSec": 200,
             "notes": "Works well with default batch sizes on MPS"
           }
+        },
+        "capabilities": {
+          "dense": true,
+          "requiresPrefix": true,
+          "requiresNormalization": true,
+          "prefixFormat": "passage"
         }
       },
       {
@@ -393,6 +399,12 @@
             "optimalCpuFeatures": ["AVX2", "FMA"],
             "expectedTokensPerSec": 100
           }
+        },
+        "capabilities": {
+          "dense": true,
+          "requiresPrefix": true,
+          "requiresNormalization": true,
+          "prefixFormat": "passage"
         }
       },
       {
@@ -492,6 +504,12 @@
             "recRAM": 2048,
             "expectedTokensPerSec": 50
           }
+        },
+        "capabilities": {
+          "dense": true,
+          "requiresPrefix": true,
+          "requiresNormalization": true,
+          "prefixFormat": "passage"
         }
       }
     ]

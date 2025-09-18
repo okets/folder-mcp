@@ -12,6 +12,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+export interface ModelCapabilities {
+    dense?: boolean;
+    requiresPrefix?: boolean;
+    requiresNormalization?: boolean;
+    prefixFormat?: string;
+}
+
 interface ModelInfo {
     id: string;
     displayName: string;
@@ -21,6 +28,7 @@ interface ModelInfo {
     dimensions: number;
     modelSizeMB: number;
     isDefault?: boolean;
+    capabilities?: ModelCapabilities;
 }
 
 interface CuratedModelsConfig {
@@ -337,4 +345,42 @@ export function getSentenceTransformerIdFromModelId(modelId: string): string {
     }
     
     return sentenceTransformerId;
+}
+
+/**
+ * Get model capabilities (E5 prefixes, normalization, etc.)
+ * Single source of truth for model-specific behavior
+ */
+export function getModelCapabilities(modelId: string): ModelCapabilities | null {
+    const model = getModelById(modelId);
+    if (!model) {
+        return null;
+    }
+
+    // Return capabilities from curated-models.json or default empty object
+    return model.capabilities || {};
+}
+
+/**
+ * Check if model requires E5-style prefixes (configuration-driven)
+ */
+export function modelRequiresPrefix(modelId: string): boolean {
+    const capabilities = getModelCapabilities(modelId);
+    return capabilities?.requiresPrefix === true;
+}
+
+/**
+ * Check if model requires normalization (configuration-driven)
+ */
+export function modelRequiresNormalization(modelId: string): boolean {
+    const capabilities = getModelCapabilities(modelId);
+    return capabilities?.requiresNormalization === true;
+}
+
+/**
+ * Get prefix format for model (configuration-driven)
+ */
+export function getModelPrefixFormat(modelId: string): string {
+    const capabilities = getModelCapabilities(modelId);
+    return capabilities?.prefixFormat || '';
 }

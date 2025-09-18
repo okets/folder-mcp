@@ -18,6 +18,7 @@ import type {
 } from '../../domain/embeddings/index.js';
 import { EmbeddingErrors } from './embedding-errors.js';
 import type { SemanticExtractionOptions } from '../../domain/semantic/interfaces.js';
+import { getModelCapabilities, type ModelCapabilities } from '../../config/model-registry.js';
 
 /**
  * JSON-RPC 2.0 interfaces for communication
@@ -558,7 +559,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    * Load a different model without restarting the Python process
    * This maintains the singleton pattern and just switches the model
    */
-  async loadModel(modelName: string): Promise<void> {
+  async loadModel(modelName: string, modelId?: string): Promise<void> {
     if (!this.initialized) {
       throw new Error('Python embedding service not initialized');
     }
@@ -571,9 +572,18 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
     console.error(`[PYTHON-EMBEDDING] Loading model ${modelName} via RPC...`);
 
     try {
-      // Send load_model request to Python process
+      // Get model capabilities from configuration (if modelId provided)
+      let capabilities: ModelCapabilities | null = null;
+      if (modelId) {
+        capabilities = getModelCapabilities(modelId);
+        console.error(`[PYTHON-EMBEDDING] Model capabilities for ${modelId}:`, capabilities);
+      }
+
+      // Send load_model request to Python process with capabilities
       const response = await this.sendJsonRpcRequest('load_model', {
         model_name: modelName,
+        model_id: modelId,
+        capabilities: capabilities,
         request_id: `load_model_${this.nextRequestId++}`
       }, 60000); // 60 second timeout for model loading
 
