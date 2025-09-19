@@ -306,13 +306,6 @@ export class PythonDocumentEnhancer {
   }
 
   /**
-   * Get total content length from chunks
-   */
-  private getTotalContentLength(chunks: ChunkSemanticData[]): number {
-    return chunks.reduce((total, chunk) => total + chunk.content.length, 0);
-  }
-
-  /**
    * Get sampling configuration based on options
    */
   private getSamplingConfig(): SamplingConfig {
