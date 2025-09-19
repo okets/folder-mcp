@@ -8,7 +8,6 @@
 import { IVectorSearchService, ILoggingService } from '../../../di/interfaces.js';
 import { EmbeddingVector, TextChunk, TextChunkMetadata, ChunkId } from '../../../types/index.js';
 import { SearchResult, LazySearchResult } from '../../../domain/search/index.js';
-import { ContentProcessingService, createContentProcessingService } from '../../../domain/content/processing.js';
 
 // Temporary type alias for compatibility with tests
 type EmbeddingVectorOrArray = EmbeddingVector | number[];
@@ -20,7 +19,6 @@ export interface SQLiteVecStorageConfig {
     modelName: string;
     modelDimension: number;
     logger?: ILoggingService;
-    contentProcessor?: ContentProcessingService;
 }
 
 export interface VectorMetadata {
@@ -54,12 +52,10 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private logger: ILoggingService | undefined;
     private ready: boolean = false;
     private config: SQLiteVecStorageConfig;
-    private contentProcessor: ContentProcessingService;
 
     constructor(config: SQLiteVecStorageConfig) {
         this.config = config;
         this.logger = config.logger;
-        this.contentProcessor = config.contentProcessor || createContentProcessingService();
 
         const dbConfig: DatabaseConfig = {
             folderPath: config.folderPath,
@@ -515,6 +511,51 @@ export class SQLiteVecStorage implements IVectorSearchService {
         const db = this.dbManager.getDatabase();
         const updateStmt = db.prepare('UPDATE documents SET fingerprint = ?, last_modified = CURRENT_TIMESTAMP WHERE file_path = ?');
         updateStmt.run(fingerprint, filePath);
+    }
+
+    /**
+     * Update document semantic fields after semantic processing
+     */
+    async updateDocumentSemantics(
+        filePath: string,
+        semanticData: {
+            semantic_summary: string;  // JSON string
+            primary_theme: string;
+            avg_readability_score: number;
+            topic_diversity_score: number;
+            phrase_richness_score: number;
+            extraction_method: string;
+            extraction_failed: boolean;
+            extraction_error?: string;
+            extraction_attempts: number;
+        }
+    ): Promise<void> {
+        if (!this.dbManager.isReady()) {
+            throw new Error('Database not initialized');
+        }
+
+        const db = this.dbManager.getDatabase();
+        const updateStmt = db.prepare(QUERIES.updateDocumentSemantics);
+
+        updateStmt.run(
+            semanticData.semantic_summary,
+            semanticData.primary_theme,
+            semanticData.avg_readability_score,
+            semanticData.topic_diversity_score,
+            semanticData.phrase_richness_score,
+            semanticData.extraction_method,
+            Date.now(), // semantic_extracted_at
+            semanticData.extraction_failed ? 1 : 0,
+            semanticData.extraction_error || null,
+            semanticData.extraction_attempts,
+            filePath
+        );
+
+        this.logger?.debug(`Updated document semantics for: ${filePath}`, {
+            method: semanticData.extraction_method,
+            theme: semanticData.primary_theme,
+            failed: semanticData.extraction_failed
+        });
     }
 
     /**

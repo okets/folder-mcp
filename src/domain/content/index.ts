@@ -22,14 +22,15 @@ export {
   findSentenceBoundaries
 } from './chunking.js';
 
-// Export processing implementations  
+// Export processing utilities (deprecated - use SemanticExtractionService for new workflows)
 export {
-  ContentProcessingService,
-  type ContentProcessingOperations,
+  transformContent,
+  enhanceContent,
+  generateSummary,
+  calculateReadabilityScore,
   type ContentTransformationOptions,
   type ContentEnhancement,
-  type EnhancedContent,
-  createContentProcessingService
+  type EnhancedContent
 } from './processing.js';
 
 // Re-export types for convenience

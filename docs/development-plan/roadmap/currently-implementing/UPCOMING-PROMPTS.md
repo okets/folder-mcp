@@ -102,7 +102,21 @@ The automated Code review system does not know what we worked on. I want you to:
 - the automated code review system might suggest changes that contradict our instruction not keep backwards compatibility. we are in pre-production and can do radical changes. do not accept suggestions that contradict this principle.
 
 MY Code review system's suggestions:
-1. 
+1. In src/domain/semantic/onnx-document-enhancer.ts around line 261, the extraction method is labeled 'onnx_embedding' but the implementation uses string similarity clustering rather than embeddings; update the method name to a more accurate identifier (e.g., 'onnx_similarity' or 'string_clustering') and update any downstream consumers/tests/config that rely on this method string to maintain compatibility; ensure the new name is used consistently in logs, outputs, and type definitions.
+2. In src/domain/semantic/onnx-document-enhancer.ts around lines 106 to 108, the method name performEmbeddingBasedClustering is misleading because the implementation uses string similarity (Jaccard index) rather than embeddings; either rename the method to performSimilarityBasedClustering (and update all call sites and any exported types/imports) or implement true embedding-based clustering by computing embeddings for items, replacing the Jaccard similarity logic with a vector-similarity or clustering algorithm (and ensure any dependencies/config for embedding model are added and tests updated accordingly).
+3. In src/domain/semantic/onnx-document-enhancer.ts around line 271, the method named calculateEmbeddingCoherence is misleading because it computes Jaccard word-overlap between topics and phrases rather than using embeddings; rename the method to calculateJaccardCoherence (or calculateOverlapCoherence) and update its declaration and all call sites (including the call at line 235) to use the new name, keeping the same parameters and return type so behavior remains unchanged.
+
+4. In src/domain/semantic/document-semantic-service.ts around lines 151 to 154, the code uses `as any` to access getServiceType which bypasses type safety; remove the `as any` cast and either (a) extend the IEmbeddingService interface to include getServiceType and type the context.embeddingService accordingly, or (b) add a narrow type guard (e.g., function 
+hasGetServiceType(x): x is { getServiceType(): string }) and use it before calling getServiceType, falling back to 'unknown' when the guard fails; ensure the variable is properly typed instead of using `any`.
+
+5. In src/domain/semantic/document-semantic-service.ts, lines 22 to 23, The import satement.
+Dependency inversion violation: Domain importing from Infrastructure.
+The domain layer should not directly import from the infrastructure layer. Instead, define interfaces in the domain that infrastructure implements.
+Consider moving the PythonEmbeddingService type to an interface in the domain layer or using the existing IEmbeddingService interface with proper type guards.
+
+6. In src/infrastructure/embeddings/sqlite-vec/schema.ts around lines 199–212, the updateDocumentSemantics query references columns that do not exist on the DOCUMENTS_TABLE (defined earlier at lines ~31–41); this will cause runtime SQL errors. Fix by either (A) adding the missing columns to the DOCUMENTS_TABLE schema (semantic_summary, primary_theme, avg_readability_score, topic_diversity_score, phrase_richness_score, extraction_method, semantic_extracted_at, extraction_failed, extraction_error, extraction_attempts) with appropriate SQLite types and defaults, or (B) if those fields belong to a different table, change the query to update that correct table instead; ensure migrations/schema creation code is updated accordingly so the columns exist before this UPDATE runs.
+
+7. In src/domain/semantic/document-aggregator.ts around lines 101 to 103, the current timeout check only runs after all processing finishes which wastes work; modify the aggregation flow to support early cancellation by wiring an AbortSignal (or similar) into the long-running processing steps and checking it periodically inside loops or async tasks, or use a Promise.race with a timeout that triggers an AbortController; ensure the aggregator creates an AbortController when starting work, passes its signal into each sub-operation, has those operations check signal.aborted (or call throw on abort) at safe points, and that the controller is triggered by a setTimeout based on this.options.max_processing_time_ms so processing stops immediately when time is exceeded rather than after completion.
 
 ────────────────────────────────────────────────────────────────────
                      ***Upcoming Prompts***
@@ -216,7 +230,7 @@ This is my design for where the python comes in play in our lifecycle, (infer
 ────────────────────────────────────────────────────────────────────
                      ***Smoke test***
 ────────────────────────────────────────────────────────────────────
-looking for a good Smoke test? these are our currently indexed folders [Image #1] each indexed using a different model.
+There are our currently 5 indexed folders, one for each curated model.
 DB path example: tmp/test-cpu-xenova-multilingual-e5-large/.folder-mcp/embeddings.db
 Run the test routine to trigger re-indexing: 
 1. for each of our indexed folders, remove the .folder-mcp folder we created that contains our database files.

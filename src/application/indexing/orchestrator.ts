@@ -39,6 +39,11 @@ import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../
 import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
 import { IPythonSemanticService } from '../../domain/semantic/interfaces.js';
 
+// Document semantic service for Sprint 0
+import { DocumentSemanticService, DocumentContext } from '../../domain/semantic/document-semantic-service.js';
+import type { ChunkSemanticData } from '../../domain/semantic/document-aggregator.js';
+import type { DocumentAggregationResult } from '../../types/document-semantic.js';
+
 // Model evaluation for context window detection
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
 
@@ -49,6 +54,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   
   // Semantic extraction service - using new KeyBERT-based service
   private semanticExtractionService: ISemanticExtractionService | null = null;
+
+  // Document semantic service for Sprint 0
+  private documentSemanticService: DocumentSemanticService | null = null;
   
   // Performance tracking for benchmarking
   private performanceMetrics = {
@@ -474,8 +482,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         };
         
         result.errors.push(indexingError);
-        this.loggingService.error('File processing failed', error instanceof Error ? error : new Error(String(error)), { 
-          filePath: fingerprint.path 
+        this.loggingService.error('File processing failed', error instanceof Error ? error : new Error(String(error)), {
+          filePath: fingerprint.path
         });
       }
 
@@ -595,6 +603,19 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
     // Extract semantic metadata for each chunk (Sprint 10)
     const chunksWithSemantics = await this.extractSemanticMetadata(chunks, modelId);
+
+    // Sprint 0: Document-level semantic aggregation
+    let documentSemanticResult: DocumentAggregationResult | null = null;
+    try {
+      documentSemanticResult = await this.processDocumentSemantics(
+        filePath,
+        chunksWithSemantics,
+        modelId
+      );
+    } catch (error) {
+      this.loggingService.error(`[DOCUMENT-SEMANTICS] Failed to process document semantics for ${filePath}:`, error instanceof Error ? error : new Error(String(error)));
+      // Continue with indexing even if document semantics fail
+    }
 
     // Report total chunks
     if (progressCallback) {
@@ -995,6 +1016,92 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       embeddingModelAdapter
     );
     this.loggingService.debug('[SEMANTIC-INIT] Semantic extraction service created successfully');
+  }
+
+  /**
+   * Process document-level semantic aggregation (Sprint 0)
+   */
+  private async processDocumentSemantics(
+    filePath: string,
+    chunks: TextChunk[],
+    modelId: string
+  ): Promise<DocumentAggregationResult> {
+    // Initialize document semantic service if needed
+    if (!this.documentSemanticService) {
+      this.documentSemanticService = new DocumentSemanticService({}, this.loggingService);
+    }
+
+    // Get embedding service for the model
+    const embeddingService = await this.getEmbeddingServiceForModel(modelId);
+
+    // Convert chunks to ChunkSemanticData format
+    const chunkSemanticData: ChunkSemanticData[] = chunks.map((chunk, index) => ({
+      id: index, // Use index as temporary ID
+      content: chunk.content,
+      semanticMetadata: {
+        topics: chunk.semanticMetadata?.topics || [],
+        keyPhrases: chunk.semanticMetadata?.keyPhrases || [],
+        readabilityScore: chunk.semanticMetadata?.readabilityScore ?? null
+      }
+    }));
+
+    // Create document context
+    const context: DocumentContext = {
+      documentId: 0, // Will be updated when we get the actual document ID
+      filePath,
+      modelId,
+      embeddingService
+    };
+
+    // Process document semantics
+    const result = await this.documentSemanticService.processDocumentSemantics(context, chunkSemanticData);
+
+    // Save semantic data to database if processing succeeded
+    if (result.success && this.vectorSearchService) {
+      try {
+        await this.saveDocumentSemanticData(filePath, result);
+      } catch (error) {
+        this.loggingService.error(`[DOCUMENT-SEMANTICS] Failed to save semantic data for ${filePath}:`, error instanceof Error ? error : new Error(String(error)));
+        // Don't fail the whole process if saving fails
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Save document semantic data to database
+   */
+  private async saveDocumentSemanticData(
+    filePath: string,
+    result: DocumentAggregationResult
+  ): Promise<void> {
+    // Check if vector search service supports semantic updates
+    const storage = this.vectorSearchService as any;
+    if (storage && typeof storage.updateDocumentSemantics === 'function') {
+      const semanticData = {
+        semantic_summary: JSON.stringify(result.semantic_summary),
+        primary_theme: result.primary_theme,
+        avg_readability_score: result.semantic_summary.metrics.avg_readability,
+        topic_diversity_score: result.semantic_summary.metrics.topic_diversity,
+        phrase_richness_score: result.semantic_summary.metrics.phrase_richness,
+        extraction_method: result.extraction_method,
+        extraction_failed: !result.success,
+        extraction_error: result.success ? undefined : result.warnings?.join('; '),
+        extraction_attempts: 1
+      };
+
+      await storage.updateDocumentSemantics(filePath, semanticData);
+
+      this.loggingService.debug(`[DOCUMENT-SEMANTICS] Saved semantic data for ${filePath}:`, {
+        method: semanticData.extraction_method,
+        theme: semanticData.primary_theme,
+        topicsCount: result.semantic_summary.top_topics.length,
+        phrasesCount: result.semantic_summary.top_phrases.length
+      });
+    } else {
+      this.loggingService.warn(`[DOCUMENT-SEMANTICS] Vector search service does not support semantic updates for ${filePath}`);
+    }
   }
 
   /**
