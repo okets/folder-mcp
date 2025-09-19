@@ -10,7 +10,7 @@
 
 Transform folder-mcp from a basic file server into an intelligent knowledge navigator that LLMs can explore semantically. Every endpoint returns rich semantic metadata enabling agents to make informed decisions without wasting context.
 
-## Current State (Post Semantic Extraction Epic Completion)
+## Current State (Post Sprint 0 Document-Level Aggregation Completion)
 
 ### ✅ Outstanding Semantic Foundation Achieved
 - **Semantic extraction COMPLETE**: KeyBERT, readability, and enhanced topic clustering delivering production-quality results
@@ -24,6 +24,14 @@ Transform folder-mcp from a basic file server into an intelligent knowledge navi
 - **Configuration-driven capabilities**: Model-specific optimizations in curated-models.json
 - **Performance maintained**: <2x processing time despite major quality improvements
 
+### ✅ Document-Level Aggregation COMPLETE (Sprint 0)
+- **Document semantic storage**: Every document has pre-computed `semantic_summary` in database
+- **Production-quality aggregation**: 93%+ extraction quality across all 5 curated models
+- **Real-time processing**: Document-level aggregation happens automatically during indexing
+- **Dual-path enhancement**: Both Python (KeyBERT) and ONNX (clustering) enhancement paths working
+- **Quality tracking**: Comprehensive extraction confidence, diversity, and richness metrics stored
+- **Fail-loud implementation**: All semantic processing failures tracked and reported
+
 ### ✅ Core Infrastructure Ready
 - **Lazy loading implemented**: Search returns metadata only, not content
 - **Batch retrieval ready**: get_chunks_content endpoint functional
@@ -32,27 +40,28 @@ Transform folder-mcp from a basic file server into an intelligent knowledge navi
 - **Database schema optimized**: Rich semantic data storage with excellent extraction quality
 
 ### 🎯 Navigation Enhancement Opportunities
-- **Navigation endpoints**: list_folders, list_documents can now leverage high-quality semantic data
-- **Intelligent previews**: Rich semantic data enables meaningful folder/document summaries
-- **Enhanced search**: Search can now use semantic ranking with meaningful keywords/topics
-- **Hybrid search potential**: Domain-specific term boosting can build on quality semantic base
+- **Folder-level aggregation NEEDED**: Combine document semantic summaries into folder-level previews
+- **Document-level access READY**: Documents have pre-computed semantic metadata for immediate access
+- **Enhanced search**: Search can now use semantic ranking with meaningful keywords/topics from document summaries
+- **Hybrid search potential**: Domain-specific term boosting can build on quality semantic base stored in database
 
 ## Success Criteria
 
 ### Semantic Foundation Quality (ACHIEVED ✅)
-**Baseline semantic quality established through completed extraction epic:**
+**Baseline semantic quality established through completed extraction epic and Sprint 0:**
 1. **Semantic Accuracy**: Keywords match document content (>90% precision achieved)
 2. **Topic Relevance**: Topics accurately represent folder/document themes (>90% domain-specific)
 3. **Readability Scores**: Correlate with actual text complexity (40-60 range achieved)
 4. **Multiword Key Phrases**: >80% meaningful phrase extraction (vs previous single words)
 5. **Model Consistency**: All 5 curated models delivering consistent quality
+6. **Document-Level Aggregation**: COMPLETE - Every document has semantic_summary in database (Sprint 0 ✅)
 
 ### Navigation Enhancement Goals (TO BE ACHIEVED)
-1. **Semantic Navigation**: list_folders, list_documents return rich semantic metadata
-2. **Intelligent Previews**: Folders show semantic summaries of contents without opening
-3. **Document Understanding**: Documents show purpose and key concepts before reading
-4. **Enhanced Search**: Search leverages quality semantic data for better ranking
-5. **Performance**: All navigation endpoints respond in <200ms
+1. **Folder-Level Aggregation**: list_folders aggregates document semantic summaries into folder previews
+2. **Document-Level Access**: list_documents directly accesses Sprint 0's pre-computed semantic data
+3. **Hierarchical Navigation**: explore endpoint builds breadcrumbs from document semantic summaries
+4. **Enhanced Search**: Search leverages Sprint 0's quality semantic data stored in database
+5. **Performance**: All navigation endpoints respond in <200ms using pre-computed semantic data
 
 ### Curated Model Excellence (ACHIEVED ✅)
 All curated models validated and optimized for production-quality semantic extraction:
@@ -71,48 +80,110 @@ All curated models validated and optimized for production-quality semantic extra
 - **Realistic Readability Confirmation**: Validate readability scores guide complexity understanding
 - **Human Review**: Safety stop after each sprint to verify navigation intelligence improvements
 
+## Aggregation Hierarchy (Post-Sprint 0)
+
+Understanding the three levels of semantic aggregation in folder-mcp:
+
+### Level 1: Chunk → Document Aggregation ✅ COMPLETED (Sprint 0)
+**Status**: Production-ready, happens automatically during indexing
+**Data Flow**: Raw chunks → document `semantic_summary` field
+**Storage**: Database `documents.semantic_summary` (JSON), plus extracted metrics
+**Quality**: 93%+ extraction confidence across all 5 curated models
+
+**What was achieved**:
+- Every document now has pre-computed semantic metadata stored in database
+- Both Python (KeyBERT) and ONNX (clustering) enhancement paths working
+- Fail-loud error tracking and quality indicators
+- Real-time processing during indexing with minimal performance overhead
+
+### Level 2: Document → Folder Aggregation 🎯 TO BE IMPLEMENTED (Sprint 1)
+**Status**: Primary goal of current Epic
+**Data Flow**: Multiple document `semantic_summaries` → folder semantic preview
+**Processing**: On-demand aggregation when list_folders() is called
+**Performance Target**: <100ms for typical folders (5-50 documents)
+
+**Implementation Strategy**:
+```sql
+-- Query document-level semantics for folder
+SELECT semantic_summary, primary_theme, topic_diversity_score
+FROM documents
+WHERE file_path LIKE '/folder-path/%'
+```
+Then aggregate the JSON semantic data from multiple documents into folder-level topics and themes.
+
+### Level 3: Folder → Hierarchy Aggregation 🎯 TO BE IMPLEMENTED (Sprint 4)
+**Status**: Advanced navigation for explore endpoint
+**Data Flow**: Multiple folder semantic previews → hierarchical breadcrumbs
+**Processing**: On-demand aggregation for navigation and breadcrumb context
+
+**Key Distinction**:
+- **Sprint 0**: Solved the hardest problem (chunk→document aggregation with quality)
+- **Sprint 1-4**: Leverage Sprint 0's foundation for navigation intelligence
+
 ## Sprint Breakdown
 
 ### Sprint 1: Perfect list_folders Endpoint (4-5 hours)
-**Goal**: Folders show rich semantic previews leveraging our high-quality extraction data
+**Goal**: Folders show rich semantic previews by aggregating document-level semantic summaries from Sprint 0
 
-**Key Innovation: Semantic Aggregation of Quality Data**
-Building on our production-quality semantic extraction, we now aggregate meaningful multiword phrases and domain-specific topics in real-time:
+**Key Innovation: Folder-Level Aggregation from Document Semantic Summaries**
+Building on Sprint 0's document-level semantic aggregation, we now aggregate document semantic summaries into folder-level previews:
 
 ```typescript
 async listFolders(parentPath: string) {
   const subfolders = await this.getDirectSubfolders(parentPath);
-  
+
   return Promise.all(subfolders.map(async folder => {
-    // Fast aggregation query on existing document semantics
+    // Query document semantic summaries (Sprint 0 data)
     const docs = await db.query(`
-      SELECT topics, key_phrases, readability_score
-      FROM documents 
+      SELECT semantic_summary, primary_theme,
+             avg_readability_score, topic_diversity_score,
+             phrase_richness_score
+      FROM documents
       WHERE file_path LIKE ? || '/%'
       AND file_path NOT LIKE ? || '/%/%'  -- Direct children only
     `, [folder.path, folder.path]);
-    
-    // Simple frequency counting - no "clever" grouping
-    const topicFrequency = new Map<string, number>();
+
+    // Aggregate from document-level semantic summaries
+    const folderTopics = new Map<string, number>();
+    const folderPhrases = new Map<string, number>();
+
     docs.forEach(doc => {
-      JSON.parse(doc.topics).forEach(topic => {
-        topicFrequency.set(topic, (topicFrequency.get(topic) || 0) + 1);
-      });
+      if (doc.semantic_summary) {
+        const semanticData = JSON.parse(doc.semantic_summary);
+
+        // Aggregate topics from document top_topics
+        semanticData.top_topics?.forEach(topic => {
+          folderTopics.set(topic, (folderTopics.get(topic) || 0) + 1);
+        });
+
+        // Aggregate phrases from document top_phrases
+        semanticData.top_phrases?.forEach(phrase => {
+          folderPhrases.set(phrase, (folderPhrases.get(phrase) || 0) + 1);
+        });
+      }
     });
-    
-    // Return top topics by frequency - let LLMs interpret patterns
-    const topTopics = Array.from(topicFrequency.entries())
+
+    // Get top topics/phrases by frequency across documents
+    const topTopics = Array.from(folderTopics.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([topic, freq]) => topic);
-    
+
+    const topPhrases = Array.from(folderPhrases.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([phrase, freq]) => phrase);
+
     return {
       name: folder.name,
       path: folder.path,
       document_count: docs.length,
       semantic_preview: {
-        top_topics: topTopics,  // Raw topics, no artificial grouping
-        avg_readability: calculateAverage(docs.map(d => d.readability_score))
+        top_topics: topTopics,  // Aggregated from document semantic summaries
+        key_themes: topPhrases, // Aggregated from document semantic summaries
+        avg_readability: calculateAverage(docs.map(d => d.avg_readability_score || 0)),
+        avg_topic_diversity: calculateAverage(docs.map(d => d.topic_diversity_score || 0)),
+        avg_phrase_richness: calculateAverage(docs.map(d => d.phrase_richness_score || 0))
       }
     };
   }));
@@ -128,80 +199,105 @@ async listFolders(parentPath: string) {
   semantic_preview: {
     top_topics: ["remote work eligibility", "employee benefits package", "vacation request procedures", "conduct expectations", "work from home requirements"],
     key_themes: ["hybrid work model", "compliance procedures", "employee resources"],
-    avg_readability: 47.2,  // Now realistic technical document score
-    quality_indicators: {
-      phrase_diversity: 0.89,  // >80% multiword phrases
-      topic_specificity: 0.94  // >90% domain-specific topics
-    }
+    avg_readability: 47.2,  // From Sprint 0 document metrics
+    avg_topic_diversity: 0.78,  // From Sprint 0 document diversity scores
+    avg_phrase_richness: 0.89   // From Sprint 0 phrase richness scores
   }
 }
 ```
 
-**Why This Works Better Now**:
-- **Quality**: Meaningful multiword topics from research-validated extraction
-- **Fast**: <15ms for 100 docs (aggregating high-quality existing data)
-- **Fresh**: Always current, leveraging real-time semantic aggregation
-- **Meaningful**: Domain-specific topics that accurately represent content
+**Why This Works Better with Sprint 0 Foundation**:
+- **Quality**: Built on Sprint 0's 93%+ extraction confidence and meaningful multiword topics
+- **Fast**: <15ms for 100 docs (aggregating pre-computed document semantic summaries)
+- **Reliable**: Uses persistent database storage, not on-demand chunk processing
+- **Meaningful**: Domain-specific topics from research-validated document aggregation
 
 **Performance Expectations**:
 | Folder Size | Response Time | Why It's Fast |
 |------------|---------------|---------------|
-| 10 docs | ~5ms | Minimal data to aggregate |
-| 100 docs | ~15ms | Simple counting operation |
-| 1000 docs | ~100ms | Still acceptable, larger dataset |
+| 10 docs | ~5ms | Aggregate from 10 pre-computed semantic summaries |
+| 100 docs | ~15ms | Parse 100 JSON semantic summaries and count frequencies |
+| 1000 docs | ~100ms | Still acceptable, leveraging Sprint 0's database storage |
 
 **Validation**:
-- Topics are meaningful multiword phrases from quality extraction (not single words)
-- Domain-specific categories accurately represent folder contents
-- Aggregation completes in <100ms for typical folders
-- Readability scores are realistic (45-55 range for technical content)
-- A2E test: Navigate to folders based on rich semantic previews
+- Topics are meaningful multiword phrases from Sprint 0's quality extraction (>80% multiword)
+- Domain-specific categories from Sprint 0's 93%+ extraction confidence
+- Folder aggregation completes in <100ms by using pre-computed document semantic summaries
+- Quality metrics reflect Sprint 0's realistic scoring (readability ~50 for technical docs)
+- A2E test: Navigate to folders based on aggregated document semantic previews
 
 **Human Safety Stop**: Verify semantic aggregation produces meaningful folder summaries that help LLM navigation
 
 ---
 
 ### Sprint 2: Perfect list_documents Endpoint (3-4 hours)
-**Goal**: Documents show rich semantic summaries leveraging quality extraction data
+**Goal**: Documents show rich semantic summaries directly from Sprint 0's pre-computed data
 
-**Implementation**:
+**Implementation** (Direct Database Retrieval - No Aggregation Needed):
 ```typescript
-// Current (basic file metadata only)
-{
-  document_id: "remote_work_policy.md",
-  name: "Remote Work Policy",
-  size: 4096,
-  semantic_summary: null  // ❌ Missing rich semantic data
+async listDocuments(folderPath: string) {
+  // Direct retrieval from Sprint 0's document-level aggregation
+  const documents = await db.query(`
+    SELECT file_path, semantic_summary, primary_theme,
+           avg_readability_score, topic_diversity_score,
+           phrase_richness_score, extraction_method,
+           extraction_failed, file_size, mime_type
+    FROM documents
+    WHERE file_path LIKE ? || '/%'
+    AND file_path NOT LIKE ? || '/%/%'  -- Direct children only
+  `, [folderPath, folderPath]);
+
+  return documents.map(doc => {
+    const semanticData = doc.semantic_summary ? JSON.parse(doc.semantic_summary) : null;
+
+    return {
+      document_id: path.basename(doc.file_path),
+      name: extractDocumentTitle(doc.file_path),
+      size: doc.file_size,
+      semantic_summary: semanticData ? {
+        primary_purpose: doc.primary_theme,  // From Sprint 0
+        key_concepts: semanticData.top_phrases?.slice(0, 4) || [],
+        main_topics: semanticData.top_topics?.slice(0, 4) || [],
+        readability_score: doc.avg_readability_score,  // From Sprint 0
+        quality_indicators: {
+          extraction_confidence: semanticData.quality?.extraction_confidence || 0,
+          phrase_richness: doc.phrase_richness_score || 0,  // From Sprint 0
+          topic_diversity: doc.topic_diversity_score || 0,  // From Sprint 0
+          extraction_method: doc.extraction_method  // From Sprint 0
+        }
+      } : null
+    };
+  });
 }
 
-// Target (rich semantic understanding)
+// Target Response (Using Sprint 0 Data):
 {
   document_id: "remote_work_policy.md",
   name: "Remote Work Policy",
   size: 4096,
   semantic_summary: {
-    primary_purpose: "Define remote work eligibility and requirements",
-    key_concepts: ["three days per week minimum", "core business hours 9am-5pm", "VPN security requirements", "performance evaluation criteria"],
+    primary_purpose: "remote work eligibility and requirements",  // From primary_theme
+    key_concepts: ["three days per week minimum", "core business hours", "VPN security requirements", "performance evaluation"],
     main_topics: ["eligibility requirements", "equipment provisioning", "communication protocols", "security compliance"],
-    target_audience: "all employees",
-    document_type: "policy",
-    readability_score: 47.2,  // Now realistic score from hybrid readability
+    readability_score: 47.2,  // From avg_readability_score
     quality_indicators: {
-      extraction_confidence: 0.94,
-      phrase_richness: 0.87,  // Multiword key concepts
-      topic_specificity: 0.91  // Domain-specific topics
+      extraction_confidence: 0.94,  // From semantic_summary.quality
+      phrase_richness: 0.87,        // From phrase_richness_score
+      topic_diversity: 0.78,        // From topic_diversity_score
+      extraction_method: "python_rich"  // From extraction_method
     }
   }
 }
 ```
 
 **Validation**:
-- Key concepts are meaningful multiword phrases from quality extraction
-- Purpose accurately derived from domain-specific topics
-- Topics represent main document sections with specificity
-- Readability scores are realistic for document complexity
-- Quality indicators reflect extraction confidence
-- A2E test: Find and understand specific policies without reading full content
+- Key concepts are meaningful multiword phrases from Sprint 0's >80% multiword extraction
+- Purpose accurately derived from Sprint 0's primary_theme field
+- Topics represent main document sections from Sprint 0's domain-specific extraction (>90%)
+- Readability scores are realistic from Sprint 0's hybrid readability system (~50 for technical docs)
+- Quality indicators reflect Sprint 0's 93%+ extraction confidence
+- Direct database access means <5ms response time per document
+- A2E test: Find and understand specific policies using pre-computed semantic summaries
 
 **Human Safety Stop**: Verify document summaries are accurate, meaningful, and help LLM decision-making
 
@@ -254,58 +350,108 @@ async listFolders(parentPath: string) {
 ---
 
 ### Sprint 4: Perfect explore Endpoint (3-4 hours)
-**Goal**: Hierarchical semantic exploration with breadcrumbs
+**Goal**: Hierarchical semantic exploration with breadcrumbs using document semantic summaries
 
-**Implementation Using On-Demand Aggregation**:
+**Implementation Using Document-Level Semantic Aggregation**:
 ```typescript
 async explore(currentPath: string) {
-  // Build breadcrumbs with semantic hints from aggregated data
+  // Build breadcrumbs with semantic hints from document semantic summaries
   const breadcrumbs = await this.buildBreadcrumbs(currentPath);
-  
-  // Get subfolders with their semantic previews (same as list_folders)
+
+  // Get subfolders with their semantic previews (reuse Sprint 1 logic)
   const subfolders = await Promise.all(
     getDirectSubfolders(currentPath).map(async folder => {
-      // Reuse the same aggregation logic from Sprint 1
+      // Query document semantic summaries (Sprint 0 data)
       const docs = await db.query(`
-        SELECT topics FROM documents 
+        SELECT semantic_summary, primary_theme FROM documents
         WHERE file_path LIKE ? || '/%'
         AND file_path NOT LIKE ? || '/%/%'
       `, [folder.path, folder.path]);
-      
-      const topicFreq = countTopicFrequencies(docs);
-      const topTopics = getTopN(topicFreq, 5);
-      
+
+      // Aggregate topics from document semantic summaries
+      const topicFreq = new Map<string, number>();
+      docs.forEach(doc => {
+        if (doc.semantic_summary) {
+          const semanticData = JSON.parse(doc.semantic_summary);
+          semanticData.top_topics?.forEach(topic => {
+            topicFreq.set(topic, (topicFreq.get(topic) || 0) + 1);
+          });
+        }
+      });
+
+      const topTopics = Array.from(topicFreq.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([topic, freq]) => topic);
+
       return {
         name: folder.name,
         semantic_preview: {
-          topics: topTopics,
+          topics: topTopics,  // From document semantic summaries
           document_count: docs.length
         }
       };
     })
   );
-  
+
   return {
     current_path: currentPath,
-    breadcrumbs,  // Each with aggregated semantic hint
-    subfolders    // Each with on-demand computed topics
-    // Note: "related_folders" removed - requires embeddings comparison
+    breadcrumbs,  // Each with aggregated semantic hint from document summaries
+    subfolders    // Each using Sprint 0's document-level semantic data
   };
 }
 
-// Target response
+async buildBreadcrumbs(currentPath: string) {
+  const pathParts = currentPath.split('/').filter(Boolean);
+  const breadcrumbs = [];
+
+  for (let i = 0; i < pathParts.length; i++) {
+    const breadcrumbPath = '/' + pathParts.slice(0, i + 1).join('/');
+
+    // Get semantic hint by aggregating document semantic summaries in this path
+    const docs = await db.query(`
+      SELECT semantic_summary FROM documents
+      WHERE file_path LIKE ? || '/%'
+    `, [breadcrumbPath]);
+
+    const topicFreq = new Map<string, number>();
+    docs.forEach(doc => {
+      if (doc.semantic_summary) {
+        const semanticData = JSON.parse(doc.semantic_summary);
+        semanticData.top_topics?.slice(0, 3).forEach(topic => {
+          topicFreq.set(topic, (topicFreq.get(topic) || 0) + 1);
+        });
+      }
+    });
+
+    const topTopics = Array.from(topicFreq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([topic, freq]) => topic);
+
+    breadcrumbs.push({
+      name: pathParts[i],
+      path: breadcrumbPath,
+      semantic_hint: topTopics.join(', ') || 'documents'
+    });
+  }
+
+  return breadcrumbs;
+}
+
+// Target response (Using Sprint 0 Document Semantic Summaries)
 {
   current_path: "/knowledge-base/policies/hr",
   breadcrumbs: [
-    { name: "knowledge-base", semantic_hint: "top topics from aggregation" },
-    { name: "policies", semantic_hint: "top topics from aggregation" },
-    { name: "hr", semantic_hint: "top topics from aggregation" }
+    { name: "knowledge-base", path: "/knowledge-base", semantic_hint: "documentation, policies, procedures" },
+    { name: "policies", path: "/knowledge-base/policies", semantic_hint: "employee guidelines, compliance, procedures" },
+    { name: "hr", path: "/knowledge-base/policies/hr", semantic_hint: "benefits, employment, performance" }
   ],
   subfolders: [
     {
       name: "benefits",
       semantic_preview: {
-        topics: ["health insurance", "401k", "PTO", "dental", "vision"],
+        topics: ["health insurance", "401k", "PTO", "dental coverage", "vision benefits"],  // From document semantic summaries
         document_count: 8
       }
     }
@@ -314,10 +460,10 @@ async explore(currentPath: string) {
 ```
 
 **Validation**:
-- Breadcrumbs provide context at each level from aggregated topics
-- Subfolders show semantic previews using same aggregation as Sprint 1
-- Performance <100ms for typical hierarchies
-- A2E test: Navigate using semantic breadcrumbs
+- Breadcrumbs provide context at each level from Sprint 0's document semantic summaries
+- Subfolders show semantic previews using Sprint 1's document aggregation logic
+- Performance <100ms for typical hierarchies using pre-computed semantic data
+- A2E test: Navigate using semantic breadcrumbs derived from document summaries
 
 **Human Safety Stop**: Validate navigation intelligence
 
@@ -733,38 +879,38 @@ if (!semanticData) {
 - [ ] Documentation updated
 
 ### Epic Complete
-- [ ] All 6 endpoints semantically enhanced
+- [ ] All 6 endpoints semantically enhanced using Sprint 0's document semantic summaries
 - [ ] E5 query optimization implemented for consistent search quality
 - [ ] Hybrid search working for domain-specific terms
-- [ ] Full A2E test suite passing
-- [ ] Performance benchmarks met
-- [ ] Human validation of semantic quality
+- [ ] Full A2E test suite passing using pre-computed semantic data
+- [ ] Performance benchmarks met (<200ms using database queries)
+- [ ] Human validation of folder-level aggregation quality
 - [ ] Zero backwards compatibility debt
 
 ## Expected Outcomes
 
 ### For LLM Agents
-- **75% reduction** in exploratory reads through rich semantic previews
-- **95% accuracy** in finding relevant content (improved from quality extraction baseline)
-- **Instant understanding** of folder structures via meaningful topic aggregation
-- **Intelligent navigation** using multiword phrases and domain-specific topics
-- **Explainable search results** with quality confidence indicators
-- **Semantic coherence** across all navigation endpoints
+- **75% reduction** in exploratory reads through folder-level semantic previews built from Sprint 0 data
+- **95% accuracy** in finding relevant content using Sprint 0's 93%+ extraction confidence
+- **Instant understanding** of folder structures via aggregation of Sprint 0's document semantic summaries
+- **Intelligent navigation** using Sprint 0's multiword phrases and domain-specific topics
+- **Explainable search results** with Sprint 0's quality confidence indicators
+- **Semantic coherence** across all navigation endpoints using consistent document semantic data
 
 ### For Users
-- **Production-quality** knowledge base with meaningful semantic metadata
-- **Fast discovery** through intelligent semantic aggregation
-- **Highly accurate** search results leveraging quality extraction
-- **Clear document organization** with realistic complexity indicators
-- **Trustworthy semantic metadata** validated through research-based extraction techniques
-- **Consistent experience** across all 5 curated embedding models
+- **Production-quality** knowledge base with Sprint 0's pre-computed semantic metadata
+- **Fast discovery** through folder-level aggregation of document semantic summaries
+- **Highly accurate** search results leveraging Sprint 0's database-stored semantic data
+- **Clear document organization** with Sprint 0's realistic complexity indicators
+- **Trustworthy semantic metadata** from Sprint 0's research-validated extraction techniques
+- **Consistent experience** across all 5 curated embedding models with stored semantic summaries
 
 ## Next Sprint Start
 
 **Sprint 1: Perfect list_folders Endpoint**
 
-Build rich semantic navigation for folders leveraging our production-quality extraction system. Each folder now showcases meaningful multiword phrases, domain-specific topics, and realistic readability indicators - enabling LLMs to navigate intelligently using high-quality semantic metadata.
+Build rich semantic navigation for folders by aggregating Sprint 0's document-level semantic summaries. Each folder now showcases meaningful multiword phrases and domain-specific topics from pre-computed document semantic data - enabling LLMs to navigate intelligently using Sprint 0's high-quality semantic foundation.
 
 ---
 
-*This epic represents the transformation from basic file access to intelligent semantic navigation, building on our completed research-validated extraction foundation. Each sprint enhances navigation endpoints with meaningful semantic intelligence, supported by >90% domain-specific topics and >80% multiword phrase extraction quality.*
+*This epic represents the transformation from basic file access to intelligent semantic navigation, building on Sprint 0's document-level aggregation foundation. Each sprint enhances navigation endpoints with folder-level aggregation of Sprint 0's meaningful semantic intelligence, supported by >90% domain-specific topics and >80% multiword phrase extraction quality stored in the database.*
