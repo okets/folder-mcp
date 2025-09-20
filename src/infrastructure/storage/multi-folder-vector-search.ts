@@ -58,7 +58,8 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
       }
       
       // Open new database connection
-      const db = new Database(dbPath, { readonly: true });
+      // Note: We need write access for updating document semantics
+      const db = new Database(dbPath, { readonly: false });
       
       // Check if database has embeddings
       const embeddingCount = db.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
@@ -303,12 +304,13 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
     };
   }
   
+
   /**
    * Close all open databases
    */
   async shutdown(): Promise<void> {
     this.logger.info(`[MULTI-FOLDER-SEARCH] Shutting down, closing ${this.databases.size} databases`);
-    
+
     for (const [dbPath, folderDb] of this.databases.entries()) {
       try {
         folderDb.db.close();
@@ -317,7 +319,7 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
         this.logger.warn(`[MULTI-FOLDER-SEARCH] Error closing database ${dbPath}: ${error}`);
       }
     }
-    
+
     this.databases.clear();
   }
 }

@@ -465,7 +465,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         }
         const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
-        
+
         // Collect embeddings and metadata for vector index
         if (fileResult.embeddings && fileResult.metadata) {
           allEmbeddings.push(...fileResult.embeddings);
@@ -513,7 +513,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
             this.loggingService.debug('Forced WAL checkpoint after indexing');
           }
         }
-        
+
         // Debug: Check if file states were persisted
         this.loggingService.debug('Checking file state persistence');
         
@@ -532,8 +532,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     return result;
   }
   async processFile(
-    filePath: string, 
-    modelId: string, 
+    filePath: string,
+    modelId: string,
     options: IndexingOptions = {},
     progressCallback?: (totalChunks: number, processedChunks: number) => void
   ): Promise<{
@@ -604,18 +604,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Extract semantic metadata for each chunk (Sprint 10)
     const chunksWithSemantics = await this.extractSemanticMetadata(chunks, modelId);
 
-    // Sprint 0: Document-level semantic aggregation
-    let documentSemanticResult: DocumentAggregationResult | null = null;
-    try {
-      documentSemanticResult = await this.processDocumentSemantics(
-        filePath,
-        chunksWithSemantics,
-        modelId
-      );
-    } catch (error) {
-      this.loggingService.error(`[DOCUMENT-SEMANTICS] Failed to process document semantics for ${filePath}:`, error instanceof Error ? error : new Error(String(error)));
-      // Continue with indexing even if document semantics fail
-    }
+    // Document-level semantic aggregation removed - not used in production
+    // Keeping only chunk-level semantics which are actually used
 
     // Report total chunks
     if (progressCallback) {
@@ -1056,15 +1046,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     // Process document semantics
     const result = await this.documentSemanticService.processDocumentSemantics(context, chunkSemanticData);
 
-    // Save semantic data to database if processing succeeded
-    if (result.success && this.vectorSearchService) {
-      try {
-        await this.saveDocumentSemanticData(filePath, result);
-      } catch (error) {
-        this.loggingService.error(`[DOCUMENT-SEMANTICS] Failed to save semantic data for ${filePath}:`, error instanceof Error ? error : new Error(String(error)));
-        // Don't fail the whole process if saving fails
-      }
-    }
+    // NOTE: We no longer save here - deferred until after buildIndex creates the documents
+    // The result will be returned and saved later in processFingerprints
 
     return result;
   }

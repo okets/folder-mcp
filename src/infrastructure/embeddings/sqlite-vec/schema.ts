@@ -37,18 +37,7 @@ CREATE TABLE IF NOT EXISTS documents (
     mime_type TEXT,
     last_modified TIMESTAMP NOT NULL,
     last_indexed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    needs_reindex INTEGER DEFAULT 0,
-    -- Document-level semantic metadata (Sprint 3)
-    semantic_summary TEXT,              -- JSON summary of document semantics
-    primary_theme TEXT,                 -- Primary topic/theme of document
-    avg_readability_score REAL,         -- Average readability across chunks
-    topic_diversity_score REAL,         -- Diversity of topics in document
-    phrase_richness_score REAL,         -- Richness of extracted phrases
-    extraction_method TEXT,             -- Method used for semantic extraction
-    semantic_extracted_at INTEGER,      -- Unix timestamp of semantic processing
-    extraction_failed INTEGER DEFAULT 0, -- Flag: 1 if semantic extraction failed
-    extraction_error TEXT,              -- Error message if extraction failed
-    extraction_attempts INTEGER DEFAULT 0 -- Number of extraction attempts
+    needs_reindex INTEGER DEFAULT 0
 );`;
 
 /**
@@ -207,20 +196,6 @@ export const QUERIES = {
     getDocument: 'SELECT * FROM documents WHERE file_path = ?',
     deleteDocument: 'DELETE FROM documents WHERE file_path = ?',
     markForReindex: 'UPDATE documents SET needs_reindex = 1 WHERE file_path = ?',
-    updateDocumentSemantics: `
-        UPDATE documents SET
-            semantic_summary = ?,
-            primary_theme = ?,
-            avg_readability_score = ?,
-            topic_diversity_score = ?,
-            phrase_richness_score = ?,
-            extraction_method = ?,
-            semantic_extracted_at = ?,
-            extraction_failed = ?,
-            extraction_error = ?,
-            extraction_attempts = ?
-        WHERE file_path = ?
-    `,
     
     // Chunk operations
     insertChunk: `

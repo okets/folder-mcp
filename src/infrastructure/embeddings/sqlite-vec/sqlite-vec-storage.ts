@@ -513,50 +513,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
         updateStmt.run(fingerprint, filePath);
     }
 
-    /**
-     * Update document semantic fields after semantic processing
-     */
-    async updateDocumentSemantics(
-        filePath: string,
-        semanticData: {
-            semantic_summary: string;  // JSON string
-            primary_theme: string;
-            avg_readability_score: number;
-            topic_diversity_score: number;
-            phrase_richness_score: number;
-            extraction_method: string;
-            extraction_failed: boolean;
-            extraction_error?: string;
-            extraction_attempts: number;
-        }
-    ): Promise<void> {
-        if (!this.dbManager.isReady()) {
-            throw new Error('Database not initialized');
-        }
-
-        const db = this.dbManager.getDatabase();
-        const updateStmt = db.prepare(QUERIES.updateDocumentSemantics);
-
-        updateStmt.run(
-            semanticData.semantic_summary,
-            semanticData.primary_theme,
-            semanticData.avg_readability_score,
-            semanticData.topic_diversity_score,
-            semanticData.phrase_richness_score,
-            semanticData.extraction_method,
-            Date.now(), // semantic_extracted_at
-            semanticData.extraction_failed ? 1 : 0,
-            semanticData.extraction_error || null,
-            semanticData.extraction_attempts,
-            filePath
-        );
-
-        this.logger?.debug(`Updated document semantics for: ${filePath}`, {
-            method: semanticData.extraction_method,
-            theme: semanticData.primary_theme,
-            failed: semanticData.extraction_failed
-        });
-    }
 
     /**
      * Delete document and all associated data
