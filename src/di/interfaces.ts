@@ -190,27 +190,32 @@ export interface IVectorSearchService {
    * Build vector index from embeddings
    */
   buildIndex(embeddings: EmbeddingVector[], metadata: any[]): Promise<void>;
-  
+
+  /**
+   * Add embeddings incrementally without clearing existing data
+   */
+  addEmbeddings?(embeddings: EmbeddingVector[], metadata: any[]): Promise<void>;
+
   /**
    * Load existing vector index
    */
   loadIndex(indexPath: string): Promise<void>;
-  
+
   /**
    * Search for similar vectors
    */
   search(queryVector: EmbeddingVector, topK?: number, threshold?: number): Promise<any[]>;
-  
+
   /**
    * Batch retrieve chunk content for lazy loading
    */
   getChunksContent?(chunkIds: string[]): Promise<Map<string, any>>;
-  
+
   /**
    * Check if index is loaded and ready
    */
   isReady(): boolean;
-  
+
   /**
    * Remove document from vector index
    */

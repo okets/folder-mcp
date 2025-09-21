@@ -15,10 +15,7 @@ import {
   IFileSystemService,
   IErrorRecoveryService,
   ILoggingService,
-  ITransportFactory,
-  ITransportManager,
-  SERVICE_TOKENS,
-  MODULE_TOKENS
+  SERVICE_TOKENS
 } from './interfaces.js';
 
 // Import domain infrastructure provider interfaces
@@ -28,7 +25,6 @@ import {
   PathProvider
 } from '../domain/index.js';
 
-import { DEFAULT_ENHANCED_MCP_CONFIG } from '../config/enhanced-mcp.js';
 import { SQLiteVecStorage } from '../infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
 
 import {
@@ -60,6 +56,7 @@ import { ResolvedConfig } from '../config/schema.js';
 import { DependencyContainer } from './container.js';
 import { IndexingOrchestrator } from '../application/indexing/orchestrator.js';
 import { IncrementalIndexer } from '../application/indexing/incremental.js';
+import { getDefaultModelId, getModelById } from '../config/model-registry.js';
 
 /**
  * Default service factory implementation
@@ -115,30 +112,26 @@ export class ServiceFactory implements IServiceFactory {
 
   async createVectorSearchService(cacheDir: string): Promise<IVectorSearchService> {
     const loggingService = this.getLoggingService();
-    
-    // Use MultiFolderVectorSearchService as the single canonical search service
-    // This service handles semantic metadata and multi-folder search capabilities
+
+    // Use SQLiteVecStorage which properly handles document-level semantics
+    // and has full Sprint 11 support for document embeddings and keywords
     const dbPath = `${cacheDir}/embeddings.db`;
-    loggingService.info(`Creating MultiFolderVectorSearchService with default database: ${dbPath}`);
-    
-    const { MultiFolderVectorSearchService } = await import('../infrastructure/storage/multi-folder-vector-search.js');
-    const service = new MultiFolderVectorSearchService(dbPath, loggingService);
-    
-    // Pre-load the default database if it exists
-    try {
-      await service.loadIndex(dbPath);
-      loggingService.debug(`Multi-folder vector search service initialized with default database: ${dbPath}`);
-    } catch (error: any) {
-      // Check for file not found error using error code (more reliable than message matching)
-      if (error?.code === 'ENOENT') {
-        loggingService.debug(`Database file not found at ${dbPath}, service created but not ready for search`);
-        // Service is created but not ready - this is acceptable for test scenarios
-      } else {
-        loggingService.warn(`Failed to initialize multi-folder vector search: ${error instanceof Error ? error.message : String(error)}`);
-        // Don't throw - allow service to be created even if initialization fails
-      }
-    }
-    
+    loggingService.info(`Creating SQLiteVecStorage with database: ${dbPath}`);
+
+    // Create config for SQLiteVecStorage
+    const defaultModelId = getDefaultModelId();
+    const defaultModel = getModelById(defaultModelId);
+    const config = {
+      folderPath: cacheDir,
+      modelName: defaultModelId,  // Use dynamic default model from registry
+      modelDimension: defaultModel?.dimensions || 768,   // Use model dimension, fallback to 768
+      logger: loggingService
+    };
+
+    const service = new SQLiteVecStorage(config);
+
+    // SQLiteVecStorage initializes itself in the constructor, no need to call initialize
+
     return service;
   }
 

@@ -540,6 +540,16 @@ return;
               
               await this.sqliteVecStorage.addEmbeddings(fileResult.embeddings, fileResult.metadata);
               this.logger.info(`[HUGE-DEBUG] ${fileName}: Successfully stored embeddings`);
+
+              // Store document-level semantics if available (Sprint 11)
+              if (fileResult.documentSemantics) {
+                await this.sqliteVecStorage.updateDocumentSemantics(
+                  task.file,
+                  fileResult.documentSemantics.documentEmbedding,
+                  fileResult.documentSemantics.documentKeywords,
+                  fileResult.documentSemantics.processingTimeMs
+                );
+              }
             } catch (dbError) {
               const error = dbError as Error;
               this.logger.error(`[HUGE-DEBUG] ${fileName}: Failed to store embeddings: ${error.message}`, error);

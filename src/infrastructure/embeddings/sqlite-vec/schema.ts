@@ -13,20 +13,22 @@ function getSchemaVersion(): number {
     try {
         const versionPath = join(process.cwd(), 'VERSION.json');
         const versionData = JSON.parse(readFileSync(versionPath, 'utf-8'));
-        return versionData.dbSchemaVersion || 2;
+        return versionData.dbSchemaVersion || 3;
     } catch (error) {
         // Fallback to default if VERSION.json is not found
         console.warn('Could not read VERSION.json, using default schema version');
-        return 2;
+        return 3;
     }
 }
 
 // Schema version from VERSION.json (or fallback)
+// Version 3: Added document-level embeddings and keywords (Sprint 11)
 export const SCHEMA_VERSION = getSchemaVersion();
 
 /**
  * Core document tracking table
  * Stores metadata about indexed files
+ * Enhanced with document-level embeddings and keywords (Sprint 11)
  */
 export const DOCUMENTS_TABLE = `
 CREATE TABLE IF NOT EXISTS documents (
@@ -37,7 +39,13 @@ CREATE TABLE IF NOT EXISTS documents (
     mime_type TEXT,
     last_modified TIMESTAMP NOT NULL,
     last_indexed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    needs_reindex INTEGER DEFAULT 0
+    needs_reindex INTEGER DEFAULT 0,
+    -- Document-level semantic data (Sprint 11)
+    document_embedding TEXT,              -- Serialized Float32Array of document embedding
+    document_keywords TEXT,               -- JSON array of {text, score} objects
+    keywords_extracted INTEGER DEFAULT 0, -- Flag: 1 if keywords have been extracted
+    embedding_generated INTEGER DEFAULT 0, -- Flag: 1 if embedding has been generated
+    document_processing_ms INTEGER        -- Time taken for document-level processing
 );`;
 
 /**
@@ -133,8 +141,10 @@ export const INDEXES = [
     'CREATE INDEX IF NOT EXISTS idx_file_states_state ON file_states(processing_state);',
     'CREATE INDEX IF NOT EXISTS idx_file_states_last_attempt ON file_states(last_attempt);',
     // Semantic indexes for Sprint 10
-    'CREATE INDEX IF NOT EXISTS idx_chunks_semantic_processed ON chunks(semantic_processed);'
-    // REMOVED: idx_folder_summary_updated (Phase 5 cleanup - table no longer exists)
+    'CREATE INDEX IF NOT EXISTS idx_chunks_semantic_processed ON chunks(semantic_processed);',
+    // Document-level semantic indexes for Sprint 11
+    'CREATE INDEX IF NOT EXISTS idx_documents_keywords_extracted ON documents(keywords_extracted);',
+    'CREATE INDEX IF NOT EXISTS idx_documents_embedding_generated ON documents(embedding_generated);'
 ];
 
 /**
@@ -188,7 +198,7 @@ export const VALIDATION_QUERIES = {
 export const QUERIES = {
     // Document operations
     insertDocument: `
-        INSERT OR REPLACE INTO documents 
+        INSERT OR REPLACE INTO documents
         (file_path, fingerprint, file_size, mime_type, last_modified, last_indexed)
         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `,
@@ -261,9 +271,32 @@ export const QUERIES = {
     getChunkCount: 'SELECT COUNT(*) as count FROM chunks',
     getEmbeddingCount: 'SELECT COUNT(*) as count FROM embeddings',
     getDatabaseSize: 'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()',
-    
-    // REMOVED: folder semantic summary queries (Phase 5 cleanup)
-    // Using runtime aggregation with aggregateSemanticData query instead
+
+    // Document-level semantic operations (Sprint 11)
+    updateDocumentEmbedding: `
+        UPDATE documents
+        SET document_embedding = ?,
+            embedding_generated = 1,
+            document_processing_ms = ?
+        WHERE id = ?
+    `,
+    updateDocumentKeywords: `
+        UPDATE documents
+        SET document_keywords = ?,
+            keywords_extracted = 1
+        WHERE id = ?
+    `,
+    getDocumentSemantics: `
+        SELECT document_embedding, document_keywords,
+               keywords_extracted, embedding_generated
+        FROM documents
+        WHERE id = ?
+    `,
+    getDocumentsNeedingSemantics: `
+        SELECT id, file_path
+        FROM documents
+        WHERE keywords_extracted = 0 OR embedding_generated = 0
+    `,
     
     // Aggregation query for building folder summaries
     aggregateSemanticData: `

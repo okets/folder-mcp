@@ -228,7 +228,6 @@ class FolderMCPDaemon {
         // This service dynamically loads the correct database for each folder
         const { MultiFolderVectorSearchService } = await import('../infrastructure/storage/multi-folder-vector-search.js');
         const vectorSearchService = new MultiFolderVectorSearchService(
-          `${process.cwd()}/.folder-mcp/embeddings.db`, // Default fallback path
           loggingService
         );
         

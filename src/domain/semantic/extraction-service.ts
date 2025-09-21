@@ -118,7 +118,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
    */
   async extractFromTextBatch(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
     const startTime = Date.now();
-    this.logger.info(`[SEMANTIC-BATCH] Starting batch semantic extraction for ${texts.length} texts`);
 
     try {
       // For GPU models with Python service, use batch KeyBERT processing
@@ -152,7 +151,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
    * Batch extraction using KeyBERT (for GPU models)
    */
   private async extractBatchWithKeyBERT(texts: string[]): Promise<SemanticData[]> {
-    this.logger.info(`[KEYBERT-BATCH] Processing ${texts.length} texts with KeyBERT batch processing`);
 
     if (!this.pythonService) {
       throw new Error('Python service not available for KeyBERT batch processing');
@@ -169,7 +167,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     const keyPhrasesArray = await this.pythonService.extractKeyPhrasesKeyBERTBatch(texts, this.options);
     const batchTime = Date.now() - batchStartTime;
 
-    this.logger.info(`[KEYBERT-BATCH] Batch KeyBERT extraction completed in ${batchTime}ms`);
 
     // Process each text result
     const results: SemanticData[] = [];
@@ -195,11 +192,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     }
 
     const totalTime = Date.now() - batchStartTime;
-    this.logger.info(`[KEYBERT-BATCH] Complete batch processing finished in ${totalTime}ms`, {
-      textsProcessed: texts.length,
-      avgTimePerText: totalTime / texts.length,
-      multiwordRatios: results.map(r => r.qualityMetrics?.multiwordRatio)
-    });
 
     return results;
   }
@@ -208,7 +200,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
    * Batch extraction using N-gram (for ONNX models)
    */
   private async extractBatchWithNGram(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
-    this.logger.info(`[NGRAM-BATCH] Processing ${texts.length} texts with N-gram extraction`);
 
     if (!this.ngramExtractor) {
       throw new Error('N-gram extractor not available for batch processing');
@@ -260,11 +251,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     }
 
     const totalTime = Date.now() - batchStartTime;
-    this.logger.info(`[NGRAM-BATCH] Complete batch processing finished in ${totalTime}ms`, {
-      textsProcessed: texts.length,
-      avgTimePerText: totalTime / texts.length,
-      multiwordRatios: results.map(r => r.qualityMetrics?.multiwordRatio)
-    });
 
     return results;
   }

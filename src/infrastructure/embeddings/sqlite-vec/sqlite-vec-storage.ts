@@ -51,6 +51,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private logger: ILoggingService | undefined;
     private ready: boolean = false;
     private config: SQLiteVecStorageConfig;
+    private preservedDocumentSemantics: any[] = []; // Sprint 11: Store preserved document-level data
 
     constructor(config: SQLiteVecStorageConfig) {
         this.config = config;
@@ -76,24 +77,17 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
     /**
      * Build vector index from embeddings and metadata
-     * This method replaces the existing index with new data
+     *
+     * This method completely replaces existing data in the index (unlike addEmbeddings
+     * which is incremental). It clears all existing data first, then adds the new
+     * embeddings, ensuring a clean index rebuild.
      */
     async buildIndex(embeddings: EmbeddingVectorOrArray[], metadata: VectorMetadata[]): Promise<void> {
+        // buildIndex should replace existing data completely (unlike addEmbeddings which is incremental)
+
         if (embeddings.length !== metadata.length) {
             throw new Error(`Embeddings count (${embeddings.length}) must match metadata count (${metadata.length})`);
         }
-
-        if (embeddings.length === 0) {
-            this.logger?.info('Building index with empty data set');
-            // Initialize database if not already done
-            if (!this.dbManager.isReady()) {
-                await this.dbManager.initialize();
-            }
-            this.ready = true;
-            return;
-        }
-
-        this.logger?.info(`Building vector index with ${embeddings.length} embeddings`);
 
         try {
             // Initialize database if not already done
@@ -101,18 +95,25 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 await this.dbManager.initialize();
             }
 
-            // Clear existing data and rebuild from scratch
+            // Clear all existing data for full rebuild
             await this.clearIndex();
 
-            // Insert new data in a transaction
+            if (embeddings.length === 0) {
+                this.logger?.info('Building empty index');
+                this.ready = true;
+                return;
+            }
+
+            this.logger?.info(`Building index with ${embeddings.length} embeddings (replacing existing data)`);
+
+            // Insert new data
             await this.insertEmbeddingsWithMetadata(embeddings, metadata);
 
             this.ready = true;
-            this.logger?.info('Vector index built successfully');
+            this.logger?.info(`Successfully built index with ${embeddings.length} embeddings`);
 
         } catch (error) {
-            this.ready = false;
-            const errorMessage = `Failed to build vector index: ${error instanceof Error ? error.message : String(error)}`;
+            const errorMessage = `Failed to build index: ${error instanceof Error ? error.message : String(error)}`;
             this.logger?.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
             throw new Error(errorMessage);
         }
@@ -128,6 +129,11 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
         if (embeddings.length === 0) {
             this.logger?.info('No embeddings to add');
+            // Initialize database if not already done, even for empty data
+            if (!this.dbManager.isReady()) {
+                await this.dbManager.initialize();
+            }
+            this.ready = true;
             return;
         }
 
@@ -345,15 +351,46 @@ export class SQLiteVecStorage implements IVectorSearchService {
     }
 
     /**
+     * Update document-level semantics (Sprint 11)
+     * Stores document embedding and keywords for a specific document
+     */
+    async updateDocumentSemantics(
+        filePath: string,
+        documentEmbedding: string,
+        documentKeywords: string,
+        processingTimeMs: number
+    ): Promise<void> {
+        const db = this.dbManager.getDatabase();
+
+        const updateStmt = db.prepare(`
+            UPDATE documents
+            SET document_embedding = ?,
+                document_keywords = ?,
+                embedding_generated = 1,
+                keywords_extracted = 1,
+                document_processing_ms = ?
+            WHERE file_path = ?
+        `);
+
+        const result = updateStmt.run(documentEmbedding, documentKeywords, processingTimeMs, filePath);
+
+        if (result.changes === 0) {
+            throw new Error(`Document not found for update: ${filePath}`);
+        }
+
+        this.logger?.info(`Document semantics updated for: ${filePath}`);
+    }
+
+    /**
      * Clear all data from the index
      */
     private async clearIndex(): Promise<void> {
         const db = this.dbManager.getDatabase();
-        
+
         // Use cascading deletes by deleting documents first
         // The CASCADE constraints should handle the rest
         db.exec('DELETE FROM documents');
-        
+
         this.logger?.debug('Cleared existing vector index data');
     }
 
@@ -388,7 +425,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 if (!documentMap.has(meta.filePath)) {
                     // Get the actual file hash to use as fingerprint
                     let fileHash = '';
-                    
+
                     // Check if metadata already contains fileHash (from orchestrator)
                     if ('fileHash' in meta && meta.fileHash) {
                         fileHash = meta.fileHash as string;
@@ -413,7 +450,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                             this.logger?.warn(`Could not read file ${meta.filePath}, using content-based hash: ${fileHash}`);
                         }
                     }
-                    
+
                     const docResult = insertDocStmt.run(
                         meta.filePath,
                         fileHash, // Use actual file hash as fingerprint
@@ -483,7 +520,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
         });
 
         insertTransaction();
-        this.logger?.debug(`Inserted ${embeddings.length} embeddings with metadata`);
+        this.logger?.info(`Inserted ${embeddings.length} embeddings with metadata`);
     }
 
     /**

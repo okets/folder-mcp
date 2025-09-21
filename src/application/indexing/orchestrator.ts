@@ -38,6 +38,16 @@ import { FileFingerprint, TextChunk, SemanticMetadata } from '../../types/index.
 import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
 import { IPythonSemanticService, SemanticData } from '../../domain/semantic/interfaces.js';
 
+// Document-level semantic services (Sprint 11)
+import {
+  IDocumentEmbeddingService,
+  IIncrementalEmbeddingAverager,
+  createDocumentEmbeddingService
+} from '../../domain/semantic/document-embedding-service.js';
+import {
+  IDocumentKeywordScorer,
+  createDocumentKeywordScorer
+} from '../../domain/semantic/document-keyword-scorer.js';
 
 // Model evaluation for context window detection
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
@@ -49,7 +59,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   
   // Semantic extraction service - using new KeyBERT-based service
   private semanticExtractionService: ISemanticExtractionService | null = null;
-  
+
+  // Document-level semantic services (Sprint 11)
+  private documentEmbeddingService: IDocumentEmbeddingService;
+  private documentKeywordScorer: IDocumentKeywordScorer;
+
   // Performance tracking for benchmarking
   private performanceMetrics = {
     startTime: Date.now(), // Initialize with current time
@@ -72,6 +86,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   ) {
     // Semantic extraction service will be initialized when needed
     // to access the Python service from the embedding service
+
+    // Initialize document-level services (Sprint 11)
+    this.documentEmbeddingService = createDocumentEmbeddingService(this.loggingService);
+    this.documentKeywordScorer = createDocumentKeywordScorer(this.loggingService);
   }
 
   /**
@@ -437,28 +455,28 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       statistics: this.createEmptyStatistics()
     };
 
-    const allEmbeddings: any[] = [];
-    const allMetadata: any[] = [];
+    // Initialize database if needed
+    if (!this.vectorSearchService.isReady()) {
+      await this.vectorSearchService.loadIndex('');
+    }
 
     for (const fingerprint of fingerprints) {
       status.currentFile = fingerprint.path;
-      
+
       try {
         // Import path module for joining paths
         const { join } = await import('path');
         const absoluteFilePath = join(folderPath, fingerprint.path);
-        
+
         if (!options.embeddingModel) {
           throw new Error(`No embedding model specified for file: ${absoluteFilePath}`);
         }
         const fileResult = await this.processFile(absoluteFilePath, options.embeddingModel, options, undefined);
         this.mergeFileResult(result, fileResult);
 
-        // Collect embeddings and metadata for vector index
-        if (fileResult.embeddings && fileResult.metadata) {
-          allEmbeddings.push(...fileResult.embeddings);
-          allMetadata.push(...fileResult.metadata);
-        }
+        // NOTE: Embeddings are now stored inside processFile BEFORE document-level semantics
+        // This ensures document records exist before we try to update them
+        // No need to store again here - it's handled in processFile
 
       } catch (error) {
         const indexingError: IndexingError = {
@@ -479,19 +497,10 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       status.progress.processedFiles++;
       this.updateProgress(status);    }
 
-    // 4. Build vector index if embeddings were created
+    // 4. Force WAL checkpoint to ensure all data is persisted
     if (result.embeddingsCreated > 0) {
       try {
-        this.loggingService.debug('Building vector index', { 
-          embeddingsCount: result.embeddingsCreated,
-          filesProcessed: result.filesProcessed
-        });
-          // For now, just enable the index (actual implementation TBD)
-        await this.vectorSearchService.buildIndex(allEmbeddings, allMetadata);
-        
-        this.loggingService.debug('Vector index built successfully');
-        
-        // Force WAL checkpoint to ensure file_states are persisted
+        // Force WAL checkpoint to ensure file_states and all data are persisted
         // This is critical for fixing the re-indexing bug on first restart
         if ('getDatabaseManager' in this.vectorSearchService) {
           const storage = this.vectorSearchService as any;
@@ -502,12 +511,14 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           }
         }
 
-        // Debug: Check if file states were persisted
-        this.loggingService.debug('Checking file state persistence');
-        
+        this.loggingService.debug('All embeddings stored incrementally', {
+          embeddingsCount: result.embeddingsCreated,
+          filesProcessed: result.filesProcessed
+        });
+
       } catch (error) {
-        this.loggingService.error('Failed to build vector index', error instanceof Error ? error : new Error(String(error)));
-        // Don't fail the whole indexing for vector index issues
+        this.loggingService.error('Failed during indexing finalization', error instanceof Error ? error : new Error(String(error)));
+        // Don't fail the whole indexing for finalization issues
       }
     }
 
@@ -531,6 +542,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     words: number;
     embeddings?: any[];
     metadata?: any[];
+    documentSemantics?: {
+      documentEmbedding: string;
+      documentKeywords: string;
+      processingTimeMs: number
+    } | null;
   }> {
     // Log file processing start
     this.loggingService.debug(`Indexing file: ${filePath}`, { modelId });
@@ -918,23 +934,49 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
     // NOTE: Previously cached to JSON files, but now all data is stored in SQLite database
     // No need for duplicate caching - chunks are already saved via VectorSearchService
-    
+
+    // IMPORTANT: In multi-folder mode, storage is handled by FolderLifecycleService
+    // which has the correct folder-specific SQLiteVecStorage instance.
+    // The orchestrator should NOT store embeddings directly as it only has a shared/singleton service.
+    // Commenting out to prevent duplicate storage and wrong database routing:
+    /*
+    if (embeddings.length > 0 && metadata.length > 0) {
+      // Store embeddings to create document records
+      if ('addEmbeddings' in this.vectorSearchService && typeof this.vectorSearchService.addEmbeddings === 'function') {
+        await this.vectorSearchService.addEmbeddings(embeddings, metadata);
+        const path = await import('path');
+        this.loggingService.debug(`[HUGE-DEBUG] ${path.basename(filePath)}: Successfully stored embeddings`);
+      }
+    }
+    */
+
+    // Process document-level embeddings and keywords (Sprint 11)
+    // Returns data for storage by FolderLifecycleService
+    const documentSemantics = await this.processDocumentLevelSemantics(
+      filePath,
+      chunksWithSemantics,
+      embeddings,
+      preGeneratedEmbeddings
+    );
+
     // Track file completion
     this.performanceMetrics.filesProcessed++;
-    
+
     // Log file processing completion
     this.loggingService.info(`Indexed ${filePath}: ${embeddingsCreated} embeddings created`, {
       modelId,
       chunks: chunks.length
     });
-    
+
     return {
       chunksGenerated: chunks.length,
       embeddingsCreated,
       bytes: parsedContent.content.length,
       words: this.estimateWordCount(parsedContent.content),
       embeddings,
-      metadata
+      metadata,
+      // Include document-level semantics if available (Sprint 11)
+      documentSemantics
     };
   } catch (error) {
     // Log file processing failure
@@ -1625,6 +1667,202 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       };
     }
   }
+
+  /**
+   * Process document-level embeddings and keywords (Sprint 11)
+   * Efficiently generates document embedding using incremental averaging
+   * and selects top keywords from chunk-level candidates
+   */
+  private async processDocumentLevelSemantics(
+    filePath: string,
+    chunksWithSemantics: TextChunk[],
+    embeddings: any[],
+    preGeneratedEmbeddings?: Map<number, any>
+  ): Promise<{ documentEmbedding: string; documentKeywords: string; processingTimeMs: number } | null> {
+    const startTime = Date.now();
+
+    try {
+      this.loggingService.info('[DOCUMENT-LEVEL] Starting document-level semantic processing', {
+        filePath,
+        chunkCount: chunksWithSemantics.length
+      });
+
+      // Initialize incremental averager for document embedding
+      const averager = this.documentEmbeddingService.createAverager();
+
+      // Reset keyword scorer for new document
+      this.documentKeywordScorer.reset();
+
+      // Process each chunk to build document-level data
+      for (let i = 0; i < chunksWithSemantics.length; i++) {
+        const chunk = chunksWithSemantics[i];
+
+        // Get embedding for this chunk
+        let chunkEmbedding: Float32Array | undefined;
+
+        if (preGeneratedEmbeddings?.has(i)) {
+          // ONNX model: use pre-generated embedding
+          const embedding = preGeneratedEmbeddings.get(i);
+          if (embedding?.vector) {
+            chunkEmbedding = embedding.vector instanceof Float32Array
+              ? embedding.vector
+              : new Float32Array(embedding.vector);
+          }
+        } else if (embeddings[i]) {
+          // GPU model: use embedding from array
+          const embedding = embeddings[i];
+          if (embedding?.vector) {
+            chunkEmbedding = embedding.vector instanceof Float32Array
+              ? embedding.vector
+              : new Float32Array(embedding.vector);
+          }
+        }
+
+        // Add to document embedding average
+        if (chunkEmbedding) {
+          averager.add(chunkEmbedding);
+        } else {
+          this.loggingService.warn('[DOCUMENT-LEVEL] Missing embedding for chunk', {
+            filePath,
+            chunkIndex: i
+          });
+        }
+
+        // Collect keywords from this chunk
+        if (chunk && chunk.semanticMetadata?.keyPhrases) {
+          // For ONNX models, we might have keyword embeddings cached
+          // Check if N-gram extractor has cached embeddings
+          let keywordEmbeddings: Map<string, Float32Array> | undefined;
+
+          // Try to get cached embeddings from semantic extraction service
+          if (this.semanticExtractionService) {
+            const serviceAny = this.semanticExtractionService as any;
+            if (serviceAny.ngramExtractor?.embeddingCache) {
+              keywordEmbeddings = new Map();
+              for (const kp of chunk.semanticMetadata.keyPhrases) {
+                const cached = serviceAny.ngramExtractor.embeddingCache.get(kp.text);
+                if (cached) {
+                  keywordEmbeddings.set(kp.text, cached);
+                }
+              }
+            }
+          }
+
+          this.documentKeywordScorer.collectFromChunk(
+            chunk.semanticMetadata.keyPhrases,
+            i,
+            keywordEmbeddings
+          );
+        }
+      }
+
+      // Get final document embedding
+      const documentEmbedding = averager.getAverage();
+      const embeddingStats = this.documentEmbeddingService.calculateStats(
+        documentEmbedding,
+        averager.getChunkCount(),
+        Date.now() - startTime
+      );
+
+      this.loggingService.info('[DOCUMENT-LEVEL] Document embedding generated', {
+        filePath,
+        dimension: embeddingStats.dimension,
+        chunksAveraged: embeddingStats.chunkCount,
+        magnitude: embeddingStats.magnitude.toFixed(3),
+        sparsity: embeddingStats.sparsity.toFixed(1) + '%'
+      });
+
+      // Score and select top keywords
+      const keywordResult = this.documentKeywordScorer.scoreAndSelect(documentEmbedding, {
+        maxKeywords: 30,
+        minScore: 0.3,
+        useDiversity: true,
+        diversityFactor: 0.3
+      });
+
+      this.loggingService.info('[DOCUMENT-LEVEL] Document keywords selected', {
+        filePath,
+        totalCandidates: keywordResult.totalCandidates,
+        selectedKeywords: keywordResult.keywords.length,
+        deduplicationRatio: (keywordResult.deduplicationRatio * 100).toFixed(1) + '%',
+        topKeywords: keywordResult.keywords.slice(0, 5).map(k => k.text)
+      });
+
+      // Return document-level data for storage by FolderLifecycleService
+      // which has the correct folder-specific database
+      const serializedEmbedding = this.documentEmbeddingService.serializeEmbedding(documentEmbedding);
+      const serializedKeywords = JSON.stringify(keywordResult.keywords);
+
+      return {
+        documentEmbedding: serializedEmbedding,
+        documentKeywords: serializedKeywords,
+        processingTimeMs: embeddingStats.processingTimeMs
+      };
+
+      this.loggingService.info('[DOCUMENT-LEVEL] Document-level semantics stored successfully', {
+        filePath,
+        totalTimeMs: Date.now() - startTime
+      });
+
+    } catch (error) {
+      // Log error but don't fail the whole indexing
+      // Document-level semantics are enhancement, not critical
+      this.loggingService.error('[DOCUMENT-LEVEL] Failed to process document-level semantics',
+        error instanceof Error ? error : new Error(String(error)),
+        { filePath }
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Store document-level semantics in the database
+   * @deprecated No longer used - document semantics are returned to FolderLifecycleService
+   * which stores them in the correct folder-specific database
+   */
+  // Commented out as it's no longer needed
+  /*
+  private async storeDocumentSemantics(
+    filePath: string,
+    embedding: Float32Array,
+    keywords: Array<{ text: string; score: number }>,
+    processingTimeMs: number
+  ): Promise<void> {
+    try {
+      // Check if the vector search service supports document semantics updates
+      if (!('updateDocumentSemantics' in this.vectorSearchService)) {
+        // Log warning but don't fail - document-level semantics are enhancement
+        this.loggingService.warn('[DOCUMENT-LEVEL] Vector search service does not support document semantics updates', {
+          filePath,
+          serviceType: this.vectorSearchService.constructor.name
+        });
+        return;
+      }
+
+      // Serialize embedding and keywords
+      const serializedEmbedding = this.documentEmbeddingService.serializeEmbedding(embedding);
+      const serializedKeywords = JSON.stringify(keywords);
+
+      // Call the updateDocumentSemantics method on the storage service
+      const storage = this.vectorSearchService as any;
+      await storage.updateDocumentSemantics(
+        filePath,
+        serializedEmbedding,
+        serializedKeywords,
+        processingTimeMs
+      );
+
+      this.loggingService.debug('[DOCUMENT-LEVEL] Database updated with document semantics', {
+        filePath,
+        embeddingSize: serializedEmbedding.length,
+        keywordCount: keywords.length
+      });
+
+    } catch (error) {
+      throw new Error(`Failed to store document semantics: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  */
 
   // Removed complex helper methods - using lightweight validation instead
 }

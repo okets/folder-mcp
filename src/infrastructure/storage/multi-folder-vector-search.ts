@@ -23,12 +23,10 @@ interface FolderDatabase {
 export class MultiFolderVectorSearchService implements IVectorSearchService {
   private databases: Map<string, FolderDatabase> = new Map();
   private maxOpenDatabases = 10; // Maximum number of databases to keep open
-  
+
   constructor(
-    private defaultDbPath: string, // Default database path (fallback)
     private logger: ILoggingService
   ) {
-    this.logger.info(`[MULTI-FOLDER-SEARCH] Service initialized with default path: ${defaultDbPath}`);
   }
 
   /**
@@ -206,7 +204,6 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
       results.sort((a, b) => b.score - a.score);
       const finalResults = results.slice(0, topK);
       
-      this.logger.info(`[MULTI-FOLDER-SEARCH] Found ${finalResults.length} results (processed ${processed} embeddings)`);
       return finalResults;
       
     } catch (error) {
@@ -259,7 +256,7 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
   }
   
   // Legacy interface methods (use default database)
-  async buildIndex(embeddings: EmbeddingVector[], metadata: any[]): Promise<void> {
+  async buildIndex(_embeddings: EmbeddingVector[], _metadata: any[]): Promise<void> {
     this.logger.debug('[MULTI-FOLDER-SEARCH] buildIndex called - not used in multi-folder mode');
   }
   
@@ -270,11 +267,10 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
     await this.getFolderDatabase(folderPath);
   }
   
-  async search(queryVector: EmbeddingVector, topK?: number, threshold?: number): Promise<BasicSearchResult[]> {
-    // Legacy method - use default database
-    this.logger.warn('[MULTI-FOLDER-SEARCH] Legacy search method called - using default database');
-    const folderPath = path.dirname(path.dirname(this.defaultDbPath));
-    return this.searchInFolder(queryVector, folderPath, topK, threshold);
+  async search(_queryVector: EmbeddingVector, _topK?: number, _threshold?: number): Promise<BasicSearchResult[]> {
+    // Legacy method - should not be used in multi-folder mode
+    this.logger.error('[MULTI-FOLDER-SEARCH] Legacy search method called without folder context - this is an error');
+    throw new Error('Legacy search() method called - use searchInFolder() with explicit folder path instead');
   }
   
   /**
@@ -319,5 +315,104 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
     }
 
     this.databases.clear();
+  }
+
+  /**
+   * Update document-level semantics in the database
+   * Sprint 11: Support for document embeddings and keywords
+   */
+  async updateDocumentSemantics(
+    filePath: string,
+    documentEmbedding: string,
+    documentKeywords: string,
+    processingTimeMs: number
+  ): Promise<void> {
+    try {
+      // Find the database that contains this file
+      // Try to match by checking which database path is a prefix of the file path
+      let db: FolderDatabase | null = null;
+      // let matchedPath: string | null = null; // Unused variable
+
+      // First, try to find an exact match by checking existing databases
+      for (const [dbPath, folderDb] of this.databases.entries()) {
+        // Extract folder path from database path
+        const folderPath = dbPath.replace('/.folder-mcp/embeddings.db', '');
+        if (filePath.startsWith(folderPath + '/')) {
+          db = folderDb;
+          break;
+        }
+      }
+
+      // If not found in cache, try to open the database directly
+      if (!db) {
+        // Extract possible folder path - find .folder-mcp in the file path
+        const parts = filePath.split('/');
+        for (let i = parts.length - 1; i >= 0; i--) {
+          const possibleFolderPath = parts.slice(0, i + 1).join('/');
+          const dbPath = path.join(possibleFolderPath, '.folder-mcp', 'embeddings.db');
+
+          if (existsSync(dbPath)) {
+            // Open the database directly for this update
+            const tempDb = new Database(dbPath, { readonly: false });
+
+            // Get embedding count
+            const embeddingCount = tempDb.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
+
+            db = {
+              db: tempDb,
+              path: dbPath,
+              lastAccessed: new Date(),
+              embeddingCount: embeddingCount.count
+            };
+            // matchedPath = possibleFolderPath; // Unused variable
+
+            // Cache it for future use if not null
+            if (db) {
+              this.databases.set(dbPath, db);
+            }
+            break;
+          }
+        }
+      }
+
+      if (!db) {
+        this.logger.warn(`[MULTI-FOLDER-SEARCH] Cannot update document semantics - no database found for file: ${filePath}`);
+        return;
+      }
+
+      // First check if document exists
+      const checkStmt = db.db.prepare('SELECT id, file_path FROM documents WHERE file_path = ?');
+      const existing = checkStmt.get(filePath) as any;
+
+      if (!existing) {
+        this.logger.error(`[MULTI-FOLDER-SEARCH] Document not found for update: ${filePath}`);
+        return;
+      }
+
+      // Update document with semantics
+      const stmt = db.db.prepare(`
+        UPDATE documents
+        SET document_embedding = ?,
+            document_keywords = ?,
+            keywords_extracted = 1,
+            embedding_generated = 1,
+            document_processing_ms = ?
+        WHERE file_path = ?
+      `);
+
+      const result = stmt.run(
+        documentEmbedding,
+        documentKeywords,
+        processingTimeMs,
+        filePath
+      );
+
+      if (result.changes === 0) {
+        this.logger.error(`[MULTI-FOLDER-SEARCH] Failed to update document semantics for: ${filePath}`);
+      }
+    } catch (error) {
+      this.logger.error(`[MULTI-FOLDER-SEARCH] Failed to update document semantics for ${filePath}: ${error}`);
+      throw error;
+    }
   }
 }
