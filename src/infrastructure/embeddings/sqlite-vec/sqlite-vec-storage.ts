@@ -36,7 +36,6 @@ export interface VectorMetadata {
     extractionParams?: string;  // Sprint 11: Pre-computed extraction params from format-aware chunking
     // Semantic metadata fields from KeyBERT extraction
     keyPhrases?: SemanticScore[];
-    topics?: SemanticScore[];
     readabilityScore?: number;
 }
 
@@ -228,9 +227,8 @@ export class SQLiteVecStorage implements IVectorSearchService {
                     },
                     semanticMetadata: {
                         keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : [],
-                        topics: row.topics ? JSON.parse(row.topics) : [],
                         readabilityScore: row.readability_score || 0,
-                        semanticProcessed: row.key_phrases !== null && row.topics !== null,
+                        semanticProcessed: row.key_phrases !== null,
                         semanticTimestamp: Date.now()
                     }
                 };
@@ -297,8 +295,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 filePath: row.file_path,
                 chunkIndex: row.chunk_index,
                 semanticMetadata: {
-                    keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : [],
-                    topics: row.topics ? JSON.parse(row.topics) : []
+                    keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : []
                 }
             });
         }
@@ -434,7 +431,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 // Use semantic metadata from orchestrator if available, otherwise use fallback
                 // Handle partial semantic metadata - each field independently
                 let keyPhrases: string = '';
-                let topics: string = '';
                 let readabilityScore: number = 50;
 
                 // Key phrases MUST be provided by orchestrator - no fallbacks!
@@ -449,17 +445,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
                 } else {
                     // FAIL LOUDLY - no silent failures!
                     const errorMsg = `CRITICAL: No key phrases provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;
-                    this.logger?.error(errorMsg);
-                    throw new Error(errorMsg);
-                }
-
-                // Topics MUST be provided by orchestrator - no fallbacks!
-                if (meta.topics && meta.topics.length > 0) {
-                    // Store SemanticScore[] as JSON to preserve scores
-                    topics = JSON.stringify(meta.topics);
-                } else {
-                    // FAIL LOUDLY - no silent failures!
-                    const errorMsg = `CRITICAL: No topics provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;
                     this.logger?.error(errorMsg);
                     throw new Error(errorMsg);
                 }
@@ -482,8 +467,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                     meta.startPosition,
                     meta.endPosition,
                     Math.ceil(meta.content.length / 4), // Rough token count estimate
-                    JSON.stringify(keyPhrases), // key_phrases as JSON array
-                    JSON.stringify(topics), // topics as JSON array
+                    keyPhrases, // key_phrases as JSON array
                     readabilityScore, // readability_score as number
                     1,    // semantic_processed - true (1) since processed
                     new Date().toISOString()  // semantic_timestamp - current timestamp

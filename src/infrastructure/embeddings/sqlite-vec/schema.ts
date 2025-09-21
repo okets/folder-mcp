@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS chunks (
     token_count INTEGER,
     -- Semantic metadata for AI agent navigation
     key_phrases TEXT,           -- JSON array of extracted key phrases
-    topics TEXT,                -- JSON array of detected topics
     readability_score REAL,     -- Flesch Reading Ease score (0-100)
     semantic_processed INTEGER DEFAULT 0,  -- Flag: 1 if semantic extraction succeeded
     semantic_timestamp INTEGER, -- Unix timestamp of semantic processing
@@ -199,10 +198,10 @@ export const QUERIES = {
     
     // Chunk operations
     insertChunk: `
-        INSERT INTO chunks 
+        INSERT INTO chunks
         (document_id, chunk_index, content, start_offset, end_offset, token_count,
-         key_phrases, topics, readability_score, semantic_processed, semantic_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         key_phrases, readability_score, semantic_processed, semantic_timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     getChunksByDocument: 'SELECT * FROM chunks WHERE document_id = ? ORDER BY chunk_index',
     deleteChunksByDocument: 'DELETE FROM chunks WHERE document_id = ?',
@@ -227,7 +226,6 @@ export const QUERIES = {
             c.end_offset,
             c.token_count,
             c.key_phrases,
-            c.topics,
             c.readability_score,
             (c.id * 0.1) as distance
         FROM embeddings e
@@ -244,8 +242,7 @@ export const QUERIES = {
             c.content,
             c.chunk_index,
             d.file_path,
-            c.key_phrases,
-            c.topics
+            c.key_phrases
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         WHERE c.id IN (/*PLACEHOLDER*/)
@@ -274,8 +271,7 @@ export const QUERIES = {
             COUNT(DISTINCT d.id) as document_count,
             COUNT(c.id) as chunk_count,
             AVG(c.readability_score) as avg_readability,
-            GROUP_CONCAT(c.key_phrases) as all_key_phrases,
-            GROUP_CONCAT(c.topics) as all_topics
+            GROUP_CONCAT(c.key_phrases) as all_key_phrases
         FROM documents d
         JOIN chunks c ON d.id = c.document_id
         WHERE c.semantic_processed = 1
@@ -311,7 +307,6 @@ export const QUERIES = {
                 se.subfolder_path,
                 COUNT(DISTINCT se.id) as document_count,
                 AVG(c.readability_score) as avg_readability,
-                GROUP_CONCAT(DISTINCT json_extract(c.topics, '$[0].text')) as top_topics,
                 GROUP_CONCAT(DISTINCT json_extract(c.key_phrases, '$[0].text')) as key_phrases
             FROM subfolder_extraction se
             JOIN chunks c ON se.id = (SELECT id FROM documents WHERE file_path = se.file_path)
@@ -323,7 +318,6 @@ export const QUERIES = {
             subfolder_path,
             document_count,
             ROUND(avg_readability, 1) as avg_readability,
-            top_topics,
             key_phrases
         FROM subfolder_stats
         WHERE document_count > 0
@@ -334,7 +328,6 @@ export const QUERIES = {
         SELECT d.*, 
                json_group_array(
                    json_object(
-                       'topic', json_extract(c.topics, '$[0].text'),
                        'key_phrase', json_extract(c.key_phrases, '$[0].text'),
                        'readability', c.readability_score
                    )

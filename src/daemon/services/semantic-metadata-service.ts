@@ -16,7 +16,6 @@ interface ILogger {
 }
 
 export interface FolderSemanticMetadata {
-  topTopics: string[];
   dominantThemes: string[];
   contentComplexity: string;
   languageDistribution: Record<string, number>;
@@ -31,14 +30,12 @@ export interface DocumentSemanticSummary {
   primaryPurpose: string;
   keyPhrases: string[];
   contentType: string;
-  topics: string[];
   complexityLevel: string;
   hasCodeExamples: boolean;
   hasDiagrams: boolean;
 }
 
 export interface SectionSemantics {
-  topics: string[];
   keyPhrases: string[];
   hasCodeExamples: boolean;
   subsectionCount: number;
@@ -139,39 +136,6 @@ export class SemanticMetadataService {
         .slice(0, 10)
         .map(([phrase]) => ({ phrase }));
 
-      // Get topics from chunks (simpler approach)
-      const topicsRaw = await this.runQueryAll<{ topics: string }>(db, `
-        SELECT c.topics
-        FROM chunks c
-        JOIN documents d ON c.document_id = d.id
-        WHERE d.file_path LIKE ? || '%'
-          AND d.file_path NOT LIKE '%test%'
-          AND d.file_path NOT LIKE '%.venv%'
-          AND c.topics IS NOT NULL
-          AND c.topics != '[]'
-        LIMIT 100
-      `, [folderPath]);
-      
-      // Process topics in JavaScript
-      const topicCount = new Map<string, number>();
-      for (const row of topicsRaw) {
-        try {
-          const topics = JSON.parse(row.topics);
-          for (const topic of topics) {
-            // Handle both old format (strings) and new format (SemanticScore objects)
-            const topicText = typeof topic === 'string' ? topic : topic.text;
-            topicCount.set(topicText, (topicCount.get(topicText) || 0) + 1);
-          }
-        } catch (e) {
-          // Skip malformed JSON
-        }
-      }
-      
-      // Sort and get top topics
-      const topics = Array.from(topicCount.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([topic]) => ({ topic }));
 
       // Determine complexity based on readability score
       const avgReadability = stats.avg_readability || 50;
@@ -181,7 +145,6 @@ export class SemanticMetadataService {
       else complexity = 'Basic';
 
       return {
-        topTopics: topics.map(t => t.topic).filter(Boolean),
         dominantThemes: this.extractThemes(keyPhrases.map(k => k.phrase)),
         contentComplexity: complexity,
         languageDistribution: { 'English': 100 }, // Simplified for now
@@ -208,10 +171,9 @@ export class SemanticMetadataService {
       const chunks = await this.runQueryAll<{
         content: string;
         key_phrases: string;
-        topics: string;
         readability_score: number;
       }>(db, `
-        SELECT c.content, c.key_phrases, c.topics, c.readability_score
+        SELECT c.content, c.key_phrases, c.readability_score
         FROM chunks c
         JOIN documents d ON c.document_id = d.id
         WHERE d.file_path = ?
@@ -224,7 +186,6 @@ export class SemanticMetadataService {
 
       // Aggregate data
       const allKeyPhrases: string[] = [];
-      const allTopics: string[] = [];
       let totalReadability = 0;
       let hasCode = false;
 
@@ -235,16 +196,9 @@ export class SemanticMetadataService {
             allKeyPhrases.push(...phrases);
           } catch {}
         }
-        
-        if (chunk.topics) {
-          try {
-            const topics = JSON.parse(chunk.topics);
-            allTopics.push(...topics);
-          } catch {}
-        }
 
         totalReadability += chunk.readability_score || 0;
-        
+
         if (chunk.content && /```|function|class|const|let|var/.test(chunk.content)) {
           hasCode = true;
         }
@@ -272,15 +226,13 @@ export class SemanticMetadataService {
         primaryPurpose = 'Configuration settings';
       }
 
-      // Get unique key phrases and topics
+      // Get unique key phrases
       const uniqueKeyPhrases = [...new Set(allKeyPhrases)].slice(0, 8);
-      const uniqueTopics = [...new Set(allTopics)].slice(0, 5);
 
       return {
         primaryPurpose,
         keyPhrases: uniqueKeyPhrases,
         contentType,
-        topics: uniqueTopics,
         complexityLevel: avgReadability < 30 ? 'Advanced' : avgReadability < 50 ? 'Intermediate' : 'Basic',
         hasCodeExamples: hasCode,
         hasDiagrams: false // Would need more sophisticated detection
@@ -355,7 +307,6 @@ export class SemanticMetadataService {
   async getDocumentChunksForSections(documentPath: string): Promise<Array<{
     start_offset: number;
     end_offset: number;
-    topics: string[];
     keyPhrases: string[];
     hasCode: boolean;
   }> | null> {
@@ -366,14 +317,12 @@ export class SemanticMetadataService {
       const chunks = await this.runQueryAll<{
         start_offset: number;
         end_offset: number;
-        topics: string | null;
         key_phrases: string | null;
         content: string;
       }>(db, `
-        SELECT 
+        SELECT
           c.start_offset,
           c.end_offset,
-          c.topics,
           c.key_phrases,
           c.content
         FROM chunks c
@@ -389,17 +338,8 @@ export class SemanticMetadataService {
 
       // Process and return chunks with parsed JSON fields
       return chunks.map(chunk => {
-        let topics: string[] = [];
         let keyPhrases: string[] = [];
-        
-        try {
-          if (chunk.topics) {
-            topics = JSON.parse(chunk.topics);
-          }
-        } catch (e) {
-          // Skip malformed JSON
-        }
-        
+
         try {
           if (chunk.key_phrases) {
             keyPhrases = JSON.parse(chunk.key_phrases);
@@ -410,11 +350,10 @@ export class SemanticMetadataService {
 
         // Detect if chunk contains code
         const hasCode = /```|<code>|function\s+\w+|class\s+\w+|const\s+\w+|let\s+\w+|var\s+\w+/.test(chunk.content);
-        
+
         return {
           start_offset: chunk.start_offset,
           end_offset: chunk.end_offset,
-          topics,
           keyPhrases,
           hasCode
         };

@@ -123,7 +123,7 @@ export interface RelatedContentResult {
 export interface RelatedFileItem {
   filePath: string;
   similarity: number;
-  relationship: 'content' | 'topic' | 'reference' | 'structure';
+  relationship: 'content' | 'thematic' | 'reference' | 'structure';
   summary?: string;
 }
 

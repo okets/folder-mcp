@@ -355,9 +355,9 @@ export class KnowledgeOperationsService implements KnowledgeOperations {
     return relatedQueries;
   }
 
-  private determineRelationshipType(similarity: number): 'content' | 'topic' | 'reference' | 'structure' {
+  private determineRelationshipType(similarity: number): 'content' | 'thematic' | 'reference' | 'structure' {
     if (similarity >= 0.8) return 'content';
-    if (similarity >= 0.6) return 'topic';
+    if (similarity >= 0.6) return 'thematic';
     if (similarity >= 0.4) return 'reference';
     return 'structure';
   }

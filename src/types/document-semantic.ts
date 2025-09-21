@@ -10,24 +10,20 @@
  */
 export interface DocumentSemanticSummary {
   // Aggregated data from all chunks
-  aggregated_topics: string[];        // Top 15-20 topics from all chunks
   aggregated_phrases: string[];       // Top 20-30 key phrases from all chunks
 
   // Document-level extracted data (for enhanced models)
-  document_topics?: string[];         // Global themes from strategic sampling
   document_phrases?: string[];        // Document-wide key phrases
 
   // Final merged and ranked results
-  top_topics: string[];               // Final top 10-15 topics
   top_phrases: string[];              // Final top 15-20 phrases
 
   // Statistical metrics
   metrics: {
     total_chunks: number;
     avg_readability: number;          // 0-100 scale (Flesch Reading Ease)
-    topic_diversity: number;          // 0-1, Shannon entropy of topics
     phrase_richness: number;          // 0-1, ratio of multiword phrases
-    semantic_coherence: number;       // 0-1, topic similarity score
+    semantic_coherence: number;       // 0-1, semantic similarity score
   };
 
   // Quality and confidence indicators
@@ -57,7 +53,6 @@ export interface DocumentWithSemantics {
   semantic_summary: string | null;           // JSON-encoded DocumentSemanticSummary
   primary_theme: string | null;              // Main document theme
   avg_readability_score: number | null;     // Average readability (0-100)
-  topic_diversity_score: number | null;     // Topic variety (0-1)
   phrase_richness_score: number | null;     // Multiword phrase ratio (0-1)
 
   // Extraction metadata
@@ -74,7 +69,7 @@ export interface DocumentWithSemantics {
  * Extraction method types
  */
 export type ExtractionMethod =
-  | 'python_rich'       // Full KeyBERT + BERTopic for Python models
+  | 'python_rich'       // Full KeyBERT for Python models
   | 'onnx_similarity'   // Similarity-based clustering for ONNX models
   | 'aggregation_only'; // Simple aggregation fallback
 
@@ -83,7 +78,6 @@ export type ExtractionMethod =
  */
 export interface DocumentAggregationOptions {
   // Aggregation parameters
-  max_topics: number;                 // Maximum topics to retain (default: 15)
   max_phrases: number;                // Maximum phrases to retain (default: 20)
 
   // Enhanced extraction for supporting models
@@ -137,7 +131,6 @@ export interface DocumentAggregationError {
  * Default aggregation options
  */
 export const DEFAULT_AGGREGATION_OPTIONS: DocumentAggregationOptions = {
-  max_topics: 15,
   max_phrases: 20,
   enable_document_extraction: true,
   sampling_strategy: 'smart',

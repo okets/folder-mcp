@@ -74,9 +74,6 @@ describe('SQLiteVecStorage', () => {
                         { text: 'first test', score: 0.8 },
                         { text: 'test chunk', score: 0.7 }
                     ],
-                    topics: [
-                        { text: 'testing', score: 0.9 }
-                    ],
                     readabilityScore: 85.5
                 },
                 {
@@ -90,9 +87,6 @@ describe('SQLiteVecStorage', () => {
                         { text: 'second test', score: 0.8 },
                         { text: 'test chunk', score: 0.7 }
                     ],
-                    topics: [
-                        { text: 'testing', score: 0.9 }
-                    ],
                     readabilityScore: 85.5
                 },
                 {
@@ -105,9 +99,6 @@ describe('SQLiteVecStorage', () => {
                     keyPhrases: [
                         { text: 'chunk document', score: 0.8 },
                         { text: 'another document', score: 0.7 }
-                    ],
-                    topics: [
-                        { text: 'documentation', score: 0.9 }
                     ],
                     readabilityScore: 82.3
                 }
@@ -144,9 +135,6 @@ describe('SQLiteVecStorage', () => {
                 keyPhrases: [
                         { text: 'first content', score: 0.8 }
                     ],
-                topics: [
-                        { text: 'content', score: 0.9 }
-                    ],
                 readabilityScore: 90.0
             }];
 
@@ -170,9 +158,6 @@ describe('SQLiteVecStorage', () => {
                     keyPhrases: [
                         { text: 'second content', score: 0.8 }
                     ],
-                    topics: [
-                        { text: 'content', score: 0.9 }
-                    ],
                     readabilityScore: 88.0
                 },
                 {
@@ -184,9 +169,6 @@ describe('SQLiteVecStorage', () => {
                     endPosition: 13,
                     keyPhrases: [
                         { text: 'third content', score: 0.8 }
-                    ],
-                    topics: [
-                        { text: 'content', score: 0.9 }
                     ],
                     readabilityScore: 88.0
                 }
@@ -217,9 +199,6 @@ describe('SQLiteVecStorage', () => {
                 endPosition: 12,
                 keyPhrases: [
                         { text: 'test content', score: 0.8 }
-                    ],
-                topics: [
-                        { text: 'testing', score: 0.9 }
                     ],
                 readabilityScore: 85.0
             }];
@@ -265,10 +244,6 @@ describe('SQLiteVecStorage', () => {
                         { text: 'similar query', score: 0.8 },
                         { text: 'content similar', score: 0.7 }
                     ],
-                    topics: [
-                        { text: 'similarity', score: 0.9 },
-                        { text: 'search', score: 0.8 }
-                    ],
                     readabilityScore: 87.5
                 },
                 {
@@ -282,10 +257,6 @@ describe('SQLiteVecStorage', () => {
                         { text: 'somewhat similar', score: 0.8 },
                         { text: 'similar query', score: 0.7 }
                     ],
-                    topics: [
-                        { text: 'similarity', score: 0.9 },
-                        { text: 'search', score: 0.8 }
-                    ],
                     readabilityScore: 86.0
                 },
                 {
@@ -298,10 +269,6 @@ describe('SQLiteVecStorage', () => {
                     keyPhrases: [
                         { text: 'not similar', score: 0.8 },
                         { text: 'similar query', score: 0.7 }
-                    ],
-                    topics: [
-                        { text: 'dissimilarity', score: 0.9 },
-                        { text: 'search', score: 0.8 }
                     ],
                     readabilityScore: 84.0
                 }
@@ -390,9 +357,6 @@ describe('SQLiteVecStorage', () => {
                 endPosition: 12,
                 keyPhrases: [
                         { text: 'test content', score: 0.8 }
-                    ],
-                topics: [
-                        { text: 'testing', score: 0.9 }
                     ],
                 readabilityScore: 85.0
             }];

@@ -6,4 +6,3 @@
  */
 
 export * from './multi-folder-storage.js';
-export * from './semantic-data-provider.js';

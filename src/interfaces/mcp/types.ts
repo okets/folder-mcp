@@ -107,7 +107,6 @@ export interface SearchResult {
   relevance_score: number;
   location: LocationInfo;
   semantic_context: {
-    matched_topics: string[];
     key_phrases: string[];
     readability_score: number;
     chunk_index: number;
@@ -130,7 +129,6 @@ export interface ChunkContent {
   file_path: string;
   semantic_metadata?: {
     key_phrases: string[];
-    topics: string[];
   };
 }
 
@@ -204,7 +202,6 @@ export type ListFoldersResponse = StandardResponse<{
     path: string;
     name: string;
     semanticPreview: {
-      topTopics: string[];
       avgReadabilityScore: number | null;
       totalDocuments: number;
       semanticCoverage: number;
@@ -333,7 +330,6 @@ export interface SubfolderInfo {
   relative_path: string;    // e.g., "/src", "/docs"
   document_count: number;
   semanticPreview: {
-    topTopics: string[];         // Most frequent topics in subfolder
     avgReadabilityScore: number; // Average readability (0-100)
     purpose?: string;            // AI-generated purpose description
   };

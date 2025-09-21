@@ -18,12 +18,6 @@ export interface SemanticData {
   keyPhrases: SemanticScore[];
 
   /**
-   * Topics identified in the text with semantic scores
-   * Domain-specific categories, not generic labels
-   */
-  topics: SemanticScore[];
-
-  /**
    * Readability score (0-100)
    * Using proper formulas, not broken syllable counting
    */
@@ -45,7 +39,6 @@ export interface SemanticData {
   qualityMetrics?: {
     multiwordRatio: number;  // Percentage of multiword phrases
     averageWordsPerPhrase: number;
-    topicSpecificity: number; // 0-1, higher is more specific
   } | undefined;
 }
 
@@ -69,10 +62,6 @@ export interface ISemanticExtractionService {
    */
   extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<SemanticScore[]>;
 
-  /**
-   * Extract topics from text
-   */
-  extractTopics(text: string, embeddings?: Float32Array): Promise<SemanticScore[]>;
 
 
   /**
@@ -105,10 +94,6 @@ export interface SemanticExtractionOptions {
    */
   diversity?: number;
 
-  /**
-   * Maximum number of topics
-   */
-  maxTopics?: number;
 
   /**
    * Enable quality metrics calculation

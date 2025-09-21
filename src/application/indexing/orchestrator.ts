@@ -39,10 +39,6 @@ import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../
 import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
 import { IPythonSemanticService, SemanticData } from '../../domain/semantic/interfaces.js';
 
-// Document semantic service for Sprint 0
-import { DocumentSemanticService, DocumentContext } from '../../domain/semantic/document-semantic-service.js';
-import type { ChunkSemanticData } from '../../domain/semantic/document-aggregator.js';
-import type { DocumentAggregationResult } from '../../types/document-semantic.js';
 
 // Model evaluation for context window detection
 import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator.js';
@@ -54,9 +50,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   
   // Semantic extraction service - using new KeyBERT-based service
   private semanticExtractionService: ISemanticExtractionService | null = null;
-
-  // Document semantic service for Sprint 0
-  private documentSemanticService: DocumentSemanticService | null = null;
   
   // Performance tracking for benchmarking
   private performanceMetrics = {
@@ -684,7 +677,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                     if (chunk.semanticMetadata) {
                       // Store semantic fields directly in metadata for database storage
                       metadataObj.keyPhrases = chunk.semanticMetadata.keyPhrases || [];
-                      metadataObj.topics = chunk.semanticMetadata.topics || [];
                       metadataObj.readabilityScore = chunk.semanticMetadata.readabilityScore || 50;
 
                       // Log that we're including semantic metadata
@@ -1008,84 +1000,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     this.loggingService.debug('[SEMANTIC-INIT] Semantic extraction service created successfully');
   }
 
-  /**
-   * Process document-level semantic aggregation (Sprint 0)
-   */
-  private async processDocumentSemantics(
-    filePath: string,
-    chunks: TextChunk[],
-    modelId: string
-  ): Promise<DocumentAggregationResult> {
-    // Initialize document semantic service if needed
-    if (!this.documentSemanticService) {
-      this.documentSemanticService = new DocumentSemanticService({}, this.loggingService);
-    }
-
-    // Get embedding service for the model
-    const embeddingService = await this.getEmbeddingServiceForModel(modelId);
-
-    // Convert chunks to ChunkSemanticData format
-    const chunkSemanticData: ChunkSemanticData[] = chunks.map((chunk, index) => ({
-      id: index, // Use index as temporary ID
-      content: chunk.content,
-      semanticMetadata: {
-        topics: chunk.semanticMetadata?.topics || [],
-        keyPhrases: chunk.semanticMetadata?.keyPhrases || [],
-        readabilityScore: chunk.semanticMetadata?.readabilityScore ?? null
-      }
-    }));
-
-    // Create document context
-    const context: DocumentContext = {
-      documentId: 0, // Will be updated when we get the actual document ID
-      filePath,
-      modelId,
-      embeddingService
-    };
-
-    // Process document semantics
-    const result = await this.documentSemanticService.processDocumentSemantics(context, chunkSemanticData);
-
-    // NOTE: We no longer save here - deferred until after buildIndex creates the documents
-    // The result will be returned and saved later in processFingerprints
-
-    return result;
-  }
-
-  /**
-   * Save document semantic data to database
-   */
-  private async saveDocumentSemanticData(
-    filePath: string,
-    result: DocumentAggregationResult
-  ): Promise<void> {
-    // Check if vector search service supports semantic updates
-    const storage = this.vectorSearchService as any;
-    if (storage && typeof storage.updateDocumentSemantics === 'function') {
-      const semanticData = {
-        semantic_summary: JSON.stringify(result.semantic_summary),
-        primary_theme: result.primary_theme,
-        avg_readability_score: result.semantic_summary.metrics.avg_readability,
-        topic_diversity_score: result.semantic_summary.metrics.topic_diversity,
-        phrase_richness_score: result.semantic_summary.metrics.phrase_richness,
-        extraction_method: result.extraction_method,
-        extraction_failed: !result.success,
-        extraction_error: result.success ? undefined : result.warnings?.join('; '),
-        extraction_attempts: 1
-      };
-
-      await storage.updateDocumentSemantics(filePath, semanticData);
-
-      this.loggingService.debug(`[DOCUMENT-SEMANTICS] Saved semantic data for ${filePath}:`, {
-        method: semanticData.extraction_method,
-        theme: semanticData.primary_theme,
-        topicsCount: result.semantic_summary.top_topics.length,
-        phrasesCount: result.semantic_summary.top_phrases.length
-      });
-    } else {
-      this.loggingService.warn(`[DOCUMENT-SEMANTICS] Vector search service does not support semantic updates for ${filePath}`);
-    }
-  }
 
   /**
    * Extract semantic metadata for ALL chunks using KeyBERT-based service
@@ -1278,7 +1192,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
 
         const semanticMetadata: SemanticMetadata = {
           keyPhrases: semanticData.keyPhrases,
-          topics: semanticData.topics,
           readabilityScore: semanticData.readabilityScore,
           semanticProcessed: true,
           semanticTimestamp: Date.now()
@@ -1287,7 +1200,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         this.loggingService.info('Batch semantic extraction successful', {
           chunkIndex: chunk.chunkIndex,
           keyPhrasesCount: semanticData.keyPhrases.length,
-          topicsCount: semanticData.topics.length,
           readabilityScore: semanticData.readabilityScore,
           extractionMethod: semanticData.extractionMethod,
           multiwordRatio: semanticData.qualityMetrics?.multiwordRatio
@@ -1424,7 +1336,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           chunkIndex: 0,
           semanticMetadata: {
             keyPhrases: [],
-            topics: [],
             readabilityScore: 50,
             semanticProcessed: false,
             semanticTimestamp: Date.now()
@@ -1458,7 +1369,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           chunkIndex: index,
           semanticMetadata: {
             keyPhrases: [],
-            topics: [],
             readabilityScore: 50,
             semanticProcessed: false,
             semanticTimestamp: Date.now()

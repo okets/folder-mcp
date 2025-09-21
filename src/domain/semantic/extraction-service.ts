@@ -23,10 +23,6 @@ import {
   IReadabilityCalculator,
   createReadabilityCalculator
 } from './algorithms/readability-calculator.js';
-import {
-  EnhancedTopicClusteringService,
-  createTopicClusteringService
-} from '../content/topic-clustering.js';
 
 /**
  * Default extraction options
@@ -36,7 +32,6 @@ const DEFAULT_OPTIONS: SemanticExtractionOptions = {
   ngramRange: [1, 3],
   useMmr: true,
   diversity: 0.5,
-  maxTopics: 5,
   calculateMetrics: true
 };
 
@@ -50,7 +45,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   private options: SemanticExtractionOptions;
   private ngramExtractor: NGramCosineExtractor | null = null;
   private readabilityCalculator: IReadabilityCalculator;
-  private topicClusteringService: EnhancedTopicClusteringService;
 
   constructor(
     private pythonService: IPythonSemanticService | null,
@@ -62,8 +56,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     // Initialize Coleman-Liau readability calculator (always available)
     this.readabilityCalculator = createReadabilityCalculator();
 
-    // Initialize topic clustering service (Sprint 3)
-    this.topicClusteringService = createTopicClusteringService(logger);
 
     // Initialize N-gram extractor for ONNX models (which don't use Python service)
     // ONNX models run entirely in Node.js and use N-gram extraction
@@ -83,15 +75,12 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       // Extract key phrases using KeyBERT if available, fallback to n-gram
       const keyPhrases = await this.extractKeyPhrases(text, embeddings);
 
-      // Extract topics (for now using simple approach, will upgrade in Sprint 3)
-      const topics = await this.extractTopics(text, embeddings);
-
       // Calculate readability using Coleman-Liau (Sprint 2 implementation)
       const readabilityScore = this.readabilityCalculator.calculate(text);
 
       // Calculate quality metrics
       const qualityMetrics = this.options.calculateMetrics
-        ? this.calculateQualityMetrics(keyPhrases, topics)
+        ? this.calculateQualityMetrics(keyPhrases)
         : undefined;
 
       const processingTimeMs = Date.now() - startTime;
@@ -107,7 +96,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
 
       return {
         keyPhrases,
-        topics,
         readabilityScore,
         extractionMethod,
         processingTimeMs,
@@ -189,20 +177,16 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       const text = texts[i]!;
       const keyPhrases = keyPhrasesArray[i] || [];
 
-      // Extract topics (using existing single-text method)
-      const topics = await this.extractTopics(text);
-
       // Calculate readability
       const readabilityScore = this.readabilityCalculator.calculate(text);
 
       // Calculate quality metrics
       const qualityMetrics = this.options.calculateMetrics
-        ? this.calculateQualityMetrics(keyPhrases, topics)
+        ? this.calculateQualityMetrics(keyPhrases)
         : undefined;
 
       results.push({
         keyPhrases,
-        topics,
         readabilityScore,
         extractionMethod: 'keybert',
         processingTimeMs: batchTime / texts.length, // Approximate per-text time
@@ -256,22 +240,18 @@ export class SemanticExtractionService implements ISemanticExtractionService {
         score: item.score
       }));
 
-      // Extract topics
-      const topics = await this.extractTopics(text, embedding);
-
       // Calculate readability
       const readabilityScore = this.readabilityCalculator.calculate(text);
 
       // Calculate quality metrics
       const qualityMetrics = this.options.calculateMetrics
-        ? this.calculateQualityMetrics(keyPhrases, topics)
+        ? this.calculateQualityMetrics(keyPhrases)
         : undefined;
 
       const processingTimeMs = Date.now() - textStartTime;
 
       results.push({
         keyPhrases,
-        topics,
         readabilityScore,
         extractionMethod: 'ngram',
         processingTimeMs,
@@ -371,65 +351,6 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     return multiwordCount / phrases.length;
   }
 
-  /**
-   * Extract topics from text using enhanced clustering approach
-   */
-  async extractTopics(text: string, embeddings?: Float32Array): Promise<SemanticScore[]> {
-    // SPRINT 3: Use enhanced topic clustering service
-    try {
-      // Extract topics using the enhanced clustering service
-      const extractedTopics = this.topicClusteringService.extractTopics(
-        [], // Will extract key phrases internally if needed
-        text,
-        {
-          maxTopics: this.options.maxTopics || 5,
-          minConfidence: 0.3,
-          cleanMarkdown: true,
-          diversityThreshold: 0.5
-        }
-      );
-
-      // Convert to scored format with higher scores for primary topics
-      const scoredTopics: SemanticScore[] = [
-        ...extractedTopics.primary.map(topic => ({ text: topic, score: 0.8 })),
-        ...extractedTopics.secondary.slice(0, (this.options.maxTopics || 5) - extractedTopics.primary.length)
-          .map(topic => ({ text: topic, score: 0.6 }))
-      ];
-
-      this.logger.debug('Enhanced topic extraction (Sprint 3)', {
-        topicCount: scoredTopics.length,
-        topics: scoredTopics.map(t => t.text),
-        primary: extractedTopics.primary,
-        secondary: extractedTopics.secondary
-      });
-
-      return scoredTopics.length > 0 ? scoredTopics : [{ text: 'technical documentation', score: 0.5 }];
-    } catch (error) {
-      this.logger.error('Enhanced topic extraction failed, using fallback', error as Error);
-
-      // Fallback to simple pattern matching if enhanced clustering fails
-      const scoredTopics: SemanticScore[] = [];
-      const lowerText = text.toLowerCase();
-
-      const topicPatterns = [
-        { pattern: /machine learning|neural|ai|artificial intelligence/i, topic: 'machine learning', score: 0.8 },
-        { pattern: /semantic search|embedding|vector|similarity/i, topic: 'semantic search', score: 0.8 },
-        { pattern: /document|text|content|file/i, topic: 'document processing', score: 0.7 },
-        { pattern: /database|storage|index|query/i, topic: 'data storage', score: 0.7 },
-        { pattern: /transform|model|bert|gpt/i, topic: 'transformer models', score: 0.8 },
-        { pattern: /python|javascript|typescript|code/i, topic: 'programming', score: 0.6 },
-        { pattern: /api|endpoint|service|server/i, topic: 'web services', score: 0.6 }
-      ];
-
-      for (const { pattern, topic, score } of topicPatterns) {
-        if (pattern.test(lowerText) && scoredTopics.length < (this.options.maxTopics || 5)) {
-          scoredTopics.push({ text: topic, score });
-        }
-      }
-
-      return scoredTopics.length > 0 ? scoredTopics : [{ text: 'technical documentation', score: 0.5 }];
-    }
-  }
 
 
   /**
@@ -457,7 +378,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Calculate quality metrics for extracted data
    */
-  private calculateQualityMetrics(keyPhrases: SemanticScore[], topics: SemanticScore[]): SemanticData['qualityMetrics'] {
+  private calculateQualityMetrics(keyPhrases: SemanticScore[]): SemanticData['qualityMetrics'] {
     const phraseTexts = keyPhrases.map(p => p.text);
     const multiwordPhrases = phraseTexts.filter(p => p.includes(' '));
     const multiwordRatio = phraseTexts.length > 0
@@ -469,18 +390,9 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       ? wordCounts.reduce((a, b) => a + b, 0) / wordCounts.length
       : 1;
 
-    // Topic specificity (0-1, higher is more specific)
-    const genericTopics = ['general', 'education', 'technology', 'business', 'science'];
-    const topicTexts = topics.map(t => t.text);
-    const specificTopics = topicTexts.filter(t => !genericTopics.includes(t.toLowerCase()));
-    const topicSpecificity = topicTexts.length > 0
-      ? specificTopics.length / topicTexts.length
-      : 0;
-
     return {
       multiwordRatio,
-      averageWordsPerPhrase,
-      topicSpecificity
+      averageWordsPerPhrase
     };
   }
 

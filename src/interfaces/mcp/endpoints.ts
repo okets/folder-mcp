@@ -207,7 +207,6 @@ export class MCPEndpoints implements IMCPEndpoints {
                 slide: result.metadata?.slide || null
               },
               semantic_context: {
-                matched_topics: result.chunk?.semanticMetadata?.topics || [],
                 key_phrases: result.chunk?.semanticMetadata?.keyPhrases || [],
                 readability_score: result.chunk?.semanticMetadata?.readabilityScore || 0,
                 chunk_index: result.chunk?.chunkIndex || 0
@@ -232,7 +231,6 @@ export class MCPEndpoints implements IMCPEndpoints {
               relevance_score: result.score || 0,
               location: this.extractLocationInfo(result),
               semantic_context: {
-                matched_topics: [],
                 key_phrases: [],
                 readability_score: 75,
                 chunk_index: 0
@@ -259,7 +257,6 @@ export class MCPEndpoints implements IMCPEndpoints {
             relevance_score: 1.0, // Regex matches are binary
             location: this.extractLocationInfo(result),
             semantic_context: {
-              matched_topics: [],
               key_phrases: [],
               readability_score: 75,
               chunk_index: 0

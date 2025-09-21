@@ -24,7 +24,6 @@ export interface ContentTransformationOptions {
 export interface ContentEnhancement {
   keyPhrases: string[];
   summary?: string;
-  topics: string[];
   readabilityScore?: number;
 }
 
@@ -82,7 +81,6 @@ export function transformContent(content: ParsedContent, options: ContentTransfo
 export function enhanceContent(content: ParsedContent): EnhancedContent {
   const keyPhrases = extractKeyPhraseCandidates(content.content, 10);
   const summary = generateSummary(content.content);
-  const topics = ['general']; // Simple fallback - main extraction handled by SemanticExtractionService
   const readabilityScore = calculateReadabilityScore(content.content);
 
   return {
@@ -90,7 +88,6 @@ export function enhanceContent(content: ParsedContent): EnhancedContent {
     enhancement: {
       keyPhrases,
       summary,
-      topics,
       readabilityScore
     },
     transformationApplied: {},

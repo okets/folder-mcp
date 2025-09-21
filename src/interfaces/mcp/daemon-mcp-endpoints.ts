@@ -140,12 +140,9 @@ export class DaemonMCPEndpoints {
         }
         
         // Add semantic metadata if available (Sprint 10)
-        if (folder.status === 'active' && ((folder.topics?.length ?? 0) > 0 || (folder.keyPhrases?.length ?? 0) > 0)) {
+        if (folder.status === 'active' && (folder.keyPhrases?.length ?? 0) > 0) {
           lines.push('');
           lines.push('   📊 Semantic Preview:');
-          if (folder.topics && folder.topics.length > 0) {
-            lines.push(`   Topics: ${folder.topics.slice(0, 3).join(', ')}`);
-          }
           if (folder.keyPhrases && folder.keyPhrases.length > 0) {
             lines.push(`   Key phrases: ${folder.keyPhrases.slice(0, 5).join(', ')}`);
           }

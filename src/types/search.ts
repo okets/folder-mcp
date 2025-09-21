@@ -32,7 +32,6 @@ export interface BasicSearchResult {
   modelId: string;
   // Semantic metadata fields
   keyPhrases?: string[];
-  topics?: string[];
   readabilityScore?: number;
 }
 

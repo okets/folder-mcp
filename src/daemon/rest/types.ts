@@ -24,8 +24,6 @@ export interface FolderInfo {
   documentCount: number;
   /** ISO timestamp of last indexing */
   lastIndexed?: string;
-  /** Folder topics/tags (placeholder for future) */
-  topics?: string[];
   /** Key phrases extracted from content (Sprint 10) */
   keyPhrases?: string[];
   /** Content complexity level (Sprint 10) */
@@ -170,8 +168,6 @@ export interface DocumentData {
     primaryPurpose: string;
     /** Key phrases extracted from content */
     keyPhrases: string[];
-    /** Main topics covered */
-    topics: string[];
     /** Complexity level */
     complexityLevel: string;
     /** Content type classification */
@@ -214,7 +210,6 @@ export interface DocumentOutline {
     pageNumber?: number;
     /** Semantic enrichment for this section - Sprint 10 */
     semantics?: {
-      topics: string[];
       keyPhrases: string[];
       hasCodeExamples: boolean;
       subsectionCount?: number;
@@ -241,7 +236,6 @@ export interface DocumentOutline {
     lineNumber?: number;
     /** Semantic enrichment for this heading - Sprint 10 */
     semantics?: {
-      topics: string[];
       keyPhrases: string[];
       hasCodeExamples: boolean;
       subsectionCount?: number;

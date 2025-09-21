@@ -23,8 +23,6 @@ export interface FolderConfig {
   status: 'active' | 'indexing' | 'pending' | 'error';
   documentCount?: number;
   lastIndexed?: string;
-  // Sprint 10: Semantic metadata
-  topics?: string[];
   keyPhrases?: string[];
   contentComplexity?: string;
   avgReadabilityScore?: number;

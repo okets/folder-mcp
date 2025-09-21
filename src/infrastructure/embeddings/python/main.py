@@ -62,11 +62,6 @@ def check_dependencies():
     except ImportError:
         missing_packages.append("keybert")
 
-    # Check BERTopic for document-level topic modeling (Sprint 0 requirement)
-    try:
-        import bertopic
-    except ImportError:
-        missing_packages.append("bertopic")
 
     if missing_packages:
         # Output specific error that Node.js can detect and parse

@@ -391,7 +391,6 @@ export class RESTAPIServer {
           })(),
           status: folder.status || 'pending',
           documentCount,
-          topics: [], // Will be populated from semantic metadata
           progress: folder.progress,
           notification: folder.notification
         };
@@ -406,7 +405,6 @@ export class RESTAPIServer {
           try {
             const semanticData = await this.semanticService.getFolderSemanticMetadata(folder.path);
             if (semanticData) {
-              folderInfo.topics = semanticData.topTopics || [];
               folderInfo.keyPhrases = semanticData.keyPhrases || [];
               folderInfo.contentComplexity = semanticData.contentComplexity;
               folderInfo.avgReadabilityScore = semanticData.avgReadabilityScore;
@@ -548,7 +546,6 @@ export class RESTAPIServer {
               if (semanticData) {
                 doc.semanticSummary = {
                   keyPhrases: semanticData.keyPhrases || [],
-                  topics: semanticData.topics || [],
                   primaryPurpose: semanticData.primaryPurpose,
                   contentType: semanticData.contentType
                 };
@@ -683,7 +680,6 @@ export class RESTAPIServer {
             response.document.semanticMetadata = {
               primaryPurpose: semanticData.primaryPurpose,
               keyPhrases: semanticData.keyPhrases || [],
-              topics: semanticData.topics || [],
               complexityLevel: semanticData.complexityLevel,
               contentType: semanticData.contentType,
               hasCodeExamples: semanticData.hasCodeExamples,
@@ -854,15 +850,10 @@ export class RESTAPIServer {
                       
                       if (overlappingChunks.length > 0) {
                         // Aggregate semantic data from overlapping chunks
-                        const topicCounts = new Map<string, number>();
                         const phraseCounts = new Map<string, number>();
                         let hasCode = false;
                         
                         for (const chunk of overlappingChunks) {
-                          // Count topics
-                          for (const topic of chunk.topics) {
-                            topicCounts.set(topic, (topicCounts.get(topic) || 0) + 1);
-                          }
                           
                           // Count key phrases
                           for (const phrase of chunk.keyPhrases) {
@@ -873,10 +864,6 @@ export class RESTAPIServer {
                         }
                         
                         // Sort and select top items
-                        const topics = Array.from(topicCounts.entries())
-                          .sort((a, b) => b[1] - a[1])
-                          .slice(0, 5)
-                          .map(([topic]) => topic);
                         
                         const keyPhrases = Array.from(phraseCounts.entries())
                           .sort((a, b) => b[1] - a[1])
@@ -885,7 +872,6 @@ export class RESTAPIServer {
                         
                         // Add semantics to heading
                         heading.semantics = {
-                          topics,
                           keyPhrases,
                           hasCodeExamples: hasCode,
                           subsectionCount: 0, // Could be calculated from heading levels
@@ -906,7 +892,6 @@ export class RESTAPIServer {
                     const enrichedHeadings = headings.slice(0, 20);
                     for (const heading of enrichedHeadings) {
                       heading.semantics = {
-                        topics: semanticData.topics || [],
                         keyPhrases: semanticData.keyPhrases?.slice(0, 5) || [],
                         hasCodeExamples: semanticData.hasCodeExamples || false,
                         subsectionCount: 0,
@@ -929,7 +914,6 @@ export class RESTAPIServer {
                   const enrichedSections = sections.slice(0, 20);
                   for (const section of enrichedSections) {
                     section.semantics = {
-                      topics: semanticData.topics || [],
                       keyPhrases: semanticData.keyPhrases?.slice(0, 5) || [],
                       hasCodeExamples: semanticData.hasCodeExamples || false,
                       subsectionCount: 0,
@@ -1182,7 +1166,6 @@ export class RESTAPIServer {
             documentPath: result.documentId,
             // Add semantic metadata directly from the BasicSearchResult
             keyPhrases: result.keyPhrases || [],
-            topics: result.topics || []
           }));
 
         this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);

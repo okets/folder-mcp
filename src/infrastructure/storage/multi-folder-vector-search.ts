@@ -155,7 +155,6 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
           c.content,
           c.chunk_index,
           c.key_phrases,
-          c.topics,
           c.readability_score,
           d.file_path,
           d.mime_type
@@ -188,7 +187,6 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
               modelId: 'unknown', // Add required field
               // Add semantic metadata from database
               keyPhrases: row.key_phrases ? JSON.parse(row.key_phrases) : [],
-              topics: row.topics ? JSON.parse(row.topics) : [],
               readabilityScore: row.readability_score || 0,
               metadata: {
                 chunkIndex: row.chunk_index,
