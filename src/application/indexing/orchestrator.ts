@@ -5,12 +5,11 @@
  * to scan, parse, chunk, embed, and cache content.
  */
 
-import { 
-  IndexingWorkflow, 
-  IndexingOptions, 
-  IndexingResult, 
+import {
+  IndexingWorkflow,
+  IndexingOptions,
+  IndexingResult,
   IndexingStatus,
-  IndexingProgress,
   IndexingError,
   IndexingStatistics
 } from './index.js';
@@ -33,7 +32,7 @@ import path from 'path';
 import os from 'os';
 
 // Domain types
-import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../../types/index.js';
+import { FileFingerprint, TextChunk, SemanticMetadata } from '../../types/index.js';
 
 // Semantic extraction service - using new KeyBERT-based service
 import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
@@ -67,7 +66,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     private readonly vectorSearchService: IVectorSearchService,
     private readonly cacheService: ICacheService,
     private readonly loggingService: ILoggingService,
-    private readonly configService: IConfigurationService,
+    _configService: IConfigurationService, // Not used directly, kept for compatibility
     private readonly fileSystemService: IFileSystemService,
     private readonly onnxConfiguration: IOnnxConfiguration
   ) {
@@ -215,7 +214,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     }
     
     // Generate unique indexing ID for progress tracking
-    const indexingId = `idx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const indexingId = `idx_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     
     this.loggingService.info('Starting folder indexing', { 
       folderPath: path, 
@@ -296,7 +295,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   }
 
   async indexFiles(files: string[], options: IndexingOptions = {}): Promise<IndexingResult> {
-    const startTime = Date.now();
     
     // Embedding model MUST be provided - no fallback to reveal configuration issues
     if (!options.embeddingModel) {
@@ -439,9 +437,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       statistics: this.createEmptyStatistics()
     };
 
-    let totalBytes = 0;
-    let totalWords = 0;
-    const chunkSizes: number[] = [];
     const allEmbeddings: any[] = [];
     const allMetadata: any[] = [];
 
@@ -539,9 +534,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   }> {
     // Log file processing start
     this.loggingService.debug(`Indexing file: ${filePath}`, { modelId });
-    
+
     try {
-    
+
     // Parse file content - need to determine file type
     const fileType = this.getFileType(filePath);
     if (!this.fileParsingService.isSupported(fileType)) {
@@ -594,26 +589,100 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunkResult = await this.chunkingService.chunkText(parsedContent, finalChunkSize);
     const chunks = chunkResult.chunks;
 
-    // Extract semantic metadata for each chunk (Sprint 10)
-    const chunksWithSemantics = await this.extractSemanticMetadata(chunks, modelId);
+    // Determine if this is an ONNX model
+    const isONNXModel = modelId.startsWith('cpu:') || modelId.startsWith('onnx:');
 
-    // Document-level semantic aggregation removed - not used in production
-    // Keeping only chunk-level semantics which are actually used
+    // For ONNX models: Generate embeddings ONCE before keyword extraction to avoid duplication
+    // For GPU models: Generate embeddings after keyword extraction as before
+    let preGeneratedEmbeddings: Map<number, any> | undefined;
+    let embeddingService: IEmbeddingService | undefined;
 
-    // Report total chunks
-    if (progressCallback) {
-      progressCallback(chunksWithSemantics.length, 0);
+    if (isONNXModel && (!options.embeddingModel || options.embeddingModel !== 'skip')) {
+      this.loggingService.info('[OPTIMIZED-ONNX] Generating embeddings once for both keywords and storage');
+
+      // Get embedding service early for ONNX
+      embeddingService = await this.getEmbeddingServiceForModel(modelId);
+
+      // Report initial progress
+      if (progressCallback) {
+        progressCallback(chunks.length, 0);
+      }
+
+      // Generate embeddings for all chunks (will be used for both keywords and storage)
+      preGeneratedEmbeddings = new Map<number, any>();
+      const batchSize = 10;
+      let totalProcessed = 0;
+
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+
+        try {
+          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+
+          // Store embeddings for later use
+          batchEmbeddings.forEach((embedding, idx) => {
+            if (embedding && embedding.vector && embedding.vector.length > 0) {
+              const chunkIndex = i + idx;
+              preGeneratedEmbeddings!.set(chunkIndex, embedding);
+              totalProcessed++;
+            }
+          });
+
+          // Report embedding generation progress (0-50% of total for ONNX)
+          if (progressCallback) {
+            const embeddingProgress = Math.floor((totalProcessed / chunks.length) * 0.5 * chunks.length);
+            progressCallback(chunks.length, embeddingProgress);
+          }
+        } catch (error) {
+          this.loggingService.error('[OPTIMIZED-ONNX] Failed to generate embeddings for batch', error instanceof Error ? error : new Error(String(error)));
+        }
+      }
+
+      this.loggingService.info('[OPTIMIZED-ONNX] Generated embeddings for chunks', {
+        totalChunks: chunks.length,
+        embeddingsGenerated: preGeneratedEmbeddings.size
+      });
+    } else {
+      // For GPU models, just report initial progress
+      if (progressCallback) {
+        progressCallback(chunks.length, 0);
+      }
     }
+
+    // Extract semantic metadata with progress reporting
+    // For ONNX: Pass pre-generated embeddings to avoid regeneration
+    // For GPU: Generate embeddings during keyword extraction as needed
+    const chunksWithSemantics = await this.extractSemanticMetadata(
+      chunks,
+      modelId,
+      (processedChunks: number) => {
+        if (progressCallback) {
+          if (isONNXModel) {
+            // ONNX: Keywords are 50-80% of progress (embeddings were 0-50%)
+            const keywordProgress = Math.floor(0.5 * chunks.length + (processedChunks / chunks.length) * 0.3 * chunks.length);
+            progressCallback(chunks.length, keywordProgress);
+          } else {
+            // GPU: Keywords are 0-40% of progress
+            const keywordProgress = Math.floor((processedChunks / chunks.length) * 0.4 * chunks.length);
+            progressCallback(chunks.length, keywordProgress);
+          }
+        }
+      },
+      preGeneratedEmbeddings // Pass pre-generated embeddings for ONNX
+    );
 
     // Generate embeddings if not skipped
     let embeddingsCreated = 0;
     let embeddings: any[] = [];
     let metadata: any[] = [];
-    
+
     if (!options.embeddingModel || options.embeddingModel !== 'skip') {
-      // Use model-specific embedding service
-      const embeddingService = await this.getEmbeddingServiceForModel(modelId);
-      
+      // For ONNX: Use pre-generated embeddings
+      // For GPU: Generate embeddings now
+      if (!embeddingService) {
+        embeddingService = await this.getEmbeddingServiceForModel(modelId);
+      }
+
       // Calculate file hash for proper fingerprinting
       let fileHash = '';
       try {
@@ -625,17 +694,69 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         fileHash = contentHash;
         this.loggingService.debug('Using content-based hash for file', { filePath, hash: fileHash });
       }
-      
-      // Process embeddings in batches and create metadata only for successful embeddings
-      const batchSize = 10; // Process 10 chunks at a time
-      let totalProcessed = 0; // Track actual number of successfully processed embeddings
 
-      for (let i = 0; i < chunksWithSemantics.length; i += batchSize) {
-        const batch = chunksWithSemantics.slice(i, Math.min(i + batchSize, chunksWithSemantics.length));
-        const batchStartIndex = i; // Store the starting index for this batch
-        
-        try {
-          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+      if (isONNXModel && preGeneratedEmbeddings) {
+        // ONNX: Use pre-generated embeddings - no need to regenerate!
+        this.loggingService.info('[OPTIMIZED-ONNX] Using pre-generated embeddings for storage');
+
+        // Build embeddings array and metadata from pre-generated embeddings
+        for (let i = 0; i < chunksWithSemantics.length; i++) {
+          const chunk = chunksWithSemantics[i];
+          const embedding = preGeneratedEmbeddings.get(i);
+
+          if (embedding && chunk) {
+            embeddings.push(embedding);
+
+            const metadataObj: any = {
+              filePath,
+              chunkId: `${filePath}_chunk_${i}`,
+              chunkIndex: i,
+              content: chunk.content,
+              startPosition: chunk.startPosition,
+              endPosition: chunk.endPosition,
+              fileHash
+            };
+
+            // Pass through extraction params from format-aware chunking
+            const chunkMetadata = chunk.metadata as any;
+            if (chunkMetadata?.extractionParams) {
+              metadataObj.extractionParams = chunkMetadata.extractionParams;
+            }
+
+            // Add semantic metadata from KeyBERT extraction
+            if (chunk.semanticMetadata) {
+              metadataObj.keyPhrases = chunk.semanticMetadata.keyPhrases || [];
+              metadataObj.readabilityScore = chunk.semanticMetadata.readabilityScore || 50;
+            }
+
+            metadata.push(metadataObj);
+          }
+        }
+
+        embeddingsCreated = embeddings.length;
+
+        // Report final progress for ONNX (80-100%)
+        if (progressCallback) {
+          progressCallback(chunks.length, chunks.length);
+        }
+
+        this.loggingService.info('[OPTIMIZED-ONNX] Reused embeddings for storage', {
+          totalChunks: chunksWithSemantics.length,
+          embeddingsReused: embeddings.length
+        });
+
+      } else {
+        // GPU models: Generate embeddings now (original flow)
+        // Process embeddings in batches and create metadata only for successful embeddings
+        const batchSize = 10; // Process 10 chunks at a time
+        let totalProcessed = 0; // Track actual number of successfully processed embeddings
+
+        for (let i = 0; i < chunksWithSemantics.length; i += batchSize) {
+          const batch = chunksWithSemantics.slice(i, Math.min(i + batchSize, chunksWithSemantics.length));
+          const batchStartIndex = i; // Store the starting index for this batch
+
+          try {
+            const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
           
           // Only add embeddings and metadata if generation succeeded
           if (batchEmbeddings && batchEmbeddings.length > 0) {
@@ -721,10 +842,11 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           this.loggingService.error(`Error generating embeddings for batch ${i}-${Math.min(i + batchSize, chunks.length)} in ${filePath}:`, error);
           // Continue with next batch rather than failing entire file
         }
-        
         // Report progress based on actual processed embeddings
         if (progressCallback) {
-          progressCallback(chunks.length, totalProcessed);
+          // GPU models: Embeddings are 40-100% of progress (keywords were 0-40%)
+          const embeddingProgress = Math.floor(0.4 * chunks.length + (totalProcessed / chunks.length) * 0.6 * chunks.length);
+          progressCallback(chunks.length, embeddingProgress);
           
           // TUI progress-based continuous CPM logging as suggested by user
           const currentTime = Date.now();
@@ -741,8 +863,9 @@ export class IndexingOrchestrator implements IndexingWorkflow {
             console.error(`[CONTINUOUS-CPM] current_time:${currentTime}, first_chunk_time:${firstChunkTime}, chunks_so_far:${chunksProcessedSoFar}, avg_time_per_chunk:${avgTimePerChunk.toFixed(2)}ms, CPM:${currentCpm.toFixed(1)}, config:${process.env.WORKER_POOL_SIZE || '?'}w${process.env.NUM_THREADS || '?'}t`);
           }
         }
+        }
+        embeddingsCreated = embeddings.length;
       }
-      embeddingsCreated = embeddings.length;
       
       // Track performance metrics
       this.performanceMetrics.chunksProcessed += chunks.length;
@@ -1006,8 +1129,15 @@ export class IndexingOrchestrator implements IndexingWorkflow {
    * FAILS LOUDLY if extraction fails - no silent failures!
    * @param chunks The text chunks to process
    * @param modelId The model ID being used for embeddings (to get the correct service)
+   * @param progressCallback Optional callback to report progress
+   * @param preGeneratedEmbeddings Optional pre-generated embeddings for ONNX models
    */
-  private async extractSemanticMetadata(chunks: TextChunk[], modelId?: string): Promise<TextChunk[]> {
+  private async extractSemanticMetadata(
+    chunks: TextChunk[],
+    modelId?: string,
+    progressCallback?: (processedChunks: number) => void,
+    preGeneratedEmbeddings?: Map<number, any>
+  ): Promise<TextChunk[]> {
     this.loggingService.debug('[SEMANTIC-EXTRACT] Starting semantic extraction', {
       chunkCount: chunks.length
     });
@@ -1088,130 +1218,172 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       throw new Error('Semantic extraction service not initialized');
     }
 
-    // For ONNX models, we need to generate embeddings FIRST before semantic extraction
-    // because N-gram extraction requires embeddings to calculate cosine similarity
+    // For ONNX models, we need embeddings for semantic extraction
+    // Use pre-generated embeddings if available (optimization), otherwise generate them now
     let chunkEmbeddings: Map<number, Float32Array> | undefined;
 
     this.loggingService.debug('[SEMANTIC-EXTRACT] Pre-embedding check', {
       isONNXModel,
       hasEmbeddingService: !!embeddingService,
+      hasPreGeneratedEmbeddings: !!preGeneratedEmbeddings,
       embeddingServiceType: embeddingService ? (embeddingService as any).constructor?.name : 'none'
     });
 
-    if (isONNXModel && embeddingService) {
-      this.loggingService.info('[SEMANTIC-EXTRACT] Generating embeddings first for ONNX N-gram extraction');
-      chunkEmbeddings = new Map<number, Float32Array>();
+    if (isONNXModel) {
+      if (preGeneratedEmbeddings) {
+        // Use pre-generated embeddings (optimization path)
+        this.loggingService.info('[SEMANTIC-EXTRACT] Using pre-generated embeddings for N-gram extraction');
+        chunkEmbeddings = new Map<number, Float32Array>();
 
-      const batchSize = 10;
-      for (let i = 0; i < chunks.length; i += batchSize) {
-        const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+        // Convert pre-generated embeddings to Float32Array format
+        preGeneratedEmbeddings.forEach((embedding, chunkIndex) => {
+          if (embedding && embedding.vector) {
+            const vector = embedding.vector instanceof Float32Array
+              ? embedding.vector
+              : new Float32Array(embedding.vector);
+            chunkEmbeddings!.set(chunkIndex, vector);
+          }
+        });
 
-        try {
-          const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+        this.loggingService.info('[SEMANTIC-EXTRACT] Converted pre-generated embeddings', {
+          totalChunks: chunks.length,
+          embeddingsAvailable: chunkEmbeddings.size
+        });
+      } else if (embeddingService) {
+        // Generate embeddings now (fallback for backward compatibility)
+        this.loggingService.info('[SEMANTIC-EXTRACT] Generating embeddings for ONNX N-gram extraction (fallback)');
+        chunkEmbeddings = new Map<number, Float32Array>();
 
-          // Store embeddings for each chunk
-          batchEmbeddings.forEach((embedding, idx) => {
-            if (embedding && embedding.vector && embedding.vector.length > 0) {
-              const chunkIndex = i + idx;
-              // Ensure it's a Float32Array
-              const vector = embedding.vector instanceof Float32Array
-                ? embedding.vector
-                : new Float32Array(embedding.vector);
-              chunkEmbeddings!.set(chunkIndex, vector);
-              this.loggingService.debug('[SEMANTIC-EXTRACT] Stored embedding for chunk', {
-                chunkIndex,
-                vectorLength: embedding.vector.length
-              });
-            }
-          });
-        } catch (error) {
-          this.loggingService.error('[SEMANTIC-EXTRACT] Failed to generate embeddings for batch', error instanceof Error ? error : new Error(String(error)));
-          // Continue with other batches
+        const batchSize = 10;
+        for (let i = 0; i < chunks.length; i += batchSize) {
+          const batch = chunks.slice(i, Math.min(i + batchSize, chunks.length));
+
+          try {
+            const batchEmbeddings = await embeddingService.generateEmbeddings(batch);
+
+            // Store embeddings for each chunk
+            batchEmbeddings.forEach((embedding, idx) => {
+              if (embedding && embedding.vector && embedding.vector.length > 0) {
+                const chunkIndex = i + idx;
+                // Ensure it's a Float32Array
+                const vector = embedding.vector instanceof Float32Array
+                  ? embedding.vector
+                  : new Float32Array(embedding.vector);
+                chunkEmbeddings!.set(chunkIndex, vector);
+                this.loggingService.debug('[SEMANTIC-EXTRACT] Stored embedding for chunk', {
+                  chunkIndex,
+                  vectorLength: embedding.vector.length
+                });
+              }
+            });
+          } catch (error) {
+            this.loggingService.error('[SEMANTIC-EXTRACT] Failed to generate embeddings for batch', error instanceof Error ? error : new Error(String(error)));
+            // Continue with other batches
+          }
         }
-      }
 
-      this.loggingService.info('[SEMANTIC-EXTRACT] Generated embeddings for chunks', {
-        totalChunks: chunks.length,
-        embeddingsGenerated: chunkEmbeddings.size
-      });
+        this.loggingService.info('[SEMANTIC-EXTRACT] Generated embeddings for chunks', {
+          totalChunks: chunks.length,
+          embeddingsGenerated: chunkEmbeddings.size
+        });
+      }
     }
 
-    // Use batch processing for semantic extraction
-    this.loggingService.info('[SEMANTIC-EXTRACT] Using batch processing for optimal performance', {
+    // Process semantic extraction in batches with progress reporting
+    this.loggingService.info('[SEMANTIC-EXTRACT] Processing semantic extraction in batches', {
       chunkCount: chunks.length,
       isONNXModel,
       hasEmbeddings: isONNXModel ? chunkEmbeddings?.size : 'N/A'
     });
 
     let enhancedChunks: TextChunk[] = [];
+    const SEMANTIC_BATCH_SIZE = 20; // Process 20 chunks at a time for semantic extraction
 
     try {
-      let semanticDataArray: SemanticData[];
+      // Process chunks in smaller batches for better progress reporting
+      for (let batchStart = 0; batchStart < chunks.length; batchStart += SEMANTIC_BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + SEMANTIC_BATCH_SIZE, chunks.length);
+        const batchChunks = chunks.slice(batchStart, batchEnd);
 
-      if (isONNXModel && chunkEmbeddings) {
-        // For ONNX models, prepare embeddings array and use batch N-gram processing
-        const texts = chunks.map(chunk => chunk.content);
-        const embeddingsArray: Float32Array[] = [];
+        let batchSemanticData: SemanticData[];
 
-        // Collect embeddings in chunk order
-        for (let i = 0; i < chunks.length; i++) {
-          const embedding = chunkEmbeddings.get(i);
-          if (!embedding) {
-            throw new Error(`Missing embedding for chunk ${i} in ONNX batch processing`);
+        if (isONNXModel && chunkEmbeddings) {
+          // For ONNX models, prepare embeddings array for this batch
+          const batchTexts = batchChunks.map(chunk => chunk.content);
+          const batchEmbeddings: Float32Array[] = [];
+
+          // Collect embeddings for this batch
+          for (let i = batchStart; i < batchEnd; i++) {
+            const embedding = chunkEmbeddings.get(i);
+            if (!embedding) {
+              throw new Error(`Missing embedding for chunk ${i} in ONNX batch processing`);
+            }
+            batchEmbeddings.push(embedding);
           }
-          embeddingsArray.push(embedding);
+
+          this.loggingService.debug('[SEMANTIC-EXTRACT] Processing batch N-gram extraction', {
+            batchStart,
+            batchEnd,
+            textCount: batchTexts.length,
+            embeddingCount: batchEmbeddings.length
+          });
+
+          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts, batchEmbeddings);
+        } else {
+          // For GPU models, use batch KeyBERT processing
+          const batchTexts = batchChunks.map(chunk => chunk.content);
+
+          this.loggingService.debug('[SEMANTIC-EXTRACT] Processing batch KeyBERT extraction', {
+            batchStart,
+            batchEnd,
+            textCount: batchTexts.length
+          });
+
+          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts);
         }
 
-        this.loggingService.debug('[SEMANTIC-EXTRACT] Using batch N-gram extraction with embeddings', {
-          textCount: texts.length,
-          embeddingCount: embeddingsArray.length
-        });
+        // Create enhanced chunks with semantic metadata for this batch
+        for (let i = 0; i < batchChunks.length; i++) {
+          const chunk = batchChunks[i]!;
+          const semanticData = batchSemanticData[i];
 
-        semanticDataArray = await this.semanticExtractionService.extractFromTextBatch(texts, embeddingsArray);
-      } else {
-        // For GPU models, use batch KeyBERT processing (no embeddings needed)
-        const texts = chunks.map(chunk => chunk.content);
+          if (!semanticData) {
+            throw new Error(`Missing semantic data for chunk ${chunk.chunkIndex} from batch processing`);
+          }
 
-        this.loggingService.debug('[SEMANTIC-EXTRACT] Using batch KeyBERT extraction', {
-          textCount: texts.length
-        });
+          const semanticMetadata: SemanticMetadata = {
+            keyPhrases: semanticData.keyPhrases,
+            readabilityScore: semanticData.readabilityScore,
+            semanticProcessed: true,
+            semanticTimestamp: Date.now()
+          };
 
-        semanticDataArray = await this.semanticExtractionService.extractFromTextBatch(texts);
-      }
+          this.loggingService.debug('Chunk semantic extraction successful', {
+            chunkIndex: chunk.chunkIndex,
+            keyPhrasesCount: semanticData.keyPhrases.length,
+            readabilityScore: semanticData.readabilityScore
+          });
 
-      // Create enhanced chunks with semantic metadata
-      enhancedChunks = [];
+          // ALWAYS add semantic metadata
+          const enhancedChunk: TextChunk = {
+            ...chunk,
+            semanticMetadata
+          };
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i]!;
-        const semanticData = semanticDataArray[i];
-
-        if (!semanticData) {
-          throw new Error(`Missing semantic data for chunk ${chunk.chunkIndex} from batch processing`);
+          enhancedChunks.push(enhancedChunk);
         }
 
-        const semanticMetadata: SemanticMetadata = {
-          keyPhrases: semanticData.keyPhrases,
-          readabilityScore: semanticData.readabilityScore,
-          semanticProcessed: true,
-          semanticTimestamp: Date.now()
-        };
+        // Report progress after each batch
+        if (progressCallback) {
+          const processedSoFar = Math.min(batchEnd, chunks.length);
+          progressCallback(processedSoFar);
 
-        this.loggingService.info('Batch semantic extraction successful', {
-          chunkIndex: chunk.chunkIndex,
-          keyPhrasesCount: semanticData.keyPhrases.length,
-          readabilityScore: semanticData.readabilityScore,
-          extractionMethod: semanticData.extractionMethod,
-          multiwordRatio: semanticData.qualityMetrics?.multiwordRatio
-        });
-
-        // ALWAYS add semantic metadata
-        const enhancedChunk: TextChunk = {
-          ...chunk,
-          semanticMetadata
-        };
-
-        enhancedChunks.push(enhancedChunk);
+          this.loggingService.debug('[SEMANTIC-EXTRACT] Progress update', {
+            processedChunks: processedSoFar,
+            totalChunks: chunks.length,
+            percentage: Math.floor((processedSoFar / chunks.length) * 100)
+          });
+        }
       }
 
     } catch (error) {
@@ -1231,14 +1403,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     return `.${extension}`;
   }
 
-  private generateCacheKey(filePath: string): string {
-    // Simple cache key based on file path
-    return filePath.replace(/[^a-zA-Z0-9]/g, '_');
-  }
-
-  private countWords(text: string): number {
-    return text.trim().split(/\s+/).length;
-  }
 
   private createEmptyStatistics(): IndexingStatistics {
     return {
