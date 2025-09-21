@@ -8,7 +8,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
-import type { TextChunk } from '../../types/index.js';
+import type { TextChunk, SemanticScore } from '../../types/index.js';
 import { createDefaultSemanticMetadata } from '../../types/index.js';
 import type {
   EmbeddingOperations,
@@ -1338,7 +1338,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   async extractKeyPhrasesKeyBERT(
     text: string,
     options?: SemanticExtractionOptions
-  ): Promise<string[]> {
+  ): Promise<SemanticScore[]> {
     if (!this.pythonProcess) {
       throw new Error('Python process not initialized');
     }
@@ -1352,11 +1352,71 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         top_n: options?.maxKeyPhrases || 10
       });
 
-      return response.keyphrases || [];
+      // Convert response to SemanticScore format
+      const keyphrases = response.keyphrases || [];
+      if (Array.isArray(keyphrases) && keyphrases.length > 0) {
+        // Check if first item is already in scored format {text: string, score: number}
+        if (typeof keyphrases[0] === 'object' && 'text' in keyphrases[0] && 'score' in keyphrases[0]) {
+          return keyphrases as SemanticScore[];
+        }
+        // Fallback: convert string array to scored format with default scores
+        return keyphrases.map((phrase: string, index: number) => ({
+          text: phrase,
+          score: Math.max(0.1, 1.0 - (index * 0.1)) // Decreasing scores based on position
+        }));
+      }
+      return [];
     } catch (error) {
       console.error('[PYTHON-EMBEDDING] KeyBERT extraction failed:', error);
       throw new Error(`KeyBERT extraction failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  async extractKeyPhrasesKeyBERTBatch(
+    texts: string[],
+    options?: SemanticExtractionOptions
+  ): Promise<SemanticScore[][]> {
+    if (!this.pythonProcess) {
+      throw new Error('Python process not initialized');
+    }
+
+    console.error(`[PYTHON-EMBEDDING] Batch KeyBERT extraction for ${texts.length} texts`);
+    const startTime = Date.now();
+
+    const response = await this.sendJsonRpcRequest('extract_keyphrases_keybert_batch', {
+      texts,
+      ngram_range: options?.ngramRange || [1, 3],
+      use_mmr: options?.useMmr !== false,
+      diversity: options?.diversity || 0.5,
+      top_n: options?.maxKeyPhrases || 10
+    });
+
+    const elapsed = Date.now() - startTime;
+    console.error(`[PYTHON-EMBEDDING] Batch KeyBERT completed in ${elapsed}ms`);
+
+    if (!response.keyphrases_batch) {
+      throw new Error('Python backend did not return keyphrases_batch - batch processing not implemented');
+    }
+
+    // Convert batch response to SemanticScore format
+    const batchResults: SemanticScore[][] = [];
+    for (const keyphrases of response.keyphrases_batch) {
+      if (Array.isArray(keyphrases) && keyphrases.length > 0) {
+        // Check if first item is already in scored format {text: string, score: number}
+        if (typeof keyphrases[0] === 'object' && 'text' in keyphrases[0] && 'score' in keyphrases[0]) {
+          batchResults.push(keyphrases as SemanticScore[]);
+        } else {
+          // Fallback: convert string array to scored format with default scores
+          batchResults.push(keyphrases.map((phrase: string, index: number) => ({
+            text: phrase,
+            score: Math.max(0.1, 1.0 - (index * 0.1)) // Decreasing scores based on position
+          })));
+        }
+      } else {
+        batchResults.push([]);
+      }
+    }
+    return batchResults;
   }
 
   /**

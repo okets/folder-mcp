@@ -392,6 +392,99 @@ class EmbeddingRPCServer:
         else:
             logger.error(f"Semantic handler not available: handler={self.handler is not None}, model_loaded={self.handler.model_loaded if self.handler else False}, handler.semantic_handler={self.handler.semantic_handler is not None if self.handler else False}")
 
+    def extract_keyphrases_keybert_batch(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract key phrases using KeyBERT for multiple texts (batch processing).
+
+        JSON-RPC method: extract_keyphrases_keybert_batch
+
+        Args:
+            request_data: Dictionary containing:
+                - texts: List of input texts
+                - ngram_range: Optional tuple [min, max] (default: [1, 3])
+                - use_mmr: Optional bool for diversity (default: True)
+                - diversity: Optional float 0-1 (default: 0.5)
+                - top_n: Optional int for number of phrases per text (default: 10)
+
+        Returns:
+            Dictionary containing:
+                - keyphrases_batch: List of lists - key phrases for each input text
+                - success: Boolean indicating success
+                - error: Optional error message
+        """
+        try:
+            # Ensure semantic handler is initialized if model is available
+            self._ensure_semantic_handler()
+
+            if not self.semantic_handler:
+                return {
+                    'keyphrases_batch': [],
+                    'success': False,
+                    'error': 'Semantic handler not initialized'
+                }
+
+            if not self.semantic_handler.is_available():
+                return {
+                    'keyphrases_batch': [],
+                    'success': False,
+                    'error': 'KeyBERT not available'
+                }
+
+            # Extract parameters
+            texts = request_data.get('texts', [])
+            if not texts:
+                return {
+                    'keyphrases_batch': [],
+                    'success': False,
+                    'error': 'No texts provided for batch processing'
+                }
+
+            ngram_range = tuple(request_data.get('ngram_range', [1, 3]))
+            use_mmr = request_data.get('use_mmr', True)
+            diversity = request_data.get('diversity', 0.5)
+            top_n = request_data.get('top_n', 10)
+
+            logger.info(f"Processing KeyBERT batch request: {len(texts)} texts")
+            start_time = time.time()
+
+            # Process each text to extract key phrases
+            keyphrases_batch = []
+            for i, text in enumerate(texts):
+                try:
+                    keyphrases = self.semantic_handler.extract_keyphrases(
+                        text=text,
+                        ngram_range=ngram_range,
+                        use_mmr=use_mmr,
+                        diversity=diversity,
+                        top_n=top_n
+                    )
+                    keyphrases_batch.append(keyphrases)
+
+                    if (i + 1) % 10 == 0:  # Log progress every 10 texts
+                        logger.debug(f"Processed {i + 1}/{len(texts)} texts")
+
+                except Exception as e:
+                    logger.warning(f"Failed to extract keyphrases for text {i}: {e}")
+                    keyphrases_batch.append([])  # Add empty list for failed extraction
+
+            processing_time = (time.time() - start_time) * 1000
+            logger.info(f"Completed KeyBERT batch processing: {len(texts)} texts in {processing_time:.1f}ms")
+
+            return {
+                'keyphrases_batch': keyphrases_batch,
+                'success': True,
+                'processing_time_ms': processing_time
+            }
+
+        except Exception as e:
+            logger.error(f"Error in extract_keyphrases_keybert_batch: {e}")
+            logger.error(traceback.format_exc())
+            return {
+                'keyphrases_batch': [],
+                'success': False,
+                'error': str(e)
+            }
+
     def is_keybert_available(self) -> Dict[str, Any]:
         """
         Check if KeyBERT is available.
@@ -871,6 +964,8 @@ class StdioJSONRPCServer:
                 result = await self.embedding_server.load_model(params)
             elif method == 'extract_keyphrases_keybert':
                 result = self.embedding_server.extract_keyphrases(params)
+            elif method == 'extract_keyphrases_keybert_batch':
+                result = self.embedding_server.extract_keyphrases_keybert_batch(params)
             elif method == 'is_keybert_available':
                 result = self.embedding_server.is_keybert_available()
             elif method == 'get_status':

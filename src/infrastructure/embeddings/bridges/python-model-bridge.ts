@@ -332,6 +332,7 @@ export class PythonModelBridge implements IEmbeddingModel {
     if (!this.pythonService || !this.isModelLoaded) {
       throw new Error('Python service not loaded - KeyBERT extraction requires Python with GPU model');
     }
-    return this.pythonService.extractKeyPhrasesKeyBERT(text, options);
+    const scoredPhrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, options);
+    return scoredPhrases.map(phrase => phrase.text);
   }
 }

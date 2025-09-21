@@ -37,7 +37,7 @@ import { FileFingerprint, ParsedContent, TextChunk, SemanticMetadata } from '../
 
 // Semantic extraction service - using new KeyBERT-based service
 import { ISemanticExtractionService, createSemanticExtractionService } from '../../domain/semantic/extraction-service.js';
-import { IPythonSemanticService } from '../../domain/semantic/interfaces.js';
+import { IPythonSemanticService, SemanticData } from '../../domain/semantic/interfaces.js';
 
 // Document semantic service for Sprint 0
 import { DocumentSemanticService, DocumentContext } from '../../domain/semantic/document-semantic-service.js';
@@ -692,7 +692,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
                         this.loggingService.debug('Including semantic metadata in storage', {
                           chunkIndex: originalChunkIndex,
                           keyPhraseCount: chunk.semanticMetadata.keyPhrases.length,
-                          samplePhrases: chunk.semanticMetadata.keyPhrases.slice(0, 3)
+                          samplePhrases: chunk.semanticMetadata.keyPhrases.slice(0, 3).map(p => p.text)
                         });
                       }
                     } else {
@@ -1222,29 +1222,58 @@ export class IndexingOrchestrator implements IndexingWorkflow {
       });
     }
 
-    const enhancedChunks: TextChunk[] = [];
+    // Use batch processing for semantic extraction
+    this.loggingService.info('[SEMANTIC-EXTRACT] Using batch processing for optimal performance', {
+      chunkCount: chunks.length,
+      isONNXModel,
+      hasEmbeddings: isONNXModel ? chunkEmbeddings?.size : 'N/A'
+    });
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]!;
-      this.loggingService.debug('[SEMANTIC-EXTRACT] Processing chunk', {
-        chunkIndex: chunk.chunkIndex,
-        contentLength: chunk.content.length,
-        hasEmbedding: isONNXModel ? chunkEmbeddings?.has(i) : false
-      });
+    let enhancedChunks: TextChunk[] = [];
 
-      try {
-        // For ONNX models, pass the embedding to extractFromText
-        let semanticData;
-        if (isONNXModel && chunkEmbeddings?.has(i)) {
-          const chunkEmbedding = chunkEmbeddings.get(i);
-          this.loggingService.debug('[SEMANTIC-EXTRACT] Using N-gram extraction with embedding', {
-            chunkIndex: i,
-            embeddingLength: chunkEmbedding?.length
-          });
-          semanticData = await this.semanticExtractionService.extractFromText(chunk.content, chunkEmbedding);
-        } else {
-          // For GPU models or if no embedding available, use KeyBERT
-          semanticData = await this.semanticExtractionService.extractFromText(chunk.content);
+    try {
+      let semanticDataArray: SemanticData[];
+
+      if (isONNXModel && chunkEmbeddings) {
+        // For ONNX models, prepare embeddings array and use batch N-gram processing
+        const texts = chunks.map(chunk => chunk.content);
+        const embeddingsArray: Float32Array[] = [];
+
+        // Collect embeddings in chunk order
+        for (let i = 0; i < chunks.length; i++) {
+          const embedding = chunkEmbeddings.get(i);
+          if (!embedding) {
+            throw new Error(`Missing embedding for chunk ${i} in ONNX batch processing`);
+          }
+          embeddingsArray.push(embedding);
+        }
+
+        this.loggingService.debug('[SEMANTIC-EXTRACT] Using batch N-gram extraction with embeddings', {
+          textCount: texts.length,
+          embeddingCount: embeddingsArray.length
+        });
+
+        semanticDataArray = await this.semanticExtractionService.extractFromTextBatch(texts, embeddingsArray);
+      } else {
+        // For GPU models, use batch KeyBERT processing (no embeddings needed)
+        const texts = chunks.map(chunk => chunk.content);
+
+        this.loggingService.debug('[SEMANTIC-EXTRACT] Using batch KeyBERT extraction', {
+          textCount: texts.length
+        });
+
+        semanticDataArray = await this.semanticExtractionService.extractFromTextBatch(texts);
+      }
+
+      // Create enhanced chunks with semantic metadata
+      enhancedChunks = [];
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        const semanticData = semanticDataArray[i];
+
+        if (!semanticData) {
+          throw new Error(`Missing semantic data for chunk ${chunk.chunkIndex} from batch processing`);
         }
 
         const semanticMetadata: SemanticMetadata = {
@@ -1255,7 +1284,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           semanticTimestamp: Date.now()
         };
 
-        this.loggingService.info('Semantic extraction with KeyBERT successful', {
+        this.loggingService.info('Batch semantic extraction successful', {
           chunkIndex: chunk.chunkIndex,
           keyPhrasesCount: semanticData.keyPhrases.length,
           topicsCount: semanticData.topics.length,
@@ -1271,15 +1300,15 @@ export class IndexingOrchestrator implements IndexingWorkflow {
         };
 
         enhancedChunks.push(enhancedChunk);
-
-      } catch (error) {
-        // FAIL LOUDLY - no silent failures!
-        this.loggingService.error(`CRITICAL: Semantic extraction failed for chunk ${chunk.chunkIndex}: ` +
-          (error instanceof Error ? error.message : String(error)));
-
-        // Re-throw to fail the indexing process
-        throw new Error(`Semantic extraction failed for chunk ${chunk.chunkIndex}: ${error instanceof Error ? error.message : String(error)}`);
       }
+
+    } catch (error) {
+      // FAIL LOUDLY - no silent failures!
+      this.loggingService.error('CRITICAL: Batch semantic extraction failed completely: ' +
+        (error instanceof Error ? error.message : String(error)));
+
+      // Re-throw to fail the indexing process
+      throw new Error(`Batch semantic extraction failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return enhancedChunks;
@@ -1411,6 +1440,42 @@ export class IndexingOrchestrator implements IndexingWorkflow {
             : new Float32Array(embedding.vector);
         }
         throw new Error('Failed to generate embedding');
+      },
+      // Optimized batch method for n-gram extraction
+      generateEmbeddings: async (texts: string[]) => {
+        // Create minimal TextChunks for the embedding service
+        const chunks: TextChunk[] = texts.map((text, index) => ({
+          content: text,
+          metadata: {
+            sourceFile: 'ngram-extraction-batch',
+            sourceType: 'text',
+            totalChunks: texts.length,
+            hasOverlap: false
+          },
+          startPosition: 0,
+          endPosition: text.length,
+          tokenCount: Math.ceil(text.length / 4),
+          chunkIndex: index,
+          semanticMetadata: {
+            keyPhrases: [],
+            topics: [],
+            readabilityScore: 50,
+            semanticProcessed: false,
+            semanticTimestamp: Date.now()
+          }
+        }));
+
+        const embeddings = await embeddingService.generateEmbeddings(chunks);
+
+        // Convert EmbeddingVector[] to Float32Array[]
+        return embeddings.map(embedding => {
+          if (embedding && embedding.vector) {
+            return embedding.vector instanceof Float32Array
+              ? embedding.vector
+              : new Float32Array(embedding.vector);
+          }
+          throw new Error('Failed to generate embedding in batch');
+        });
       },
       getModelDimensions: () => {
         // Get dimensions based on service type or model name

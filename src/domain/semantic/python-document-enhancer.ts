@@ -19,6 +19,7 @@ import type {
 import type { ChunkSemanticData } from './document-aggregator.js';
 import type { PythonEmbeddingService } from '../../infrastructure/embeddings/python-embedding-service.js';
 import type { SemanticExtractionOptions } from './interfaces.js';
+import type { SemanticScore } from '../../types/index.js';
 
 /**
  * Strategic sampling configuration for document-level extraction
@@ -171,8 +172,8 @@ export class PythonDocumentEnhancer {
    * Extract document-level semantic data using Python services
    */
   private async extractDocumentSemantics(content: string): Promise<{
-    topics: string[];
-    phrases: string[];
+    topics: SemanticScore[];
+    phrases: SemanticScore[];
     metrics: PythonEnhancementMetrics;
   }> {
     const startTime = Date.now();
@@ -215,7 +216,7 @@ export class PythonDocumentEnhancer {
    */
   private mergeWithBaseAggregation(
     baseSummary: DocumentSemanticSummary,
-    documentSemantics: { topics: string[]; phrases: string[]; metrics: PythonEnhancementMetrics },
+    documentSemantics: { topics: SemanticScore[]; phrases: SemanticScore[]; metrics: PythonEnhancementMetrics },
     sampledLength: number,
     totalChunks: number
   ): DocumentSemanticSummary {
@@ -225,13 +226,13 @@ export class PythonDocumentEnhancer {
       aggregated_topics: baseSummary.aggregated_topics,
       aggregated_phrases: baseSummary.aggregated_phrases,
 
-      // Add document-level extracted data
-      document_topics: documentSemantics.topics,
-      document_phrases: documentSemantics.phrases,
+      // Add document-level extracted data (convert scored format to strings for storage)
+      document_topics: documentSemantics.topics.map(t => t.text),
+      document_phrases: documentSemantics.phrases.map(p => p.text),
 
-      // Merge for final top results
-      top_topics: this.mergeTopics(baseSummary.aggregated_topics, documentSemantics.topics),
-      top_phrases: this.mergePhrases(baseSummary.aggregated_phrases, documentSemantics.phrases),
+      // Merge for final top results (convert scored format to strings)
+      top_topics: this.mergeTopics(baseSummary.aggregated_topics, documentSemantics.topics.map(t => t.text)),
+      top_phrases: this.mergePhrases(baseSummary.aggregated_phrases, documentSemantics.phrases.map(p => p.text)),
 
       // Enhanced metrics
       metrics: {
@@ -292,12 +293,12 @@ export class PythonDocumentEnhancer {
   /**
    * Calculate document coherence from topics and phrases
    */
-  private calculateDocumentCoherence(topics: string[], phrases: string[]): number {
+  private calculateDocumentCoherence(topics: SemanticScore[], phrases: SemanticScore[]): number {
     if (topics.length === 0 && phrases.length === 0) return 0;
 
     // Simple coherence metric: overlap between topics and phrases
-    const topicWords = new Set(topics.flatMap(topic => topic.split(/\s+/)));
-    const phraseWords = new Set(phrases.flatMap(phrase => phrase.split(/\s+/)));
+    const topicWords = new Set(topics.flatMap(topic => topic.text.split(/\s+/)));
+    const phraseWords = new Set(phrases.flatMap(phrase => phrase.text.split(/\s+/)));
 
     const intersection = new Set([...topicWords].filter(word => phraseWords.has(word)));
     const union = new Set([...topicWords, ...phraseWords]);

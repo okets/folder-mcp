@@ -11,6 +11,7 @@ import {
   SemanticExtractionOptions,
   IPythonSemanticService
 } from './interfaces.js';
+import { SemanticScore } from '../../types/index.js';
 import { ILoggingService } from '../../di/interfaces.js';
 import {
   NGramCosineExtractor,
@@ -124,9 +125,174 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   }
 
   /**
+   * Extract semantic data from multiple texts (batch processing)
+   * Optimized for performance when processing multiple chunks
+   */
+  async extractFromTextBatch(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
+    const startTime = Date.now();
+    this.logger.info(`[SEMANTIC-BATCH] Starting batch semantic extraction for ${texts.length} texts`);
+
+    try {
+      // For GPU models with Python service, use batch KeyBERT processing
+      if (this.pythonService) {
+        return await this.extractBatchWithKeyBERT(texts);
+      }
+
+      // For ONNX models with N-gram extraction, process each text individually
+      // because N-gram requires individual embeddings and is already optimized
+      if (this.ngramExtractor) {
+        return await this.extractBatchWithNGram(texts, embeddings);
+      }
+
+      // No extraction method available - FAIL LOUDLY
+      throw new Error(
+        'CRITICAL: No semantic extraction method available for batch processing! ' +
+        'GPU models require Python with KeyBERT, ONNX models require N-gram extractor.'
+      );
+
+    } catch (error) {
+      this.logger.error('CRITICAL: Batch semantic extraction failed completely!');
+      this.logger.error('Error details: ' + (error instanceof Error ? error.message : String(error)));
+      if (error instanceof Error && error.stack) {
+        this.logger.error('Stack trace: ' + error.stack);
+      }
+      throw error; // Re-throw to fail loudly
+    }
+  }
+
+  /**
+   * Batch extraction using KeyBERT (for GPU models)
+   */
+  private async extractBatchWithKeyBERT(texts: string[]): Promise<SemanticData[]> {
+    this.logger.info(`[KEYBERT-BATCH] Processing ${texts.length} texts with KeyBERT batch processing`);
+
+    if (!this.pythonService) {
+      throw new Error('Python service not available for KeyBERT batch processing');
+    }
+
+    // Check if KeyBERT is available
+    const available = await this.pythonService.isKeyBERTAvailable();
+    if (!available) {
+      throw new Error('KeyBERT not available in Python environment');
+    }
+
+    // Extract key phrases using batch KeyBERT
+    const batchStartTime = Date.now();
+    const keyPhrasesArray = await this.pythonService.extractKeyPhrasesKeyBERTBatch(texts, this.options);
+    const batchTime = Date.now() - batchStartTime;
+
+    this.logger.info(`[KEYBERT-BATCH] Batch KeyBERT extraction completed in ${batchTime}ms`);
+
+    // Process each text result
+    const results: SemanticData[] = [];
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i]!;
+      const keyPhrases = keyPhrasesArray[i] || [];
+
+      // Extract topics (using existing single-text method)
+      const topics = await this.extractTopics(text);
+
+      // Calculate readability
+      const readabilityScore = this.readabilityCalculator.calculate(text);
+
+      // Calculate quality metrics
+      const qualityMetrics = this.options.calculateMetrics
+        ? this.calculateQualityMetrics(keyPhrases, topics)
+        : undefined;
+
+      results.push({
+        keyPhrases,
+        topics,
+        readabilityScore,
+        extractionMethod: 'keybert',
+        processingTimeMs: batchTime / texts.length, // Approximate per-text time
+        qualityMetrics
+      });
+    }
+
+    const totalTime = Date.now() - batchStartTime;
+    this.logger.info(`[KEYBERT-BATCH] Complete batch processing finished in ${totalTime}ms`, {
+      textsProcessed: texts.length,
+      avgTimePerText: totalTime / texts.length,
+      multiwordRatios: results.map(r => r.qualityMetrics?.multiwordRatio)
+    });
+
+    return results;
+  }
+
+  /**
+   * Batch extraction using N-gram (for ONNX models)
+   */
+  private async extractBatchWithNGram(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
+    this.logger.info(`[NGRAM-BATCH] Processing ${texts.length} texts with N-gram extraction`);
+
+    if (!this.ngramExtractor) {
+      throw new Error('N-gram extractor not available for batch processing');
+    }
+
+    if (!embeddings || embeddings.length !== texts.length) {
+      throw new Error('N-gram batch processing requires embeddings for each text');
+    }
+
+    const results: SemanticData[] = [];
+    const batchStartTime = Date.now();
+
+    // Process each text individually (N-gram is already optimized with batching internally)
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i]!;
+      const embedding = embeddings[i]!;
+
+      const textStartTime = Date.now();
+
+      // Extract key phrases using N-gram
+      const extractOptions: Partial<NGramExtractionOptions> = {};
+      if (this.options.ngramRange) extractOptions.ngramRange = this.options.ngramRange;
+      if (this.options.maxKeyPhrases !== undefined) extractOptions.topK = this.options.maxKeyPhrases;
+      if (this.options.diversity !== undefined) extractOptions.diversityFactor = this.options.diversity;
+
+      const scoredPhrases = await this.ngramExtractor.extractKeyPhrasesWithScores(text, embedding, extractOptions);
+      const keyPhrases: SemanticScore[] = scoredPhrases.map(item => ({
+        text: item.phrase,
+        score: item.score
+      }));
+
+      // Extract topics
+      const topics = await this.extractTopics(text, embedding);
+
+      // Calculate readability
+      const readabilityScore = this.readabilityCalculator.calculate(text);
+
+      // Calculate quality metrics
+      const qualityMetrics = this.options.calculateMetrics
+        ? this.calculateQualityMetrics(keyPhrases, topics)
+        : undefined;
+
+      const processingTimeMs = Date.now() - textStartTime;
+
+      results.push({
+        keyPhrases,
+        topics,
+        readabilityScore,
+        extractionMethod: 'ngram',
+        processingTimeMs,
+        qualityMetrics
+      });
+    }
+
+    const totalTime = Date.now() - batchStartTime;
+    this.logger.info(`[NGRAM-BATCH] Complete batch processing finished in ${totalTime}ms`, {
+      textsProcessed: texts.length,
+      avgTimePerText: totalTime / texts.length,
+      multiwordRatios: results.map(r => r.qualityMetrics?.multiwordRatio)
+    });
+
+    return results;
+  }
+
+  /**
    * Extract key phrases using KeyBERT for GPU models or N-gram for ONNX models
    */
-  async extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<string[]> {
+  async extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<SemanticScore[]> {
     // Try KeyBERT first (for GPU models)
     if (this.pythonService) {
       try {
@@ -141,8 +307,8 @@ export class SemanticExtractionService implements ISemanticExtractionService {
         const phrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, this.options);
         this.logger.debug('KeyBERT extraction successful', {
           phraseCount: phrases.length,
-          sample: phrases.slice(0, 3),
-          multiwordRatio: this.calculateMultiwordRatio(phrases)
+          sample: phrases.slice(0, 3).map(p => p.text),
+          multiwordRatio: this.calculateMultiwordRatio(phrases.map(p => p.text))
         });
         return phrases;
 
@@ -165,18 +331,24 @@ export class SemanticExtractionService implements ISemanticExtractionService {
         if (this.options.maxKeyPhrases !== undefined) extractOptions.topK = this.options.maxKeyPhrases;
         if (this.options.diversity !== undefined) extractOptions.diversityFactor = this.options.diversity;
 
-        const phrases = await this.ngramExtractor.extractKeyPhrases(
+        const scoredPhrases = await this.ngramExtractor.extractKeyPhrasesWithScores(
           text,
           embeddings,
           extractOptions
         );
 
         this.logger.debug('N-gram extraction successful', {
-          phraseCount: phrases.length,
-          multiwordRatio: this.calculateMultiwordRatio(phrases)
+          phraseCount: scoredPhrases.length,
+          multiwordRatio: this.calculateMultiwordRatio(scoredPhrases.map(p => p.phrase))
         });
 
-        return phrases;
+        // Convert to SemanticScore format
+        const semanticScores: SemanticScore[] = scoredPhrases.map(item => ({
+          text: item.phrase,
+          score: item.score
+        }));
+
+        return semanticScores;
       } catch (error) {
         this.logger.error('N-gram extraction failed', error instanceof Error ? error : new Error(String(error)));
         throw new Error(`Semantic extraction failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -202,7 +374,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Extract topics from text using enhanced clustering approach
    */
-  async extractTopics(text: string, embeddings?: Float32Array): Promise<string[]> {
+  async extractTopics(text: string, embeddings?: Float32Array): Promise<SemanticScore[]> {
     // SPRINT 3: Use enhanced topic clustering service
     try {
       // Extract topics using the enhanced clustering service
@@ -217,44 +389,45 @@ export class SemanticExtractionService implements ISemanticExtractionService {
         }
       );
 
-      // Combine primary and secondary topics
-      const topics = [
-        ...extractedTopics.primary,
+      // Convert to scored format with higher scores for primary topics
+      const scoredTopics: SemanticScore[] = [
+        ...extractedTopics.primary.map(topic => ({ text: topic, score: 0.8 })),
         ...extractedTopics.secondary.slice(0, (this.options.maxTopics || 5) - extractedTopics.primary.length)
+          .map(topic => ({ text: topic, score: 0.6 }))
       ];
 
       this.logger.debug('Enhanced topic extraction (Sprint 3)', {
-        topicCount: topics.length,
-        topics,
+        topicCount: scoredTopics.length,
+        topics: scoredTopics.map(t => t.text),
         primary: extractedTopics.primary,
         secondary: extractedTopics.secondary
       });
 
-      return topics.length > 0 ? topics : ['technical documentation'];
+      return scoredTopics.length > 0 ? scoredTopics : [{ text: 'technical documentation', score: 0.5 }];
     } catch (error) {
       this.logger.error('Enhanced topic extraction failed, using fallback', error as Error);
 
       // Fallback to simple pattern matching if enhanced clustering fails
-      const topics: string[] = [];
+      const scoredTopics: SemanticScore[] = [];
       const lowerText = text.toLowerCase();
 
       const topicPatterns = [
-        { pattern: /machine learning|neural|ai|artificial intelligence/i, topic: 'machine learning' },
-        { pattern: /semantic search|embedding|vector|similarity/i, topic: 'semantic search' },
-        { pattern: /document|text|content|file/i, topic: 'document processing' },
-        { pattern: /database|storage|index|query/i, topic: 'data storage' },
-        { pattern: /transform|model|bert|gpt/i, topic: 'transformer models' },
-        { pattern: /python|javascript|typescript|code/i, topic: 'programming' },
-        { pattern: /api|endpoint|service|server/i, topic: 'web services' }
+        { pattern: /machine learning|neural|ai|artificial intelligence/i, topic: 'machine learning', score: 0.8 },
+        { pattern: /semantic search|embedding|vector|similarity/i, topic: 'semantic search', score: 0.8 },
+        { pattern: /document|text|content|file/i, topic: 'document processing', score: 0.7 },
+        { pattern: /database|storage|index|query/i, topic: 'data storage', score: 0.7 },
+        { pattern: /transform|model|bert|gpt/i, topic: 'transformer models', score: 0.8 },
+        { pattern: /python|javascript|typescript|code/i, topic: 'programming', score: 0.6 },
+        { pattern: /api|endpoint|service|server/i, topic: 'web services', score: 0.6 }
       ];
 
-      for (const { pattern, topic } of topicPatterns) {
-        if (pattern.test(lowerText) && topics.length < (this.options.maxTopics || 5)) {
-          topics.push(topic);
+      for (const { pattern, topic, score } of topicPatterns) {
+        if (pattern.test(lowerText) && scoredTopics.length < (this.options.maxTopics || 5)) {
+          scoredTopics.push({ text: topic, score });
         }
       }
 
-      return topics.length > 0 ? topics : ['technical documentation'];
+      return scoredTopics.length > 0 ? scoredTopics : [{ text: 'technical documentation', score: 0.5 }];
     }
   }
 
@@ -284,22 +457,24 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Calculate quality metrics for extracted data
    */
-  private calculateQualityMetrics(keyPhrases: string[], topics: string[]): SemanticData['qualityMetrics'] {
-    const multiwordPhrases = keyPhrases.filter(p => p.includes(' '));
-    const multiwordRatio = keyPhrases.length > 0
-      ? multiwordPhrases.length / keyPhrases.length
+  private calculateQualityMetrics(keyPhrases: SemanticScore[], topics: SemanticScore[]): SemanticData['qualityMetrics'] {
+    const phraseTexts = keyPhrases.map(p => p.text);
+    const multiwordPhrases = phraseTexts.filter(p => p.includes(' '));
+    const multiwordRatio = phraseTexts.length > 0
+      ? multiwordPhrases.length / phraseTexts.length
       : 0;
 
-    const wordCounts = keyPhrases.map(p => p.split(' ').length);
+    const wordCounts = phraseTexts.map(p => p.split(' ').length);
     const averageWordsPerPhrase = wordCounts.length > 0
       ? wordCounts.reduce((a, b) => a + b, 0) / wordCounts.length
       : 1;
 
     // Topic specificity (0-1, higher is more specific)
     const genericTopics = ['general', 'education', 'technology', 'business', 'science'];
-    const specificTopics = topics.filter(t => !genericTopics.includes(t.toLowerCase()));
-    const topicSpecificity = topics.length > 0
-      ? specificTopics.length / topics.length
+    const topicTexts = topics.map(t => t.text);
+    const specificTopics = topicTexts.filter(t => !genericTopics.includes(t.toLowerCase()));
+    const topicSpecificity = topicTexts.length > 0
+      ? specificTopics.length / topicTexts.length
       : 0;
 
     return {

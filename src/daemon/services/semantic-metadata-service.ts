@@ -124,7 +124,9 @@ export class SemanticMetadataService {
         try {
           const phrases = JSON.parse(row.key_phrases);
           for (const phrase of phrases) {
-            phraseCount.set(phrase, (phraseCount.get(phrase) || 0) + 1);
+            // Handle both old format (strings) and new format (SemanticScore objects)
+            const phraseText = typeof phrase === 'string' ? phrase : phrase.text;
+            phraseCount.set(phraseText, (phraseCount.get(phraseText) || 0) + 1);
           }
         } catch (e) {
           // Skip malformed JSON
@@ -156,7 +158,9 @@ export class SemanticMetadataService {
         try {
           const topics = JSON.parse(row.topics);
           for (const topic of topics) {
-            topicCount.set(topic, (topicCount.get(topic) || 0) + 1);
+            // Handle both old format (strings) and new format (SemanticScore objects)
+            const topicText = typeof topic === 'string' ? topic : topic.text;
+            topicCount.set(topicText, (topicCount.get(topicText) || 0) + 1);
           }
         } catch (e) {
           // Skip malformed JSON

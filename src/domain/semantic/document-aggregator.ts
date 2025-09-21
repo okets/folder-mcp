@@ -19,6 +19,7 @@ import type {
   ExtractionMethod
 } from '../../types/document-semantic.js';
 import { DEFAULT_AGGREGATION_OPTIONS } from '../../types/document-semantic.js';
+import type { SemanticScore } from '../../types/index.js';
 
 /**
  * Interface for chunk data with semantic metadata
@@ -27,8 +28,8 @@ export interface ChunkSemanticData {
   id: number;
   content: string;
   semanticMetadata: {
-    topics?: string[];
-    keyPhrases?: string[];
+    topics?: SemanticScore[];
+    keyPhrases?: SemanticScore[];
     readabilityScore?: number | null;
     sentenceCount?: number;
     wordCount?: number;
@@ -163,9 +164,9 @@ export class DocumentSemanticAggregator {
         chunksWithPhrases++;
 
         // Count multiword phrases
-        for (const phrase of semantic.keyPhrases) {
+        for (const phraseObj of semantic.keyPhrases) {
           totalPhrases++;
-          if (phrase.trim().split(/\s+/).length > 1) {
+          if (phraseObj.text.trim().split(/\s+/).length > 1) {
             multiwordPhrases++;
           }
         }
@@ -229,8 +230,8 @@ export class DocumentSemanticAggregator {
 
       // Aggregate topics
       if (semantic.topics) {
-        for (const topic of semantic.topics) {
-          const cleanTopic = topic.trim().toLowerCase();
+        for (const topicObj of semantic.topics) {
+          const cleanTopic = topicObj.text.trim().toLowerCase();
           if (cleanTopic.length > 0) {
             topicFrequency.set(cleanTopic, (topicFrequency.get(cleanTopic) || 0) + 1);
           }
@@ -239,8 +240,8 @@ export class DocumentSemanticAggregator {
 
       // Aggregate phrases
       if (semantic.keyPhrases) {
-        for (const phrase of semantic.keyPhrases) {
-          const cleanPhrase = phrase.trim().toLowerCase();
+        for (const phraseObj of semantic.keyPhrases) {
+          const cleanPhrase = phraseObj.text.trim().toLowerCase();
           if (cleanPhrase.length > 0) {
             phraseFrequency.set(cleanPhrase, (phraseFrequency.get(cleanPhrase) || 0) + 1);
           }

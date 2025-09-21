@@ -6,7 +6,7 @@
  */
 
 import { IVectorSearchService, ILoggingService } from '../../../di/interfaces.js';
-import { EmbeddingVector, TextChunk, TextChunkMetadata, ChunkId } from '../../../types/index.js';
+import { EmbeddingVector, TextChunk, TextChunkMetadata, ChunkId, SemanticScore } from '../../../types/index.js';
 import { SearchResult, LazySearchResult } from '../../../domain/search/index.js';
 
 // Temporary type alias for compatibility with tests
@@ -35,8 +35,8 @@ export interface VectorMetadata {
     slideNumber?: number;
     extractionParams?: string;  // Sprint 11: Pre-computed extraction params from format-aware chunking
     // Semantic metadata fields from KeyBERT extraction
-    keyPhrases?: string[];
-    topics?: string[];
+    keyPhrases?: SemanticScore[];
+    topics?: SemanticScore[];
     readabilityScore?: number;
 }
 
@@ -433,17 +433,18 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 // Use semantic metadata from orchestrator if available, otherwise use fallback
                 // Handle partial semantic metadata - each field independently
-                let keyPhrases: string[] = [];
-                let topics: string[] = [];
+                let keyPhrases: string = '';
+                let topics: string = '';
                 let readabilityScore: number = 50;
 
                 // Key phrases MUST be provided by orchestrator - no fallbacks!
                 if (meta.keyPhrases && meta.keyPhrases.length > 0) {
-                    keyPhrases = meta.keyPhrases;
+                    // Store SemanticScore[] as JSON to preserve scores
+                    keyPhrases = JSON.stringify(meta.keyPhrases);
                     this.logger?.debug(`Using semantic key phrases for chunk ${meta.chunkIndex}`, {
-                        keyPhraseCount: keyPhrases.length,
-                        multiwordRatio: keyPhrases.filter(p => p.includes(' ')).length / Math.max(1, keyPhrases.length),
-                        samplePhrases: keyPhrases.slice(0, 3)
+                        keyPhraseCount: meta.keyPhrases.length,
+                        multiwordRatio: meta.keyPhrases.filter(p => p.text.includes(' ')).length / Math.max(1, meta.keyPhrases.length),
+                        samplePhrases: meta.keyPhrases.slice(0, 3).map(p => `${p.text}(${p.score.toFixed(3)})`)
                     });
                 } else {
                     // FAIL LOUDLY - no silent failures!
@@ -454,7 +455,8 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
                 // Topics MUST be provided by orchestrator - no fallbacks!
                 if (meta.topics && meta.topics.length > 0) {
-                    topics = meta.topics;
+                    // Store SemanticScore[] as JSON to preserve scores
+                    topics = JSON.stringify(meta.topics);
                 } else {
                     // FAIL LOUDLY - no silent failures!
                     const errorMsg = `CRITICAL: No topics provided for chunk ${meta.chunkIndex} in file ${meta.filePath}. Semantic extraction must complete before storage!`;

@@ -6,7 +6,7 @@ Part of Sprint 1: Foundation & KeyBERT Key Phrases implementation.
 """
 
 import logging
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Union
 from sentence_transformers import SentenceTransformer
 
 try:
@@ -55,7 +55,7 @@ class SemanticExtractionHandler:
         diversity: float = 0.5,
         top_n: int = 10,
         stop_words: str = 'english'
-    ) -> List[str]:
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Extract key phrases using KeyBERT with MMR for diversity.
 
@@ -68,7 +68,8 @@ class SemanticExtractionHandler:
             stop_words: Language for stop words or 'english'
 
         Returns:
-            List of extracted key phrases (without scores)
+            List of extracted key phrases with semantic scores
+            Format: [{"text": phrase, "score": relevance_score}, ...]
         """
         if not self.kw_model:
             raise RuntimeError("KeyBERT not available or not initialized")
@@ -84,16 +85,16 @@ class SemanticExtractionHandler:
                 stop_words=stop_words
             )
 
-            # Return just the phrases (not scores)
-            phrases = [kw[0] for kw in keywords]
+            # Convert to scored object format
+            scored_phrases = [{"text": kw[0], "score": float(kw[1])} for kw in keywords]
 
             # Log extraction metrics
-            multiword_count = sum(1 for p in phrases if ' ' in p)
-            multiword_ratio = multiword_count / len(phrases) * 100 if phrases else 0
+            multiword_count = sum(1 for item in scored_phrases if ' ' in item["text"])
+            multiword_ratio = multiword_count / len(scored_phrases) * 100 if scored_phrases else 0
 
-            logger.debug(f"Extracted {len(phrases)} phrases, {multiword_ratio:.1f}% multiword")
+            logger.debug(f"Extracted {len(scored_phrases)} phrases, {multiword_ratio:.1f}% multiword")
 
-            return phrases
+            return scored_phrases
 
         except Exception as e:
             logger.error(f"KeyBERT extraction failed: {e}")

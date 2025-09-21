@@ -311,8 +311,8 @@ export const QUERIES = {
                 se.subfolder_path,
                 COUNT(DISTINCT se.id) as document_count,
                 AVG(c.readability_score) as avg_readability,
-                GROUP_CONCAT(DISTINCT json_extract(c.topics, '$[0]')) as top_topics,
-                GROUP_CONCAT(DISTINCT json_extract(c.key_phrases, '$[0]')) as key_phrases
+                GROUP_CONCAT(DISTINCT json_extract(c.topics, '$[0].text')) as top_topics,
+                GROUP_CONCAT(DISTINCT json_extract(c.key_phrases, '$[0].text')) as key_phrases
             FROM subfolder_extraction se
             JOIN chunks c ON se.id = (SELECT id FROM documents WHERE file_path = se.file_path)
             WHERE c.semantic_processed = 1
@@ -334,8 +334,8 @@ export const QUERIES = {
         SELECT d.*, 
                json_group_array(
                    json_object(
-                       'topic', json_extract(c.topics, '$[0]'),
-                       'key_phrase', json_extract(c.key_phrases, '$[0]'),
+                       'topic', json_extract(c.topics, '$[0].text'),
+                       'key_phrase', json_extract(c.key_phrases, '$[0].text'),
                        'readability', c.readability_score
                    )
                ) as semantic_data

@@ -20,6 +20,7 @@ import { ILoggingService } from '../../../di/interfaces.js';
  */
 export interface IEmbeddingModel {
   generateEmbedding(text: string): Promise<Float32Array>;
+  generateEmbeddings?(texts: string[]): Promise<Float32Array[]>; // Optional batch method
   getModelDimensions(): number;
 }
 
@@ -48,10 +49,28 @@ export class NGramCosineExtractor {
     minSimilarity: 0.3
   };
 
+  // Embedding cache to avoid redundant computations
+  private embeddingCache: Map<string, Float32Array> = new Map();
+  private readonly MAX_CACHE_SIZE = 500; // Limit cache size to prevent memory issues
+  private cacheHits = 0;
+  private cacheMisses = 0;
+
   constructor(
     private embeddingModel: IEmbeddingModel | null,
     private logger: ILoggingService
   ) {}
+
+  /**
+   * Clear the embedding cache
+   * Should be called between documents to prevent cross-document cache pollution
+   */
+  clearCache(): void {
+    const previousSize = this.embeddingCache.size;
+    this.embeddingCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    this.logger.debug(`[NGRAM-EXTRACT] Cache cleared (was ${previousSize} entries)`);
+  }
 
   /**
    * Extract key phrases using n-grams and cosine similarity
@@ -86,12 +105,32 @@ export class NGramCosineExtractor {
       this.logger.debug(`[NGRAM-EXTRACT] Extracted ${ngrams.length} n-grams`);
 
       // Step 2: Filter candidates for quality
-      const candidates = filterCandidates(ngrams);
+      let candidates = filterCandidates(ngrams);
       this.logger.debug(`[NGRAM-EXTRACT] Filtered to ${candidates.length} quality candidates`);
 
       if (candidates.length === 0) {
         this.logger.warn('[NGRAM-EXTRACT] No quality candidates found, returning empty array');
         return [];
+      }
+
+      // Step 2.5: Limit candidates to reduce embedding overhead
+      // Use frequency-based pre-filtering to get top candidates
+      if (candidates.length > 50) {
+        this.logger.debug(`[NGRAM-EXTRACT] Too many candidates (${candidates.length}), reducing to top 50 by frequency`);
+
+        // Count frequency of each candidate
+        const frequencyMap = new Map<string, number>();
+        for (const candidate of candidates) {
+          frequencyMap.set(candidate, (frequencyMap.get(candidate) || 0) + 1);
+        }
+
+        // Sort by frequency and take top 50
+        candidates = Array.from(frequencyMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 50)
+          .map(([phrase]) => phrase);
+
+        this.logger.debug(`[NGRAM-EXTRACT] Reduced to ${candidates.length} most frequent candidates`);
       }
 
       // Step 3: Generate embeddings for each candidate
@@ -161,6 +200,7 @@ export class NGramCosineExtractor {
 
   /**
    * Generate embeddings for candidate phrases
+   * Optimized to use batch processing and caching when available
    */
   private async generateCandidateEmbeddings(
     candidates: string[]
@@ -169,23 +209,115 @@ export class NGramCosineExtractor {
       throw new Error('No embedding model available');
     }
 
-    const embeddings: Float32Array[] = [];
-    const batchSize = 10; // Process in small batches to avoid memory issues
+    this.logger.debug(`[NGRAM-EXTRACT] Generating embeddings for ${candidates.length} candidates`);
+    const startTime = Date.now();
 
-    for (let i = 0; i < candidates.length; i += batchSize) {
-      const batch = candidates.slice(i, Math.min(i + batchSize, candidates.length));
-      const batchEmbeddings = await Promise.all(
-        batch.map(candidate => this.embeddingModel!.generateEmbedding(candidate))
-      );
-      embeddings.push(...batchEmbeddings);
+    // Split candidates into cached and uncached
+    const cachedEmbeddings: Map<number, Float32Array> = new Map();
+    const uncachedCandidates: string[] = [];
+    const uncachedIndices: number[] = [];
 
-      // Log progress for large batches
-      if (candidates.length > 50 && i % 50 === 0) {
-        this.logger.debug(`[NGRAM-EXTRACT] Generated embeddings: ${i}/${candidates.length}`);
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i]!;
+      if (this.embeddingCache.has(candidate)) {
+        cachedEmbeddings.set(i, this.embeddingCache.get(candidate)!);
+        this.cacheHits++;
+      } else {
+        uncachedCandidates.push(candidate);
+        uncachedIndices.push(i);
+        this.cacheMisses++;
       }
     }
 
-    return embeddings;
+    this.logger.debug(`[NGRAM-EXTRACT] Cache stats: ${cachedEmbeddings.size} hits, ${uncachedCandidates.length} misses`);
+
+    // Generate embeddings only for uncached candidates
+    let newEmbeddings: Float32Array[] = [];
+
+    if (uncachedCandidates.length > 0) {
+      // Check if batch method is available for optimal performance
+      if (this.embeddingModel.generateEmbeddings) {
+        this.logger.debug('[NGRAM-EXTRACT] Using optimized batch embedding generation for uncached candidates');
+
+        try {
+          // Process all uncached candidates in a single batch
+          newEmbeddings = await this.embeddingModel.generateEmbeddings(uncachedCandidates);
+
+          // Add to cache with LRU eviction
+          for (let i = 0; i < uncachedCandidates.length; i++) {
+            const candidate = uncachedCandidates[i]!;
+            const embedding = newEmbeddings[i]!;
+
+            // LRU eviction if cache is full
+            if (this.embeddingCache.size >= this.MAX_CACHE_SIZE) {
+              const firstKey = this.embeddingCache.keys().next().value;
+              if (firstKey !== undefined) {
+                this.embeddingCache.delete(firstKey);
+              }
+            }
+
+            this.embeddingCache.set(candidate, embedding);
+          }
+        } catch (error) {
+          this.logger.warn('[NGRAM-EXTRACT] Batch embedding failed, falling back to individual generation', error);
+          // Fall through to individual generation
+          newEmbeddings = [];
+        }
+      }
+
+      // Fallback: Individual generation if batch failed or not available
+      if (newEmbeddings.length === 0) {
+        this.logger.debug('[NGRAM-EXTRACT] Using individual embedding generation for uncached candidates');
+        const batchSize = 10;
+
+        for (let i = 0; i < uncachedCandidates.length; i += batchSize) {
+          const batch = uncachedCandidates.slice(i, Math.min(i + batchSize, uncachedCandidates.length));
+          const batchEmbeddings = await Promise.all(
+            batch.map(async (candidate) => {
+              const embedding = await this.embeddingModel!.generateEmbedding(candidate);
+
+              // Add to cache with LRU eviction
+              if (this.embeddingCache.size >= this.MAX_CACHE_SIZE) {
+                const firstKey = this.embeddingCache.keys().next().value;
+                if (firstKey !== undefined) {
+                  this.embeddingCache.delete(firstKey);
+                }
+              }
+              this.embeddingCache.set(candidate, embedding);
+
+              return embedding;
+            })
+          );
+          newEmbeddings.push(...batchEmbeddings);
+        }
+      }
+    }
+
+    // Combine cached and newly generated embeddings in original order
+    const allEmbeddings: Float32Array[] = new Array(candidates.length);
+
+    // Place cached embeddings
+    for (const [index, embedding] of cachedEmbeddings) {
+      allEmbeddings[index] = embedding;
+    }
+
+    // Place newly generated embeddings
+    for (let i = 0; i < uncachedIndices.length; i++) {
+      const originalIndex = uncachedIndices[i]!;
+      allEmbeddings[originalIndex] = newEmbeddings[i]!;
+    }
+
+    const elapsed = Date.now() - startTime;
+    const cacheHitRate = candidates.length > 0
+      ? ((cachedEmbeddings.size / candidates.length) * 100).toFixed(1)
+      : '0';
+
+    this.logger.info(
+      `[NGRAM-EXTRACT] Generated ${candidates.length} embeddings in ${elapsed}ms ` +
+      `(cache hit rate: ${cacheHitRate}%, cache size: ${this.embeddingCache.size})`
+    );
+
+    return allEmbeddings;
   }
 
   /**
@@ -237,18 +369,32 @@ export class NGramCosineExtractor {
       return [];
     }
 
-    const candidateEmbeddings = await this.generateCandidateEmbeddings(candidates);
+    // PERFORMANCE OPTIMIZATION: Limit candidates for CPU models
+    // For CPU models, generating embeddings is expensive, so we limit candidates
+    // CPU models are detected by checking if batch embedding is NOT available
+    const isCpuModel = !this.embeddingModel.generateEmbeddings;
+    const maxCandidates = isCpuModel ? 15 : 50; // CPU: 15 candidates, GPU: 50 candidates
+
+    const limitedCandidates = candidates.length > maxCandidates
+      ? candidates.slice(0, maxCandidates)
+      : candidates;
+
+    if (isCpuModel && candidates.length > maxCandidates) {
+      this.logger.debug(`[NGRAM-CPU-OPT] Limited candidates from ${candidates.length} to ${maxCandidates} for CPU performance`);
+    }
+
+    const candidateEmbeddings = await this.generateCandidateEmbeddings(limitedCandidates);
     const similarities = candidateEmbeddings.map(candEmb =>
       cosineSimilarity(candEmb, docEmbedding!)
     );
 
     // Combine with scores and sort
     const phrasesWithScores: Array<{ phrase: string; score: number }> = [];
-    for (let i = 0; i < candidates.length; i++) {
+    for (let i = 0; i < limitedCandidates.length; i++) {
       const score = similarities[i];
       if (score !== undefined) {
         phrasesWithScores.push({
-          phrase: candidates[i]!,
+          phrase: limitedCandidates[i]!,
           score
         });
       }

@@ -239,13 +239,23 @@ export interface ProcessedContent extends ParsedContent {
 }
 
 /**
+ * Semantic score data combining text with its semantic similarity score
+ */
+export interface SemanticScore {
+  /** The keyword or topic text */
+  text: string;
+  /** Semantic similarity/relevance score (0-1, higher = more relevant) */
+  score: number;
+}
+
+/**
  * Semantic metadata for AI agent navigation (Sprint 10)
  */
 export interface SemanticMetadata {
-  /** Extracted key phrases from the chunk */
-  keyPhrases: string[];
-  /** Detected topics in the chunk */
-  topics: string[];
+  /** Extracted key phrases from the chunk with semantic scores */
+  keyPhrases: SemanticScore[];
+  /** Detected topics in the chunk with semantic scores */
+  topics: SemanticScore[];
   /** Flesch Reading Ease score (0-100, higher = easier) */
   readabilityScore: number | null;
   /** Whether semantic extraction was successful */
@@ -261,7 +271,7 @@ export interface SemanticMetadata {
 export function createDefaultSemanticMetadata(): SemanticMetadata {
   return {
     keyPhrases: [],
-    topics: ['unprocessed'],
+    topics: [],
     readabilityScore: null,
     semanticProcessed: false,
     semanticTimestamp: 0
@@ -297,7 +307,7 @@ export interface TextChunkMetadata {
     originalMetadata?: DocumentMetadata;
   };
   /** Semantic metadata for AI agent navigation (Sprint 10) */
-  semanticMetadata: SemanticMetadata;
+  semanticMetadata?: SemanticMetadata;
 }
 
 /**
@@ -306,6 +316,8 @@ export interface TextChunkMetadata {
 export interface TextChunk extends TextChunkMetadata {
   /** The text content of this chunk */
   content: string;
+  /** Optional semantic metadata extracted from the chunk */
+  semanticMetadata?: SemanticMetadata;
 }
 
 /**

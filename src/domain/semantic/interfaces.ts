@@ -5,21 +5,23 @@
  * This replaces the broken ContentProcessingService with research-validated approaches.
  */
 
+import { SemanticScore } from '../../types/index.js';
+
 /**
  * Semantic data extracted from text
  */
 export interface SemanticData {
   /**
-   * Key phrases extracted from the text
+   * Key phrases extracted from the text with semantic scores
    * Should be primarily multiword phrases (2-4 words)
    */
-  keyPhrases: string[];
+  keyPhrases: SemanticScore[];
 
   /**
-   * Topics identified in the text
+   * Topics identified in the text with semantic scores
    * Domain-specific categories, not generic labels
    */
-  topics: string[];
+  topics: SemanticScore[];
 
   /**
    * Readability score (0-100)
@@ -57,14 +59,20 @@ export interface ISemanticExtractionService {
   extractFromText(text: string, embeddings?: Float32Array): Promise<SemanticData>;
 
   /**
+   * Extract semantic data from multiple texts (batch processing)
+   * Optimized for performance when processing multiple chunks
+   */
+  extractFromTextBatch(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]>;
+
+  /**
    * Extract key phrases using KeyBERT or fallback methods
    */
-  extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<string[]>;
+  extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<SemanticScore[]>;
 
   /**
    * Extract topics from text
    */
-  extractTopics(text: string, embeddings?: Float32Array): Promise<string[]>;
+  extractTopics(text: string, embeddings?: Float32Array): Promise<SemanticScore[]>;
 
 
   /**
@@ -118,7 +126,16 @@ export interface IPythonSemanticService {
   extractKeyPhrasesKeyBERT(
     text: string,
     options?: SemanticExtractionOptions
-  ): Promise<string[]>;
+  ): Promise<SemanticScore[]>;
+
+  /**
+   * Extract key phrases using KeyBERT for multiple texts (batch processing)
+   * Optimized for performance when processing multiple chunks
+   */
+  extractKeyPhrasesKeyBERTBatch(
+    texts: string[],
+    options?: SemanticExtractionOptions
+  ): Promise<SemanticScore[][]>;
 
   /**
    * Check if KeyBERT is available
