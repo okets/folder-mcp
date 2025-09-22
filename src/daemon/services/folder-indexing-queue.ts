@@ -297,16 +297,37 @@ export class FolderIndexingQueue extends EventEmitter {
       return;
     }
 
-    // Get next folder from queue
-    const folder = this.queue.shift();
+    // Get next folder from queue - prefer same model if available
+    let folder: QueuedFolder | undefined;
+
+    // First try to find a folder that uses the current loaded model
+    if (this.currentModelId) {
+      const sameModelIndex = this.queue.findIndex(f => f.modelId === this.currentModelId);
+      if (sameModelIndex !== -1) {
+        folder = this.queue.splice(sameModelIndex, 1)[0];
+        this.logger.debug(`[QUEUE] Selected folder using current model ${this.currentModelId}`);
+      }
+    }
+
+    // If no same-model folder found, take the first one
+    if (!folder) {
+      folder = this.queue.shift();
+    }
+
     if (!folder) {
       this.logger.debug(`[QUEUE] Queue is empty`);
       this.currentFolder = null;
       this.emit('queue:empty');
-      
-      // Unload model when queue is empty to free memory
-      if (this.currentModel) {
+
+      // Check if any more folders in queue need the current model
+      const hasMoreFoldersForCurrentModel = this.queue.some(f => f.modelId === this.currentModelId);
+
+      // Only unload model if no more folders need it
+      if (this.currentModel && !hasMoreFoldersForCurrentModel) {
+        this.logger.info(`[QUEUE] No more folders need model ${this.currentModelId}, unloading to free memory`);
         await this.unloadCurrentModel();
+      } else if (this.currentModel && hasMoreFoldersForCurrentModel) {
+        this.logger.info(`[QUEUE] Keeping model ${this.currentModelId} loaded - ${this.queue.filter(f => f.modelId === this.currentModelId).length} more folders need it`);
       }
       return;
     }
@@ -367,6 +388,8 @@ export class FolderIndexingQueue extends EventEmitter {
         this.queue.push(retryFolder);
       } else {
         this.logger.error(`[QUEUE] Folder ${folder.folderPath} failed after 3 attempts, giving up`);
+        // Emit a permanent failure event so the orchestrator can update FMDM
+        this.emit('queue:permanently-failed', folder, errorObj);
       }
     } finally {
       this.currentFolder = null;
@@ -378,9 +401,16 @@ export class FolderIndexingQueue extends EventEmitter {
         setTimeout(() => this.processNext(), 2000);
       } else {
         this.emit('queue:empty');
-        // Unload model when queue is empty
-        if (this.currentModel) {
+
+        // Check if any pending folders need the current model
+        const hasMoreFoldersForCurrentModel = this.queue.some(f => f.modelId === this.currentModelId);
+
+        // Only unload model when queue is truly empty and no folders need it
+        if (this.currentModel && !hasMoreFoldersForCurrentModel) {
+          this.logger.info(`[QUEUE] Queue empty and no pending folders need model ${this.currentModelId}, unloading`);
           await this.unloadCurrentModel();
+        } else if (this.currentModel && hasMoreFoldersForCurrentModel) {
+          this.logger.info(`[QUEUE] Queue empty but keeping model ${this.currentModelId} loaded for pending folders`);
         }
       }
     }

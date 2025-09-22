@@ -13,6 +13,7 @@ from datetime import datetime
 from queue import Queue, PriorityQueue, Empty
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+import os
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -38,6 +39,7 @@ from utils.supported_models import validate_model, get_process_management_config
 
 
 logger = logging.getLogger(__name__)
+
 
 
 @dataclass
@@ -105,6 +107,7 @@ class EmbeddingHandler:
         self.state_lock = threading.Lock()
         self.last_progress_time = 0
         self.model_loaded = False  # Track if model is loaded
+        self.active_operations = 0  # Track all active operations (embeddings, KeyBERT, etc.)
         
         # Load process management configuration
         self.process_config = get_process_management_config()
@@ -288,7 +291,7 @@ class EmbeddingHandler:
             if self.model:
                 try:
                     from handlers.semantic_handler import SemanticExtractionHandler
-                    self.semantic_handler = SemanticExtractionHandler(self.model)
+                    self.semantic_handler = SemanticExtractionHandler(self.model, embedding_handler=self)
                     if self.semantic_handler.is_available():
                         logger.info("✅ SemanticExtractionHandler initialized with KeyBERT after model load")
                     else:
@@ -660,10 +663,11 @@ class EmbeddingHandler:
                 f"Processed {'immediate' if request.immediate else 'batch'} request "
                 f"with {len(request.texts)} texts in {processing_time_ms}ms"
             )
-            
+
             # Set state back to IDLE
             with self.state_lock:
                 self.state = 'IDLE'
+                self.current_request = None
             
         except Exception as e:
             logger.error(f"Error processing request: {e}")
@@ -686,10 +690,11 @@ class EmbeddingHandler:
                 loop.call_soon_threadsafe(queued_request.future.set_result, error_response)
             except RuntimeError:
                 queued_request.future.set_result(error_response)
-            
+
             # Set state back to IDLE even on error
             with self.state_lock:
                 self.state = 'IDLE'
+                self.current_request = None
 
     def _apply_model_optimizations(self, texts: List[str]) -> List[str]:
         """
@@ -1230,15 +1235,16 @@ class EmbeddingHandler:
         """Handle keep-alive timeout with atomic state check"""
         try:
             with self.state_lock:
-                # Check all conditions atomically
-                if (self.state != 'IDLE' or 
-                    self.request_queue.qsize() > 0 or 
-                    self.current_request is not None):
-                    
-                    logger.debug(f"Cannot unload - state={self.state}, queue={self.request_queue.qsize()}")
+                # Check all conditions atomically including active operations
+                if (self.state != 'IDLE' or
+                    self.request_queue.qsize() > 0 or
+                    self.current_request is not None or
+                    self.active_operations > 0):
+
+                    logger.debug(f"Cannot unload - state={self.state}, queue={self.request_queue.qsize()}, active_ops={self.active_operations}")
                     self._reset_keep_alive_timer()
                     return
-                
+
                 # Mark as unloading to prevent new work
                 self.state = 'UNLOADING'
             
@@ -1292,3 +1298,21 @@ class EmbeddingHandler:
                 logger.debug("Keep-alive timer cancelled")
         except Exception as e:
             logger.warning(f"Failed to cancel keep-alive timer: {e}")
+
+    def increment_active_operations(self) -> None:
+        """Increment active operations counter (for tracking KeyBERT and other operations)"""
+        with self.state_lock:
+            self.active_operations += 1
+            # Reset keep-alive timer when starting an operation
+            self.last_activity_time = time.time()
+            # Cancel keep-alive timer while operations are active
+            self._cancel_keep_alive_timer()
+
+    def decrement_active_operations(self) -> None:
+        """Decrement active operations counter"""
+        with self.state_lock:
+            self.active_operations = max(0, self.active_operations - 1)
+            self.last_activity_time = time.time()
+            # Reset keep-alive timer after completing all operations
+            if self.active_operations == 0 and self.state == 'IDLE':
+                self._reset_keep_alive_timer()

@@ -1604,12 +1604,27 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
     this.folderIndexingQueue.on('queue:failed', (folder, error) => {
       this.logger.error(`[ORCHESTRATOR] Failed to process folder ${folder.folderPath}:`, error);
-      
-      // Update FMDM with error status
+
+      // Update FMDM with error status (this happens on each retry attempt)
       this.fmdmService.updateFolderStatus(folder.folderPath, 'error', {
         message: error.message,
         type: 'error'
       });
+    });
+
+    this.folderIndexingQueue.on('queue:permanently-failed', (folder, error) => {
+      this.logger.error(`[ORCHESTRATOR] Folder ${folder.folderPath} permanently failed after all retry attempts`);
+
+      // Update the folder manager's state to error using the proper method
+      const manager = this.folderManagers.get(folder.folderPath);
+      if (manager) {
+        // Call handleError to properly transition to error state
+        (manager as any).handleError?.(error, 'Indexing failed after 3 attempts');
+      }
+
+      // Update FMDM with permanent error status
+      // The updateFMDM call will get the error state from the manager
+      this.updateFMDM();
     });
 
     this.folderIndexingQueue.on('queue:empty', () => {

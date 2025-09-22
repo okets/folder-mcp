@@ -6,8 +6,12 @@ Part of Sprint 1: Foundation & KeyBERT Key Phrases implementation.
 """
 
 import logging
+import os
+import time
+from datetime import datetime
 from typing import List, Tuple, Optional, Dict, Any, Union
 from sentence_transformers import SentenceTransformer
+
 
 try:
     from keybert import KeyBERT
@@ -25,15 +29,17 @@ class SemanticExtractionHandler:
     Designed to achieve >80% multiword phrase extraction.
     """
 
-    def __init__(self, model: Optional[SentenceTransformer] = None):
+    def __init__(self, model: Optional[SentenceTransformer] = None, embedding_handler=None):
         """
         Initialize the semantic extraction handler.
 
         Args:
             model: SentenceTransformer model to use for embeddings
+            embedding_handler: Parent embedding handler for tracking operations
         """
         self.model = model
         self.kw_model = None
+        self.embedding_handler = embedding_handler
 
         if KEYBERT_AVAILABLE and model:
             try:
@@ -79,44 +85,58 @@ class SemanticExtractionHandler:
             raise RuntimeError("KeyBERT not available or not initialized")
 
         try:
-            # Extract more keywords than needed to allow for boosting and re-ranking
-            extraction_multiplier = 2 if structured_candidates else 1
-            initial_top_n = min(top_n * extraction_multiplier, 50)  # Cap at 50 to avoid performance issues
+            start_time = time.time()
 
-            # Extract keywords with scores
-            keywords = self.kw_model.extract_keywords(
-                text,
-                keyphrase_ngram_range=ngram_range,
-                use_mmr=use_mmr,
-                diversity=diversity,
-                top_n=initial_top_n,
-                stop_words=stop_words
-            )
+            # Track this operation to prevent keep-alive unloading
+            if self.embedding_handler and hasattr(self.embedding_handler, 'increment_active_operations'):
+                self.embedding_handler.increment_active_operations()
 
-            # Convert to scored object format
-            scored_phrases = [{"text": kw[0], "score": float(kw[1])} for kw in keywords]
+            try:
+                # Extract more keywords than needed to allow for boosting and re-ranking
+                extraction_multiplier = 2 if structured_candidates else 1
+                initial_top_n = min(top_n * extraction_multiplier, 50)  # Cap at 50 to avoid performance issues
 
-            # Apply weighted scoring if structured candidates are provided
-            if structured_candidates:
-                scored_phrases = self._apply_weighted_scoring(scored_phrases, structured_candidates)
+                # Extract keywords with scores
+                keywords = self.kw_model.extract_keywords(
+                    text,
+                    keyphrase_ngram_range=ngram_range,
+                    use_mmr=use_mmr,
+                    diversity=diversity,
+                    top_n=initial_top_n,
+                    stop_words=stop_words
+                )
 
-            # Sort by final score and limit to requested number
-            scored_phrases.sort(key=lambda x: x["score"], reverse=True)
-            scored_phrases = scored_phrases[:top_n]
+                elapsed = time.time() - start_time
 
-            # Log extraction metrics
-            multiword_count = sum(1 for item in scored_phrases if ' ' in item["text"])
-            multiword_ratio = multiword_count / len(scored_phrases) * 100 if scored_phrases else 0
+                # Convert to scored object format
+                scored_phrases = [{"text": kw[0], "score": float(kw[1])} for kw in keywords]
 
-            if structured_candidates:
-                structured_count = sum(1 for item in scored_phrases
-                                     if self._is_structured_phrase(item["text"], structured_candidates))
-                structured_ratio = structured_count / len(scored_phrases) * 100 if scored_phrases else 0
-                logger.debug(f"Extracted {len(scored_phrases)} phrases, {multiword_ratio:.1f}% multiword, {structured_ratio:.1f}% structured")
-            else:
-                logger.debug(f"Extracted {len(scored_phrases)} phrases, {multiword_ratio:.1f}% multiword")
+                # Apply weighted scoring if structured candidates are provided
+                if structured_candidates:
+                    scored_phrases = self._apply_weighted_scoring(scored_phrases, structured_candidates)
 
-            return scored_phrases
+                # Sort by final score and limit to requested number
+                scored_phrases.sort(key=lambda x: x["score"], reverse=True)
+                scored_phrases = scored_phrases[:top_n]
+
+                # Log extraction metrics
+                multiword_count = sum(1 for item in scored_phrases if ' ' in item["text"])
+                multiword_ratio = multiword_count / len(scored_phrases) * 100 if scored_phrases else 0
+
+                if structured_candidates:
+                    structured_count = sum(1 for item in scored_phrases
+                                         if self._is_structured_phrase(item["text"], structured_candidates))
+                    structured_ratio = structured_count / len(scored_phrases) * 100 if scored_phrases else 0
+                    logger.debug(f"Extracted {len(scored_phrases)} phrases, {multiword_ratio:.1f}% multiword, {structured_ratio:.1f}% structured")
+                else:
+                    logger.debug(f"Extracted {len(scored_phrases)} phrases, {multiword_ratio:.1f}% multiword")
+
+                return scored_phrases
+
+            finally:
+                # Always decrement operation counter
+                if self.embedding_handler and hasattr(self.embedding_handler, 'decrement_active_operations'):
+                    self.embedding_handler.decrement_active_operations()
 
         except Exception as e:
             logger.error(f"KeyBERT extraction failed: {e}")
