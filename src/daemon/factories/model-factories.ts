@@ -15,7 +15,7 @@ import { ModelCompatibilityEvaluator } from '../../domain/models/model-evaluator
  * Singleton registry for PythonEmbeddingService
  * Maintains ONE Python process that switches models as needed
  */
-class PythonEmbeddingServiceRegistry {
+export class PythonEmbeddingServiceRegistry {
   private static instance: PythonEmbeddingServiceRegistry;
   private singletonService: PythonEmbeddingService | null = null;
   private currentModelName: string | null = null;
@@ -82,6 +82,17 @@ class PythonEmbeddingServiceRegistry {
     return this.singletonService;
   }
   
+  /**
+   * Notify registry that model has been unloaded externally
+   * This happens when the queue unloads the model
+   */
+  public notifyModelUnloaded(): void {
+    if (this.currentModelName) {
+      console.log(`[PYTHON-REGISTRY] Model ${this.currentModelName} unloaded externally, updating registry`);
+      this.currentModelName = null;
+    }
+  }
+
   /**
    * Get registry status for debugging
    */

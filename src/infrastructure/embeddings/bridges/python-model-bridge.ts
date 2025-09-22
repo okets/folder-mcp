@@ -107,6 +107,30 @@ export class PythonModelBridge implements IEmbeddingModel {
 
       this.pythonService = await createPythonEmbeddingService(pythonConfig);
 
+      // Check if the model is already loaded (singleton reuse case)
+      let initialHealth;
+      try {
+        initialHealth = await this.pythonService.healthCheck();
+      } catch (error) {
+        // Service not initialized yet, proceed with initialization
+        this.logger?.debug('[PYTHON-BRIDGE] Service not yet initialized, proceeding with initialization');
+      }
+
+      // If model is already loaded (singleton reuse), we're done
+      if (initialHealth && initialHealth.model_loaded === true) {
+        this.logger?.info(`[PYTHON-BRIDGE] Model ${this.modelConfig.modelId} already loaded (singleton reuse)`);
+        this.isModelLoaded = true;
+
+        // Report completion
+        onProgress?.({
+          stage: 'ready',
+          progress: 100,
+          message: 'Model ready (reused existing)'
+        });
+
+        return;
+      }
+
       // Initialize the service (which starts the Python process)
       await this.pythonService.initialize();
 
@@ -189,10 +213,18 @@ export class PythonModelBridge implements IEmbeddingModel {
     try {
       // Request model unloading in Python process
       await this.pythonService.requestModelUnload();
-      
+
+      // Notify the singleton registry that the model has been unloaded
+      // This is critical for proper state tracking when models are unloaded externally
+      const PythonEmbeddingServiceRegistry = (await import('../../../daemon/factories/model-factories.js')).PythonEmbeddingServiceRegistry;
+      if (PythonEmbeddingServiceRegistry) {
+        const registry = PythonEmbeddingServiceRegistry.getInstance();
+        registry.notifyModelUnloaded();
+      }
+
       // Don't dispose the service yet - just unload the model
       // This allows faster reloading if needed
-      
+
       this.isModelLoaded = false;
       this.logger?.info(`[PYTHON-BRIDGE] Python model unloaded: ${this.modelConfig.modelId}`);
 

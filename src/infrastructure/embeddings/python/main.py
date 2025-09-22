@@ -97,6 +97,9 @@ import time
 import threading
 import traceback
 from typing import Dict, Any, Optional
+import os
+from datetime import datetime
+
 
 # Configure logging to stderr only
 logging.basicConfig(
@@ -320,6 +323,7 @@ class EmbeddingRPCServer:
                 - success: Boolean indicating success
                 - error: Optional error message
         """
+        text = request_data.get('text', '')
         try:
             # Ensure semantic handler is initialized if model is available
             self._ensure_semantic_handler()
