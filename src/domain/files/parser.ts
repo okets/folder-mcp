@@ -47,7 +47,7 @@ export class FileParser implements FileParsingOperations {
    */
   async parseFile(filePath: string, basePath: string): Promise<ParsedContent> {
     const ext = this.pathProvider.extname(filePath).toLowerCase();
-    
+
     switch (ext) {
       case '.txt':
       case '.md':
@@ -85,16 +85,16 @@ export class FileParser implements FileParsingOperations {
   private parseTextFile(filePath: string, basePath: string): ParsedContent {
     const content = this.fileSystem.readFile(filePath, 'utf8');
     const stats = this.fileSystem.statFile(filePath);
-    
+
     // Normalize line endings (handle CRLF/LF)
     const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    
+
     const relativePath = this.pathProvider.relative(basePath, filePath);
     const ext = this.pathProvider.extname(filePath).toLowerCase();
-    
+
     const fileType = ext === '.md' ? 'md' : 'txt';
     const lines = normalizedContent.split('\n').length;
-    
+
     const metadata: TextMetadata = {
       type: fileType as 'txt' | 'md',
       originalPath: relativePath,
@@ -103,13 +103,33 @@ export class FileParser implements FileParsingOperations {
       lines: lines,
       encoding: 'utf-8'
     };
-    
-    return {
+
+    // Extract structured candidates for markdown files (Sprint 13)
+    let structuredCandidates: ParsedContent['structuredCandidates'];
+    let contentZones: ParsedContent['contentZones'];
+
+    if (fileType === 'md') {
+      const candidates = this.extractMarkdownCandidates(normalizedContent);
+      structuredCandidates = candidates.headers || candidates.emphasized ? candidates : undefined;
+      contentZones = this.extractMarkdownZones(normalizedContent);
+    }
+
+    const result: ParsedContent = {
       content: normalizedContent,
       type: fileType,
       originalPath: relativePath,
       metadata
     };
+
+    if (structuredCandidates && (structuredCandidates.headers || structuredCandidates.emphasized)) {
+      result.structuredCandidates = structuredCandidates;
+    }
+
+    if (contentZones && contentZones.length > 0) {
+      result.contentZones = contentZones;
+    }
+
+    return result;
   }
 
   /**
@@ -209,12 +229,25 @@ export class FileParser implements FileParsingOperations {
             })
           };
           
-          resolve({
+          // Extract structured candidates (Sprint 13)
+          const structuredCandidates = this.extractPdfCandidates(pdfData, pageTexts);
+          const contentZones = this.extractPdfZones(pageTexts);
+
+          const parsedResult: ParsedContent = {
             content: fullText.trim(),
             type: 'pdf',
             originalPath: relativePath,
             metadata
-          });
+          };
+
+          if (structuredCandidates && Object.keys(structuredCandidates).length > 0) {
+            parsedResult.structuredCandidates = structuredCandidates;
+          }
+          if (contentZones && contentZones.length > 0) {
+            parsedResult.contentZones = contentZones;
+          }
+
+          resolve(parsedResult);
         } catch (error) {
           reject(error);
         }
@@ -291,12 +324,25 @@ export class FileParser implements FileParsingOperations {
       ...(keywords && { keywords })
     };
     
-    return {
+    // Extract structured candidates (Sprint 13)
+    const structuredCandidates = this.extractWordCandidates(htmlContent, keywords);
+    const contentZones = this.extractWordZones(htmlContent);
+
+    const parsedResult: ParsedContent = {
       content: textContent,
       type: 'word',
       originalPath: relativePath,
       metadata
     };
+
+    if (structuredCandidates && Object.keys(structuredCandidates).length > 0) {
+      parsedResult.structuredCandidates = structuredCandidates;
+    }
+    if (contentZones && contentZones.length > 0) {
+      parsedResult.contentZones = contentZones;
+    }
+
+    return parsedResult;
   }
 
   /**
@@ -392,12 +438,25 @@ export class FileParser implements FileParsingOperations {
       })
     };
     
-    return {
+    // Extract structured candidates (Sprint 13)
+    const structuredCandidates = this.extractExcelCandidates(workbook, worksheets);
+    const contentZones = this.extractExcelZones(worksheets);
+
+    const parsedResult: ParsedContent = {
       content: allTextContent.trim(),
       type: 'excel',
       originalPath: relativePath,
       metadata
     };
+
+    if (structuredCandidates && Object.keys(structuredCandidates).length > 0) {
+      parsedResult.structuredCandidates = structuredCandidates;
+    }
+    if (contentZones && contentZones.length > 0) {
+      parsedResult.contentZones = contentZones;
+    }
+
+    return parsedResult;
   }
 
   /**
@@ -548,13 +607,456 @@ export class FileParser implements FileParsingOperations {
       slideData: slides
     };
     
-    return {
+    // Extract structured candidates (Sprint 13)
+    const structuredCandidates = this.extractPowerPointCandidates(slides);
+    const contentZones = this.extractPowerPointZones(slides);
+
+    const parsedResult: ParsedContent = {
       content: allTextContent.trim(),
       type: 'powerpoint',
       originalPath: relativePath,
       metadata,
       slides: slides
     };
+
+    if (structuredCandidates && Object.keys(structuredCandidates).length > 0) {
+      parsedResult.structuredCandidates = structuredCandidates;
+    }
+    if (contentZones && contentZones.length > 0) {
+      parsedResult.contentZones = contentZones;
+    }
+
+    return parsedResult;
+  }
+
+  /**
+   * Extract structured keyword candidates from markdown content (Sprint 13)
+   */
+  private extractMarkdownCandidates(content: string): { headers?: string[]; emphasized?: string[] } {
+    const headers: string[] = [];
+    const emphasized: string[] = [];
+
+    // Extract headers (# ## ### etc.)
+    const headerRegex = /^(#{1,6})\s+(.+)$/gm;
+    let match;
+    while ((match = headerRegex.exec(content)) !== null) {
+      const headerText = match[2]?.trim();
+      if (headerText) {
+        // Clean any remaining markdown formatting from header text
+        const cleanHeader = headerText
+          .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove bold
+          .replace(/\*([^*]+)\*/g, '$1')      // Remove italic
+          .replace(/`([^`]+)`/g, '$1')        // Remove inline code
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // Remove links
+        if (cleanHeader.length > 0) {
+          headers.push(cleanHeader);
+        }
+      }
+    }
+
+    // Extract emphasized text (bold, italic)
+    const boldRegex = /\*\*([^*]+)\*\*/g;
+    while ((match = boldRegex.exec(content)) !== null) {
+      const boldText = match[1]?.trim();
+      if (boldText && boldText.length > 2 && boldText.length < 50) { // Reasonable length for keywords
+        emphasized.push(boldText);
+      }
+    }
+
+    const italicRegex = /\*([^*]+)\*/g;
+    while ((match = italicRegex.exec(content)) !== null) {
+      const italicText = match[1]?.trim();
+      if (italicText && italicText.length > 2 && italicText.length < 50) { // Reasonable length for keywords
+        emphasized.push(italicText);
+      }
+    }
+
+    // Extract code spans as potential technical terms
+    const codeRegex = /`([^`]+)`/g;
+    while ((match = codeRegex.exec(content)) !== null) {
+      const codeText = match[1]?.trim();
+      if (codeText && codeText.length > 2 && codeText.length < 30) { // Technical terms are usually shorter
+        emphasized.push(codeText);
+      }
+    }
+
+    // Deduplicate arrays
+    const uniqueHeaders = [...new Set(headers)];
+    const uniqueEmphasized = [...new Set(emphasized)];
+
+    const result: { headers?: string[]; emphasized?: string[] } = {};
+    if (uniqueHeaders.length > 0) result.headers = uniqueHeaders;
+    if (uniqueEmphasized.length > 0) result.emphasized = uniqueEmphasized;
+    return result;
+  }
+
+  /**
+   * Extract content zones with importance weights from markdown (Sprint 13)
+   */
+  private extractMarkdownZones(content: string): Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }> {
+    const zones: Array<{
+      text: string;
+      type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+      weight: number;
+    }> = [];
+
+    const lines = content.split('\n');
+    let currentZone = { text: '', type: 'body' as const, weight: 0.4 };
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+
+      // Check for headers
+      const headerMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
+      if (headerMatch) {
+        // Save previous zone if it has content
+        if (currentZone.text.trim()) {
+          zones.push({ ...currentZone });
+        }
+
+        const headerLevel = headerMatch[1]?.length || 1;
+        const headerText = headerMatch[2] || '';
+
+        // Create header zone
+        const headerType = headerLevel === 1 ? 'title' :
+                          headerLevel === 2 ? 'header1' :
+                          headerLevel === 3 ? 'header2' : 'header3';
+        const headerWeight = headerLevel === 1 ? 1.0 :
+                           headerLevel === 2 ? 0.9 :
+                           headerLevel === 3 ? 0.8 : 0.7;
+
+        zones.push({
+          text: headerText,
+          type: headerType,
+          weight: headerWeight
+        });
+
+        // Start new body zone
+        currentZone = { text: '', type: 'body', weight: 0.4 };
+        continue;
+      }
+
+      // Add line to current zone
+      if (trimmedLine.length > 0) {
+        currentZone.text += (currentZone.text ? '\n' : '') + trimmedLine;
+      }
+    }
+
+    // Add final zone if it has content
+    if (currentZone.text.trim()) {
+      zones.push(currentZone);
+    }
+
+    return zones.filter(zone => zone.text.length > 0);
+  }
+
+  /**
+   * Extract structured keyword candidates from Excel content (Sprint 13)
+   */
+  private extractExcelCandidates(workbook: any, worksheets: any[]): { entities?: string[]; headers?: string[] } {
+    const entities: string[] = [];
+    const headers: string[] = [];
+
+    // Extract sheet names as entities
+    if (workbook.SheetNames && Array.isArray(workbook.SheetNames)) {
+      entities.push(...workbook.SheetNames);
+    }
+
+    // Extract column headers from each worksheet
+    worksheets.forEach(worksheet => {
+      if (worksheet.jsonData && Array.isArray(worksheet.jsonData) && worksheet.jsonData.length > 0) {
+        const firstRow = worksheet.jsonData[0];
+        if (Array.isArray(firstRow)) {
+          // First row might contain headers
+          firstRow.forEach((cell: any) => {
+            if (typeof cell === 'string' && cell.length > 1 && cell.length < 50) {
+              headers.push(cell.trim());
+            }
+          });
+        }
+      }
+    });
+
+    const result: { entities?: string[]; headers?: string[] } = {};
+    if (entities.length > 0) result.entities = [...new Set(entities)];
+    if (headers.length > 0) result.headers = [...new Set(headers)];
+    return result;
+  }
+
+  /**
+   * Extract content zones with importance weights from Excel (Sprint 13)
+   */
+  private extractExcelZones(worksheets: any[]): Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }> {
+    const zones: Array<{
+      text: string;
+      type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+      weight: number;
+    }> = [];
+
+    worksheets.forEach((worksheet, index) => {
+      if (worksheet.csvContent && worksheet.csvContent.trim()) {
+        // Treat first worksheet as more important
+        zones.push({
+          text: worksheet.csvContent,
+          type: index === 0 ? 'title' : 'body',
+          weight: index === 0 ? 0.8 : 0.4
+        });
+      }
+    });
+
+    return zones.filter(zone => zone.text.length > 0);
+  }
+
+  /**
+   * Extract structured keyword candidates from PowerPoint content (Sprint 13)
+   */
+  private extractPowerPointCandidates(slides: any[]): { headers?: string[]; entities?: string[] } {
+    const headers: string[] = [];
+    const entities: string[] = [];
+
+    slides.forEach(slide => {
+      // Extract slide titles as headers
+      if (slide.text && slide.text.length > 0) {
+        // First few words of slide text could be title
+        const lines = slide.text.split('\n').filter((line: string) => line.trim().length > 0);
+        if (lines.length > 0) {
+          const firstLine = lines[0].trim();
+          if (firstLine.length > 3 && firstLine.length < 100) {
+            headers.push(firstLine);
+          }
+        }
+      }
+
+      // Extract bullet points as entities
+      const bulletRegex = /^\s*[-•*]\s+(.+)$/gm;
+      let match;
+      while ((match = bulletRegex.exec(slide.text)) !== null) {
+        const bulletText = match[1]?.trim();
+        if (bulletText && bulletText.length > 3 && bulletText.length < 80) {
+          entities.push(bulletText);
+        }
+      }
+    });
+
+    const result: { headers?: string[]; entities?: string[] } = {};
+    if (headers.length > 0) result.headers = [...new Set(headers)];
+    if (entities.length > 0) result.entities = [...new Set(entities)];
+    return result;
+  }
+
+  /**
+   * Extract content zones with importance weights from PowerPoint (Sprint 13)
+   */
+  private extractPowerPointZones(slides: any[]): Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }> {
+    const zones: Array<{
+      text: string;
+      type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+      weight: number;
+    }> = [];
+
+    slides.forEach((slide, index) => {
+      if (slide.text && slide.text.trim()) {
+        // First slide is often title slide
+        zones.push({
+          text: slide.text.trim(),
+          type: index === 0 ? 'title' : 'body',
+          weight: index === 0 ? 0.9 : 0.4
+        });
+      }
+
+      // Speaker notes have lower weight
+      if (slide.notes && slide.notes.trim()) {
+        zones.push({
+          text: slide.notes.trim(),
+          type: 'footer',
+          weight: 0.2
+        });
+      }
+    });
+
+    return zones.filter(zone => zone.text.length > 0);
+  }
+
+  /**
+   * Extract structured keyword candidates from Word HTML content (Sprint 13)
+   */
+  private extractWordCandidates(htmlContent: string, metadataKeywords?: string): { metadata?: string[]; headers?: string[]; emphasized?: string[] } {
+    const metadata: string[] = [];
+    const headers: string[] = [];
+    const emphasized: string[] = [];
+
+    // Extract metadata keywords if available
+    if (metadataKeywords) {
+      const keywords = metadataKeywords.split(/[,;]/).map(k => k.trim()).filter(Boolean);
+      metadata.push(...keywords);
+    }
+
+    // Extract headers from HTML structure
+    const headerRegex = /<h([1-6])[^>]*>([^<]+)<\/h[1-6]>/gi;
+    let match;
+    while ((match = headerRegex.exec(htmlContent)) !== null) {
+      const headerText = match[2]?.trim();
+      if (headerText && headerText.length > 3 && headerText.length < 100) {
+        headers.push(headerText);
+      }
+    }
+
+    // Extract emphasized text (bold, italic)
+    const boldRegex = /<(?:b|strong)[^>]*>([^<]+)<\/(?:b|strong)>/gi;
+    while ((match = boldRegex.exec(htmlContent)) !== null) {
+      const boldText = match[1]?.trim();
+      if (boldText && boldText.length > 2 && boldText.length < 50) {
+        emphasized.push(boldText);
+      }
+    }
+
+    const italicRegex = /<(?:i|em)[^>]*>([^<]+)<\/(?:i|em)>/gi;
+    while ((match = italicRegex.exec(htmlContent)) !== null) {
+      const italicText = match[1]?.trim();
+      if (italicText && italicText.length > 2 && italicText.length < 50) {
+        emphasized.push(italicText);
+      }
+    }
+
+    const result: { metadata?: string[]; headers?: string[]; emphasized?: string[] } = {};
+    if (metadata.length > 0) result.metadata = [...new Set(metadata)];
+    if (headers.length > 0) result.headers = [...new Set(headers)];
+    if (emphasized.length > 0) result.emphasized = [...new Set(emphasized)];
+    return result;
+  }
+
+  /**
+   * Extract content zones with importance weights from Word HTML (Sprint 13)
+   */
+  private extractWordZones(htmlContent: string): Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }> {
+    const zones: Array<{
+      text: string;
+      type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+      weight: number;
+    }> = [];
+
+    // Extract headers with weights
+    const headerRegex = /<h([1-6])[^>]*>([^<]+)<\/h[1-6]>/gi;
+    let match;
+    while ((match = headerRegex.exec(htmlContent)) !== null) {
+      const level = parseInt(match[1] || '1');
+      const headerText = match[2]?.trim();
+      if (headerText) {
+        const headerType = level === 1 ? 'title' :
+                          level === 2 ? 'header1' :
+                          level === 3 ? 'header2' : 'header3';
+        const weight = level === 1 ? 1.0 :
+                      level === 2 ? 0.9 :
+                      level === 3 ? 0.8 : 0.7;
+
+        zones.push({
+          text: headerText,
+          type: headerType,
+          weight
+        });
+      }
+    }
+
+    // Extract paragraph content as body zones
+    const paragraphRegex = /<p[^>]*>(.*?)<\/p>/gi;
+    while ((match = paragraphRegex.exec(htmlContent)) !== null) {
+      const paragraphText = match[1]?.replace(/<[^>]+>/g, '').trim(); // Strip remaining HTML tags
+      if (paragraphText && paragraphText.length > 20) { // Only substantial paragraphs
+        zones.push({
+          text: paragraphText,
+          type: 'body',
+          weight: 0.4
+        });
+      }
+    }
+
+    return zones.filter(zone => zone.text.length > 0);
+  }
+
+  /**
+   * Extract structured keyword candidates from PDF content (Sprint 13)
+   */
+  private extractPdfCandidates(pdfData: any, _pageTexts: string[]): { metadata?: string[]; headers?: string[] } {
+    const metadata: string[] = [];
+    const headers: string[] = [];
+
+    // Extract metadata keywords if available
+    if (pdfData.Meta?.Keywords) {
+      const keywords = pdfData.Meta.Keywords.split(/[,;]/).map((k: string) => k.trim()).filter(Boolean);
+      metadata.push(...keywords);
+    }
+
+    // Extract potential headers from page structure
+    // Look for text that appears to be headers (larger font, positioned as titles)
+    if (pdfData.Pages && Array.isArray(pdfData.Pages)) {
+      pdfData.Pages.forEach((page: any) => {
+        if (page.Texts && Array.isArray(page.Texts)) {
+          // Find text items that could be headers (simple heuristic: shorter text, first on page)
+          const potentialHeaders = page.Texts
+            .filter((text: any) => {
+              const textContent = text.R?.map((r: any) => decodeURIComponent(r.T || '')).join(' ').trim();
+              return textContent && textContent.length > 3 && textContent.length < 100 &&
+                     !textContent.includes('\n') && // Single line
+                     textContent.charAt(0) === textContent.charAt(0).toUpperCase(); // Starts with capital
+            })
+            .slice(0, 3) // Take first 3 potential headers per page
+            .map((text: any) => text.R?.map((r: any) => decodeURIComponent(r.T || '')).join(' ').trim())
+            .filter(Boolean);
+
+          headers.push(...potentialHeaders);
+        }
+      });
+    }
+
+    const result: { metadata?: string[]; headers?: string[] } = {};
+    if (metadata.length > 0) result.metadata = [...new Set(metadata)];
+    if (headers.length > 0) result.headers = [...new Set(headers)];
+    return result;
+  }
+
+  /**
+   * Extract content zones with importance weights from PDF (Sprint 13)
+   */
+  private extractPdfZones(pageTexts: string[]): Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }> {
+    const zones: Array<{
+      text: string;
+      type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+      weight: number;
+    }> = [];
+
+    pageTexts.forEach((pageText, pageIndex) => {
+      if (pageText.trim()) {
+        // For PDFs, treat each page as a body zone
+        // Future enhancement: detect headers vs body text based on formatting
+        zones.push({
+          text: pageText.trim(),
+          type: pageIndex === 0 ? 'title' : 'body', // First page might contain title
+          weight: pageIndex === 0 ? 0.8 : 0.4
+        });
+      }
+    });
+
+    return zones;
   }
 }
 

@@ -331,7 +331,6 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
       // Find the database that contains this file
       // Try to match by checking which database path is a prefix of the file path
       let db: FolderDatabase | null = null;
-      // let matchedPath: string | null = null; // Unused variable
 
       // First, try to find an exact match by checking existing databases
       for (const [dbPath, folderDb] of this.databases.entries()) {

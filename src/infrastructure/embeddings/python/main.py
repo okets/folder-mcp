@@ -344,14 +344,18 @@ class EmbeddingRPCServer:
             use_mmr = request_data.get('use_mmr', True)
             diversity = request_data.get('diversity', 0.5)
             top_n = request_data.get('top_n', 10)
+            structured_candidates = request_data.get('structured_candidates')
+            content_zones = request_data.get('content_zones')
 
-            # Extract key phrases
+            # Extract key phrases with structured candidates support
             keyphrases = self.semantic_handler.extract_keyphrases(
                 text=text,
                 ngram_range=ngram_range,
                 use_mmr=use_mmr,
                 diversity=diversity,
-                top_n=top_n
+                top_n=top_n,
+                structured_candidates=structured_candidates,
+                content_zones=content_zones
             )
 
             return {
@@ -438,6 +442,8 @@ class EmbeddingRPCServer:
             use_mmr = request_data.get('use_mmr', True)
             diversity = request_data.get('diversity', 0.5)
             top_n = request_data.get('top_n', 10)
+            structured_candidates = request_data.get('structured_candidates')
+            content_zones = request_data.get('content_zones')
 
             logger.info(f"Processing KeyBERT batch request: {len(texts)} texts")
             start_time = time.time()
@@ -451,7 +457,9 @@ class EmbeddingRPCServer:
                         ngram_range=ngram_range,
                         use_mmr=use_mmr,
                         diversity=diversity,
-                        top_n=top_n
+                        top_n=top_n,
+                        structured_candidates=structured_candidates,
+                        content_zones=content_zones
                     )
                     keyphrases_batch.append(keyphrases)
 

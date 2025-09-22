@@ -189,7 +189,9 @@ export class DocumentKeywordScorer implements IDocumentKeywordScorer {
 
       // Calculate combined score
       // Log frequency to reduce impact of very frequent keywords
-      const freqScore = Math.log(1 + candidate.chunkFrequency) / Math.log(1 + this.chunksProcessed);
+      // Prevent division by zero when no chunks have been processed
+      const safeChunksProcessed = Math.max(this.chunksProcessed, 1);
+      const freqScore = Math.log(1 + candidate.chunkFrequency) / Math.log(1 + safeChunksProcessed);
 
       candidate.finalScore =
         weights.documentSimilarity * candidate.documentScore +
@@ -310,6 +312,15 @@ export class DocumentKeywordScorer implements IDocumentKeywordScorer {
    * Calculate cosine similarity between two normalized vectors
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
+    // Validate that both vectors have the same length
+    if (a.length !== b.length) {
+      throw new Error(
+        `CRITICAL: Vector length mismatch in cosine similarity calculation! ` +
+        `Vector A has ${a.length} dimensions, Vector B has ${b.length} dimensions. ` +
+        `This indicates a serious embedding model inconsistency that must be fixed.`
+      );
+    }
+
     let dotProduct = 0;
     for (let i = 0; i < a.length; i++) {
       const aVal = a[i];

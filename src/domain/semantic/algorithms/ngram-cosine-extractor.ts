@@ -25,13 +25,29 @@ export interface IEmbeddingModel {
 }
 
 /**
- * Configuration options for N-gram extraction
+ * Configuration options for N-gram extraction (Enhanced for Sprint 13)
  */
 export interface NGramExtractionOptions {
   ngramRange: [number, number];  // e.g., [2, 4] for bigrams to 4-grams
   topK: number;                  // Number of phrases to extract
   diversityFactor: number;       // MMR diversity factor (0-1)
   minSimilarity: number;         // Minimum cosine similarity threshold
+
+  /** Format-specific keyword candidates extracted during parsing (Sprint 13) */
+  structuredCandidates?: {
+    metadata?: string[];
+    headers?: string[];
+    entities?: string[];
+    emphasized?: string[];
+    captions?: string[];
+  };
+
+  /** Content zones with importance weights for keyword scoring (Sprint 13) */
+  contentZones?: Array<{
+    text: string;
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    weight: number;
+  }>;
 }
 
 /**
@@ -118,17 +134,24 @@ export class NGramCosineExtractor {
       if (candidates.length > 50) {
         this.logger.debug(`[NGRAM-EXTRACT] Too many candidates (${candidates.length}), reducing to top 50 by frequency`);
 
-        // Count frequency of each candidate
+        // Build frequency map from ORIGINAL ngrams (before deduplication) to get meaningful counts
         const frequencyMap = new Map<string, number>();
-        for (const candidate of candidates) {
-          frequencyMap.set(candidate, (frequencyMap.get(candidate) || 0) + 1);
+        for (const ngram of ngrams) {
+          // Only count frequencies for candidates that passed the filter
+          if (candidates.includes(ngram)) {
+            frequencyMap.set(ngram, (frequencyMap.get(ngram) || 0) + 1);
+          }
         }
 
-        // Sort by frequency and take top 50
-        candidates = Array.from(frequencyMap.entries())
-          .sort((a, b) => b[1] - a[1])
+        // Sort candidates by their actual frequency in the original text and take top 50
+        candidates = candidates
+          .map(candidate => ({
+            phrase: candidate,
+            frequency: frequencyMap.get(candidate) || 1
+          }))
+          .sort((a, b) => b.frequency - a.frequency)
           .slice(0, 50)
-          .map(([phrase]) => phrase);
+          .map(item => item.phrase);
 
         this.logger.debug(`[NGRAM-EXTRACT] Reduced to ${candidates.length} most frequent candidates`);
       }
@@ -361,9 +384,50 @@ export class NGramCosineExtractor {
       })).sort((a, b) => b.score - a.score).slice(0, opts.topK);
     }
 
+    // Start with structured candidates with high weights (Sprint 13)
+    const priorityCandidates: Array<{ phrase: string; weight: number }> = [];
+
+    if (opts.structuredCandidates) {
+      // Add metadata keywords with highest weight
+      if (opts.structuredCandidates.metadata) {
+        opts.structuredCandidates.metadata.forEach(keyword => {
+          priorityCandidates.push({ phrase: keyword, weight: 1.0 });
+        });
+      }
+
+      // Add headers with high weight
+      if (opts.structuredCandidates.headers) {
+        opts.structuredCandidates.headers.forEach(header => {
+          priorityCandidates.push({ phrase: header, weight: 0.9 });
+        });
+      }
+
+      // Add entities with medium-high weight
+      if (opts.structuredCandidates.entities) {
+        opts.structuredCandidates.entities.forEach(entity => {
+          priorityCandidates.push({ phrase: entity, weight: 0.8 });
+        });
+      }
+
+      // Add emphasized text with medium weight
+      if (opts.structuredCandidates.emphasized) {
+        opts.structuredCandidates.emphasized.forEach(emphasized => {
+          priorityCandidates.push({ phrase: emphasized, weight: 0.7 });
+        });
+      }
+    }
+
     // Extract n-grams and calculate similarities
     const ngrams = extractNGrams(text, opts.ngramRange[0], opts.ngramRange[1]);
-    const candidates = filterCandidates(ngrams);
+    const ngramCandidates = filterCandidates(ngrams);
+
+    // Combine structured candidates with n-gram candidates
+    const structuredTexts = priorityCandidates.map(c => c.phrase);
+    const filteredNgrams = ngramCandidates.filter(ngram =>
+      !structuredTexts.some(structured => structured.toLowerCase().includes(ngram.toLowerCase()))
+    );
+
+    const candidates = [...structuredTexts, ...filteredNgrams];
 
     if (candidates.length === 0) {
       return [];
@@ -388,14 +452,23 @@ export class NGramCosineExtractor {
       cosineSimilarity(candEmb, docEmbedding!)
     );
 
-    // Combine with scores and sort
+    // Combine with scores and apply structural weights (Sprint 13)
     const phrasesWithScores: Array<{ phrase: string; score: number }> = [];
     for (let i = 0; i < limitedCandidates.length; i++) {
-      const score = similarities[i];
-      if (score !== undefined) {
+      const phrase = limitedCandidates[i]!;
+      const cosineSim = similarities[i];
+      if (cosineSim !== undefined) {
+        // Check if this phrase is from structured candidates and apply weight boost
+        const priorityCandidate = priorityCandidates.find(pc => pc.phrase === phrase);
+        const structuralWeight = priorityCandidate ? priorityCandidate.weight : 0.4; // Default weight for n-grams
+
+        // Balanced scoring: avoid 100% formatting-based extraction
+        // Give more weight to semantic similarity while still boosting structured content
+        const finalScore = structuralWeight * 0.3 + cosineSim * 0.7; // 30% structural weight, 70% semantic similarity
+
         phrasesWithScores.push({
-          phrase: limitedCandidates[i]!,
-          score
+          phrase,
+          score: finalScore
         });
       }
     }

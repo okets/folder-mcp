@@ -605,6 +605,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     const chunkResult = await this.chunkingService.chunkText(parsedContent, finalChunkSize);
     const chunks = chunkResult.chunks;
 
+
     // Determine if this is an ONNX model
     const isONNXModel = modelId.startsWith('cpu:') || modelId.startsWith('onnx:');
 
@@ -684,7 +685,12 @@ export class IndexingOrchestrator implements IndexingWorkflow {
           }
         }
       },
-      preGeneratedEmbeddings // Pass pre-generated embeddings for ONNX
+      preGeneratedEmbeddings, // Pass pre-generated embeddings for ONNX
+      { // Enhanced options for Sprint 13 - will be ignored by GPU models, used by ONNX models
+        fileType: fileType,
+        structuredCandidates: parsedContent.structuredCandidates,
+        contentZones: parsedContent.contentZones
+      }
     );
 
     // Generate embeddings if not skipped
@@ -1178,7 +1184,8 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     chunks: TextChunk[],
     modelId?: string,
     progressCallback?: (processedChunks: number) => void,
-    preGeneratedEmbeddings?: Map<number, any>
+    preGeneratedEmbeddings?: Map<number, any>,
+    enhancedOptions?: { fileType?: string; structuredCandidates?: any; contentZones?: any }
   ): Promise<TextChunk[]> {
     this.loggingService.debug('[SEMANTIC-EXTRACT] Starting semantic extraction', {
       chunkCount: chunks.length
@@ -1341,6 +1348,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
     let enhancedChunks: TextChunk[] = [];
     const SEMANTIC_BATCH_SIZE = 20; // Process 20 chunks at a time for semantic extraction
 
+
     try {
       // Process chunks in smaller batches for better progress reporting
       for (let batchStart = 0; batchStart < chunks.length; batchStart += SEMANTIC_BATCH_SIZE) {
@@ -1370,7 +1378,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
             embeddingCount: batchEmbeddings.length
           });
 
-          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts, batchEmbeddings);
+          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts, batchEmbeddings, enhancedOptions);
         } else {
           // For GPU models, use batch KeyBERT processing
           const batchTexts = batchChunks.map(chunk => chunk.content);
@@ -1381,7 +1389,7 @@ export class IndexingOrchestrator implements IndexingWorkflow {
             textCount: batchTexts.length
           });
 
-          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts);
+          batchSemanticData = await this.semanticExtractionService.extractFromTextBatch(batchTexts, undefined, enhancedOptions);
         }
 
         // Create enhanced chunks with semantic metadata for this batch

@@ -1349,7 +1349,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         ngram_range: options?.ngramRange || [1, 3],
         use_mmr: options?.useMmr !== false,
         diversity: options?.diversity || 0.5,
-        top_n: options?.maxKeyPhrases || 10
+        top_n: options?.maxKeyPhrases || 10,
+        structured_candidates: options?.structuredCandidates,
+        content_zones: options?.contentZones
       });
 
       // Convert response to SemanticScore format
@@ -1388,7 +1390,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       ngram_range: options?.ngramRange || [1, 3],
       use_mmr: options?.useMmr !== false,
       diversity: options?.diversity || 0.5,
-      top_n: options?.maxKeyPhrases || 10
+      top_n: options?.maxKeyPhrases || 10,
+      structured_candidates: options?.structuredCandidates,
+      content_zones: options?.contentZones
     });
 
     const elapsed = Date.now() - startTime;

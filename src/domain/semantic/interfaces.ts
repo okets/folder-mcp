@@ -47,20 +47,20 @@ export interface SemanticData {
  */
 export interface ISemanticExtractionService {
   /**
-   * Extract semantic data from text with optional embeddings
+   * Extract semantic data from text with optional embeddings and enhanced options (Sprint 13)
    */
-  extractFromText(text: string, embeddings?: Float32Array): Promise<SemanticData>;
+  extractFromText(text: string, embeddings?: Float32Array, options?: SemanticExtractionOptions): Promise<SemanticData>;
 
   /**
    * Extract semantic data from multiple texts (batch processing)
    * Optimized for performance when processing multiple chunks
    */
-  extractFromTextBatch(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]>;
+  extractFromTextBatch(texts: string[], embeddings?: Float32Array[], options?: SemanticExtractionOptions): Promise<SemanticData[]>;
 
   /**
-   * Extract key phrases using KeyBERT or fallback methods
+   * Extract key phrases using KeyBERT or fallback methods with enhanced options (Sprint 13)
    */
-  extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<SemanticScore[]>;
+  extractKeyPhrases(text: string, embeddings?: Float32Array, options?: SemanticExtractionOptions): Promise<SemanticScore[]>;
 
 
 
@@ -99,6 +99,39 @@ export interface SemanticExtractionOptions {
    * Enable quality metrics calculation
    */
   calculateMetrics?: boolean;
+
+  /**
+   * Format-specific keyword candidates extracted during parsing (Sprint 13)
+   */
+  structuredCandidates?: {
+    /** Keywords from file metadata (PDF keywords, Word document properties) */
+    metadata?: string[];
+    /** Document headers (H1-H6, #, ##, ###) */
+    headers?: string[];
+    /** Named entities (sheet names, slide titles, table names) */
+    entities?: string[];
+    /** Emphasized text (bold, italic, highlighted) */
+    emphasized?: string[];
+    /** Figure captions, table captions, footnotes */
+    captions?: string[];
+  };
+
+  /**
+   * Content zones with importance weights for keyword scoring (Sprint 13)
+   */
+  contentZones?: Array<{
+    /** Text content of the zone */
+    text: string;
+    /** Type of content zone */
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    /** Importance weight for keyword extraction (0-1, higher = more important) */
+    weight: number;
+  }>;
+
+  /**
+   * File type for format-specific text preprocessing (Sprint 13)
+   */
+  fileType?: string;
 }
 
 /**

@@ -23,6 +23,10 @@ import {
   IReadabilityCalculator,
   createReadabilityCalculator
 } from './algorithms/readability-calculator.js';
+import {
+  TextPreprocessor,
+  createTextPreprocessor
+} from './text-preprocessor.js';
 
 /**
  * Default extraction options
@@ -66,14 +70,26 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   }
 
   /**
-   * Extract semantic data from text
+   * Extract semantic data from text with enhanced options (Sprint 13)
    */
-  async extractFromText(text: string, embeddings?: Float32Array): Promise<SemanticData> {
+  async extractFromText(text: string, embeddings?: Float32Array, options?: SemanticExtractionOptions): Promise<SemanticData> {
     const startTime = Date.now();
 
     try {
-      // Extract key phrases using KeyBERT if available, fallback to n-gram
-      const keyPhrases = await this.extractKeyPhrases(text, embeddings);
+      // Apply text preprocessing if file type is specified (Sprint 13)
+      let processedText = text;
+      if (options?.fileType) {
+        const preprocessor = createTextPreprocessor(options.fileType);
+        processedText = preprocessor.preprocess(text);
+        this.logger.debug('Applied text preprocessing', {
+          fileType: options.fileType,
+          originalLength: text.length,
+          processedLength: processedText.length
+        });
+      }
+
+      // Extract key phrases using KeyBERT if available, fallback to n-gram with enhanced options
+      const keyPhrases = await this.extractKeyPhrases(processedText, embeddings, options);
 
       // Calculate readability using Coleman-Liau (Sprint 2 implementation)
       const readabilityScore = this.readabilityCalculator.calculate(text);
@@ -116,19 +132,32 @@ export class SemanticExtractionService implements ISemanticExtractionService {
    * Extract semantic data from multiple texts (batch processing)
    * Optimized for performance when processing multiple chunks
    */
-  async extractFromTextBatch(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
+  async extractFromTextBatch(texts: string[], embeddings?: Float32Array[], options?: SemanticExtractionOptions): Promise<SemanticData[]> {
     const startTime = Date.now();
 
     try {
+      // Apply text preprocessing to all texts if needed (Sprint 13)
+      let processedTexts = texts;
+      if (options?.fileType) {
+        const preprocessor = createTextPreprocessor(options.fileType);
+        processedTexts = texts.map(text => preprocessor.preprocess(text));
+        this.logger.debug('Applied batch text preprocessing', {
+          fileType: options.fileType,
+          textCount: texts.length,
+          avgOriginalLength: texts.reduce((sum, t) => sum + t.length, 0) / texts.length,
+          avgProcessedLength: processedTexts.reduce((sum, t) => sum + t.length, 0) / processedTexts.length
+        });
+      }
+
       // For GPU models with Python service, use batch KeyBERT processing
       if (this.pythonService) {
-        return await this.extractBatchWithKeyBERT(texts);
+        return await this.extractBatchWithKeyBERT(processedTexts, options);
       }
 
       // For ONNX models with N-gram extraction, process each text individually
       // because N-gram requires individual embeddings and is already optimized
       if (this.ngramExtractor) {
-        return await this.extractBatchWithNGram(texts, embeddings);
+        return await this.extractBatchWithNGram(processedTexts, embeddings, options);
       }
 
       // No extraction method available - FAIL LOUDLY
@@ -150,7 +179,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Batch extraction using KeyBERT (for GPU models)
    */
-  private async extractBatchWithKeyBERT(texts: string[]): Promise<SemanticData[]> {
+  private async extractBatchWithKeyBERT(texts: string[], options?: SemanticExtractionOptions): Promise<SemanticData[]> {
 
     if (!this.pythonService) {
       throw new Error('Python service not available for KeyBERT batch processing');
@@ -163,8 +192,16 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     }
 
     // Extract key phrases using batch KeyBERT
+    // GPU models (KeyBERT) don't need structured candidates - they extract quality phrases naturally
     const batchStartTime = Date.now();
-    const keyPhrasesArray = await this.pythonService.extractKeyPhrasesKeyBERTBatch(texts, this.options);
+    const mergedOptions = { ...this.options, ...options };
+
+    // Remove structured candidates for GPU/KeyBERT models - they don't need format-based hints
+    const keyBertOptions = { ...mergedOptions };
+    delete keyBertOptions.structuredCandidates;
+    delete keyBertOptions.contentZones;
+
+    const keyPhrasesArray = await this.pythonService.extractKeyPhrasesKeyBERTBatch(texts, keyBertOptions);
     const batchTime = Date.now() - batchStartTime;
 
 
@@ -199,7 +236,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Batch extraction using N-gram (for ONNX models)
    */
-  private async extractBatchWithNGram(texts: string[], embeddings?: Float32Array[]): Promise<SemanticData[]> {
+  private async extractBatchWithNGram(texts: string[], embeddings?: Float32Array[], options?: SemanticExtractionOptions): Promise<SemanticData[]> {
 
     if (!this.ngramExtractor) {
       throw new Error('N-gram extractor not available for batch processing');
@@ -219,11 +256,20 @@ export class SemanticExtractionService implements ISemanticExtractionService {
 
       const textStartTime = Date.now();
 
-      // Extract key phrases using N-gram
+      // Extract key phrases using N-gram with merged options
+      const mergedOptions = { ...this.options, ...options };
       const extractOptions: Partial<NGramExtractionOptions> = {};
-      if (this.options.ngramRange) extractOptions.ngramRange = this.options.ngramRange;
-      if (this.options.maxKeyPhrases !== undefined) extractOptions.topK = this.options.maxKeyPhrases;
-      if (this.options.diversity !== undefined) extractOptions.diversityFactor = this.options.diversity;
+      if (mergedOptions.ngramRange) extractOptions.ngramRange = mergedOptions.ngramRange;
+      if (mergedOptions.maxKeyPhrases !== undefined) extractOptions.topK = mergedOptions.maxKeyPhrases;
+      if (mergedOptions.diversity !== undefined) extractOptions.diversityFactor = mergedOptions.diversity;
+
+      // Pass structured candidates to N-gram extractor (Sprint 13)
+      if (mergedOptions.structuredCandidates) {
+        extractOptions.structuredCandidates = mergedOptions.structuredCandidates;
+      }
+      if (mergedOptions.contentZones) {
+        extractOptions.contentZones = mergedOptions.contentZones;
+      }
 
       const scoredPhrases = await this.ngramExtractor.extractKeyPhrasesWithScores(text, embedding, extractOptions);
       const keyPhrases: SemanticScore[] = scoredPhrases.map(item => ({
@@ -258,7 +304,7 @@ export class SemanticExtractionService implements ISemanticExtractionService {
   /**
    * Extract key phrases using KeyBERT for GPU models or N-gram for ONNX models
    */
-  async extractKeyPhrases(text: string, embeddings?: Float32Array): Promise<SemanticScore[]> {
+  async extractKeyPhrases(text: string, embeddings?: Float32Array, options?: SemanticExtractionOptions): Promise<SemanticScore[]> {
     // Try KeyBERT first (for GPU models)
     if (this.pythonService) {
       try {
@@ -269,8 +315,9 @@ export class SemanticExtractionService implements ISemanticExtractionService {
           throw new Error('KeyBERT not available in Python environment');
         }
 
-        // Extract key phrases using KeyBERT
-        const phrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, this.options);
+        // Extract key phrases using KeyBERT with merged options
+        const mergedOptions = { ...this.options, ...options };
+        const phrases = await this.pythonService.extractKeyPhrasesKeyBERT(text, mergedOptions);
         this.logger.debug('KeyBERT extraction successful', {
           phraseCount: phrases.length,
           sample: phrases.slice(0, 3).map(p => p.text),
@@ -292,10 +339,19 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       this.logger.info('Using N-gram + Cosine similarity for ONNX model');
 
       try {
+        const mergedOptions = { ...this.options, ...options };
         const extractOptions: Partial<NGramExtractionOptions> = {};
-        if (this.options.ngramRange) extractOptions.ngramRange = this.options.ngramRange;
-        if (this.options.maxKeyPhrases !== undefined) extractOptions.topK = this.options.maxKeyPhrases;
-        if (this.options.diversity !== undefined) extractOptions.diversityFactor = this.options.diversity;
+        if (mergedOptions.ngramRange) extractOptions.ngramRange = mergedOptions.ngramRange;
+        if (mergedOptions.maxKeyPhrases !== undefined) extractOptions.topK = mergedOptions.maxKeyPhrases;
+        if (mergedOptions.diversity !== undefined) extractOptions.diversityFactor = mergedOptions.diversity;
+
+        // Pass structured candidates to N-gram extractor (Sprint 13)
+        if (mergedOptions.structuredCandidates) {
+          extractOptions.structuredCandidates = mergedOptions.structuredCandidates;
+        }
+        if (mergedOptions.contentZones) {
+          extractOptions.contentZones = mergedOptions.contentZones;
+        }
 
         const scoredPhrases = await this.ngramExtractor.extractKeyPhrasesWithScores(
           text,

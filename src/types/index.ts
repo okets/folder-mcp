@@ -215,6 +215,30 @@ export interface ParsedContent {
   metadata?: DocumentMetadata;
   /** Slides data for PowerPoint files */
   slides?: any[];
+
+  /** Format-specific keyword candidates extracted during parsing (Sprint 13) */
+  structuredCandidates?: {
+    /** Keywords from file metadata (PDF keywords, Word document properties) */
+    metadata?: string[];
+    /** Document headers (H1-H6, #, ##, ###) */
+    headers?: string[];
+    /** Named entities (sheet names, slide titles, table names) */
+    entities?: string[];
+    /** Emphasized text (bold, italic, highlighted) */
+    emphasized?: string[];
+    /** Figure captions, table captions, footnotes */
+    captions?: string[];
+  };
+
+  /** Content zones with importance weights for keyword scoring (Sprint 13) */
+  contentZones?: Array<{
+    /** Text content of the zone */
+    text: string;
+    /** Type of content zone */
+    type: 'title' | 'header1' | 'header2' | 'header3' | 'body' | 'caption' | 'footer';
+    /** Importance weight for keyword extraction (0-1, higher = more important) */
+    weight: number;
+  }>;
 }
 
 /**
