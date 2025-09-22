@@ -112,7 +112,7 @@ I want you to help me create an epic document from the PRD "/Users/hanan/Project
 **Epic Creation Guidelines:**
 File name: Phase-9-Implementation-epic.md
 The plan should be linear, straightforward, and builds functionality incrementally. Each sprint delivers working, testable functionality without complex dependencies.
-I will lay out the the steps we need to take in order to transition from the single-folder, old mcp endpoints to the new, multi-folder multi-model architecture.
+I wi221§q§  ll lay out the the steps we need to take in order to transition from the single-folder, old mcp endpoints to the new, multi-folder multi-model architecture.
 Background: 
 - our current MCP endpoints runs off /Users/hanan/Projects/folder-mcp/src/mcp-server.ts
 - this predates our Daemon and also doesn't work anymore as we changed the architecture.
