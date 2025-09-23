@@ -4,7 +4,91 @@
  */
 
 // Re-export existing types
-export { HealthResponse, ServerInfoResponse, ErrorResponse } from './server.js';
+export { HealthResponse, ErrorResponse } from './server.js';
+
+/**
+ * Phase 10 Sprint 0: Enhanced Server Info Types for Endpoint Discovery
+ */
+
+/**
+ * Information about an available MCP endpoint
+ */
+export interface EndpointInfo {
+  /** Endpoint name as used in MCP tools */
+  name: string;
+  /** Clear description of what this endpoint does */
+  purpose: string;
+  /** Description of what this endpoint returns */
+  returns: string;
+  /** Guidance on when to use this endpoint */
+  use_when: string;
+}
+
+/**
+ * Enhanced server capabilities for LLM decision-making
+ */
+export interface ServerCapabilities {
+  /** Total configured folders */
+  total_folders: number;
+  /** Total indexed documents across all folders */
+  total_documents: number;
+  /** Total text chunks available for search */
+  total_chunks: number;
+  /** Whether semantic search is available */
+  semantic_search: boolean;
+  /** Whether key phrase extraction is working */
+  key_phrase_extraction: boolean;
+  /** Supported file types for processing */
+  file_types_supported: string[];
+  /** Whether binary files are supported */
+  binary_file_support: boolean;
+  /** Maximum file size in MB */
+  max_file_size_mb: number;
+  /** Available embedding models */
+  embedding_models: string[];
+}
+
+/**
+ * Available endpoints grouped by purpose
+ */
+export interface AvailableEndpoints {
+  /** Endpoints for exploring and understanding the knowledge base */
+  exploration: EndpointInfo[];
+  /** Endpoints for retrieving document content */
+  content_retrieval: EndpointInfo[];
+  /** Endpoints for semantic search */
+  search: EndpointInfo[];
+}
+
+/**
+ * Usage guidance for LLMs
+ */
+export interface UsageHints {
+  /** Recommended flow for general exploration */
+  exploration_flow: string;
+  /** Recommended flow for specific queries */
+  search_flow: string;
+  /** Additional helpful tip */
+  tip: string;
+}
+
+/**
+ * Enhanced server information response for Phase 10
+ */
+export interface EnhancedServerInfoResponse {
+  /** Basic server information */
+  server_info: {
+    name: string;
+    version: string;
+    description: string;
+  };
+  /** Enhanced capabilities for decision-making */
+  capabilities: ServerCapabilities;
+  /** Available endpoints grouped by purpose */
+  available_endpoints: AvailableEndpoints;
+  /** Usage guidance for optimal navigation */
+  usage_hints: UsageHints;
+}
 
 /**
  * Folder information for REST API responses

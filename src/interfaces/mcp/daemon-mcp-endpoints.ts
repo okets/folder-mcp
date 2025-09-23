@@ -10,6 +10,7 @@
 import { DaemonRESTClient } from './daemon-rest-client.js';
 import * as path from 'path';
 import type { ServerInfoResponse } from './daemon-rest-client.js';
+import type { EnhancedServerInfoResponse } from '../../daemon/rest/types.js';
 import { SEMANTIC_THRESHOLD, DEFAULT_MAX_RESULTS, MAX_RESULTS_LIMIT } from '../../constants/search.js';
 
 /**
@@ -39,22 +40,22 @@ export class DaemonMCPEndpoints {
   constructor(private daemonClient: DaemonRESTClient) {}
 
   /**
-   * Get server information via daemon REST API
-   * Maps to the getStatus endpoint in the original MCP implementation
+   * Get server information via daemon REST API - Phase 10 Sprint 0 Enhanced
+   * Returns structured JSON instead of formatted text for LLM decision-making
    */
   async getServerInfo(): Promise<MCPToolResponse> {
     try {
-      // Get server info from daemon REST API
-      const serverInfo: ServerInfoResponse = await this.daemonClient.getServerInfo();
-      
-      // Transform to MCP tool response format
+      // Get enhanced server info from daemon REST API
+      const serverInfo: EnhancedServerInfoResponse = await this.daemonClient.getServerInfo();
+
+      // Return JSON directly for structured consumption
       const response: MCPToolResponse = {
         content: [{
           type: 'text' as const,
-          text: this.formatServerInfo(serverInfo)
+          text: JSON.stringify(serverInfo, null, 2)
         }]
       };
-      
+
       return response;
     } catch (error) {
       // Return error in MCP format
@@ -467,51 +468,6 @@ export class DaemonMCPEndpoints {
     }
   }
 
-  /**
-   * Format server info for human-readable display
-   */
-  private formatServerInfo(info: ServerInfoResponse): string {
-    const lines = [
-      '🖥️  folder-mcp Server Information',
-      '════════════════════════════════════',
-      '',
-      `📌 Version: ${info.version}`,
-      `⏱️  Uptime: ${this.formatUptime(info.daemon.uptime)}`,
-      '',
-      '💻 System Capabilities:',
-      `   • CPU Cores: ${info.capabilities.cpuCount}`,
-      `   • Total Memory: ${this.formatBytes(info.capabilities.totalMemory)}`,
-      `   • Supported Models: ${info.capabilities.supportedModels.join(', ')}`,
-      '',
-      '📊 Daemon Status:',
-      `   • Total Folders: ${info.daemon.folderCount}`,
-      `   • Active Folders: ${info.daemon.activeFolders}`,
-      `   • Indexing Folders: ${info.daemon.indexingFolders}`,
-      `   • Total Documents: ${info.daemon.totalDocuments}`,
-      '',
-      '✅ Multi-folder mode active via REST API'
-    ];
-    
-    return lines.join('\n');
-  }
-
-  /**
-   * Format uptime in human-readable format
-   */
-  private formatUptime(seconds: number): string {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0) parts.push(`${minutes}m`);
-    if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
-    
-    return parts.join(' ');
-  }
 
   /**
    * Format bytes to human-readable format

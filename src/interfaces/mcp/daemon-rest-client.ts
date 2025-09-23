@@ -513,11 +513,11 @@ export class DaemonRESTClient {
   /**
    * Get server information from the daemon
    */
-  async getServerInfo(): Promise<ServerInfoResponse> {
+  async getServerInfo(): Promise<any> {
     if (!this.isConnected) {
       throw new Error('Not connected to daemon. Call connect() first.');
     }
-    return this.makeRequest<ServerInfoResponse>('/api/v1/server/info');
+    return this.makeRequest<any>('/api/v1/server/info');
   }
 
   /**

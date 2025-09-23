@@ -13,7 +13,7 @@ import { Server } from 'http';
 import os from 'os';
 import path from 'node:path';
 import { FMDMService } from '../services/fmdm-service.js';
-import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse } from './types.js';
+import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse, EnhancedServerInfoResponse } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
 import { IVectorSearchService } from '../../di/interfaces.js';
@@ -223,21 +223,15 @@ export class RESTAPIServer {
   }
 
   /**
-   * Server information endpoint
+   * Server information endpoint - Phase 10 Sprint 0 Enhanced
    */
   private async handleServerInfo(req: Request, res: Response): Promise<void> {
     try {
-      const uptime = Math.floor((Date.now() - this.startTime.getTime()) / 1000);
-      
-      // Get system info
-      const cpuCount = os.cpus().length;
-      const totalMemory = os.totalmem();
-      
       // Get folder statistics - handle case where fmdm might not be initialized
       let folders: any[] = [];
       let activeFolders = 0;
       let indexingFolders = 0;
-      
+
       try {
         const fmdm = this.fmdmService.getFMDM();
         folders = fmdm?.folders || [];
@@ -247,13 +241,14 @@ export class RESTAPIServer {
         this.logger.warn('[REST] Could not retrieve FMDM data:', fmdmError);
         // Continue with empty folders array
       }
-      
+
       // Get supported models from registry
       const { getSupportedGpuModelIds, getSupportedCpuModelIds } = await import('../../config/model-registry.js');
       const supportedModels = [...getSupportedGpuModelIds(), ...getSupportedCpuModelIds()];
-      
-      // Calculate total documents by getting real counts from databases
+
+      // Calculate total documents and chunks by getting real counts from databases
       let totalDocuments = 0;
+      let totalChunks = 0;
       for (const folder of folders) {
         try {
           const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
@@ -262,8 +257,10 @@ export class RESTAPIServer {
             await fs.access(dbPath);
             const Database = await import('better-sqlite3');
             const db = Database.default(dbPath);
-            const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
-            totalDocuments += result?.count || 0;
+            const docResult = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+            const chunkResult = db.prepare('SELECT COUNT(*) as count FROM chunks').get() as any;
+            totalDocuments += docResult?.count || 0;
+            totalChunks += chunkResult?.count || 0;
             db.close();
           } catch (dbError) {
             // Database doesn't exist, skip this folder
@@ -273,33 +270,113 @@ export class RESTAPIServer {
         }
       }
 
-      const response: ServerInfoResponse = {
-        version: '2.0.0-dev',
-        capabilities: {
-          cpuCount,
-          totalMemory,
-          supportedModels
+      // Get supported file extensions
+      const { getSupportedExtensions } = await import('../../domain/files/supported-extensions.js');
+      const supportedExtensions = getSupportedExtensions();
+
+      const response: EnhancedServerInfoResponse = {
+        server_info: {
+          name: "folder-mcp",
+          version: "2.0.0-dev",
+          description: "Semantic file system access with multi-folder support"
         },
-        daemon: {
-          uptime,
-          folderCount: folders.length,
-          activeFolders,
-          indexingFolders,
-          totalDocuments
+        capabilities: {
+          total_folders: folders.length,
+          total_documents: totalDocuments,
+          total_chunks: totalChunks,
+          semantic_search: true,
+          key_phrase_extraction: true,
+          file_types_supported: [...supportedExtensions],
+          binary_file_support: true,
+          max_file_size_mb: 50,
+          embedding_models: supportedModels
+        },
+        available_endpoints: {
+          exploration: [
+            {
+              name: "list_folders",
+              purpose: "List all indexed folders with semantic previews",
+              returns: "Array of folders with aggregated key phrases",
+              use_when: "Starting exploration or choosing a knowledge base"
+            },
+            {
+              name: "explore",
+              purpose: "Navigate folder hierarchy with breadcrumbs",
+              returns: "Current location, subdirectories, and semantic context",
+              use_when: "Understanding folder structure"
+            },
+            {
+              name: "list_documents",
+              purpose: "List documents in a specific location",
+              returns: "Documents with key phrases in current path",
+              use_when: "Browsing documents after narrowing location"
+            },
+            {
+              name: "get_document_metadata",
+              purpose: "Get document metadata and structure with chunk navigation",
+              returns: "Document metadata and chunks with semantic information",
+              use_when: "Understanding document structure before reading"
+            },
+            {
+              name: "get_chunks",
+              purpose: "Retrieve specific chunks identified from metadata",
+              returns: "Content of requested chunks with their metadata",
+              use_when: "Reading specific sections after exploring metadata"
+            }
+          ],
+          content_retrieval: [
+            {
+              name: "get_document_text",
+              purpose: "Get extracted plain text from any document type",
+              returns: "Clean text string from PDF/DOCX/etc",
+              use_when: "Reading document content for analysis"
+            },
+            {
+              name: "get_document_data",
+              purpose: "Get document content and metadata",
+              returns: "Full document with content and metadata",
+              use_when: "Accessing complete document information"
+            },
+            {
+              name: "get_document_outline",
+              purpose: "Get document structure and outline",
+              returns: "Hierarchical structure of document sections",
+              use_when: "Understanding document organization"
+            },
+            {
+              name: "get_document_raw",
+              purpose: "Get original file content",
+              returns: "Base64 for binary, UTF-8 for text files",
+              use_when: "Need original file, images, or exact formatting"
+            }
+          ],
+          search: [
+            {
+              name: "search",
+              purpose: "Semantic search across all documents",
+              returns: "Relevant chunks with explanations",
+              use_when: "Finding specific information quickly"
+            }
+          ]
+        },
+        usage_hints: {
+          exploration_flow: "get_server_info → list_folders → explore → list_documents → get_document_text",
+          search_flow: "get_server_info → search → get_document_text",
+          tip: "Use exploration for understanding structure, search for specific queries"
         }
       };
 
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Server info failed:', error);
-      
+
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
         message: 'Failed to retrieve server information',
         timestamp: new Date().toISOString(),
         path: req.url
       };
-      
+
       res.status(500).json(errorResponse);
     }
   }

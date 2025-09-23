@@ -513,10 +513,9 @@ export async function main(): Promise<void> {
         
         // Get server info to verify connection
         const serverInfo = await daemonClient.getServerInfo();
-        debug(`Daemon info: v${serverInfo.version}, ${serverInfo.daemon.folderCount} folders configured`);
-        debug(`  - Active folders: ${serverInfo.daemon.activeFolders}`);
-        debug(`  - Indexing folders: ${serverInfo.daemon.indexingFolders}`);
-        debug(`  - Total documents: ${serverInfo.daemon.totalDocuments}`);
+        debug(`Daemon info: v${serverInfo.server_info?.version || 'unknown'}, ${serverInfo.capabilities?.total_folders || 0} folders configured`);
+        debug(`  - Total documents: ${serverInfo.capabilities?.total_documents || 0}`);
+        debug(`  - Total chunks: ${serverInfo.capabilities?.total_chunks || 0}`);
         
         // Sprint 2: Connection established, ready for endpoint migration
         debug('Daemon REST connection verified - MCP server ready for multi-folder operations');
@@ -541,10 +540,9 @@ export async function main(): Promise<void> {
             
             // Get server info to verify connection
             const serverInfo = await daemonClient.getServerInfo();
-            debug(`Daemon info: v${serverInfo.version}, ${serverInfo.daemon.folderCount} folders configured`);
-            debug(`  - Active folders: ${serverInfo.daemon.activeFolders}`);
-            debug(`  - Indexing folders: ${serverInfo.daemon.indexingFolders}`);
-            debug(`  - Total documents: ${serverInfo.daemon.totalDocuments}`);
+            debug(`Daemon info: v${serverInfo.server_info?.version || 'unknown'}, ${serverInfo.capabilities?.total_folders || 0} folders configured`);
+            debug(`  - Total documents: ${serverInfo.capabilities?.total_documents || 0}`);
+            debug(`  - Total chunks: ${serverInfo.capabilities?.total_chunks || 0}`);
             
             // Success! Set up MCP server with auto-started daemon
             await setupMCPServer(daemonClient);
