@@ -91,7 +91,77 @@ export interface EnhancedServerInfoResponse {
 }
 
 /**
- * Folder information for REST API responses
+ * Key phrase with relevance score
+ */
+export interface KeyPhrase {
+  /** The key phrase text */
+  text: string;
+  /** Relevance/confidence score (0-1) */
+  score: number;
+}
+
+/**
+ * Recently changed file information
+ */
+export interface RecentlyChangedFile {
+  /** Relative path from folder root */
+  path: string;
+  /** ISO timestamp of last modification */
+  modified: string;
+}
+
+/**
+ * Semantic preview of folder contents
+ */
+export interface SemanticPreview {
+  /** Top diverse key phrases representing folder content (10-15 items) */
+  top_key_phrases: KeyPhrase[];
+  /** Complexity indicator based on readability scores */
+  complexity_indicator: 'simple' | 'moderate' | 'technical';
+  /** Average readability score across all documents */
+  avg_readability: number;
+}
+
+/**
+ * Folder indexing status
+ */
+export interface IndexingStatus {
+  /** Whether folder is fully indexed */
+  is_indexed: boolean;
+  /** Number of documents indexed */
+  documents_indexed: number;
+}
+
+/**
+ * Phase 10 Enhanced Folder Information
+ */
+export interface EnhancedFolderInfo {
+  /** Absolute path to the folder (serves as unique identifier) */
+  folder_path: string;
+  /** Number of documents in folder */
+  document_count: number;
+  /** Semantic preview with key phrases and complexity */
+  semantic_preview?: SemanticPreview;
+  /** Recently changed files for context (provides modification times) */
+  recently_changed_files?: RecentlyChangedFile[];
+  /** Current indexing status */
+  indexing_status: IndexingStatus;
+}
+
+/**
+ * Phase 10 Enhanced Folders List Response
+ */
+export interface EnhancedFoldersListResponse {
+  /** List of folders with semantic enrichment */
+  folders: EnhancedFolderInfo[];
+  /** Total number of configured folders */
+  total_folders: number;
+  /** Navigation hint for LLMs */
+  navigation_hint: string;
+}
+
+/**
+ * Legacy Folder information for backward compatibility
  */
 export interface FolderInfo {
   /** Folder identifier (derived from path) */
@@ -124,7 +194,7 @@ export interface FolderInfo {
 }
 
 /**
- * Response for GET /api/v1/folders
+ * Legacy Response for GET /api/v1/folders
  */
 export interface FoldersListResponse {
   folders: FolderInfo[];

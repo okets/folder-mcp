@@ -527,14 +527,28 @@ export class DaemonRESTClient {
     if (!this.isConnected) {
       throw new Error('Not connected to daemon. Call connect() first.');
     }
-    
+
     interface FoldersResponse {
       folders: FolderConfig[];
       totalCount: number;
     }
-    
+
     const response = await this.makeRequest<FoldersResponse>('/api/v1/folders');
     return response.folders;
+  }
+
+  /**
+   * Phase 10 Sprint 1: Get enhanced folders with semantic previews
+   * Returns the full response structure for LLM consumption
+   */
+  async getFoldersEnhanced(): Promise<any> {
+    if (!this.isConnected) {
+      throw new Error('Not connected to daemon. Call connect() first.');
+    }
+
+    // Return the full enhanced response
+    const response = await this.makeRequest<any>('/api/v1/folders');
+    return response;
   }
 
   /**

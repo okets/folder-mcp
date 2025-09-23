@@ -69,113 +69,19 @@ export class DaemonMCPEndpoints {
   }
 
   /**
-   * List available folders via daemon REST API
-   * Shows path as primary identifier with all metadata for decision-making
+   * Phase 10 Sprint 1: List available folders with semantic previews
+   * Returns structured JSON for LLM decision-making
    */
   async listFolders(): Promise<MCPToolResponse> {
     try {
-      // Get folders configuration from daemon
-      const folders = await this.daemonClient.getFoldersConfig();
-      
-      // Count folders by status
-      const activeFolders = folders.filter(f => f.status === 'active').length;
-      const indexingFolders = folders.filter(f => f.status === 'indexing').length;
-      const errorFolders = folders.filter(f => f.status === 'error').length;
-      const pendingFolders = folders.filter(f => f.status === 'pending').length;
-      
-      // Extract folder name from path (cross-platform)
-      const extractFolderName = (folderPath: string): string => {
-        return path.basename(folderPath) || folderPath;
-      };
-      
-      // Format each folder with path as primary identifier
-      const folderText = folders.map(folder => {
-        const statusEmoji = {
-          'active': '✅',
-          'indexing': '⏳',
-          'error': '❌',
-          'pending': '⏸️'
-        }[folder.status] || '❓';
-        
-        let lines = [
-          `📁 ${folder.path}`,
-          `   Name: ${folder.name || extractFolderName(folder.path)}`,
-          `   Status: ${statusEmoji} ${folder.status}`
-        ];
-        
-        // Add indexing progress if applicable
-        if (folder.status === 'indexing' && folder.indexingProgress !== undefined) {
-          lines.push(`   Progress: ${folder.indexingProgress}%`);
-        }
-        
-        // Add error message if applicable
-        if (folder.status === 'error' && folder.errorMessage) {
-          lines.push(`   Error: ${folder.errorMessage}`);
-        }
-        
-        lines.push(
-          `   Model: ${folder.model}`,
-          `   Documents: ${folder.documentCount || 0}`
-        );
-        
-        // Add total size if available
-        if (folder.totalSize !== undefined) {
-          lines.push(`   Total Size: ${this.formatBytes(folder.totalSize)}`);
-        }
-        
-        // Add document types breakdown if available
-        if (folder.documentTypes) {
-          const typesStr = Object.entries(folder.documentTypes)
-            .map(([type, count]) => `${type.toUpperCase()} (${count})`)
-            .join(', ');
-          if (typesStr) {
-            lines.push(`   Types: ${typesStr}`);
-          }
-        }
-        
-        lines.push(`   Last indexed: ${folder.lastIndexed || 'Never'}`);
-        
-        // Add last accessed if available
-        if (folder.lastAccessed) {
-          lines.push(`   Last accessed: ${folder.lastAccessed}`);
-        }
-        
-        // Add semantic metadata if available (Sprint 10)
-        if (folder.status === 'active' && (folder.keyPhrases?.length ?? 0) > 0) {
-          lines.push('');
-          lines.push('   📊 Semantic Preview:');
-          if (folder.keyPhrases && folder.keyPhrases.length > 0) {
-            lines.push(`   Key phrases: ${folder.keyPhrases.slice(0, 5).join(', ')}`);
-          }
-          if (folder.contentComplexity) {
-            lines.push(`   Complexity: ${folder.contentComplexity}`);
-          }
-          if (folder.avgReadabilityScore !== undefined) {
-            lines.push(`   Avg readability: ${folder.avgReadabilityScore}`);
-          }
-        }
-        
-        return lines.join('\n');
-      }).join('\n\n');
-      
-      // Create header with summary
-      const header = [
-        `🗂️ Available Folders (${folders.length} total)`,
-        `════════════════════════════════════`,
-        ''
-      ];
-      
-      if (folders.length > 0) {
-        header.push(`Status Summary: ${activeFolders} active, ${indexingFolders} indexing, ${pendingFolders} pending, ${errorFolders} errors`);
-        header.push('');
-      }
-      
-      const responseText = header.join('\n') + (folderText || 'No folders configured.');
-      
+      // Get enhanced folders data from daemon REST API
+      const response = await this.daemonClient.getFoldersEnhanced();
+
+      // Return JSON directly for structured consumption
       return {
         content: [{
           type: 'text' as const,
-          text: responseText
+          text: JSON.stringify(response, null, 2)
         }]
       };
     } catch (error) {

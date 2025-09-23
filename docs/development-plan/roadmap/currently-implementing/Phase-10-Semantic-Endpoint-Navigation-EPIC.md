@@ -204,29 +204,54 @@ mcp__folder-mcp__list_folders()
 {
   "folders": [
     {
-      "folder_id": "folder-mcp",
-      "name": "folder-mcp",
-      "path": "/Users/hanan/Projects/folder-mcp",
+      "folder_path": "/Users/hanan/Projects/folder-mcp",
       "document_count": 156,
-      "last_modified": "2025-01-22T10:30:00Z",
       "semantic_preview": {
         "top_key_phrases": [
           {"text": "Model Context Protocol server", "score": 0.92},
           {"text": "semantic file system access", "score": 0.89},
-          {"text": "multi-folder indexing", "score": 0.87}
-        ],
-        "document_themes": [
-          "MCP implementation",
-          "semantic search",
-          "document processing"
+          {"text": "multi-folder indexing", "score": 0.87},
+          {"text": "TMOAT agent testing", "score": 0.85},
+          {"text": "websocket endpoints", "score": 0.82},
+          {"text": "clean architecture", "score": 0.80},
+          {"text": "dependency injection", "score": 0.78},
+          {"text": "React Ink TUI", "score": 0.76},
+          {"text": "embeddings pipeline", "score": 0.74},
+          {"text": "daemon REST API", "score": 0.72},
+          {"text": "Python GPU acceleration", "score": 0.70},
+          {"text": "configuration management", "score": 0.68},
+          {"text": "SQLite vector storage", "score": 0.66},
+          {"text": "document chunking", "score": 0.64},
+          {"text": "A2E validation", "score": 0.62}
         ],
         "complexity_indicator": "technical",
         "avg_readability": 45.2
       },
+      "recently_changed_files": [
+        {
+          "path": "CLAUDE.md",
+          "modified": "2025-01-22T10:30:00Z"
+        },
+        {
+          "path": "docs/development-plan/roadmap/currently-implementing/Phase-10-Semantic-Endpoint-Navigation-EPIC.md",
+          "modified": "2025-01-22T09:15:00Z"
+        },
+        {
+          "path": "src/interfaces/mcp/daemon-mcp-endpoints.ts",
+          "modified": "2025-01-21T16:45:00Z"
+        },
+        {
+          "path": "src/infrastructure/embeddings/sqlite-vec/schema.ts",
+          "modified": "2025-01-21T14:20:00Z"
+        },
+        {
+          "path": "docs/testing/THE_MOTHER_OF_ALL_TESTS.md",
+          "modified": "2025-01-20T10:00:00Z"
+        }
+      ],
       "indexing_status": {
         "is_indexed": true,
-        "documents_indexed": 156,
-        "key_phrases_extracted": 156
+        "documents_indexed": 156
       }
     }
   ],
@@ -235,13 +260,27 @@ mcp__folder-mcp__list_folders()
 }
 ```
 
+#### Key Phrase Selection Algorithm
+The endpoint uses a "Diverse Top-K Selection" algorithm to provide representative key phrases:
+1. **Aggregate** all key phrases from all documents in folder
+2. **Score** by combining: max relevance score × (1 + log(frequency) × 0.2)
+3. **Diversify** by skipping phrases with overlapping significant words
+4. **Select** 10-15 phrases that best represent the folder's content variety
+
 #### A2E Test Validation
 ```typescript
 // Step 1: Call list_folders
 mcp__folder-mcp__list_folders()
 
-// Step 2: Verify all configured folders appear
-// Step 3: Check semantic previews match folder content
+// Step 2: Verify response structure
+// Expected: 10-15 diverse key phrases per folder
+// Expected: 5 recently changed files with modification dates
+// Expected: No "document_themes" or "key_phrases_extracted" fields
+
+// Step 3: Validate semantic data matches database
+// - Key phrases from document_keywords field
+// - Readability from chunks table average
+// - File list from documents table ORDER BY last_modified DESC
 ```
 
 ---

@@ -13,7 +13,23 @@ import { Server } from 'http';
 import os from 'os';
 import path from 'node:path';
 import { FMDMService } from '../services/fmdm-service.js';
-import { FoldersListResponse, FolderInfo, DocumentsListResponse, DocumentListParams, DocumentDataResponse, DocumentOutlineResponse, SearchRequest, SearchResponse, EnhancedServerInfoResponse } from './types.js';
+import {
+  FoldersListResponse,
+  FolderInfo,
+  DocumentsListResponse,
+  DocumentListParams,
+  DocumentDataResponse,
+  DocumentOutlineResponse,
+  SearchRequest,
+  SearchResponse,
+  EnhancedServerInfoResponse,
+  EnhancedFoldersListResponse,
+  EnhancedFolderInfo,
+  KeyPhrase,
+  RecentlyChangedFile,
+  SemanticPreview,
+  IndexingStatus
+} from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
 import { IVectorSearchService } from '../../di/interfaces.js';
@@ -25,6 +41,7 @@ import { MultiFolderVectorSearchService } from '../../infrastructure/storage/mul
 import { PathNormalizer } from '../utils/path-normalizer.js';
 import { SemanticMetadataService } from '../services/semantic-metadata-service.js';
 import { getDefaultModelId } from '../../config/model-registry.js';
+import { selectRepresentativeKeyPhrases, calculateComplexityIndicator, getRelativePath } from '../utils/key-phrase-selection.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -136,8 +153,8 @@ export class RESTAPIServer {
     // Server information endpoint
     this.app.get('/api/v1/server/info', this.handleServerInfo.bind(this));
 
-    // Folder operations endpoints (Sprint 5)
-    this.app.get('/api/v1/folders', this.handleListFolders.bind(this));
+    // Folder operations endpoints (Phase 10 Sprint 1 - Enhanced)
+    this.app.get('/api/v1/folders', this.handleListFoldersEnhanced.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocuments.bind(this));
 
     // Document operations endpoints (Sprint 6) 
@@ -512,6 +529,154 @@ export class RESTAPIServer {
         path: req.url
       };
       
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 1: Enhanced list folders endpoint with semantic previews
+   * Returns structured JSON with diverse key phrases and recently changed files
+   */
+  private async handleListFoldersEnhanced(req: Request, res: Response): Promise<void> {
+    try {
+      this.logger.debug('[REST] Listing folders (Phase 10 Enhanced)');
+
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for folders:', fmdmError);
+        // Continue with empty folders array
+      }
+
+      // Transform FMDM folders to Phase 10 enhanced format
+      const enhancedFolders: EnhancedFolderInfo[] = await Promise.all(folders.map(async (folder: any) => {
+        // Extract folder name from path
+        const folderName = this.extractFolderName(folder.path);
+
+        // Initialize enhanced folder info
+        const enhancedFolder: EnhancedFolderInfo = {
+          folder_path: folder.path, // Simplified: single field for folder identification
+          document_count: 0,
+          indexing_status: {
+            is_indexed: false,
+            documents_indexed: 0
+          }
+        };
+
+        // Only process semantic data for indexed folders
+        if (folder.status === 'active' || folder.status === 'indexed') {
+          try {
+            const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
+            const fs = await import('fs/promises');
+
+            await fs.access(dbPath);
+            const Database = await import('better-sqlite3');
+            const db = Database.default(dbPath);
+
+            // Get document count and indexing status
+            const docCountResult = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+            enhancedFolder.document_count = docCountResult?.count || 0;
+            enhancedFolder.indexing_status = {
+              is_indexed: true,
+              documents_indexed: docCountResult?.count || 0
+            };
+
+            // Note: last_modified removed - use recently_changed_files instead for modification times
+
+            // Get all document keywords for diverse selection
+            const keyPhrasesResult = db.prepare(
+              'SELECT document_keywords FROM documents WHERE keywords_extracted = 1'
+            ).all() as any[];
+
+            if (keyPhrasesResult && keyPhrasesResult.length > 0) {
+              // Parse all key phrases from documents
+              const allDocumentKeyPhrases: KeyPhrase[][] = keyPhrasesResult
+                .map(row => {
+                  try {
+                    const parsed = JSON.parse(row.document_keywords);
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch {
+                    return [];
+                  }
+                })
+                .filter(phrases => phrases.length > 0);
+
+              // Select diverse, representative key phrases
+              const topKeyPhrases = selectRepresentativeKeyPhrases(allDocumentKeyPhrases, 15);
+
+              // Calculate average readability from chunks
+              const readabilityResult = db.prepare(
+                'SELECT AVG(readability_score) as avg_readability FROM chunks WHERE semantic_processed = 1'
+              ).get() as any;
+
+              const avgReadability = readabilityResult?.avg_readability || null;
+              const complexityIndicator = calculateComplexityIndicator(avgReadability);
+
+              // Build semantic preview
+              enhancedFolder.semantic_preview = {
+                top_key_phrases: topKeyPhrases,
+                complexity_indicator: complexityIndicator,
+                avg_readability: avgReadability ? Math.round(avgReadability * 10) / 10 : 0
+              };
+            }
+
+            // Get recently changed files (last 5 modified documents)
+            const recentFilesResult = db.prepare(
+              `SELECT file_path, last_modified
+               FROM documents
+               ORDER BY last_modified DESC
+               LIMIT 5`
+            ).all() as any[];
+
+            if (recentFilesResult && recentFilesResult.length > 0) {
+              enhancedFolder.recently_changed_files = recentFilesResult.map(row => ({
+                path: getRelativePath(row.file_path, folder.path),
+                modified: row.last_modified
+              }));
+            }
+
+            db.close();
+          } catch (error) {
+            this.logger.warn(`[REST] Could not get semantic data for ${folder.path}:`, error);
+            // Folder exists but no database, mark as not indexed
+            enhancedFolder.indexing_status = {
+              is_indexed: false,
+              documents_indexed: 0
+            };
+          }
+        } else {
+          // Folder not indexed yet
+          enhancedFolder.indexing_status = {
+            is_indexed: false,
+            documents_indexed: 0
+          };
+        }
+
+        return enhancedFolder;
+      }));
+
+      // Create Phase 10 response
+      const response: EnhancedFoldersListResponse = {
+        folders: enhancedFolders,
+        total_folders: enhancedFolders.length,
+        navigation_hint: "Use explore endpoint to navigate within a folder"
+      };
+
+      this.logger.debug(`[REST] Returning ${enhancedFolders.length} folders with semantic previews`);
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Enhanced list folders failed:', error);
+
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: 'Failed to retrieve enhanced folder list',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+
       res.status(500).json(errorResponse);
     }
   }
