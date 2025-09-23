@@ -204,7 +204,7 @@ mcp__folder-mcp__list_folders()
 {
   "folders": [
     {
-      "folder_path": "/Users/hanan/Projects/folder-mcp",
+      "base_folder_path": "/Users/hanan/Projects/folder-mcp",
       "document_count": 156,
       "semantic_preview": {
         "top_key_phrases": [
@@ -293,8 +293,8 @@ mcp__folder-mcp__list_folders()
 ```typescript
 // MCP Tool Call - Default limit of 50 subdirectories
 mcp__folder-mcp__explore({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "src"  // Relative to folder_path
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "src"  // Relative to base_folder_path
   // limit: 50 is the default for subdirectories
 })
 ```
@@ -303,8 +303,8 @@ mcp__folder-mcp__explore({
 ```json
 {
   "current_location": {
-    "path": "/Users/hanan/Projects/folder-mcp/src",
-    "relative_path": "src",
+    "full_path": "/Users/hanan/Projects/folder-mcp/src",
+    "relative_sub_path": "src",
     "name": "src",
     "level": 1,
     "document_count": 3,  // Direct children only
@@ -325,13 +325,13 @@ mcp__folder-mcp__explore({
   "breadcrumbs": [
     {
       "name": "folder-mcp",
-      "path": "/",
+      "relative_sub_path": "/",
       "level": 0,
       "semantic_hint": "MCP server root"
     },
     {
       "name": "src",
-      "path": "src",
+      "relative_sub_path": "src",
       "level": 1,
       "semantic_hint": "source code",
       "is_current": true
@@ -340,25 +340,25 @@ mcp__folder-mcp__explore({
   "subdirectories": [
     {
       "name": "domain",
-      "path": "src/domain",
+      "relative_sub_path": "src/domain",
       "document_count": 28,
       "semantic_preview": ["business logic", "entities", "value objects"]
     },
     {
       "name": "infrastructure",
-      "path": "src/infrastructure",
+      "relative_sub_path": "src/infrastructure",
       "document_count": 35,
       "semantic_preview": ["providers", "adapters", "external services"]
     },
     {
       "name": "interfaces",
-      "path": "src/interfaces",
+      "relative_sub_path": "src/interfaces",
       "document_count": 42,
       "semantic_preview": ["MCP server", "CLI", "TUI components"]
     },
     {
       "name": "application",
-      "path": "src/application",
+      "relative_sub_path": "src/application",
       "document_count": 18,
       "semantic_preview": ["use cases", "orchestration", "workflows"]
     }
@@ -383,14 +383,14 @@ mcp__folder-mcp__explore({
 ```typescript
 // Step 1: Explore root
 mcp__folder-mcp__explore({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "/"
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "/"
 })
 
 // Step 2: Navigate to subdirectory
 mcp__folder-mcp__explore({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs"
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs"
 })
 
 // Step 3: Verify breadcrumbs and subdirectories
@@ -400,14 +400,14 @@ mcp__folder-mcp__explore({
 
 ### Sprint 3: Perfect `list_documents` Endpoint (3-4 hours)
 **Goal**: List documents in current location with pagination to preserve LLM context.
-**Replaces**: Enhances existing `list_documents` - Adds current_path and recursive parameters for path-aware listing
+**Replaces**: Enhances existing `list_documents` - Adds relative_sub_path and recursive parameters for path-aware listing
 
 #### Example Request (Initial)
 ```typescript
 // MCP Tool Call - Uses smart default limit of 20
 mcp__folder-mcp__list_documents({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs/testing",  // Relative path
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs/testing",  // Relative path
   recursive: false  // Just this directory
   // limit: 20 is the default
 })
@@ -417,8 +417,8 @@ mcp__folder-mcp__list_documents({
 ```json
 {
   "location": {
-    "folder_path": "/Users/hanan/Projects/folder-mcp",
-    "current_path": "docs/testing",
+    "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+    "relative_sub_path": "docs/testing",
     "full_path": "/Users/hanan/Projects/folder-mcp/docs/testing"
   },
   "documents": [
@@ -488,8 +488,8 @@ mcp__folder-mcp__list_documents({
 ```typescript
 // Step 1: Initial request with default pagination
 mcp__folder-mcp__list_documents({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs/testing",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs/testing",
   recursive: false
 })
 // Returns first 20 docs + continuation token
@@ -501,8 +501,8 @@ mcp__folder-mcp__list_documents({
 
 // Step 3: Request with explicit large limit if you know you need all
 mcp__folder-mcp__list_documents({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs",
   recursive: true,
   limit: 200  // Override default if you know you need everything
 })
@@ -523,7 +523,7 @@ mcp__folder-mcp__list_documents({
 ```typescript
 // MCP Tool Call - Default limit of 50 chunks
 mcp__folder-mcp__get_document_metadata({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "CLAUDE.md"
   // limit: 50 is the default for chunks
 })
@@ -606,7 +606,7 @@ mcp__folder-mcp__get_document_metadata({
 ```typescript
 // MCP Tool Call - After identifying interesting chunks from metadata
 mcp__folder-mcp__get_chunks({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "CLAUDE.md",
   chunk_ids: ["chunk_1", "chunk_15", "chunk_28"]
 })
@@ -682,7 +682,7 @@ mcp__folder-mcp__get_chunks({
 ```typescript
 // Step 1: Get metadata first
 mcp__folder-mcp__get_document_metadata({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "CLAUDE.md"
 })
 
@@ -691,7 +691,7 @@ mcp__folder-mcp__get_document_metadata({
 
 // Step 3: Fetch just those chunks
 mcp__folder-mcp__get_chunks({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "CLAUDE.md",
   chunk_ids: ["chunk_1", "chunk_15", "chunk_28"]
 })
@@ -709,7 +709,7 @@ mcp__folder-mcp__get_chunks({
 ```typescript
 // MCP Tool Call - Default limit of 5000 characters
 mcp__folder-mcp__get_document_text({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "README.md"
   // limit: 5000 is the default (in characters, not lines)
 })
@@ -770,7 +770,7 @@ mcp__folder-mcp__get_document_text({
 ```typescript
 // MCP Tool Call
 mcp__folder-mcp__get_document_raw({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "assets/logo.png"
 })
 ```
@@ -808,7 +808,7 @@ mcp__folder-mcp__get_document_raw({
 ```typescript
 // MCP Tool Call - Default limit of 10 for quality over quantity
 mcp__folder-mcp__search({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   query: "How to implement TMOAT agent testing with websocket endpoints",
   threshold: 0.3
   // limit: 10 is the default
@@ -906,32 +906,32 @@ mcp__folder-mcp__list_folders()
 
 // 3. Explore folder structure
 mcp__folder-mcp__explore({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "/"
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "/"
 })
 
 // 4. Navigate to interesting subdirectory
 mcp__folder-mcp__explore({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs/testing"
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs/testing"
 })
 
 // 5. List documents in that location
 mcp__folder-mcp__list_documents({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
-  current_path: "docs/testing",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs/testing",
   recursive: false
 })
 
 // 6. Get document metadata
 mcp__folder-mcp__get_document_metadata({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "docs/testing/THE_MOTHER_OF_ALL_TESTS.md"
 })
 
 // 7. Read document text
 mcp__folder-mcp__get_document_text({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "docs/testing/THE_MOTHER_OF_ALL_TESTS.md"
 })
 ```
@@ -943,26 +943,26 @@ mcp__folder-mcp__get_server_info()
 
 // 2. Direct search
 mcp__folder-mcp__search({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   query: "TUI component development with React Ink",
   limit: 10
 })
 
 // 3. Get document metadata for understanding structure
 mcp__folder-mcp__get_document_metadata({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "found_document.md"
 })
 
 // 4. Either get specific chunks or full text
 mcp__folder-mcp__get_chunks({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "found_document.md",
   chunk_ids: ["chunk_2", "chunk_5"]
 })
 // OR
 mcp__folder-mcp__get_document_text({
-  folder_path: "/Users/hanan/Projects/folder-mcp",
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "found_document.md"
 })
 ```

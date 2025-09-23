@@ -558,7 +558,7 @@ export class RESTAPIServer {
 
         // Initialize enhanced folder info
         const enhancedFolder: EnhancedFolderInfo = {
-          folder_path: folder.path, // Simplified: single field for folder identification
+          base_folder_path: folder.path, // Simplified: single field for folder identification
           document_count: 0,
           indexing_status: {
             is_indexed: false,

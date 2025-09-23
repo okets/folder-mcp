@@ -136,8 +136,8 @@ export interface IndexingStatus {
  * Phase 10 Enhanced Folder Information
  */
 export interface EnhancedFolderInfo {
-  /** Absolute path to the folder (serves as unique identifier) */
-  folder_path: string;
+  /** Absolute base path to the folder (serves as unique identifier) */
+  base_folder_path: string;
   /** Number of documents in folder */
   document_count: number;
   /** Semantic preview with key phrases and complexity */
