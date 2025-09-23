@@ -19,6 +19,7 @@ import { WindowsPerformanceService, IWindowsPerformanceService } from './windows
 import { ModelDownloadManager, IModelDownloadManager } from './model-download-manager.js';
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
+import { PythonEmbeddingServiceRegistry } from '../factories/model-factories.js';
 import { getDefaultModelId, getSentenceTransformerIdFromModelId } from '../../config/model-registry.js';
 import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 import * as fs from 'fs';
@@ -1063,27 +1064,36 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   /**
-   * Handle changes detected - restart scanning
+   * Handle changes detected - re-queue folder for full indexing
    */
   private async onChangesDetected(folderPath: string, manager: IFolderLifecycleManager): Promise<void> {
-    this.logger.info(`[ORCHESTRATOR] Restarting scan for ${folderPath} due to changes`);
-    
-    // Submit scanning operation through resource manager
-    const operationId = `scan-changes-${folderPath}`;
-    const estimatedMemoryMB = 50; // Estimated memory for scanning operation
-    
+    this.logger.info(`[ORCHESTRATOR] Re-queuing folder ${folderPath} for indexing due to file changes`);
+
+    // Get the folder configuration from FMDM
+    const currentFMDM = this.fmdmService.getFMDM();
+    const folderConfig = currentFMDM.folders.find(f => f.path === folderPath);
+
+    if (!folderConfig) {
+      this.logger.error(`[ORCHESTRATOR] Cannot re-queue ${folderPath} - folder not found in FMDM`);
+      return;
+    }
+
+    // Re-queue the folder for full indexing (same as daemon restart behavior)
     try {
-      await this.resourceManager.submitOperation(
-        operationId,
+      // Reset the manager to pending state to allow re-processing
+      manager.reset();
+
+      // Add folder to the indexing queue with the existing manager - this will trigger full indexing
+      await this.folderIndexingQueue.addFolder(
         folderPath,
-        () => manager.startScanning(),
-        {
-          priority: 2, // Lower priority than folder additions but higher than regular operations
-          estimatedMemoryMB
-        }
+        folderConfig.model,
+        manager,
+        'normal'
       );
+
+      this.logger.info(`[ORCHESTRATOR] Successfully re-queued ${folderPath} for full indexing`);
     } catch (error) {
-      this.logger.error(`[ORCHESTRATOR] Resource manager rejected scan operation for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      this.logger.error(`[ORCHESTRATOR] Failed to re-queue ${folderPath} for indexing:`, error instanceof Error ? error : new Error(String(error)));
       // Don't throw here - just log the error as this is a background operation
     }
   }
@@ -1597,8 +1607,32 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.updateFMDM();
     });
 
-    this.folderIndexingQueue.on('queue:completed', (folder) => {
+    this.folderIndexingQueue.on('queue:completed', async (folder) => {
       this.logger.info(`[ORCHESTRATOR] Completed processing folder: ${folder.folderPath}`);
+
+      // Get the manager's state which should include indexingStats
+      const manager = this.folderManagers.get(folder.folderPath);
+      if (manager) {
+        const state = manager.getState();
+
+        // Update FMDM with file count statistics if available
+        // This is important for re-queued folders to show updated file counts
+        if ((state as any).indexingStats) {
+          const { fileCount, indexingTimeSeconds } = (state as any).indexingStats;
+          const infoMessage = `▶ ${folder.folderPath} [active] i ${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`;
+
+          this.logger.info(`[ORCHESTRATOR] Updating FMDM after re-indexing: ${infoMessage}`);
+
+          // Update folder status to 'active' with file count notification
+          this.fmdmService.updateFolderStatus(folder.folderPath, 'active', {
+            message: `${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`,
+            type: 'info'
+          });
+        } else {
+          this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folder.folderPath}`);
+        }
+      }
+
       this.updateFMDM();
     });
 
@@ -1629,6 +1663,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
     this.folderIndexingQueue.on('queue:empty', () => {
       this.logger.debug('[ORCHESTRATOR] Indexing queue is empty');
+    });
+
+    this.folderIndexingQueue.on('queue:model-unloaded', (modelId) => {
+      this.logger.debug(`[ORCHESTRATOR] Model unloaded by queue: ${modelId}`);
+      // Notify the registry that the model was unloaded
+      const registry = PythonEmbeddingServiceRegistry.getInstance();
+      registry.notifyModelUnloaded();
     });
   }
 

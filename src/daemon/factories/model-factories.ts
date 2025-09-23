@@ -35,17 +35,17 @@ export class PythonEmbeddingServiceRegistry {
   public async getService(config: any): Promise<PythonEmbeddingService> {
     const requestedModel = config.modelName;
 
+    // Prepare enhanced config for Python service
+    const venvPythonPath = getVenvPythonPath();
+    const enhancedConfig = {
+      ...config,
+      pythonPath: venvPythonPath,  // Use venv Python instead of system Python
+      modelName: ''  // Start empty - no model loaded initially
+    };
+
     // Create singleton ONCE, without model
     if (!this.singletonService) {
       console.log(`[PYTHON-REGISTRY] Creating SINGLETON PythonEmbeddingService (no model)`);
-
-      // Use venv Python to ensure KeyBERT and other dependencies are available
-      const venvPythonPath = getVenvPythonPath();
-      const enhancedConfig = {
-        ...config,
-        pythonPath: venvPythonPath,  // Use venv Python instead of system Python
-        modelName: ''  // Start empty - no model loaded initially
-      };
 
       this.singletonService = new PythonEmbeddingService(enhancedConfig);
       await this.singletonService.initialize();
@@ -66,12 +66,13 @@ export class PythonEmbeddingServiceRegistry {
         this.currentModelName = null;
       }
 
-      // Load new model via RPC
+      // Load the new model
       await this.singletonService.loadModel(requestedModel);
-      await this.singletonService.waitForState('ready');
+      await this.singletonService.waitForState('ready', 30000);
       this.currentModelName = requestedModel;
-
       console.log(`[PYTHON-REGISTRY] Successfully loaded model: ${requestedModel}`);
+
+      console.log(`[PYTHON-REGISTRY] Model loading complete: ${requestedModel}`);
     } else if (!requestedModel && this.currentModelName) {
       // If no model requested but one is loaded, keep it for efficiency
       console.log(`[PYTHON-REGISTRY] No model requested, keeping current: ${this.currentModelName}`);
@@ -90,6 +91,12 @@ export class PythonEmbeddingServiceRegistry {
     if (this.currentModelName) {
       console.log(`[PYTHON-REGISTRY] Model ${this.currentModelName} unloaded externally, updating registry`);
       this.currentModelName = null;
+
+      // CRITICAL: Also update the service's internal config to reflect idle state
+      // Otherwise it will think the model is still loaded
+      if (this.singletonService) {
+        (this.singletonService as any).config.modelName = '';
+      }
     }
   }
 

@@ -378,12 +378,12 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
         timestamp: new Date().toISOString()
       });
       
-      // Don't notify about changes if we've already handled them via incremental indexing
-      // Only notify if batch processing is disabled (meaning no incremental handling occurred)
-      if (this.changeDetectionCallback && eventQueue.length > 0 && !options.enableBatchProcessing) {
-        this.loggingService.info('🔔 Notifying about file changes detected', { 
+      // Always notify about changes so the daemon can re-queue the folder for indexing
+      // (incremental indexing has been removed in favor of full re-indexing)
+      if (this.changeDetectionCallback && eventQueue.length > 0) {
+        this.loggingService.info('🔔 Notifying daemon about file changes', {
           folderPath,
-          changeCount: eventQueue.length 
+          changeCount: eventQueue.length
         });
         this.changeDetectionCallback(folderPath, eventQueue.length);
       }
@@ -395,115 +395,41 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
       });
     }
   }  private async processBatchedEvents(
-    folderPath: string, 
+    folderPath: string,
     fileEvents: Map<string, FileWatchEvent[]>,
     options: WatchingOptions
   ): Promise<void> {
-    const batchSize = options.batchSize || 10;
+    // Note: This method now only logs file changes
+    // Actual processing happens via folder re-queuing in daemon's orchestrator
     const filePaths = Array.from(fileEvents.keys());
-    
-    // Process files in batches
-    for (let i = 0; i < filePaths.length; i += batchSize) {
-      const batch = filePaths.slice(i, i + batchSize);
-      const changedFiles = [];
-      for (const path of batch) {
-        if (await this.shouldProcessFile(path, fileEvents.get(path)!, folderPath)) {
-          changedFiles.push(path);
-        } else {
-          this.loggingService.debug(`[BATCH] Skipping file due to filtering: ${path}`);
-        }
+
+    const changedFiles = [];
+    for (const path of filePaths) {
+      if (await this.shouldProcessFile(path, fileEvents.get(path)!, folderPath)) {
+        changedFiles.push(path);
       }
-      
-      if (changedFiles.length > 0) {
-        this.loggingService.info(`🔄 Processing batch of ${changedFiles.length} changed files`, {
-          folderPath,
-          batchIndex: Math.floor(i / batchSize) + 1,
-          files: changedFiles
-        });
-        
-        try {
-          // Create a simple change detection result for these files
-          const changes = {
-            newFiles: changedFiles.filter(path => {
-              const events = fileEvents.get(path) || [];
-              return events.some(e => e.type === 'add');
-            }),
-            modifiedFiles: changedFiles.filter(path => {
-              const events = fileEvents.get(path) || [];
-              return events.some(e => e.type === 'change');
-            }),
-            deletedFiles: changedFiles.filter(path => {
-              const events = fileEvents.get(path) || [];
-              return events.some(e => e.type === 'unlink');
-            }),
-            unchangedFiles: [],
-            summary: {
-              totalChanges: changedFiles.length,
-              estimatedProcessingTime: changedFiles.length * 1000,
-              requiresFullReindex: false
-            }
-          };
-          
-          
-          // Check if incremental indexer is available
-          if (!this.incrementalIndexer) {
-            const error = new Error('IncrementalIndexer is not initialized - cannot process file changes');
-            this.loggingService.error('❌ Incremental indexer is not initialized!', error);
-            throw error; // Propagate error instead of silent return
-          }
-          
-          this.loggingService.info(`📍 About to call incrementalIndexer.indexChanges`);
-          
-          let result;
-          try {
-            // Use incremental indexer to process the changes
-            result = await this.incrementalIndexer.indexChanges(changes, {
-              includeFileTypes: options.includeFileTypes || [...getSupportedExtensions()],
-              excludePatterns: options.excludePatterns || [],
-              forceReindex: false // Incremental updates
-            });
-            
-            this.loggingService.info(`📊 Result from incrementalIndexer`, { result });
-          } catch (error) {
-            this.loggingService.error('❌ Error calling incrementalIndexer', error instanceof Error ? error : new Error(String(error)));
-            // Return empty result to continue
-            result = {
-              success: false,
-              filesProcessed: 0,
-              chunksGenerated: 0,
-              embeddingsCreated: 0,
-              processingTime: 0,
-              errors: [],
-              statistics: {
-                totalBytes: 0,
-                totalWords: 0,
-                averageChunkSize: 0,
-                processingRate: 0,
-                embeddingRate: 0
-              }
-            };
-          }
-          
-          this.loggingService.info(`✅ Batch processing completed`, {
-            folderPath,
-            filesProcessed: result.filesProcessed,
-            chunksGenerated: result.chunksGenerated,
-            embeddingsCreated: result.embeddingsCreated,
-            errors: result.errors.length
-          });
-          
-          if (result.errors.length > 0) {
-            this.loggingService.warn(`⚠️ Batch had ${result.errors.length} errors`, {
-              errors: result.errors.map((e: any) => ({ file: e.filePath, error: e.error }))
-            });
-          }
-        } catch (error) {
-          this.loggingService.error('❌ Batch processing failed', error instanceof Error ? error : new Error(String(error)), {
-            folderPath,
-            files: changedFiles
-          });
-        }
-      }
+    }
+
+    if (changedFiles.length > 0) {
+      this.loggingService.info(`🔄 Detected ${changedFiles.length} file changes`, {
+        folderPath,
+        files: changedFiles,
+        newFiles: changedFiles.filter(path => {
+          const events = fileEvents.get(path) || [];
+          return events.some(e => e.type === 'add');
+        }).length,
+        modifiedFiles: changedFiles.filter(path => {
+          const events = fileEvents.get(path) || [];
+          return events.some(e => e.type === 'change');
+        }).length,
+        deletedFiles: changedFiles.filter(path => {
+          const events = fileEvents.get(path) || [];
+          return events.some(e => e.type === 'unlink');
+        }).length
+      });
+
+      // The daemon's orchestrator will handle re-queuing the folder for full indexing
+      this.loggingService.debug(`File changes will trigger folder re-indexing via daemon orchestrator`);
     }
   }
 
@@ -511,53 +437,18 @@ export class MonitoringOrchestrator implements MonitoringWorkflow {
     folderPath: string,
     fileEvents: Map<string, FileWatchEvent[]>
   ): Promise<void> {
+    // Note: This method now only logs file changes
+    // Actual processing happens via folder re-queuing in daemon's orchestrator
     for (const [filePath, events] of fileEvents) {
       if (await this.shouldProcessFile(filePath, events, folderPath)) {
-        this.loggingService.info(`🔄 Processing individual file change`, { 
+        this.loggingService.info(`🔄 Detected file change`, {
           filePath,
           eventCount: events.length,
           eventTypes: events.map(e => e.type)
         });
-        
-        try {
-          // Create a simple change detection result for this file
-          const changes = {
-            newFiles: events.some(e => e.type === 'add') ? [filePath] : [],
-            modifiedFiles: events.some(e => e.type === 'change') ? [filePath] : [],
-            deletedFiles: events.some(e => e.type === 'unlink') ? [filePath] : [],
-            unchangedFiles: [],
-            summary: {
-              totalChanges: 1,
-              estimatedProcessingTime: 1000,
-              requiresFullReindex: false
-            }
-          };
-          
-          // Use incremental indexer to process the change
-          const result = await this.incrementalIndexer.indexChanges(changes, {
-            includeFileTypes: [...getSupportedExtensions()],
-            excludePatterns: [],
-            forceReindex: false // Incremental updates
-          });
-          
-          this.loggingService.info(`✅ File processing completed`, {
-            filePath,
-            chunksGenerated: result.chunksGenerated,
-            embeddingsCreated: result.embeddingsCreated,
-            success: result.success
-          });
-          
-          if (result.errors.length > 0) {
-            this.loggingService.warn(`⚠️ File processing had errors`, {
-              filePath,
-              errors: result.errors.map((e: any) => e.error)
-            });
-          }
-        } catch (error) {
-          this.loggingService.error('❌ Individual file processing failed', error instanceof Error ? error : new Error(String(error)), {
-            filePath
-          });
-        }
+
+        // The daemon's orchestrator will handle re-queuing the folder for full indexing
+        this.loggingService.debug(`File change will trigger folder re-indexing via daemon orchestrator`);
       }
     }
   }
