@@ -752,6 +752,35 @@ export class DaemonRESTClient {
   }
 
   /**
+   * Phase 10 Sprint 2: Explore folder with ls-like navigation
+   */
+  async exploreFolder(
+    folderPath: string,
+    options: {
+      subPath?: string;
+      subdirLimit?: number;
+      fileLimit?: number;
+      continuationToken?: string;
+    } = {}
+  ): Promise<any> {
+    if (!this.isConnected) {
+      throw new Error('Not connected to daemon. Call connect() first.');
+    }
+
+    // Build query string
+    const params = new URLSearchParams();
+    if (options.subPath !== undefined) params.append('sub_path', options.subPath);
+    if (options.subdirLimit !== undefined) params.append('subdir_limit', options.subdirLimit.toString());
+    if (options.fileLimit !== undefined) params.append('file_limit', options.fileLimit.toString());
+    if (options.continuationToken) params.append('continuation_token', options.continuationToken);
+
+    const queryString = params.toString();
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/explore${queryString ? '?' + queryString : ''}`;
+
+    return await this.makeRequest(path);
+  }
+
+  /**
    * Check if connected to daemon
    */
   get connected(): boolean {

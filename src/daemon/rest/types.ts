@@ -484,3 +484,102 @@ export interface SearchResponse {
     includeContent: boolean;
   };
 }
+
+/**
+ * Phase 10 Sprint 2: Explore Endpoint Types
+ */
+
+/**
+ * Request parameters for explore endpoint
+ */
+export interface ExploreRequest {
+  /** Absolute base path to the folder */
+  base_folder_path: string;
+  /** Relative path from base folder (e.g., "src/domain" or "" for root) */
+  relative_sub_path?: string;
+  /** Maximum subdirectories to return (default: 50) */
+  subdirectory_limit?: number;
+  /** Maximum files to return (default: 20) */
+  file_limit?: number;
+  /** Token for pagination continuation */
+  continuation_token?: string;
+}
+
+/**
+ * Information about a subdirectory with semantic enrichment
+ */
+export interface SubdirectoryInfo {
+  /** Directory name (not full path) */
+  name: string;
+  /** Count of ALL indexed documents under this path (recursive) */
+  indexed_document_count: number;
+  /** Top key phrases from ALL nested documents (0-5 items, often empty) */
+  top_key_phrases: KeyPhrase[];
+}
+
+/**
+ * Statistics about the current directory
+ */
+export interface ExploreStatistics {
+  /** Number of subdirectories in current level */
+  subdirectory_count: number;
+  /** Number of files in current level (ALL files) */
+  file_count: number;
+  /** Number of indexed documents in current level only */
+  indexed_document_count: number;
+  /** Total indexed documents including all subdirectories */
+  total_nested_documents: number;
+}
+
+/**
+ * Pagination details for a result set
+ */
+export interface ExplorePaginationDetails {
+  /** Number of items returned */
+  returned: number;
+  /** Total number of items available */
+  total: number;
+  /** Maximum items per request */
+  limit: number;
+  /** Whether more items are available */
+  has_more: boolean;
+  /** Token for continuing pagination */
+  continuation_token?: string;
+}
+
+/**
+ * Response for GET /api/v1/folders/{folderPath}/explore
+ */
+export interface ExploreResponse {
+  /** Absolute base folder path */
+  base_folder_path: string;
+  /** Relative path from base (normalized) */
+  relative_sub_path: string;
+  /** List of subdirectories with semantic data */
+  subdirectories: SubdirectoryInfo[];
+  /** List of ALL files in current directory */
+  files: string[];
+  /** Statistics about current location */
+  statistics: ExploreStatistics;
+  /** Semantic context for current directory */
+  semantic_context?: {
+    /** Key phrases from documents directly in this directory */
+    key_phrases: KeyPhrase[];
+  };
+  /** Pagination information */
+  pagination: {
+    /** Pagination for subdirectories */
+    subdirectories: ExplorePaginationDetails;
+    /** Pagination for files */
+    documents: ExplorePaginationDetails;
+  };
+  /** Navigation hints for LLM */
+  navigation_hints: {
+    /** Suggested next actions */
+    next_actions: string[];
+    /** General tip */
+    tip?: string;
+    /** Warning if applicable */
+    warning?: string;
+  };
+}

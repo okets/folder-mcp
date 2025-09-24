@@ -27,12 +27,24 @@ Transform folder-mcp from a basic file server into an intelligent knowledge navi
 - **Multi-model support**: ONNX and Python GPU models both working
 - **Performance maintained**: Fast indexing with quality extraction
 
+## 📦 Context-Efficient Response Design
+
+All endpoints follow these principles to minimize LLM context usage:
+1. **No redundant fields** - Derivable information (name from path, level from position) is omitted
+2. **Echo request parameters** - Use same terminology as request (base_folder_path, relative_sub_path)
+3. **Flat where possible** - Avoid nested objects when top-level fields work
+4. **Semantic over structural** - Focus on meaning, not hierarchy
+
 ## 🎯 Navigation Paths
 
 ### Exploration Path (General Understanding)
 When an LLM needs to understand what's available and explore a knowledge base:
 ```
-get_server_info() → list_folders() → explore() → list_documents() → get_document_metadata() → get_chunks() → get_document_text()
+get_server_info() → list_folders() → explore() → get_document_text()
+                                         ↓
+                                   (sees both dirs & files)
+                                         ↓
+                              (can navigate or read directly)
 ```
 
 ### Search Path (Specific Information)
@@ -63,9 +75,9 @@ get_server_info() → search() → get_document_metadata() → get_chunks() or g
 ## Sprint Breakdown
 
 ### ✅ Sprint 0: Perfect `get_server_info` Endpoint (3-4 hours) - COMPLETED
-**Goal**: Provide LLMs with server capabilities and endpoint discovery.
+**Goal**: Provide LLMs with server capabilities, endpoint discovery, and cross-platform path handling information.
 **Replaces**: Existing `get_server_info` - Already implemented, needs enhancement with endpoint discovery information
-**Status**: ✅ **COMPLETED** - Enhanced endpoint returns comprehensive JSON structure with endpoint discovery
+**Status**: ✅ **COMPLETED** - Enhanced endpoint returns comprehensive JSON structure with endpoint discovery and path handling guidance
 
 #### Example Request
 ```typescript
@@ -87,7 +99,7 @@ mcp__folder-mcp__get_server_info()
     "total_chunks": 5234,
     "semantic_search": true,
     "key_phrase_extraction": true,
-    "file_types_supported": ["pdf", "docx", "txt", "md", "json", "yaml"],
+    "file_types_indexed": ["pdf", "docx", "xlsx", "pptx", "txt", "md"],
     "binary_file_support": true,
     "max_file_size_mb": 50,
     "embedding_models": ["multilingual-e5-large", "ONNX-e5-small"]
@@ -133,10 +145,10 @@ mcp__folder-mcp__get_server_info()
         "use_when": "Reading document content for analysis"
       },
       {
-        "name": "get_document_raw",
-        "purpose": "Get original file content",
+        "name": "download_file",
+        "purpose": "Download any file (binary or text)",
         "returns": "Base64 for binary, UTF-8 for text files",
-        "use_when": "Need original file, images, or exact formatting"
+        "use_when": "Need images, configs, or any non-indexed file"
       }
     ],
     "search": [
@@ -151,7 +163,14 @@ mcp__folder-mcp__get_server_info()
   "usage_hints": {
     "exploration_flow": "get_server_info → list_folders → explore → list_documents → get_document_text",
     "search_flow": "get_server_info → search → get_document_text",
-    "tip": "Use exploration for understanding structure, search for specific queries"
+    "tip": "Use exploration for understanding structure, search for specific queries",
+    "path_handling": {
+      "cross_platform": true,
+      "accepts_formats": ["Unix (/path/to/folder)", "Windows (C:\\path\\to\\folder)", "Mixed (C:/path/to/folder)"],
+      "auto_normalization": "All path formats work on all platforms - paths are automatically normalized",
+      "root_folder_values": ["\"\" (empty string)", "\".\" (dot)", "\"/\" (forward slash)"],
+      "note": "You don't need to detect the platform or convert paths - use whatever format is natural"
+    }
   }
 }
 ```
@@ -185,6 +204,8 @@ mcp__folder-mcp__get_server_info()
 **Key Outcomes**:
 - LLMs can now discover all available endpoints without prior knowledge
 - Clear purpose and usage guidance for each endpoint
+- **Cross-platform path handling**: LLMs learn they can use any path format (Unix/Windows/Mixed) on any platform
+- **Root folder flexibility**: LLMs understand that `""`, `"."`, and `"/"` all work for exploring root
 - Foundation for autonomous endpoint selection in Phase 10 Sprint 1
 
 ---
@@ -285,115 +306,297 @@ mcp__folder-mcp__list_folders()
 
 ---
 
-### Sprint 2: Perfect `explore` Endpoint (3-4 hours)
-**Goal**: Hierarchical navigation with optional pagination for folders with many subdirectories.
+### Sprint 2: Perfect `explore` Endpoint (3-4 hours) ✅ COMPLETE
+**Goal**: True `ls`-like hierarchical navigation showing both subdirectories AND documents.
 **Replaces**: NEW endpoint - No existing equivalent, adds hierarchical folder exploration capability
+**Semantic Data**: Key phrases aggregated from ALL nested indexed documents under each subdirectory path
+**Status**: ✅ COMPLETE - Fully implemented with semantic key phrase aggregation and tested via A2E methodology
+
+#### Important Notes
+- Many folders contain NO indexed documents (e.g., source code folders)
+- **Counting Strategy**:
+  - `statistics` section: Direct children only (files in current folder)
+  - `subdirectories` array: ALL nested documents under each path
+- Both `indexed_document_count` and `top_key_phrases` in subdirs use ALL nested docs
+- Empty `top_key_phrases` array when no indexed documents exist
+
+#### Why This Design Is Superior
+**Before (2 API calls)**: `explore()` → only dirs → `list_documents()` → finally see files
+**After (1 API call)**: `explore()` → see BOTH dirs and files immediately (like `ls`)
+**Context Savings**: ~50% fewer API calls for navigation
 
 #### Example Request
 ```typescript
-// MCP Tool Call - Default limit of 50 subdirectories
+// MCP Tool Call - Like 'ls' command, shows files and folders
 mcp__folder-mcp__explore({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
   relative_sub_path: "src"  // Relative to base_folder_path
-  // limit: 50 is the default for subdirectories
+  // Default limits: 50 subdirectories, 20 documents
 })
+
+// Note: For exploring the root folder, relative_sub_path accepts:
+// - "" (empty string) - most logical, means "nothing relative"
+// - "." (dot) - conventional Unix "current directory"
+// - "/" (forward slash) - for convenience
+// All three values will explore the base_folder_path root
+
+// Cross-platform path support:
+// - base_folder_path accepts both Unix (/path/to/folder) and Windows (C:\path\to\folder) styles
+// - relative_sub_path accepts both forward slashes (src/domain) and backslashes (src\domain)
+// - Paths are automatically normalized to the appropriate platform format
+// - Mixed separators are handled correctly (e.g., "src/domain\files" works)
 ```
 
-#### Example Response with Optional Pagination
+#### Example Response (Like `ls` Output)
 ```json
 {
-  "current_location": {
-    "full_path": "/Users/hanan/Projects/folder-mcp/src",
-    "relative_sub_path": "src",
-    "name": "src",
-    "level": 1,
-    "document_count": 3,  // Direct children only
-    "total_nested_documents": 142,  // Including subdirectories
-    "semantic_context": {
-      "primary_themes": [
-        "TypeScript implementation",
-        "clean architecture",
-        "MCP protocol"
-      ],
-      "key_phrases": [
-        {"text": "domain driven design", "score": 0.93},
-        {"text": "dependency injection", "score": 0.90},
-        {"text": "infrastructure layer", "score": 0.87}
-      ]
-    }
-  },
-  "breadcrumbs": [
-    {
-      "name": "folder-mcp",
-      "relative_sub_path": "/",
-      "level": 0,
-      "semantic_hint": "MCP server root"
-    },
-    {
-      "name": "src",
-      "relative_sub_path": "src",
-      "level": 1,
-      "semantic_hint": "source code",
-      "is_current": true
-    }
-  ],
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "relative_sub_path": "src",
   "subdirectories": [
     {
       "name": "domain",
-      "relative_sub_path": "src/domain",
-      "document_count": 28,
-      "semantic_preview": ["business logic", "entities", "value objects"]
+      "indexed_document_count": 0,  // ALL nested: zero .md/.pdf/.docx anywhere
+      "top_key_phrases": []
     },
     {
       "name": "infrastructure",
-      "relative_sub_path": "src/infrastructure",
-      "document_count": 35,
-      "semantic_preview": ["providers", "adapters", "external services"]
+      "indexed_document_count": 0,  // ALL nested: only source code
+      "top_key_phrases": []
     },
     {
       "name": "interfaces",
-      "relative_sub_path": "src/interfaces",
-      "document_count": 42,
-      "semantic_preview": ["MCP server", "CLI", "TUI components"]
+      "indexed_document_count": 0,  // ALL nested: TypeScript only
+      "top_key_phrases": []
     },
     {
       "name": "application",
-      "relative_sub_path": "src/application",
-      "document_count": 18,
-      "semantic_preview": ["use cases", "orchestration", "workflows"]
+      "indexed_document_count": 0,  // ALL nested: no indexed docs
+      "top_key_phrases": []
+    },
+    {
+      "name": "config",
+      "indexed_document_count": 0,
+      "top_key_phrases": []
+    },
+    {
+      "name": "utils",
+      "indexed_document_count": 1,  // ALL nested: found one README.md somewhere deep
+      "top_key_phrases": [  // From that one README.md
+        {"text": "utility functions", "score": 0.85},
+        {"text": "helper methods", "score": 0.82}
+      ]
+    },
+    {
+      "name": "di",
+      "indexed_document_count": 0,
+      "top_key_phrases": []
+    },
+    {
+      "name": "daemon",
+      "indexed_document_count": 0,
+      "top_key_phrases": []
     }
   ],
+  "files": [
+    "index.ts",
+    "mcp-server.ts",
+    "cli.ts",
+    "README.md",
+    "logo.png",
+    ".gitignore",
+    "package-lock.json"
+  ],
+  "statistics": {
+    "subdirectory_count": 8,
+    "file_count": 7,  // ALL files in current directory
+    "indexed_document_count": 1,  // Only README.md is indexed
+    "total_nested_documents": 142  // Indexed docs including subdirectories
+  },
+  "semantic_context": {
+    "key_phrases": [
+      {"text": "MCP server implementation", "score": 0.93},
+      {"text": "dependency injection", "score": 0.90},
+      {"text": "clean architecture", "score": 0.87}
+    ]
+  },
   "pagination": {
-    "subdirectories_returned": 4,
-    "subdirectories_total": 8,
-    "limit": 50,
-    "has_more": false  // All subdirectories fit within limit
+    "subdirectories": {
+      "returned": 8,
+      "total": 8,
+      "limit": 50,
+      "has_more": false
+    },
+    "documents": {
+      "returned": 3,
+      "total": 3,
+      "limit": 20,
+      "has_more": false
+    }
   },
   "navigation_hints": {
     "next_actions": [
-      "Use list_documents to see files in current location",
-      "Use explore with subdirectory path to go deeper",
-      "Most folders have <50 subdirs, pagination rarely needed"
-    ]
+      "Use get_document_text for indexed docs (.md, .pdf, .docx, .txt)",
+      "Use download_file for ANY file (.ts, .png, .json, etc.)",
+      "Use explore with subdirectory path to navigate deeper"
+    ],
+    "tip": "Like 'ls' - shows ALL files. Only .md/.pdf/.docx/.xlsx/.pptx/.txt are indexed"
+  }
+}
+```
+
+#### Example with Pagination (Large Folder)
+```typescript
+// Request with explicit limits
+mcp__folder-mcp__explore({
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "node_modules/@types",
+  subdirectory_limit: 10,  // Override default
+  file_limit: 10           // Override default
+})
+```
+
+```json
+// Response showing pagination in action
+{
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "relative_sub_path": "node_modules/@types",
+  "subdirectories": [
+    {"name": "node", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "react", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "jest", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "eslint", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "typescript", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "express", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "lodash", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "webpack", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "babel", "indexed_document_count": 0, "top_key_phrases": []},
+    {"name": "prettier", "indexed_document_count": 0, "top_key_phrases": []}
+  ],
+  "files": [
+    "index.d.ts", "globals.d.ts", "tsconfig.json", "README.md",
+    "LICENSE", "package.json", "types.d.ts", "utils.d.ts",
+    "helpers.d.ts", "constants.d.ts"
+  ],
+  "pagination": {
+    "subdirectories": {
+      "returned": 10,
+      "total": 47,
+      "limit": 10,
+      "has_more": true,
+      "continuation_token": "eyJzdWJkaXJfb2Zmc2V0IjoxMCwiZG9jX29mZnNldCI6MTB9"
+    },
+    "files": {
+      "returned": 10,
+      "total": 128,
+      "limit": 10,
+      "has_more": true
+    }
+  },
+  "navigation_hints": {
+    "next_actions": [
+      "Use continuation_token to see more items",
+      "Increase limits if you need everything at once",
+      "Navigate to specific subdirectory to narrow scope"
+    ],
+    "warning": "Large folder with 47 subdirs and 128 files - pagination active"
+  }
+}
+```
+
+#### Example: Direct vs Nested Counting
+```
+docs/                           (current location)
+├── README.md                   ✅ indexed (direct)
+├── ARCHITECTURE.md             ✅ indexed (direct)
+├── API.md                      ✅ indexed (direct)
+├── diagram.png                 ❌ not indexed
+└── testing/
+    ├── test-guide.md           ✅ indexed (nested under testing/)
+    ├── unit/
+    │   └── unit-tests.md       ✅ indexed (nested under testing/)
+    └── integration/
+        └── e2e-tests.md        ✅ indexed (nested under testing/)
+```
+
+```typescript
+mcp__folder-mcp__explore({
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_sub_path: "docs"
+})
+```
+
+```json
+{
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "relative_sub_path": "docs",
+  "subdirectories": [
+    {
+      "name": "testing",
+      "indexed_document_count": 3,  // ALL nested: test-guide + unit-tests + e2e-tests
+      "top_key_phrases": [  // Aggregated from those same 3 files
+        {"text": "TMOAT testing", "score": 0.95},
+        {"text": "unit testing", "score": 0.92}
+      ]
+    },
+    {
+      "name": "development-plan",
+      "indexed_document_count": 12,  // ALL .md files under docs/development-plan/**
+      "top_key_phrases": [  // Aggregated from those same 12 files
+        {"text": "Phase 10 semantic navigation", "score": 0.91},
+        {"text": "sprint planning", "score": 0.88}
+      ]
+    },
+    {
+      "name": "design",
+      "indexed_document_count": 4,
+      "top_key_phrases": [
+        {"text": "architecture patterns", "score": 0.89},
+        {"text": "system design", "score": 0.86}
+      ]
+    },
+    {
+      "name": "configuration",
+      "indexed_document_count": 2,
+      "top_key_phrases": [
+        {"text": "YAML configuration", "score": 0.85},
+        {"text": "environment variables", "score": 0.82}
+      ]
+    }
+  ],
+  "files": [
+    "README.md",
+    "ARCHITECTURE.md",
+    "API.md",
+    "diagram.png"
+  ],
+  "statistics": {
+    "file_count": 4,
+    "indexed_document_count": 3  // DIRECT only: README, ARCHITECTURE, API
   }
 }
 ```
 
 #### A2E Test Validation
 ```typescript
-// Step 1: Explore root
+// Step 1: Explore source code folder
 mcp__folder-mcp__explore({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
-  relative_sub_path: "/"
+  relative_sub_path: "src"
 })
+// Expect: Many files, but indexed_document_count = 0 or very low
+// Most subdirectories will have empty top_key_phrases
 
-// Step 2: Navigate to subdirectory
+// Step 2: Explore documentation folder
 mcp__folder-mcp__explore({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
   relative_sub_path: "docs"
 })
+// Expect: Higher indexed_document_count
+// Subdirectories likely to have rich top_key_phrases
 
-// Step 3: Verify breadcrumbs and subdirectories
+// Step 3: Verify aggregation
+// Subdirectory key phrases should come from ALL nested documents
+// Not just direct children
 ```
 
 ---
@@ -416,47 +619,30 @@ mcp__folder-mcp__list_documents({
 #### Example Response with Pagination
 ```json
 {
-  "location": {
-    "base_folder_path": "/Users/hanan/Projects/folder-mcp",
-    "relative_sub_path": "docs/testing",
-    "full_path": "/Users/hanan/Projects/folder-mcp/docs/testing"
-  },
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "relative_sub_path": "docs/testing",
   "documents": [
     {
       "file_path": "docs/testing/THE_MOTHER_OF_ALL_TESTS.md",
-      "name": "THE_MOTHER_OF_ALL_TESTS.md",
-      "relative_path": "docs/testing/THE_MOTHER_OF_ALL_TESTS.md",
       "size": 24567,
       "mime_type": "text/markdown",
       "last_modified": "2025-01-20T10:00:00Z",
-      "semantic_summary": {
-        "primary_purpose": "Comprehensive testing methodology",
-        "key_phrases": [
-          {"text": "TMOAT agent testing", "score": 0.95},
-          {"text": "end-to-end validation", "score": 0.92},
-          {"text": "systematic test approach", "score": 0.89}
-        ],
-        "topics": ["testing", "validation", "methodology"],
-        "readability": {
-          "score": 48.3,
-          "level": "technical"
-        }
-      }
+      "key_phrases": [
+        {"text": "TMOAT agent testing", "score": 0.95},
+        {"text": "end-to-end validation", "score": 0.92},
+        {"text": "systematic test approach", "score": 0.89}
+      ],
+      "readability_score": 48.3
     },
     {
       "file_path": "docs/testing/a2e-testing.md",
-      "name": "a2e-testing.md",
-      "relative_path": "docs/testing/a2e-testing.md",
       "size": 8934,
       "mime_type": "text/markdown",
-      "semantic_summary": {
-        "primary_purpose": "Agent-to-endpoint testing guide",
-        "key_phrases": [
-          {"text": "MCP tool validation", "score": 0.93},
-          {"text": "direct endpoint testing", "score": 0.90}
-        ],
-        "topics": ["A2E", "MCP testing", "validation"]
-      }
+      "key_phrases": [
+        {"text": "MCP tool validation", "score": 0.93},
+        {"text": "direct endpoint testing", "score": 0.90},
+        {"text": "A2E testing", "score": 0.88}
+      ]
     }
   ],
   "pagination": {
@@ -532,12 +718,9 @@ mcp__folder-mcp__get_document_metadata({
 #### Example Response with Optional Pagination
 ```json
 {
-  "document": {
-    "file_path": "CLAUDE.md",
-    "name": "CLAUDE.md",
-    "path": "/Users/hanan/Projects/folder-mcp/CLAUDE.md",
-    "total_chunks": 87
-  },
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "file_path": "CLAUDE.md",
+  "total_chunks": 87,
   "outline": {
     "chunks_shown": 50,
     "total_chunks": 87,
@@ -548,34 +731,24 @@ mcp__folder-mcp__get_document_metadata({
         "heading": "Introduction",
         "start_offset": 0,
         "end_offset": 1024,
-        "semantics": {
-          "main_points": [
-            "Claude Code guidance",
-            "Development workflow"
-          ],
-          "key_phrases": [
-            {"text": "Edit files freely", "score": 0.89},
-            {"text": "No permission needed", "score": 0.87}
-          ],
-          "readability_score": 51.2,
-          "has_code_examples": false
-        }
+        "key_phrases": [
+          {"text": "Edit files freely", "score": 0.89},
+          {"text": "No permission needed", "score": 0.87},
+          {"text": "Claude Code guidance", "score": 0.85}
+        ],
+        "readability_score": 51.2,
+        "has_code_examples": false
       },
       {
         "chunk_id": "chunk_1",
         "chunk_index": 1,
         "heading": "Testing Requirements",
-        "semantics": {
-          "main_points": [
-            "TMOAT agent testing",
-            "Verifiable tests"
-          ],
-          "key_phrases": [
-            {"text": "TMOAT scripts", "score": 0.92},
-            {"text": "websocket endpoints", "score": 0.88}
-          ],
-          "has_code_examples": true
-        }
+        "key_phrases": [
+          {"text": "TMOAT scripts", "score": 0.92},
+          {"text": "websocket endpoints", "score": 0.88},
+          {"text": "TMOAT agent testing", "score": 0.86}
+        ],
+        "has_code_examples": true
       }
     ]
   },
@@ -718,14 +891,11 @@ mcp__folder-mcp__get_document_text({
 #### Example Response with Pagination
 ```json
 {
-  "document": {
-    "file_path": "README.md",
-    "name": "README.md",
-    "path": "/Users/hanan/Projects/folder-mcp/README.md",
-    "mime_type": "text/markdown",
-    "size": 15234,
-    "last_modified": "2025-01-22T08:30:00Z"
-  },
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "file_path": "README.md",
+  "mime_type": "text/markdown",
+  "size": 15234,
+  "last_modified": "2025-01-22T08:30:00Z",
   "extracted_text": "# folder-mcp\n\nModel Context Protocol server for folder operations...\n\n## Installation\n\nnpm install -g folder-mcp\n\n## Usage\n\nfolder-mcp\n\n...",
   "metadata": {
     "extraction_method": "markdown_parser",
@@ -762,14 +932,15 @@ mcp__folder-mcp__get_document_text({
 
 ---
 
-### Sprint 7: Perfect `get_document_raw` Endpoint (2 hours)
-**Goal**: Enable direct file fetching for binary files or raw content access.
-**Replaces**: Existing `get_document_data` - Renamed for clarity, fetches raw file content
+### Sprint 7: Perfect `download_file` Endpoint (2 hours)
+**Goal**: Download any file (binary or text) from the file system.
+**Replaces**: Existing `get_document_data` - Renamed to `download_file` for clarity
+**Works with**: ANY file shown by `explore`, not just indexed documents
 
 #### Example Request
 ```typescript
-// MCP Tool Call
-mcp__folder-mcp__get_document_raw({
+// MCP Tool Call - Download any file (image, config, etc.)
+mcp__folder-mcp__download_file({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "assets/logo.png"
 })
@@ -778,14 +949,11 @@ mcp__folder-mcp__get_document_raw({
 #### Example Response (Target)
 ```json
 {
-  "document": {
-    "file_path": "assets/logo.png",
-    "name": "logo.png",
-    "path": "/Users/hanan/Projects/folder-mcp/assets/logo.png",
-    "mime_type": "image/png",
-    "size": 45678,
-    "last_modified": "2025-01-20T10:00:00Z"
-  },
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "file_path": "assets/logo.png",
+  "mime_type": "image/png",
+  "size": 45678,
+  "last_modified": "2025-01-20T10:00:00Z",
   "content": {
     "encoding": "base64",
     "data": "iVBORw0KGgoAAAANSUhEUgAAAAUA..."
@@ -818,13 +986,13 @@ mcp__folder-mcp__search({
 #### Example Response with Pagination
 ```json
 {
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
   "query": "How to implement TMOAT agent testing with websocket endpoints",
   "results": [
     {
       "file_path": "CLAUDE.md",
       "chunk_id": "chunk_1",
       "relevance_score": 0.92,
-      "file_path": "/Users/hanan/Projects/folder-mcp/CLAUDE.md",
       "content_snippet": "...TMOAT AGENT WILL USE: 1. Query database files...",
       "semantic_explanation": {
         "why_relevant": "Direct match for TMOAT agent testing and websocket",
@@ -841,7 +1009,6 @@ mcp__folder-mcp__search({
       "file_path": "docs/testing/websocket-guide.md",
       "chunk_id": "chunk_5",
       "relevance_score": 0.87,
-      "file_path": "/Users/hanan/Projects/folder-mcp/docs/testing/websocket-guide.md",
       "content_snippet": "...WebSocket connections in TMOAT framework...",
       "semantic_explanation": {
         "why_relevant": "WebSocket implementation details for TMOAT",

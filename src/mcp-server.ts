@@ -262,6 +262,40 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           }
         },
         {
+          name: 'explore',
+          description: 'Explore folder structure with ls-like navigation showing both directories and files',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              base_folder_path: {
+                type: 'string',
+                description: 'Absolute path to the base folder'
+              },
+              relative_sub_path: {
+                type: 'string',
+                description: 'Relative path from base folder (e.g., "src/domain" or "" for root)'
+              },
+              subdirectory_limit: {
+                type: 'number',
+                description: 'Maximum subdirectories to return (default: 50)',
+                minimum: 1,
+                maximum: 200
+              },
+              file_limit: {
+                type: 'number',
+                description: 'Maximum files to return (default: 20)',
+                minimum: 1,
+                maximum: 100
+              },
+              continuation_token: {
+                type: 'string',
+                description: 'Token for pagination continuation'
+              }
+            },
+            required: ['base_folder_path']
+          }
+        },
+        {
           name: 'search',
           description: 'Search for documents within a specific folder using semantic search',
           inputSchema: {
@@ -355,7 +389,26 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const result = await daemonEndpoints.listDocuments(folderPath, limit);
           return result as any;
         }
-        
+
+        case 'explore': {
+          const baseFolderPath = args?.base_folder_path as string;
+          const relativePath = args?.relative_sub_path as string | undefined;
+          const options: any = {};
+
+          if (args?.subdirectory_limit !== undefined) {
+            options.subdirectoryLimit = args.subdirectory_limit as number;
+          }
+          if (args?.file_limit !== undefined) {
+            options.fileLimit = args.file_limit as number;
+          }
+          if (args?.continuation_token !== undefined) {
+            options.continuationToken = args.continuation_token as string;
+          }
+
+          const result = await daemonEndpoints.explore(baseFolderPath, relativePath, options);
+          return result as any;
+        }
+
         case 'search': {
           const query = args?.query as string || '';
           const folderPath = args?.folder_path as string | undefined;

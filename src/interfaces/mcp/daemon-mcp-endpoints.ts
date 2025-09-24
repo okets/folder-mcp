@@ -376,18 +376,69 @@ export class DaemonMCPEndpoints {
 
 
   /**
+   * Phase 10 Sprint 2: Explore folder with ls-like navigation
+   * Shows both directories and files with semantic enrichment
+   */
+  async explore(
+    baseFolderPath: string,
+    relativePath?: string,
+    options?: {
+      subdirectoryLimit?: number;
+      fileLimit?: number;
+      continuationToken?: string;
+    }
+  ): Promise<MCPToolResponse> {
+    try {
+      // Call REST API through daemon client
+      const exploreOptions: any = {
+        subPath: relativePath || ''
+      };
+
+      if (options?.subdirectoryLimit !== undefined) {
+        exploreOptions.subdirLimit = options.subdirectoryLimit;
+      }
+      if (options?.fileLimit !== undefined) {
+        exploreOptions.fileLimit = options.fileLimit;
+      }
+      if (options?.continuationToken !== undefined) {
+        exploreOptions.continuationToken = options.continuationToken;
+      }
+
+      const response = await this.daemonClient.exploreFolder(
+        baseFolderPath,
+        exploreOptions
+      );
+
+      // Return JSON for LLM consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error exploring folder '${baseFolderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
+
+  /**
    * Format bytes to human-readable format
    */
   private formatBytes(bytes: number): string {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     let size = bytes;
     let unitIndex = 0;
-    
+
     while (size >= 1024 && unitIndex < units.length - 1) {
       size /= 1024;
       unitIndex++;
     }
-    
+
     return `${size.toFixed(2)} ${units[unitIndex]}`;
   }
 }

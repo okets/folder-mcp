@@ -12,6 +12,7 @@ import helmet from 'helmet';
 import { Server } from 'http';
 import os from 'os';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { FMDMService } from '../services/fmdm-service.js';
 import {
   FoldersListResponse,
@@ -28,7 +29,12 @@ import {
   KeyPhrase,
   RecentlyChangedFile,
   SemanticPreview,
-  IndexingStatus
+  IndexingStatus,
+  ExploreRequest,
+  ExploreResponse,
+  SubdirectoryInfo,
+  ExploreStatistics,
+  ExplorePaginationDetails
 } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
@@ -155,6 +161,7 @@ export class RESTAPIServer {
 
     // Folder operations endpoints (Phase 10 Sprint 1 - Enhanced)
     this.app.get('/api/v1/folders', this.handleListFoldersEnhanced.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/explore', this.handleExplore.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocuments.bind(this));
 
     // Document operations endpoints (Sprint 6) 
@@ -836,6 +843,390 @@ export class RESTAPIServer {
       };
       
       res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 2: Explore endpoint - ls-like navigation with semantic data
+   */
+  private async handleExplore(req: Request, res: Response): Promise<void> {
+    try {
+      const encodedFolderPath = req.params.folderPath;
+      if (!encodedFolderPath) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder path is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const baseFolderPath = decodeURIComponent(encodedFolderPath);
+
+      // Parse query parameters
+      const subPath = req.query.sub_path as string || '';
+      const subdirLimit = parseInt(req.query.subdir_limit as string || '50', 10);
+      const fileLimit = parseInt(req.query.file_limit as string || '20', 10);
+      const continuationToken = req.query.continuation_token as string;
+
+      // Normalize the relative path (handle "", ".", "/" as root)
+      let normalizedSubPath = subPath;
+      if (subPath === '.' || subPath === '/') {
+        normalizedSubPath = '';
+      }
+
+      // Normalize path separators (support both Unix and Windows)
+      normalizedSubPath = normalizedSubPath.replace(/\\/g, '/');
+
+      this.logger.debug(`[REST] Exploring folder ${baseFolderPath} at path: ${normalizedSubPath || '(root)'}`);
+
+      // Verify folder exists in configuration
+      const fmdm = this.fmdmService.getFMDM();
+      const folders = fmdm?.folders || [];
+      const folder = folders.find((f: any) =>
+        PathNormalizer.normalize(f.path) === PathNormalizer.normalize(baseFolderPath)
+      );
+
+      if (!folder) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${baseFolderPath}' is not configured`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Build the full path to explore
+      const fullPath = normalizedSubPath
+        ? path.join(baseFolderPath, normalizedSubPath)
+        : baseFolderPath;
+
+      // Check if the path exists and is a directory
+      try {
+        const stats = await fs.stat(fullPath);
+        if (!stats.isDirectory()) {
+          const errorResponse: ErrorResponse = {
+            error: 'Bad Request',
+            message: `Path '${normalizedSubPath}' is not a directory`,
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+      } catch (fsError) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Path '${normalizedSubPath}' does not exist`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Read directory contents
+      const dirContents = await fs.readdir(fullPath, { withFileTypes: true });
+
+      // Separate directories and files
+      const allDirs = dirContents.filter(item => item.isDirectory()).map(d => d.name);
+      const allFiles = dirContents.filter(item => item.isFile()).map(f => f.name);
+
+      // Apply pagination
+      const paginatedDirs = allDirs.slice(0, subdirLimit);
+      const paginatedFiles = allFiles.slice(0, fileLimit);
+
+      // Get semantic data for subdirectories
+      const subdirectoriesWithData: SubdirectoryInfo[] = [];
+      for (const dirName of paginatedDirs) {
+        const subdirPath = normalizedSubPath
+          ? path.join(normalizedSubPath, dirName)
+          : dirName;
+
+        // Query database for ALL documents under this subdirectory
+        const semanticData = await this.getSubdirectorySemanticData(
+          baseFolderPath,
+          subdirPath
+        );
+
+        subdirectoriesWithData.push({
+          name: dirName,
+          indexed_document_count: semanticData.documentCount,
+          top_key_phrases: semanticData.keyPhrases
+        });
+      }
+
+      // Get statistics for current directory
+      const currentDirSemanticData = await this.getCurrentDirectoryStats(
+        baseFolderPath,
+        normalizedSubPath
+      );
+
+      // Build response
+      const response: ExploreResponse = {
+        base_folder_path: baseFolderPath,
+        relative_sub_path: normalizedSubPath,
+        subdirectories: subdirectoriesWithData,
+        files: paginatedFiles,
+        statistics: {
+          subdirectory_count: allDirs.length,
+          file_count: allFiles.length,
+          indexed_document_count: currentDirSemanticData.directCount,
+          total_nested_documents: currentDirSemanticData.totalCount
+        },
+        ...(currentDirSemanticData.directKeyPhrases.length > 0 && {
+          semantic_context: {
+            key_phrases: currentDirSemanticData.directKeyPhrases
+          }
+        }),
+        pagination: {
+          subdirectories: {
+            returned: paginatedDirs.length,
+            total: allDirs.length,
+            limit: subdirLimit,
+            has_more: allDirs.length > subdirLimit,
+            ...(allDirs.length > subdirLimit && {
+              continuation_token: Buffer.from(JSON.stringify({
+                offset: subdirLimit,
+                path: normalizedSubPath
+              })).toString('base64')
+            })
+          },
+          documents: {
+            returned: paginatedFiles.length,
+            total: allFiles.length,
+            limit: fileLimit,
+            has_more: allFiles.length > fileLimit,
+            ...(allFiles.length > fileLimit && {
+              continuation_token: Buffer.from(JSON.stringify({
+                offset: fileLimit,
+                path: normalizedSubPath
+              })).toString('base64')
+            })
+          }
+        },
+        navigation_hints: {
+          next_actions: [
+            'Use get_document_text for indexed docs (.md, .pdf, .docx, .txt)',
+            'Use download_file for ANY file (.ts, .png, .json, etc.)',
+            'Use explore with subdirectory path to navigate deeper'
+          ],
+          tip: "Like 'ls' - shows ALL files. Only .md/.pdf/.docx/.xlsx/.pptx/.txt are indexed",
+          ...(allDirs.length > 100 || allFiles.length > 100 ? {
+            warning: `Large folder with ${allDirs.length} subdirs and ${allFiles.length} files - pagination active`
+          } : {})
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      this.logger.error('[REST] Explore endpoint failed:', error);
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: process.env.NODE_ENV === 'development'
+          ? (error as Error).message
+          : 'Failed to explore folder',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * Get semantic data for a subdirectory (all nested documents)
+   */
+  private async getSubdirectorySemanticData(
+    baseFolderPath: string,
+    subPath: string
+  ): Promise<{ documentCount: number; keyPhrases: KeyPhrase[] }> {
+    try {
+      // Get database path for this folder
+      const dbPath = path.join(baseFolderPath, '.folder-mcp', 'embeddings.db');
+
+      // Check if database exists
+      try {
+        await fs.access(dbPath);
+      } catch {
+        // No database, return empty data
+        return { documentCount: 0, keyPhrases: [] };
+      }
+
+      // Open database connection
+      const Database = await import('better-sqlite3');
+      const db = Database.default(dbPath, { readonly: true });
+
+      try {
+        // Build the search pattern for nested documents
+        // Need to use the full absolute path since that's what's stored in the database
+        const fullSubPath = path.join(baseFolderPath, subPath).replace(/\\/g, '/');
+        const searchPattern = fullSubPath + '/%';
+
+        // Query for all documents under this path
+        const query = `
+          SELECT
+            COUNT(*) as count,
+            GROUP_CONCAT(document_keywords) as all_keywords
+          FROM documents
+          WHERE file_path LIKE ?
+            AND keywords_extracted = 1
+        `;
+
+        const result = db.prepare(query).get(searchPattern) as any;
+        const documentCount = result?.count || 0;
+
+        // Parse and select diverse key phrases
+        const keyPhrases: KeyPhrase[] = [];
+        if (result?.all_keywords) {
+          keyPhrases.push(...this.selectDiverseKeyPhrases(result.all_keywords));
+        }
+
+        return { documentCount, keyPhrases };
+      } finally {
+        db.close();
+      }
+    } catch (error) {
+      this.logger.error(`[REST] Error getting semantic data for ${subPath}:`, error);
+      return { documentCount: 0, keyPhrases: [] };
+    }
+  }
+
+  /**
+   * Get statistics for the current directory
+   */
+  private async getCurrentDirectoryStats(
+    baseFolderPath: string,
+    currentPath: string
+  ): Promise<{
+    directCount: number;
+    totalCount: number;
+    directKeyPhrases: KeyPhrase[]
+  }> {
+    try {
+      const dbPath = path.join(baseFolderPath, '.folder-mcp', 'embeddings.db');
+
+      try {
+        await fs.access(dbPath);
+      } catch {
+        return { directCount: 0, totalCount: 0, directKeyPhrases: [] };
+      }
+
+      const Database = await import('better-sqlite3');
+      const db = Database.default(dbPath, { readonly: true });
+
+      try {
+        // Count documents directly in current directory
+        const directPattern = currentPath ? path.join(currentPath, '%') : '%';
+        const directQuery = `
+          SELECT
+            COUNT(*) as count,
+            GROUP_CONCAT(document_keywords) as keywords
+          FROM documents
+          WHERE file_path LIKE ?
+            AND file_path NOT LIKE ?
+            AND keywords_extracted = 1
+        `;
+
+        const directResult = db.prepare(directQuery).get(
+          directPattern,
+          path.join(directPattern, '%', '%')  // Exclude nested paths
+        ) as any;
+
+        // Count all documents including nested
+        const totalQuery = `
+          SELECT COUNT(*) as count
+          FROM documents
+          WHERE file_path LIKE ?
+        `;
+
+        const totalResult = db.prepare(totalQuery).get(directPattern) as any;
+
+        // Parse key phrases from direct documents
+        const directKeyPhrases = directResult?.keywords
+          ? this.selectDiverseKeyPhrases(directResult.keywords)
+          : [];
+
+        return {
+          directCount: directResult?.count || 0,
+          totalCount: totalResult?.count || 0,
+          directKeyPhrases
+        };
+      } finally {
+        db.close();
+      }
+    } catch (error) {
+      this.logger.error(`[REST] Error getting current directory stats:`, error);
+      return { directCount: 0, totalCount: 0, directKeyPhrases: [] };
+    }
+  }
+
+  /**
+   * Select diverse key phrases from concatenated JSON arrays
+   */
+  private selectDiverseKeyPhrases(concatenatedKeywords: string): KeyPhrase[] {
+    try {
+      // Parse GROUP_CONCAT result - could be multiple JSON arrays concatenated
+      const allPhrases: KeyPhrase[] = [];
+
+      // GROUP_CONCAT joins multiple JSON arrays directly as ],[
+      // Replace with a separator we can split on safely
+      const normalized = concatenatedKeywords.replace(/\],\[/g, ']|||[');
+      const jsonArrays = normalized.split('|||');
+
+      for (const jsonStr of jsonArrays) {
+        if (!jsonStr) continue;
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed)) {
+            allPhrases.push(...parsed);
+          }
+        } catch (e) {
+          this.logger.warn(`[REST] Failed to parse keywords chunk: ${e}`);
+        }
+      }
+
+      // Deduplicate and score by frequency
+      const phraseMap = new Map<string, number>();
+      for (const phrase of allPhrases) {
+        if (phrase?.text) {
+          const count = phraseMap.get(phrase.text) || 0;
+          phraseMap.set(phrase.text, count + 1);
+        }
+      }
+
+      // Convert to array with scores
+      const scoredPhrases: KeyPhrase[] = Array.from(phraseMap.entries())
+        .map(([text, count]) => ({
+          text,
+          score: Math.min(0.95, 0.5 + (count * 0.1))  // Score based on frequency
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      // Apply diversity filter - skip phrases with overlapping words
+      const selected: KeyPhrase[] = [];
+      const usedWords = new Set<string>();
+
+      for (const phrase of scoredPhrases) {
+        const words = phrase.text.toLowerCase().split(/\s+/);
+        const hasOverlap = words.some(w => usedWords.has(w));
+
+        if (!hasOverlap || selected.length < 2) {
+          selected.push(phrase);
+          words.forEach(w => usedWords.add(w));
+
+          if (selected.length >= 5) break;  // Max 5 phrases
+        }
+      }
+
+      return selected;
+    } catch (error) {
+      this.logger.error('[REST] Error selecting key phrases:', error);
+      return [];
     }
   }
 
