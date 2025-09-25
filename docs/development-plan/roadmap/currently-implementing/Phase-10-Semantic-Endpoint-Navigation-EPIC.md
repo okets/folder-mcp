@@ -601,7 +601,7 @@ mcp__folder-mcp__explore({
 
 ---
 
-### Sprint 3: Perfect `list_documents` Endpoint (3-4 hours)
+### Sprint 3: Perfect `list_documents` Endpoint (3-4 hours) - COMPLETED ✅
 **Goal**: List documents in current location with pagination to preserve LLM context.
 **Replaces**: Enhances existing `list_documents` - Adds relative_sub_path and recursive parameters for path-aware listing
 
@@ -703,6 +703,23 @@ mcp__folder-mcp__list_documents({
 - **Default limit 20**: Saves ~80% context for typical exploration
 - **Progressive discovery**: Get more only if initial results insufficient
 - **Context preservation**: 20 docs ≈ 4KB vs 100 docs ≈ 20KB of context
+
+#### Implementation Completed (2025-09-25)
+✅ **Features Implemented:**
+- Enhanced document metadata with `top_key_phrases` and `readability_score`
+- Continuation token pagination with Base64-encoded state
+- Consistent `last_modified` timestamps for all documents
+- Removed unnecessary `mime_type` field
+
+✅ **Critical Fixes:**
+- SQL query now properly filters by base folder path (prevents cross-folder leakage)
+- Continuation token parameters correctly extracted and override query params
+- Token-only requests properly decode folder path from token
+
+✅ **Tested & Verified:**
+- Pagination correctly maintains offset across requests (0→3→6→9)
+- Recursive mode and folder context preserved in continuation tokens
+- Semantic metadata successfully extracted from database
 
 ---
 
