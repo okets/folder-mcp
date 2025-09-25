@@ -383,13 +383,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           return result as any;
         }
         
-        case 'list_documents': {
-          const folderPath = args?.folder_path as string;
-          const limit = args?.limit as number | undefined;
-          const result = await daemonEndpoints.listDocuments(folderPath, limit);
-          return result as any;
-        }
-
         case 'explore': {
           const baseFolderPath = args?.base_folder_path as string;
           const relativePath = args?.relative_sub_path as string | undefined;
@@ -409,6 +402,32 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           return result as any;
         }
 
+        case 'list_documents': {
+          const continuationToken = args?.continuation_token as string;
+
+          // If only continuation token is provided, let the endpoint handle it
+          if (continuationToken && !args?.base_folder_path && !args?.folder_path) {
+            const result = await daemonEndpoints.listDocumentsEnhanced({
+              continuation_token: continuationToken
+            });
+            return result as any;
+          }
+
+          const baseFolderPath = args?.base_folder_path as string || args?.folder_path as string;
+          const relativeSubPath = args?.relative_sub_path as string;
+          const recursive = args?.recursive as boolean;
+          const limit = args?.limit as number;
+
+          const result = await daemonEndpoints.listDocumentsEnhanced({
+            base_folder_path: baseFolderPath,
+            relative_sub_path: relativeSubPath,
+            recursive,
+            limit,
+            continuation_token: continuationToken
+          });
+          return result as any;
+        }
+
         case 'search': {
           const query = args?.query as string || '';
           const folderPath = args?.folder_path as string | undefined;
@@ -420,7 +439,7 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const result = await daemonEndpoints.search(query, folderPath, options);
           return result as any;
         }
-        
+
         case 'get_document_data': {
           const folderPath = args?.folder_path as string;
           const documentId = args?.document_id as string;

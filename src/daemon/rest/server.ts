@@ -28,6 +28,8 @@ import {
   EnhancedFolderInfo,
   KeyPhrase,
   RecentlyChangedFile,
+  EnhancedDocumentInfo,
+  EnhancedDocumentsListResponse,
   SemanticPreview,
   IndexingStatus,
   ExploreRequest,
@@ -162,7 +164,7 @@ export class RESTAPIServer {
     // Folder operations endpoints (Phase 10 Sprint 1 - Enhanced)
     this.app.get('/api/v1/folders', this.handleListFoldersEnhanced.bind(this));
     this.app.get('/api/v1/folders/:folderPath/explore', this.handleExplore.bind(this));
-    this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocuments.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocumentsEnhanced.bind(this));
 
     // Document operations endpoints (Sprint 6) 
     this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
@@ -689,9 +691,9 @@ export class RESTAPIServer {
   }
 
   /**
-   * List documents in a folder endpoint (Sprint 5)
+   * List documents in a folder endpoint (Old version - kept for reference)
    */
-  private async handleListDocuments(req: Request, res: Response): Promise<void> {
+  private async handleListDocumentsOld(req: Request, res: Response): Promise<void> {
     try {
       const encodedFolderPath = req.params.folderPath;
       if (!encodedFolderPath) {
@@ -843,6 +845,282 @@ export class RESTAPIServer {
       };
       
       res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 3: Enhanced list_documents endpoint with semantic metadata
+   */
+  private async handleListDocumentsEnhanced(req: Request, res: Response): Promise<void> {
+    try {
+      const encodedFolderPath = req.params.folderPath;
+      if (!encodedFolderPath) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder path is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const baseFolderPath = decodeURIComponent(encodedFolderPath);
+
+      // Parse query parameters, with continuation token override
+      let relativeSubPath = (req.query.sub_path as string) || '';
+      let recursive = req.query.recursive === 'true';
+      let limit = parseInt(req.query.limit as string || '20', 10);
+      let offset = parseInt(req.query.offset as string || '0', 10);
+      const continuationToken = req.query.continuation_token as string;
+
+      // If continuation token is provided, decode and use its parameters
+      if (continuationToken) {
+        try {
+          const tokenData = JSON.parse(Buffer.from(continuationToken, 'base64').toString());
+          // Override parameters from token
+          if (tokenData.sub_path !== undefined) relativeSubPath = tokenData.sub_path;
+          if (tokenData.recursive !== undefined) recursive = tokenData.recursive;
+          if (tokenData.offset !== undefined) offset = tokenData.offset;
+          if (tokenData.limit !== undefined) limit = tokenData.limit;
+
+          this.logger.debug(`[REST] Using continuation token with offset ${offset}, limit ${limit}`);
+        } catch (e) {
+          this.logger.warn(`[REST] Invalid continuation token: ${e}`);
+        }
+      }
+
+      // Validate parameters
+      if (limit < 1 || limit > 200) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Limit must be between 1 and 200',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      if (offset < 0) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Offset must be non-negative',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Normalize the relative path (handle "", ".", "/" as root)
+      let normalizedSubPath = relativeSubPath;
+      if (relativeSubPath === '.' || relativeSubPath === '/') {
+        normalizedSubPath = '';
+      }
+      normalizedSubPath = normalizedSubPath.replace(/\\/g, '/');
+
+      this.logger.debug(`[REST] Listing documents in ${baseFolderPath}/${normalizedSubPath}, recursive: ${recursive}`);
+
+      // Verify folder exists in configuration
+      const fmdm = this.fmdmService.getFMDM();
+      const folders = fmdm?.folders || [];
+      const folder = folders.find((f: any) =>
+        PathNormalizer.normalize(f.path) === PathNormalizer.normalize(baseFolderPath)
+      );
+
+      if (!folder) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${baseFolderPath}' is not configured`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Get database path
+      const dbPath = path.join(baseFolderPath, '.folder-mcp', 'embeddings.db');
+
+      try {
+        // Check if database exists
+        await fs.access(dbPath);
+
+        const Database = await import('better-sqlite3');
+        const db = Database.default(dbPath);
+
+        // Build the query for documents
+        let query = `
+          SELECT
+            d.file_path,
+            d.file_size as size,
+            d.last_modified,
+            d.document_keywords,
+            AVG(c.readability_score) as avg_readability
+          FROM documents d
+          LEFT JOIN chunks c ON d.id = c.document_id
+          WHERE 1=1
+        `;
+
+        const params: any[] = [];
+
+        // Always filter by base folder path
+        if (normalizedSubPath) {
+          const fullPath = path.join(baseFolderPath, normalizedSubPath);
+          if (recursive) {
+            query += ` AND d.file_path LIKE ?`;
+            params.push(`${fullPath}%`);
+          } else {
+            // For non-recursive, match exact directory
+            query += ` AND d.file_path LIKE ? AND d.file_path NOT LIKE ?`;
+            params.push(`${fullPath}/%`);
+            params.push(`${fullPath}/%/%`);
+          }
+        } else {
+          // At root - always filter by base folder
+          if (recursive) {
+            // Recursive at root - include all files under base folder
+            query += ` AND d.file_path LIKE ?`;
+            params.push(`${baseFolderPath}%`);
+          } else {
+            // Non-recursive at root - only files directly in base folder
+            query += ` AND d.file_path LIKE ? AND d.file_path NOT LIKE ?`;
+            params.push(`${baseFolderPath}/%`);
+            params.push(`${baseFolderPath}/%/%`);
+          }
+        }
+
+        query += ` GROUP BY d.id ORDER BY d.file_path ASC`;
+
+        // Get total count first
+        const countQuery = query.replace(
+          /SELECT[\s\S]*?FROM/,
+          'SELECT COUNT(DISTINCT d.id) as count FROM'
+        ).replace(/GROUP BY[\s\S]*$/, '');
+
+        const countResult = db.prepare(countQuery).get(...params) as any;
+        const totalCount = countResult?.count || 0;
+
+        // Add pagination
+        query += ` LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        // Execute query
+        const documentsResult = db.prepare(query).all(...params) as any[];
+
+        // Process documents
+        const documents: EnhancedDocumentInfo[] = documentsResult.map(row => {
+          // Parse key phrases
+          let topKeyPhrases: KeyPhrase[] = [];
+          try {
+            const keyPhrases = JSON.parse(row.document_keywords || '[]');
+            // Take top 5 diverse key phrases
+            topKeyPhrases = Array.isArray(keyPhrases)
+              ? keyPhrases.slice(0, 5).map((kp: any) => ({
+                  text: kp.text || kp,
+                  score: kp.score || 0.8
+                }))
+              : [];
+          } catch {
+            topKeyPhrases = [];
+          }
+
+          // Calculate relative path from base folder
+          const relativePath = path.relative(baseFolderPath, row.file_path);
+
+          return {
+            file_path: relativePath,
+            size: row.size || 0,
+            last_modified: row.last_modified || new Date().toISOString(),
+            top_key_phrases: topKeyPhrases,
+            readability_score: Math.round((row.avg_readability || 0) * 10) / 10
+          };
+        });
+
+        db.close();
+
+        // Create continuation token if needed
+        let continuationTokenValue: string | undefined;
+        if (totalCount > offset + limit) {
+          const tokenData = {
+            path: baseFolderPath,
+            sub_path: normalizedSubPath,
+            recursive,
+            offset: offset + limit,
+            limit
+          };
+          continuationTokenValue = Buffer.from(JSON.stringify(tokenData)).toString('base64');
+        }
+
+        // Build response
+        const paginationData: EnhancedDocumentsListResponse['pagination'] = {
+          limit,
+          offset,
+          total: totalCount,
+          returned: documents.length,
+          has_more: totalCount > offset + limit
+        };
+
+        if (continuationTokenValue) {
+          paginationData.continuation_token = continuationTokenValue;
+        }
+
+        const navigationHints: EnhancedDocumentsListResponse['navigation_hints'] = {
+          use_explore: 'To see subdirectory structure first'
+        };
+
+        if (continuationTokenValue) {
+          navigationHints.continue_listing = 'Use continuation_token to get more documents';
+        }
+        if (!recursive) {
+          navigationHints.set_recursive_true = 'To include documents from subdirectories';
+        }
+
+        const response: EnhancedDocumentsListResponse = {
+          base_folder_path: baseFolderPath,
+          relative_sub_path: normalizedSubPath,
+          documents,
+          pagination: paginationData,
+          navigation_hints: navigationHints
+        };
+
+        this.logger.debug(`[REST] Returning ${documents.length} of ${totalCount} documents`);
+        res.json(response);
+
+      } catch (dbError) {
+        this.logger.warn(`[REST] Database not found or error for ${baseFolderPath}:`, dbError);
+
+        // Return empty result if database doesn't exist
+        const response: EnhancedDocumentsListResponse = {
+          base_folder_path: baseFolderPath,
+          relative_sub_path: normalizedSubPath,
+          documents: [],
+          pagination: {
+            limit,
+            offset,
+            total: 0,
+            returned: 0,
+            has_more: false
+          },
+          navigation_hints: {
+            use_explore: 'Folder not yet indexed. Use explore to see files.'
+          }
+        };
+
+        res.json(response);
+      }
+    } catch (error) {
+      this.logger.error('[REST] Enhanced list documents failed:', error);
+
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: 'Failed to retrieve document list',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+
+      res.status(500).json(errorResponse);
     }
   }
 

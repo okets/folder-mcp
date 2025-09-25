@@ -605,6 +605,11 @@ mcp__folder-mcp__explore({
 **Goal**: List documents in current location with pagination to preserve LLM context.
 **Replaces**: Enhances existing `list_documents` - Adds relative_sub_path and recursive parameters for path-aware listing
 
+#### Design Decisions
+- **No mime_type**: LLMs can infer file type from extension (.md, .pdf, .docx)
+- **top_key_phrases**: Renamed from `key_phrases` for consistency and clarity about diversity
+- **last_modified**: Always included for all documents (consistency)
+
 #### Example Request (Initial)
 ```typescript
 // MCP Tool Call - Uses smart default limit of 20
@@ -625,9 +630,8 @@ mcp__folder-mcp__list_documents({
     {
       "file_path": "docs/testing/THE_MOTHER_OF_ALL_TESTS.md",
       "size": 24567,
-      "mime_type": "text/markdown",
       "last_modified": "2025-01-20T10:00:00Z",
-      "key_phrases": [
+      "top_key_phrases": [
         {"text": "TMOAT agent testing", "score": 0.95},
         {"text": "end-to-end validation", "score": 0.92},
         {"text": "systematic test approach", "score": 0.89}
@@ -637,12 +641,13 @@ mcp__folder-mcp__list_documents({
     {
       "file_path": "docs/testing/a2e-testing.md",
       "size": 8934,
-      "mime_type": "text/markdown",
-      "key_phrases": [
+      "last_modified": "2025-01-20T10:00:00Z",
+      "top_key_phrases": [
         {"text": "MCP tool validation", "score": 0.93},
         {"text": "direct endpoint testing", "score": 0.90},
         {"text": "A2E testing", "score": 0.88}
-      ]
+      ],
+      "readability_score": 52.1
     }
   ],
   "pagination": {

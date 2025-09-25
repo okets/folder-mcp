@@ -583,3 +583,55 @@ export interface ExploreResponse {
     warning?: string;
   };
 }
+
+/**
+ * Phase 10 Sprint 3: Enhanced list_documents response
+ */
+export interface EnhancedDocumentInfo {
+  /** File path relative to base folder */
+  file_path: string;
+  /** File size in bytes */
+  size: number;
+  /** Last modified timestamp */
+  last_modified: string;
+  /** Top key phrases extracted from document */
+  top_key_phrases: KeyPhrase[];
+  /** Readability score (0-100) */
+  readability_score: number;
+}
+
+/**
+ * Phase 10 Sprint 3: Enhanced list_documents response with pagination
+ */
+export interface EnhancedDocumentsListResponse {
+  /** Base folder path as provided in request */
+  base_folder_path: string;
+  /** Relative sub-path within the folder */
+  relative_sub_path: string;
+  /** List of documents with semantic metadata */
+  documents: EnhancedDocumentInfo[];
+  /** Pagination information */
+  pagination: {
+    /** Maximum items per page */
+    limit: number;
+    /** Current offset */
+    offset: number;
+    /** Total available documents */
+    total: number;
+    /** Number of documents returned */
+    returned: number;
+    /** Whether more documents are available */
+    has_more: boolean;
+    /** Token for continuing pagination */
+    continuation_token?: string;
+  };
+  /** Navigation hints for LLM */
+  navigation_hints: {
+    /** Hint for continuing listing */
+    continue_listing?: string;
+    /** Hint for recursive listing */
+    set_recursive_true?: string;
+    /** Hint for exploration */
+    use_explore?: string;
+  };
+}

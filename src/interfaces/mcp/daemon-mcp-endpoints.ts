@@ -95,6 +95,79 @@ export class DaemonMCPEndpoints {
   }
 
   /**
+   * Phase 10 Sprint 3: List documents in a folder with semantic metadata
+   */
+  async listDocumentsEnhanced(args: {
+    base_folder_path?: string;
+    relative_sub_path?: string;
+    recursive?: boolean;
+    limit?: number;
+    continuation_token?: string;
+  }): Promise<MCPToolResponse> {
+    try {
+      // Handle continuation token case
+      if (args.continuation_token && !args.base_folder_path) {
+        // Decode continuation token to get the base_folder_path
+        try {
+          const tokenData = JSON.parse(Buffer.from(args.continuation_token, 'base64').toString());
+          args.base_folder_path = tokenData.path;
+        } catch (e) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Error: Invalid continuation token`
+            }]
+          };
+        }
+      }
+
+      if (!args.base_folder_path) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: base_folder_path is required`
+          }]
+        };
+      }
+
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+
+      if (args.relative_sub_path !== undefined) {
+        queryParams.append('sub_path', args.relative_sub_path);
+      }
+      if (args.recursive !== undefined) {
+        queryParams.append('recursive', args.recursive.toString());
+      }
+      if (args.limit !== undefined) {
+        queryParams.append('limit', args.limit.toString());
+      }
+      if (args.continuation_token) {
+        queryParams.append('continuation_token', args.continuation_token);
+      }
+
+      // Make request to daemon REST API
+      const path = `/api/v1/folders/${encodeURIComponent(args.base_folder_path)}/documents?${queryParams.toString()}`;
+      const response = await (this.daemonClient as any).makeRequest(path);
+
+      // Return JSON directly for structured consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error listing documents: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
+
+  /**
    * Search within a specific folder (Sprint 7 implementation)
    * Note: folderPath is REQUIRED for folder-specific search
    */
@@ -174,9 +247,9 @@ export class DaemonMCPEndpoints {
   }
 
   /**
-   * List documents in a folder (Sprint 5 implementation)
+   * List documents in a folder (Old implementation - kept for compatibility)
    */
-  async listDocuments(folderPath: string, limit: number = 20): Promise<MCPToolResponse> {
+  async listDocumentsOld(folderPath: string, limit: number = 20): Promise<MCPToolResponse> {
     try {
       // Get documents from daemon REST API
       const response = await this.daemonClient.getDocuments(folderPath, { limit });
