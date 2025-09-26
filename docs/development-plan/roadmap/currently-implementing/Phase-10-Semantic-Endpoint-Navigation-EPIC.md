@@ -805,12 +805,13 @@ mcp__folder-mcp__get_document_metadata({
 ### Sprint 5: Perfect `get_chunks` Endpoint (2-3 hours)
 **Goal**: Retrieve specific chunks identified from metadata exploration for targeted content access.
 **Replaces**: NEW endpoint - No existing equivalent, enables surgical chunk extraction
+**Status**: ✅ Completed - Lean implementation with only essential fields
 
 #### Design Philosophy
 - **Lean response**: No redundant metadata that was already provided in `get_document_metadata`
 - **Content-focused**: The LLM already has semantic metadata; it just needs the actual text
-- **Navigation aids**: Include neighbor chunk IDs for continuity
 - **No counting fields**: The LLM knows what it requested and can count the returned array
+- **No redundant navigation**: LLMs can request adjacent chunks if needed
 
 #### Example Request
 ```typescript
