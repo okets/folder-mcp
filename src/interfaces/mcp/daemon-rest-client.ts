@@ -801,6 +801,24 @@ export class DaemonRESTClient {
   }
 
   /**
+   * Get specific chunks by ID (Sprint 5)
+   */
+  async getChunks(
+    folderPath: string,
+    docId: string,
+    chunkIds: string[]
+  ): Promise<any> {
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/chunks`;
+    return await this.makeRequest(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ chunk_ids: chunkIds })
+    });
+  }
+
+  /**
    * Check if connected to daemon
    */
   get connected(): boolean {

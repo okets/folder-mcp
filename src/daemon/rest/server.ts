@@ -166,8 +166,9 @@ export class RESTAPIServer {
     this.app.get('/api/v1/folders/:folderPath/explore', this.handleExplore.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocumentsEnhanced.bind(this));
 
-    // Document operations endpoints (Sprint 4 & 6)
+    // Document operations endpoints (Sprint 4, 5 & 6)
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/metadata', this.handleGetDocumentMetadata.bind(this));
+    this.app.post('/api/v1/folders/:folderPath/documents/:docId/chunks', this.handleGetChunks.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
 
@@ -2076,6 +2077,133 @@ export class RESTAPIServer {
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
         message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'An error occurred',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * Get specific chunks by ID (Sprint 5)
+   * Lean response with just content and navigation aids
+   */
+  private async handleGetChunks(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderPath: encodedFolderPath, docId: encodedDocId } = req.params;
+      const { chunk_ids } = req.body;
+
+      if (!encodedFolderPath || !encodedDocId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder path and document ID are required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      if (!chunk_ids || !Array.isArray(chunk_ids) || chunk_ids.length === 0) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'chunk_ids array is required and must not be empty',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const baseFolderPath = decodeURIComponent(encodedFolderPath);
+      const docId = decodeURIComponent(encodedDocId);
+
+      this.logger.debug(`[REST] Getting chunks for document: ${docId} in folder: ${baseFolderPath}`);
+
+      // Get database path
+      const dbPath = `${baseFolderPath}/.folder-mcp/embeddings.db`;
+      const fs = await import('fs/promises');
+
+      try {
+        await fs.access(dbPath);
+      } catch {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: 'Database not found for folder',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Open database
+      const Database = await import('better-sqlite3');
+      const db = Database.default(dbPath);
+
+      // First get the document to verify it exists
+      const docStmt = db.prepare(`
+        SELECT id, file_path
+        FROM documents
+        WHERE file_path = ?
+      `);
+
+      const document = docStmt.get(docId) as any;
+
+      if (!document) {
+        db.close();
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Document not found: ${docId}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Build query for chunks
+      const placeholders = chunk_ids.map(() => '?').join(',');
+      const chunksStmt = db.prepare(`
+        SELECT
+          'chunk_' || c.id as chunk_id,
+          c.chunk_index,
+          c.content,
+          c.start_offset,
+          c.end_offset
+        FROM chunks c
+        WHERE c.document_id = ?
+          AND ('chunk_' || c.id) IN (${placeholders})
+        ORDER BY c.chunk_index
+      `);
+
+      const chunks = chunksStmt.all(document.id, ...chunk_ids) as any[];
+
+      // Return chunks without redundant neighbor info
+      const processedChunks = chunks.map((chunk: any) => ({
+        chunk_id: chunk.chunk_id,
+        chunk_index: chunk.chunk_index,
+        content: chunk.content,
+        start_offset: chunk.start_offset,
+        end_offset: chunk.end_offset
+      }));
+
+      db.close();
+
+      // Build lean response
+      const response = {
+        file_path: docId,
+        chunks: processedChunks
+      };
+
+      res.json(response);
+
+    } catch (error) {
+      this.logger.error('[REST] Error getting chunks:', error);
+
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Failed to get chunks',
         timestamp: new Date().toISOString(),
         path: req.url
       };

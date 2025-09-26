@@ -393,6 +393,31 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             },
             required: ['base_folder_path', 'file_path']
           }
+        },
+        {
+          name: 'get_chunks',
+          description: 'Retrieve specific chunks by ID for targeted content access',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              base_folder_path: {
+                type: 'string',
+                description: 'Full path of the folder containing the document'
+              },
+              file_path: {
+                type: 'string',
+                description: 'Document filename or path relative to base folder'
+              },
+              chunk_ids: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                description: 'Array of chunk IDs to retrieve (e.g., ["chunk_1", "chunk_15", "chunk_28"])'
+              }
+            },
+            required: ['base_folder_path', 'file_path', 'chunk_ids']
+          }
         }
       ]
     };
@@ -491,6 +516,14 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const offset = args?.offset as number || 0;
           const limit = args?.limit as number || 50;
           const result = await daemonEndpoints.getDocumentMetadata(baseFolderPath, filePath, { offset, limit });
+          return result as any;
+        }
+
+        case 'get_chunks': {
+          const baseFolderPath = args?.base_folder_path as string;
+          const filePath = args?.file_path as string;
+          const chunkIds = args?.chunk_ids as string[];
+          const result = await daemonEndpoints.getChunks(baseFolderPath, filePath, chunkIds);
           return result as any;
         }
 

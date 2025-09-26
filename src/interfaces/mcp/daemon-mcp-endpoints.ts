@@ -547,4 +547,33 @@ export class DaemonMCPEndpoints {
 
     return `${size.toFixed(2)} ${units[unitIndex]}`;
   }
+
+  /**
+   * Get specific chunks by ID (Sprint 5)
+   * Lean response with just content and navigation aids
+   */
+  async getChunks(
+    baseFolderPath: string,
+    filePath: string,
+    chunkIds: string[]
+  ): Promise<MCPToolResponse> {
+    try {
+      const response = await (this.daemonClient as any).getChunks(baseFolderPath, filePath, chunkIds);
+
+      // Return the structured JSON response for LLM consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error getting chunks: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
 }

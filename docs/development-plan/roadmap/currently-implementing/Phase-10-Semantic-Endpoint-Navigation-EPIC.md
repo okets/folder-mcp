@@ -832,24 +832,21 @@ mcp__folder-mcp__get_chunks({
       "chunk_index": 1,
       "content": "Testing Requirements - BE A GOOD TMOAT AGENT:\n\nAgent-Led Testing Approach: Think like a human engineer. Break assignments into verifiable tests to validate assumptions rather than blindly changing files and hoping for magical fixes. IT NEVER WORKS!\n\nTOOLS A GOOD TMOAT AGENT WILL USE:\n1. Query database files using sqlite3 - verify data persistence and state\n2. Monitor runtime files using file system - track changes and additions\n3. Use TMOAT scripts to connect to websocket endpoints...",
       "start_offset": 1024,
-      "end_offset": 2048,
-      "neighbors": ["chunk_0", "chunk_2"]
+      "end_offset": 2048
     },
     {
       "chunk_id": "chunk_15",
       "chunk_index": 15,
       "content": "// Example TMOAT test script for WebSocket validation\nconst ws = new WebSocket('ws://localhost:3000');\nws.on('open', () => {\n  ws.send(JSON.stringify({type: 'subscribe', topics: ['indexing']}))\n});\nws.on('message', (data) => {\n  console.log('Received:', JSON.parse(data));\n});",
       "start_offset": 14567,
-      "end_offset": 14892,
-      "neighbors": ["chunk_14", "chunk_16"]
+      "end_offset": 14892
     },
     {
       "chunk_id": "chunk_28",
       "chunk_index": 28,
       "content": "## A2E Testing Methodology\n\nAgent-to-Endpoint testing requires using MCP tools directly...",
       "start_offset": 28943,
-      "end_offset": 29567,
-      "neighbors": ["chunk_27", "chunk_29"]
+      "end_offset": 29567
     }
   ]
 }
