@@ -723,9 +723,16 @@ mcp__folder-mcp__list_documents({
 
 ---
 
-### Sprint 4: Perfect `get_document_metadata` Endpoint (3-4 hours)
+### Sprint 4: Perfect `get_document_metadata` Endpoint (3-4 hours) ✅ COMPLETED
 **Goal**: Provide document metadata and chunk-level semantic navigation with optional pagination for large documents.
 **Replaces**: Existing `get_document_outline` - Renamed for clarity, provides document metadata and structure
+**Status**: Implemented and tested successfully (2025-09-25)
+
+#### Implementation Additions
+- **Preview field**: Added 100-character preview for each chunk (not in original spec)
+- **Continuation tokens**: Base64-encoded JSON `{"doc_id": "filename", "offset": number}`
+- **Consistent pagination**: Matches Sprint 1-3 approach with `has_more` flag
+- **Tested with large documents**: Successfully handles 2700+ chunks with proper pagination
 
 #### Example Request
 ```typescript
@@ -759,7 +766,8 @@ mcp__folder-mcp__get_document_metadata({
           {"text": "Claude Code guidance", "score": 0.85}
         ],
         "readability_score": 51.2,
-        "has_code_examples": false
+        "has_code_examples": false,
+        "preview": "This file provides guidance to Claude Code (claude.ai/code) when working with code in this repositor..."
       },
       {
         "chunk_id": "chunk_1",
@@ -783,9 +791,10 @@ mcp__folder-mcp__get_document_metadata({
     "continuation_token": "eyJkb2NfaWQiOiJDTEFVREUubWQiLCJvZmZzZXQiOjUwfQ=="
   },
   "navigation_hints": {
-    "sections_with_code": [1, 15, 22, 28, 35],  // In first 50 chunks
+    "chunks_with_code": [1, 15, 22, 28, 35],  // In first 50 chunks with code examples
     "continue_outline": "Use continuation_token for chunks 51-87",
     "use_get_document_text": "To read full content",
+    "use_get_chunks": "To retrieve specific chunks by ID",
     "typical_documents": "Most documents have <50 chunks"
   }
 }
@@ -796,6 +805,12 @@ mcp__folder-mcp__get_document_metadata({
 ### Sprint 5: Perfect `get_chunks` Endpoint (2-3 hours)
 **Goal**: Retrieve specific chunks identified from metadata exploration for targeted content access.
 **Replaces**: NEW endpoint - No existing equivalent, enables surgical chunk extraction
+
+#### Design Philosophy
+- **Lean response**: No redundant metadata that was already provided in `get_document_metadata`
+- **Content-focused**: The LLM already has semantic metadata; it just needs the actual text
+- **Navigation aids**: Include neighbor chunk IDs for continuity
+- **No counting fields**: The LLM knows what it requested and can count the returned array
 
 #### Example Request
 ```typescript
@@ -811,59 +826,32 @@ mcp__folder-mcp__get_chunks({
 ```json
 {
   "file_path": "CLAUDE.md",
-  "chunks_requested": 3,
-  "chunks_returned": 3,
   "chunks": [
     {
       "chunk_id": "chunk_1",
       "chunk_index": 1,
       "content": "Testing Requirements - BE A GOOD TMOAT AGENT:\n\nAgent-Led Testing Approach: Think like a human engineer. Break assignments into verifiable tests to validate assumptions rather than blindly changing files and hoping for magical fixes. IT NEVER WORKS!\n\nTOOLS A GOOD TMOAT AGENT WILL USE:\n1. Query database files using sqlite3 - verify data persistence and state\n2. Monitor runtime files using file system - track changes and additions\n3. Use TMOAT scripts to connect to websocket endpoints...",
-      "metadata": {
-        "heading": "Testing Requirements",
-        "key_phrases": [
-          {"text": "TMOAT agent testing", "score": 0.92},
-          {"text": "websocket endpoints", "score": 0.88},
-          {"text": "database queries", "score": 0.85}
-        ],
-        "has_code_examples": true,
-        "readability_score": 48.3,
-        "start_offset": 1024,
-        "end_offset": 2048
-      }
+      "start_offset": 1024,
+      "end_offset": 2048,
+      "neighbors": ["chunk_0", "chunk_2"]
     },
     {
       "chunk_id": "chunk_15",
       "chunk_index": 15,
       "content": "// Example TMOAT test script for WebSocket validation\nconst ws = new WebSocket('ws://localhost:3000');\nws.on('open', () => {\n  ws.send(JSON.stringify({type: 'subscribe', topics: ['indexing']}))\n});\nws.on('message', (data) => {\n  console.log('Received:', JSON.parse(data));\n});",
-      "metadata": {
-        "heading": "WebSocket Testing Examples",
-        "key_phrases": [
-          {"text": "WebSocket validation", "score": 0.89},
-          {"text": "real-time events", "score": 0.87}
-        ],
-        "has_code_examples": true,
-        "is_code_block": true
-      }
+      "start_offset": 14567,
+      "end_offset": 14892,
+      "neighbors": ["chunk_14", "chunk_16"]
     },
     {
       "chunk_id": "chunk_28",
       "chunk_index": 28,
       "content": "## A2E Testing Methodology\n\nAgent-to-Endpoint testing requires using MCP tools directly...",
-      "metadata": {
-        "heading": "A2E Testing",
-        "key_phrases": [
-          {"text": "Agent-to-Endpoint testing", "score": 0.94},
-          {"text": "MCP tool validation", "score": 0.91}
-        ],
-        "has_code_examples": false
-      }
+      "start_offset": 28943,
+      "end_offset": 29567,
+      "neighbors": ["chunk_27", "chunk_29"]
     }
-  ],
-  "navigation_hints": {
-    "total_chunks_in_document": 87,
-    "use_get_document_text": "To read the full document",
-    "use_get_document_metadata": "To discover more chunks"
-  }
+  ]
 }
 ```
 

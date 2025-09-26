@@ -447,6 +447,39 @@ export class DaemonMCPEndpoints {
     }
   }
 
+  /**
+   * Phase 10 Sprint 4: Get document metadata with chunk navigation
+   * Returns document metadata and chunks for intelligent exploration
+   */
+  async getDocumentMetadata(
+    baseFolderPath: string,
+    filePath: string,
+    options?: {
+      offset?: number;
+      limit?: number;
+    }
+  ): Promise<MCPToolResponse> {
+    try {
+      // We need to add a public method to DaemonRESTClient for this endpoint
+      // For now, we can use the existing pattern and add the method there
+      const response = await (this.daemonClient as any).getDocumentMetadata(baseFolderPath, filePath, options);
+
+      // Return the structured JSON response for LLM consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error retrieving metadata for document '${filePath}' from folder '${baseFolderPath}': ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
 
   /**
    * Phase 10 Sprint 2: Explore folder with ls-like navigation

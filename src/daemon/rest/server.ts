@@ -166,7 +166,8 @@ export class RESTAPIServer {
     this.app.get('/api/v1/folders/:folderPath/explore', this.handleExplore.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocumentsEnhanced.bind(this));
 
-    // Document operations endpoints (Sprint 6) 
+    // Document operations endpoints (Sprint 4 & 6)
+    this.app.get('/api/v1/folders/:folderPath/documents/:docId/metadata', this.handleGetDocumentMetadata.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
 
@@ -1867,6 +1868,218 @@ export class RESTAPIServer {
       };
       
       res.status(statusCode).json(errorResponse);
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 4: Get document metadata with chunk-based navigation
+   */
+  private async handleGetDocumentMetadata(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderPath: encodedFolderPath, docId } = req.params;
+
+      if (!encodedFolderPath || !docId) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Folder path and document ID are required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      const baseFolderPath = decodeURIComponent(encodedFolderPath);
+      const fileName = docId;
+
+      // Parse query parameters for pagination
+      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = parseInt(req.query.limit as string) || 50;
+
+      this.logger.debug(`[REST] Getting document metadata for ${fileName} from folder ${baseFolderPath} (offset: ${offset}, limit: ${limit})`);
+
+      // Get folders from FMDM service
+      let folders: any[] = [];
+      try {
+        const fmdm = this.fmdmService.getFMDM();
+        folders = fmdm?.folders || [];
+      } catch (fmdmError) {
+        this.logger.warn('[REST] Could not retrieve FMDM data for document metadata:', fmdmError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to access folder data',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+        return;
+      }
+
+      // Find folder using normalized path matching
+      const folder = PathNormalizer.findByPath(folders, baseFolderPath);
+      if (!folder) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder '${baseFolderPath}' not found`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Construct full document path
+      const documentPath = path.join(baseFolderPath, fileName);
+
+      // Get document metadata from database
+      const dbPath = path.join(baseFolderPath, '.folder-mcp', 'embeddings.db');
+
+      try {
+        const fs = await import('fs/promises');
+        await fs.access(dbPath);
+
+        const Database = await import('better-sqlite3');
+        const db = Database.default(dbPath);
+
+        // Get document information
+        const docStmt = db.prepare(`
+          SELECT id, file_path, mime_type, last_modified
+          FROM documents
+          WHERE file_path = ?
+        `);
+        const document = docStmt.get(documentPath) as any;
+
+        if (!document) {
+          db.close();
+          const errorResponse: ErrorResponse = {
+            error: 'Not Found',
+            message: `Document '${fileName}' not found in folder`,
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(404).json(errorResponse);
+          return;
+        }
+
+        // Get total chunk count
+        const countStmt = db.prepare(`
+          SELECT COUNT(*) as total
+          FROM chunks
+          WHERE document_id = ?
+        `);
+        const countResult = countStmt.get(document.id) as any;
+        const totalChunks = countResult?.total || 0;
+
+        // Get paginated chunks with metadata
+        const chunksStmt = db.prepare(`
+          SELECT
+            id as chunk_id,
+            chunk_index,
+            content,
+            start_offset,
+            end_offset,
+            key_phrases,
+            readability_score
+          FROM chunks
+          WHERE document_id = ?
+          ORDER BY chunk_index
+          LIMIT ? OFFSET ?
+        `);
+        const chunks = chunksStmt.all(document.id, limit, offset) as any[];
+
+        // Process chunks to extract metadata
+        const processedChunks = chunks.map(chunk => {
+          // Parse key phrases from JSON string
+          let keyPhrases: Array<{text: string, score: number}> = [];
+          try {
+            if (chunk.key_phrases) {
+              const parsed = JSON.parse(chunk.key_phrases);
+              if (Array.isArray(parsed)) {
+                keyPhrases = parsed.map((phrase: any) => ({
+                  text: phrase.text || phrase,
+                  score: phrase.score || 0.5
+                }));
+              }
+            }
+          } catch (e) {
+            // Key phrases parsing failed, use empty array
+          }
+
+          // Check for code blocks
+          const hasCodeExamples = /```[\s\S]*?```/.test(chunk.content) ||
+                                 /^\s{4,}/.test(chunk.content);
+
+          return {
+            chunk_id: `chunk_${chunk.chunk_id}`,
+            chunk_index: chunk.chunk_index,
+            key_phrases: keyPhrases.slice(0, 5),
+            has_code_examples: hasCodeExamples,
+            readability_score: chunk.readability_score || null,
+            start_offset: chunk.start_offset,
+            end_offset: chunk.end_offset,
+            preview: chunk.content.substring(0, 100) + (chunk.content.length > 100 ? '...' : '')
+          };
+        });
+
+        // Identify chunks with code (for navigation hints)
+        const chunksWithCode = processedChunks
+          .filter(c => c.has_code_examples)
+          .map(c => c.chunk_index);
+
+        db.close();
+
+        // Build response
+        const response = {
+          base_folder_path: baseFolderPath,
+          file_path: fileName,
+          mime_type: document.mime_type,
+          last_modified: document.last_modified,
+          total_chunks: totalChunks,
+          chunks: processedChunks,
+          pagination: {
+            offset,
+            limit,
+            total: totalChunks,
+            returned: processedChunks.length,
+            has_more: (offset + limit) < totalChunks,
+            ...(((offset + limit) < totalChunks) && {
+              continuation_token: Buffer.from(JSON.stringify({
+                doc_id: fileName,
+                offset: offset + limit
+              })).toString('base64')
+            })
+          },
+          navigation_hints: {
+            chunks_with_code: chunksWithCode.slice(0, 10), // First 10 chunks with code
+            continue_outline: totalChunks > limit ? `Use continuation_token for chunks ${offset + limit + 1}-${totalChunks}` : null,
+            use_get_document_text: "To read full content",
+            use_get_chunks: "To retrieve specific chunks by ID",
+            typical_documents: "Most documents have <50 chunks"
+          }
+        };
+
+        res.json(response);
+
+      } catch (dbError) {
+        this.logger.error('[REST] Error accessing document metadata:', dbError);
+        const errorResponse: ErrorResponse = {
+          error: 'Internal Server Error',
+          message: 'Failed to retrieve document metadata',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(500).json(errorResponse);
+      }
+
+    } catch (error) {
+      this.logger.error('[REST] Error in handleGetDocumentMetadata:', error);
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'An error occurred',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      res.status(500).json(errorResponse);
     }
   }
 

@@ -362,6 +362,37 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             },
             required: ['folder_path', 'document_id']
           }
+        },
+        {
+          name: 'get_document_metadata',
+          description: 'Get document metadata and structure with chunk navigation from a specific folder',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              base_folder_path: {
+                type: 'string',
+                description: 'Full path of the folder containing the document'
+              },
+              file_path: {
+                type: 'string',
+                description: 'Document filename or path relative to base folder'
+              },
+              offset: {
+                type: 'number',
+                description: 'Offset for chunk pagination (default: 0)',
+                minimum: 0,
+                default: 0
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of chunks to return (default: 50)',
+                minimum: 1,
+                maximum: 200,
+                default: 50
+              }
+            },
+            required: ['base_folder_path', 'file_path']
+          }
         }
       ]
     };
@@ -453,7 +484,16 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const result = await daemonEndpoints.getDocumentOutline(folderPath, documentId);
           return result as any;
         }
-        
+
+        case 'get_document_metadata': {
+          const baseFolderPath = args?.base_folder_path as string;
+          const filePath = args?.file_path as string;
+          const offset = args?.offset as number || 0;
+          const limit = args?.limit as number || 50;
+          const result = await daemonEndpoints.getDocumentMetadata(baseFolderPath, filePath, { offset, limit });
+          return result as any;
+        }
+
         default:
           return {
             content: [{

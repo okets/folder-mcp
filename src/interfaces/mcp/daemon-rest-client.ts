@@ -684,6 +684,26 @@ export class DaemonRESTClient {
   }
 
   /**
+   * Phase 10 Sprint 4: Get document metadata with chunk navigation
+   */
+  async getDocumentMetadata(
+    folderPath: string,
+    docId: string,
+    options?: {
+      offset?: number;
+      limit?: number;
+    }
+  ): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (options?.offset !== undefined) queryParams.set('offset', String(options.offset));
+    if (options?.limit !== undefined) queryParams.set('limit', String(options.limit));
+    const queryString = queryParams.toString();
+
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/metadata${queryString ? '?' + queryString : ''}`;
+    return await this.makeRequest(path);
+  }
+
+  /**
    * Search within a specific folder (Sprint 7)
    */
   async searchFolder(
