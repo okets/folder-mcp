@@ -418,6 +418,32 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             },
             required: ['base_folder_path', 'file_path', 'chunk_ids']
           }
+        },
+        {
+          name: 'get_document_text',
+          description: 'Get extracted plain text from any document type with character-based pagination',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              base_folder_path: {
+                type: 'string',
+                description: 'Full path of the folder containing the document'
+              },
+              file_path: {
+                type: 'string',
+                description: 'Document filename or path relative to base folder'
+              },
+              max_chars: {
+                type: 'number',
+                description: 'Maximum characters to return (default: 5000, max: 50000)'
+              },
+              continuation_token: {
+                type: 'string',
+                description: 'Token from previous response to continue reading'
+              }
+            },
+            required: ['base_folder_path', 'file_path']
+          }
         }
       ]
     };
@@ -524,6 +550,24 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const filePath = args?.file_path as string;
           const chunkIds = args?.chunk_ids as string[];
           const result = await daemonEndpoints.getChunks(baseFolderPath, filePath, chunkIds);
+          return result as any;
+        }
+
+        case 'get_document_text': {
+          const baseFolderPath = args?.base_folder_path as string;
+          const filePath = args?.file_path as string;
+          const maxChars = args?.max_chars as number | undefined;
+          const continuationToken = args?.continuation_token as string | undefined;
+
+          const options: { maxChars?: number; continuationToken?: string } = {};
+          if (maxChars !== undefined) {
+            options.maxChars = maxChars;
+          }
+          if (continuationToken !== undefined) {
+            options.continuationToken = continuationToken;
+          }
+
+          const result = await daemonEndpoints.getDocumentText(baseFolderPath, filePath, options);
           return result as any;
         }
 

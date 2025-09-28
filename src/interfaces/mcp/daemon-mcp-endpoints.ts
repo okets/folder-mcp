@@ -576,4 +576,48 @@ export class DaemonMCPEndpoints {
       };
     }
   }
+
+  /**
+   * Phase 10 Sprint 6: Get document text with character-based pagination
+   * Returns clean extracted text with extraction quality metadata
+   */
+  async getDocumentText(
+    baseFolderPath: string,
+    filePath: string,
+    options?: {
+      maxChars?: number;
+      continuationToken?: string;
+    }
+  ): Promise<MCPToolResponse> {
+    try {
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+
+      if (options?.maxChars !== undefined) {
+        queryParams.append('max_chars', options.maxChars.toString());
+      }
+      if (options?.continuationToken) {
+        queryParams.append('continuation_token', options.continuationToken);
+      }
+
+      // Make request to daemon REST API
+      const path = `/api/v1/folders/${encodeURIComponent(baseFolderPath)}/documents/${encodeURIComponent(filePath)}/text?${queryParams.toString()}`;
+      const response = await (this.daemonClient as any).makeRequest(path);
+
+      // Return JSON directly for structured consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error getting document text: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
 }

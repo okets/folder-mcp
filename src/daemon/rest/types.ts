@@ -22,6 +22,8 @@ export interface EndpointInfo {
   returns: string;
   /** Guidance on when to use this endpoint */
   use_when: string;
+  /** Optional description of endpoint parameters */
+  parameters?: Record<string, string>;
 }
 
 /**
@@ -68,6 +70,8 @@ export interface UsageHints {
   exploration_flow: string;
   /** Recommended flow for specific queries */
   search_flow: string;
+  /** Recommended flow for chunk-based navigation */
+  chunk_navigation_flow?: string;
   /** Additional helpful tip */
   tip: string;
 }
@@ -634,4 +638,80 @@ export interface EnhancedDocumentsListResponse {
     /** Hint for exploration */
     use_explore?: string;
   };
+}
+
+/**
+ * Phase 10 Sprint 6: Extraction quality metadata for get_document_text
+ */
+export interface ExtractionMetadata {
+  /** Total characters in the document */
+  total_characters: number;
+  /** Number of characters returned in this response */
+  characters_returned: number;
+  /** Total number of chunks in database */
+  total_chunks: number;
+  /** Whether formatting was lost during extraction */
+  has_formatting_loss?: boolean;
+  /** Specific warnings about what was lost or transformed */
+  extraction_warnings?: string[];
+}
+
+/**
+ * Phase 10 Sprint 6: Dynamic navigation hints for get_document_text
+ */
+export interface DocumentTextNavigationHints {
+  /** How to continue reading (when truncated) */
+  continue_reading?: string;
+  /** Information about remaining content */
+  remaining_content?: string;
+  /** Alternative for better formatting fidelity */
+  formatting_alternative?: string;
+  /** Hint about visual content availability */
+  visual_content?: string;
+  /** Hint about table data availability */
+  table_data?: string;
+  /** General tip for the user */
+  tip: string;
+}
+
+/**
+ * Phase 10 Sprint 6: Pagination info for get_document_text
+ */
+export interface DocumentTextPagination {
+  /** Maximum characters requested */
+  max_chars: number;
+  /** Current offset in characters */
+  offset: number;
+  /** Total characters available */
+  total: number;
+  /** Characters returned in this response */
+  returned: number;
+  /** Whether more content is available */
+  has_more: boolean;
+  /** Token for continuing reading */
+  continuation_token?: string;
+}
+
+/**
+ * Phase 10 Sprint 6: get_document_text response
+ */
+export interface GetDocumentTextResponse {
+  /** Base folder path as provided in request */
+  base_folder_path: string;
+  /** File path relative to base folder */
+  file_path: string;
+  /** MIME type of the original file */
+  mime_type: string;
+  /** File size in bytes */
+  size: number;
+  /** Last modified timestamp */
+  last_modified: string;
+  /** Extracted text content */
+  extracted_text: string;
+  /** Extraction quality metadata */
+  metadata: ExtractionMetadata;
+  /** Pagination information */
+  pagination: DocumentTextPagination;
+  /** Dynamic navigation hints based on context */
+  navigation_hints: DocumentTextNavigationHints;
 }

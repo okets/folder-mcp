@@ -141,8 +141,13 @@ mcp__folder-mcp__get_server_info()
       {
         "name": "get_document_text",
         "purpose": "Get extracted plain text from any document type",
-        "returns": "Clean text string from PDF/DOCX/etc",
-        "use_when": "Reading document content for analysis"
+        "returns": "Clean text string from PDF/DOCX/etc with character-based pagination",
+        "use_when": "Reading document content for analysis",
+        "parameters": {
+          "base_folder_path": "Root folder path",
+          "file_path": "Document path relative to base folder",
+          "max_chars": "Maximum characters to return (default: 5000). Use continuation_token for next batch"
+        }
       },
       {
         "name": "download_file",
@@ -882,9 +887,10 @@ mcp__folder-mcp__get_chunks({
 
 ---
 
-### Sprint 6: Perfect `get_document_text` Endpoint (2-3 hours)
+### ✅ Sprint 6: Perfect `get_document_text` Endpoint (2-3 hours) - COMPLETED
 **Goal**: Retrieve clean extracted text from documents without semantic overlay, with pagination for large documents.
 **Replaces**: NEW endpoint - Provides clean text extraction separate from raw file access
+**Status**: ✅ **COMPLETED** - Implemented with overlap-aware text reconstruction from chunks, character-based pagination
 
 #### Example Request (Initial)
 ```typescript
@@ -892,11 +898,11 @@ mcp__folder-mcp__get_chunks({
 mcp__folder-mcp__get_document_text({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
   file_path: "README.md"
-  // limit: 5000 is the default (in characters, not lines)
+  // max_chars: 5000 is the default (in characters, not lines)
 })
 ```
 
-#### Example Response with Pagination
+#### Example Response with Pagination (Markdown - No Formatting Loss)
 ```json
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
@@ -906,19 +912,102 @@ mcp__folder-mcp__get_document_text({
   "last_modified": "2025-01-22T08:30:00Z",
   "extracted_text": "# folder-mcp\n\nModel Context Protocol server for folder operations...\n\n## Installation\n\nnpm install -g folder-mcp\n\n## Usage\n\nfolder-mcp\n\n...",
   "metadata": {
-    "extraction_method": "markdown_parser",
     "total_characters": 15234,
     "characters_returned": 5000,
     "total_chunks": 12,
     "language": "en"
+    // No formatting loss fields - implies perfect extraction
   },
   "pagination": {
-    "limit": 5000,
+    "max_chars": 5000,
     "offset": 0,
     "total": 15234,
     "returned": 5000,
     "has_more": true,
     "continuation_token": "eyJkb2NfaWQiOiJSRUFETUUubWQiLCJvZmZzZXQiOjUwMDB9"
+  },
+  "navigation_hints": {
+    "continue_reading": "Use continuation_token to get next 5000 characters",
+    "remaining_content": "10234 characters remaining (3 more requests needed)",
+    "tip": "Increase max_chars up to 50000 if you need more content at once"
+  }
+}
+```
+
+#### Example Response with Formatting Loss (PDF)
+```json
+{
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "file_path": "reports/annual-report.pdf",
+  "mime_type": "application/pdf",
+  "size": 458923,
+  "last_modified": "2025-01-20T14:30:00Z",
+  "extracted_text": "Annual Report 2024\n\nExecutive Summary\n\nThis year marked significant growth...",
+  "metadata": {
+    "total_characters": 45678,
+    "characters_returned": 5000,
+    "total_chunks": 38,
+    "language": "en",
+    "has_formatting_loss": true,
+    "extraction_warnings": [
+      "Tables converted to text format",
+      "Images and diagrams omitted",
+      "Multi-column layout linearized"
+    ]
+  },
+  "pagination": {
+    "max_chars": 5000,
+    "offset": 0,
+    "total": 45678,
+    "returned": 5000,
+    "has_more": true,
+    "continuation_token": "eyJkb2NfaWQiOiJhbm51YWwtcmVwb3J0LnBkZiIsIm9mZnNldCI6NTAwMH0="
+  },
+  "navigation_hints": {
+    "continue_reading": "Use continuation_token to get next 5000 characters",
+    "remaining_content": "40678 characters remaining (9 more requests needed)",
+    "formatting_alternative": "Use download_file endpoint to get \"reports/annual-report.pdf\" with original formatting preserved",
+    "visual_content": "Images and diagrams are available via download_file endpoint",
+    "tip": "Consider download_file for full fidelity if the extracted text isn't sufficient"
+  }
+}
+```
+
+#### Example Response with Excel File (Always Has Formatting Loss)
+```json
+{
+  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
+  "file_path": "data/sales-q4.xlsx",
+  "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "size": 89234,
+  "last_modified": "2025-01-21T09:15:00Z",
+  "extracted_text": "Sheet1: Q4 Sales Data\n\nRegion\tOctober\tNovember\tDecember\nNorth\t45000\t52000\t61000\nSouth\t38000\t41000\t47000...",
+  "metadata": {
+    "total_characters": 12456,
+    "characters_returned": 5000,
+    "total_chunks": 8,
+    "language": "en",
+    "has_formatting_loss": true,
+    "extraction_warnings": [
+      "Spreadsheet converted to text sections",
+      "Formulas shown as calculated values",
+      "Multiple sheets concatenated"
+    ]
+  },
+  "pagination": {
+    "max_chars": 5000,
+    "offset": 0,
+    "total": 12456,
+    "returned": 5000,
+    "has_more": true,
+    "continuation_token": "eyJkb2NfaWQiOiJzYWxlcy1xNC54bHN4Iiwib2Zmc2V0Ijo1MDAwfQ=="
+  },
+  "navigation_hints": {
+    "continue_reading": "Use continuation_token to get next 5000 characters",
+    "remaining_content": "7456 characters remaining (2 more requests needed)",
+    "formatting_alternative": "Use download_file endpoint to get \"data/sales-q4.xlsx\" with original formatting preserved",
+    "table_data": "For precise table structure, use download_file to get the original spreadsheet",
+    "tip": "Consider download_file for full fidelity if the extracted text isn't sufficient"
   }
 }
 ```
@@ -932,11 +1021,66 @@ mcp__folder-mcp__get_document_text({
 // Returns next 5000 characters (5001-10000)
 ```
 
+#### Extraction Quality Metadata
+
+The endpoint provides extraction quality indicators to help LLMs make informed decisions:
+
+**`has_formatting_loss`** (boolean):
+- `true` for formats that lose structure during text extraction (PDF, Excel, PowerPoint)
+- Omitted or `false` for formats with perfect extraction (Markdown, plain text)
+
+**`extraction_warnings`** (array):
+- Specific information about what was lost or transformed during extraction
+- Only included when there are actual warnings
+
+**Common extraction warnings by file type:**
+
+| File Type | Typical Warnings |
+|-----------|-----------------|
+| PDF | "Tables converted to text format", "Images and diagrams omitted", "Multi-column layout linearized" |
+| Excel | "Spreadsheet converted to text sections", "Formulas shown as calculated values", "Multiple sheets concatenated" |
+| PowerPoint | "Slides converted to sequential text", "Speaker notes included inline", "Animations and transitions omitted" |
+| Word | "Comments and track changes omitted", "Footnotes moved inline" |
+
+#### Implementation Notes (Sprint 6 Completion)
+
+**Key Technical Decisions:**
+1. **Chunk-based reconstruction**: Uses pre-indexed chunks from database instead of re-parsing files
+   - Performance: Database query (milliseconds) vs file parsing (seconds for PDFs/Word/Excel)
+   - Consistency: Returns exact text that was indexed and embedded
+   - Resource efficient: No need to load heavy parser libraries
+
+2. **Overlap handling**: Automatically removes ~10% overlap between chunks
+   - Algorithm uses start_offset/end_offset to skip duplicate content
+   - Results in seamless text reconstruction without duplication
+   - Tested with 2,727-chunk file: perfect reconstruction
+
+3. **No language detection**: Removed placeholder field per architectural principle (no fallback logic)
+
+4. **Standardized database access**: Shared helper for consistent error handling across endpoints
+
+#### Dynamic Navigation Hints
+
+Navigation hints adapt based on context:
+
+**When text is complete:**
+- Simple success message
+
+**When text is truncated (no formatting loss):**
+- How to continue reading with continuation token
+- Suggestion to increase `max_chars` for efficiency
+
+**When text has formatting loss:**
+- All pagination hints (if applicable)
+- Explicit mention of `download_file` as alternative
+- Specific guidance based on what was lost (tables, images, etc.)
+
 #### Why Text Pagination Helps
 - **Default limit 5000 chars**: Prevents overwhelming responses for large documents
 - **Character-based**: More predictable than line-based for text consumption
 - **Progressive reading**: Get more content only if needed
 - **Context savings**: 5KB chunks vs potentially 100KB+ full documents
+- **Informed decisions**: Extraction warnings help LLMs choose between text extraction and file download
 
 ---
 

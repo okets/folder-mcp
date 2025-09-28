@@ -36,7 +36,11 @@ import {
   ExploreResponse,
   SubdirectoryInfo,
   ExploreStatistics,
-  ExplorePaginationDetails
+  ExplorePaginationDetails,
+  GetDocumentTextResponse,
+  ExtractionMetadata,
+  DocumentTextPagination,
+  DocumentTextNavigationHints
 } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
@@ -122,6 +126,36 @@ export class RESTAPIServer {
   }
 
   /**
+   * Shared helper to check database existence and availability
+   * @param folderPath The folder path containing the database
+   * @param req Express request object for error context
+   * @param res Express response object for sending errors
+   * @returns Database path if exists, null if not (error already sent)
+   */
+  private async checkDatabaseAccess(
+    folderPath: string,
+    req: Request,
+    res: Response
+  ): Promise<string | null> {
+    const dbPath = path.join(folderPath, '.folder-mcp', 'embeddings.db');
+
+    try {
+      const fs = await import('fs/promises');
+      await fs.access(dbPath);
+      return dbPath;
+    } catch {
+      const errorResponse: ErrorResponse = {
+        error: 'Database Not Found',
+        message: `No indexed data found for folder '${path.basename(folderPath)}'. Please ensure the folder has been indexed.`,
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      res.status(404).json(errorResponse);
+      return null;
+    }
+  }
+
+  /**
    * Configure Express middleware
    */
   private setupMiddleware(): void {
@@ -169,6 +203,7 @@ export class RESTAPIServer {
     // Document operations endpoints (Sprint 4, 5 & 6)
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/metadata', this.handleGetDocumentMetadata.bind(this));
     this.app.post('/api/v1/folders/:folderPath/documents/:docId/chunks', this.handleGetChunks.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:docId/text', this.handleGetDocumentText.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
 
@@ -341,23 +376,28 @@ export class RESTAPIServer {
             },
             {
               name: "get_document_metadata",
-              purpose: "Get document metadata and structure with chunk navigation",
-              returns: "Document metadata and chunks with semantic information",
-              use_when: "Understanding document structure before reading"
+              purpose: "Get document chunks with semantic metadata and pagination",
+              returns: "Paginated chunks with key phrases, readability scores, and 100-char previews",
+              use_when: "Exploring document structure and finding relevant sections"
             },
             {
               name: "get_chunks",
-              purpose: "Retrieve specific chunks identified from metadata",
-              returns: "Content of requested chunks with their metadata",
-              use_when: "Reading specific sections after exploring metadata"
+              purpose: "Retrieve specific chunks by their IDs (POST endpoint)",
+              returns: "Content of requested chunks with minimal metadata (lean response)",
+              use_when: "Reading targeted content after identifying chunks from metadata"
             }
           ],
           content_retrieval: [
             {
               name: "get_document_text",
               purpose: "Get extracted plain text from any document type",
-              returns: "Clean text string from PDF/DOCX/etc",
-              use_when: "Reading document content for analysis"
+              returns: "Clean text string from PDF/DOCX/etc with character-based pagination",
+              use_when: "Reading document content for analysis",
+              parameters: {
+                base_folder_path: "Root folder path",
+                file_path: "Document path relative to base folder",
+                max_chars: "Maximum characters to return (default: 5000). Use continuation_token for next batch"
+              }
             },
             {
               name: "get_document_data",
@@ -388,9 +428,10 @@ export class RESTAPIServer {
           ]
         },
         usage_hints: {
-          exploration_flow: "get_server_info → list_folders → explore → list_documents → get_document_text",
-          search_flow: "get_server_info → search → get_document_text",
-          tip: "Use exploration for understanding structure, search for specific queries"
+          exploration_flow: "get_server_info → list_folders → explore → list_documents → get_document_metadata → get_chunks/get_document_text",
+          search_flow: "get_server_info → search → get_document_metadata → get_chunks/get_document_text",
+          chunk_navigation_flow: "list_documents → get_document_metadata (paginated) → get_chunks (targeted retrieval)",
+          tip: "Use exploration for understanding structure, search for specific queries, metadata for chunk navigation"
         }
       };
 
@@ -1932,13 +1973,11 @@ export class RESTAPIServer {
       // Construct full document path
       const documentPath = path.join(baseFolderPath, fileName);
 
-      // Get document metadata from database
-      const dbPath = path.join(baseFolderPath, '.folder-mcp', 'embeddings.db');
+      // Check database access
+      const dbPath = await this.checkDatabaseAccess(baseFolderPath, req, res);
+      if (!dbPath) return;
 
       try {
-        const fs = await import('fs/promises');
-        await fs.access(dbPath);
-
         const Database = await import('better-sqlite3');
         const db = Database.default(dbPath);
 
@@ -2120,22 +2159,9 @@ export class RESTAPIServer {
 
       this.logger.debug(`[REST] Getting chunks for document: ${docId} in folder: ${baseFolderPath}`);
 
-      // Get database path
-      const dbPath = `${baseFolderPath}/.folder-mcp/embeddings.db`;
-      const fs = await import('fs/promises');
-
-      try {
-        await fs.access(dbPath);
-      } catch {
-        const errorResponse: ErrorResponse = {
-          error: 'Not Found',
-          message: 'Database not found for folder',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(404).json(errorResponse);
-        return;
-      }
+      // Check database access
+      const dbPath = await this.checkDatabaseAccess(baseFolderPath, req, res);
+      if (!dbPath) return;
 
       // Open database
       const Database = await import('better-sqlite3');
@@ -2209,6 +2235,318 @@ export class RESTAPIServer {
       };
       res.status(500).json(errorResponse);
     }
+  }
+
+  /**
+   * Get document text with character-based pagination (Phase 10 Sprint 6)
+   * Returns clean extracted text with extraction quality metadata
+   */
+  private async handleGetDocumentText(req: Request, res: Response): Promise<void> {
+    try {
+      const { folderPath: encodedFolderPath, docId: encodedDocId } = req.params;
+      const { continuation_token } = req.query;
+
+      // Handle continuation token case
+      let folderPath: string;
+      let docId: string;
+      let offset = 0;
+      let maxChars = 5000; // Default
+
+      if (continuation_token && typeof continuation_token === 'string') {
+        try {
+          const tokenData = JSON.parse(Buffer.from(continuation_token, 'base64').toString());
+          folderPath = tokenData.folder_path;
+          docId = tokenData.doc_id;
+          offset = tokenData.offset || 0;
+          maxChars = tokenData.max_chars || 5000;
+        } catch (e) {
+          const errorResponse: ErrorResponse = {
+            error: 'Bad Request',
+            message: 'Invalid continuation token',
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+      } else {
+        if (!encodedFolderPath || !encodedDocId) {
+          const errorResponse: ErrorResponse = {
+            error: 'Bad Request',
+            message: 'Folder path and document ID are required',
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+
+        folderPath = decodeURIComponent(encodedFolderPath);
+        docId = decodeURIComponent(encodedDocId);
+
+        // Parse query parameters
+        const queryMaxChars = parseInt(req.query.max_chars as string);
+        if (!isNaN(queryMaxChars) && queryMaxChars > 0) {
+          maxChars = Math.min(queryMaxChars, 50000); // Cap at 50K
+        }
+      }
+
+      this.logger.debug(`[REST] Getting text for document ${docId} from folder ${folderPath} (offset: ${offset}, max_chars: ${maxChars})`);
+
+      // Check database access
+      const dbPath = await this.checkDatabaseAccess(folderPath, req, res);
+      if (!dbPath) return;
+
+      // Get document metadata and chunks from database
+      const { default: sqlite3 } = await import('sqlite3');
+      const { open } = await import('sqlite');
+
+      const db = await open({
+        filename: dbPath,
+        driver: sqlite3.Database
+      });
+
+      try {
+        // First get document information
+        // The docId could be either a filename or a full path
+        const fullDocPath = docId.startsWith('/') ? docId : path.join(folderPath, docId);
+        const document = await db.get(`
+          SELECT
+            d.file_path,
+            d.file_path as path,
+            d.file_size as size,
+            d.mime_type,
+            d.last_modified,
+            COUNT(c.id) as total_chunks,
+            SUM(LENGTH(c.content)) as total_characters
+          FROM documents d
+          LEFT JOIN chunks c ON d.id = c.document_id
+          WHERE d.file_path = ? OR d.file_path LIKE ?
+          GROUP BY d.id
+        `, [fullDocPath, `%/${docId}`]);
+
+        if (!document) {
+          await db.close();
+          const errorResponse: ErrorResponse = {
+            error: 'Not Found',
+            message: `Document '${docId}' not found in folder`,
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(404).json(errorResponse);
+          return;
+        }
+
+        // Get chunks with offset information (offsets are required database fields)
+        const chunks = await db.all(`
+          SELECT content, start_offset, end_offset, chunk_index
+          FROM chunks
+          WHERE document_id = (
+            SELECT id FROM documents WHERE file_path = ? OR file_path LIKE ?
+          )
+          ORDER BY chunk_index
+        `, [fullDocPath, `%/${docId}`]);
+
+        await db.close();
+
+        // Reconstruct text using offsets to handle the ~10% overlap between chunks
+        let fullText = '';
+        let lastEndOffset = 0;
+
+        for (const chunk of chunks) {
+          if (chunk.start_offset >= lastEndOffset) {
+            // No overlap, append entire chunk
+            fullText += chunk.content;
+          } else {
+            // There's overlap - skip the overlapping portion at the beginning
+            const overlapChars = lastEndOffset - chunk.start_offset;
+            fullText += chunk.content.substring(overlapChars);
+          }
+          lastEndOffset = chunk.end_offset;
+        }
+        const totalChars = fullText.length;
+
+        // Apply character pagination
+        const extractedText = fullText.substring(offset, offset + maxChars);
+        const charactersReturned = extractedText.length;
+        const hasMore = (offset + maxChars) < totalChars;
+
+        // Generate extraction quality metadata
+        const metadata = this.generateExtractionMetadata(
+          document.mime_type || 'text/plain',
+          totalChars,
+          charactersReturned,
+          document.total_chunks || 0
+        );
+
+        // Generate pagination info
+        const pagination: DocumentTextPagination = {
+          max_chars: maxChars,
+          offset: offset,
+          total: totalChars,
+          returned: charactersReturned,
+          has_more: hasMore,
+          ...(hasMore && {
+            continuation_token: Buffer.from(JSON.stringify({
+              folder_path: folderPath,
+              doc_id: docId,
+              offset: offset + maxChars,
+              max_chars: maxChars
+            })).toString('base64')
+          })
+        };
+
+        // Generate navigation hints
+        const navigationHints = this.generateNavigationHints(
+          hasMore,
+          metadata.has_formatting_loss || false,
+          totalChars - (offset + charactersReturned),
+          maxChars,
+          docId,
+          metadata.extraction_warnings
+        );
+
+        // Build response
+        const response: GetDocumentTextResponse = {
+          base_folder_path: folderPath,
+          file_path: docId,
+          mime_type: document.mime_type || 'text/plain',
+          size: document.size || 0,
+          last_modified: document.last_modified || new Date().toISOString(),
+          extracted_text: extractedText,
+          metadata: metadata,
+          pagination: pagination,
+          navigation_hints: navigationHints
+        };
+
+        res.json(response);
+
+      } catch (dbError) {
+        await db.close();
+        throw dbError;
+      }
+
+    } catch (error) {
+      this.logger.error('[REST] Error getting document text:', error);
+
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Failed to get document text',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * Generate extraction quality metadata based on file type
+   */
+  private generateExtractionMetadata(
+    mimeType: string,
+    totalCharacters: number,
+    charactersReturned: number,
+    totalChunks: number
+  ): ExtractionMetadata {
+    const metadata: ExtractionMetadata = {
+      total_characters: totalCharacters,
+      characters_returned: charactersReturned,
+      total_chunks: totalChunks
+    };
+
+    // Determine if formatting was lost based on mime type
+    switch (mimeType) {
+      case 'application/pdf':
+        metadata.has_formatting_loss = true;
+        metadata.extraction_warnings = [
+          "Tables converted to text format",
+          "Images and diagrams omitted",
+          "Multi-column layout linearized"
+        ];
+        break;
+
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        // Word documents generally preserve well
+        // Only add warnings if specific features were present
+        break;
+
+      case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        metadata.has_formatting_loss = true;
+        metadata.extraction_warnings = [
+          "Spreadsheet converted to text sections",
+          "Formulas shown as calculated values",
+          "Multiple sheets concatenated"
+        ];
+        break;
+
+      case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        metadata.has_formatting_loss = true;
+        metadata.extraction_warnings = [
+          "Slides converted to sequential text",
+          "Speaker notes included inline",
+          "Animations and transitions omitted"
+        ];
+        break;
+
+      case 'text/markdown':
+      case 'text/plain':
+        // No formatting loss for plain text formats
+        break;
+
+      default:
+        // Conservative default for unknown types
+        if (!mimeType.startsWith('text/')) {
+          metadata.has_formatting_loss = true;
+          metadata.extraction_warnings = ["Format conversion may affect layout"];
+        }
+    }
+
+    return metadata;
+  }
+
+  /**
+   * Generate dynamic navigation hints based on context
+   */
+  private generateNavigationHints(
+    hasMore: boolean,
+    hasFormattingLoss: boolean,
+    remainingChars: number,
+    maxChars: number,
+    filePath: string,
+    extractionWarnings?: string[]
+  ): DocumentTextNavigationHints {
+    const hints: DocumentTextNavigationHints = {
+      tip: ''
+    };
+
+    // Pagination hints
+    if (hasMore) {
+      hints.continue_reading = `Use continuation_token to get next ${maxChars} characters`;
+      hints.remaining_content = `${remainingChars} characters remaining (${Math.ceil(remainingChars/maxChars)} more requests needed)`;
+    }
+
+    // Formatting loss hints
+    if (hasFormattingLoss) {
+      hints.formatting_alternative = `Use download_file endpoint to get "${filePath}" with original formatting preserved`;
+
+      if (extractionWarnings?.some(w => w.includes("Tables"))) {
+        hints.table_data = "For precise table structure, use download_file to get the original spreadsheet";
+      }
+      if (extractionWarnings?.some(w => w.includes("Images"))) {
+        hints.visual_content = "Images and diagrams are available via download_file endpoint";
+      }
+    }
+
+    // General tips
+    if (hasMore && !hasFormattingLoss) {
+      hints.tip = `Increase max_chars up to 50000 if you need more content at once`;
+    } else if (hasFormattingLoss) {
+      hints.tip = `Consider download_file for full fidelity if the extracted text isn't sufficient`;
+    } else if (!hasMore) {
+      hints.tip = 'Complete document retrieved successfully';
+    }
+
+    return hints;
   }
 
   /**

@@ -182,36 +182,12 @@ should return installed Ollama models.
 
 
 ----------
-The final test for Sprint 1 is end to end indexing of a small folder. then check the database directly to see if the embeddings are inserted using the right dimensions and the keywords and topics are extracted (with the same crappy quality we currently have).
-1. create a small test folder with a few text files. (you can use /Users/hanan/Projects/folder-mcp/tmp/small-test-folder), copy it 5 times, one for each model.
-2. run the daemon in the background using `npm run daemon:restart`
-3. ask the user to add the folders to the indexing list manually.
-4. monitor the indexing process using the daemon logs.
-5. if there is an error, fix it, delete that folder's .folder-mcp folder and restart the daemon. it will trigger indexing again.
-
-
-
-This is my design for where the python comes in play in our lifecycle, (infer
-  what should the responsibilities of the python singleton be):
-
-  1. when the daemon first starts, it loads python just to check that python
-  exists and the required dependencies are there.
-  If it loads, don't load any model, but leave our singleton ready.
-  this tells the daemon that it's ok to offer gpu models.
-  2. then, also during the daemon startup, it needs to figure out which models
-  were already downloaded so it can prioritize them through the recommendation
-  algorithm. if the singleton is already running at this stage, this should be
-  very straightforward.
-  3. now the daemon starts looking for folders to index. it has a queue, it
-  loads one model at a time, index it's folder in the background. once done, it
-  unloads the model, moves to the next folder.
-
-  4. if an mcp request comes in. all indexing activity should halt. models
-  should unload (Unless it is the model that we need to load for the MCP
-  request) then we load the model used for the MCP request and keep it loaded
-  for 5 minutes, just to keep it responsive for the LLM using it.
-
-
+docs/development-plan/roadmap/currently-implementing/Phase-10-Semantic-Endpoint-Navigation-EPIC.md
+We are tasked with sprint 7 of the Phase 10 Epic.
+I have few changes I want to run by you.
+-at this point we are only modifying the epic document we're not starting to code yet.
+I need your expertise as an LLM for input on some changes:
+1. 
 
 ────────────────────────────────────────────────────────────────────
                      ***Smoke test***
