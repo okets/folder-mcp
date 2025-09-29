@@ -561,8 +561,11 @@ export interface ExploreResponse {
   relative_sub_path: string;
   /** List of subdirectories with semantic data */
   subdirectories: SubdirectoryInfo[];
-  /** List of ALL files in current directory */
-  files: string[];
+  /** List of ALL files in current directory with download URLs */
+  files: Array<{
+    name: string;
+    download_url: string;
+  }>;
   /** Statistics about current location */
   statistics: ExploreStatistics;
   /** Semantic context for current directory */
@@ -602,6 +605,8 @@ export interface EnhancedDocumentInfo {
   top_key_phrases: KeyPhrase[];
   /** Readability score (0-100) */
   readability_score: number;
+  /** Download URL for the document (Sprint 7) */
+  download_url: string;
 }
 
 /**

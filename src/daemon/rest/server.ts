@@ -54,6 +54,7 @@ import { PathNormalizer } from '../utils/path-normalizer.js';
 import { SemanticMetadataService } from '../services/semantic-metadata-service.js';
 import { getDefaultModelId } from '../../config/model-registry.js';
 import { selectRepresentativeKeyPhrases, calculateComplexityIndicator, getRelativePath } from '../utils/key-phrase-selection.js';
+import { validateDownloadToken, generateDownloadUrl } from '../../utils/file-utils.js';
 
 // Types for REST API
 export interface HealthResponse {
@@ -207,8 +208,11 @@ export class RESTAPIServer {
     this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
 
-    // Search operations endpoints (Sprint 7)
+    // Search operations endpoints (Sprint 8)
     this.app.post('/api/v1/folders/:folderPath/search', this.handleSearch.bind(this));
+
+    // File download endpoint (Sprint 7) - Token-based authentication
+    this.app.get('/api/v1/download', this.handleTokenDownload.bind(this));
 
     // Root path for API discovery
     this.app.get('/api/v1', this.handleApiRoot.bind(this));
@@ -684,10 +688,21 @@ export class RESTAPIServer {
             ).all() as any[];
 
             if (recentFilesResult && recentFilesResult.length > 0) {
-              enhancedFolder.recently_changed_files = recentFilesResult.map(row => ({
-                path: getRelativePath(row.file_path, folder.path),
-                modified: row.last_modified
-              }));
+              // Get base URL for download links
+              // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+              const protocol = req.protocol;
+              const host = req.get('host') || 'localhost:3001';
+              const baseUrl = `${protocol}://${host}`;
+
+              enhancedFolder.recently_changed_files = recentFilesResult.map(row => {
+                const relativePath = getRelativePath(row.file_path, folder.path);
+                const { url } = generateDownloadUrl(baseUrl, folder.path, relativePath);
+                return {
+                  path: relativePath,
+                  modified: row.last_modified,
+                  download_url: url
+                };
+              });
             }
 
             db.close();
@@ -1072,12 +1087,20 @@ export class RESTAPIServer {
           // Calculate relative path from base folder
           const relativePath = path.relative(baseFolderPath, row.file_path);
 
+          // Generate download URL for the document
+          // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+          const protocol = req.protocol;
+          const host = req.get('host') || 'localhost:3002';
+          const baseUrl = `${protocol}://${host}`;
+          const { url: downloadUrl } = generateDownloadUrl(baseUrl, baseFolderPath, relativePath);
+
           return {
             file_path: relativePath,
             size: row.size || 0,
             last_modified: row.last_modified || new Date().toISOString(),
             top_key_phrases: topKeyPhrases,
-            readability_score: Math.round((row.avg_readability || 0) * 10) / 10
+            readability_score: Math.round((row.avg_readability || 0) * 10) / 10,
+            download_url: downloadUrl
           };
         });
 
@@ -1287,12 +1310,30 @@ export class RESTAPIServer {
         normalizedSubPath
       );
 
+      // Get base URL for download links
+      // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+      const protocol = req.protocol;
+      const host = req.get('host') || 'localhost:3001';
+      const baseUrl = `${protocol}://${host}`;
+
+      // Add download URLs to files
+      const filesWithDownloads = paginatedFiles.map(fileName => {
+        const filePath = normalizedSubPath
+          ? path.join(normalizedSubPath, fileName)
+          : fileName;
+        const { url } = generateDownloadUrl(baseUrl, baseFolderPath, filePath);
+        return {
+          name: fileName,
+          download_url: url
+        };
+      });
+
       // Build response
       const response: ExploreResponse = {
         base_folder_path: baseFolderPath,
         relative_sub_path: normalizedSubPath,
         subdirectories: subdirectoriesWithData,
-        files: paginatedFiles,
+        files: filesWithDownloads,
         statistics: {
           subdirectory_count: allDirs.length,
           file_count: allFiles.length,
@@ -2068,6 +2109,13 @@ export class RESTAPIServer {
 
         db.close();
 
+        // Generate download URL for the document
+        // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+        const protocol = req.protocol;
+        const host = req.get('host') || 'localhost:3002';
+        const baseUrl = `${protocol}://${host}`;
+        const { url: downloadUrl } = generateDownloadUrl(baseUrl, baseFolderPath, fileName);
+
         // Build response
         const response = {
           base_folder_path: baseFolderPath,
@@ -2076,6 +2124,7 @@ export class RESTAPIServer {
           last_modified: document.last_modified,
           total_chunks: totalChunks,
           chunks: processedChunks,
+          download_url: downloadUrl,
           pagination: {
             offset,
             limit,
@@ -2216,9 +2265,17 @@ export class RESTAPIServer {
 
       db.close();
 
+      // Generate download URL for the document
+      // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+      const protocol = req.protocol;
+      const host = req.get('host') || 'localhost:3002';
+      const baseUrl = `${protocol}://${host}`;
+      const { url: downloadUrl } = generateDownloadUrl(baseUrl, baseFolderPath, docId);
+
       // Build lean response
       const response = {
         file_path: docId,
+        download_url: downloadUrl,
         chunks: processedChunks
       };
 
@@ -2743,20 +2800,31 @@ export class RESTAPIServer {
         const finalResults = folderFilteredResults.slice(0, limit);
         
         // Transform vector search results to REST API format with semantic metadata
-        searchResults = finalResults.map(result => ({
-            documentId: result.documentId,
-            documentName: this.extractFileNameFromPath(result.documentId || ''),
-            relevance: result.score,
-            snippet: includeContent && result.content
-              ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
-              : undefined,
-            pageNumber: result.metadata?.page,
-            chunkId: result.id,
-            documentType: this.getDocumentType(result.documentId || ''),
-            documentPath: result.documentId,
-            // Add semantic metadata directly from the BasicSearchResult
-            keyPhrases: result.keyPhrases || [],
-          }));
+        searchResults = finalResults.map(result => {
+            // Generate download URL for the document
+            const documentName = this.extractFileNameFromPath(result.documentId || '');
+            // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
+            const protocol = req.protocol;
+            const host = req.get('host') || 'localhost:3002';
+            const baseUrl = `${protocol}://${host}`;
+            const { url: downloadUrl } = generateDownloadUrl(baseUrl, folderPath, documentName);
+
+            return {
+              documentId: result.documentId,
+              documentName,
+              relevance: result.score,
+              snippet: includeContent && result.content
+                ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
+                : undefined,
+              pageNumber: result.metadata?.page,
+              chunkId: result.id,
+              documentType: this.getDocumentType(result.documentId || ''),
+              documentPath: result.documentId,
+              // Add semantic metadata directly from the BasicSearchResult
+              keyPhrases: result.keyPhrases || [],
+              download_url: downloadUrl
+            };
+          });
 
         this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);
         
@@ -2806,6 +2874,184 @@ export class RESTAPIServer {
         path: req.url
       };
       
+      res.status(500).json(errorResponse);
+    }
+  }
+
+  /**
+   * Token-based file download endpoint (Phase 10 Sprint 7)
+   * Validates token and streams file to client
+   */
+  private async handleTokenDownload(req: Request, res: Response): Promise<void> {
+    try {
+      const { token } = req.query;
+
+      if (!token || typeof token !== 'string') {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Download token is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Validate the token
+      const validation = validateDownloadToken(token);
+      if (!validation.valid) {
+        const errorResponse: ErrorResponse = {
+          error: 'Unauthorized',
+          message: validation.error || 'Invalid or expired token',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(401).json(errorResponse);
+        return;
+      }
+
+      // Extract folder and file paths from token
+      const { folder: folderPath, file: filePath } = validation;
+      if (!folderPath || !filePath) {
+        const errorResponse: ErrorResponse = {
+          error: 'Bad Request',
+          message: 'Invalid token payload',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(400).json(errorResponse);
+        return;
+      }
+
+      // Normalize the folder path
+      const normalizedFolderPath = PathNormalizer.normalize(folderPath);
+
+      // Check if folder exists
+      const fmdm = this.fmdmService.getFMDM();
+      const folders = fmdm?.folders || [];
+      const folder = folders.find((f: any) =>
+        PathNormalizer.normalize(f.path) === normalizedFolderPath
+      );
+
+      if (!folder) {
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `Folder not found: ${normalizedFolderPath}`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Construct full file path
+      const fullPath = path.join(normalizedFolderPath, filePath);
+
+      // Security check: ensure the file is within the folder
+      const resolvedPath = path.resolve(fullPath);
+      const resolvedFolderPath = path.resolve(normalizedFolderPath);
+      if (!resolvedPath.startsWith(resolvedFolderPath)) {
+        const errorResponse: ErrorResponse = {
+          error: 'Forbidden',
+          message: 'Path traversal detected',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(403).json(errorResponse);
+        return;
+      }
+
+      // Normalize the path for consistency
+      const normalizedResolvedPath = path.normalize(resolvedPath);
+
+      // Check if file exists and get stats
+      // Note: Using synchronous fs.statSync for consistent cross-platform Unicode handling
+      try {
+        const fsSync = (await import('fs')).default;
+        const stats = fsSync.statSync(normalizedResolvedPath);
+        if (!stats.isFile()) {
+          const errorResponse: ErrorResponse = {
+            error: 'Bad Request',
+            message: 'Path is not a file',
+            timestamp: new Date().toISOString(),
+            path: req.url
+          };
+          res.status(400).json(errorResponse);
+          return;
+        }
+
+        // Detect MIME type based on file extension
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: { [key: string]: string } = {
+          '.pdf': 'application/pdf',
+          '.txt': 'text/plain',
+          '.md': 'text/markdown',
+          '.json': 'application/json',
+          '.js': 'application/javascript',
+          '.ts': 'application/typescript',
+          '.html': 'text/html',
+          '.css': 'text/css',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+          '.mp4': 'video/mp4',
+          '.mp3': 'audio/mpeg',
+          '.zip': 'application/zip',
+          '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        };
+        const mimeType = mimeTypes[ext] || 'application/octet-stream';
+
+        // Set response headers
+        // Encode filename for Content-Disposition header (RFC 5987)
+        const basename = path.basename(filePath);
+        const asciiFilename = basename.replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
+        const utf8Filename = encodeURIComponent(basename); // URL-encode the UTF-8 filename
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Length', stats.size.toString());
+        // Use both ASCII fallback and UTF-8 encoded version for maximum compatibility
+        res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${utf8Filename}`);
+        res.setHeader('Last-Modified', stats.mtime.toUTCString());
+        res.setHeader('Cache-Control', 'no-cache');
+
+        // Stream the file (using sync fs module for consistent Unicode handling)
+        const stream = fsSync.createReadStream(normalizedResolvedPath);
+        stream.on('error', (err) => {
+          this.logger.error(`Error streaming file ${resolvedPath}:`, err);
+          if (!res.headersSent) {
+            const errorResponse: ErrorResponse = {
+              error: 'Internal Server Error',
+              message: 'Error reading file',
+              timestamp: new Date().toISOString(),
+              path: req.url
+            };
+            res.status(500).json(errorResponse);
+          }
+        });
+        stream.pipe(res);
+
+      } catch (error) {
+        this.logger.error(`[REST] File access failed for ${normalizedResolvedPath}:`, error);
+        const errorResponse: ErrorResponse = {
+          error: 'Not Found',
+          message: `File not found: ${filePath} (resolved: ${normalizedResolvedPath})`,
+          timestamp: new Date().toISOString(),
+          path: req.url
+        };
+        res.status(404).json(errorResponse);
+      }
+    } catch (error) {
+      this.logger.error('Error in handleTokenDownload:', error);
+      const errorResponse: ErrorResponse = {
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+        path: req.url
+      };
       res.status(500).json(errorResponse);
     }
   }

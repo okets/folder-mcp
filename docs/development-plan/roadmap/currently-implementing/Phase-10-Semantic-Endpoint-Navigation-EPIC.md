@@ -256,23 +256,28 @@ mcp__folder-mcp__list_folders()
       "recently_changed_files": [
         {
           "path": "CLAUDE.md",
-          "modified": "2025-01-22T10:30:00Z"
+          "modified": "2025-01-22T10:30:00Z",
+          "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
         },
         {
           "path": "docs/development-plan/roadmap/currently-implementing/Phase-10-Semantic-Endpoint-Navigation-EPIC.md",
-          "modified": "2025-01-22T09:15:00Z"
+          "modified": "2025-01-22T09:15:00Z",
+          "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
         },
         {
           "path": "src/interfaces/mcp/daemon-mcp-endpoints.ts",
-          "modified": "2025-01-21T16:45:00Z"
+          "modified": "2025-01-21T16:45:00Z",
+          "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
         },
         {
           "path": "src/infrastructure/embeddings/sqlite-vec/schema.ts",
-          "modified": "2025-01-21T14:20:00Z"
+          "modified": "2025-01-21T14:20:00Z",
+          "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
         },
         {
           "path": "docs/testing/THE_MOTHER_OF_ALL_TESTS.md",
-          "modified": "2025-01-20T10:00:00Z"
+          "modified": "2025-01-20T10:00:00Z",
+          "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
         }
       ],
       "indexing_status": {
@@ -754,6 +759,7 @@ mcp__folder-mcp__get_document_metadata({
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
   "file_path": "CLAUDE.md",
+  "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
   "total_chunks": 87,
   "outline": {
     "chunks_shown": 50,
@@ -832,6 +838,7 @@ mcp__folder-mcp__get_chunks({
 ```json
 {
   "file_path": "CLAUDE.md",
+  "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
   "chunks": [
     {
       "chunk_id": "chunk_1",
@@ -907,6 +914,7 @@ mcp__folder-mcp__get_document_text({
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
   "file_path": "README.md",
+  "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
   "mime_type": "text/markdown",
   "size": 15234,
   "last_modified": "2025-01-22T08:30:00Z",
@@ -939,6 +947,7 @@ mcp__folder-mcp__get_document_text({
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
   "file_path": "reports/annual-report.pdf",
+  "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
   "mime_type": "application/pdf",
   "size": 458923,
   "last_modified": "2025-01-20T14:30:00Z",
@@ -966,9 +975,9 @@ mcp__folder-mcp__get_document_text({
   "navigation_hints": {
     "continue_reading": "Use continuation_token to get next 5000 characters",
     "remaining_content": "40678 characters remaining (9 more requests needed)",
-    "formatting_alternative": "Use download_file endpoint to get \"reports/annual-report.pdf\" with original formatting preserved",
-    "visual_content": "Images and diagrams are available via download_file endpoint",
-    "tip": "Consider download_file for full fidelity if the extracted text isn't sufficient"
+    "formatting_alternative": "Download URL provided above preserves original formatting, tables, and images",
+    "visual_content": "Images and diagrams are available via the download_url",
+    "tip": "Use the download_url for full fidelity when extracted text has formatting loss"
   }
 }
 ```
@@ -978,6 +987,7 @@ mcp__folder-mcp__get_document_text({
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
   "file_path": "data/sales-q4.xlsx",
+  "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
   "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "size": 89234,
   "last_modified": "2025-01-21T09:15:00Z",
@@ -1005,9 +1015,9 @@ mcp__folder-mcp__get_document_text({
   "navigation_hints": {
     "continue_reading": "Use continuation_token to get next 5000 characters",
     "remaining_content": "7456 characters remaining (2 more requests needed)",
-    "formatting_alternative": "Use download_file endpoint to get \"data/sales-q4.xlsx\" with original formatting preserved",
-    "table_data": "For precise table structure, use download_file to get the original spreadsheet",
-    "tip": "Consider download_file for full fidelity if the extracted text isn't sufficient"
+    "formatting_alternative": "Download URL provided above preserves original Excel formatting and formulas",
+    "table_data": "For precise table structure, use the download_url to get the original spreadsheet",
+    "tip": "Use the download_url for full fidelity when working with spreadsheet data"
   }
 }
 ```
@@ -1084,45 +1094,202 @@ Navigation hints adapt based on context:
 
 ---
 
-### Sprint 7: Perfect `download_file` Endpoint (2 hours)
-**Goal**: Download any file (binary or text) from the file system.
-**Replaces**: Existing `get_document_data` - Renamed to `download_file` for clarity
-**Works with**: ANY file shown by `explore`, not just indexed documents
+### Sprint 7: File Downloads via Pre-Generated Tokens (3 hours)
+**Goal**: Enable secure file downloads by embedding download URLs in ALL file-referencing endpoints.
+**Approach**: Remove the `download_file` MCP endpoint entirely - provide download URLs directly in all responses that reference files
+**Security**: Time-limited signed tokens (5-10 minute expiry) generated during any file reference
+**Simplification**: Single HTTP download endpoint using token-based authentication
 
-#### Example Request
-```typescript
-// MCP Tool Call - Download any file (image, config, etc.)
-mcp__folder-mcp__download_file({
-  base_folder_path: "/Users/hanan/Projects/folder-mcp",
-  file_path: "assets/logo.png"
-})
+#### Revolutionary Change
+
+Instead of a separate `download_file` endpoint, we embed download URLs directly in ALL endpoints that reference files:
+- **No extra MCP calls** - Files come with download URLs from the start
+- **Natural workflow** - Any file reference includes its download link immediately
+- **Consistent interface** - Every file reference gets a URL, no confusion
+- **Enhanced security** - Tokens generated fresh during each response, short-lived
+
+#### Implementation Approach
+
+**1. Token-Based Download Endpoint (HTTP)**:
 ```
+GET /api/v1/download?token=<encrypted-token>
+```
+- Token contains: folder path, file path, expiration, HMAC signature
+- No complex path parsing needed - just validate token and serve file
+- Supports streaming for large files
+- Returns appropriate Content-Type based on MIME type
 
-#### Example Response (Target)
+**2. ALL Affected Endpoints (7 Total)**:
+
+| Endpoint | Where Download URLs Appear | Sprint |
+|----------|---------------------------|---------|
+| `list_folders` | Each file in `recently_changed_files` array | Sprint 1 |
+| `explore` | Each entry in `files` array | Sprint 2 |
+| `list_documents` | Each document in `documents` array | Sprint 3 |
+| `get_document_metadata` | Root level `download_url` for the document | Sprint 4 |
+| `get_chunks` | Root level `download_url` for source document | Sprint 5 |
+| `get_document_text` | Root level `download_url` (critical for formatting loss!) | Sprint 6 |
+| `search` | Each result in `results` array | Sprint 8 |
+
+**3. Token Generation Strategy**:
+- Generate HMAC-SHA256 signed tokens with 5-10 minute expiry
+- Include all necessary info in token (no database lookups)
+- Tokens are encrypted and URL-safe (base64url encoding)
+- Generated on-demand whenever file references are returned
+
+#### Example: Enhanced `explore` Response
 ```json
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
-  "file_path": "assets/logo.png",
-  "mime_type": "image/png",
-  "size": 45678,
-  "last_modified": "2025-01-20T10:00:00Z",
-  "content": {
-    "encoding": "base64",
-    "data": "iVBORw0KGgoAAAANSUhEUgAAAAUA..."
-  },
-  "metadata": {
-    "is_binary": true,
-    "is_indexed": false,
-    "file_type": "image"
-  }
+  "relative_path": "src/utils",
+  "files": [
+    {
+      "name": "config.json",
+      "type": "file",
+      "size": 2048,
+      "mime_type": "application/json",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+    },
+    {
+      "name": "logo.png",
+      "type": "file",
+      "size": 45678,
+      "mime_type": "image/png",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+    }
+  ]
 }
+```
+
+#### Example: Enhanced `list_documents` Response
+```json
+{
+  "documents": [
+    {
+      "id": "README.md",
+      "name": "README.md",
+      "size": 15234,
+      "mime_type": "text/markdown",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+    },
+    {
+      "id": "Technical_Spec.pdf",
+      "name": "Technical_Spec.pdf",
+      "size": 2456789,
+      "mime_type": "application/pdf",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+    }
+  ]
+}
+```
+
+#### Benefits Over Previous Approach
+
+1. **Simpler Architecture**:
+   - No `download_file` MCP endpoint needed
+   - Single HTTP download endpoint with token auth
+   - No Express routing complexity with nested paths
+
+2. **Better UX for LLMs**:
+   - One-step process: explore → download
+   - No confusion about when to use download_file
+   - Consistent: all files have URLs, no size thresholds
+
+3. **Enhanced Security**:
+   - Short-lived tokens (5-10 minutes)
+   - No permanent file URLs
+   - Token contains all auth info (no DB lookups)
+
+4. **Performance**:
+   - Pre-generated tokens during exploration
+   - No extra round trips for download URLs
+   - Efficient token validation
+
+#### A2E Test Validation
+```typescript
+// Step 1: Explore and get files with download URLs
+const exploreResult = await mcp__folder-mcp__explore({
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  relative_path: "src"
+});
+
+// Step 2: File already has download URL - just fetch it
+const fileWithUrl = exploreResult.files.find(f => f.name === "index.ts");
+console.log(fileWithUrl.download_url); // Ready to use!
+
+// Step 3: Fetch via HTTP (outside MCP)
+const response = await fetch(fileWithUrl.download_url);
+const content = await response.text();
 ```
 
 ---
 
-### Sprint 8: Perfect `search` Endpoint (4-5 hours)
-**Goal**: Semantic search with pagination for context-efficient result exploration.
-**Replaces**: Enhances existing `search` - Adds better key_phrases support and improved pagination
+### Sprint 8: Enhanced Search with Download URLs (2 hours)
+{
+  "error": "File too large for STDIO interface",
+  "file_path": "backups/database-dump.sql",
+  "size": 157829120,
+  "max_size": 52428800,
+  "suggestion": "Use HTTP interface for files larger than 50MB, or use get_document_text for indexed documents"
+}
+```
+
+#### HTTP Response Headers Example
+```http
+HTTP/1.1 200 OK
+Content-Type: image/png
+Content-Length: 45678
+Content-Disposition: attachment; filename="logo.png"
+Cache-Control: no-cache
+
+[Binary data stream...]
+```
+
+#### Technical Considerations
+
+**Performance:**
+- Stream files in HTTP to avoid memory issues
+- STDIO limited to 50MB default (configurable) due to base64 overhead
+- Consider chunked responses for very large files (future enhancement)
+
+**Security:**
+- Path traversal prevention (already implemented)
+- Optional whitelist/blacklist for executable files (.exe, .sh, .bat)
+- Validate file exists and is readable before processing
+
+**Edge Cases:**
+- Zero-byte files: Return empty content with appropriate metadata
+- Symbolic links: Follow by default, option to error
+- Permission errors: Return clear error message
+- Files modified during read: Best-effort, no guarantees
+
+#### File Type Categories
+Based on MIME type, categorize files for metadata:
+- `document`: PDF, Word, Excel, PowerPoint (application/pdf, application/vnd.*)
+- `text`: Plain text, Markdown, configs (text/*)
+- `source_code`: Programming languages (text/x-*, application/javascript)
+- `image`: PNG, JPEG, GIF, WebP (image/*)
+- `video`: MP4, AVI, MOV (video/*)
+- `audio`: MP3, WAV, OGG (audio/*)
+- `archive`: ZIP, TAR, GZ (application/zip, application/x-tar)
+- `binary`: Everything else (application/octet-stream)
+
+#### Explore Endpoint Verification (Sprint 2)
+The `explore` endpoint already lists ALL files regardless of type:
+- Source files: .ts, .js, .py, .java
+- Config files: .json, .yaml, .toml, .env
+- Documents: .md, .pdf, .docx, .txt
+- Media: .png, .jpg, .mp4, .svg
+- Data: .csv, .xml, .sql
+- Any other file type found in the filesystem
+
+The `files` array in explore response includes everything, with only indexed documents (.md, .pdf, .docx, .xlsx, .pptx, .txt) being semantically searchable.
+
+---
+
+### Sprint 8: Perfect `search` Endpoint with Download URLs (4-5 hours)
+**Goal**: Semantic search with pagination AND download URLs for all found files.
+**Enhancement**: Search results now include download URLs for immediate file access
 
 #### Example Request (Initial)
 ```typescript
@@ -1135,7 +1302,7 @@ mcp__folder-mcp__search({
 })
 ```
 
-#### Example Response with Pagination
+#### Example Response with Download URLs
 ```json
 {
   "base_folder_path": "/Users/hanan/Projects/folder-mcp",
@@ -1146,6 +1313,7 @@ mcp__folder-mcp__search({
       "chunk_id": "chunk_1",
       "relevance_score": 0.92,
       "content_snippet": "...TMOAT AGENT WILL USE: 1. Query database files...",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
       "semantic_explanation": {
         "why_relevant": "Direct match for TMOAT agent testing and websocket",
         "matched_key_phrases": [
@@ -1162,6 +1330,7 @@ mcp__folder-mcp__search({
       "chunk_id": "chunk_5",
       "relevance_score": 0.87,
       "content_snippet": "...WebSocket connections in TMOAT framework...",
+      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
       "semantic_explanation": {
         "why_relevant": "WebSocket implementation details for TMOAT",
         "matched_key_phrases": ["websocket", "TMOAT", "testing framework"],
@@ -1203,7 +1372,10 @@ mcp__folder-mcp__search({
 // Returns results 11-20, still sorted by relevance
 ```
 
-#### Why Search Pagination Helps
+#### Why Search with Download URLs Helps
+- **Immediate access**: Found files come with download URLs ready to use
+- **No extra MCP calls**: Search → Download without intermediate steps
+- **Consistent with exploration**: All endpoints provide download URLs
 - **Default limit 10**: Shows best matches first without overwhelming
 - **Quality over quantity**: Top 10 usually sufficient for most queries
 - **Progressive exploration**: Get more results only if needed
