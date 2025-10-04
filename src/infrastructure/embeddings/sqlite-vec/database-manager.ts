@@ -428,9 +428,9 @@ export class DatabaseManager {
             // Check required tables exist
             const tablesStmt = this.db.prepare(VALIDATION_QUERIES.checkTables);
             const tables = tablesStmt.all() as any[];
-            const requiredTables = ['chunks', 'documents', 'embedding_config', 'embeddings', 'file_states'];
+            const requiredTables = ['chunks', 'documents', 'embedding_config', 'document_embeddings', 'chunk_embeddings', 'file_states'];
             const existingTables = tables.map(t => t.name).sort();
-            
+
             for (const required of requiredTables) {
                 if (!existingTables.includes(required)) {
                     errors.push(`Missing required table: ${required}`);

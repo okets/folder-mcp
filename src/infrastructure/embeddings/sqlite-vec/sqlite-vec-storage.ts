@@ -401,11 +401,25 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private async clearIndex(): Promise<void> {
         const db = this.dbManager.getDatabase();
 
-        // Use cascading deletes by deleting documents first
-        // The CASCADE constraints should handle the rest
-        db.exec('DELETE FROM documents');
+        // CRITICAL: Vec0 virtual tables don't support foreign keys or CASCADE delete
+        // Must manually delete in dependency order
+        const clearTransaction = db.transaction(() => {
+            // 1. Delete vec0 embeddings first (no foreign keys, so order matters)
+            db.exec('DELETE FROM chunk_embeddings');
+            db.exec('DELETE FROM document_embeddings');
 
-        this.logger?.debug('Cleared existing vector index data');
+            // 2. Delete chunks (CASCADE will handle this when deleting documents, but explicit is safer)
+            db.exec('DELETE FROM chunks');
+
+            // 3. Delete documents
+            db.exec('DELETE FROM documents');
+
+            // 4. Delete file states
+            db.exec('DELETE FROM file_states');
+        });
+
+        clearTransaction();
+        this.logger?.debug('Cleared existing vector index data (manual CASCADE for vec0 tables)');
     }
 
     /**

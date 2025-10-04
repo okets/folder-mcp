@@ -242,7 +242,7 @@ export const QUERIES = {
     
     // Search operations - returns metadata only for lazy loading
     similaritySearch: `
-        SELECT 
+        SELECT
             c.id as chunk_id,
             c.chunk_index,
             d.file_path,
@@ -253,7 +253,7 @@ export const QUERIES = {
             c.key_phrases,
             c.readability_score,
             (c.id * 0.1) as distance
-        FROM embeddings e
+        FROM chunk_embeddings e
         JOIN chunks c ON e.chunk_id = c.id
         JOIN documents d ON c.document_id = d.id
         ORDER BY c.id ASC

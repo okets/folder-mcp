@@ -93,7 +93,8 @@ describe('DatabaseManager', () => {
             const tableNames = tables.map(t => t.name);
             expect(tableNames).toContain('documents');
             expect(tableNames).toContain('chunks');
-            expect(tableNames).toContain('embeddings');
+            expect(tableNames).toContain('document_embeddings'); // Vec0 virtual table
+            expect(tableNames).toContain('chunk_embeddings'); // Vec0 virtual table
             expect(tableNames).toContain('embedding_config');
             expect(tableNames).toContain('file_states');
         });
@@ -137,7 +138,7 @@ describe('DatabaseManager', () => {
             };
             const newDbManager = new DatabaseManager(newConfig);
 
-            await expect(newDbManager.initialize()).rejects.toThrow(/Dimension mismatch/);
+            await expect(newDbManager.initialize()).rejects.toThrow(/FATAL MODEL DIMENSION MISMATCH/);
             await newDbManager.close();
         });
     });
