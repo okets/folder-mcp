@@ -193,8 +193,33 @@ I need your expertise as an LLM for input on some changes:
                      ***Smoke test***
 ────────────────────────────────────────────────────────────────────
 There are our currently 5 indexed folders, one for each curated model.
-DB path example: tmp/test-cpu-xenova-multilingual-e5-large/.folder-mcp/embeddings.db
+DB path example: tmp/cpu-xenova-multilingual-e5-large/.folder-mcp/embeddings.db
+the folders are:
+/Users/hanan/Projects/folder-mcp/tmp/cpu-xenova-multilingual-e5-large
+/Users/hanan/Projects/folder-mcp/tmp/cpu-xenova-multilingual-e5-small
+/Users/hanan/Projects/folder-mcp/tmp/gpu-bge-m3
+/Users/hanan/Projects/folder-mcp/tmp/gpu-minilm-l12-fast
+/Users/hanan/Projects/folder-mcp/tmp/gpu-xenova-multilingual-e5-large
 Run the test routine to trigger re-indexing: 
 1. for each of our indexed folders, remove the .folder-mcp folder we created that contains our database files.
 2. kill any running daemon and run a new instance of our daemon in the background using this single command 'npm run daemon:restart'
 3. read the daemon logs, wait for all folders to index fully, check the databases, see that we managed to index all 5 folders one by one successfully.
+
+Note: the full test might take a while, don't give up, sleep for 2 minutes between each progress check.
+
+
+
+
+
+────────────────────────────────────────────────────────────────────
+                     ***Post Sprint Review Checklist***
+────────────────────────────────────────────────────────────────────
+next, lets figure out if ADD/UPDATE/REMOVE document's records updates the database properly.
+we implemented a manual synchronization mechanism between vec tables (containing embeddings) and regular tables. it is time to test it.
+- Our daemon monitors changes to indexed folders, while the daemon is running in the background:
+1. verify deletion of a file removes it and it's embeddings from the database for all the chunks and the document itself. (please verify they actually existed before you delete the file)
+the folders have change tracking, so removing a file should remove it from the database.
+2. verify that changing a file's content removes it and re-adds it's data and embeddings properly.
+
+
+next, delete all files from all indexed folders except folder-mcp-roadmap-1.1.md (that exists in all of them). after a while test that the database only contains records for that file both in the regular tables and the vec tables.

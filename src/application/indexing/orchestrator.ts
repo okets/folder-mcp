@@ -1065,10 +1065,6 @@ export class IndexingOrchestrator implements IndexingWorkflow {
   private async initializeSemanticService(embeddingService?: IEmbeddingService): Promise<void> {
     this.loggingService.debug('[SEMANTIC-INIT] Starting semantic service initialization');
 
-    if (this.semanticExtractionService) {
-      this.loggingService.debug('[SEMANTIC-INIT] Service already initialized, returning');
-      return; // Already initialized
-    }
 
     // Try to get Python service from embedding service
     let pythonService: IPythonSemanticService | null = null;

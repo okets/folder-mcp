@@ -406,13 +406,349 @@ describe('SQLiteVecStorage', () => {
     describe('getStats', () => {
         it('should return correct stats for empty index', async () => {
             await storage.buildIndex([], []);
-            
+
             const stats = await storage.getStats();
             expect(stats.documentCount).toBe(0);
             expect(stats.chunkCount).toBe(0);
             expect(stats.embeddingCount).toBe(0);
             expect(stats.modelName).toBe('test-model');
             expect(stats.modelDimension).toBe(384);
+        });
+    });
+
+    describe('Vec0 Virtual Tables (Sprint 7.5)', () => {
+        describe('Schema Creation', () => {
+            it('should create vec0 virtual tables with correct dimension', async () => {
+                await storage.buildIndex([], []);
+
+                const db = (storage as any).dbManager.getDatabase();
+
+                // Check that vec0 virtual tables exist
+                const tables = db.prepare(`
+                    SELECT name, sql
+                    FROM sqlite_master
+                    WHERE type='table' AND name IN ('chunk_embeddings', 'document_embeddings')
+                `).all();
+
+                expect(tables).toHaveLength(2);
+
+                const chunkTable = tables.find((t: any) => t.name === 'chunk_embeddings');
+                const docTable = tables.find((t: any) => t.name === 'document_embeddings');
+
+                expect(chunkTable).toBeDefined();
+                expect(docTable).toBeDefined();
+
+                // Verify dimension in schema (should be 384 from config)
+                expect(chunkTable.sql).toContain('FLOAT32[384]');
+                expect(docTable.sql).toContain('FLOAT32[384]');
+
+                // Verify metadata columns exist
+                expect(chunkTable.sql).toContain('chunk_id INTEGER');
+                expect(docTable.sql).toContain('document_id INTEGER');
+            });
+
+            it('should create vec0 tables with 1024 dimensions for large model', async () => {
+                // Create new storage with 1024d model
+                const largeStorage = new SQLiteVecStorage({
+                    folderPath: join(testDir, 'large-model'),
+                    modelName: 'gpu:bge-m3',
+                    modelDimension: 1024
+                });
+
+                try {
+                    await largeStorage.buildIndex([], []);
+
+                    const db = (largeStorage as any).dbManager.getDatabase();
+                    const tables = db.prepare(`
+                        SELECT sql FROM sqlite_master
+                        WHERE type='table' AND name='chunk_embeddings'
+                    `).all();
+
+                    expect(tables[0].sql).toContain('FLOAT32[1024]');
+                } finally {
+                    await largeStorage.close();
+                }
+            });
+
+            it('should detect model dimension mismatch on existing database', async () => {
+                // Create database with 384d model
+                await storage.buildIndex([], []);
+                await storage.close();
+
+                // Try to open with different dimension model
+                const mismatchStorage = new SQLiteVecStorage({
+                    folderPath: testDir,
+                    modelName: 'gpu:bge-m3',
+                    modelDimension: 1024
+                });
+
+                // Should throw error about model mismatch
+                await expect(mismatchStorage.buildIndex([], []))
+                    .rejects.toThrow(/Model mismatch/);
+
+                await mismatchStorage.close();
+            });
+        });
+
+        describe('Manual CASCADE Delete', () => {
+            it('should delete chunk embeddings when document is deleted', async () => {
+                // Add document with chunks
+                const embeddings: TestEmbedding[] = [
+                    new Array(384).fill(0.1),
+                    new Array(384).fill(0.2)
+                ];
+                const metadata: VectorMetadata[] = [
+                    {
+                        filePath: 'test.txt',
+                        chunkId: 'chunk1',
+                        chunkIndex: 0,
+                        content: 'First chunk',
+                        startPosition: 0,
+                        endPosition: 11,
+                        keyPhrases: [{ text: 'first', score: 0.8 }],
+                        readabilityScore: 85.0
+                    },
+                    {
+                        filePath: 'test.txt',
+                        chunkId: 'chunk2',
+                        chunkIndex: 1,
+                        content: 'Second chunk',
+                        startPosition: 11,
+                        endPosition: 23,
+                        keyPhrases: [{ text: 'second', score: 0.8 }],
+                        readabilityScore: 85.0
+                    }
+                ];
+
+                await storage.buildIndex([], []); // Initialize
+                await storage.addEmbeddings(embeddings, metadata);
+
+                // Verify embeddings exist
+                const db = (storage as any).dbManager.getDatabase();
+                let chunkEmbCount = db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings').get();
+                expect(chunkEmbCount.count).toBe(2);
+
+                // Delete document
+                await storage.deleteDocument('test.txt');
+
+                // Verify chunk embeddings are CASCADE deleted
+                chunkEmbCount = db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings').get();
+                expect(chunkEmbCount.count).toBe(0);
+
+                // Verify chunks table also empty (regular CASCADE)
+                const chunkCount = db.prepare('SELECT COUNT(*) as count FROM chunks').get();
+                expect(chunkCount.count).toBe(0);
+
+                // Verify document removed
+                const docCount = db.prepare('SELECT COUNT(*) as count FROM documents').get();
+                expect(docCount.count).toBe(0);
+            });
+
+            it('should delete document embedding when document is deleted', async () => {
+                await storage.buildIndex([], []);
+
+                // Add document with embedding
+                const embeddings: TestEmbedding[] = [new Array(384).fill(0.1)];
+                const metadata: VectorMetadata[] = [{
+                    filePath: 'doc.txt',
+                    chunkId: 'chunk1',
+                    chunkIndex: 0,
+                    content: 'Content',
+                    startPosition: 0,
+                    endPosition: 7,
+                    keyPhrases: [{ text: 'content', score: 0.8 }],
+                    readabilityScore: 85.0
+                }];
+
+                await storage.addEmbeddings(embeddings, metadata);
+
+                // Add document-level semantics (includes document embedding)
+                // Create a properly sized Float32Array (384 dimensions)
+                const float32Array = new Float32Array(384).fill(0.5);
+                const docEmbedding = Buffer.from(float32Array.buffer).toString('base64');
+                await storage.updateDocumentSemantics(
+                    'doc.txt',
+                    docEmbedding,
+                    JSON.stringify([{ text: 'keyword', score: 0.9 }]),
+                    100
+                );
+
+                // Verify document embedding exists
+                const db = (storage as any).dbManager.getDatabase();
+                let docEmbCount = db.prepare('SELECT COUNT(*) as count FROM document_embeddings').get();
+                expect(docEmbCount.count).toBe(1);
+
+                // Delete document
+                await storage.deleteDocument('doc.txt');
+
+                // Verify document embedding CASCADE deleted
+                docEmbCount = db.prepare('SELECT COUNT(*) as count FROM document_embeddings').get();
+                expect(docEmbCount.count).toBe(0);
+            });
+
+            it('should handle deletion of non-existent document gracefully', async () => {
+                await storage.buildIndex([], []);
+
+                // Should not throw error
+                await expect(storage.deleteDocument('nonexistent.txt')).resolves.not.toThrow();
+            });
+        });
+
+        describe('Metadata Column JOINs', () => {
+            it('should support JOIN between chunks and chunk_embeddings via chunk_id', async () => {
+                const embeddings: TestEmbedding[] = [new Array(384).fill(0.1)];
+                const metadata: VectorMetadata[] = [{
+                    filePath: 'test.txt',
+                    chunkId: 'chunk1',
+                    chunkIndex: 0,
+                    content: 'Test content',
+                    startPosition: 0,
+                    endPosition: 12,
+                    keyPhrases: [{ text: 'test', score: 0.8 }],
+                    readabilityScore: 85.0
+                }];
+
+                await storage.buildIndex([], []);
+                await storage.addEmbeddings(embeddings, metadata);
+
+                const db = (storage as any).dbManager.getDatabase();
+
+                // Test JOIN using metadata column
+                const result = db.prepare(`
+                    SELECT c.id, ce.chunk_id
+                    FROM chunks c
+                    JOIN chunk_embeddings ce ON c.id = ce.chunk_id
+                `).get();
+
+                expect(result).toBeDefined();
+                expect(result.id).toBe(result.chunk_id);
+            });
+
+            it('should support filtering chunk_embeddings by chunk_id', async () => {
+                const embeddings: TestEmbedding[] = [
+                    new Array(384).fill(0.1),
+                    new Array(384).fill(0.2)
+                ];
+                const metadata: VectorMetadata[] = [
+                    {
+                        filePath: 'test.txt',
+                        chunkId: 'chunk1',
+                        chunkIndex: 0,
+                        content: 'First',
+                        startPosition: 0,
+                        endPosition: 5,
+                        keyPhrases: [{ text: 'first', score: 0.8 }],
+                        readabilityScore: 85.0
+                    },
+                    {
+                        filePath: 'test.txt',
+                        chunkId: 'chunk2',
+                        chunkIndex: 1,
+                        content: 'Second',
+                        startPosition: 5,
+                        endPosition: 11,
+                        keyPhrases: [{ text: 'second', score: 0.8 }],
+                        readabilityScore: 85.0
+                    }
+                ];
+
+                await storage.buildIndex([], []);
+                await storage.addEmbeddings(embeddings, metadata);
+
+                const db = (storage as any).dbManager.getDatabase();
+
+                // Delete specific chunk embedding using metadata column
+                db.prepare('DELETE FROM chunk_embeddings WHERE chunk_id = 1').run();
+
+                // Verify only one embedding remains
+                const count = db.prepare('SELECT COUNT(*) as count FROM chunk_embeddings').get();
+                expect(count.count).toBe(1);
+
+                // Verify the remaining one has chunk_id = 2
+                const remaining = db.prepare('SELECT chunk_id FROM chunk_embeddings').get();
+                expect(remaining.chunk_id).toBe(2);
+            });
+        });
+
+        describe('Batch Deletion', () => {
+            it('should delete multiple documents in single transaction', async () => {
+                await storage.buildIndex([], []);
+
+                // Add multiple documents
+                const embeddings: TestEmbedding[] = [
+                    new Array(384).fill(0.1),
+                    new Array(384).fill(0.2),
+                    new Array(384).fill(0.3)
+                ];
+                const metadata: VectorMetadata[] = [
+                    {
+                        filePath: 'doc1.txt',
+                        chunkId: 'chunk1',
+                        chunkIndex: 0,
+                        content: 'Doc 1',
+                        startPosition: 0,
+                        endPosition: 5,
+                        keyPhrases: [{ text: 'doc1', score: 0.8 }],
+                        readabilityScore: 85.0
+                    },
+                    {
+                        filePath: 'doc2.txt',
+                        chunkId: 'chunk2',
+                        chunkIndex: 0,
+                        content: 'Doc 2',
+                        startPosition: 0,
+                        endPosition: 5,
+                        keyPhrases: [{ text: 'doc2', score: 0.8 }],
+                        readabilityScore: 85.0
+                    },
+                    {
+                        filePath: 'doc3.txt',
+                        chunkId: 'chunk3',
+                        chunkIndex: 0,
+                        content: 'Doc 3',
+                        startPosition: 0,
+                        endPosition: 5,
+                        keyPhrases: [{ text: 'doc3', score: 0.8 }],
+                        readabilityScore: 85.0
+                    }
+                ];
+
+                await storage.addEmbeddings(embeddings, metadata);
+
+                // Verify all exist
+                const db = (storage as any).dbManager.getDatabase();
+                let stats = await storage.getStats();
+                expect(stats.documentCount).toBe(3);
+                expect(stats.chunkCount).toBe(3);
+                expect(stats.embeddingCount).toBe(3);
+
+                // Batch delete 2 documents
+                await storage.deleteDocumentsBatch(['doc1.txt', 'doc2.txt']);
+
+                // Verify deletion
+                stats = await storage.getStats();
+                expect(stats.documentCount).toBe(1);
+                expect(stats.chunkCount).toBe(1);
+                expect(stats.embeddingCount).toBe(1);
+
+                // Verify correct document remains
+                const doc = db.prepare('SELECT file_path FROM documents').get();
+                expect(doc.file_path).toBe('doc3.txt');
+            });
+
+            it('should handle empty batch gracefully', async () => {
+                await storage.buildIndex([], []);
+
+                // Should not throw
+                await expect(storage.deleteDocumentsBatch([])).resolves.not.toThrow();
+            });
+
+            it('should handle batch with non-existent files gracefully', async () => {
+                await storage.buildIndex([], []);
+
+                // Should not throw
+                await expect(storage.deleteDocumentsBatch(['nonexistent.txt'])).resolves.not.toThrow();
+            });
         });
     });
 });

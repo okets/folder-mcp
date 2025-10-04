@@ -796,6 +796,9 @@ class FileWatcher {
           stabilityThreshold: 100,
           pollInterval: 20
         }
+        // Use native FSEvents on macOS (default) - most efficient and reliable
+        // usePolling should only be enabled for network drives or non-standard situations
+        // On macOS, FSEvents is far superior to polling and catches all file system events
       });
 
       // Set up event handlers

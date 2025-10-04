@@ -3,9 +3,11 @@
 **Epic Type**: Core Feature Enhancement
 **Phase**: 10 - Semantic Endpoint Navigation
 **Priority**: Critical - Makes the system usable for LLM agents
-**Total Duration**: 9 Sprints (~26-32 hours)
+**Total Duration**: 9.5 Sprints (~32-40 hours)
 **Pre-production**: YES - No backwards compatibility needed
 **Principle**: FAIL FAST - No silent failures or empty fallbacks
+
+**Note**: Sprint 7.5 added as ad-hoc infrastructure enhancement to prepare vec0 storage for native vector search in Sprint 8
 
 ## 🎯 Epic Vision: LLM-Native Navigation
 
@@ -73,6 +75,25 @@ get_server_info() → search() → get_document_metadata() → get_chunks() or g
 - **🚨 Critical**: If MCP disconnects, STOP and ask user to reconnect - no workarounds
 
 ## Sprint Breakdown
+
+### 🔧 Sprint 7.5: Vec0 Infrastructure Migration (6-8 hours) - IN PROGRESS
+**Goal**: Migrate embedding storage from TEXT to SQLite vec0 virtual tables, preparing infrastructure for native vector search.
+**Type**: Ad-hoc infrastructure enhancement
+**Focus**: Write path stability - ensuring embeddings stored correctly in vec0 format
+**Out of Scope**: Search endpoint implementation (that's Sprint 8)
+
+**Key Changes**:
+- Replace TEXT `embeddings` table with `chunk_embeddings` vec0 virtual table
+- Add `document_embeddings` vec0 virtual table for document-level vectors
+- Dynamic dimension support based on model (384d or 1024d)
+- Manual CASCADE delete for vec0 virtual tables (don't support foreign keys)
+- Model consistency checks with helpful rebuild instructions
+
+**Why Now**: Vec0 infrastructure must be ready before implementing search endpoint. Each database uses one model with fixed dimension, making migration straightforward.
+
+**See**: [Phase-10-Sprint-7.5-Vec0-Infrastructure-Migration.md](Phase-10-Sprint-7.5-Vec0-Infrastructure-Migration.md) for full implementation plan
+
+---
 
 ### ✅ Sprint 0: Perfect `get_server_info` Endpoint (3-4 hours) - COMPLETED
 **Goal**: Provide LLMs with server capabilities, endpoint discovery, and cross-platform path handling information.
@@ -1287,9 +1308,23 @@ The `files` array in explore response includes everything, with only indexed doc
 
 ---
 
-### Sprint 8: Perfect `search` Endpoint with Download URLs (4-5 hours)
-**Goal**: Semantic search with pagination AND download URLs for all found files.
-**Enhancement**: Search results now include download URLs for immediate file access
+### Sprint 8: Perfect `search` Endpoint with Vec0 Native Search (4-5 hours)
+**Goal**: Implement semantic search using SQLite vec0 MATCH operator for SIMD-accelerated similarity search.
+**Prerequisites**: Sprint 7.5 completed - embeddings already in vec0 format
+**Enhancement**: Search results include download URLs for immediate file access
+
+**Implementation Approach**:
+- Use vec0 `MATCH` operator for native vector similarity search
+- SIMD-accelerated cosine similarity (much faster than JavaScript iteration)
+- Query both chunk_embeddings and document_embeddings tables
+- Semantic metadata (key phrases, readability) preserved from chunks/documents tables
+- Pagination with continuation tokens
+
+**Technical Foundation** (from Sprint 7.5):
+- Embeddings stored in `chunk_embeddings` vec0 virtual table
+- Document embeddings in `document_embeddings` vec0 virtual table
+- Single model per database ensures dimension consistency
+- Semantic metadata unchanged in chunks/documents tables
 
 #### Example Request (Initial)
 ```typescript
@@ -1300,6 +1335,26 @@ mcp__folder-mcp__search({
   threshold: 0.3
   // limit: 10 is the default
 })
+```
+
+#### Vec0 Search Query (Internal Implementation)
+```sql
+-- Native vec0 similarity search with SIMD acceleration
+SELECT
+  c.id as chunk_id,
+  c.content,
+  c.chunk_index,
+  c.key_phrases,        -- ✅ Semantic metadata preserved
+  c.readability_score,  -- ✅ Semantic metadata preserved
+  d.file_path,
+  d.document_keywords,  -- ✅ Document-level keywords preserved
+  vec_distance_cosine(ce.embedding, ?) as distance
+FROM chunk_embeddings ce
+WHERE ce.embedding MATCH ?  -- ✅ Vec0 MATCH operator (SIMD-accelerated)
+JOIN chunks c ON ce.chunk_id = c.id
+JOIN documents d ON c.document_id = d.id
+ORDER BY distance ASC
+LIMIT 10;
 ```
 
 #### Example Response with Download URLs

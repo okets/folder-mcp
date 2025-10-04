@@ -304,32 +304,56 @@ class FolderMCPDaemon {
 
   async stop(): Promise<void> {
     info('Stopping daemon...');
-    
+
+    // CRITICAL: Stop MonitoredFoldersOrchestrator FIRST to gracefully shut down Python subprocess
+    // This prevents Python crashes when daemon is killed during model loading
+    if (this.monitoredFoldersOrchestrator) {
+      debug('Stopping MonitoredFoldersOrchestrator (this will shut down Python subprocess)...');
+      try {
+        await this.monitoredFoldersOrchestrator.stopAll();
+        this.monitoredFoldersOrchestrator = null;
+        info('MonitoredFoldersOrchestrator stopped successfully');
+      } catch (error) {
+        warn('Error stopping MonitoredFoldersOrchestrator:', error);
+      }
+    }
+
+    // Cleanup Python embedding service registry singleton
+    try {
+      debug('Cleaning up Python embedding service registry...');
+      const { PythonEmbeddingServiceRegistry } = await import('./factories/model-factories.js');
+      const registry = PythonEmbeddingServiceRegistry.getInstance();
+      await registry.cleanup();
+      debug('Python embedding service registry cleaned up');
+    } catch (error) {
+      warn('Error cleaning up Python embedding service registry:', error);
+    }
+
     // Stop WebSocket server
     if (this.webSocketServer) {
       debug('Stopping WebSocket server...');
       await this.webSocketServer.stop();
       this.webSocketServer = null;
     }
-    
+
     // Stop REST API server
     if (this.restAPIServer) {
       debug('Stopping REST API server...');
       await this.restAPIServer.stop();
       this.restAPIServer = null;
     }
-    
+
     // Stop MCP process if running
     if (this.mcpProcess) {
       debug('Stopping MCP process...');
       this.mcpProcess.kill('SIGTERM');
       this.mcpProcess = null;
     }
-    
-    
+
+
     // Legacy PID file cleanup no longer needed - DaemonRegistry handles cleanup
     // this.removePidFile();
-    
+
     // Clean up discovery registry
     try {
       await DaemonRegistry.cleanup();
@@ -337,7 +361,7 @@ class FolderMCPDaemon {
     } catch (error) {
       warn('Failed to cleanup discovery registry:', error);
     }
-    
+
     info('Daemon stopped');
   }
 
@@ -629,11 +653,16 @@ class FolderMCPDaemon {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('uncaughtException', (err) => {
-      logError('Uncaught exception:', err);
+      logError('Uncaught exception:', err); // stderr for console
+      // Also log to file for debugging
+      this.logToFile(`FATAL: Uncaught exception - daemon crashing: ${err instanceof Error ? err.message : String(err)}\nStack: ${err instanceof Error ? err.stack : 'N/A'}`);
       this.stop().finally(() => process.exit(1));
     });
     process.on('unhandledRejection', (reason) => {
-      logError('Unhandled rejection:', reason);
+      logError('Unhandled rejection:', reason); // stderr for console
+      // Also log to file for debugging
+      const reasonStr = reason instanceof Error ? `${reason.message}\nStack: ${reason.stack}` : String(reason);
+      this.logToFile(`FATAL: Unhandled promise rejection - daemon crashing: ${reasonStr}`);
       this.stop().finally(() => process.exit(1));
     });
     

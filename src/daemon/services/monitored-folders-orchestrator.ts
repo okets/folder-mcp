@@ -22,6 +22,7 @@ import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import { PythonEmbeddingServiceRegistry } from '../factories/model-factories.js';
 import { getDefaultModelId, getSentenceTransformerIdFromModelId } from '../../config/model-registry.js';
 import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
+import { PeriodicSyncService } from '../../application/monitoring/periodic-sync-service.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -123,6 +124,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private folderIndexingQueue: FolderIndexingQueue;
   private modelFactory: UnifiedModelFactory;
   private pythonInitializationPromise?: Promise<void>;
+  private periodicSyncService: PeriodicSyncService;
+  private folderStorages = new Map<string, SQLiteVecStorage>(); // Track storage per folder
   
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
@@ -182,8 +185,17 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
     });
 
+    // Initialize periodic sync service (60 second interval)
+    this.periodicSyncService = new PeriodicSyncService(this.logger, this.fileSystemService, {
+      intervalMs: 60000, // 60 seconds
+      vec0CleanupEnabled: true
+    });
+
     // Start periodic folder validation (every 30 seconds)
     this.startFolderValidation();
+
+    // Start periodic filesystem sync (every 60 seconds)
+    this.startPeriodicSync();
   }
   
   async addFolder(path: string, model: string): Promise<void> {
@@ -276,6 +288,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async startFolderLifecycle(path: string, model: string): Promise<void> {
     try {
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] startFolderLifecycle() called for ${path} with model ${model}`);
       this.logger.debug(`[ORCHESTRATOR] Starting lifecycle for FMDM folder ${path} with model ${model}`);
       
       // Check if model is available through FMDM
@@ -316,6 +329,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       // Model is already installed, proceed with folder setup
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] Model ${model} already installed, calling startFolderScanning()`);
       await this.startFolderScanning(path, model, false); // Don't save to config during startup
       
     } catch (error) {
@@ -412,6 +426,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async startFolderScanning(path: string, model: string, saveToConfig: boolean = true): Promise<void> {
     try {
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] startFolderScanning() called for ${path}`);
       // Get the actual model dimensions from curated models
       const modelDimension = getModelDimensions(model);
       this.logger.debug(`[ORCHESTRATOR] Model ${model} has dimension ${modelDimension}`);
@@ -468,11 +483,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       );
       
       // Subscribe to manager events
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] Calling subscribeFolderEvents() for ${path}`);
       this.subscribeFolderEvents(path, folderManager);
-      
-      // Store manager
+
+      // Store manager and storage for periodic sync
       this.folderManagers.set(path, folderManager);
-      
+      this.folderStorages.set(path, storage);
+
       // Update FMDM for initial pending state
       this.updateFMDM();
       
@@ -680,6 +697,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     // Only delete from managers if it existed
     if (manager) {
       this.folderManagers.delete(folderPath);
+      this.folderStorages.delete(folderPath); // Also remove storage tracking
       this.logger.debug(`[ORCHESTRATOR-REMOVE] Deleted manager for ${folderPath}, remaining managers: ${this.folderManagers.size}`);
     } else {
       // For error state folders without managers, we need to explicitly remove from FMDM
@@ -788,9 +806,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   async stopAll(): Promise<void> {
     const shutdownStartTime = Date.now();
     this.logger.info(`Stopping all ${this.folderManagers.size} folder managers`);
-    
+
     // Stop folder validation timer
     this.stopFolderValidation();
+
+    // Stop periodic filesystem sync
+    this.stopPeriodicSync();
     
     // Stop the folder indexing queue first
     // This will stop current processing and clear the queue
@@ -855,20 +876,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Subscribe to events from a folder manager
    */
   private subscribeFolderEvents(folderPath: string, manager: IFolderLifecycleManager): void {
+    this.logger.info(`🔍 [FILE-WATCH-TRACE] subscribeFolderEvents() setting up event listeners for ${folderPath}`);
+
     // Listen for state changes
     manager.on('stateChange', (state) => {
       this.logger.debug(`[ORCHESTRATOR] Folder ${folderPath} state changed to: ${state.status}`);
       this.onFolderStateChange(folderPath, state);
     });
-    
+
     // Listen for scan completion
     manager.on('scanComplete', (state) => {
       this.logger.debug(`[ORCHESTRATOR] Folder ${folderPath} scan complete with ${state.fileEmbeddingTasks?.length || 0} tasks`);
       this.onScanComplete(folderPath, manager, state);
     });
-    
+
     // Listen for index completion
     manager.on('indexComplete', (state) => {
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] indexComplete event fired for ${folderPath}`);
       this.logger.debug(`[ORCHESTRATOR] Folder ${folderPath} indexing complete`);
       this.onIndexComplete(folderPath, state);
     });
@@ -957,15 +981,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Handle index completion - start file watching when folder becomes active
    */
   private async onIndexComplete(folderPath: string, state: any): Promise<void> {
+    this.logger.info(`🔍 [FILE-WATCH-TRACE] onIndexComplete() called for ${folderPath}`);
     this.logger.info(`[ORCHESTRATOR] Indexing complete for ${folderPath}, starting file watching`);
-    
+
     // Create and emit FMDM informational message for active state
     if (state.indexingStats) {
       const { fileCount, indexingTimeSeconds } = state.indexingStats;
       const infoMessage = `▶ ${folderPath} [active] i ${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`;
-      
+
       this.logger.info(`[ORCHESTRATOR] ${infoMessage}`);
-      
+
       // Update folder status to 'active' with permanent completion notification
       this.fmdmService.updateFolderStatus(folderPath, 'active', {
         message: `${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`,
@@ -974,12 +999,23 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     } else {
       this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folderPath}`);
     }
-    
+
     // Check for Windows performance issues when folder becomes active after indexing
     await this.checkWindowsPerformanceForFolder(folderPath, state.model);
-    
+
+    // Only start file watching if not already watching
+    // This prevents duplicate watcher creation on re-indexing events
+    if (this.monitoringOrchestrator) {
+      const watchStatus = await this.monitoringOrchestrator.getWatchingStatus(folderPath);
+      if (watchStatus.isActive) {
+        this.logger.debug(`[ORCHESTRATOR] File watching already active for ${folderPath}, skipping`);
+        this.updateFMDM();
+        return;
+      }
+    }
+
     await this.startFileWatchingForFolder(folderPath);
-    
+
     // Update FMDM
     this.updateFMDM();
   }
@@ -989,8 +1025,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async startFileWatchingForFolder(folderPath: string): Promise<void> {
     try {
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] startFileWatchingForFolder() called for ${folderPath}`);
       // Create MonitoringOrchestrator if we don't have one
       if (!this.monitoringOrchestrator) {
+        this.logger.info(`🔍 [FILE-WATCH-TRACE] Creating new MonitoringOrchestrator instance`);
         this.logger.debug(`[ORCHESTRATOR] Creating MonitoringOrchestrator for file watching`);
         const { MonitoringOrchestrator } = await import('../../application/monitoring/orchestrator.js');
         
@@ -1048,8 +1086,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         ]
       };
       
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] Calling monitoringOrchestrator.startFileWatching() for ${folderPath}`);
       const watchResult = await this.monitoringOrchestrator.startFileWatching(folderPath, watchingOptions);
-      
+
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] startFileWatching() returned: success=${watchResult.success}`);
       if (watchResult.success) {
         this.logger.info(`[ORCHESTRATOR] File watching started successfully for ${folderPath}`, {
           watchId: watchResult.watchId,
@@ -1067,7 +1107,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Handle changes detected - re-queue folder for full indexing
    */
   private async onChangesDetected(folderPath: string, manager: IFolderLifecycleManager): Promise<void> {
-    this.logger.info(`[ORCHESTRATOR] Re-queuing folder ${folderPath} for indexing due to file changes`);
+    this.logger.info(`[ORCHESTRATOR] File changes detected in ${folderPath}`);
 
     // Get the folder configuration from FMDM
     const currentFMDM = this.fmdmService.getFMDM();
@@ -1078,8 +1118,28 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       return;
     }
 
+    // Check if folder just completed indexing (within last 5 seconds)
+    // This prevents re-queuing due to file watcher events triggered by the indexing process itself
+    const managerState = manager.getState();
+    const lastCompletionTime = managerState.lastIndexingCompletedAt;
+
+    if (lastCompletionTime) {
+      const timeSinceCompletion = Date.now() - lastCompletionTime;
+      const GRACE_PERIOD_MS = 5000; // 5 seconds
+
+      if (timeSinceCompletion < GRACE_PERIOD_MS) {
+        this.logger.info(
+          `[ORCHESTRATOR] Ignoring re-queue request for ${folderPath} - ` +
+          `just completed indexing ${timeSinceCompletion}ms ago (within ${GRACE_PERIOD_MS}ms grace period)`
+        );
+        return;
+      }
+    }
+
     // Re-queue the folder for full indexing (same as daemon restart behavior)
     try {
+      this.logger.info(`[ORCHESTRATOR] Re-queuing folder ${folderPath} for indexing due to file changes`);
+
       // Reset the manager to pending state to allow re-processing
       manager.reset();
 
@@ -1254,6 +1314,33 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       delete this.folderValidationTimer;
       this.logger.debug('[ORCHESTRATOR] Stopped folder validation timer');
     }
+  }
+
+  /**
+   * Start periodic filesystem sync
+   */
+  private startPeriodicSync(): void {
+    this.logger.info('[ORCHESTRATOR] Starting periodic filesystem sync');
+
+    this.periodicSyncService.start(async () => {
+      this.logger.info(`[PERIODIC-SYNC] Executing periodic sync for ${this.folderManagers.size} folders`);
+      // Sync all folders
+      for (const [folderPath, manager] of this.folderManagers) {
+        const storage = this.folderStorages.get(folderPath);
+        if (storage) {
+          await this.periodicSyncService.syncFolder(folderPath, manager, storage);
+        }
+      }
+      this.logger.info('[PERIODIC-SYNC] Periodic sync cycle completed');
+    });
+  }
+
+  /**
+   * Stop periodic filesystem sync
+   */
+  private stopPeriodicSync(): void {
+    this.periodicSyncService.stop();
+    this.logger.debug('[ORCHESTRATOR] Stopped periodic filesystem sync');
   }
   
   /**

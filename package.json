@@ -117,7 +117,7 @@
     "pizzip": "^3.2.0",
     "react": "^19.1.0",
     "sqlite": "^5.1.1",
-    "sqlite-vec": "^0.1.7-alpha.2",
+    "sqlite-vec": "^0.1.6",
     "sqlite3": "^5.1.7",
     "strip-ansi": "^7.1.0",
     "systeminformation": "^5.27.7",

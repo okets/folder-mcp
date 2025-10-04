@@ -287,7 +287,10 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
-        
+
+        // Record indexing completion timestamp for re-queue grace period
+        this.state.lastIndexingCompletedAt = Date.now();
+
         // Also emit indexComplete event with statistics for consistency
         this.emit('indexComplete', { ...this.getState(), indexingStats });
         this.logger.debug('[MANAGER-PROCESS] Successfully transitioned to active state');
@@ -496,6 +499,17 @@ return;
       case 'CreateEmbeddings':
       case 'UpdateEmbeddings':
         try {
+          // For UpdateEmbeddings: DELETE old document BEFORE adding new one (UPDATE = DELETE + RE-ADD)
+          if (task.task === 'UpdateEmbeddings') {
+            try {
+              await this.sqliteVecStorage.deleteDocument(task.file);
+              this.logger.debug(`[MANAGER-UPDATE] Deleted old document before re-indexing: ${task.file}`);
+            } catch (deleteError) {
+              // If document doesn't exist, that's fine - it might be a new file misclassified as update
+              this.logger.debug(`[MANAGER-UPDATE] No existing document to delete (new file or already removed): ${task.file}`);
+            }
+          }
+
           // Create progress callback to update chunk progress
           const progressCallback = (totalChunks: number, processedChunks: number) => {
             // Update task in state with chunk progress
@@ -503,12 +517,12 @@ return;
             if (stateTask) {
               stateTask.totalChunks = totalChunks;
               stateTask.processedChunks = processedChunks;
-              
+
               // Trigger progress update to refresh the message
               this.updateProgress();
             }
           };
-          
+
           // Process file with IndexingOrchestrator to get embeddings and metadata
           // Using per-folder model configuration for embeddings
           const fileResult = await this.indexingOrchestrator.processFile(task.file, this.model, {}, progressCallback);
@@ -753,10 +767,13 @@ return;
       });
       // Clear progress message when becoming active
       delete this.state.progressMessage;
-      
+
       // Emit final 100% progress event
       this.emit('progressUpdate', finalProgress);
-      
+
+      // Record indexing completion timestamp for re-queue grace period
+      this.state.lastIndexingCompletedAt = Date.now();
+
       // Emit indexComplete event with statistics
       this.emit('indexComplete', { ...this.getState(), indexingStats });
       this.logger.debug('[MANAGER-TRANSITION] Successfully transitioned to active state after model validation');
@@ -1030,17 +1047,86 @@ return;
       
       // Log scan completion
       this.indexingLogger.logScanCompleted(this.folderPath, toProcessCount, skippedCount);
-      
+
+      // CRITICAL: Detect orphaned records (files in database but no longer on disk)
+      // Only run orphan cleanup periodically (once per hour) to avoid performance impact
+      await this.detectAndHandleOrphanedRecordsIfNeeded(currentFiles, changes);
+
       // Clear scanning progress when done
       this.clearScanningProgress();
-      
+
     } catch (error) {
       this.logger.error('[MANAGER-DETECT-ERROR] Error in detectChanges:', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
-    
+
     this.logger.debug(`[MANAGER-DETECT] Final result: ${changes.length} changes detected`);
     return changes;
+  }
+
+  /**
+   * Detect and handle orphaned database records if enough time has passed since last cleanup
+   * Only runs orphan cleanup once per hour to avoid performance impact on frequent scans
+   */
+  private async detectAndHandleOrphanedRecordsIfNeeded(currentFiles: string[], changes: FileChangeInfo[]): Promise<void> {
+    const ORPHAN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+
+    const now = Date.now();
+    const lastCleanup = this.state.lastOrphanCleanup || 0;
+    const timeSinceLastCleanup = now - lastCleanup;
+
+    if (timeSinceLastCleanup < ORPHAN_CLEANUP_INTERVAL_MS) {
+      this.logger.debug(`[MANAGER-ORPHAN] Skipping orphan cleanup - last run ${Math.round(timeSinceLastCleanup / 1000 / 60)} minutes ago (runs once per hour)`);
+      return;
+    }
+
+    this.logger.info(`[MANAGER-ORPHAN] Running periodic orphan cleanup (last run: ${Math.round(timeSinceLastCleanup / 1000 / 60)} minutes ago)`);
+
+    try {
+      // Get all documents from database
+      const allDatabaseDocs = await this.sqliteVecStorage.getAllDocumentPaths();
+
+      // Create a Set of current file paths for fast lookup
+      const currentFilesSet = new Set(currentFiles);
+
+      // Find orphaned documents (in database but not on disk)
+      const orphanedDocs = allDatabaseDocs.filter(dbPath => !currentFilesSet.has(dbPath));
+
+      if (orphanedDocs.length > 0) {
+        this.logger.info(`[MANAGER-ORPHAN] Found ${orphanedDocs.length} orphaned records to clean up`);
+
+        // Remove orphaned documents using batch deletion (single transaction)
+        try {
+          this.logger.debug(`[MANAGER-ORPHAN] Starting batch deletion of ${orphanedDocs.length} orphaned records`);
+          await this.sqliteVecStorage.deleteDocumentsBatch(orphanedDocs);
+          this.logger.info(`[MANAGER-ORPHAN] Orphan cleanup complete: ${orphanedDocs.length} records removed`);
+        } catch (batchError) {
+          this.logger.error(`[MANAGER-ORPHAN] Batch orphan cleanup failed, falling back to individual deletions:`, batchError instanceof Error ? batchError : new Error(String(batchError)));
+
+          // Fallback: individual deletions with small delay to prevent lock contention
+          for (const orphanedPath of orphanedDocs) {
+            try {
+              this.logger.debug(`[MANAGER-ORPHAN] Removing orphaned record: ${orphanedPath}`);
+              await this.sqliteVecStorage.removeDocument(orphanedPath);
+              await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay between deletions
+              this.logger.debug(`[MANAGER-ORPHAN] Successfully removed orphaned record: ${orphanedPath}`);
+            } catch (error) {
+              this.logger.warn(`[MANAGER-ORPHAN] Failed to remove orphaned record ${orphanedPath}:`, error);
+            }
+          }
+          this.logger.info(`[MANAGER-ORPHAN] Orphan cleanup complete (fallback method used)`);
+        }
+      } else {
+        this.logger.debug(`[MANAGER-ORPHAN] No orphaned records found - database is clean`);
+      }
+
+      // Update last cleanup timestamp
+      this.state.lastOrphanCleanup = Date.now();
+
+    } catch (error) {
+      this.logger.error(`[MANAGER-ORPHAN] Error during orphan detection:`, error instanceof Error ? error : new Error(String(error)));
+      // Don't throw - orphan cleanup is not critical enough to fail the entire scan
+    }
   }
 
   /**

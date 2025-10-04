@@ -64,6 +64,8 @@ export interface FolderLifecycleState {
   lastScanCompleted?: Date;
   lastIndexStarted?: Date;
   lastIndexCompleted?: Date;
+  lastIndexingCompletedAt?: number; // Timestamp (Date.now()) of last indexing completion - used for re-queue grace period
+  lastOrphanCleanup?: number; // Timestamp (Date.now()) of last orphan cleanup - prevents running too frequently
   fileEmbeddingTasks: FileEmbeddingTask[];
   progress: FolderProgress;
   scanningProgress?: ScanningProgress;

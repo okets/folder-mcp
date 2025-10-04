@@ -362,23 +362,37 @@ export class SQLiteVecStorage implements IVectorSearchService {
     ): Promise<void> {
         const db = this.dbManager.getDatabase();
 
-        const updateStmt = db.prepare(`
-            UPDATE documents
-            SET document_embedding = ?,
-                document_keywords = ?,
-                embedding_generated = 1,
-                keywords_extracted = 1,
-                document_processing_ms = ?
-            WHERE file_path = ?
-        `);
+        // Get document ID first
+        const getDocStmt = db.prepare('SELECT id FROM documents WHERE file_path = ?');
+        const doc = getDocStmt.get(filePath) as any;
 
-        const result = updateStmt.run(documentEmbedding, documentKeywords, processingTimeMs, filePath);
-
-        if (result.changes === 0) {
-            throw new Error(`Document not found for update: ${filePath}`);
+        if (!doc) {
+            throw new Error(`Document not found for semantics update: ${filePath}`);
         }
 
-        this.logger?.info(`Document semantics updated for: ${filePath}`);
+        const docId = doc.id;
+
+        // Update document keywords and processing time
+        const updateKeywordsStmt = db.prepare(QUERIES.updateDocumentKeywords);
+        updateKeywordsStmt.run(documentKeywords, docId);
+
+        const updateTimeStmt = db.prepare(QUERIES.updateDocumentProcessingTime);
+        updateTimeStmt.run(processingTimeMs, docId);
+
+        // Insert document embedding into vec0 table with document_id as INTEGER metadata column
+        // Ensure document_id is a plain integer (better-sqlite3 can return BigInt)
+        const docIdInt = Number(docId);
+
+        // documentEmbedding is base64-encoded string from DocumentEmbeddingService.serializeEmbedding()
+        // Convert base64 → Float32Array → JSON array for vec_f32()
+        const buffer = Buffer.from(documentEmbedding, 'base64');
+        const float32Array = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+        const embeddingJson = JSON.stringify(Array.from(float32Array));
+
+        // CRITICAL: Use CAST(? AS INTEGER) because better-sqlite3 sends parameters as FLOAT to vec0
+        db.prepare('INSERT INTO document_embeddings (document_id, embedding) VALUES (CAST(? AS INTEGER), vec_f32(?))').run(docIdInt, embeddingJson);
+
+        this.logger?.info(`Document semantics updated for: ${filePath} (doc_id=${docId})`);
     }
 
     /**
@@ -407,7 +421,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
         // Prepare all statements
         const insertDocStmt = db.prepare(QUERIES.insertDocument);
         const insertChunkStmt = db.prepare(QUERIES.insertChunk);
-        const insertEmbeddingStmt = db.prepare(QUERIES.insertEmbedding);
+        // Don't prepare chunk embedding statement - will use raw SQL with vec_f32() inside transaction
 
         // Execute in transaction
         const insertTransaction = db.transaction(() => {
@@ -510,12 +524,15 @@ export class SQLiteVecStorage implements IVectorSearchService {
                     new Date().toISOString()  // semantic_timestamp - current timestamp
                 );
 
-                const chunkId = chunkResult.lastInsertRowid as number;
+                // Ensure chunk_id is a plain integer (better-sqlite3 can return BigInt)
+                const chunkId = Number(chunkResult.lastInsertRowid);
 
-                // Insert embedding - temporarily store as JSON string for debugging
+                // Insert embedding into vec0 table with chunk_id as INTEGER metadata column
                 const embeddingArray = Array.isArray(embedding) ? embedding : (embedding?.vector || []);
                 const embeddingJson = JSON.stringify(embeddingArray);
-                insertEmbeddingStmt.run(chunkId, embeddingJson);
+
+                // CRITICAL: Use CAST(? AS INTEGER) because better-sqlite3 sends parameters as FLOAT to vec0
+                db.prepare('INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (CAST(? AS INTEGER), vec_f32(?))').run(chunkId, embeddingJson);
             }
         });
 
@@ -539,6 +556,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
 
     /**
      * Delete document and all associated data
+     * Manual CASCADE for vec0 tables (they don't support foreign keys)
      */
     async deleteDocument(filePath: string): Promise<void> {
         if (!this.dbManager.isReady()) {
@@ -546,16 +564,46 @@ export class SQLiteVecStorage implements IVectorSearchService {
         }
 
         const db = this.dbManager.getDatabase();
-        
+
         // Get document ID
         const getDocStmt = db.prepare(QUERIES.getDocument);
         const doc = getDocStmt.get(filePath) as any;
-        
-        if (doc) {
-            // Delete all associated data (cascading deletes will handle chunks/embeddings)
-            const deleteStmt = db.prepare(QUERIES.deleteDocument);
-            deleteStmt.run(filePath);
-            this.logger?.debug(`Deleted document: ${filePath}`);
+
+        if (!doc) {
+            this.logger?.debug(`Document not found for deletion: ${filePath}`);
+            return;
+        }
+
+        const docId = doc.id;
+
+        // Get all chunk IDs before transaction
+        const getChunksStmt = db.prepare('SELECT id FROM chunks WHERE document_id = ?');
+        const chunks = getChunksStmt.all(docId) as any[];
+
+        // Execute deletion in transaction with manual CASCADE for vec0 tables
+        const deleteTransaction = db.transaction(() => {
+            // 1. Delete chunk embeddings from vec0 table (manual CASCADE)
+            const deleteChunkEmbStmt = db.prepare('DELETE FROM chunk_embeddings WHERE chunk_id = ?');
+            for (const chunk of chunks) {
+                deleteChunkEmbStmt.run(chunk.id);
+            }
+
+            // 2. Delete document embedding from vec0 table (manual CASCADE)
+            const deleteDocEmbStmt = db.prepare(QUERIES.deleteDocumentEmbedding);
+            deleteDocEmbStmt.run(docId);
+
+            // 3. Delete document (regular CASCADE handles chunks table)
+            const deleteDocStmt = db.prepare(QUERIES.deleteDocument);
+            deleteDocStmt.run(filePath);
+        });
+
+        try {
+            deleteTransaction();
+            this.logger?.debug(`Deleted document and vec0 embeddings: ${filePath} (doc_id=${docId}, chunks=${chunks.length})`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger?.error(`Failed to delete document ${filePath}: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+            throw error;
         }
     }
 
@@ -565,6 +613,106 @@ export class SQLiteVecStorage implements IVectorSearchService {
      */
     async removeDocument(filePath: string): Promise<void> {
         await this.deleteDocument(filePath);
+    }
+
+    /**
+     * Batch delete multiple documents in a single transaction
+     * Critical for bulk operations to prevent SQLite lock contention
+     * @param filePaths Array of file paths to delete (max 1000 per batch)
+     * @param maxBatchSize Maximum number of documents to delete in single transaction (default: 1000)
+     */
+    async deleteDocumentsBatch(filePaths: string[], maxBatchSize: number = 1000): Promise<void> {
+        if (!this.dbManager.isReady()) {
+            throw new Error('Database not initialized');
+        }
+
+        if (filePaths.length === 0) {
+            this.logger?.debug('Batch deletion called with empty array');
+            return;
+        }
+
+        // If batch exceeds max size, split into chunks and process recursively
+        if (filePaths.length > maxBatchSize) {
+            this.logger?.info(`Batch size ${filePaths.length} exceeds limit ${maxBatchSize}, splitting into chunks`);
+
+            for (let i = 0; i < filePaths.length; i += maxBatchSize) {
+                const chunk = filePaths.slice(i, i + maxBatchSize);
+                this.logger?.debug(`Processing batch chunk ${Math.floor(i / maxBatchSize) + 1}/${Math.ceil(filePaths.length / maxBatchSize)}: ${chunk.length} files`);
+                await this.deleteDocumentsBatch(chunk, maxBatchSize); // Recursive call with chunk
+            }
+
+            this.logger?.info(`Completed batch deletion of ${filePaths.length} documents in ${Math.ceil(filePaths.length / maxBatchSize)} chunks`);
+            return;
+        }
+
+        const db = this.dbManager.getDatabase();
+
+        // Collect all documents and chunks before transaction
+        const docsToDelete: Array<{ docId: number; filePath: string; chunks: any[] }> = [];
+
+        for (const filePath of filePaths) {
+            const getDocStmt = db.prepare(QUERIES.getDocument);
+            const doc = getDocStmt.get(filePath) as any;
+
+            if (!doc) {
+                this.logger?.debug(`Document not found for deletion: ${filePath}`);
+                continue;
+            }
+
+            const getChunksStmt = db.prepare('SELECT id FROM chunks WHERE document_id = ?');
+            const chunks = getChunksStmt.all(doc.id) as any[];
+
+            docsToDelete.push({ docId: doc.id, filePath, chunks });
+        }
+
+        if (docsToDelete.length === 0) {
+            this.logger?.debug('No documents found for batch deletion');
+            return;
+        }
+
+        // Execute all deletions in a single transaction
+        const batchDeleteTransaction = db.transaction(() => {
+            const deleteChunkEmbStmt = db.prepare('DELETE FROM chunk_embeddings WHERE chunk_id = ?');
+            const deleteDocEmbStmt = db.prepare(QUERIES.deleteDocumentEmbedding);
+            const deleteDocStmt = db.prepare(QUERIES.deleteDocument);
+
+            for (const { docId, filePath, chunks } of docsToDelete) {
+                // 1. Delete chunk embeddings from vec0 table (manual CASCADE)
+                for (const chunk of chunks) {
+                    deleteChunkEmbStmt.run(chunk.id);
+                }
+
+                // 2. Delete document embedding from vec0 table (manual CASCADE)
+                deleteDocEmbStmt.run(docId);
+
+                // 3. Delete document (regular CASCADE handles chunks table)
+                deleteDocStmt.run(filePath);
+            }
+        });
+
+        try {
+            batchDeleteTransaction();
+            this.logger?.debug(`Batch deleted ${docsToDelete.length} documents with vec0 embeddings (total chunks: ${docsToDelete.reduce((sum, d) => sum + d.chunks.length, 0)})`);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger?.error(`Batch deletion failed for ${filePaths.length} documents: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
+            throw error;
+        }
+    }
+
+    /**
+     * Get all document paths from the database
+     * Used for orphan detection - finding documents in DB that no longer exist on disk
+     */
+    async getAllDocumentPaths(): Promise<string[]> {
+        if (!this.dbManager.isReady()) {
+            throw new Error('Database not initialized');
+        }
+
+        const db = this.dbManager.getDatabase();
+        const stmt = db.prepare('SELECT file_path FROM documents');
+        const rows = stmt.all() as { file_path: string }[];
+        return rows.map(row => row.file_path);
     }
 
     /**

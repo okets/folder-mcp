@@ -22,13 +22,13 @@ function getSchemaVersion(): number {
 }
 
 // Schema version from VERSION.json (or fallback)
-// Version 3: Added document-level embeddings and keywords (Sprint 11)
+// Version 4: Migrated to vec0 virtual tables (Sprint 7.5)
 export const SCHEMA_VERSION = getSchemaVersion();
 
 /**
  * Core document tracking table
  * Stores metadata about indexed files
- * Enhanced with document-level embeddings and keywords (Sprint 11)
+ * Document embeddings now stored in document_embeddings vec0 table (Sprint 7.5)
  */
 export const DOCUMENTS_TABLE = `
 CREATE TABLE IF NOT EXISTS documents (
@@ -40,11 +40,9 @@ CREATE TABLE IF NOT EXISTS documents (
     last_modified TIMESTAMP NOT NULL,
     last_indexed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     needs_reindex INTEGER DEFAULT 0,
-    -- Document-level semantic data (Sprint 11)
-    document_embedding TEXT,              -- Serialized Float32Array of document embedding
+    -- Document-level semantic metadata
     document_keywords TEXT,               -- JSON array of {text, score} objects
     keywords_extracted INTEGER DEFAULT 0, -- Flag: 1 if keywords have been extracted
-    embedding_generated INTEGER DEFAULT 0, -- Flag: 1 if embedding has been generated
     document_processing_ms INTEGER        -- Time taken for document-level processing
 );`;
 
@@ -71,14 +69,25 @@ CREATE TABLE IF NOT EXISTS chunks (
 );`;
 
 /**
- * Vector embeddings storage using vec0 extension
- * Note: The dimension will be set dynamically based on the embedding model
- * TODO: Temporarily using regular table instead of vec0 virtual table for debugging
+ * Vec0 virtual table for chunk embeddings
+ * Uses implicit rowid for identity, chunk_id as metadata column for filtering
+ * Dimension is injected dynamically based on the embedding model
  */
-export const EMBEDDINGS_TABLE_TEMPLATE = `
-CREATE TABLE IF NOT EXISTS embeddings (
-    chunk_id INTEGER PRIMARY KEY REFERENCES chunks(id) ON DELETE CASCADE,
-    embedding TEXT
+export const CHUNK_EMBEDDINGS_TABLE_TEMPLATE = `
+CREATE VIRTUAL TABLE IF NOT EXISTS chunk_embeddings USING vec0(
+    chunk_id INTEGER,
+    embedding FLOAT32[\${dimension}]
+);`;
+
+/**
+ * Vec0 virtual table for document embeddings
+ * Uses implicit rowid for identity, document_id as metadata column for filtering
+ * Dimension matches chunk embeddings (same model)
+ */
+export const DOCUMENT_EMBEDDINGS_TABLE_TEMPLATE = `
+CREATE VIRTUAL TABLE IF NOT EXISTS document_embeddings USING vec0(
+    document_id INTEGER,
+    embedding FLOAT32[\${dimension}]
 );`;
 
 
@@ -143,29 +152,33 @@ export const INDEXES = [
     // Semantic indexes for Sprint 10
     'CREATE INDEX IF NOT EXISTS idx_chunks_semantic_processed ON chunks(semantic_processed);',
     // Document-level semantic indexes for Sprint 11
-    'CREATE INDEX IF NOT EXISTS idx_documents_keywords_extracted ON documents(keywords_extracted);',
-    'CREATE INDEX IF NOT EXISTS idx_documents_embedding_generated ON documents(embedding_generated);'
+    'CREATE INDEX IF NOT EXISTS idx_documents_keywords_extracted ON documents(keywords_extracted);'
 ];
 
 /**
- * Complete schema setup function
- * Creates all tables and indexes for a new database
+ * Create vec0 virtual tables with correct dimension
+ * Injects dimension into template strings
  */
-export function createEmbeddingsTable(dimension: number): string {
-    return EMBEDDINGS_TABLE_TEMPLATE.replace('{DIMENSION}', dimension.toString());
+function createChunkEmbeddingsTable(dimension: number): string {
+    return CHUNK_EMBEDDINGS_TABLE_TEMPLATE.replace('${dimension}', dimension.toString());
+}
+
+function createDocumentEmbeddingsTable(dimension: number): string {
+    return DOCUMENT_EMBEDDINGS_TABLE_TEMPLATE.replace('${dimension}', dimension.toString());
 }
 
 /**
  * All table creation statements in dependency order
+ * Vec0 virtual tables created with dynamic dimension from model config
  */
 export function getAllTableStatements(embeddingDimension: number): string[] {
     return [
         DOCUMENTS_TABLE,
         CHUNKS_TABLE,
-        createEmbeddingsTable(embeddingDimension),
+        createChunkEmbeddingsTable(embeddingDimension),
+        createDocumentEmbeddingsTable(embeddingDimension),
         EMBEDDING_CONFIG_TABLE,
         FILE_STATES_TABLE,
-        // REMOVED: FOLDER_SEMANTIC_SUMMARY_TABLE (Phase 5 cleanup - using runtime aggregation)
         SCHEMA_VERSION_TABLE,
         ...INDEXES
     ];
@@ -176,14 +189,14 @@ export function getAllTableStatements(embeddingDimension: number): string[] {
  */
 export const VALIDATION_QUERIES = {
     checkTables: `
-        SELECT name FROM sqlite_master 
-        WHERE type='table' 
-        AND name IN ('documents', 'chunks', 'embeddings', 'embedding_config', 'file_states')
+        SELECT name FROM sqlite_master
+        WHERE type='table'
+        AND name IN ('documents', 'chunks', 'chunk_embeddings', 'document_embeddings', 'embedding_config', 'file_states')
         ORDER BY name;
     `,
     checkIndexes: `
-        SELECT name FROM sqlite_master 
-        WHERE type='index' 
+        SELECT name FROM sqlite_master
+        WHERE type='index'
         AND name LIKE 'idx_%'
         ORDER BY name;
     `,
@@ -216,14 +229,16 @@ export const QUERIES = {
     getChunksByDocument: 'SELECT * FROM chunks WHERE document_id = ? ORDER BY chunk_index',
     deleteChunksByDocument: 'DELETE FROM chunks WHERE document_id = ?',
     
-    // Embedding operations
-    insertEmbedding: 'INSERT INTO embeddings (chunk_id, embedding) VALUES (?, ?)',
-    deleteEmbeddingsByDocument: `
-        DELETE FROM embeddings 
+    // Embedding operations - vec0 tables (BLOB created via vec_f32() in application code)
+    insertChunkEmbedding: 'INSERT INTO chunk_embeddings (chunk_id, embedding) VALUES (?, ?)',
+    insertDocumentEmbedding: 'INSERT INTO document_embeddings (document_id, embedding) VALUES (?, ?)',
+    deleteChunkEmbeddingsByDocument: `
+        DELETE FROM chunk_embeddings
         WHERE chunk_id IN (
             SELECT c.id FROM chunks c WHERE c.document_id = ?
         )
     `,
+    deleteDocumentEmbedding: 'DELETE FROM document_embeddings WHERE document_id = ?',
     
     // Search operations - returns metadata only for lazy loading
     similaritySearch: `
@@ -269,33 +284,34 @@ export const QUERIES = {
     // Statistics
     getDocumentCount: 'SELECT COUNT(*) as count FROM documents',
     getChunkCount: 'SELECT COUNT(*) as count FROM chunks',
-    getEmbeddingCount: 'SELECT COUNT(*) as count FROM embeddings',
+    getChunkEmbeddingCount: 'SELECT COUNT(*) as count FROM chunk_embeddings',
+    getDocumentEmbeddingCount: 'SELECT COUNT(*) as count FROM document_embeddings',
     getDatabaseSize: 'SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()',
 
-    // Document-level semantic operations (Sprint 11)
-    updateDocumentEmbedding: `
-        UPDATE documents
-        SET document_embedding = ?,
-            embedding_generated = 1,
-            document_processing_ms = ?
-        WHERE id = ?
-    `,
+    // Document-level semantic operations (Sprint 11/7.5)
     updateDocumentKeywords: `
         UPDATE documents
         SET document_keywords = ?,
             keywords_extracted = 1
         WHERE id = ?
     `,
+    updateDocumentProcessingTime: `
+        UPDATE documents
+        SET document_processing_ms = ?
+        WHERE id = ?
+    `,
     getDocumentSemantics: `
-        SELECT document_embedding, document_keywords,
-               keywords_extracted, embedding_generated
+        SELECT document_keywords, keywords_extracted
         FROM documents
         WHERE id = ?
     `,
     getDocumentsNeedingSemantics: `
         SELECT id, file_path
         FROM documents
-        WHERE keywords_extracted = 0 OR embedding_generated = 0
+        WHERE keywords_extracted = 0
+    `,
+    checkDocumentEmbeddingExists: `
+        SELECT 1 FROM document_embeddings WHERE document_id = ? LIMIT 1
     `,
     
     // Aggregation query for building folder summaries

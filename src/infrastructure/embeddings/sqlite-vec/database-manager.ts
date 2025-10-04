@@ -123,9 +123,8 @@ export class DatabaseManager {
             // Open database connection
             this.db = new Database(this.databasePath);
 
-            // Load vec0 extension
-            // TODO: Temporarily disabled while debugging basic functionality
-            // await this.loadVectorExtension();
+            // Load vec0 extension (required for vec0 virtual tables)
+            await this.loadVectorExtension();
 
             // Configure database settings
             await this.configureDatabase();
@@ -155,31 +154,24 @@ export class DatabaseManager {
 
     /**
      * Load the vec0 extension for vector operations
+     * Fail-loud: No fallback logic, throws on any failure
      */
     private async loadVectorExtension(): Promise<void> {
         if (!this.db) throw new Error('Database not initialized');
 
+        // Load sqlite-vec extension
+        const sqliteVec = await import('sqlite-vec');
+        sqliteVec.load(this.db);
+
+        // Verify vec0 extension is working
         try {
-            // sqlite-vec provides the extension through a different mechanism
-            // First try to load it via the sqlite-vec package
-            const sqliteVec = await import('sqlite-vec');
-            
-            // Enable the extension on this database connection
-            sqliteVec.load(this.db);
-            
-            // Test that the extension is working
             this.db.exec('SELECT vec_version()');
         } catch (error) {
-            // Fallback: try standard extension loading
-            try {
-                this.db.exec('SELECT load_extension("vec0")');
-                this.db.exec('SELECT vec_version()');
-            } catch (fallbackError) {
-                throw new Error(
-                    `Failed to load vec0 extension. Primary error: ${error instanceof Error ? error.message : String(error)}. ` +
-                    `Fallback error: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
-                );
-            }
+            throw new Error(
+                `FATAL: vec0 extension loaded but vec_version() failed. ` +
+                `This indicates sqlite-vec is not properly initialized. ` +
+                `Error: ${error instanceof Error ? error.message : String(error)}`
+            );
         }
     }
 
@@ -241,8 +233,9 @@ export class DatabaseManager {
 
             if (existingConfig.model_dimension !== this.config.modelDimension) {
                 throw new Error(
-                    `Dimension mismatch: Database was created with dimension ${existingConfig.model_dimension}, ` +
-                    `but current model has dimension ${this.config.modelDimension}. Please reindex the folder.`
+                    `FATAL MODEL DIMENSION MISMATCH: Database was created with ${existingConfig.model_name} (${existingConfig.model_dimension}d), ` +
+                    `but current config uses ${this.config.modelName} (${this.config.modelDimension}d). ` +
+                    `Vec0 virtual tables cannot be altered. Delete .folder-mcp directory and reindex.`
                 );
             }
         } else {
@@ -389,20 +382,20 @@ export class DatabaseManager {
 
         const docCountStmt = this.db.prepare(QUERIES.getDocumentCount);
         const chunkCountStmt = this.db.prepare(QUERIES.getChunkCount);
-        const embeddingCountStmt = this.db.prepare(QUERIES.getEmbeddingCount);
+        const chunkEmbCountStmt = this.db.prepare(QUERIES.getChunkEmbeddingCount);
         const dbSizeStmt = this.db.prepare(QUERIES.getDatabaseSize);
         const configStmt = this.db.prepare(QUERIES.getConfig);
 
         const docCount = (docCountStmt.get() as any)?.count || 0;
         const chunkCount = (chunkCountStmt.get() as any)?.count || 0;
-        const embeddingCount = (embeddingCountStmt.get() as any)?.count || 0;
+        const chunkEmbCount = (chunkEmbCountStmt.get() as any)?.count || 0;
         const dbSize = (dbSizeStmt.get() as any)?.size || 0;
         const config = configStmt.get() as any;
 
         return {
             documentCount: docCount,
             chunkCount: chunkCount,
-            embeddingCount: embeddingCount,
+            embeddingCount: chunkEmbCount,  // Report chunk embedding count as primary metric
             databaseSize: dbSize,
             modelName: config?.model_name || this.config.modelName,
             modelDimension: config?.model_dimension || this.config.modelDimension
