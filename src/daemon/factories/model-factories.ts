@@ -35,6 +35,14 @@ export class PythonEmbeddingServiceRegistry {
   public async getService(config: any): Promise<PythonEmbeddingService> {
     const requestedModel = config.modelName;
 
+    console.error(`\n=== PYTHON REGISTRY SERVICE REQUEST ===`);
+    console.error(`Timestamp: ${new Date().toISOString()}`);
+    console.error(`Requested model: ${requestedModel || '(none)'}`);
+    console.error(`Current model: ${this.currentModelName || '(none)'}`);
+    console.error(`Singleton exists: ${!!this.singletonService}`);
+    console.error(`Singleton initialized: ${this.singletonService?.isInitialized() ?? 'N/A'}`);
+    console.error(`=== END REQUEST DIAGNOSTIC ===\n`);
+
     // Prepare enhanced config for Python service
     const venvPythonPath = getVenvPythonPath();
     const enhancedConfig = {
@@ -45,39 +53,49 @@ export class PythonEmbeddingServiceRegistry {
 
     // Create singleton ONCE, without model
     if (!this.singletonService) {
-      console.log(`[PYTHON-REGISTRY] Creating SINGLETON PythonEmbeddingService (no model)`);
+      console.error(`\n🔧 [PYTHON-REGISTRY] Creating SINGLETON PythonEmbeddingService (no model)`);
 
       this.singletonService = new PythonEmbeddingService(enhancedConfig);
+
+      console.error(`[PYTHON-REGISTRY] ⏳ Initializing singleton...`);
       await this.singletonService.initialize();
 
       // The service is already initialized and in idle state after initialize() completes
-      console.log(`[PYTHON-REGISTRY] Singleton initialized in idle state`);
+      console.error(`[PYTHON-REGISTRY] ✅ Singleton initialized in idle state`);
     }
 
     // Load model if requested and different from current
     if (requestedModel && this.currentModelName !== requestedModel) {
-      console.log(`[PYTHON-REGISTRY] Loading model: ${requestedModel} (current: ${this.currentModelName || 'none'})`);
+      console.error(`\n📦 [PYTHON-REGISTRY] MODEL SWITCH NEEDED:`);
+      console.error(`From: ${this.currentModelName || '(none)'} → To: ${requestedModel}`);
 
       // If a model is currently loaded, unload it first
       if (this.currentModelName) {
-        console.log(`[PYTHON-REGISTRY] Unloading current model: ${this.currentModelName}`);
+        console.error(`[PYTHON-REGISTRY] ⏳ Unloading current model: ${this.currentModelName}`);
         await this.singletonService.unloadModel();
         await this.singletonService.waitForState('idle');
         this.currentModelName = null;
+        console.error(`[PYTHON-REGISTRY] ✅ Model unloaded`);
       }
 
       // Load the new model
-      await this.singletonService.loadModel(requestedModel);
-      await this.singletonService.waitForState('ready', 30000);
-      this.currentModelName = requestedModel;
-      console.log(`[PYTHON-REGISTRY] Successfully loaded model: ${requestedModel}`);
+      console.error(`[PYTHON-REGISTRY] ⏳ Loading new model: ${requestedModel}`);
+      const loadStartTime = Date.now();
 
-      console.log(`[PYTHON-REGISTRY] Model loading complete: ${requestedModel}`);
+      await this.singletonService.loadModel(requestedModel);
+
+      console.error(`[PYTHON-REGISTRY] ⏳ Waiting for model to reach 'ready' state...`);
+      await this.singletonService.waitForState('ready', 30000);
+
+      const loadDuration = Date.now() - loadStartTime;
+      this.currentModelName = requestedModel;
+      console.error(`[PYTHON-REGISTRY] ✅ Successfully loaded model: ${requestedModel} (${loadDuration}ms)`);
+
     } else if (!requestedModel && this.currentModelName) {
       // If no model requested but one is loaded, keep it for efficiency
-      console.log(`[PYTHON-REGISTRY] No model requested, keeping current: ${this.currentModelName}`);
+      console.error(`[PYTHON-REGISTRY] ℹ️  No model requested, keeping current: ${this.currentModelName}`);
     } else if (requestedModel === this.currentModelName) {
-      console.log(`[PYTHON-REGISTRY] REUSING singleton with model: ${requestedModel}`);
+      console.error(`[PYTHON-REGISTRY] ♻️  REUSING singleton with model: ${requestedModel}`);
     }
 
     return this.singletonService;

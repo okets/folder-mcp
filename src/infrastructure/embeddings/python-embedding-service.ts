@@ -605,9 +605,21 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
    * Start the Python process
    */
   private async startPythonProcess(): Promise<void> {
+    // DIAGNOSTIC: Log Python process state before starting
+    console.error(`\n=== PYTHON PROCESS START DIAGNOSTIC ===`);
+    console.error(`Timestamp: ${new Date().toISOString()}`);
+    console.error(`Model name: ${this.config.modelName}`);
+    console.error(`Current process exists: ${!!this.pythonProcess}`);
+    console.error(`Current process killed: ${this.pythonProcess?.killed ?? 'N/A'}`);
+    console.error(`Current process PID: ${this.pythonProcess?.pid ?? 'N/A'}`);
+    console.error(`Initialized flag: ${this.initialized}`);
+    console.error(`Restart attempts: ${this.restartAttempts}/${this.config.maxRestartAttempts}`);
+    console.error(`=== END DIAGNOSTIC ===\n`);
+
     // Check if process is already running
     if (this.pythonProcess && !this.pythonProcess.killed) {
-      console.error(`Python process already running for model: ${this.config.modelName}`);
+      console.error(`⚠️  WARNING: Python process already running for model: ${this.config.modelName}`);
+      console.error(`Existing process PID: ${this.pythonProcess.pid}`);
       return;
     }
     
@@ -645,10 +657,17 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         args.push(this.config.modelName);
       }
 
+      console.error(`\n🚀 SPAWNING PYTHON PROCESS:`);
+      console.error(`Command: ${this.config.pythonPath || defaultPythonCommand}`);
+      console.error(`Args: ${JSON.stringify(args)}`);
+      console.error(`Model: ${this.config.modelName || '(idle mode)'}`);
+
       this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: env
       });
+
+      console.error(`✅ Process spawned with PID: ${this.pythonProcess.pid}`);
 
       // Capture stderr immediately to detect startup errors
       this.pythonProcess.stderr?.on('data', (data) => {
@@ -656,10 +675,10 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         stderrBuffer += message;
         // Extract download progress from HuggingFace progress bars
         this.extractDownloadProgress(message);
-        
+
         // Still log to console for debugging
         if (message.trim()) {
-          console.error(`Python[stderr]: ${message.trim()}`);
+          console.error(`Python[PID:${this.pythonProcess?.pid}][stderr]: ${message.trim()}`);
         }
         
         // Immediately check for dependency errors and reject early
@@ -701,7 +720,22 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       });
 
       this.pythonProcess.on('exit', (code, signal) => {
-        console.error(`Python process exited: code=${code}, signal=${signal}`);
+        console.error(`\n❌ PYTHON PROCESS EXITED:`);
+        console.error(`Model: ${this.config.modelName}`);
+        console.error(`Exit code: ${code}`);
+        console.error(`Signal: ${signal}`);
+        console.error(`Process started: ${processStarted}`);
+        console.error(`Initialized: ${this.initialized}`);
+        console.error(`Restart attempts: ${this.restartAttempts}/${this.config.maxRestartAttempts}`);
+        console.error(`Shutting down: ${this.isShuttingDown}`);
+        console.error(`Stderr buffer length: ${stderrBuffer.length} chars`);
+        if (stderrBuffer.length > 0 && stderrBuffer.length < 500) {
+          console.error(`Stderr content:\n${stderrBuffer}`);
+        } else if (stderrBuffer.length >= 500) {
+          console.error(`Stderr content (last 500 chars):\n${stderrBuffer.slice(-500)}`);
+        }
+        console.error(`=== END EXIT DIAGNOSTIC ===\n`);
+
         this.pythonProcess = null;
         this.initialized = false;
         

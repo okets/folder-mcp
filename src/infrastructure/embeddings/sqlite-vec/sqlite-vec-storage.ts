@@ -362,35 +362,42 @@ export class SQLiteVecStorage implements IVectorSearchService {
     ): Promise<void> {
         const db = this.dbManager.getDatabase();
 
-        // Get document ID first
-        const getDocStmt = db.prepare('SELECT id FROM documents WHERE file_path = ?');
-        const doc = getDocStmt.get(filePath) as any;
+        // Wrap entire update in transaction for atomicity (Sprint 7.5 consistency)
+        const updateTransaction = db.transaction(() => {
+            // Get document ID first
+            const getDocStmt = db.prepare('SELECT id FROM documents WHERE file_path = ?');
+            const doc = getDocStmt.get(filePath) as any;
 
-        if (!doc) {
-            throw new Error(`Document not found for semantics update: ${filePath}`);
-        }
+            if (!doc) {
+                throw new Error(`Document not found for semantics update: ${filePath}`);
+            }
 
-        const docId = doc.id;
+            const docId = doc.id;
 
-        // Update document keywords and processing time
-        const updateKeywordsStmt = db.prepare(QUERIES.updateDocumentKeywords);
-        updateKeywordsStmt.run(documentKeywords, docId);
+            // Update document keywords and processing time
+            const updateKeywordsStmt = db.prepare(QUERIES.updateDocumentKeywords);
+            updateKeywordsStmt.run(documentKeywords, docId);
 
-        const updateTimeStmt = db.prepare(QUERIES.updateDocumentProcessingTime);
-        updateTimeStmt.run(processingTimeMs, docId);
+            const updateTimeStmt = db.prepare(QUERIES.updateDocumentProcessingTime);
+            updateTimeStmt.run(processingTimeMs, docId);
 
-        // Insert document embedding into vec0 table with document_id as INTEGER metadata column
-        // Ensure document_id is a plain integer (better-sqlite3 can return BigInt)
-        const docIdInt = Number(docId);
+            // Insert document embedding into vec0 table with document_id as INTEGER metadata column
+            // Ensure document_id is a plain integer (better-sqlite3 can return BigInt)
+            const docIdInt = Number(docId);
 
-        // documentEmbedding is base64-encoded string from DocumentEmbeddingService.serializeEmbedding()
-        // Convert base64 → Float32Array → JSON array for vec_f32()
-        const buffer = Buffer.from(documentEmbedding, 'base64');
-        const float32Array = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
-        const embeddingJson = JSON.stringify(Array.from(float32Array));
+            // documentEmbedding is base64-encoded string from DocumentEmbeddingService.serializeEmbedding()
+            // Convert base64 → Float32Array → JSON array for vec_f32()
+            const buffer = Buffer.from(documentEmbedding, 'base64');
+            const float32Array = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+            const embeddingJson = JSON.stringify(Array.from(float32Array));
 
-        // CRITICAL: Use CAST(? AS INTEGER) because better-sqlite3 sends parameters as FLOAT to vec0
-        db.prepare('INSERT INTO document_embeddings (document_id, embedding) VALUES (CAST(? AS INTEGER), vec_f32(?))').run(docIdInt, embeddingJson);
+            // CRITICAL: Use CAST(? AS INTEGER) because better-sqlite3 sends parameters as FLOAT to vec0
+            db.prepare('INSERT INTO document_embeddings (document_id, embedding) VALUES (CAST(? AS INTEGER), vec_f32(?))').run(docIdInt, embeddingJson);
+
+            return docId; // Return for logging outside transaction
+        });
+
+        const docId = updateTransaction(); // Execute transaction
 
         this.logger?.info(`Document semantics updated for: ${filePath} (doc_id=${docId})`);
     }

@@ -104,38 +104,6 @@ The automated Code review system does not know what we worked on. I want you to:
 MY Code review system's suggestions:
 1. 
 
-────────────────────────────────────────────────────────────────────
-                     ***Upcoming Prompts***
-────────────────────────────────────────────────────────────────────
-
-I want you to help me create an epic document from the PRD "/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md"
-**Epic Creation Guidelines:**
-File name: Phase-9-Implementation-epic.md
-The plan should be linear, straightforward, and builds functionality incrementally. Each sprint delivers working, testable functionality without complex dependencies.
-I wi221§q§  ll lay out the the steps we need to take in order to transition from the single-folder, old mcp endpoints to the new, multi-folder multi-model architecture.
-Background: 
-- our current MCP endpoints runs off /Users/hanan/Projects/folder-mcp/src/mcp-server.ts
-- this predates our Daemon and also doesn't work anymore as we changed the architecture.
-- MCP endpoints connected through REST API or Json RPC
-
-** Epic Sprints Roadmap **
-I plan to transition our endpoints one by one under the Deamon's control. create an Agent led, revolutionary debugging method and work gradually towards transitioning ALL current endpoints to our new Multi-folder, Multi-model architecture.
-1. Create REST server under the control of the Daemon.
-The Daemon controls when it starts and also makes all internal Daemon functionallity available for the endpoints so we build upon existing functionality instead of building bridges.
-2. Have the Daemon manage the lifecycle of the endpoints, including starting and stopping them as needed. exposing the REST API and JSON RPC functionality.
-3. Migrate the simplest endpoint out of the old interface into the new interface. refactor the code to use the new multi-folder structure.
-4. At this point, once the daemon is running we have an MCP server with one endpoint migrated to the new architecture. now it's time for the revolutionary Agent led method to take over.
-after moving the mcp endpoint to the daemon, removing the mandatory folder param and supporting multi-folder for a simple endpoint, I would like to add a sprint for creating Claude-code agent led testing:
-- Add our project as an mcp server to claude code.
-- Create a specialized testing agent that only uses the MCP, no other tools. it should be tasked with testing the endpoints directly and be our mcp client for the TMOAT tests.
-being able to instantly figure out how our change is reflected all the way to the MCP clients will revolutionize how we develop.
-- the following tasks should be centered around this ability, every change to the endpoints will be validated using that subagent
-5. Migrate the rest of the endpoints, one by one, each in it's own sprint. tested by the new subagent that can actually see the changes.
-
-The goal is to have all endpoints migrated to the new architecture as described in the PRD and fully tested by the agent.
-If the PRD has contradicting instructions, these instructions take precedence. tell me if you find any discrepancies.
-
-
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
 You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste
@@ -161,7 +129,7 @@ now that the indexing works, you can start testing the endpoints directly. Use t
 If you need a Human to reconnect the MCP. (we are working on it live, it might be disconnected when we kill the daemon during development)
 
 This is a foolproof way to test everything about our system.
-─────────────────────────────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────
 ---------------------Next Tasks
 **Ultimate end to end test**
 I want to test that all of our curated models are working properly.

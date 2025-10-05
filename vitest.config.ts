@@ -21,7 +21,12 @@ export default defineConfig({
       'dist/**',
       // Temporarily exclude slow/problematic tests
       'tests/real-integration/**/*.test.ts',
-      'tests/integration/workflows/indexing-real-data.test.ts'
+      'tests/integration/workflows/indexing-real-data.test.ts',
+      // Skip downloading model tests
+      'tests/integration/onnx-model-bridge.test.ts',
+      'tests/integration/services/python-embeddings.test.ts',
+      'tests/infrastructure/embeddings/onnx/onnx-cache-path.test.ts',
+      'tests/infrastructure/embeddings/onnx/onnx.tmoat.test.ts'
     ],
     
     // Reporter configuration - using default reporter with summary disabled to match basic

@@ -45,15 +45,16 @@ export class PeriodicSyncService {
 
   /**
    * Start periodic sync with callback
+   * IDEMPOTENT: Returns early if already started to prevent timer cancellation
    */
   start(syncCallback: () => Promise<void>): void {
-    this.logger.info(`[PERIODIC-SYNC] Starting periodic sync (interval: ${this.intervalMs}ms, vec0Cleanup: ${this.vec0CleanupEnabled})`);
-
-    // Clear any existing timer to prevent duplicates
+    // Return early if already started to prevent canceling active timer
     if (this.syncTimer) {
-      this.logger.warn('[PERIODIC-SYNC] Clearing existing timer before starting new one');
-      clearInterval(this.syncTimer);
+      this.logger.warn('[PERIODIC-SYNC] Already started, ignoring duplicate start() call');
+      return;
     }
+
+    this.logger.info(`[PERIODIC-SYNC] Starting periodic sync (interval: ${this.intervalMs}ms, vec0Cleanup: ${this.vec0CleanupEnabled})`);
 
     // Use setInterval and store the timer reference
     this.syncTimer = setInterval(() => {
