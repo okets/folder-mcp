@@ -101,7 +101,12 @@ export class PeriodicSyncService {
       this.logger.info(`[PERIODIC-SYNC] Error details: ${state.errorMessage || 'Unknown error'}`);
 
       try {
-        // Attempt to restart scanning/indexing
+        // CRITICAL: Must reset() first to transition from error → pending
+        // startScanning() only works from pending/active states
+        manager.reset();
+        this.logger.info(`[PERIODIC-SYNC] Reset folder to pending state: ${folderPath}`);
+
+        // Now attempt to restart scanning/indexing
         await manager.startScanning();
         this.logger.info(`[PERIODIC-SYNC] Successfully re-queued error folder: ${folderPath}`);
       } catch (error) {

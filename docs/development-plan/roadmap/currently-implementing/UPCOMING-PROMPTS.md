@@ -175,12 +175,6 @@ Run the test routine to trigger re-indexing:
 
 Note: the full test might take a while, don't give up, sleep for 2 minutes between each progress check.
 
-
-
-We failed to update ink from version 6.2.0 to 6.3.1.
-the delicate balance we had in rendering our custom components was broken and the border of the container got broken in some places.
-I do want to upgrade to the latest version of Ink, but do it in a way that is monitored and figure out the exact version where our layout started breaking by updating one release at a time. if it doesn't break, continue to update to the next release. when it starts breaking, read the change log and figure out how to solve the visual bugs and restore the delicate rendering balance.
-
 ────────────────────────────────────────────────────────────────────
                      ***Post Sprint Review Checklist***
 ────────────────────────────────────────────────────────────────────
@@ -193,3 +187,26 @@ the folders have change tracking, so removing a file should remove it from the d
 
 
 next, delete all files from all indexed folders except folder-mcp-roadmap-1.1.md (that exists in all of them). after a while test that the database only contains records for that file both in the regular tables and the vec tables.
+
+
+
+There are our currently 5 indexed folders, one for each curated model.
+the folders are:
+/Users/hanan/Projects/folder-mcp/tmp/cpu-xenova-multilingual-e5-large
+/Users/hanan/Projects/folder-mcp/tmp/cpu-xenova-multilingual-e5-small
+/Users/hanan/Projects/folder-mcp/tmp/gpu-bge-m3
+/Users/hanan/Projects/folder-mcp/tmp/gpu-minilm-l12-fast
+/Users/hanan/Projects/folder-mcp/tmp/gpu-xenova-multilingual-e5-large
+
+the first 2 are CPU models, the last 3 are GPU models.
+
+for some strage reason /Users/hanan/Projects/folder-mcp/tmp/gpu-bge-m3 is entering into an error stage, showing: "✗ Indexing failed after 3 attempts: Python embedding service not initialized"
+before this message, for a brief momoent I could notice an error about SIGNET or something.
+
+this issue is not happening all the time.
+I could reproduce it with the following conditions:
+1. build the project with a changed code (not just npm run build, but only after some real change).
+2. the indexed folders had nothing new to index, switching from "pending" to "active" in one second.
+
+let's try to nail it down.
+

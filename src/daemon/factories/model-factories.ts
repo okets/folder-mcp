@@ -64,6 +64,24 @@ export class PythonEmbeddingServiceRegistry {
       console.error(`[PYTHON-REGISTRY] ✅ Singleton initialized in idle state`);
     }
 
+    // CRITICAL: Check if service has crashed and needs reinitialization
+    if (this.singletonService && !this.singletonService.isInitialized()) {
+      console.error(`[PYTHON-REGISTRY] ⚠️  Singleton exists but not initialized (likely crashed)`);
+      console.error(`[PYTHON-REGISTRY] ⏳ Reinitializing crashed Python service...`);
+
+      try {
+        await this.singletonService.initialize();
+        console.error(`[PYTHON-REGISTRY] ✅ Python service reinitialized successfully`);
+      } catch (error) {
+        console.error(`[PYTHON-REGISTRY] ❌ Failed to reinitialize, creating new singleton`);
+        this.singletonService = new PythonEmbeddingService(enhancedConfig);
+        await this.singletonService.initialize();
+      }
+
+      // Reset current model tracking after crash recovery
+      this.currentModelName = null;
+    }
+
     // Load model if requested and different from current
     if (requestedModel && this.currentModelName !== requestedModel) {
       console.error(`\n📦 [PYTHON-REGISTRY] MODEL SWITCH NEEDED:`);
