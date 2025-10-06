@@ -177,7 +177,9 @@ Note: the full test might take a while, don't give up, sleep for 2 minutes betwe
 
 
 
-
+We failed to update ink from version 6.2.0 to 6.3.1.
+the delicate balance we had in rendering our custom components was broken and the border of the container got broken in some places.
+I do want to upgrade to the latest version of Ink, but do it in a way that is monitored and figure out the exact version where our layout started breaking by updating one release at a time. if it doesn't break, continue to update to the next release. when it starts breaking, read the change log and figure out how to solve the visual bugs and restore the delicate rendering balance.
 
 ────────────────────────────────────────────────────────────────────
                      ***Post Sprint Review Checklist***
