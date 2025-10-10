@@ -46,7 +46,7 @@ describe('Domain Layer - Search Module', () => {
             score: 1 - (i * 0.1),
             distance: i * 0.1,
             chunkIndex: i,
-            documentId: `doc-${i}`,
+            filePath: `test/file${i}.txt`,
             relevanceFactors: [
               { factor: 'content', weight: 0.7, contribution: 0.7 },
               { factor: 'metadata', weight: 0.3, contribution: 0.3 }
@@ -76,7 +76,7 @@ describe('Domain Layer - Search Module', () => {
             score: 1 - (i * 0.1),
             distance: i * 0.1,
             chunkIndex: i,
-            documentId: `doc-${i}`,
+            filePath: `test/file${i}.txt`,
             relevanceFactors: [
               { factor: 'content', weight: 0.7, contribution: 0.7 },
               { factor: 'metadata', weight: 0.3, contribution: 0.3 }

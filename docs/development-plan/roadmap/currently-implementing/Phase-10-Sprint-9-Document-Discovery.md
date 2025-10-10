@@ -113,7 +113,7 @@ interface FindDocumentsResponse {
 }
 
 interface FindDocumentResult {
-  document_id: string;                   // documents.file_path
+  file_path: string;                   // documents.file_path
   relevance_score: number;               // (1 - vec0_distance), range [0.0, 1.0]
   document_summary: {
     top_key_phrases: SemanticScore[];    // From documents.document_keywords (top 5)
@@ -193,7 +193,7 @@ document_stats AS (
   GROUP BY rd.id
 )
 SELECT
-  ds.file_path as document_id,
+  ds.file_path as file_path,
   ds.relevance_score,
   ds.document_keywords,
   ds.avg_readability,
@@ -297,7 +297,7 @@ async findDocuments(
 1. **next_actions**: Context-aware suggestions
    - If few results: "Try broader query: 'security'"
    - If many results: "Narrow with search_content for specific code"
-   - If high relevance: "Read [document_id] for details"
+   - If high relevance: "Read [file_path] for details"
 
 2. **related_queries**: Extracted from top_key_phrases
    - Take top 3 key phrases across all results
@@ -348,7 +348,7 @@ mcp__folder-mcp__find_documents({
 })
 
 // Step 3: Validate results
-// Expected: results[0].document_id === "Policies/Remote_Work_Policy.md"
+// Expected: results[0].file_path === "Policies/Remote_Work_Policy.md"
 // Expected: results[0].relevance_score >= 0.75 (high relevance)
 // Expected: results[0].document_summary.top_key_phrases includes:
 //   - {text: "remote work", score: > 0.7}
@@ -398,7 +398,7 @@ const page2 = await mcp__folder-mcp__find_documents({
 
 // Step 4: Validate pagination behavior
 // Expected: page2.data.results.length > 0
-// Expected: page2.data.results[0].document_id !== page1.data.results[0].document_id (no duplicates)
+// Expected: page2.data.results[0].file_path !== page1.data.results[0].file_path (no duplicates)
 // Expected: page2.data.results[0].relevance_score <= page1.data.results[4].relevance_score (descending order)
 // Expected: page2.continuation.has_more boolean indicates more results
 
@@ -487,7 +487,7 @@ const results = await mcp__folder-mcp__find_documents({
 
 // Step 3: Validate document summary structure
 const remotePolicyResult = results.data.results.find(r => 
-  r.document_id.includes("Remote_Work_Policy")
+  r.file_path.includes("Remote_Work_Policy")
 )
 
 // Expected: remotePolicyResult.document_summary.top_key_phrases.length === 5
@@ -503,7 +503,7 @@ const remotePolicyResult = results.data.results.find(r =>
 // Expected: remotePolicyResult.document_summary.modified is valid ISO 8601 timestamp
 
 // Step 5: Verify download_url format
-// Expected: remotePolicyResult.download_url format: "/api/v1/folders/{id}/documents/{docId}"
+// Expected: remotePolicyResult.download_url format: "/api/v1/folders/{id}/documents/{filePath}"
 ```
 
 **Success Criteria**:
@@ -649,7 +649,7 @@ const docs = await find_documents({
 })
 
 // 2. Review document summaries to identify most relevant
-// docs.results[0].document_id: "src/auth/Auth.md"
+// docs.results[0].file_path: "src/auth/Auth.md"
 // docs.results[0].document_summary.top_key_phrases: ["JWT", "OAuth", "sessions"]
 
 // 3. Deep dive into specific content across all files
@@ -663,7 +663,7 @@ const content = await search_content({
 // Alternative: If you already know the file, read it directly
 const fullDoc = await get_document_text({
   base_folder_path: "/path/to/project",
-  file_path: docs.results[0].document_id
+  file_path: docs.results[0].file_path
 })
 ```
 

@@ -1350,7 +1350,7 @@ The `files` array in explore response includes everything, with only indexed doc
 **Flat Chunk Results**: Returns flat list of chunks ranked by relevance across ALL documents (not grouped), because:
 - LLM needs THE most relevant content immediately
 - Perfect chunk in document #15 shouldn't be hidden
-- Each result includes document_id, so LLM knows source
+- Each result includes file_path, so LLM knows source
 - Natural discovery: 5 chunks from same file in top 10 = that file is important
 
 #### Example Request
@@ -1372,7 +1372,7 @@ mcp__folder-mcp__search_content({
     "results": [
       {
         "chunk_id": "12345",
-        "document_id": "src/auth/LoginForm.tsx",
+        "file_path": "src/auth/LoginForm.tsx",
         "content": "import React, { useState, useEffect } from 'react';\n\nfunction LoginForm() {\n  const [authState, setAuthState] = useState({ authenticated: false, user: null });\n  \n  useEffect(() => {\n    // Authentication state management\n    validateSession();\n  }, []);\n  \n  // Form validation and state handling...",
         "relevance_score": 0.94,
         "chunk_index": 5,
@@ -1380,7 +1380,7 @@ mcp__folder-mcp__search_content({
       },
       {
         "chunk_id": "67890",
-        "document_id": "src/hooks/useAuth.ts",
+        "file_path": "src/hooks/useAuth.ts",
         "content": "// Custom authentication hook using React hooks\nexport function useAuth() {\n  const [state, setState] = useState<AuthState>(initialState);\n  \n  useEffect(() => {\n    // Listen to auth state changes\n    const unsubscribe = authService.onStateChange(newState => {\n      setState(newState);\n    });\n    return unsubscribe;\n  }, []);",
         "relevance_score": 0.89,
         "chunk_index": 2,
@@ -1431,7 +1431,7 @@ mcp__folder-mcp__search_content({
 
 **Schema-Aligned Response**: All fields map directly to database columns
 - chunk_id → chunks.id
-- document_id → documents.file_path (relative path, reusable)
+- file_path → documents.file_path (relative path, reusable)
 - content → chunks.content
 - chunk_index → chunks.chunk_index
 - document_keywords → documents.document_keywords (JSON parsed)
@@ -1546,7 +1546,7 @@ mcp__folder-mcp__find_documents({
   "data": {
     "results": [
       {
-        "document_id": "docs/auth/setup-guide.md",
+        "file_path": "docs/auth/setup-guide.md",
         "relevance_score": 0.89,
         "document_summary": {
           "top_key_phrases": [
@@ -1562,7 +1562,7 @@ mcp__folder-mcp__find_documents({
         "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
       },
       {
-        "document_id": "src/auth/middleware.ts",
+        "file_path": "src/auth/middleware.ts",
         "relevance_score": 0.82,
         "document_summary": {
           "top_key_phrases": [
@@ -1578,7 +1578,7 @@ mcp__folder-mcp__find_documents({
         "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
       },
       {
-        "document_id": "README.md",
+        "file_path": "README.md",
         "relevance_score": 0.75,
         "document_summary": {
           "top_key_phrases": [

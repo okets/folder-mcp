@@ -202,11 +202,11 @@ export class RESTAPIServer {
     this.app.get('/api/v1/folders/:folderPath/documents', this.handleListDocumentsEnhanced.bind(this));
 
     // Document operations endpoints (Sprint 4, 5 & 6)
-    this.app.get('/api/v1/folders/:folderPath/documents/:docId/metadata', this.handleGetDocumentMetadata.bind(this));
-    this.app.post('/api/v1/folders/:folderPath/documents/:docId/chunks', this.handleGetChunks.bind(this));
-    this.app.get('/api/v1/folders/:folderPath/documents/:docId/text', this.handleGetDocumentText.bind(this));
-    this.app.get('/api/v1/folders/:folderPath/documents/:docId', this.handleGetDocument.bind(this));
-    this.app.get('/api/v1/folders/:folderPath/documents/:docId/outline', this.handleGetDocumentOutline.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:filePath/metadata', this.handleGetDocumentMetadata.bind(this));
+    this.app.post('/api/v1/folders/:folderPath/documents/:filePath/chunks', this.handleGetChunks.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:filePath/text', this.handleGetDocumentText.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:filePath', this.handleGetDocument.bind(this));
+    this.app.get('/api/v1/folders/:folderPath/documents/:filePath/outline', this.handleGetDocumentOutline.bind(this));
 
     // Search operations endpoints (Sprint 8)
     this.app.post('/api/v1/folders/:folderPath/search', this.handleSearch.bind(this));
@@ -1603,11 +1603,11 @@ export class RESTAPIServer {
    */
   private async handleGetDocument(req: Request, res: Response): Promise<void> {
     try {
-      const { folderPath: encodedFolderPath, docId } = req.params;
-      if (!encodedFolderPath || !docId) {
+      const { folderPath: encodedFolderPath, filePath } = req.params;
+      if (!encodedFolderPath || !filePath) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder path and document ID are required',
+          message: 'Folder path and file path are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -1616,7 +1616,7 @@ export class RESTAPIServer {
       }
 
       const folderPath = decodeURIComponent(encodedFolderPath);
-      this.logger.debug(`[REST] Getting document ${docId} from folder ${folderPath}`);
+      this.logger.debug(`[REST] Getting document ${filePath} from folder ${folderPath}`);
 
       // Get folders from FMDM service
       let folders: any[] = [];
@@ -1658,7 +1658,7 @@ export class RESTAPIServer {
         folderName,
         modelName,
         folder.status || 'pending',
-        docId
+        filePath
       );
 
       const response: DocumentDataResponse = result;
@@ -1670,7 +1670,7 @@ export class RESTAPIServer {
           const documentPath = response.document.metadata?.filePath;
           
           if (!documentPath) {
-            this.logger.debug(`[REST] No file path in metadata for document ${docId}`);
+            this.logger.debug(`[REST] No file path in metadata for document ${filePath}`);
             return;
           }
           
@@ -1686,16 +1686,16 @@ export class RESTAPIServer {
               hasCodeExamples: semanticData.hasCodeExamples,
               hasDiagrams: semanticData.hasDiagrams
             };
-            this.logger.debug(`[REST] Successfully added semantic metadata for document ${docId}`);
+            this.logger.debug(`[REST] Successfully added semantic metadata for document ${filePath}`);
           } else {
             this.logger.debug(`[REST] No semantic data returned for ${documentPath}`);
           }
         } catch (semanticError) {
-          this.logger.debug(`[REST] Could not get semantic metadata for ${docId}:`, semanticError);
+          this.logger.debug(`[REST] Could not get semantic metadata for ${filePath}:`, semanticError);
         }
       }
 
-      this.logger.debug(`[REST] Returning document data for ${docId} from folder ${folderPath}`);
+      this.logger.debug(`[REST] Returning document data for ${filePath} from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document failed:', error);
@@ -1729,11 +1729,11 @@ export class RESTAPIServer {
    */
   private async handleGetDocumentOutline(req: Request, res: Response): Promise<void> {
     try {
-      const { folderPath: encodedFolderPath, docId } = req.params;
-      if (!encodedFolderPath || !docId) {
+      const { folderPath: encodedFolderPath, filePath } = req.params;
+      if (!encodedFolderPath || !filePath) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder path and document ID are required',
+          message: 'Folder path and file path are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -1742,7 +1742,7 @@ export class RESTAPIServer {
       }
 
       const folderPath = decodeURIComponent(encodedFolderPath);
-      this.logger.debug(`[REST] Getting document outline for ${docId} from folder ${folderPath}`);
+      this.logger.debug(`[REST] Getting document outline for ${filePath} from folder ${folderPath}`);
 
       // Get folders from FMDM service
       let folders: any[] = [];
@@ -1784,7 +1784,7 @@ export class RESTAPIServer {
         folderName,
         modelName,
         folder.status || 'pending',
-        docId
+        filePath
       );
 
       const response: DocumentOutlineResponse = result;
@@ -1796,7 +1796,7 @@ export class RESTAPIServer {
           const documentPath = response.outline.metadata?.filePath;
           
           if (!documentPath) {
-            this.logger.debug(`[REST] No file path in outline metadata for document ${docId}`);
+            this.logger.debug(`[REST] No file path in outline metadata for document ${filePath}`);
           } else {
             // For markdown/text files with headings, add semantic data
             if (response.outline.headings) {
@@ -1931,7 +1931,7 @@ export class RESTAPIServer {
         }
       }
 
-      this.logger.debug(`[REST] Returning document outline for ${docId} from folder ${folderPath}`);
+      this.logger.debug(`[REST] Returning document outline for ${filePath} from folder ${folderPath}`);
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document outline failed:', error);
@@ -1965,12 +1965,12 @@ export class RESTAPIServer {
    */
   private async handleGetDocumentMetadata(req: Request, res: Response): Promise<void> {
     try {
-      const { folderPath: encodedFolderPath, docId } = req.params;
+      const { folderPath: encodedFolderPath, filePath } = req.params;
 
-      if (!encodedFolderPath || !docId) {
+      if (!encodedFolderPath || !filePath) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder path and document ID are required',
+          message: 'Folder path and file path are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -1979,7 +1979,7 @@ export class RESTAPIServer {
       }
 
       const baseFolderPath = decodeURIComponent(encodedFolderPath);
-      const fileName = docId;
+      const fileName = filePath;
 
       // Parse query parameters for pagination
       const offset = parseInt(req.query.offset as string) || 0;
@@ -2184,13 +2184,13 @@ export class RESTAPIServer {
    */
   private async handleGetChunks(req: Request, res: Response): Promise<void> {
     try {
-      const { folderPath: encodedFolderPath, docId: encodedDocId } = req.params;
+      const { folderPath: encodedFolderPath, filePath: encodedFilePath } = req.params;
       const { chunk_ids } = req.body;
 
-      if (!encodedFolderPath || !encodedDocId) {
+      if (!encodedFolderPath || !encodedFilePath) {
         const errorResponse: ErrorResponse = {
           error: 'Bad Request',
-          message: 'Folder path and document ID are required',
+          message: 'Folder path and file path are required',
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -2210,9 +2210,9 @@ export class RESTAPIServer {
       }
 
       const baseFolderPath = decodeURIComponent(encodedFolderPath);
-      const docId = decodeURIComponent(encodedDocId);
+      const filePath = decodeURIComponent(encodedFilePath);
 
-      this.logger.debug(`[REST] Getting chunks for document: ${docId} in folder: ${baseFolderPath}`);
+      this.logger.debug(`[REST] Getting chunks for document: ${filePath} in folder: ${baseFolderPath}`);
 
       // Check database access
       const dbPath = await this.checkDatabaseAccess(baseFolderPath, req, res);
@@ -2222,6 +2222,9 @@ export class RESTAPIServer {
       const Database = await import('better-sqlite3');
       const db = Database.default(dbPath);
 
+      // Construct full document path (database stores full paths)
+      const documentPath = path.join(baseFolderPath, filePath);
+
       // First get the document to verify it exists
       const docStmt = db.prepare(`
         SELECT id, file_path
@@ -2229,13 +2232,13 @@ export class RESTAPIServer {
         WHERE file_path = ?
       `);
 
-      const document = docStmt.get(docId) as any;
+      const document = docStmt.get(documentPath) as any;
 
       if (!document) {
         db.close();
         const errorResponse: ErrorResponse = {
           error: 'Not Found',
-          message: `Document not found: ${docId}`,
+          message: `Document not found: ${filePath}`,
           timestamp: new Date().toISOString(),
           path: req.url
         };
@@ -2276,11 +2279,11 @@ export class RESTAPIServer {
       const protocol = req.protocol;
       const host = req.get('host') || 'localhost:3002';
       const baseUrl = `${protocol}://${host}`;
-      const { url: downloadUrl } = generateDownloadUrl(baseUrl, baseFolderPath, docId);
+      const { url: downloadUrl } = generateDownloadUrl(baseUrl, baseFolderPath, filePath);
 
       // Build lean response
       const response = {
-        file_path: docId,
+        file_path: filePath,
         download_url: downloadUrl,
         chunks: processedChunks
       };
@@ -2306,12 +2309,12 @@ export class RESTAPIServer {
    */
   private async handleGetDocumentText(req: Request, res: Response): Promise<void> {
     try {
-      const { folderPath: encodedFolderPath, docId: encodedDocId } = req.params;
+      const { folderPath: encodedFolderPath, filePath: encodedFilePath } = req.params;
       const { continuation_token } = req.query;
 
       // Handle continuation token case
       let folderPath: string;
-      let docId: string;
+      let filePath: string;
       let offset = 0;
       let maxChars = 5000; // Default
 
@@ -2319,7 +2322,7 @@ export class RESTAPIServer {
         try {
           const tokenData = JSON.parse(Buffer.from(continuation_token, 'base64').toString());
           folderPath = tokenData.folder_path;
-          docId = tokenData.doc_id;
+          filePath = tokenData.file_path;
           offset = tokenData.offset || 0;
           maxChars = tokenData.max_chars || 5000;
         } catch (e) {
@@ -2333,10 +2336,10 @@ export class RESTAPIServer {
           return;
         }
       } else {
-        if (!encodedFolderPath || !encodedDocId) {
+        if (!encodedFolderPath || !encodedFilePath) {
           const errorResponse: ErrorResponse = {
             error: 'Bad Request',
-            message: 'Folder path and document ID are required',
+            message: 'Folder path and file path are required',
             timestamp: new Date().toISOString(),
             path: req.url
           };
@@ -2345,7 +2348,7 @@ export class RESTAPIServer {
         }
 
         folderPath = decodeURIComponent(encodedFolderPath);
-        docId = decodeURIComponent(encodedDocId);
+        filePath = decodeURIComponent(encodedFilePath);
 
         // Parse query parameters
         const queryMaxChars = parseInt(req.query.max_chars as string);
@@ -2354,7 +2357,7 @@ export class RESTAPIServer {
         }
       }
 
-      this.logger.debug(`[REST] Getting text for document ${docId} from folder ${folderPath} (offset: ${offset}, max_chars: ${maxChars})`);
+      this.logger.debug(`[REST] Getting text for document ${filePath} from folder ${folderPath} (offset: ${offset}, max_chars: ${maxChars})`);
 
       // Check database access
       const dbPath = await this.checkDatabaseAccess(folderPath, req, res);
@@ -2370,9 +2373,10 @@ export class RESTAPIServer {
       });
 
       try {
+        // Construct full document path (database stores full paths)
+        const documentPath = path.join(folderPath, filePath);
+
         // First get document information
-        // The docId could be either a filename or a full path
-        const fullDocPath = docId.startsWith('/') ? docId : path.join(folderPath, docId);
         const document = await db.get(`
           SELECT
             d.file_path,
@@ -2384,15 +2388,15 @@ export class RESTAPIServer {
             SUM(LENGTH(c.content)) as total_characters
           FROM documents d
           LEFT JOIN chunks c ON d.id = c.document_id
-          WHERE d.file_path = ? OR d.file_path LIKE ?
+          WHERE d.file_path = ?
           GROUP BY d.id
-        `, [fullDocPath, `%/${docId}`]);
+        `, [documentPath]);
 
         if (!document) {
           await db.close();
           const errorResponse: ErrorResponse = {
             error: 'Not Found',
-            message: `Document '${docId}' not found in folder`,
+            message: `Document '${filePath}' not found in folder`,
             timestamp: new Date().toISOString(),
             path: req.url
           };
@@ -2405,10 +2409,10 @@ export class RESTAPIServer {
           SELECT content, start_offset, end_offset, chunk_index
           FROM chunks
           WHERE document_id = (
-            SELECT id FROM documents WHERE file_path = ? OR file_path LIKE ?
+            SELECT id FROM documents WHERE file_path = ?
           )
           ORDER BY chunk_index
-        `, [fullDocPath, `%/${docId}`]);
+        `, [documentPath]);
 
         await db.close();
 
@@ -2452,7 +2456,7 @@ export class RESTAPIServer {
           ...(hasMore && {
             continuation_token: Buffer.from(JSON.stringify({
               folder_path: folderPath,
-              doc_id: docId,
+              file_path: filePath,
               offset: offset + maxChars,
               max_chars: maxChars
             })).toString('base64')
@@ -2465,14 +2469,14 @@ export class RESTAPIServer {
           metadata.has_formatting_loss || false,
           totalChars - (offset + charactersReturned),
           maxChars,
-          docId,
+          filePath,
           metadata.extraction_warnings
         );
 
         // Build response
         const response: GetDocumentTextResponse = {
           base_folder_path: folderPath,
-          file_path: docId,
+          file_path: filePath,
           mime_type: document.mime_type || 'text/plain',
           size: document.size || 0,
           last_modified: document.last_modified || new Date().toISOString(),
@@ -2785,15 +2789,15 @@ export class RESTAPIServer {
         // Filter results to current folder - fix folder scoping security issue
         const normalizedFolder = path.resolve(folderPath);
         const folderFilteredResults = vectorSearchResults.filter(result => {
-          const rawPath = result.documentId || result.folderPath || '';
+          const rawPath = result.filePath || result.folderPath || '';
           const normalizedResult = path.resolve(rawPath);
           const rel = path.relative(normalizedFolder, normalizedResult);
           const belongsToFolder = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-          
+
           if (!belongsToFolder) {
             this.logger.debug(`[REST] Filtering out result from different folder: ${rawPath} (expected under: ${normalizedFolder})`);
           }
-          
+
           return belongsToFolder;
         });
 
@@ -2804,11 +2808,11 @@ export class RESTAPIServer {
 
         // Apply final limit after folder filtering
         const finalResults = folderFilteredResults.slice(0, limit);
-        
+
         // Transform vector search results to REST API format with semantic metadata
         searchResults = finalResults.map(result => {
             // Generate download URL for the document
-            const documentName = this.extractFileNameFromPath(result.documentId || '');
+            const documentName = this.extractFileNameFromPath(result.filePath || '');
             // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
             const protocol = req.protocol;
             const host = req.get('host') || 'localhost:3002';
@@ -2816,7 +2820,7 @@ export class RESTAPIServer {
             const { url: downloadUrl } = generateDownloadUrl(baseUrl, folderPath, documentName);
 
             return {
-              documentId: result.documentId,
+              filePath: result.filePath,
               documentName,
               relevance: result.score,
               snippet: includeContent && result.content
@@ -2824,8 +2828,8 @@ export class RESTAPIServer {
                 : undefined,
               pageNumber: result.metadata?.page,
               chunkId: result.id,
-              documentType: this.getDocumentType(result.documentId || ''),
-              documentPath: result.documentId,
+              documentType: this.getDocumentType(result.filePath || ''),
+              documentPath: result.filePath,
               // Add semantic metadata directly from the BasicSearchResult
               keyPhrases: result.keyPhrases || [],
               download_url: downloadUrl

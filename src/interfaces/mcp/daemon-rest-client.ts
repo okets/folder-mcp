@@ -612,7 +612,7 @@ export class DaemonRESTClient {
    */
   async getDocumentData(
     folderPath: string,
-    docId: string
+    filePath: string
   ): Promise<{
     folderContext: {
       id: string;
@@ -630,7 +630,7 @@ export class DaemonRESTClient {
       metadata: any;
     };
   }> {
-    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(filePath)}`;
     return await this.makeRequest(path);
   }
 
@@ -639,7 +639,7 @@ export class DaemonRESTClient {
    */
   async getDocumentOutline(
     folderPath: string,
-    docId: string
+    filePath: string
   ): Promise<{
     folderContext: {
       id: string;
@@ -679,7 +679,7 @@ export class DaemonRESTClient {
       }>;
     };
   }> {
-    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/outline`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(filePath)}/outline`;
     return await this.makeRequest(path);
   }
 
@@ -688,7 +688,7 @@ export class DaemonRESTClient {
    */
   async getDocumentMetadata(
     folderPath: string,
-    docId: string,
+    filePath: string,
     options?: {
       offset?: number;
       limit?: number;
@@ -699,7 +699,7 @@ export class DaemonRESTClient {
     if (options?.limit !== undefined) queryParams.set('limit', String(options.limit));
     const queryString = queryParams.toString();
 
-    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/metadata${queryString ? '?' + queryString : ''}`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(filePath)}/metadata${queryString ? '?' + queryString : ''}`;
     return await this.makeRequest(path);
   }
 
@@ -723,7 +723,7 @@ export class DaemonRESTClient {
       status: string;
     };
     results: Array<{
-      documentId: string;
+      filePath: string;
       documentName: string;
       relevance: number;
       snippet: string;
@@ -805,10 +805,10 @@ export class DaemonRESTClient {
    */
   async getChunks(
     folderPath: string,
-    docId: string,
+    filePath: string,
     chunkIds: string[]
   ): Promise<any> {
-    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(docId)}/chunks`;
+    const path = `/api/v1/folders/${encodeURIComponent(folderPath)}/documents/${encodeURIComponent(filePath)}/chunks`;
     return await this.makeRequest(path, {
       method: 'POST',
       headers: {

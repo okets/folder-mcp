@@ -177,7 +177,7 @@ export class MultiFolderVectorSearchService implements IVectorSearchService {
           if (similarity >= threshold) {
             const candidate: BasicSearchResult = {
               id: `chunk_${row.chunk_id}`,
-              documentId: row.file_path,
+              filePath: row.file_path,
               chunkId: `chunk_${row.chunk_id}`,
               score: similarity,
               content: row.content,

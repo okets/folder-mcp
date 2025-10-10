@@ -249,7 +249,7 @@ export class SQLiteVecStorage implements IVectorSearchService {
                         distance: row.distance,
                         chunkIndex: row.chunk_index,
                         chunkId: String(row.chunk_id), // Store in metadata as string
-                        documentId: row.file_path,
+                        filePath: row.file_path,
                         relevanceFactors: [
                             {
                                 factor: 'cosine_similarity',

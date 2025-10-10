@@ -339,7 +339,7 @@ describe('SQLiteVecStorage', () => {
             expect(result?.metadata).toBeDefined();
             expect(result?.metadata.score).toBe(result?.similarity);
             expect(result?.metadata.chunkIndex).toBe(0);
-            expect(result?.metadata.documentId).toBe('doc1.txt');
+            expect(result?.metadata.filePath).toBe('doc1.txt');
             expect(result?.metadata.chunkId).toBeDefined(); // Chunk ID in metadata for retrieval
         });
     });

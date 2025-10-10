@@ -110,7 +110,7 @@ final_score = semantic_score × exact_term_boost
 Return a flat list of chunks ranked by relevance across ALL documents:
 - The LLM needs THE most relevant content immediately
 - A perfect chunk in document #15 shouldn't be hidden behind pagination
-- Each result includes `document_id`, so LLM can see source file
+- Each result includes `file_path`, so LLM can see source file
 - If 5 chunks from same file appear in top 10, LLM naturally infers that file is important
 
 ---
@@ -150,7 +150,7 @@ interface SearchContentResponse {
     results: SearchChunkResult[];
     statistics: {
       total_results: number;           // Total matching chunks
-      files_covered: string[];         // Unique document_ids in results
+      files_covered: string[];         // Unique file_paths in results
       avg_relevance: number;           // Average relevance score
       search_interpretation: string;   // What we understood from query
     };
@@ -176,7 +176,7 @@ interface SearchContentResponse {
 ```typescript
 interface SearchChunkResult {
   chunk_id: string;                    // Database chunks.id (e.g., "12345")
-  document_id: string;                 // Relative path (e.g., "src/auth/Auth.ts") - reusable in other endpoints
+  file_path: string;                 // Relative path (e.g., "src/auth/Auth.ts") - reusable in other endpoints
   content: string;                     // The actual chunk text ⭐ ALWAYS INCLUDED
   relevance_score: number;             // Match quality [0.0, 1.0]
   chunk_index: number;                 // Position within document (0-based, from chunks.chunk_index)
@@ -186,7 +186,7 @@ interface SearchChunkResult {
 
 **Field Alignment with Database Schema**:
 - ✅ `chunk_id` → `chunks.id`
-- ✅ `document_id` → `documents.file_path` (relative path, reusable across endpoints)
+- ✅ `file_path` → `documents.file_path` (relative path, reusable across endpoints)
 - ✅ `content` → `chunks.content`
 - ✅ `chunk_index` → `chunks.chunk_index`
 - ✅ `document_keywords` → `documents.document_keywords` (JSON parsed)
@@ -196,21 +196,21 @@ interface SearchChunkResult {
 
 ---
 
-## document_id Reusability
+## file_path Reusability
 
-The `document_id` field contains the relative file path and can be used directly with other endpoints:
+The `file_path` field contains the relative file path and can be used directly with other endpoints:
 
 ```typescript
 // Step 1: Search for content
 const searchResults = await search_content({
   semantic_concepts: ["JWT validation"]
 })
-// Result: { chunk_id: "123", document_id: "src/auth/Auth.ts", content: "...", ... }
+// Result: { chunk_id: "123", file_path: "src/auth/Auth.ts", content: "...", ... }
 
-// Step 2: Get full document using same document_id
+// Step 2: Get full document using same file_path
 const fullDoc = await get_document_data({
   folder_id: "project",
-  document_id: "src/auth/Auth.ts"  // ✅ Same value, no transformation
+  file_path: "src/auth/Auth.ts"  // ✅ Same value, no transformation
 })
 
 // Step 3: Get document text
@@ -271,7 +271,7 @@ mcp__folder-mcp__search_content({
     "results": [
       {
         "chunk_id": "12345",
-        "document_id": "src/auth/LoginForm.tsx",
+        "file_path": "src/auth/LoginForm.tsx",
         "content": "function LoginForm() {\n  const [user, setUser] = useState(null);\n  const [loading, setLoading] = useState(false);\n  \n  useEffect(() => {\n    // Authentication state management\n    if (user) {\n      validateSession(user);\n    }\n  }, [user]);\n  ...",
         "relevance_score": 0.94,
         "chunk_index": 5,
@@ -296,7 +296,7 @@ mcp__folder-mcp__search_content({
   },
   "navigation_hints": {
     "next_actions": [
-      "Read full document: get_document_data(document_id='src/auth/LoginForm.tsx')",
+      "Read full document: get_document_data(file_path='src/auth/LoginForm.tsx')",
       "Get formatted text: get_document_text(file_path='src/auth/LoginForm.tsx')",
       "Continue pagination: use continuation_token for more results"
     ],
@@ -388,7 +388,7 @@ navigation_hints: {
 -- Hybrid search with vec0 MATCH
 SELECT
   c.id as chunk_id,
-  d.file_path as document_id,
+  d.file_path as file_path,
   c.content,
   c.chunk_index,
   d.document_keywords,
@@ -422,7 +422,7 @@ LIMIT :limit OFFSET :offset;
 ✅ **Exact term boost works** - Technical terms matched precisely
 ✅ **Content always included** - No lazy loading needed
 ✅ **Pagination preserves state** - Continuation tokens work
-✅ **document_id reusable** - Same value works with other endpoints
+✅ **file_path reusable** - Same value works with other endpoints
 ✅ **Validation enforced** - At least one search parameter required
 
 ### Performance Requirements
@@ -459,7 +459,7 @@ mcp__folder-mcp__search_content({
 
 // Step 3: Validate
 // Expected: CLAUDE.md chunks in results
-// Expected: document_id is "CLAUDE.md" or path relative to folder
+// Expected: file_path is "CLAUDE.md" or path relative to folder
 // Expected: content includes "useState" and/or "TMOAT"
 // Expected: relevance_score >= 0.5
 // Expected: relevance_score boosted by exact matches (higher than semantic alone)
@@ -549,7 +549,7 @@ const defaultResults = await mcp__folder-mcp__search_content({
 // Expected: Every strict result also appears in default results
 ```
 
-### Test Scenario 6: document_id Reusability
+### Test Scenario 6: file_path Reusability
 
 ```typescript
 // Step 1: Search for content
@@ -560,15 +560,15 @@ const searchResults = await mcp__folder-mcp__search_content({
 
 const topResult = searchResults.data.results[0]
 
-// Step 2: Use document_id with other endpoints
+// Step 2: Use file_path with other endpoints
 const docData = await mcp__folder-mcp__get_document_data({
   folder_id: "folder-mcp",
-  document_id: topResult.document_id  // ✅ Direct reuse
+  file_path: topResult.file_path  // ✅ Direct reuse
 })
 
 const docText = await mcp__folder-mcp__get_document_text({
   base_folder_path: "/Users/hanan/Projects/folder-mcp",
-  file_path: topResult.document_id  // ✅ Direct reuse
+  file_path: topResult.file_path  // ✅ Direct reuse
 })
 
 // Validate:
@@ -649,7 +649,7 @@ const content = await get_document_text({
 
 - **Immediate content access**: No second call needed to get chunk text
 - **Flexible search**: Semantic-only, exact-only, or hybrid approaches
-- **Consistent naming**: `document_id` reusable across all endpoints
+- **Consistent naming**: `file_path` reusable across all endpoints
 - **Clear purpose**: `search_content` for retrieval, `find_documents` for discovery
 - **Explainable results**: relevance_score shows match quality
 - **Document context**: `document_keywords` shows what else is in the file

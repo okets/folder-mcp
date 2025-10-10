@@ -6,7 +6,7 @@
 
 export interface StoredEmbedding {
   id: string;
-  documentId: string;
+  filePath: string;
   chunkId: string;
   vector: number[];
   folderPath: string;
@@ -23,7 +23,7 @@ export interface StoredEmbedding {
 
 export interface BasicSearchResult {
   id: string;
-  documentId: string;
+  filePath: string;
   chunkId: string;
   score: number;
   content: string;
