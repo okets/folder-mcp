@@ -188,33 +188,3 @@ the folders have change tracking, so removing a file should remove it from the d
 
 next, delete all files from all indexed folders except folder-mcp-roadmap-1.1.md (that exists in all of them). after a while test that the database only contains records for that file both in the regular tables and the vec tables.
 
-
----------------------------------------
-designing the semantic search endpoint
----------------------------------------
-docs/development-plan/roadmap/currently-implementing/Phase-10-Semantic-Endpoint-Navigation-EPIC.md
-we are working on Sprint 8 of the epic.
-I want your input as an LLM.
-I would like to design the in-folder semantic search endpoint of folder-mcp.
-We support multiple folders but the search is folder specific.
-
-What we have in our DB for each document:
-1. Embeddings for chunks.
-2. Averaged embeddings of all chunks in the document.
-3. The original text of each chunk.
-4. Extracted key phrases for chunks (using keyBERT and similar techniques)
-5. Extracted key phrases for documents.
-
-Things we need to consider in our plan:
-1. User asking an LLM about technical terms that are not in the embedding model's training data.
-2. Do we prioritize document's averaged embeddings or do we use the chunks embedding? Maybe both?
-3. how do we structure our response? do we return chunks or documents or both?
-4. do we use the original text to boost our search results?
-5. do we use the extracted key phrases to boost our search results? if so, how?
-
-The files searched are files that our users should be relatively familiar with. The search is less about discovery but rather getting the mcp client (LLMs as yourself) to be aware of the content the user is refering to and finding it efficiently.
-I need you to think really really hard about this. use sequential thinking to work on different aspects of the problem one by one.
-- Discuss your plan, consult me when there is a critical decision to make.
-- Think about this endpoint as a means to an end, we might want to break it into multiple endpoints or call it few times if it makes sense for the LLM to find what it needs efficiently.
-- Once we agree on a plan, we should write it down in a sprint document and update the epic before we start coding.
-

@@ -183,6 +183,7 @@ document_stats AS (
     rd.file_path,
     rd.document_keywords,
     rd.relevance_score,
+    rd.rank,                    -- CRITICAL: Pass rank through for pagination
     rd.size,
     rd.last_modified,
     COUNT(c.id) as chunk_count,

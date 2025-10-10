@@ -69,7 +69,7 @@ The LLM client extracts structured search parameters from user queries:
 
 ```
 semantic_score = cosine_similarity(query_embedding, chunk_embedding)  // If semantic_concepts provided
-                 OR 0.0 if only exact_terms provided
+                 OR 1.0 if only exact_terms provided
 
 exact_term_boost = 1.0
 for each exact_term match in chunk:
@@ -79,14 +79,13 @@ final_score = semantic_score × exact_term_boost
 ```
 
 **Design Rationale**:
-- Semantic search provides conceptual matching
-- Exact matching adds precision for technical terms
+- **Semantic-only queries**: semantic_score ∈ [0,1], boost=1.0 → final_score = semantic_score
+- **Exact-only queries**: semantic_score=1.0, boost=1.5^n → final_score = 1.5^n (where n = number of matches)
+- **Hybrid queries**: semantic_score ∈ [0,1], boost=1.5^n → final_score = semantic_score × 1.5^n
 - Multiplicative formula ensures poor semantic matches aren't rescued by exact terms
-- Example: semantic_score=0.3, boost=1.5 → final=0.45 (filtered by min_score=0.5)
+- Example (hybrid): semantic_score=0.3, boost=1.5 → final=0.45 (filtered by min_score=0.5)
+- Example (exact-only): 1 match → 1.5, 2 matches → 2.25, 3 matches → 3.375
 
-**Removed Features**:
-- ❌ No filename matching boost (use `find_documents` for document filtering)
-- ❌ No file type boost (not needed for chunk-level search)
 
 ---
 
@@ -384,8 +383,11 @@ navigation_hints: {
 
 ### SQL Query Structure
 
+**Note**: Implementation must use different SQL queries based on search type:
+
+**1. Semantic-only or Hybrid Search** (when semantic_concepts provided):
 ```sql
--- Hybrid search with vec0 MATCH
+-- Uses vec0 MATCH for vector similarity
 SELECT
   c.id as chunk_id,
   d.file_path as file_path,
@@ -404,6 +406,31 @@ WHERE ce.embedding MATCH :query_embedding
 ORDER BY relevance_score DESC
 LIMIT :limit OFFSET :offset;
 ```
+
+**2. Exact-only Search** (when NO semantic_concepts provided):
+```sql
+-- No vec0 MATCH - direct query against chunks
+SELECT
+  c.id as chunk_id,
+  d.file_path as file_path,
+  c.content,
+  c.chunk_index,
+  d.document_keywords
+FROM chunks c
+JOIN documents d ON c.document_id = d.id
+WHERE d.folder_id = :folder_id
+  -- exact_terms matching done in application code
+  -- chunks filtered by exact term presence
+  -- relevance_score = 1.0 * exact_term_boost (calculated in app)
+ORDER BY relevance_score DESC
+LIMIT :limit OFFSET :offset;
+```
+
+**Implementation Note**: For exact-only searches:
+- semantic_score baseline = 1.0 (not from database)
+- exact_term_boost calculated by scanning chunk.content for exact_terms
+- final_score = 1.0 × exact_term_boost
+- Application code applies min_score filtering after calculating scores
 
 ### Performance Considerations
 
