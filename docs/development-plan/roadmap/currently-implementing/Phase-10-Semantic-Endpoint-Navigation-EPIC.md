@@ -3,7 +3,7 @@
 **Epic Type**: Core Feature Enhancement
 **Phase**: 10 - Semantic Endpoint Navigation
 **Priority**: Critical - Makes the system usable for LLM agents
-**Total Duration**: 9.5 Sprints (~32-40 hours)
+**Total Duration**: 10.5 Sprints (~35-44 hours)
 **Pre-production**: YES - No backwards compatibility needed
 **Principle**: FAIL FAST - No silent failures or empty fallbacks
 
@@ -52,7 +52,17 @@ get_server_info() → list_folders() → explore() → get_document_text()
 ### Search Path (Specific Information)
 When an LLM needs to find specific information quickly:
 ```
-get_server_info() → search() → get_document_metadata() → get_chunks() or get_document_text()
+get_server_info() → search_content() → get_document_metadata() → get_chunks() or get_document_text()
+                        ↓
+                  (finds relevant chunks)
+```
+
+### Document Discovery Path (Topic-Based)
+When an LLM needs to find which documents cover a topic:
+```
+get_server_info() → find_documents() → get_document_text() or explore()
+                        ↓
+                  (finds relevant documents)
 ```
 
 ## Success Criteria
@@ -66,8 +76,9 @@ get_server_info() → search() → get_document_metadata() → get_chunks() or g
 6. **Chunk Retrieval**: `get_chunks` enables targeted content extraction after metadata exploration
 7. **Text Extraction**: `get_document_text` returns clean extracted text without semantic overlay
 8. **Raw File Access**: `get_document_raw` fetches raw file content (binary or text)
-9. **Semantic Search**: `search` uses embeddings with intelligent ranking
-10. **Performance**: All endpoints respond in <200ms using pre-computed data
+9. **Content Search**: `search_content` finds specific chunks using embeddings with intelligent ranking
+10. **Document Discovery**: `find_documents` identifies relevant documents for a topic
+11. **Performance**: All endpoints respond in <200ms using pre-computed data
 
 ### Validation Methodology (A2E Testing)
 - **Agent-to-Endpoint**: Use MCP tools directly, no scripts or curl commands
@@ -76,7 +87,7 @@ get_server_info() → search() → get_document_metadata() → get_chunks() or g
 
 ## Sprint Breakdown
 
-### 🔧 Sprint 7.5: Vec0 Infrastructure Migration (6-8 hours) - IN PROGRESS
+### ✅ Sprint 7.5: Vec0 Infrastructure Migration (6-8 hours) - COMPLETED
 **Goal**: Migrate embedding storage from TEXT to SQLite vec0 virtual tables, preparing infrastructure for native vector search.
 **Type**: Ad-hoc infrastructure enhancement
 **Focus**: Write path stability - ensuring embeddings stored correctly in vec0 format
@@ -179,17 +190,26 @@ mcp__folder-mcp__get_server_info()
     ],
     "search": [
       {
-        "name": "search",
-        "purpose": "Semantic search across all documents",
-        "returns": "Relevant chunks with explanations",
-        "use_when": "Finding specific information quickly"
+        "name": "search_content",
+        "purpose": "Find specific content chunks across documents using semantic search",
+        "returns": "Ranked chunks with context and explanations",
+        "use_when": "Looking for specific information, code examples, or exact passages",
+        "example_queries": ["Find useState examples", "Show error handling code", "Where is WebSocket configuration?"]
+      },
+      {
+        "name": "find_documents",
+        "purpose": "Discover which documents cover a topic using document-level embeddings",
+        "returns": "Ranked documents with relevance scores and summaries",
+        "use_when": "Exploring a subject area or finding files to read",
+        "example_queries": ["Which docs discuss authentication?", "All files about testing", "Documents related to configuration"]
       }
     ]
   },
   "usage_hints": {
     "exploration_flow": "get_server_info → list_folders → explore → list_documents → get_document_text",
-    "search_flow": "get_server_info → search → get_document_text",
-    "tip": "Use exploration for understanding structure, search for specific queries",
+    "content_search_flow": "get_server_info → search_content → get_chunks or get_document_text",
+    "document_discovery_flow": "get_server_info → find_documents → get_document_text",
+    "tip": "Use exploration for structure, search_content for specific info, find_documents for topic discovery",
     "path_handling": {
       "cross_platform": true,
       "accepts_formats": ["Unix (/path/to/folder)", "Windows (C:\\path\\to\\folder)", "Mixed (C:/path/to/folder)"],
@@ -1308,137 +1328,425 @@ The `files` array in explore response includes everything, with only indexed doc
 
 ---
 
-### Sprint 8: Perfect `search` Endpoint with Vec0 Native Search (4-5 hours)
-**Goal**: Implement semantic search using SQLite vec0 MATCH operator for SIMD-accelerated similarity search.
-**Prerequisites**: Sprint 7.5 completed - embeddings already in vec0 format
-**Enhancement**: Search results include download URLs for immediate file access
+### Sprint 8: In-Folder Semantic Search with Hybrid Scoring (4-5 hours)
+**Goal**: Implement intelligent semantic search designed for LLM clients to efficiently locate content in familiar folders through hybrid approach combining semantic similarity and exact term matching.
+**Type**: New search endpoint optimized for LLM-driven parameter extraction
+**Status**: Planning Complete - Ready for Implementation
+**Full Documentation**: See [Phase-10-Sprint-8-In-Folder-Semantic-Search.md](Phase-10-Sprint-8-In-Folder-Semantic-Search.md)
+**Endpoint Name**: search_content
 
-**Implementation Approach**:
-- Use vec0 `MATCH` operator for native vector similarity search
-- SIMD-accelerated cosine similarity (much faster than JavaScript iteration)
-- Query both chunk_embeddings and document_embeddings tables
-- Semantic metadata (key phrases, readability) preserved from chunks/documents tables
-- Pagination with continuation tokens
+#### Core Design Philosophy
 
-**Technical Foundation** (from Sprint 7.5):
-- Embeddings stored in `chunk_embeddings` vec0 virtual table
-- Document embeddings in `document_embeddings` vec0 virtual table
-- Single model per database ensures dimension consistency
-- Semantic metadata unchanged in chunks/documents tables
+**LLM-Driven Parameter Extraction**: The LLM client extracts structured search parameters from user queries:
+- **semantic_concepts**: Array of terms for embedding-based similarity (`["authentication", "state management"]`) - OPTIONAL
+- **exact_terms**: Terms that must match exactly (`["useState", "WebSocket", "v4"]`) - OPTIONAL
+- **Validation**: At least ONE of semantic_concepts or exact_terms must be provided
+- **No file filtering**: Document filtering is find_documents' responsibility (clear separation of concerns)
 
-#### Example Request (Initial)
+**Hybrid Scoring Algorithm**: Combines two signals for optimal precision:
+1. **Semantic similarity**: Vector similarity via vec0 MATCH operator
+2. **Exact text matching**: Boost for technical terms found exactly in chunks
+
+**Flat Chunk Results**: Returns flat list of chunks ranked by relevance across ALL documents (not grouped), because:
+- LLM needs THE most relevant content immediately
+- Perfect chunk in document #15 shouldn't be hidden
+- Each result includes document_id, so LLM knows source
+- Natural discovery: 5 chunks from same file in top 10 = that file is important
+
+#### Example Request
 ```typescript
-// MCP Tool Call - Default limit of 10 for quality over quantity
-mcp__folder-mcp__search({
-  base_folder_path: "/Users/hanan/Projects/folder-mcp",
-  query: "How to implement TMOAT agent testing with websocket endpoints",
-  threshold: 0.3
-  // limit: 10 is the default
+// LLM extracts structured parameters from user query
+mcp__folder-mcp__search_content({
+  folder_id: "my-project",
+  semantic_concepts: ["authentication", "state management", "React hooks"],
+  exact_terms: ["useState", "useEffect"],
+  min_score: 0.5,  // Relevance threshold (default: 0.5)
+  limit: 10  // Max results per page (default: 10, max: 50)
 })
 ```
 
-#### Vec0 Search Query (Internal Implementation)
-```sql
--- Native vec0 similarity search with SIMD acceleration
-SELECT
-  c.id as chunk_id,
-  c.content,
-  c.chunk_index,
-  c.key_phrases,        -- ✅ Semantic metadata preserved
-  c.readability_score,  -- ✅ Semantic metadata preserved
-  d.file_path,
-  d.document_keywords,  -- ✅ Document-level keywords preserved
-  vec_distance_cosine(ce.embedding, ?) as distance
-FROM chunk_embeddings ce
-WHERE ce.embedding MATCH ?  -- ✅ Vec0 MATCH operator (SIMD-accelerated)
-JOIN chunks c ON ce.chunk_id = c.id
-JOIN documents d ON c.document_id = d.id
-ORDER BY distance ASC
-LIMIT 10;
-```
-
-#### Example Response with Download URLs
+#### Example Response (StandardResponse Pattern)
 ```json
 {
-  "base_folder_path": "/Users/hanan/Projects/folder-mcp",
-  "query": "How to implement TMOAT agent testing with websocket endpoints",
-  "results": [
-    {
-      "file_path": "CLAUDE.md",
-      "chunk_id": "chunk_1",
-      "relevance_score": 0.92,
-      "content_snippet": "...TMOAT AGENT WILL USE: 1. Query database files...",
-      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
-      "semantic_explanation": {
-        "why_relevant": "Direct match for TMOAT agent testing and websocket",
-        "matched_key_phrases": [
-          "TMOAT agent testing",
-          "websocket endpoints",
-          "database queries"
-        ],
-        "confidence": "high",
-        "match_type": "exact_topic"
+  "data": {
+    "results": [
+      {
+        "chunk_id": "12345",
+        "document_id": "src/auth/LoginForm.tsx",
+        "content": "import React, { useState, useEffect } from 'react';\n\nfunction LoginForm() {\n  const [authState, setAuthState] = useState({ authenticated: false, user: null });\n  \n  useEffect(() => {\n    // Authentication state management\n    validateSession();\n  }, []);\n  \n  // Form validation and state handling...",
+        "relevance_score": 0.94,
+        "chunk_index": 5,
+        "document_keywords": ["useState hook", "authentication state", "form validation", "React component", "session management"]
+      },
+      {
+        "chunk_id": "67890",
+        "document_id": "src/hooks/useAuth.ts",
+        "content": "// Custom authentication hook using React hooks\nexport function useAuth() {\n  const [state, setState] = useState<AuthState>(initialState);\n  \n  useEffect(() => {\n    // Listen to auth state changes\n    const unsubscribe = authService.onStateChange(newState => {\n      setState(newState);\n    });\n    return unsubscribe;\n  }, []);",
+        "relevance_score": 0.89,
+        "chunk_index": 2,
+        "document_keywords": ["custom hooks", "authentication", "React hooks", "state management"]
       }
-    },
-    {
-      "file_path": "docs/testing/websocket-guide.md",
-      "chunk_id": "chunk_5",
-      "relevance_score": 0.87,
-      "content_snippet": "...WebSocket connections in TMOAT framework...",
-      "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF...",
-      "semantic_explanation": {
-        "why_relevant": "WebSocket implementation details for TMOAT",
-        "matched_key_phrases": ["websocket", "TMOAT", "testing framework"],
-        "confidence": "high",
-        "match_type": "related_topic"
-      }
-    }
-  ],
-  "search_metadata": {
-    "total_matches": 47,
-    "returned": 10,
-    "search_strategy": "semantic_embedding",
-    "model_used": "multilingual-e5-large",
-    "search_time_ms": 47,
-    "average_relevance": 0.78
+    ],
+    "total_results": 47
+  },
+  "status": {
+    "code": "success",
+    "message": "Found 47 matching chunks"
   },
   "pagination": {
     "limit": 10,
     "offset": 0,
-    "total": 47,
-    "returned": 10,
     "has_more": true,
-    "continuation_token": "eyJxdWVyeSI6IkhvdyB0byBpbXBsZW1lbnQgVE1PQVQiLCJvZmZzZXQiOjEwfQ=="
+    "continuation_token": "eyJmb2xkZXJfaWQiOiJteS1wcm9qZWN0Iiwib2Zmc2V0IjoxMH0..."
   },
   "navigation_hints": {
-    "continue_search": "Use continuation_token for more results (sorted by relevance)",
-    "use_get_document_text": "To read full documents",
-    "refine_search": "Add more specific terms to narrow results"
+    "next_steps": [
+      "Content is included - read directly from results",
+      "Use continuation_token to see more results (sorted by relevance)",
+      "Use get_document_text to read entire documents",
+      "Use get_document_metadata to understand document structure"
+    ],
+    "refine_search": [
+      "Add more exact_terms to catch specific technical terms",
+      "Use find_documents to filter by document-level topics first",
+      "Adjust min_score threshold for precision vs recall"
+    ],
+    "tip": "Content is always included - no need for additional fetch"
   }
 }
 ```
 
-#### Example Continuation Request
-```typescript
-// Get more search results if initial 10 weren't sufficient
-mcp__folder-mcp__search({
-  continuation_token: "eyJxdWVyeSI6IkhvdyB0byBpbXBsZW1lbnQgVE1PQVQiLCJvZmZzZXQiOjEwfQ=="
-})
-// Returns results 11-20, still sorted by relevance
-```
+#### Key Features
 
-#### Why Search with Download URLs Helps
-- **Immediate access**: Found files come with download URLs ready to use
-- **No extra MCP calls**: Search → Download without intermediate steps
-- **Consistent with exploration**: All endpoints provide download URLs
-- **Default limit 10**: Shows best matches first without overwhelming
-- **Quality over quantity**: Top 10 usually sufficient for most queries
-- **Progressive exploration**: Get more results only if needed
-- **Context savings**: 10 results ≈ 2KB vs 50 results ≈ 10KB
+**Content-First Design**: Search returns full chunk content immediately
+- Single round trip: No need for follow-up fetch
+- Efficient for LLMs: 95% of searches need content anyway
+- Token cost acceptable: 5-10K tokens = 2.5-5% of 200K context budget
+- Immediate utility: LLMs can read and answer from results directly
+
+**Continuation Token Pagination**: All search state in opaque token
+- Stateless: Token contains folder_id, semantic_concepts, exact_terms, offset
+- Consistent: Matches existing endpoints pattern
+- Standard pagination: limit parameter controls results per page
+
+**Schema-Aligned Response**: All fields map directly to database columns
+- chunk_id → chunks.id
+- document_id → documents.file_path (relative path, reusable)
+- content → chunks.content
+- chunk_index → chunks.chunk_index
+- document_keywords → documents.document_keywords (JSON parsed)
+- relevance_score → computed from vec0 + boosts
+
+#### Why Hybrid Approach Works
+
+**Problem with Pure Semantic Search**:
+- Technical terms (useState, WebSocket) poorly represented in embeddings
+- Subword tokenization means they GET embeddings, but quality is poor
+- useState vs useEffect look similar semantically but are different
+
+**Solution - Two-Signal Hybrid**:
+- Semantic: Handles conceptual matching and natural language
+- Exact matching: Precision for technical terms
+
+**Final Score**: `semantic_score × exact_term_boost`
+
+**Simplified from 4 signals to 2**:
+- Removed file_hints: Document filtering belongs in find_documents
+- Removed filename/filetype boosts: Unclear value, added complexity
+- Focus on content relevance, not file metadata
+
+#### Integration with Existing System
+
+**Uses existing infrastructure**:
+- `chunk_embeddings` vec0 table for vector similarity
+- `chunks` table for key_phrases, readability_score
+- `documents` table for metadata
+- Vec0 MATCH operator for SIMD-accelerated search
+
+**Complements existing endpoints**:
+- get_document_text: Read entire document from start to finish
+- get_document_metadata: Understand document structure and chunk layout
+- get_chunks: Retrieve specific non-search chunks by ID
+- explore/list_documents: Navigate when search too broad
+- find_documents: Document-level topic discovery before chunk search
+
+#### Performance Targets
+
+- Search latency: <200ms for typical queries
+- Token efficiency: First page fits in 4000 tokens
+- Quality: >85% precision for top 10 results
+- Technical term matching: 100% recall for exact_terms
+
+#### A2E Test Validation
+
+```typescript
+// Known: CLAUDE.md contains "useState" and "TMOAT agent"
+// Step 1: Read the file to establish ground truth
+mcp__folder-mcp__get_document_text({
+  base_folder_path: "/Users/hanan/Projects/folder-mcp",
+  file_path: "CLAUDE.md"
+})
+// Confirms: Contains "useState" in testing section and "TMOAT agent" terminology
+
+// Step 2: Search with exact terms and semantic concepts
+mcp__folder-mcp__search_content({
+  folder_id: "folder-mcp",
+  semantic_concepts: ["React hooks", "testing methodology"],
+  exact_terms: ["useState", "TMOAT"],
+  limit: 10
+})
+
+// Step 3: Validate results
+// Expected: CLAUDE.md chunks in results with content included
+// Expected: Higher relevance_score for chunks containing both exact terms
+// Expected: Content field populated with actual text (not empty)
+// Expected: document_keywords include relevant phrases like "testing", "agent"
+```
 
 ---
 
-### Sprint 8: Integration Testing & Validation (3-4 hours)
+### Sprint 9: Document Discovery with `find_documents` Endpoint (3-4 hours)
+**Goal**: Enable LLMs to discover which documents cover a topic using document-level embeddings for broad topic exploration.
+**Type**: New search endpoint optimized for document-level discovery (not chunk-level precision)
+**Status**: Planned - Pending Sprint 8 Completion
+**Endpoint Name**: find_documents
+
+#### Core Design Philosophy
+
+**Document-Level Discovery**: Uses averaged document embeddings to find files covering a topic
+- **Different from search_content**: Returns DOCUMENTS (not chunks)
+- **Use case**: "Which docs discuss authentication?" → files, not specific passages
+- **Coarser granularity**: Good for exploration, not precision
+- **Complements search_content**: find_documents → broad discovery, search_content → specific content
+
+**Simple Semantic Query**: LLM provides natural language query
+- **No structured parameters**: Just a query string (not semantic_concepts/exact_terms)
+- **Topic-based**: "authentication setup", "testing strategies", "configuration management"
+- **Returns documents**: Ranked list of files that cover the topic
+
+**Leverages Existing Infrastructure**: Uses document_embeddings vec0 table
+- **Already computed**: Document embeddings stored during indexing
+- **Fast matching**: Vec0 MATCH operator for document-level similarity
+- **Metadata-rich**: Returns document metadata + relevance score
+
+#### Example Request
+```typescript
+// LLM provides natural language query for topic discovery
+mcp__folder-mcp__find_documents({
+  folder_id: "my-project",
+  query: "authentication and authorization setup",
+  min_score: 0.6,  // Relevance threshold (default: 0.6)
+  limit: 20  // Max documents to return
+})
+```
+
+#### Example Response (StandardResponse Pattern)
+```json
+{
+  "data": {
+    "results": [
+      {
+        "document_id": "docs/auth/setup-guide.md",
+        "relevance_score": 0.89,
+        "document_summary": {
+          "top_key_phrases": [
+            {"text": "OAuth2 configuration", "score": 0.92},
+            {"text": "JWT token validation", "score": 0.88},
+            {"text": "role-based access control", "score": 0.85}
+          ],
+          "readability_score": 48.3,
+          "chunk_count": 12,
+          "size": "15.2 KB",
+          "modified": "2025-01-20T14:30:00Z"
+        },
+        "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+      },
+      {
+        "document_id": "src/auth/middleware.ts",
+        "relevance_score": 0.82,
+        "document_summary": {
+          "top_key_phrases": [
+            {"text": "authentication middleware", "score": 0.90},
+            {"text": "token verification", "score": 0.87},
+            {"text": "session management", "score": 0.84}
+          ],
+          "readability_score": 42.1,
+          "chunk_count": 8,
+          "size": "8.4 KB",
+          "modified": "2025-01-18T09:15:00Z"
+        },
+        "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+      },
+      {
+        "document_id": "README.md",
+        "relevance_score": 0.75,
+        "document_summary": {
+          "top_key_phrases": [
+            {"text": "getting started", "score": 0.85},
+            {"text": "authentication setup", "score": 0.82},
+            {"text": "configuration guide", "score": 0.79}
+          ],
+          "readability_score": 55.8,
+          "chunk_count": 18,
+          "size": "22.1 KB",
+          "modified": "2025-01-22T10:30:00Z"
+        },
+        "download_url": "http://localhost:3001/api/v1/download?token=eyJmb2xkZXIiOiIvVXNlcnMvaGF..."
+      }
+    ],
+    "statistics": {
+      "total_results": 3,
+      "avg_relevance": 0.82,
+      "min_score_threshold": 0.6
+    }
+  },
+  "status": {
+    "code": "success",
+    "message": "Found 3 documents covering the topic"
+  },
+  "continuation": {
+    "has_more": false
+  },
+  "navigation_hints": {
+    "next_steps": [
+      "Use get_document_text to read entire documents",
+      "Use search_content for specific passages within these documents",
+      "Use download_url for source code or binary files"
+    ],
+    "refine_search": [
+      "Lower min_score to find more documents (trade precision for recall)",
+      "Use search_content for chunk-level precision instead",
+      "Use explore/list_documents if results are too broad"
+    ],
+    "tip": "find_documents is best for topic exploration - use search_content for specific content"
+  }
+}
+```
+
+#### Key Differences from search_content
+
+| Aspect | find_documents | search_content |
+|--------|---------------|----------------|
+| **Granularity** | Document-level | Chunk-level |
+| **Query Type** | Natural language topic | Structured (semantic_concepts/exact_terms) |
+| **Results** | Ranked documents | Ranked chunks across documents |
+| **Use Case** | "Which docs cover X?" | "Find specific passage about X" |
+| **Embedding Source** | document_embeddings | chunk_embeddings |
+| **Precision** | Coarse (topic-level) | Fine (passage-level) |
+| **Navigation** | Leads to reading full documents | Leads to specific chunks |
+
+#### Implementation Approach
+
+**Vec0 Document Search**:
+```sql
+-- Query document embeddings using vec0 MATCH operator
+SELECT
+  d.file_path,
+  d.document_keywords,
+  d.avg_readability_score,
+  d.size,
+  d.last_modified,
+  COUNT(c.id) as chunk_count,
+  de.distance as relevance_score
+FROM document_embeddings de
+JOIN documents d ON de.document_id = d.id
+LEFT JOIN chunks c ON c.document_id = d.id
+WHERE de.embedding MATCH :query_embedding
+  AND de.k = :limit
+  AND de.distance >= :min_score
+GROUP BY d.id
+ORDER BY de.distance DESC
+```
+
+**Performance Optimization**:
+- Uses pre-computed document_embeddings (no aggregation at query time)
+- Vec0 MATCH operator with SIMD acceleration
+- Target latency: <150ms for typical queries
+- Minimal post-processing (already aggregated during indexing)
+
+**Response Construction**:
+1. Generate query embedding from natural language query
+2. Search document_embeddings vec0 table
+3. Join with documents table for metadata
+4. Parse document_keywords JSON for top_key_phrases
+5. Generate time-limited download tokens
+6. Return ranked document list
+
+#### Integration with Existing System
+
+**Uses existing infrastructure**:
+- `document_embeddings` vec0 table for document-level vectors
+- `documents` table for metadata (keywords, readability, size, modified)
+- Vec0 MATCH operator for SIMD-accelerated search
+- Existing token generation for download URLs
+
+**Complements existing endpoints**:
+- **Exploration flow**: list_folders → explore → find_documents → get_document_text
+- **Precision flow**: find_documents → search_content (narrow to specific passages)
+- **Reading flow**: find_documents → get_document_metadata → get_chunks
+
+**Clear use case separation**:
+- **find_documents**: "Which docs should I read about authentication?"
+- **search_content**: "Where in the codebase is JWT validation implemented?"
+- **explore**: "What files exist in the auth folder?"
+
+#### A2E Test Validation
+
+```typescript
+// Known: CLAUDE.md discusses TMOAT testing extensively
+// Step 1: Find documents about testing
+mcp__folder-mcp__find_documents({
+  folder_id: "folder-mcp",
+  query: "agent testing methodology",
+  min_score: 0.6,
+  limit: 10
+})
+
+// Step 2: Validate
+// Expected: CLAUDE.md in results with high relevance_score
+// Expected: THE_MOTHER_OF_ALL_TESTS.md also likely in results
+// Expected: Key phrases include "TMOAT", "agent testing", "validation"
+
+// Step 3: Compare with search_content
+mcp__folder-mcp__search_content({
+  folder_id: "folder-mcp",
+  semantic_concepts: ["agent testing"],
+  exact_terms: ["TMOAT"],
+  limit: 10
+})
+// Expected: search_content returns CHUNKS from same documents with content included
+// Expected: More precise, chunk-level results vs document-level
+```
+
+#### Performance Targets
+
+- Search latency: <150ms for typical queries
+- Quality: >80% precision for top 5 documents
+- Complementarity: 90%+ of find_documents results should contain relevant content when searched with search_content
+- Coverage: Should surface documents that explore/list_documents would miss
+
+#### When to Use find_documents vs search_content
+
+**Use find_documents when:**
+- Exploring a new topic area ("What docs discuss configuration?")
+- Need to identify which files to read fully
+- Topic-level understanding is sufficient
+- Broader coverage preferred over precision
+
+**Use search_content when:**
+- Looking for specific information ("Where is WebSocket configuration?")
+- Need exact passages or code examples
+- Technical term matching required
+- Precision more important than coverage
+
+**Use both sequentially:**
+1. find_documents to identify relevant files
+2. search_content within those files for specific passages
+3. get_chunks to read the exact content needed
+
+---
+
+### Sprint 10: Integration Testing & Validation (3-4 hours)
 **Goal**: Ensure all endpoints work together seamlessly for both exploration and search paths.
 **Note**: Final sprint for validation and A2E testing of the complete navigation system
 
