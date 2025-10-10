@@ -15,16 +15,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import path from 'path';
 
-import { setupDependencyInjection } from './di/setup.js';
-import { SERVICE_TOKENS } from './di/interfaces.js';
-import type { IndexingWorkflow } from './application/indexing/index.js';
-import type { MonitoringWorkflow } from './application/monitoring/index.js';
-import { MCPEndpoints, type IMCPEndpoints } from './interfaces/mcp/endpoints.js';
-import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
-import { CliArgumentParser, type CliArguments } from './application/config/CliArgumentParser.js';
-import { getSupportedExtensions } from './domain/files/supported-extensions.js';
 import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
 import { DaemonMCPEndpoints } from './interfaces/mcp/daemon-mcp-endpoints.js';
+import { CliArgumentParser } from './application/config/CliArgumentParser.js';
+import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
 import { spawn, type ChildProcess } from 'child_process';
 import { join, resolve, dirname } from 'path';
 import { existsSync } from 'fs';
@@ -296,74 +290,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           }
         },
         {
-          name: 'search',
-          description: 'Search for documents within a specific folder using semantic search',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              query: {
-                type: 'string',
-                description: 'Search query'
-              },
-              folder_path: {
-                type: 'string',
-                description: 'Full path of the folder to search within (required for folder-specific search)'
-              },
-              threshold: {
-                type: 'number',
-                description: 'Minimum relevance threshold (0.0-1.0). Lower values return more results; higher values return only very relevant results.',
-                minimum: 0.0,
-                maximum: 1.0,
-                default: 0.3
-              },
-              limit: {
-                type: 'number',
-                description: 'Maximum number of results to return.',
-                minimum: 1,
-                maximum: 100,
-                default: 10
-              }
-            },
-            required: ['query', 'folder_path']
-          }
-        },
-        {
-          name: 'get_document_data',
-          description: 'Get document content and metadata from a specific folder',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              folder_path: {
-                type: 'string',
-                description: 'Full path of the folder containing the document'
-              },
-              document_id: {
-                type: 'string',
-                description: 'Document ID (filename or generated ID)'
-              }
-            },
-            required: ['folder_path', 'document_id']
-          }
-        },
-        {
-          name: 'get_document_outline',
-          description: 'Get document structure and outline from a specific folder',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              folder_path: {
-                type: 'string',
-                description: 'Full path of the folder containing the document'
-              },
-              document_id: {
-                type: 'string',
-                description: 'Document ID (filename or generated ID)'
-              }
-            },
-            required: ['folder_path', 'document_id']
-          }
-        },
-        {
           name: 'get_document_metadata',
           description: 'Get document metadata and structure with chunk navigation from a specific folder',
           inputSchema: {
@@ -507,32 +433,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             limit,
             continuation_token: continuationToken
           });
-          return result as any;
-        }
-
-        case 'search': {
-          const query = args?.query as string || '';
-          const folderPath = args?.folder_path as string | undefined;
-          const threshold = args?.threshold as number | undefined;
-          const limit = args?.limit as number | undefined;
-          const options: { threshold?: number; limit?: number } = {};
-          if (threshold !== undefined) options.threshold = threshold;
-          if (limit !== undefined) options.limit = limit;
-          const result = await daemonEndpoints.search(query, folderPath, options);
-          return result as any;
-        }
-
-        case 'get_document_data': {
-          const folderPath = args?.folder_path as string;
-          const documentId = args?.document_id as string;
-          const result = await daemonEndpoints.getDocument(folderPath, documentId);
-          return result as any;
-        }
-        
-        case 'get_document_outline': {
-          const folderPath = args?.folder_path as string;
-          const documentId = args?.document_id as string;
-          const result = await daemonEndpoints.getDocumentOutline(folderPath, documentId);
           return result as any;
         }
 

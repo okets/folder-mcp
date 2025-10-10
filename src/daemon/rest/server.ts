@@ -424,18 +424,24 @@ export class RESTAPIServer {
           ],
           search: [
             {
-              name: "search",
-              purpose: "Semantic search across all documents",
-              returns: "Relevant chunks with explanations",
-              use_when: "Finding specific information quickly"
+              name: "search_content",
+              purpose: "Find specific content chunks across documents using semantic search",
+              returns: "Ranked chunks with context and explanations",
+              use_when: "Looking for specific information, code examples, or exact passages"
+            },
+            {
+              name: "find_documents",
+              purpose: "Discover which documents cover a topic using document-level embeddings",
+              returns: "Ranked documents with relevance scores and summaries",
+              use_when: "Exploring a subject area or finding files to read"
             }
           ]
         },
         usage_hints: {
-          exploration_flow: "get_server_info → list_folders → explore → list_documents → get_document_metadata → get_chunks/get_document_text",
-          search_flow: "get_server_info → search → get_document_metadata → get_chunks/get_document_text",
-          chunk_navigation_flow: "list_documents → get_document_metadata (paginated) → get_chunks (targeted retrieval)",
-          tip: "Use exploration for understanding structure, search for specific queries, metadata for chunk navigation"
+          exploration_flow: "get_server_info → list_folders → explore → list_documents → get_document_text",
+          content_search_flow: "get_server_info → search_content → get_chunks or get_document_text",
+          document_discovery_flow: "get_server_info → find_documents → get_document_text",
+          tip: "Use exploration for structure, search_content for specific info, find_documents for topic discovery"
         }
       };
 

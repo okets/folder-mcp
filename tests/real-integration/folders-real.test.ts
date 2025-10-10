@@ -12,13 +12,48 @@ import path from 'path';
 import { promises as fs, existsSync, statSync, readdirSync } from 'fs';
 import os from 'os';
 
-// MCP types for endpoint testing
-import type { 
-  ListFoldersResponse, 
-  ListDocumentsRequest, 
-  ListDocumentsResponse,
-  DocumentInfo 
-} from '../../src/interfaces/mcp/types.js';
+// Test-only types (these endpoints are planned/legacy)
+interface ListFoldersResponse {
+  data: {
+    folders: string[];
+    token_count: number;
+  };
+  status: {
+    code: 'success' | 'partial_success' | 'error';
+    message: string;
+  };
+  continuation: {
+    has_more: boolean;
+    token?: string;
+  };
+}
+
+interface ListDocumentsRequest {
+  folder: string;
+  max_tokens?: number;
+  continuation_token?: string;
+}
+
+interface DocumentInfo {
+  name: string;
+  document_id: string;
+  modified: string;
+}
+
+interface ListDocumentsResponse {
+  data: {
+    documents: DocumentInfo[];
+    token_count: number;
+  };
+  status: {
+    code: 'success' | 'partial_success' | 'error';
+    message: string;
+  };
+  continuation: {
+    has_more: boolean;
+    token?: string;
+  };
+}
 
 // Helper function to copy directory recursively
 async function copyDirectory(src: string, dest: string): Promise<void> {

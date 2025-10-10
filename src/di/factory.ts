@@ -306,54 +306,6 @@ export class ServiceFactory implements IServiceFactory {
       stopAll: async () => { },
       getActiveTransports: () => []
     };
-  }  async createMCPServer(
-    options: any,
-    container: DependencyContainer
-  ): Promise<any> {
-    // Get required services
-    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as ILoggingService;
-    
-    // Get core infrastructure services for new endpoints
-    const vectorSearchService = await container.resolveAsync(SERVICE_TOKENS.VECTOR_SEARCH) as any;
-    const fileParsingService = container.resolve(SERVICE_TOKENS.FILE_PARSING) as any;
-    const embeddingService = container.resolve(SERVICE_TOKENS.EMBEDDING) as any;
-    const fileSystemService = container.resolve(SERVICE_TOKENS.FILE_SYSTEM) as any;
-    
-    // Get domain file system
-    const fileSystem = container.resolve(SERVICE_TOKENS.DOMAIN_FILE_SYSTEM_PROVIDER) as any;
-
-    // Import MCPServer
-    const { MCPServer } = await import('../interfaces/mcp/server.js');
-
-    // Get multi-folder services
-    const folderManager = container.resolve(SERVICE_TOKENS.FOLDER_MANAGER) as any;
-    const multiFolderStorageProvider = container.resolve(SERVICE_TOKENS.MULTI_FOLDER_STORAGE_PROVIDER) as any;
-
-    // Create MCP server with new endpoint-enabled constructor
-    return new MCPServer(
-      {
-        name: options.name || 'folder-mcp',
-        version: options.version || '1.0.0',
-        transport: options.transport || 'stdio',
-        port: options.port,
-        host: options.host
-      },
-      {
-        tools: true,
-        resources: true,
-        prompts: false,
-        completion: false
-      },
-      options.folderPath,
-      vectorSearchService,
-      fileParsingService,
-      embeddingService,
-      fileSystemService,
-      fileSystem,
-      folderManager,
-      multiFolderStorageProvider,
-      loggingService
-    );
   }
 }
 

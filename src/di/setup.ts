@@ -369,18 +369,6 @@ export function setupDependencyInjection(options: {
     return await serviceFactory.createHealthMonitoringService(container);
   });
 
-  // Register MCP server (only needs folderPath)
-  if (options.folderPath) {
-    container.registerSingleton(SERVICE_TOKENS.MCP_SERVER, async () => {
-      return await serviceFactory.createMCPServer({
-        folderPath: options.folderPath!,
-        transport: 'stdio',
-        name: 'folder-mcp',
-        version: '1.0.0'
-      }, container);
-    });
-  }
-
   // Register daemon services as null for now - CLI will handle daemon service creation separately
   container.registerSingleton(SERVICE_TOKENS.DAEMON_SERVICE, () => null);
   container.registerSingleton(SERVICE_TOKENS.PROCESS_MANAGER, () => null);

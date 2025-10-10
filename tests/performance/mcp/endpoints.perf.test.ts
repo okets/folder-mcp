@@ -7,9 +7,35 @@
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { setupTestEnvironment, cleanupTestEnvironment } from '../../helpers/setup.js';
-import type { 
-  SearchRequest, GetPagesRequest, GetSheetDataRequest 
-} from '../../../src/interfaces/mcp/types.js';
+
+// Phase 10 Sprint 8 planned types (not yet implemented)
+interface SearchRequest {
+  query: string;
+  mode: 'semantic' | 'regex';
+  scope: 'documents' | 'chunks';
+  filters?: {
+    folder?: string;
+    fileType?: string;
+  };
+  max_tokens?: number;
+  continuation_token?: string;
+}
+
+// Test-only types for other planned endpoints
+interface GetPagesRequest {
+  document_id: string;
+  page_range?: string;
+  max_tokens?: number;
+  continuation_token?: string;
+}
+
+interface GetSheetDataRequest {
+  document_id: string;
+  sheet_name?: string;
+  cell_range?: string;
+  max_tokens?: number;
+  continuation_token?: string;
+}
 
 interface PerformanceMetrics {
   responseTime: number;

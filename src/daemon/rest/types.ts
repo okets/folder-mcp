@@ -68,10 +68,10 @@ export interface AvailableEndpoints {
 export interface UsageHints {
   /** Recommended flow for general exploration */
   exploration_flow: string;
-  /** Recommended flow for specific queries */
-  search_flow: string;
-  /** Recommended flow for chunk-based navigation */
-  chunk_navigation_flow?: string;
+  /** Recommended flow for chunk-level content search */
+  content_search_flow: string;
+  /** Recommended flow for document-level discovery */
+  document_discovery_flow: string;
   /** Additional helpful tip */
   tip: string;
 }

@@ -125,10 +125,5 @@ export interface DocumentMetadata {
   type: string;
 }
 
-// Domain implementations (to be migrated from existing code)
-// export { VectorSearch } from './vector.js';
-// export { EnhancedSearch } from './enhanced.js';
-// export { ResultRanker } from './ranking.js';
-
 // Export types for other modules
 export type { TextChunk, EmbeddingVector };

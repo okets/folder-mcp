@@ -540,11 +540,6 @@ export interface IServiceFactory {
    * Create logging service
    */
   createLoggingService(config?: any): ILoggingService;
-  
-  /**
-   * Create MCP server
-   */
-  createMCPServer(options: any, container: any): any;
 }
 
 // =============================================================================
@@ -640,8 +635,6 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   MONITORING_WORKFLOW: Symbol('MonitoringWorkflow'),
   
   // Interface Layer
-  MCP_SERVER: Symbol('MCPServer'),
-  
   // CLI Layer
   CLI_CONFIGURATION_COMMAND_SERVICE: Symbol('CLIConfigurationCommandService'),
   CLI_CONFIGURATION_OVERRIDE_SERVICE: Symbol('CLIConfigurationOverrideService'),
@@ -722,7 +715,6 @@ export const MODULE_TOKENS = {
   // Interface Layer Services
   INTERFACE: {
     CLI_PROGRAM: Symbol('Interface.CLIProgram'),
-    MCP_SERVER: Symbol('Interface.MCPServer'),
     MCP_TRANSPORT: Symbol('Interface.MCPTransport'),
   },
 } as const;
