@@ -6,7 +6,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SQLiteVecStorage, VectorMetadata } from '../../../../../src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.js';
-import { EmbeddingVector } from '../../../../../src/types/index.js';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { rmSync, existsSync, mkdirSync } from 'fs';
@@ -339,7 +338,6 @@ describe('SQLiteVecStorage', () => {
             expect(result?.metadata).toBeDefined();
             expect(result?.metadata.score).toBe(result?.similarity);
             expect(result?.metadata.chunkIndex).toBe(0);
-            expect(result?.metadata.filePath).toBe('doc1.txt');
             expect(result?.metadata.chunkId).toBeDefined(); // Chunk ID in metadata for retrieval
         });
     });

@@ -13,14 +13,13 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import path from 'path';
 
 import { DaemonRESTClient } from './interfaces/mcp/daemon-rest-client.js';
 import { DaemonMCPEndpoints } from './interfaces/mcp/daemon-mcp-endpoints.js';
 import { CliArgumentParser } from './application/config/CliArgumentParser.js';
-import { initializeDevMode, type DevModeManager } from './config/dev-mode.js';
-import { spawn, type ChildProcess } from 'child_process';
-import { join, resolve, dirname } from 'path';
+import { type DevModeManager } from './config/dev-mode.js';
+import { spawn } from 'child_process';
+import { resolve, dirname } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 
@@ -586,7 +585,7 @@ export async function main(): Promise<void> {
       process.exit(1);
     }
     
-    const { folderPath, theme } = parseResult.args;
+    const { folderPath } = parseResult.args;
     
     // Phase 9: Determine mode based on folderPath presence
     const isDaemonMode = !folderPath;

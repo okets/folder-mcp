@@ -63,7 +63,6 @@ export interface SearchResultMetadata {
   distance: number;
   chunkIndex: number;
   chunkId?: ChunkId;  // Database ID for lazy loading content retrieval
-  filePath: string;
   relevanceFactors: RelevanceFactor[];
 }
 

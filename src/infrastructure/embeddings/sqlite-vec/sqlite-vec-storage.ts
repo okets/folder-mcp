@@ -6,8 +6,8 @@
  */
 
 import { IVectorSearchService, ILoggingService } from '../../../di/interfaces.js';
-import { EmbeddingVector, TextChunk, TextChunkMetadata, ChunkId, SemanticScore } from '../../../types/index.js';
-import { SearchResult, LazySearchResult } from '../../../domain/search/index.js';
+import { EmbeddingVector, TextChunk, SemanticScore } from '../../../types/index.js';
+import { SearchResult } from '../../../domain/search/index.js';
 
 // Temporary type alias for compatibility with tests
 type EmbeddingVectorOrArray = EmbeddingVector | number[];
@@ -51,7 +51,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
     private logger: ILoggingService | undefined;
     private ready: boolean = false;
     private config: SQLiteVecStorageConfig;
-    private preservedDocumentSemantics: any[] = []; // Sprint 11: Store preserved document-level data
 
     constructor(config: SQLiteVecStorageConfig) {
         this.config = config;
@@ -249,7 +248,6 @@ export class SQLiteVecStorage implements IVectorSearchService {
                         distance: row.distance,
                         chunkIndex: row.chunk_index,
                         chunkId: String(row.chunk_id), // Store in metadata as string
-                        filePath: row.file_path,
                         relevanceFactors: [
                             {
                                 factor: 'cosine_similarity',
