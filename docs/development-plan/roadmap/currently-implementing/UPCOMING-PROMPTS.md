@@ -92,8 +92,8 @@ Be a good TMOAT agent and verify your changes! it doesn't have to be on every si
 ─────────────────────────────────────────────────────────────────────────────
 My automated code review suggested the following changes. I trust your judgment better so treat the recommendations with critical thinking!
 The automated Code review system does not know what we worked on. I want you to: 
-- read docs/development-plan/roadmap/currently-implementing/Semantic-Data-Extraction/semantic-data-extraction-sprint-1.md and docs/development-plan/roadmap/currently-implementing/Fix-Python-Orchestration-Plan.md
-- read the commit messages for all of the changes in our branch. Once you understand the tasks We worked on during this sprint you should evaluate each of the suggestions.
+- read the sprint and epic documents.
+- Once you understand the tasks We worked on during this sprint you should evaluate each of the suggestions.
 - Don't fix anything yet!
 - decide which suggestions are valid and which do not.
 - group related valid suggestions together.

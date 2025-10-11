@@ -213,15 +213,13 @@ class FolderMCPDaemon {
         
         // Create ModelRegistry instance for Sprint 7 search functionality
         const { ModelRegistry } = await import('./services/model-registry.js');
-        const { PythonEmbeddingService } = await import('../infrastructure/embeddings/python-embedding-service.js');
-        const { ONNXDownloader } = await import('../infrastructure/embeddings/onnx/onnx-downloader.js');
-        const { ONNXEmbeddingService } = await import('../infrastructure/embeddings/onnx/onnx-embedding-service.js');
-        
+        const { createPythonEmbeddingService, createONNXDownloader, createONNXEmbeddingService } = await import('./factories/model-factories.js');
+
         const modelRegistry = new ModelRegistry(
           loggingService,
-          (config: any) => new PythonEmbeddingService(config),
-          () => new ONNXDownloader(),
-          (config: any) => new ONNXEmbeddingService(config) // Not used anymore, handled by singleton manager internally
+          createPythonEmbeddingService,
+          createONNXDownloader,
+          createONNXEmbeddingService
         );
         
         // Create Multi-Folder Vector Search Service for Sprint 7 search functionality
@@ -231,12 +229,19 @@ class FolderMCPDaemon {
           loggingService
         );
         
-        this.restAPIServer = new RESTAPIServer(this.fmdmService!, documentService, modelRegistry, vectorSearchService, {
-          info,
-          warn,
-          error: logError,
-          debug
-        });
+        this.restAPIServer = new RESTAPIServer(
+          this.fmdmService!,
+          documentService,
+          modelRegistry,
+          vectorSearchService,
+          this.monitoredFoldersOrchestrator!,
+          {
+            info,
+            warn,
+            error: logError,
+            debug
+          }
+        );
         debug('REST API server instance created successfully');
         
         const restPort = 3002;

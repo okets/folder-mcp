@@ -322,4 +322,73 @@ export class DaemonMCPEndpoints {
       };
     }
   }
+
+  /**
+   * Phase 10 Sprint 8: Search content with hybrid scoring
+   * Performs chunk-level semantic search with vec0 MATCH and exact term boosting
+   */
+  async searchContent(args: {
+    folder_id: string;
+    semantic_concepts?: string[];
+    exact_terms?: string[];
+    min_score?: number;
+    limit?: number;
+    continuation_token?: string;
+  }): Promise<MCPToolResponse> {
+    try {
+      // Validate: folder_id is required
+      if (!args.folder_id || typeof args.folder_id !== 'string' || args.folder_id.trim() === '') {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: folder_id is required and must be a non-empty string`
+          }]
+        };
+      }
+
+      // Validate: at least one search parameter required
+      if (!args.semantic_concepts?.length && !args.exact_terms?.length) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: At least one of semantic_concepts or exact_terms must be provided`
+          }]
+        };
+      }
+
+      // Build request body (folder_id comes from URL path, not body)
+      const requestBody = {
+        semantic_concepts: args.semantic_concepts,
+        exact_terms: args.exact_terms,
+        min_score: args.min_score,
+        limit: args.limit,
+        continuation_token: args.continuation_token
+      };
+
+      // Make POST request to daemon REST API
+      const path = `/api/v1/folders/${encodeURIComponent(args.folder_id)}/search_content`;
+      const response = await (this.daemonClient as any).makeRequest(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Return JSON directly for structured consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error searching content: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
 }

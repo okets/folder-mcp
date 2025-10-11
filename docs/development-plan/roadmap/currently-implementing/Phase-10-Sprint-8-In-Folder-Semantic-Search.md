@@ -468,26 +468,29 @@ LIMIT :limit OFFSET :offset;
 
 ## A2E Test Validation
 
+**Test Folder**: `/Users/hanan/Projects/folder-mcp/docs` (indexed with `minilm-l12` model)
+**Test Strategy**: Use known content from our own documentation for validation
+
 ### Test Scenario 1: Hybrid Search (Semantic + Exact)
 
 ```typescript
-// Known content: CLAUDE.md contains "useState" and "TMOAT agent"
-// Step 1: Read known content
-mcp__desktop-commander__read_file("/Users/hanan/Projects/folder-mcp/CLAUDE.md")
-// Verify: Contains "useState" and "TMOAT agent testing"
+// Known content: Sprint 8 doc contains "vec0 MATCH" technical terms
+// Step 1: Read known content to establish ground truth
+mcp__desktop-commander__read_file("/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/currently-implementing/Phase-10-Sprint-8-In-Folder-Semantic-Search.md")
+// Verify: Contains "vec0 MATCH" and "hybrid scoring"
 
 // Step 2: Hybrid search
 mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["React hooks", "testing"],
-  exact_terms: ["useState", "TMOAT"],
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["vector similarity", "semantic search"],
+  exact_terms: ["vec0", "MATCH"],
   min_score: 0.5
 })
 
 // Step 3: Validate
-// Expected: CLAUDE.md chunks in results
-// Expected: file_path is "CLAUDE.md" or path relative to folder
-// Expected: content includes "useState" and/or "TMOAT"
+// Expected: Phase-10-Sprint-8 doc chunks in results
+// Expected: file_path: "development-plan/roadmap/currently-implementing/Phase-10-Sprint-8-In-Folder-Semantic-Search.md"
+// Expected: content includes "vec0 MATCH" operator references
 // Expected: relevance_score >= 0.5
 // Expected: relevance_score boosted by exact matches (higher than semantic alone)
 ```
@@ -495,53 +498,58 @@ mcp__folder-mcp__search_content({
 ### Test Scenario 2: Semantic Only
 
 ```typescript
+// Known content: Multiple docs discuss endpoints and navigation
 mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["configuration management", "YAML settings"],
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["endpoint navigation", "semantic metadata", "exploration flow"],
   min_score: 0.6
 })
 
 // Validate:
-// Expected: Results about config files, settings, YAML
+// Expected: Phase 10 EPIC doc (discusses endpoint navigation)
+// Expected: Sprint 0, Sprint 2 docs (explore endpoint, navigation)
 // Expected: All results have relevance_score >= 0.6
-// Expected: content field contains relevant text
+// Expected: content field contains relevant text about endpoints
 // Expected: No errors (semantic_concepts alone is valid)
 ```
 
 ### Test Scenario 3: Exact Terms Only
 
 ```typescript
+// Known content: Sprint 7.5 and Sprint 8 docs contain vec0/SQLite/embeddings
 mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
   exact_terms: ["vec0", "SQLite", "embeddings"],
   min_score: 0.3
 })
 
 // Validate:
+// Expected: Sprint 7.5 doc (vec0 infrastructure migration)
+// Expected: Sprint 8 doc (vec0 MATCH operator usage)
 // Expected: All results contain at least one exact_term
 // Expected: Grep-like behavior (no semantic similarity needed)
-// Expected: Chunks with multiple exact_terms rank higher
+// Expected: Chunks with multiple exact_terms rank higher (boost = 1.5^n)
 // Expected: No errors (exact_terms alone is valid)
 ```
 
 ### Test Scenario 4: Pagination
 
 ```typescript
-// Step 1: Initial search
+// Step 1: Initial search with small limit to force pagination
 const page1 = await mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["documentation"],
-  limit: 5
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["endpoint", "API", "navigation"],
+  limit: 3  // Small limit to force pagination
 })
 
 // Step 2: Verify pagination
-// Expected: page1.data.results.length === 5
+// Expected: page1.data.results.length === 3
 // Expected: page1.continuation.has_more === true
 // Expected: page1.continuation.next_token exists
 
 // Step 3: Get next page
 const page2 = await mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
   continuation_token: page1.continuation.next_token
 })
 
@@ -550,58 +558,65 @@ const page2 = await mcp__folder-mcp__search_content({
 // Expected: No duplicate chunk_ids between pages
 // Expected: Results still sorted by descending relevance_score
 // Expected: page2.data.statistics.total_results === page1.data.statistics.total_results
+// Expected: Continuation token preserved search parameters (semantic_concepts, min_score)
 ```
 
 ### Test Scenario 5: Min Score Filtering
 
 ```typescript
+// Known content: SQLite/vec0/vector terms appear in Sprint 7.5 and 8 docs
 // Test with strict threshold
 const strictResults = await mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["authentication"],
-  min_score: 0.8  // Very strict
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["SQLite vec0", "vector similarity"],
+  min_score: 0.8  // Very strict - only highly relevant chunks
 })
 
 // Test with default threshold
 const defaultResults = await mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["authentication"],
-  min_score: 0.5  // Default
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["SQLite vec0", "vector similarity"],
+  min_score: 0.5  // Default - include more results
 })
 
 // Validate:
 // Expected: strictResults.data.results.length < defaultResults.data.results.length
 // Expected: All strictResults scores >= 0.8
 // Expected: All defaultResults scores >= 0.5
-// Expected: Every strict result also appears in default results
+// Expected: Every strict result also appears in default results (strict is subset)
+// Expected: Sprint 7.5 (vec0 infrastructure) and Sprint 8 (vec0 MATCH) docs in both result sets
 ```
 
 ### Test Scenario 6: file_path Reusability
 
 ```typescript
+// Known content: Phase 10 EPIC doc discusses endpoint navigation
 // Step 1: Search for content
 const searchResults = await mcp__folder-mcp__search_content({
-  folder_id: "folder-mcp",
-  semantic_concepts: ["authentication"]
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  semantic_concepts: ["endpoint navigation", "exploration flow"]
 })
 
 const topResult = searchResults.data.results[0]
+// Expected: file_path: "development-plan/roadmap/currently-implementing/Phase-10-Semantic-Endpoint-Navigation-EPIC.md"
 
 // Step 2: Use file_path with other endpoints
 const docData = await mcp__folder-mcp__get_document_data({
-  folder_id: "folder-mcp",
-  file_path: topResult.file_path  // ✅ Direct reuse
+  folder_id: "/Users/hanan/Projects/folder-mcp/docs",
+  file_path: topResult.file_path  // ✅ Direct reuse - no transformation
 })
 
 const docText = await mcp__folder-mcp__get_document_text({
-  base_folder_path: "/Users/hanan/Projects/folder-mcp",
-  file_path: topResult.file_path  // ✅ Direct reuse
+  base_folder_path: "/Users/hanan/Projects/folder-mcp/docs",
+  file_path: topResult.file_path  // ✅ Direct reuse - same value
 })
 
 // Validate:
-// Expected: docData and docText requests succeed
-// Expected: No path transformation needed
-// Expected: Consistent field naming across endpoints
+// Expected: All three endpoints accept same file_path value
+// Expected: docData returns document metadata and chunks
+// Expected: docText returns extracted text content
+// Expected: No path transformation or manipulation needed
+// Expected: Consistent field naming (file_path) across all endpoints
 ```
 
 ---
@@ -692,12 +707,12 @@ const content = await get_document_text({
 
 ## Next Steps
 
-1. **Implementation**: Build `search_content` endpoint with hybrid scoring
-2. **Integration**: Connect to existing vec0 infrastructure
-3. **Testing**: A2E validation with real project data
-4. **Tuning**: Adjust exact_term_boost multiplier (1.5) based on quality metrics
-5. **Documentation**: Update API docs with workflow examples
-6. **Cleanup**: Verify if Sprint 7 `SearchRequest`/`SearchResponse` types still needed
+1. ✅ **Implementation**: Build `search_content` endpoint with hybrid scoring - COMPLETED
+2. ✅ **Integration**: Connect to existing vec0 infrastructure - COMPLETED
+3. ✅ **Testing**: A2E validation with real project data - COMPLETED (all 4 combinations validated)
+4. ✅ **Tuning**: Adjust exact_term_boost multiplier (1.5) based on quality metrics - COMPLETED
+5. ✅ **Documentation**: Update API docs with workflow examples - COMPLETED
+6. ✅ **Cleanup**: Sprint 7 legacy code removed - COMPLETED (~330 lines deleted including `SearchRequest`/`SearchResponse` types)
 
 ---
 

@@ -1,5 +1,7 @@
 # Phase 9 Implementation Epic - MCP Multi-Folder Support
 
+> **⚠️ HISTORICAL DOCUMENTATION**: This document describes Sprint 7's document-level search implementation, which has been replaced by Sprint 8's chunk-level `search_content` endpoint with hybrid scoring. The `/api/v1/folders/:id/search` endpoint described here no longer exists - see [Sprint 8 Documentation](../currently-implementing/Phase-10-Sprint-8-In-Folder-Semantic-Search.md) for current search implementation.
+
 **📋 Related Documentation**: [Phase 9 PRD - MCP Endpoints Multi-Folder Support](./Phase-9-PRD-MCP-Endpoints-Multi-Folder-Support.md)
 
 ## 🔧 Git Workflow Instructions

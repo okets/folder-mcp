@@ -115,10 +115,10 @@
 │                                                                                 │
 │  ┌─────────────────────────────────────────────────────────────────────────┐   │
 │  │ 6. Express HTTP Server (port 3002)                                     │   │
-│  │    app.post('/api/v1/folders/:folderPath/search', async (req, res) => { │   │
+│  │    app.post('/api/v1/folders/:folderPath/search_content', async (req, res) => { │   │
 │  │      const { folderPath } = req.params;                                │   │
-│  │      const { query, limit, threshold } = req.body;                     │   │
-│  │      // Route to search service                                         │   │
+│  │      const { semantic_concepts, exact_terms, min_score, limit } = req.body; │   │
+│  │      // Route to search service (Sprint 8 hybrid search)               │   │
 │  │    });                                                                  │   │
 │  └─────────────────────────────────────────────────────────────────────────┘   │
 │                              │                                                 │
@@ -256,7 +256,7 @@ Agent makes request → MCP Server → DaemonMCPEndpoints → DaemonRESTClient.m
 
 | **Tool** | **MCP Method** | **Daemon Endpoint** | **Purpose** |
 |----------|---------------|-------------------|-------------|
-| `search` | `daemonEndpoints.search()` | `POST /api/v1/folders/:path/search` | Semantic search within folder |
+| `search_content` | `daemonEndpoints.searchContent()` | `POST /api/v1/folders/:path/search_content` | Chunk-level semantic search with hybrid scoring (Sprint 8) |
 | `list_folders` | `daemonEndpoints.listFolders()` | `GET /api/v1/folders` | Show configured folders |
 | `get_document_data` | `daemonEndpoints.getDocument()` | `GET /api/v1/folders/:path/documents/:id` | Retrieve document content |
 | `get_server_info` | `daemonEndpoints.getServerInfo()` | `GET /api/v1/server/info` | System status and capabilities |

@@ -418,78 +418,6 @@ export interface DocumentOutlineResponse {
 }
 
 /**
- * Search request body for POST /api/v1/folders/{id}/search - Sprint 7
- */
-export interface SearchRequest {
-  /** Search query string */
-  query: string;
-  /** Maximum number of results to return (default: 10, max: 100) */
-  limit?: number;
-  /** Minimum relevance threshold (0.0-1.0, default: 0.3) */
-  threshold?: number;
-  /** Whether to include document content in results (default: true) */
-  includeContent?: boolean;
-}
-
-/**
- * Individual search result
- */
-export interface SearchResult {
-  /** Document identifier */
-  documentId: string;
-  /** Document filename */
-  documentName: string;
-  /** Relevance score (0.0-1.0) */
-  relevance: number;
-  /** Matching text snippet */
-  snippet: string;
-  /** Page/section number where match was found */
-  pageNumber?: number;
-  /** Chunk identifier for the matching text */
-  chunkId?: string;
-  /** Document type */
-  documentType?: string;
-  /** Full document path relative to folder */
-  documentPath?: string;
-}
-
-/**
- * Performance metrics for search operation
- */
-export interface SearchPerformance {
-  /** Total search time in milliseconds */
-  searchTime: number;
-  /** Model loading time in milliseconds (0 if already loaded) */
-  modelLoadTime: number;
-  /** Number of documents searched */
-  documentsSearched: number;
-  /** Total number of matching results (before limit applied) */
-  totalResults: number;
-  /** Model used for this search */
-  modelUsed: string;
-}
-
-/**
- * Response for POST /api/v1/folders/{id}/search - Sprint 7
- */
-export interface SearchResponse {
-  /** Context about the folder being searched */
-  folderContext: FolderContext;
-  /** Search results ordered by relevance */
-  results: SearchResult[];
-  /** Search performance metrics */
-  performance: SearchPerformance;
-  /** Query used for search (for verification) */
-  query: string;
-  /** Search parameters used */
-  parameters: {
-    limit: number;
-    threshold: number;
-    includeContent: boolean;
-  };
-}
-
-/**
  * Phase 10 Sprint 2: Explore Endpoint Types
  */
 
@@ -719,4 +647,114 @@ export interface GetDocumentTextResponse {
   pagination: DocumentTextPagination;
   /** Dynamic navigation hints based on context */
   navigation_hints: DocumentTextNavigationHints;
+}
+
+/**
+ * Phase 10 Sprint 8: Content Search Types
+ */
+
+/**
+ * Request for POST /api/v1/folders/{folderPath}/search_content
+ * Enables chunk-level semantic search with hybrid scoring
+ * Note: folder_id comes from URL path parameter, not request body
+ */
+export interface SearchContentRequest {
+  /** Semantic concepts for embedding-based similarity (optional) */
+  semantic_concepts?: string[];
+
+  /** Exact terms that must match (optional) */
+  exact_terms?: string[];
+
+  /** Minimum relevance threshold (default: 0.5) */
+  min_score?: number;
+
+  /** Maximum results per page (default: 10, max: 50) */
+  limit?: number;
+
+  /** Base64url-encoded pagination state */
+  continuation_token?: string;
+}
+
+/**
+ * Individual search result with full chunk content
+ */
+export interface SearchChunkResult {
+  /** Database chunk ID */
+  chunk_id: string;
+
+  /** Relative file path (reusable with other endpoints) */
+  file_path: string;
+
+  /** Full chunk text content (always included) */
+  content: string;
+
+  /** Match quality score [0.0, 1.0+] */
+  relevance_score: number;
+
+  /** Position within document (0-based) */
+  chunk_index: number;
+
+  /** Top key phrases from parent document (optional) */
+  document_keywords?: string[];
+}
+
+/**
+ * Search statistics for the current query
+ */
+export interface SearchContentStatistics {
+  /** Total matching chunks across all documents */
+  total_results: number;
+
+  /** Unique file paths in results */
+  files_covered: string[];
+
+  /** Average relevance score of returned results */
+  avg_relevance: number;
+
+  /** LLM-friendly interpretation of what was searched */
+  search_interpretation: string;
+}
+
+/**
+ * Navigation hints based on search results
+ */
+export interface SearchContentNavigationHints {
+  /** Suggested follow-up actions */
+  next_actions: string[];
+
+  /** Query refinement suggestions */
+  related_queries: string[];
+}
+
+/**
+ * Response for POST /api/v1/folders/{folderPath}/search_content
+ */
+export interface SearchContentResponse {
+  /** Search result data */
+  data: {
+    /** Matching chunks ordered by relevance */
+    results: SearchChunkResult[];
+
+    /** Search statistics */
+    statistics: SearchContentStatistics;
+  };
+
+  /** Status information */
+  status: {
+    success: boolean;
+    code: number;
+    message: string;
+  };
+
+  /** Pagination state */
+  continuation: {
+    /** Whether more results are available */
+    has_more: boolean;
+
+    /** Token for next page (base64url-encoded) */
+    next_token?: string;
+  };
+
+  /** Context-aware navigation suggestions */
+  navigation_hints: SearchContentNavigationHints;
 }

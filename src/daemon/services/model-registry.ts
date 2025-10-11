@@ -85,7 +85,7 @@ export class ModelRegistry implements IModelRegistry {
   
   constructor(
     private logger: ILoggingService,
-    private pythonEmbeddingServiceFactory: (config: any) => PythonEmbeddingService,
+    private pythonEmbeddingServiceFactory: (config: any) => Promise<PythonEmbeddingService>,
     private onnxDownloaderFactory: () => ONNXDownloader,
     private onnxEmbeddingServiceFactory: (config: any) => ONNXEmbeddingService
   ) {}
@@ -122,14 +122,12 @@ export class ModelRegistry implements IModelRegistry {
       let service: PythonEmbeddingService | ONNXEmbeddingService;
       
       if (modelType === 'gpu') {
-        // Create Python embedding service for GPU model
-        service = this.pythonEmbeddingServiceFactory({
+        // Use singleton registry for Python embedding service
+        service = await this.pythonEmbeddingServiceFactory({
           modelName: this.getHuggingFaceId(modelId),
           pythonPath: 'python3',
           timeout: 30000 // 30s timeout for model loading
         });
-        
-        await (service as PythonEmbeddingService).initialize();
         
       } else if (modelType === 'cpu') {
         // Use singleton manager for ONNX models to prevent memory leaks

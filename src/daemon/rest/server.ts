@@ -21,8 +21,6 @@ import {
   DocumentListParams,
   DocumentDataResponse,
   DocumentOutlineResponse,
-  SearchRequest,
-  SearchResponse,
   EnhancedServerInfoResponse,
   EnhancedFoldersListResponse,
   EnhancedFolderInfo,
@@ -40,7 +38,12 @@ import {
   GetDocumentTextResponse,
   ExtractionMetadata,
   DocumentTextPagination,
-  DocumentTextNavigationHints
+  DocumentTextNavigationHints,
+  SearchContentRequest,
+  SearchContentResponse,
+  SearchChunkResult,
+  SearchContentStatistics,
+  SearchContentNavigationHints
 } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
@@ -110,6 +113,7 @@ export class RESTAPIServer {
     private documentService: DocumentService,
     private modelRegistry: IModelRegistry,
     private vectorSearchService: IVectorSearchService,
+    private orchestrator: any, // IMonitoredFoldersOrchestrator - using any to avoid circular dependency
     private logger: {
       info: (message: string, ...args: any[]) => void;
       warn: (message: string, ...args: any[]) => void;
@@ -208,8 +212,8 @@ export class RESTAPIServer {
     this.app.get('/api/v1/folders/:folderPath/documents/:filePath', this.handleGetDocument.bind(this));
     this.app.get('/api/v1/folders/:folderPath/documents/:filePath/outline', this.handleGetDocumentOutline.bind(this));
 
-    // Search operations endpoints (Sprint 8)
-    this.app.post('/api/v1/folders/:folderPath/search', this.handleSearch.bind(this));
+    // Search operations endpoint (Sprint 8)
+    this.app.post('/api/v1/folders/:folderPath/search_content', this.handleSearchContent.bind(this));
 
     // File download endpoint (Sprint 7) - Token-based authentication
     this.app.get('/api/v1/download', this.handleTokenDownload.bind(this));
@@ -2617,274 +2621,314 @@ export class RESTAPIServer {
   }
 
   /**
-   * Search for documents within a folder (Sprint 7)
+   * Phase 10 Sprint 8: Content Search with Hybrid Scoring
+   * Performs chunk-level semantic search with vec0 MATCH and exact term boosting
    */
-  private async handleSearch(req: Request, res: Response): Promise<void> {
+  private async handleSearchContent(req: Request, res: Response): Promise<void> {
     try {
       const { folderPath: encodedFolderPath } = req.params;
       if (!encodedFolderPath) {
-        const errorResponse: ErrorResponse = {
+        res.status(400).json({
           error: 'Bad Request',
           message: 'Folder path is required',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(400).json(errorResponse);
+          timestamp: new Date().toISOString()
+        });
         return;
       }
 
       const folderPath = decodeURIComponent(encodedFolderPath);
+      const requestBody = req.body as SearchContentRequest;
 
-      // Parse search request body
-      const searchRequest = req.body as SearchRequest;
-      if (!searchRequest || !searchRequest.query || typeof searchRequest.query !== 'string') {
-        const errorResponse: ErrorResponse = {
-          error: 'Bad Request',
-          message: 'Search query is required',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(400).json(errorResponse);
-        return;
-      }
-
-      const { query } = searchRequest;
-
-      // Parse and validate parameters - fix threshold 0.0 handling
-      const limit = Math.min(Math.max((typeof searchRequest.limit === 'number' ? searchRequest.limit : 10), 1), 100);
-      const threshold = Math.min(Math.max((typeof searchRequest.threshold === 'number' ? searchRequest.threshold : 0.3), 0.0), 1.0);
-      const includeContent = searchRequest.includeContent !== false; // default true
-
-      this.logger.debug(`[REST] Searching folder ${folderPath} for: "${query}" (limit: ${limit}, threshold: ${threshold})`);
-
-      // Get folders from FMDM service to validate folder exists
-      let folders: any[] = [];
-      try {
-        const fmdm = this.fmdmService.getFMDM();
-        folders = fmdm?.folders || [];
-      } catch (fmdmError) {
-        this.logger.warn('[REST] Could not retrieve FMDM data for search:', fmdmError);
-        const errorResponse: ErrorResponse = {
-          error: 'Internal Server Error',
-          message: 'Failed to access folder data',
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(500).json(errorResponse);
-        return;
-      }
-
-      // Find folder using normalized path matching and validate folder exists
-      const folder = PathNormalizer.findByPath(folders, folderPath);
-      if (!folder) {
-        const errorResponse: ErrorResponse = {
-          error: 'Not Found',
-          message: `Folder '${folderPath}' not found. Available folders: ${folders.map(f => f.path || 'unknown').join(', ')}`,
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(404).json(errorResponse);
-        return;
-      }
-      const folderName = this.extractFolderName(folderPath);
-      const modelName = folder.model || getDefaultModelId();
-
-      // Sprint 7: Implement actual search functionality with model registry
-      const startTime = Date.now();
-      
-      // Load or get model for this folder
-      const modelLoadResult = await this.modelRegistry.getModelForFolder(folderPath, folderPath, modelName);
-      
-      if (!modelLoadResult.success) {
-        const errorResponse: ErrorResponse = {
-          error: 'Service Unavailable',
-          message: `Failed to load embedding model '${modelName}' for folder '${folderPath}': ${modelLoadResult.error}`,
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(503).json(errorResponse);
-        return;
-      }
-
-      // Get the loaded model instance
-      const loadedModel = this.modelRegistry.getLoadedModel(modelName);
-      if (!loadedModel) {
-        const errorResponse: ErrorResponse = {
-          error: 'Internal Server Error',
-          message: `Model '${modelName}' loaded but not accessible`,
-          timestamp: new Date().toISOString(),
-          path: req.url
-        };
-        res.status(500).json(errorResponse);
-        return;
-      }
-
-      // Sprint 7: Implement actual vector search using the loaded model and vector search service
-      const searchStartTime = Date.now();
-      let searchResults: any[] = [];
-      
-      try {
-        // Generate embedding for the search query using the loaded model's service
-        this.logger.debug(`[REST] Generating embedding for query: "${query}"`);
-        let queryEmbeddings: EmbeddingVector[];
-        
-        // Check service type and call appropriate method
-        if (loadedModel.service instanceof PythonEmbeddingService) {
-          // PythonEmbeddingService - expects TextChunk[]
-          const chunks: TextChunk[] = [{
-            content: query,
-            chunkIndex: 0,
-            startPosition: 0,
-            endPosition: query.length,
-            tokenCount: undefined as any, // let service compute if needed
-            metadata: {
-              sourceFile: 'search-query',
-              sourceType: 'text',
-              totalChunks: 1,
-              hasOverlap: false
-            },
-            semanticMetadata: createDefaultSemanticMetadata()
-          }];
-          queryEmbeddings = await loadedModel.service.generateEmbeddings(chunks);
-        } else if (loadedModel.service instanceof ONNXEmbeddingService) {
-          // ONNXEmbeddingService - expects string[] and returns EmbeddingResult
-          const embeddingResult: EmbeddingResult = await loadedModel.service.generateEmbeddingsFromStrings([query], 'query');
-          // Convert EmbeddingResult to EmbeddingVector[]
-          queryEmbeddings = embeddingResult.embeddings.map((embedding, index) => ({
-            vector: embedding,
-            dimensions: embeddingResult.dimensions,
-            model: embeddingResult.modelUsed,
-            createdAt: new Date().toISOString()
-          }));
-        } else {
-          // Unknown service type
-          throw new Error(`Model service type doesn't support embedding generation: ${typeof loadedModel.service}`);
-        }
-        
-        if (!queryEmbeddings || queryEmbeddings.length === 0) {
-          this.logger.error(`[REST] Failed to generate embedding for query: "${query}"`);
-          const errorResponse: ErrorResponse = {
-            error: 'Internal Server Error',
-            message: 'Failed to generate embedding for search query',
-            timestamp: new Date().toISOString(),
-            path: req.url
-          };
-          res.status(500).json(errorResponse);
+      // Decode continuation token or use fresh parameters
+      let searchParams: any;
+      if (requestBody.continuation_token) {
+        try {
+          searchParams = JSON.parse(
+            Buffer.from(requestBody.continuation_token, 'base64url').toString()
+          );
+        } catch (e) {
+          res.status(400).json({
+            error: 'Bad Request',
+            message: 'Invalid continuation token',
+            timestamp: new Date().toISOString()
+          });
           return;
         }
-
-        // Perform vector search - request more results for folder filtering
-        this.logger.debug(`[REST] Performing vector search with threshold: ${threshold}, initial limit: ${limit * 2}`);
-        
-        const firstEmbedding = queryEmbeddings[0];
-        if (!firstEmbedding) {
-          throw new Error('Generated embedding is empty or invalid');
-        }
-        
-        // Request more results to account for folder filtering
-        // Use folder-specific search with MultiFolderVectorSearchService
-        const vectorSearchResults = await (this.vectorSearchService as MultiFolderVectorSearchService)
-          .searchInFolder(firstEmbedding, folderPath, limit * 2, threshold);
-        
-        // Filter results to current folder - fix folder scoping security issue
-        const normalizedFolder = path.resolve(folderPath);
-        const folderFilteredResults = vectorSearchResults.filter(result => {
-          const rawPath = result.filePath || result.folderPath || '';
-          const normalizedResult = path.resolve(rawPath);
-          const rel = path.relative(normalizedFolder, normalizedResult);
-          const belongsToFolder = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
-
-          if (!belongsToFolder) {
-            this.logger.debug(`[REST] Filtering out result from different folder: ${rawPath} (expected under: ${normalizedFolder})`);
-          }
-
-          return belongsToFolder;
-        });
-
-        // Log if filtering reduced results
-        if (folderFilteredResults.length !== vectorSearchResults.length) {
-          this.logger.info(`[REST] Folder filtering reduced results from ${vectorSearchResults.length} to ${folderFilteredResults.length} for folder ${folderPath}`);
-        }
-
-        // Apply final limit after folder filtering
-        const finalResults = folderFilteredResults.slice(0, limit);
-
-        // Transform vector search results to REST API format with semantic metadata
-        searchResults = finalResults.map(result => {
-            // Generate download URL for the document
-            const documentName = this.extractFileNameFromPath(result.filePath || '');
-            // TODO: Cloudflare tunnels update required - replace with public tunnel URL when available
-            const protocol = req.protocol;
-            const host = req.get('host') || 'localhost:3002';
-            const baseUrl = `${protocol}://${host}`;
-            const { url: downloadUrl } = generateDownloadUrl(baseUrl, folderPath, documentName);
-
-            return {
-              filePath: result.filePath,
-              documentName,
-              relevance: result.score,
-              snippet: includeContent && result.content
-                ? (result.content.substring(0, 300) + (result.content.length > 300 ? '...' : ''))
-                : undefined,
-              pageNumber: result.metadata?.page,
-              chunkId: result.id,
-              documentType: this.getDocumentType(result.filePath || ''),
-              documentPath: result.filePath,
-              // Add semantic metadata directly from the BasicSearchResult
-              keyPhrases: result.keyPhrases || [],
-              download_url: downloadUrl
-            };
-          });
-
-        this.logger.debug(`[REST] Vector search found ${finalResults.length} folder-scoped results (from ${vectorSearchResults.length} total)`);
-        
-      } catch (searchError) {
-        this.logger.error(`[REST] Vector search failed for query "${query}":`, searchError);
-        
-        // Fallback to empty results on search error (fail gracefully)
-        searchResults = [];
+      } else {
+        searchParams = {
+          folder_id: folderPath,
+          semantic_concepts: requestBody.semantic_concepts,
+          exact_terms: requestBody.exact_terms,
+          min_score: requestBody.min_score || 0.5,
+          limit: Math.min(requestBody.limit || 10, 50),
+          offset: 0
+        };
       }
 
-      const searchTime = Date.now() - searchStartTime;
-      const totalTime = Date.now() - startTime;
-      
-      const response: SearchResponse = {
-        folderContext: {
-          id: folderPath, // Use path as identifier
-          name: folderName,
-          path: folderPath,
-          model: modelName,
-          status: folder.status || 'pending'
-        },
-        results: searchResults,
-        performance: {
-          searchTime,
-          modelLoadTime: modelLoadResult.loadTime,
-          documentsSearched: folder.documentCount || 0,
-          totalResults: searchResults.length,
-          modelUsed: modelName
-        },
-        query,
-        parameters: {
-          limit,
-          threshold,
-          includeContent
-        }
-      };
+      // Validation: at least one search parameter required
+      if (!searchParams.semantic_concepts?.length && !searchParams.exact_terms?.length) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'At least one of semantic_concepts or exact_terms must be provided',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
 
-      this.logger.debug(`[REST] Search completed in ${totalTime}ms for folder ${folderPath} (model load: ${modelLoadResult.loadTime}ms, search: ${searchTime}ms)`);
-      res.json(response);
+      // Get database path for this folder
+      const dbPath = await this.checkDatabaseAccess(folderPath, req, res);
+      if (!dbPath) return; // Error already sent
+
+      // Import Database here to avoid top-level import issues
+      const Database = (await import('better-sqlite3')).default;
+      const sqlite_vec = await import('sqlite-vec');
+      const db = new Database(dbPath, { readonly: true });
+
+      // Load vec0 extension for vector search
+      sqlite_vec.load(db);
+
+      try {
+        let results: SearchChunkResult[] = [];
+
+        // Semantic search with vec0 MATCH
+        if (searchParams.semantic_concepts?.length > 0) {
+          // Get model for query embedding
+          const folder = PathNormalizer.findByPath(
+            this.fmdmService.getFMDM()?.folders || [],
+            folderPath
+          );
+          const modelName = folder?.model || getDefaultModelId();
+
+          // Use queue's processSemanticSearch to trigger keep-alive and proper model management
+          const queryText = searchParams.semantic_concepts.join(' ');
+          let queryEmbedding: EmbeddingVector;
+
+          try {
+            queryEmbedding = await this.orchestrator.getQueue().processSemanticSearch(
+              modelName,
+              async (modelService: any) => {
+                // Generate embedding using the loaded model
+                // Check model type based on modelId (cpu: = ONNX, gpu: = Python)
+                if (modelName.startsWith('cpu:')) {
+                  // ONNX model - expects string[] and returns EmbeddingResult
+                  const result = await modelService.generateEmbeddingsFromStrings(
+                    [queryText],
+                    'query'
+                  );
+                  return {
+                    vector: result.embeddings[0] || [],
+                    dimensions: result.dimensions,
+                    model: result.modelUsed,
+                    createdAt: new Date().toISOString()
+                  };
+                } else {
+                  // Python GPU model - expects TextChunk[]
+                  const chunks: TextChunk[] = [{
+                    content: queryText,
+                    chunkIndex: 0,
+                    startPosition: 0,
+                    endPosition: queryText.length,
+                    tokenCount: undefined as any,
+                    metadata: {
+                      sourceFile: 'search-query',
+                      sourceType: 'text',
+                      totalChunks: 1,
+                      hasOverlap: false
+                    },
+                    semanticMetadata: createDefaultSemanticMetadata()
+                  }];
+                  const embeddings = await modelService.generateEmbeddings(chunks);
+                  return embeddings[0]; // Return first EmbeddingVector
+                }
+              }
+            );
+          } catch (error) {
+            this.logger.error('[REST] Error generating query embedding:', error);
+            res.status(503).json({
+              error: 'Service Unavailable',
+              message: `Failed to generate query embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+
+          // Vec0 MATCH query
+          const matchQuery = `
+            SELECT
+              c.id as chunk_id,
+              d.file_path,
+              c.content,
+              c.chunk_index,
+              d.document_keywords,
+              (1 - ce.distance) as semantic_score
+            FROM chunk_embeddings ce
+            JOIN chunks c ON ce.chunk_id = c.id
+            JOIN documents d ON c.document_id = d.id
+            WHERE ce.embedding MATCH vec_f32(?)
+              AND ce.k = ?
+            ORDER BY ce.distance ASC
+            LIMIT ? OFFSET ?
+          `;
+
+          const embeddingBlob = Buffer.from(new Float32Array(queryEmbedding.vector).buffer);
+          const stmt = db.prepare(matchQuery);
+          const rows = stmt.all(
+            embeddingBlob,
+            searchParams.limit * 3, // Get more for filtering
+            searchParams.limit,
+            searchParams.offset
+          ) as any[];
+
+          results = rows.map((row) => ({
+            chunk_id: String(row.chunk_id),
+            file_path: row.file_path,
+            content: row.content,
+            relevance_score: row.semantic_score,
+            chunk_index: row.chunk_index,
+            document_keywords: row.document_keywords
+              ? JSON.parse(row.document_keywords).map((kw: any) => kw.text)
+              : []
+          }));
+        } else {
+          // Exact-only search: filter at SQL level with LIKE
+          // Build WHERE clause for exact terms (OR logic - any term matches)
+          const likeConditions = searchParams.exact_terms
+            .map(() => `c.content LIKE ?`)
+            .join(' OR ');
+
+          const exactOnlyQuery = `
+            SELECT
+              c.id as chunk_id,
+              d.file_path,
+              c.content,
+              c.chunk_index,
+              d.document_keywords
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            WHERE ${likeConditions}
+            LIMIT ? OFFSET ?
+          `;
+
+          const stmt = db.prepare(exactOnlyQuery);
+          const likeParams = searchParams.exact_terms.map((term: string) => `%${term}%`);
+          const rows = stmt.all(
+            ...likeParams,
+            searchParams.limit * 3, // Get more for boost calculation
+            searchParams.offset
+          ) as any[];
+
+          results = rows.map((row) => ({
+            chunk_id: String(row.chunk_id),
+            file_path: row.file_path,
+            content: row.content,
+            relevance_score: 1.0, // Base score for exact-only (boosted below)
+            chunk_index: row.chunk_index,
+            document_keywords: row.document_keywords
+              ? JSON.parse(row.document_keywords).map((kw: any) => kw.text)
+              : []
+          }));
+        }
+
+        // Apply exact term boosting
+        if (searchParams.exact_terms?.length > 0) {
+          results = results.map((result) => {
+            let boost = 1.0;
+            for (const term of searchParams.exact_terms) {
+              if (result.content.includes(term)) {
+                boost *= 1.5;
+              }
+            }
+            return {
+              ...result,
+              relevance_score: result.relevance_score * boost
+            };
+          });
+        }
+
+        // Filter by min_score and sort
+        results = results
+          .filter((r) => r.relevance_score >= searchParams.min_score)
+          .sort((a, b) => b.relevance_score - a.relevance_score)
+          .slice(0, searchParams.limit);
+
+        // Build statistics
+        const uniqueFiles = [...new Set(results.map((r) => r.file_path))];
+        const avgRelevance =
+          results.length > 0
+            ? results.reduce((sum, r) => sum + r.relevance_score, 0) / results.length
+            : 0;
+
+        const searchInterpretation = [
+          searchParams.semantic_concepts?.length > 0
+            ? `Concepts: ${searchParams.semantic_concepts.join(', ')}`
+            : null,
+          searchParams.exact_terms?.length > 0
+            ? `Exact terms: ${searchParams.exact_terms.join(', ')}`
+            : null
+        ]
+          .filter(Boolean)
+          .join(' | ');
+
+        const statistics: SearchContentStatistics = {
+          total_results: results.length,
+          files_covered: uniqueFiles,
+          avg_relevance: avgRelevance,
+          search_interpretation: searchInterpretation
+        };
+
+        // Pagination
+        const hasMore = results.length === searchParams.limit;
+        const nextToken = hasMore
+          ? Buffer.from(
+              JSON.stringify({
+                ...searchParams,
+                offset: searchParams.offset + searchParams.limit
+              })
+            ).toString('base64url')
+          : undefined;
+
+        // Navigation hints
+        const navigationHints: SearchContentNavigationHints = {
+          next_actions: results.length > 0
+            ? [
+                `Read full document: get_document_data(file_path='${results[0]?.file_path}')`,
+                hasMore ? 'Continue pagination: use continuation_token' : 'No more results'
+              ]
+            : ['Try different search terms or lower min_score'],
+          related_queries: []
+        };
+
+        // Build continuation object with typed construction
+        const continuation = {
+          has_more: hasMore,
+          ...(nextToken !== undefined && { next_token: nextToken })
+        };
+
+        const response: SearchContentResponse = {
+          data: {
+            results,
+            statistics
+          },
+          status: {
+            success: true,
+            code: 200,
+            message: `Found ${results.length} results`
+          },
+          continuation,
+          navigation_hints: navigationHints
+        };
+
+        res.status(200).json(response);
+      } finally {
+        db.close();
+      }
     } catch (error) {
-      this.logger.error('[REST] Search failed:', error);
-      
-      const errorResponse: ErrorResponse = {
+      this.logger.error(`[REST] Error in search_content: ${error}`);
+      res.status(500).json({
         error: 'Internal Server Error',
-        message: 'Search operation failed',
-        timestamp: new Date().toISOString(),
-        path: req.url
-      };
-      
-      res.status(500).json(errorResponse);
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
     }
   }
 

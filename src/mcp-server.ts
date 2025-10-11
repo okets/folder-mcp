@@ -369,6 +369,50 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             },
             required: ['base_folder_path', 'file_path']
           }
+        },
+        {
+          name: 'search_content',
+          description: 'Search for content using hybrid semantic and exact term matching. Combines vector similarity search with exact term boosting for precise results. At least one of semantic_concepts or exact_terms must be provided.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              folder_id: {
+                type: 'string',
+                description: 'Folder path to search within'
+              },
+              semantic_concepts: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                description: 'Array of semantic concepts to search for using vector similarity (e.g., ["authentication logic", "error handling"])'
+              },
+              exact_terms: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                description: 'Array of exact terms that must appear in results - boosts relevance score by 1.5x per match (e.g., ["vec0", "MATCH"])'
+              },
+              min_score: {
+                type: 'number',
+                description: 'Minimum relevance score threshold (0.0-1.0, default: 0.5)',
+                minimum: 0.0,
+                maximum: 1.0
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of results to return (default: 10)',
+                minimum: 1,
+                maximum: 100
+              },
+              continuation_token: {
+                type: 'string',
+                description: 'Token from previous response to get next page of results'
+              }
+            },
+            required: ['folder_id']
+          }
         }
       ]
     };
@@ -467,6 +511,50 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           }
 
           const result = await daemonEndpoints.getDocumentText(baseFolderPath, filePath, options);
+          return result as any;
+        }
+
+        case 'search_content': {
+          const folderId = args?.folder_id as string;
+          const semanticConcepts = args?.semantic_concepts as string[] | undefined;
+          const exactTerms = args?.exact_terms as string[] | undefined;
+          const minScore = args?.min_score as number | undefined;
+          const limit = args?.limit as number | undefined;
+          const continuationToken = args?.continuation_token as string | undefined;
+
+          // Validate: at least one search parameter required
+          if (!semanticConcepts?.length && !exactTerms?.length) {
+            throw new Error('At least one of semantic_concepts or exact_terms must be provided');
+          }
+
+          const searchArgs: {
+            folder_id: string;
+            semantic_concepts?: string[];
+            exact_terms?: string[];
+            min_score?: number;
+            limit?: number;
+            continuation_token?: string;
+          } = {
+            folder_id: folderId
+          };
+
+          if (semanticConcepts !== undefined) {
+            searchArgs.semantic_concepts = semanticConcepts;
+          }
+          if (exactTerms !== undefined) {
+            searchArgs.exact_terms = exactTerms;
+          }
+          if (minScore !== undefined) {
+            searchArgs.min_score = minScore;
+          }
+          if (limit !== undefined) {
+            searchArgs.limit = limit;
+          }
+          if (continuationToken !== undefined) {
+            searchArgs.continuation_token = continuationToken;
+          }
+
+          const result = await daemonEndpoints.searchContent(searchArgs);
           return result as any;
         }
 

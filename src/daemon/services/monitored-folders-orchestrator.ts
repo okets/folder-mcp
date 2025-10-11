@@ -726,6 +726,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
 
   /**
+   * Get the folder indexing queue (for MCP search operations with keep-alive)
+   */
+  getQueue(): FolderIndexingQueue {
+    return this.folderIndexingQueue;
+  }
+
+  /**
    * Record connection event (no-op after telemetry removal)
    */
   recordConnection(duration?: number, isError = false): void {

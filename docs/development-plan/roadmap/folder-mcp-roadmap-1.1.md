@@ -619,13 +619,35 @@ Phase 9 achieved outstanding semantic quality improvements with research-validat
 - Remote access via Server-Sent Events (SSE) with authentication
 - Cloudflare tunnel support for easy setup
 - Enable LLM direct file access via public URLs (images, PDFs, documents)
-  - Replace localhost URLs with public tunnel URLs in all file-referencing endpoints:
-    * `/api/v1/folders` - recently_changed_files array
-    * `/api/v1/folders/:id/explore` - files array
-    * `/api/v1/folders/:id/documents` - document list
-    * `/api/v1/folders/:id/documents/:docId/metadata` - chunk references
-    * `/api/v1/folders/:id/documents/:docId/chunks` - chunk content
-    * `/api/v1/folders/:id/search` - search results
+  - Replace localhost URLs with public tunnel URLs in all file-referencing endpoints
+
+**Current REST API Endpoints (14 total - 13 implemented, 1 planned)**:
+
+**System & Health**:
+- `GET /api/v1/health` - Health check endpoint
+- `GET /api/v1/server/info` - Server information and capabilities
+- `GET /api/v1` and `GET /api` - API root information
+
+**Folder Operations**:
+- `GET /api/v1/folders` - List all configured folders with status
+- `GET /api/v1/folders/:folderPath/explore` - Navigate folder hierarchy with ls-like interface
+
+**Document Discovery**:
+- `GET /api/v1/folders/:folderPath/documents` - List documents in folder with metadata
+- `POST /api/v1/folders/:folderPath/find_documents` - Document-level semantic search (planned - next sprint)
+
+**Document Content Retrieval**:
+- `GET /api/v1/folders/:folderPath/documents/:filePath` - Get full document with all chunks
+- `GET /api/v1/folders/:folderPath/documents/:filePath/metadata` - Get document metadata with chunk list
+- `POST /api/v1/folders/:folderPath/documents/:filePath/chunks` - Retrieve specific chunks by ID
+- `GET /api/v1/folders/:folderPath/documents/:filePath/text` - Get extracted plain text with pagination
+- `GET /api/v1/folders/:folderPath/documents/:filePath/outline` - Get document structure outline
+
+**Search Operations**:
+- `POST /api/v1/folders/:folderPath/search_content` - Chunk-level semantic search with hybrid scoring (Sprint 8)
+
+**File Download**:
+- `GET /api/v1/download` - Token-based file download for remote access
   - Maintain token-based authentication for security
   - Support WebFetch tool compatibility for file retrieval
 - Security configuration (API keys, rate limiting, audit logging)
