@@ -2708,38 +2708,24 @@ export class RESTAPIServer {
               modelName,
               async (modelService: any) => {
                 // Generate embedding using the loaded model
-                // Check model type based on modelId (cpu: = ONNX, gpu: = Python)
-                if (modelName.startsWith('cpu:')) {
-                  // ONNX model - expects string[] and returns EmbeddingResult
-                  const result = await modelService.generateEmbeddingsFromStrings(
-                    [queryText],
-                    'query'
-                  );
-                  return {
-                    vector: result.embeddings[0] || [],
-                    dimensions: result.dimensions,
-                    model: result.modelUsed,
-                    createdAt: new Date().toISOString()
-                  };
-                } else {
-                  // Python GPU model - expects TextChunk[]
-                  const chunks: TextChunk[] = [{
-                    content: queryText,
-                    chunkIndex: 0,
-                    startPosition: 0,
-                    endPosition: queryText.length,
-                    tokenCount: undefined as any,
-                    metadata: {
-                      sourceFile: 'search-query',
-                      sourceType: 'text',
-                      totalChunks: 1,
-                      hasOverlap: false
-                    },
-                    semanticMetadata: createDefaultSemanticMetadata()
-                  }];
-                  const embeddings = await modelService.generateEmbeddings(chunks);
-                  return embeddings[0]; // Return first EmbeddingVector
-                }
+                // Both ONNX and Python models implement IEmbeddingModel interface
+                // Use standard generateEmbeddings(chunks) method for both
+                const chunks: TextChunk[] = [{
+                  content: queryText,
+                  chunkIndex: 0,
+                  startPosition: 0,
+                  endPosition: queryText.length,
+                  tokenCount: undefined as any,
+                  metadata: {
+                    sourceFile: 'search-query',
+                    sourceType: 'text',
+                    totalChunks: 1,
+                    hasOverlap: false
+                  },
+                  semanticMetadata: createDefaultSemanticMetadata()
+                }];
+                const embeddings = await modelService.generateEmbeddings(chunks);
+                return embeddings[0]; // Return first EmbeddingVector
               }
             );
           } catch (error) {

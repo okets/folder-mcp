@@ -237,20 +237,30 @@ export class FolderIndexingQueue extends EventEmitter {
     searchFunction: (model: IEmbeddingModel) => Promise<any>
   ): Promise<any> {
     this.logger.info(`[QUEUE] Processing semantic search with model: ${modelId}`);
+    this.logger.info(`[QUEUE] Current model: ${this.currentModelId || 'none'}`);
 
     // Record this MCP call for keep-alive tracking
     this.recordMcpCall();
 
     try {
-      // Load the required model if different from current
+      // CRITICAL: Always switch models if different, regardless of pause state
       if (this.currentModelId !== modelId) {
+        this.logger.info(`[QUEUE] Model switch required: ${this.currentModelId} → ${modelId}`);
         await this.unloadCurrentModel();
         await this.loadModel(modelId, null); // null for no progress tracking in search
+        this.logger.info(`[QUEUE] Model switch completed, now using: ${this.currentModelId}`);
+      } else {
+        this.logger.debug(`[QUEUE] Model ${modelId} already loaded, reusing`);
+      }
+
+      // Verify model is loaded before executing search
+      if (!this.currentModel) {
+        throw new Error(`Model ${modelId} not loaded after switch attempt`);
       }
 
       // Execute the search
-      const result = await searchFunction(this.currentModel!);
-      
+      const result = await searchFunction(this.currentModel);
+
       this.logger.info(`[QUEUE] Semantic search completed, keep-alive window active for 3 minutes`);
       return result;
 
