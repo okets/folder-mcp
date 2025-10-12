@@ -43,7 +43,12 @@ import {
   SearchContentResponse,
   SearchChunkResult,
   SearchContentStatistics,
-  SearchContentNavigationHints
+  SearchContentNavigationHints,
+  FindDocumentsRequest,
+  FindDocumentsResponse,
+  FindDocumentResult,
+  FindDocumentsStatistics,
+  FindDocumentsNavigationHints
 } from './types.js';
 import { DocumentService } from '../services/document-service.js';
 import { IModelRegistry } from '../services/model-registry.js';
@@ -214,6 +219,9 @@ export class RESTAPIServer {
 
     // Search operations endpoint (Sprint 8)
     this.app.post('/api/v1/folders/:folderPath/search_content', this.handleSearchContent.bind(this));
+
+    // Document discovery endpoint (Sprint 9)
+    this.app.post('/api/v1/folders/:folderPath/find-documents', this.handleFindDocuments.bind(this));
 
     // File download endpoint (Sprint 7) - Token-based authentication
     this.app.get('/api/v1/download', this.handleTokenDownload.bind(this));
@@ -2659,7 +2667,6 @@ export class RESTAPIServer {
           folder_id: folderPath,
           semantic_concepts: requestBody.semantic_concepts,
           exact_terms: requestBody.exact_terms,
-          min_score: requestBody.min_score || 0.5,
           limit: Math.min(requestBody.limit || 10, 50),
           offset: 0
         };
@@ -2831,9 +2838,8 @@ export class RESTAPIServer {
           });
         }
 
-        // Filter by min_score and sort
+        // Sort by relevance (keep best results)
         results = results
-          .filter((r) => r.relevance_score >= searchParams.min_score)
           .sort((a, b) => b.relevance_score - a.relevance_score)
           .slice(0, searchParams.limit);
 
@@ -2880,7 +2886,7 @@ export class RESTAPIServer {
                 `Read full document: get_document_data(file_path='${results[0]?.file_path}')`,
                 hasMore ? 'Continue pagination: use continuation_token' : 'No more results'
               ]
-            : ['Try different search terms or lower min_score'],
+            : ['Try different search terms or increase limit'],
           related_queries: []
         };
 
@@ -2910,6 +2916,260 @@ export class RESTAPIServer {
       }
     } catch (error) {
       this.logger.error(`[REST] Error in search_content: ${error}`);
+      res.status(500).json({
+        error: 'Internal Server Error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 9: Document Discovery Endpoint
+   * Uses document-level embeddings for topic discovery
+   */
+  private async handleFindDocuments(req: Request, res: Response): Promise<void> {
+    try {
+      const rawFolderPath = req.params.folderPath;
+      if (!rawFolderPath) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'folderPath parameter is required',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        });
+        return;
+      }
+      const folderPath = decodeURIComponent(rawFolderPath);
+
+      // Database access check
+      const dbPath = await this.checkDatabaseAccess(folderPath, req, res);
+      if (!dbPath) return;
+
+      // Parse request body with fail-fast validation
+      const body = req.body as FindDocumentsRequest;
+
+      if (!body.query || typeof body.query !== 'string' || body.query.trim() === '') {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: 'query is required and must be a non-empty string',
+          timestamp: new Date().toISOString(),
+          path: req.url
+        });
+        return;
+      }
+
+      const limit = Math.min(body.limit ?? 20, 50); // Cap at 50
+      let offset = 0;
+
+      // Parse continuation token if provided
+      if (body.continuation_token) {
+        try {
+          const decoded = Buffer.from(body.continuation_token, 'base64url').toString('utf-8');
+          const tokenData = JSON.parse(decoded);
+          offset = tokenData.offset || 0;
+        } catch (error) {
+          this.logger.warn('[REST] Invalid continuation token for find_documents');
+          offset = 0;
+        }
+      }
+
+      // Get folder info for model (same pattern as search_content)
+      const folder = PathNormalizer.findByPath(
+        this.fmdmService.getFMDM()?.folders || [],
+        folderPath
+      );
+      const modelName = folder?.model || getDefaultModelId();
+
+      // Generate query embedding using orchestrator queue
+      let queryEmbedding: EmbeddingVector;
+      try {
+        queryEmbedding = await this.orchestrator.getQueue().processSemanticSearch(
+          modelName,
+          async (modelService: any) => {
+            const chunks: TextChunk[] = [{
+              content: body.query,
+              chunkIndex: 0,
+              startPosition: 0,
+              endPosition: body.query.length,
+              tokenCount: undefined as any,
+              metadata: {
+                sourceFile: 'document-discovery-query',
+                sourceType: 'text',
+                totalChunks: 1,
+                hasOverlap: false
+              },
+              semanticMetadata: createDefaultSemanticMetadata()
+            }];
+            const embeddings = await modelService.generateEmbeddings(chunks);
+            return embeddings[0];
+          }
+        );
+      } catch (error) {
+        this.logger.error('[REST] Error generating query embedding for find_documents:', error);
+        res.status(503).json({
+          error: 'Service Unavailable',
+          message: `Failed to generate query embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      // Open database and execute document search
+      const Database = (await import('better-sqlite3')).default;
+      const db = new Database(dbPath, { readonly: true });
+
+      try {
+        // Load vec0 extension using sqlite-vec package (same as database-manager.ts)
+        const sqliteVec = await import('sqlite-vec');
+        sqliteVec.load(db);
+
+        // Vec0 query with CTE structure for document-level search
+        const limitWithBuffer = limit + 1; // Request one extra to determine has_more
+        const query = `
+          WITH ranked_documents AS (
+            SELECT
+              d.id,
+              d.file_path,
+              d.document_keywords,
+              d.file_size,
+              d.last_modified,
+              (1 - de.distance) as relevance_score,
+              ROW_NUMBER() OVER (ORDER BY (1 - de.distance) DESC) as rank
+            FROM document_embeddings de
+            JOIN documents d ON de.document_id = d.id
+            WHERE de.embedding MATCH vec_f32(?)
+              AND de.k = ?
+          ),
+          document_stats AS (
+            SELECT
+              rd.*,
+              COUNT(c.id) as chunk_count,
+              AVG(c.readability_score) as avg_readability
+            FROM ranked_documents rd
+            LEFT JOIN chunks c ON c.document_id = rd.id
+            WHERE c.semantic_processed = 1
+            GROUP BY rd.id
+          )
+          SELECT * FROM document_stats
+          WHERE rank > ?
+          ORDER BY relevance_score DESC
+          LIMIT ?;
+        `;
+
+        const embeddingJson = JSON.stringify(Array.from(new Float32Array(queryEmbedding.vector)));
+        const stmt = db.prepare(query);
+        const rows = stmt.all(
+          embeddingJson,
+          limitWithBuffer,
+          offset,
+          limitWithBuffer
+        ) as any[];
+
+        // Determine if there are more results
+        const hasMore = rows.length > limit;
+        const results = rows.slice(0, limit);
+
+        // Generate next continuation token if needed
+        let nextToken: string | undefined;
+        if (hasMore) {
+          const tokenData = { offset: offset + limit };
+          nextToken = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
+        }
+
+        // Get base URL for download links
+        const protocol = req.protocol;
+        const host = req.get('host') || 'localhost:3001';
+        const baseUrl = `${protocol}://${host}`;
+
+        // Build response results
+        const findResults: FindDocumentResult[] = results.map((row) => {
+          // Parse document keywords
+          let keyPhrases: KeyPhrase[] = [];
+          if (row.document_keywords) {
+            try {
+              const parsed = JSON.parse(row.document_keywords);
+              keyPhrases = parsed.slice(0, 5); // Top 5 key phrases
+            } catch (e) {
+              this.logger.warn(`Failed to parse document_keywords for ${row.file_path}`);
+            }
+          }
+
+          // Generate download URL
+          const relativePath = getRelativePath(row.file_path, folderPath);
+          const { url: downloadUrl } = generateDownloadUrl(baseUrl, folderPath, relativePath);
+
+          // Format file size
+          const formatSize = (bytes: number): string => {
+            const kb = bytes / 1024;
+            if (kb < 1024) return `${kb.toFixed(1)}KB`;
+            return `${(kb / 1024).toFixed(1)}MB`;
+          };
+
+          return {
+            file_path: row.file_path,
+            relevance_score: row.relevance_score,
+            document_summary: {
+              top_key_phrases: keyPhrases,
+              readability_score: row.avg_readability || 50,
+              chunk_count: row.chunk_count || 0,
+              size: formatSize(row.file_size),
+              modified: new Date(row.last_modified).toISOString()
+            },
+            download_url: downloadUrl
+          };
+        });
+
+        // Build statistics
+        const avgRelevance = findResults.length > 0
+          ? findResults.reduce((sum, r) => sum + r.relevance_score, 0) / findResults.length
+          : 0;
+
+        const statistics: FindDocumentsStatistics = {
+          total_results: findResults.length,
+          avg_relevance: avgRelevance,
+          query_understanding: `Document-level topic discovery: "${body.query}"`
+        };
+
+        // Build navigation hints
+        const firstResult = findResults[0];
+        const navigationHints: FindDocumentsNavigationHints = {
+          next_actions: firstResult
+            ? [
+                `Read full document: get_document_text(file_path='${firstResult.file_path}')`,
+                `Search within document: search_content(folder_id='${folderPath}', semantic_concepts=['${body.query}'])`,
+                hasMore ? 'Continue pagination: use continuation_token' : 'No more results'
+              ]
+            : ['Try different query or increase limit'],
+          related_queries: firstResult && firstResult.document_summary.top_key_phrases.length > 0
+            ? firstResult.document_summary.top_key_phrases.slice(0, 3).map(kp => kp.text)
+            : []
+        };
+
+        // Build response with typed construction
+        const response: FindDocumentsResponse = {
+          data: {
+            results: findResults,
+            statistics
+          },
+          status: {
+            success: true,
+            code: 200,
+            message: `Found ${findResults.length} documents`
+          },
+          continuation: {
+            has_more: hasMore,
+            ...(nextToken && { next_token: nextToken })
+          },
+          navigation_hints: navigationHints
+        };
+
+        res.status(200).json(response);
+      } finally {
+        db.close();
+      }
+    } catch (error) {
+      this.logger.error(`[REST] Error in find_documents: ${error}`);
       res.status(500).json({
         error: 'Internal Server Error',
         message: error instanceof Error ? error.message : 'Unknown error',

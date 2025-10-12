@@ -16,6 +16,94 @@ Sprint 9 delivers **document-level topic discovery** through the `find_documents
 
 ---
 
+## 🎓 Lessons from Sprint 8: Avoiding Implementation Pitfalls
+
+**Context**: Sprint 8 (search_content) required significant cleanup work after initial implementation. This section documents those pitfalls and how Sprint 9 will avoid them from the start.
+
+### Pitfall #1: Redundant folder_id in Request Body ❌
+**What Happened in Sprint 8**:
+- `search_content` had `folder_id` as both URL path parameter AND request body field
+- This violated REST API design principles (path parameters shouldn't duplicate body)
+- Required cleanup task to remove redundant field and update all validation layers
+
+**Sprint 9 Solution** ✅:
+- `folder_id` is **ONLY** a URL path parameter: `/api/v1/folders/:folderPath/find-documents`
+- Request body will **NEVER** include `folder_id` field
+- Validation happens at MCP layer using the path parameter only
+- Code review will explicitly verify no body redundancy
+
+### Pitfall #2: Missing Early Validation at MCP Layer ❌
+**What Happened in Sprint 8**:
+- Initial implementation only validated parameters at daemon/REST layer
+- MCP layer passed invalid requests through, causing late failures
+- Required adding fail-fast validation to catch errors before HTTP calls
+
+**Sprint 9 Solution** ✅:
+- **Phase 1 of implementation** includes MCP validation logic (not Phase 4)
+- Validate `folder_id` exists and is non-empty string before daemon call
+- Validate `query` is non-empty before processing
+- Follow fail-fast principle: catch errors at earliest possible layer
+
+### Pitfall #3: TypeScript Anti-patterns in Initial Code ❌
+**What Happened in Sprint 8**:
+- Used conditional mutation for building response objects:
+  ```typescript
+  const continuation = { has_more: hasMore };
+  if (nextToken !== undefined) {
+    continuation.next_token = nextToken;
+  }
+  ```
+- Violated TypeScript best practices and clean code principles
+
+**Sprint 9 Solution** ✅:
+- Use typed construction with spread operators from the start:
+  ```typescript
+  const continuation = {
+    has_more: hasMore,
+    ...(nextToken !== undefined && { next_token: nextToken })
+  };
+  ```
+- No conditional mutation - all object construction uses immutable patterns
+- Code review will explicitly check for proper TypeScript patterns
+
+### Pitfall #4: A2E Testing as Afterthought ❌
+**What Happened in Sprint 8**:
+- Built entire implementation first, then ran A2E tests
+- Discovered validation issues only after code complete
+- Testing felt disconnected from implementation
+
+**Sprint 9 Solution** ✅:
+- **Test-driven approach**: Write A2E test scenarios BEFORE implementation
+- Run tests iteratively as each phase completes:
+  - Phase 1 complete → Test basic query execution
+  - Phase 2 complete → Test MCP validation
+  - Phase 3 complete → Test response formatting
+- Each A2E test scenario maps to specific implementation phase
+- No "testing phase" at end - testing is continuous validation
+
+### Pitfall #5: Unclear Type Boundaries ❌
+**What Happened in Sprint 8**:
+- Request/response types spread across multiple files
+- Unclear which layer owned which interfaces
+- Made refactoring more difficult
+
+**Sprint 9 Solution** ✅:
+- Clear type ownership from the start:
+  - `src/daemon/rest/types.ts`: REST API types (FindDocumentsRequest body only)
+  - `src/interfaces/mcp/types.ts`: MCP tool types (includes folder_id path param)
+  - `src/domain/knowledge/types.ts`: Domain service types (if needed)
+- Document why each interface exists in each location
+- No "floating" types without clear ownership
+
+### Implementation Checklist Updates
+
+Based on these lessons, the implementation phases have been reordered:
+
+**BEFORE (Sprint 8 approach)**: SQL → Domain → MCP → Testing (sequential)
+**AFTER (Sprint 9 approach)**: MCP Validation → SQL + Tests → Domain + Tests → Integration (iterative)
+
+---
+
 ## Problem Statement
 
 ### Current Challenge
@@ -60,10 +148,18 @@ The `document_embeddings` vec0 table stores **averaged embeddings** computed fro
 ### Request Parameters
 
 ```typescript
-interface FindDocumentsRequest {
-  folder_id: string;              // Required: folder identifier
+// MCP Tool Interface (src/interfaces/mcp/types.ts)
+interface FindDocumentsMCPRequest {
+  folder_id: string;              // Required: from MCP tool arguments, passed as URL path param
   query: string;                  // Required: natural language topic query
-  min_score?: number;             // Optional: minimum relevance threshold (default: 0.6)
+  limit?: number;                 // Optional: max results per page (default: 20, max: 50)
+  continuation_token?: string;    // Optional: pagination token
+}
+
+// REST API Request Body (src/daemon/rest/types.ts)
+// NOTE: folder_id comes from URL path (:folderPath), NOT request body
+interface FindDocumentsRequest {
+  query: string;                  // Required: natural language topic query
   limit?: number;                 // Optional: max results per page (default: 20, max: 50)
   continuation_token?: string;    // Optional: pagination token
 }
@@ -76,9 +172,10 @@ interface FindDocumentsRequest {
    - Document embeddings capture overall topic, natural language query is sufficient
    - No hybrid scoring needed - cosine similarity alone works well for topic discovery
 
-2. **Higher default min_score (0.6 vs 0.5)**: Document-level matching is more reliable
-   - Averaged embeddings smooth out noise from individual chunks
-   - Higher threshold ensures only truly relevant documents are returned
+2. **No min_score threshold**: Model-independent design like search_content
+   - Results always ordered by relevance_score DESC
+   - Use `limit` parameter for predictable result count control
+   - Works consistently across all embedding models
 
 3. **Larger default limit (20 vs 10)**: Documents are coarser-grained than chunks
    - Users typically want to see multiple relevant documents
@@ -93,7 +190,6 @@ interface FindDocumentsResponse {
     statistics: {
       total_results: number;           // Total matching documents (before pagination)
       avg_relevance: number;           // Average relevance_score across results
-      min_score_threshold: number;     // Applied min_score value
       query_understanding: string;     // Brief description of query interpretation
     };
   };
@@ -174,8 +270,7 @@ WITH ranked_documents AS (
   FROM document_embeddings de
   JOIN documents d ON de.document_id = d.id
   WHERE de.embedding MATCH :query_embedding
-    AND de.k = :limit_with_buffer              -- Fetch extra for min_score filtering
-    AND (1 - de.distance) >= :min_score
+    AND de.k = :limit
 ),
 document_stats AS (
   SELECT
@@ -215,15 +310,11 @@ ORDER BY ds.relevance_score DESC;
    - Returns `distance` in range [0.0, 2.0], converted to similarity via `(1 - distance)`
 
 2. **Two-stage filtering**: CTE structure separates ranking from aggregation
-   - `ranked_documents`: Vec0 search with initial filtering
+   - `ranked_documents`: Vec0 search results ordered by relevance
    - `document_stats`: Aggregate chunk statistics per document
    - Final SELECT: Apply pagination window
 
-3. **Buffer fetching**: `limit_with_buffer` = limit × 1.5
-   - Fetches extra results to account for min_score filtering
-   - Ensures pagination has enough results after threshold applied
-
-4. **Chunk aggregation**: LEFT JOIN with chunks table
+3. **Chunk aggregation**: LEFT JOIN with chunks table
    - Computes avg_readability across all chunks in document
    - Counts total chunks (excluding deleted chunks)
    - Single JOIN, not N+1 queries
@@ -244,17 +335,83 @@ const embeddingBase64 = embeddingBuffer.toString('base64');
 
 ## Implementation Approach
 
-### Phase 1: SQL Query and Pagination (1 hour)
+**🎯 Test-Driven Iterative Approach** (Lesson from Sprint 8):
+- Each phase includes implementation + immediate A2E validation
+- No separate "testing phase" - tests validate each layer as built
+- MCP validation happens in Phase 1, not at the end
+
+---
+
+### Phase 1: MCP Interface with Early Validation (1 hour)
+
+**🎓 Sprint 8 Lesson Applied**: Start with MCP layer and validation first, not SQL first.
+
+**Files to modify**:
+- `src/interfaces/mcp/daemon-mcp-endpoints.ts` - Add `find_documents` tool with validation
+- `src/interfaces/mcp/types.ts` - Add `FindDocumentsMCPRequest/Response` types
+
+**Implementation order**:
+1. **Define types** in `types.ts`:
+   - `FindDocumentsMCPRequest` (includes folder_id for MCP tool)
+   - `FindDocumentsResponse` (full response structure)
+
+2. **Add MCP validation** in `daemon-mcp-endpoints.ts`:
+```typescript
+async findDocuments(args: FindDocumentsMCPRequest): Promise<MCPToolResponse> {
+  // FAIL-FAST VALIDATION (Sprint 8 lesson)
+  if (!args.folder_id || typeof args.folder_id !== 'string' || args.folder_id.trim() === '') {
+    return {
+      content: [{
+        type: 'text' as const,
+        text: 'Error: folder_id is required and must be a non-empty string'
+      }]
+    };
+  }
+
+  if (!args.query || typeof args.query !== 'string' || args.query.trim() === '') {
+    return {
+      content: [{
+        type: 'text' as const,
+        text: 'Error: query is required and must be a non-empty string'
+      }]
+    };
+  }
+
+  // Build request body (folder_id goes to URL path, NOT body)
+  const requestBody = {
+    query: args.query,
+    limit: args.limit,
+    continuation_token: args.continuation_token
+  };
+
+  // Call daemon REST endpoint
+  const response = await this.daemonClient.findDocuments(
+    args.folder_id,  // Path parameter
+    requestBody      // Body (no folder_id)
+  );
+
+  return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+}
+```
+
+**✅ A2E Test After Phase 1**:
+- Test validation errors (empty folder_id, empty query)
+- Verify error messages are clear and actionable
+- Endpoint should fail gracefully, not crash
+
+---
+
+### Phase 2: SQL Query and Pagination (1 hour)
 
 **Files to modify**:
 - `src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.ts`
+- `src/daemon/rest/types.ts` - Add `FindDocumentsRequest` (body only, no folder_id)
 
 **New method**:
 ```typescript
 async searchDocumentEmbeddings(
   queryEmbedding: number[],
   options: {
-    minScore: number;
     limit: number;
     offset: number;
   }
@@ -266,22 +423,38 @@ async searchDocumentEmbeddings(
 
 **Pagination strategy**:
 - Use ROW_NUMBER() window function for stable ordering
-- Continuation token: base64url({ offset: number, min_score: number })
+- Continuation token: base64url({ offset: number })
 - Same pattern as search_content endpoint
 
-### Phase 2: MCP Endpoint Implementation (1 hour)
+**Object construction** (Sprint 8 lesson):
+```typescript
+// Use typed construction with spread operator
+const continuation = {
+  has_more: hasMore,
+  ...(nextToken !== undefined && { next_token: nextToken })
+};
+// NOT: conditional mutation pattern
+```
+
+**✅ A2E Test After Phase 2**:
+- Test basic query execution (Test Scenario 1)
+- Verify documents returned in descending relevance order
+- Check results ordered by relevance_score DESC
+
+---
+
+### Phase 3: Domain Service and Response Formatting (1 hour)
 
 **Files to modify**:
-- `src/interfaces/mcp/daemon-mcp-endpoints.ts` - Add `find_documents` tool
-- `src/interfaces/mcp/types.ts` - Add `FindDocumentsRequest/Response` types
 - `src/domain/knowledge/service.ts` - Add `findDocuments()` orchestration method
 
 **Endpoint structure**:
 ```typescript
 async findDocuments(
+  folderPath: string,  // From URL path, NOT request body
   request: FindDocumentsRequest
 ): Promise<StandardResponse<FindDocumentsResponseData>> {
-  // 1. Validate folder_id exists
+  // 1. Validate folder exists (domain-level check)
   // 2. Generate query embedding
   // 3. Call searchDocumentEmbeddings() with pagination
   // 4. Parse document_keywords JSON for each result
@@ -289,9 +462,6 @@ async findDocuments(
   // 6. Return StandardResponse
 }
 ```
-
-### Phase 3: Response Formatting and Hints (0.5 hour)
-
 
 **Navigation hints logic**:
 
@@ -310,11 +480,26 @@ async findDocuments(
    - List matched key phrases from results
    - Example: "Authentication security → Found: JWT, OAuth, passwords, sessions"
 
-### Phase 4: A2E Testing (1 hour)
+**✅ A2E Test After Phase 3**:
+- Test response formatting (Test Scenario 4)
+- Verify navigation hints are contextually appropriate
+- Check document summaries include all required metadata
+
+---
+
+### Phase 4: Integration and Full A2E Validation (1 hour)
 
 **A2E Testing Philosophy**: Use MCP tools directly against indexed folder-mcp project to validate document discovery with known content.
 
 **Test fixtures**: Use `tests/fixtures/test-knowledge-base/` with known documents covering specific topics.
+
+**Complete all 6 A2E scenarios**:
+1. Basic document discovery
+2. Pagination and continuation tokens
+3. Min score threshold filtering
+4. Document summary quality (already tested in Phase 3)
+5. Empty results and edge cases
+6. Navigation hints accuracy
 
 ---
 
@@ -344,13 +529,12 @@ mcp__desktop-commander__read_file({
 mcp__folder-mcp__find_documents({
   folder_id: "test-knowledge-base",
   query: "remote work policy and flexible schedules",
-  min_score: 0.6,
   limit: 10
 })
 
 // Step 3: Validate results
-// Expected: results[0].file_path === "Policies/Remote_Work_Policy.md"
-// Expected: results[0].relevance_score >= 0.75 (high relevance)
+// Expected: results[0].file_path === "Policies/Remote_Work_Policy.md" (top-ranked)
+// Expected: results[0].relevance_score high (document well-matched to query)
 // Expected: results[0].document_summary.top_key_phrases includes:
 //   - {text: "remote work", score: > 0.7}
 //   - {text: "flexible schedule", score: > 0.6}
@@ -359,7 +543,7 @@ mcp__folder-mcp__find_documents({
 
 // Step 4: Verify statistics
 // Expected: statistics.total_results >= 1
-// Expected: statistics.avg_relevance >= 0.7
+// Expected: statistics.avg_relevance > 0 (reflects document relevance)
 // Expected: statistics.query_understanding mentions "remote work" or "flexible schedules"
 ```
 
@@ -416,47 +600,46 @@ const page2 = await mcp__folder-mcp__find_documents({
 ---
 
 
-### Test Scenario 3: Min Score Threshold Filtering
+### Test Scenario 3: Relevance Ordering and Limit Control
 
-**Objective**: Verify min_score parameter correctly filters low-relevance documents.
+**Objective**: Verify limit parameter controls result count and results are ordered by relevance.
 
 **A2E Test Steps**:
 ```typescript
-// Step 1: Search with high min_score threshold
-const strictResults = await mcp__folder-mcp__find_documents({
-  folder_id: "test-knowledge-base",
-  query: "employee benefits and compensation",
-  min_score: 0.8,  // Very strict
-  limit: 20
+// Step 1: Search with small limit to get top results
+const topResults = await mcp__folder-mcp__find_documents({
+  folder_id: "folder-mcp",
+  query: "configuration and settings",
+  limit: 5  // Get top 5 most relevant
 })
 
-// Step 2: Validate strict filtering
-// Expected: All results have relevance_score >= 0.8
-// Expected: strictResults.data.results.length < 5 (only highly relevant docs)
-// Expected: strictResults.data.statistics.avg_relevance >= 0.85
+// Step 2: Validate top results
+// Expected: topResults.data.results.length === 5 (or less if fewer matches)
+// Expected: All results sorted by descending relevance_score
+// Expected: Most relevant config-related docs appear first
 
-// Step 3: Search with default min_score
-const defaultResults = await mcp__folder-mcp__find_documents({
-  folder_id: "test-knowledge-base",
-  query: "employee benefits and compensation",
-  min_score: 0.6,  // Default
-  limit: 20
+// Step 3: Search with larger limit
+const moreResults = await mcp__folder-mcp__find_documents({
+  folder_id: "folder-mcp",
+  query: "configuration and settings",
+  limit: 15  // Get top 15 results
 })
 
-// Step 4: Compare result sets
-// Expected: defaultResults.data.results.length > strictResults.data.results.length
-// Expected: All strict results also appear in default results
-// Expected: defaultResults includes docs with scores in [0.6, 0.8) range
+// Step 4: Validate ordering consistency
+// Expected: moreResults.data.results.length === 15 (or less if fewer matches)
+// Expected: First 5 results of moreResults match topResults exactly (same order, same docs)
+// Expected: All results sorted by descending relevance_score
+// Expected: moreResults[4].relevance_score >= moreResults[5].relevance_score
 
-// Step 5: Verify no results below threshold
-const lowestScore = Math.min(...defaultResults.data.results.map(r => r.relevance_score))
-// Expected: lowestScore >= 0.6
+// Step 5: Verify model-independent behavior
+// Expected: Predictable result count based on limit parameter
+// Expected: Same queries return consistent ordering across runs
 ```
 
 **Success Criteria**:
-- ✅ min_score correctly filters results
-- ✅ No results returned below threshold
-- ✅ Higher thresholds return subset of lower thresholds
+- ✅ Limit parameter correctly controls result count
+- ✅ Results maintain strict descending relevance order
+- ✅ Top N results consistent regardless of limit value
 
 ---
 
@@ -525,12 +708,11 @@ const remotePolicyResult = results.data.results.find(r =>
 const noResults = await mcp__folder-mcp__find_documents({
   folder_id: "test-knowledge-base",
   query: "quantum physics and nuclear fusion reactor design",
-  min_score: 0.6,
   limit: 10
 })
 
 // Step 2: Validate empty results structure
-// Expected: noResults.data.results.length === 0
+// Expected: noResults.data.results.length === 0 (or very low relevance docs)
 // Expected: noResults.data.statistics.total_results === 0
 // Expected: noResults.data.statistics.avg_relevance === 0
 // Expected: noResults.continuation.has_more === false
@@ -542,16 +724,15 @@ const noResults = await mcp__folder-mcp__find_documents({
 //   - "Check spelling" or query refinement tip
 // Expected: noResults.navigation_hints.related_queries.length === 0
 
-// Step 4: Test with impossible min_score
-const impossibleResults = await mcp__folder-mcp__find_documents({
+// Step 4: Test with very broad query
+const broadResults = await mcp__folder-mcp__find_documents({
   folder_id: "test-knowledge-base",
-  query: "employee policies",
-  min_score: 0.99,  // Nearly impossible to match
-  limit: 10
+  query: "document",  // Extremely broad
+  limit: 20
 })
 
-// Expected: impossibleResults.data.results.length === 0
-// Expected: Status indicates no matches due to high threshold
+// Expected: broadResults.data.results.length > 0 (many low-relevance matches)
+// Expected: Results ordered by relevance even if scores are low
 ```
 
 **Success Criteria**:
@@ -618,7 +799,6 @@ const manyResults = await mcp__folder-mcp__find_documents({
 | **Use Case** | "Which docs cover X?" | "Where is specific code/info?" |
 | **Results** | Document summaries | Chunks with full content |
 | **Scoring** | Cosine similarity only | Hybrid (semantic + exact term boost) |
-| **Min Score Default** | 0.6 (higher) | 0.5 (lower) |
 | **Limit Default** | 20 documents | 10 chunks |
 | **Response Size** | Small (no content) | Larger (chunk text always included) |
 | **Content Strategy** | Lazy (summaries + download_url) | Eager (content always included) |
@@ -679,7 +859,7 @@ const fullDoc = await get_document_text({
 - ✅ Vec0 MATCH operator correctly searches document_embeddings table
 - ✅ Document summaries include top_key_phrases from document_keywords
 - ✅ Pagination works with continuation tokens (base64url encoded)
-- ✅ min_score threshold correctly filters low-relevance documents
+- ✅ Results ordered by descending relevance_score
 - ✅ Navigation hints provide context-appropriate suggestions
 - ✅ All 6 A2E test scenarios pass with real fixtures
 
@@ -706,31 +886,92 @@ const fullDoc = await get_document_text({
 
 - **Relevance accuracy**: Top result matches expected document in 90% of test cases
 - **Pagination consistency**: Zero duplicate documents across pages
-- **Score reliability**: min_score filtering is 100% accurate
+- **Ordering reliability**: Results always sorted by descending relevance_score
 - **Navigation hints**: Actionable suggestions in 100% of responses
 
 ---
 
 ## Implementation Checklist
 
-### Phase 1: Database and Storage Layer ✅ (Already Complete)
+**🎓 Sprint 8 Lessons Applied**:
+- Reordered phases: MCP validation first, then SQL, then domain
+- Each phase includes immediate A2E validation
+- Type ownership clearly documented
+- No conditional mutation - only typed construction with spread operators
+
+---
+
+### Phase 0: Pre-Implementation (Already Complete) ✅
 - ✅ `document_embeddings` vec0 virtual table exists (Sprint 7.5)
 - ✅ `documents.document_keywords` field populated during indexing
 - ✅ Document embedding generation pipeline working
 
-### Phase 2: SQL Query Implementation (1 hour)
+---
+
+### Phase 1: MCP Interface with Early Validation (1 hour)
+
+**🎯 Goal**: Establish type contracts and fail-fast validation before writing any SQL
+
+**File**: `src/interfaces/mcp/types.ts`
+
+- [ ] Add FindDocumentsMCPRequest interface
+  - [ ] Include folder_id (will be passed as URL path param)
+  - [ ] Include query, limit, continuation_token
+  - [ ] Document that folder_id is for MCP tool, not REST body
+
+- [ ] Add FindDocumentsResponse interface
+  - [ ] data: { results, statistics }
+  - [ ] status: { success, code, message }
+  - [ ] continuation: { has_more, next_token? }
+  - [ ] navigation_hints: { next_actions, related_queries }
+
+- [ ] Add FindDocumentResult interface
+- [ ] Add DocumentSummary interface
+- [ ] Export all new types
+
+**File**: `src/interfaces/mcp/daemon-mcp-endpoints.ts`
+
+- [ ] Add `find_documents` tool definition
+  - [ ] **CRITICAL**: Add folder_id validation (fail-fast)
+  - [ ] **CRITICAL**: Add query validation (fail-fast)
+  - [ ] Build request body WITHOUT folder_id
+  - [ ] Pass folder_id as URL path parameter only
+  - [ ] Call daemonClient.findDocuments(folder_id, requestBody)
+  - [ ] Add tool description for LLM guidance
+
+**✅ A2E Test After Phase 1**:
+- [ ] Test empty folder_id → expect clear error message
+- [ ] Test empty query → expect clear error message
+- [ ] Test valid inputs → expect endpoint call attempt (may fail, that's OK)
+- [ ] Verify error messages are actionable for users
+
+---
+
+### Phase 2: SQL Query and Pagination (1 hour)
+
+**🎯 Goal**: Implement vec0 query with proper type safety and pagination
+
+**File**: `src/daemon/rest/types.ts`
+
+- [ ] Add FindDocumentsRequest interface (REST body only)
+  - [ ] **CRITICAL**: No folder_id field in body
+  - [ ] Add comment: "folder_id comes from URL path :folderPath"
+  - [ ] Include: query, limit, continuation_token
+
+- [ ] Add FindDocumentsResponseData interface
+- [ ] Export all new REST types
 
 **File**: `src/infrastructure/embeddings/sqlite-vec/sqlite-vec-storage.ts`
 
 - [ ] Add `searchDocumentEmbeddings()` method
   - [ ] Implement CTE structure (ranked_documents → document_stats)
-  - [ ] Vec0 MATCH with k parameter and min_score filtering
+  - [ ] Vec0 MATCH with k parameter (no min_score filtering)
   - [ ] LEFT JOIN chunks for aggregation
   - [ ] ROW_NUMBER() for pagination window
   - [ ] Return DocumentSearchResult[] interface
 
 - [ ] Add pagination helper
-  - [ ] Parse continuation token (base64url → {offset, min_score})
+  - [ ] Parse continuation token (base64url → {offset})
   - [ ] Generate next continuation token
   - [ ] Calculate has_more flag
 
@@ -740,92 +981,105 @@ const fullDoc = await get_document_text({
   - [ ] Convert timestamps to ISO 8601
   - [ ] Extract top 5 key phrases per document
 
-### Phase 3: Domain Service Orchestration (0.5 hour)
+**✅ A2E Test After Phase 2**:
+- [ ] Test Scenario 1: Basic document discovery
+  - [ ] Read Remote_Work_Policy.md fixture
+  - [ ] Search for "remote work policy"
+  - [ ] Validate correct document returned as top result
+  - [ ] Check results ordered by descending relevance_score
+- [ ] Test Scenario 3: Limit control (basic check)
+  - [ ] Verify limit parameter controls result count
+
+---
+
+### Phase 3: Domain Service and Response Formatting (1 hour)
+
+**🎯 Goal**: Orchestrate layers and build navigation hints
 
 **File**: `src/domain/knowledge/service.ts`
 
 - [ ] Add `findDocuments()` method
-  - [ ] Validate folder_id exists
+  - [ ] Accept folderPath as separate parameter (from URL)
+  - [ ] Accept FindDocumentsRequest for body params
+  - [ ] Validate folder exists (domain-level check)
   - [ ] Generate query embedding via embeddingProvider
   - [ ] Call storage.searchDocumentEmbeddings()
   - [ ] Build navigation_hints logic
   - [ ] Compute statistics (avg_relevance, query_understanding)
+  - [ ] **CRITICAL**: Use typed construction for continuation object:
+    ```typescript
+    const continuation = {
+      has_more: hasMore,
+      ...(nextToken !== undefined && { next_token: nextToken })
+    };
+    ```
   - [ ] Return StandardResponse structure
 
-### Phase 4: MCP Interface Layer (1 hour)
+**File**: `src/daemon/rest/server.ts`
 
-**File**: `src/interfaces/mcp/daemon-mcp-endpoints.ts`
+- [ ] Add POST route: `/api/v1/folders/:folderPath/find-documents`
+  - [ ] Extract folderPath from URL params
+  - [ ] Parse request body as FindDocumentsRequest
+  - [ ] Call domainService.findDocuments(folderPath, requestBody)
+  - [ ] Return StandardResponse
 
-- [ ] Add `find_documents` tool definition
-  - [ ] Define input schema (folder_id, query, min_score, limit, continuation_token)
-  - [ ] Map to HTTP POST endpoint
-  - [ ] Handle StandardResponse unwrapping
-  - [ ] Add tool description for LLM guidance
+**✅ A2E Test After Phase 3**:
+- [ ] Test Scenario 4: Document summary quality
+  - [ ] Verify top_key_phrases accuracy
+  - [ ] Check metadata completeness
+  - [ ] Validate download_url format
+- [ ] Test Scenario 6: Navigation hints (basic check)
+  - [ ] Verify next_actions exist and are contextual
+  - [ ] Check related_queries format
 
-**File**: `src/interfaces/mcp/types.ts`
+---
 
-- [ ] Add FindDocumentsRequest interface
-- [ ] Add FindDocumentsResponse interface
-- [ ] Add FindDocumentResult interface
-- [ ] Add DocumentSummary interface
-- [ ] Export all new types
+### Phase 4: Full A2E Validation and Integration (1 hour)
 
-**File**: `src/interfaces/mcp/server.ts` (if needed)
+**🎯 Goal**: Complete all remaining test scenarios and integration checks
 
-- [ ] Register find_documents tool with MCP server
-- [ ] Add route handler if HTTP endpoint needed
-
-### Phase 5: A2E Testing (1 hour)
-
-**Using MCP tools directly**:
-
-- [ ] Test Scenario 1: Basic document discovery
-  - [ ] Read Remote_Work_Policy.md fixture
-  - [ ] Search for "remote work policy"
-  - [ ] Validate correct document returned
-  - [ ] Check relevance_score >= 0.75
+**Complete remaining A2E scenarios**:
 
 - [ ] Test Scenario 2: Pagination
   - [ ] Fetch first page (limit=5)
   - [ ] Use continuation token for page 2
   - [ ] Verify no duplicates, descending order
 
-- [ ] Test Scenario 3: Min score filtering
-  - [ ] Test with min_score=0.8 (strict)
-  - [ ] Test with min_score=0.6 (default)
-  - [ ] Verify filtering accuracy
-
-- [ ] Test Scenario 4: Document summary quality
-  - [ ] Verify top_key_phrases accuracy
-  - [ ] Check metadata completeness
-  - [ ] Validate download_url format
+- [ ] Test Scenario 3: Relevance ordering and limit control (thorough)
+  - [ ] Test with limit=5 (small)
+  - [ ] Test with limit=15 (larger)
+  - [ ] Compare result ordering consistency
+  - [ ] Verify model-independent behavior
 
 - [ ] Test Scenario 5: Empty results
   - [ ] Query for non-existent topic
   - [ ] Verify graceful handling
-  - [ ] Check navigation hints
+  - [ ] Check navigation hints appropriateness
 
-- [ ] Test Scenario 6: Navigation hints
+- [ ] Test Scenario 6: Navigation hints (thorough)
   - [ ] Test few-results scenario
   - [ ] Test many-results scenario
-  - [ ] Validate query_understanding
+  - [ ] Validate query_understanding quality
 
-### Phase 6: Documentation and Integration
+**Integration verification**:
+- [ ] Test find_documents → search_content workflow
+  - [ ] Use find_documents to discover relevant docs
+  - [ ] Use search_content on discovered docs for specific content
+  - [ ] Verify workflow is seamless
 
-- [ ] Update API documentation
-  - [ ] Add find_documents endpoint spec
-  - [ ] Document when to use vs search_content
-  - [ ] Add request/response examples
+- [ ] Verify download_url links work
+  - [ ] Construct URLs match actual endpoints
+  - [ ] URLs can be used to fetch full document content
 
-- [ ] Update Epic document
-  - [ ] Mark Sprint 9 as completed
-  - [ ] Link to this specification
-  - [ ] Update navigation flow diagram
+- [ ] Test with Claude Desktop MCP client (if available)
+  - [ ] Register find_documents tool
+  - [ ] Test natural language queries
+  - [ ] Verify responses render correctly
 
-- [ ] Integration verification
-  - [ ] Test find_documents → search_content workflow
-  - [ ] Verify download_url links work
-  - [ ] Test with real Claude Desktop connection
+**Documentation updates**:
+- [ ] Update Epic document (mark Sprint 9 complete)
+- [ ] Update API documentation (add find_documents spec)
+- [ ] Document when to use find_documents vs search_content
 
 ---
 
@@ -833,8 +1087,8 @@ const fullDoc = await get_document_text({
 
 ### Risk 1: Document embeddings quality varies by document length
 **Impact**: Short documents may have low-quality averaged embeddings
-**Mitigation**: 
-- Min score threshold (0.6) filters weak matches
+**Mitigation**:
+- Results ordered by relevance score (LLM can assess quality)
 - Key phrases provide additional context beyond embeddings
 - chunk_count in summary helps LLM assess document granularity
 
@@ -857,7 +1111,7 @@ const fullDoc = await get_document_text({
 **Mitigation**:
 - Default limit=20 handles most cases
 - Continuation tokens support unlimited pagination
-- min_score=0.6 filters most marginal matches
+- Results ordered by relevance (top results most useful)
 
 ---
 

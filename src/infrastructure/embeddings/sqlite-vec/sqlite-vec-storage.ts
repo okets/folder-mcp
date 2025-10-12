@@ -309,6 +309,134 @@ export class SQLiteVecStorage implements IVectorSearchService {
     }
 
     /**
+     * Phase 10 Sprint 9: Search document embeddings for topic discovery
+     * Uses vec0 MATCH on document_embeddings table with CTE-based pagination
+     *
+     * @param queryEmbedding - Embedding vector to search for
+     * @param options - Search options including min_score, limit, and continuation token
+     * @returns Search results with document metadata and pagination info
+     */
+    async searchDocumentEmbeddings(
+        queryEmbedding: number[],
+        options: {
+            minScore?: number;
+            limit?: number;
+            continuationToken?: string;
+        } = {}
+    ): Promise<{
+        results: Array<{
+            documentId: number;
+            filePath: string;
+            relevanceScore: number;
+            documentKeywords: string | null;
+            fileSize: number;
+            lastModified: string;
+            chunkCount: number;
+            avgReadability: number;
+        }>;
+        hasMore: boolean;
+        nextToken?: string;
+    }> {
+        if (!this.ready) {
+            throw new Error('Vector index is not ready. Call buildIndex() or loadIndex() first.');
+        }
+
+        // Extract pagination state from continuation token
+        let offset = 0;
+        if (options.continuationToken) {
+            try {
+                const decoded = Buffer.from(options.continuationToken, 'base64url').toString('utf-8');
+                const tokenData = JSON.parse(decoded);
+                offset = tokenData.offset || 0;
+            } catch (error) {
+                this.logger?.warn(`Invalid continuation token: ${error instanceof Error ? error.message : 'unknown'}`);
+                offset = 0;
+            }
+        }
+
+        const limit = options.limit ?? 20;
+        const limitWithBuffer = limit + 1; // Request one extra to determine has_more
+
+        try {
+            const db = this.dbManager.getDatabase();
+
+            // Convert query embedding to JSON for vec_f32()
+            const embeddingJson = JSON.stringify(queryEmbedding);
+
+            // Vec0 query with LIMIT/OFFSET optimization for document-level search
+            const query = `
+                WITH matched_documents AS (
+                    SELECT
+                        d.id,
+                        d.file_path,
+                        d.document_keywords,
+                        d.file_size,
+                        d.last_modified,
+                        (1 - de.distance) as relevance_score
+                    FROM document_embeddings de
+                    JOIN documents d ON de.document_id = d.id
+                    WHERE de.embedding MATCH vec_f32(?)
+                        AND de.k = ?
+                    ORDER BY relevance_score DESC
+                    LIMIT ? OFFSET ?
+                )
+                SELECT
+                    md.*,
+                    COUNT(c.id) as chunk_count,
+                    AVG(c.readability_score) as avg_readability
+                FROM matched_documents md
+                LEFT JOIN chunks c ON c.document_id = md.id AND c.semantic_processed = 1
+                GROUP BY md.id
+                ORDER BY md.relevance_score DESC;
+            `;
+
+            const stmt = db.prepare(query);
+            const rows = stmt.all(
+                embeddingJson,
+                limitWithBuffer,
+                limitWithBuffer,
+                offset
+            ) as any[];
+
+            // Determine if there are more results
+            const hasMore = rows.length > limit;
+            const results = rows.slice(0, limit); // Remove the extra result used for has_more check
+
+            // Generate next continuation token if more results exist
+            let nextToken: string | undefined;
+            if (hasMore) {
+                const tokenData = { offset: offset + limit };
+                nextToken = Buffer.from(JSON.stringify(tokenData)).toString('base64url');
+            }
+
+            // Map results to return structure
+            const mappedResults = results.map(row => ({
+                documentId: row.id,
+                filePath: row.file_path,
+                relevanceScore: row.relevance_score,
+                documentKeywords: row.document_keywords,
+                fileSize: row.file_size,
+                lastModified: row.last_modified,
+                chunkCount: row.chunk_count || 0,
+                avgReadability: row.avg_readability || 50
+            }));
+
+            this.logger?.debug(`Document search found ${mappedResults.length} results (offset: ${offset}, hasMore: ${hasMore})`);
+
+            return {
+                results: mappedResults,
+                hasMore,
+                ...(nextToken && { nextToken })
+            };
+
+        } catch (error) {
+            const errorMessage = `Document embedding search failed: ${error instanceof Error ? error.message : String(error)}`;
+            this.logger?.error(errorMessage, error instanceof Error ? error : new Error(String(error)));
+            throw new Error(errorMessage);
+        }
+    }
+
+    /**
      * Check if vector index is ready for search
      */
     isReady(): boolean {

@@ -83,8 +83,10 @@ final_score = semantic_score × exact_term_boost
 - **Exact-only queries**: semantic_score=1.0, boost=1.5^n → final_score = 1.5^n (where n = number of matches)
 - **Hybrid queries**: semantic_score ∈ [0,1], boost=1.5^n → final_score = semantic_score × 1.5^n
 - Multiplicative formula ensures poor semantic matches aren't rescued by exact terms
-- Example (hybrid): semantic_score=0.3, boost=1.5 → final=0.45 (filtered by min_score=0.5)
+- Example (hybrid): semantic_score=0.3, boost=1.5 → final=0.45 (still in results, ranked by score)
 - Example (exact-only): 1 match → 1.5, 2 matches → 2.25, 3 matches → 3.375
+- **No threshold filtering**: Results always ordered by relevance_score DESC, controlled by `limit` only
+- **Model-independent**: Works consistently across all embedding models (MiniLM 384d, E5-Large 1024d, etc.)
 
 
 ---
@@ -125,8 +127,7 @@ interface SearchContentRequest {
   exact_terms?: string[];         // Optional: ["useState", "WebSocket", "Q4"]
   // Validation: At least one of semantic_concepts or exact_terms must be non-empty
 
-  // Pagination & filtering
-  min_score?: number;             // Optional: relevance threshold (default: 0.5)
+  // Pagination
   limit?: number;                 // Optional: max results per page (default: 10, max: 50)
   continuation_token?: string;    // Optional: base64url-encoded pagination state
 }
@@ -136,6 +137,7 @@ interface SearchContentRequest {
 - **No `file_hints`**: Document filtering is `find_documents`' responsibility
 - **No `include_content`**: Content is always included (content-first design)
 - **No `max_tokens`**: Use `limit` parameter to control result count
+- **No `min_score`**: Results ordered by relevance, controlled by `limit` (model-independent behavior)
 
 ---
 
@@ -228,7 +230,7 @@ const text = await get_document_text({
 ### Token-Based Pagination
 
 All search state encoded in opaque base64url token:
-- **Stateless**: Token contains folder_id, semantic_concepts, exact_terms, offset, min_score
+- **Stateless**: Token contains folder_id, semantic_concepts, exact_terms, offset
 - **Resumable**: Can continue from any point
 - **Consistent**: Matches existing endpoints (list_documents, explore, etc.)
 
@@ -240,7 +242,6 @@ All search state encoded in opaque base64url token:
   semantic_concepts?: string[],  // At least one of these two must be present
   exact_terms?: string[],        // in the original request
   offset: number,                // Where to resume
-  min_score: number,
   type: 'search_content_pagination'
 }
 // Encoded: Buffer.from(JSON.stringify(data)).toString('base64url')
@@ -258,7 +259,6 @@ mcp__folder-mcp__search_content({
   folder_id: "my-project",
   semantic_concepts: ["authentication", "state management"],
   exact_terms: ["useState", "useEffect"],
-  min_score: 0.5,
   limit: 10
 })
 ```
@@ -315,12 +315,11 @@ mcp__folder-mcp__search_content({
 mcp__folder-mcp__search_content({
   folder_id: "docs",
   semantic_concepts: ["configuration management", "environment variables"],
-  min_score: 0.6,  // Higher threshold for pure semantic
   limit: 10
 })
 ```
 
-**Response:** Results about YAML config, env vars, settings with semantic scores >= 0.6
+**Response:** Results about YAML config, env vars, settings ordered by semantic relevance
 
 ### Example 3: Exact Terms Only (No Semantic)
 
@@ -329,12 +328,11 @@ mcp__folder-mcp__search_content({
 mcp__folder-mcp__search_content({
   folder_id: "codebase",
   exact_terms: ["vec0", "SQLite", "embeddings"],
-  min_score: 0.3,  // Lower threshold - relying on exact matches
   limit: 10
 })
 ```
 
-**Response:** Grep-like search for technical terms, boosted by number of matches
+**Response:** Grep-like search for technical terms, ranked by number of exact term matches
 
 ---
 
@@ -402,7 +400,6 @@ JOIN chunks c ON ce.chunk_id = c.id
 JOIN documents d ON c.document_id = d.id
 WHERE ce.embedding MATCH :query_embedding
   AND ce.k = :limit_with_buffer
-  AND ((1 - ce.distance) * :exact_term_boost) >= :min_score
 ORDER BY relevance_score DESC
 LIMIT :limit OFFSET :offset;
 ```
@@ -430,7 +427,7 @@ LIMIT :limit OFFSET :offset;
 - semantic_score baseline = 1.0 (not from database)
 - exact_term_boost calculated by scanning chunk.content for exact_terms
 - final_score = 1.0 × exact_term_boost
-- Application code applies min_score filtering after calculating scores
+- Results ordered by relevance_score DESC, controlled by LIMIT only
 
 ### Performance Considerations
 
@@ -484,15 +481,15 @@ mcp__folder-mcp__search_content({
   folder_id: "/Users/hanan/Projects/folder-mcp/docs",
   semantic_concepts: ["vector similarity", "semantic search"],
   exact_terms: ["vec0", "MATCH"],
-  min_score: 0.5
+  limit: 10
 })
 
 // Step 3: Validate
-// Expected: Phase-10-Sprint-8 doc chunks in results
+// Expected: Phase-10-Sprint-8 doc chunks in results (top-ranked by relevance)
 // Expected: file_path: "development-plan/roadmap/currently-implementing/Phase-10-Sprint-8-In-Folder-Semantic-Search.md"
 // Expected: content includes "vec0 MATCH" operator references
-// Expected: relevance_score >= 0.5
 // Expected: relevance_score boosted by exact matches (higher than semantic alone)
+// Expected: Results ordered by descending relevance_score
 ```
 
 ### Test Scenario 2: Semantic Only
@@ -502,13 +499,13 @@ mcp__folder-mcp__search_content({
 mcp__folder-mcp__search_content({
   folder_id: "/Users/hanan/Projects/folder-mcp/docs",
   semantic_concepts: ["endpoint navigation", "semantic metadata", "exploration flow"],
-  min_score: 0.6
+  limit: 10
 })
 
 // Validate:
-// Expected: Phase 10 EPIC doc (discusses endpoint navigation)
+// Expected: Phase 10 EPIC doc (discusses endpoint navigation) - top-ranked
 // Expected: Sprint 0, Sprint 2 docs (explore endpoint, navigation)
-// Expected: All results have relevance_score >= 0.6
+// Expected: Results ordered by descending relevance_score
 // Expected: content field contains relevant text about endpoints
 // Expected: No errors (semantic_concepts alone is valid)
 ```
@@ -520,15 +517,16 @@ mcp__folder-mcp__search_content({
 mcp__folder-mcp__search_content({
   folder_id: "/Users/hanan/Projects/folder-mcp/docs",
   exact_terms: ["vec0", "SQLite", "embeddings"],
-  min_score: 0.3
+  limit: 10
 })
 
 // Validate:
-// Expected: Sprint 7.5 doc (vec0 infrastructure migration)
-// Expected: Sprint 8 doc (vec0 MATCH operator usage)
+// Expected: Sprint 7.5 doc (vec0 infrastructure migration) - high rank
+// Expected: Sprint 8 doc (vec0 MATCH operator usage) - high rank
 // Expected: All results contain at least one exact_term
 // Expected: Grep-like behavior (no semantic similarity needed)
 // Expected: Chunks with multiple exact_terms rank higher (boost = 1.5^n)
+// Expected: Results ordered by descending relevance_score (number of matches)
 // Expected: No errors (exact_terms alone is valid)
 ```
 
@@ -558,33 +556,34 @@ const page2 = await mcp__folder-mcp__search_content({
 // Expected: No duplicate chunk_ids between pages
 // Expected: Results still sorted by descending relevance_score
 // Expected: page2.data.statistics.total_results === page1.data.statistics.total_results
-// Expected: Continuation token preserved search parameters (semantic_concepts, min_score)
+// Expected: Continuation token preserved search parameters (semantic_concepts, exact_terms)
 ```
 
-### Test Scenario 5: Min Score Filtering
+### Test Scenario 5: Relevance Ordering and Limit Control
 
 ```typescript
-// Known content: SQLite/vec0/vector terms appear in Sprint 7.5 and 8 docs
-// Test with strict threshold
-const strictResults = await mcp__folder-mcp__search_content({
+// Known content: Multiple docs contain "endpoint" keyword
+// Test with small limit to verify top results
+const topResults = await mcp__folder-mcp__search_content({
   folder_id: "/Users/hanan/Projects/folder-mcp/docs",
-  semantic_concepts: ["SQLite vec0", "vector similarity"],
-  min_score: 0.8  // Very strict - only highly relevant chunks
+  semantic_concepts: ["endpoint API design", "navigation flow"],
+  limit: 5  // Get top 5 most relevant
 })
 
-// Test with default threshold
-const defaultResults = await mcp__folder-mcp__search_content({
+// Test with larger limit to get more results
+const moreResults = await mcp__folder-mcp__search_content({
   folder_id: "/Users/hanan/Projects/folder-mcp/docs",
-  semantic_concepts: ["SQLite vec0", "vector similarity"],
-  min_score: 0.5  // Default - include more results
+  semantic_concepts: ["endpoint API design", "navigation flow"],
+  limit: 20  // Get top 20 results
 })
 
 // Validate:
-// Expected: strictResults.data.results.length < defaultResults.data.results.length
-// Expected: All strictResults scores >= 0.8
-// Expected: All defaultResults scores >= 0.5
-// Expected: Every strict result also appears in default results (strict is subset)
-// Expected: Sprint 7.5 (vec0 infrastructure) and Sprint 8 (vec0 MATCH) docs in both result sets
+// Expected: topResults.data.results.length === 5
+// Expected: moreResults.data.results.length === 20 (or less if fewer matches)
+// Expected: First 5 results of moreResults match topResults exactly (same order, same chunks)
+// Expected: All results sorted by descending relevance_score
+// Expected: Most relevant documents appear first (Phase 10 EPIC, Sprint docs)
+// Expected: Model-independent behavior - predictable result counts
 ```
 
 ### Test Scenario 6: file_path Reusability

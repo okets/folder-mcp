@@ -665,9 +665,6 @@ export interface SearchContentRequest {
   /** Exact terms that must match (optional) */
   exact_terms?: string[];
 
-  /** Minimum relevance threshold (default: 0.5) */
-  min_score?: number;
-
   /** Maximum results per page (default: 10, max: 50) */
   limit?: number;
 
@@ -757,4 +754,117 @@ export interface SearchContentResponse {
 
   /** Context-aware navigation suggestions */
   navigation_hints: SearchContentNavigationHints;
+}
+
+/**
+ * Phase 10 Sprint 9: find_documents Types
+ * Document-level semantic discovery using averaged document embeddings
+ */
+
+/**
+ * Request for POST /api/v1/folders/{folderPath}/find-documents
+ * Enables document-level topic discovery (NOT chunk-level like search_content)
+ *
+ * CRITICAL: folder_id comes from URL path parameter (:folderPath), NOT request body.
+ * This interface defines ONLY the request body fields.
+ */
+export interface FindDocumentsRequest {
+  /** Natural language topic query (e.g., "authentication setup", "testing strategies") */
+  query: string;
+
+  /** Maximum documents per page (default: 20, max: 50) */
+  limit?: number;
+
+  /** Base64url-encoded pagination state */
+  continuation_token?: string;
+}
+
+/**
+ * Individual document result with summary (no content, just metadata)
+ */
+export interface FindDocumentResult {
+  /** Relative file path (reusable with other endpoints) */
+  file_path: string;
+
+  /** Match quality score [0.0, 1.0], computed as (1 - vec0_distance) */
+  relevance_score: number;
+
+  /** Document summary with key metadata */
+  document_summary: {
+    /** Top 5 key phrases from documents.document_keywords */
+    top_key_phrases: KeyPhrase[];
+
+    /** Averaged readability from all chunks */
+    readability_score: number;
+
+    /** Total chunks in document */
+    chunk_count: number;
+
+    /** Human-readable file size (e.g., "1.2 MB") */
+    size: string;
+
+    /** ISO 8601 timestamp */
+    modified: string;
+  };
+
+  /** Time-limited download URL for full document access */
+  download_url: string;
+}
+
+/**
+ * Statistics for find_documents query
+ */
+export interface FindDocumentsStatistics {
+  /** Total matching documents (before pagination) */
+  total_results: number;
+
+  /** Average relevance_score across results */
+  avg_relevance: number;
+
+  /** LLM-friendly description of query interpretation */
+  query_understanding: string;
+}
+
+/**
+ * Navigation hints for document discovery
+ */
+export interface FindDocumentsNavigationHints {
+  /** Suggested follow-up actions based on result count */
+  next_actions: string[];
+
+  /** Query refinement suggestions from key phrases */
+  related_queries: string[];
+}
+
+/**
+ * Response for POST /api/v1/folders/{folderPath}/find-documents
+ */
+export interface FindDocumentsResponse {
+  /** Document search results */
+  data: {
+    /** Matching documents ordered by relevance */
+    results: FindDocumentResult[];
+
+    /** Search statistics */
+    statistics: FindDocumentsStatistics;
+  };
+
+  /** Status information */
+  status: {
+    success: boolean;
+    code: number;
+    message: string;
+  };
+
+  /** Pagination state */
+  continuation: {
+    /** Whether more results are available */
+    has_more: boolean;
+
+    /** Token for next page (base64url-encoded) */
+    next_token?: string;
+  };
+
+  /** Context-aware navigation suggestions */
+  navigation_hints: FindDocumentsNavigationHints;
 }

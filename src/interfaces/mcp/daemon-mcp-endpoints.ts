@@ -331,7 +331,6 @@ export class DaemonMCPEndpoints {
     folder_id: string;
     semantic_concepts?: string[];
     exact_terms?: string[];
-    min_score?: number;
     limit?: number;
     continuation_token?: string;
   }): Promise<MCPToolResponse> {
@@ -360,7 +359,6 @@ export class DaemonMCPEndpoints {
       const requestBody = {
         semantic_concepts: args.semantic_concepts,
         exact_terms: args.exact_terms,
-        min_score: args.min_score,
         limit: args.limit,
         continuation_token: args.continuation_token
       };
@@ -387,6 +385,72 @@ export class DaemonMCPEndpoints {
         content: [{
           type: 'text' as const,
           text: `Error searching content: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }]
+      };
+    }
+  }
+
+  /**
+   * Phase 10 Sprint 9: Find documents using document-level embeddings
+   * Performs document-level semantic discovery for topic exploration
+   *
+   * Sprint 8 Lesson Applied: Fail-fast validation in Phase 1, not Phase 4
+   */
+  async findDocuments(args: {
+    folder_id: string;
+    query: string;
+    limit?: number;
+    continuation_token?: string;
+  }): Promise<MCPToolResponse> {
+    try {
+      // FAIL-FAST VALIDATION (Sprint 8 lesson)
+      if (!args.folder_id || typeof args.folder_id !== 'string' || args.folder_id.trim() === '') {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Error: folder_id is required and must be a non-empty string'
+          }]
+        };
+      }
+
+      if (!args.query || typeof args.query !== 'string' || args.query.trim() === '') {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: 'Error: query is required and must be a non-empty string'
+          }]
+        };
+      }
+
+      // Build request body (folder_id goes to URL path, NOT body)
+      const requestBody = {
+        query: args.query,
+        limit: args.limit,
+        continuation_token: args.continuation_token
+      };
+
+      // Call daemon REST endpoint
+      const path = `/api/v1/folders/${encodeURIComponent(args.folder_id)}/find-documents`;
+      const response = await (this.daemonClient as any).makeRequest(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      // Return JSON directly for structured consumption
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text' as const,
+          text: `Error finding documents: ${error instanceof Error ? error.message : 'Unknown error'}`
         }]
       };
     }

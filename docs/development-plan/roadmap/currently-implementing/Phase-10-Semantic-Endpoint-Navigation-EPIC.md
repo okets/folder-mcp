@@ -1328,12 +1328,27 @@ The `files` array in explore response includes everything, with only indexed doc
 
 ---
 
-### Sprint 8: In-Folder Semantic Search with Hybrid Scoring (4-5 hours)
+### ✅ Sprint 8: In-Folder Semantic Search with Hybrid Scoring (4-5 hours) - COMPLETED
 **Goal**: Implement intelligent semantic search designed for LLM clients to efficiently locate content in familiar folders through hybrid approach combining semantic similarity and exact term matching.
 **Type**: New search endpoint optimized for LLM-driven parameter extraction
-**Status**: Planning Complete - Ready for Implementation
+**Status**: ✅ **COMPLETED** (2025-01-23) - Includes full cleanup and A2E validation
 **Full Documentation**: See [Phase-10-Sprint-8-In-Folder-Semantic-Search.md](Phase-10-Sprint-8-In-Folder-Semantic-Search.md)
 **Endpoint Name**: search_content
+
+**✅ Completion Summary**:
+- **Implementation**: search_content endpoint with hybrid semantic + exact term scoring
+- **Code Review Cleanup**: 11 cleanup tasks completed (~330 lines of Sprint 7 legacy code removed)
+  - Removed redundant folder_id from request body
+  - Added fail-fast MCP validation
+  - Refactored continuation object to typed construction
+  - Cleaned unused Sprint 7 search types and methods
+- **A2E Validation**: All 4 test combinations passed successfully
+  1. Pure semantic search → 3 results (scores: 0.29, 0.19, 0.18)
+  2. Pure exact term search → 3 results (all score 1.0)
+  3. Both empty (validation) → Correct error response
+  4. Hybrid search → 3 results (scores: 0.17, 0.16, 0.15)
+- **Architecture**: Clean separation - folder_id only in URL path, not request body
+- **TypeScript Best Practices**: Typed construction with spread operators throughout
 
 #### Core Design Philosophy
 
@@ -1360,7 +1375,6 @@ mcp__folder-mcp__search_content({
   folder_id: "my-project",
   semantic_concepts: ["authentication", "state management", "React hooks"],
   exact_terms: ["useState", "useEffect"],
-  min_score: 0.5,  // Relevance threshold (default: 0.5)
   limit: 10  // Max results per page (default: 10, max: 50)
 })
 ```
@@ -1409,7 +1423,7 @@ mcp__folder-mcp__search_content({
     "refine_search": [
       "Add more exact_terms to catch specific technical terms",
       "Use find_documents to filter by document-level topics first",
-      "Adjust min_score threshold for precision vs recall"
+      "Increase limit to see more results if needed"
     ],
     "tip": "Content is always included - no need for additional fetch"
   }
@@ -1535,8 +1549,7 @@ mcp__folder-mcp__search_content({
 mcp__folder-mcp__find_documents({
   folder_id: "my-project",
   query: "authentication and authorization setup",
-  min_score: 0.6,  // Relevance threshold (default: 0.6)
-  limit: 20  // Max documents to return
+  limit: 20  // Max documents to return (default: 20)
 })
 ```
 
@@ -1596,8 +1609,7 @@ mcp__folder-mcp__find_documents({
     ],
     "statistics": {
       "total_results": 3,
-      "avg_relevance": 0.82,
-      "min_score_threshold": 0.6
+      "avg_relevance": 0.82
     }
   },
   "status": {
@@ -1614,7 +1626,7 @@ mcp__folder-mcp__find_documents({
       "Use download_url for source code or binary files"
     ],
     "refine_search": [
-      "Lower min_score to find more documents (trade precision for recall)",
+      "Increase limit to find more documents",
       "Use search_content for chunk-level precision instead",
       "Use explore/list_documents if results are too broad"
     ],
@@ -1653,7 +1665,6 @@ JOIN documents d ON de.document_id = d.id
 LEFT JOIN chunks c ON c.document_id = d.id
 WHERE de.embedding MATCH :query_embedding
   AND de.k = :limit
-  AND de.distance >= :min_score
 GROUP BY d.id
 ORDER BY de.distance DESC
 ```
@@ -1698,7 +1709,6 @@ ORDER BY de.distance DESC
 mcp__folder-mcp__find_documents({
   folder_id: "folder-mcp",
   query: "agent testing methodology",
-  min_score: 0.6,
   limit: 10
 })
 

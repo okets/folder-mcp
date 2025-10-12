@@ -394,12 +394,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
                 },
                 description: 'Array of exact terms that must appear in results - boosts relevance score by 1.5x per match (e.g., ["vec0", "MATCH"])'
               },
-              min_score: {
-                type: 'number',
-                description: 'Minimum relevance score threshold (0.0-1.0, default: 0.5)',
-                minimum: 0.0,
-                maximum: 1.0
-              },
               limit: {
                 type: 'number',
                 description: 'Maximum number of results to return (default: 10)',
@@ -412,6 +406,34 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
               }
             },
             required: ['folder_id']
+          }
+        },
+        {
+          name: 'find_documents',
+          description: 'Find documents using document-level embeddings for topic discovery. Returns ranked documents with summaries instead of chunk-level content. Complements search_content by providing document-level exploration ("Which docs cover this topic?") vs chunk-level precision ("Where is this specific code?").',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              folder_id: {
+                type: 'string',
+                description: 'Folder path to search within'
+              },
+              query: {
+                type: 'string',
+                description: 'Natural language topic query (e.g., "authentication and authorization setup", "testing strategies")'
+              },
+              limit: {
+                type: 'number',
+                description: 'Maximum number of documents to return (default: 20)',
+                minimum: 1,
+                maximum: 50
+              },
+              continuation_token: {
+                type: 'string',
+                description: 'Token from previous response to get next page of results'
+              }
+            },
+            required: ['folder_id', 'query']
           }
         }
       ]
@@ -518,7 +540,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           const folderId = args?.folder_id as string;
           const semanticConcepts = args?.semantic_concepts as string[] | undefined;
           const exactTerms = args?.exact_terms as string[] | undefined;
-          const minScore = args?.min_score as number | undefined;
           const limit = args?.limit as number | undefined;
           const continuationToken = args?.continuation_token as string | undefined;
 
@@ -531,7 +552,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
             folder_id: string;
             semantic_concepts?: string[];
             exact_terms?: string[];
-            min_score?: number;
             limit?: number;
             continuation_token?: string;
           } = {
@@ -544,9 +564,6 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           if (exactTerms !== undefined) {
             searchArgs.exact_terms = exactTerms;
           }
-          if (minScore !== undefined) {
-            searchArgs.min_score = minScore;
-          }
           if (limit !== undefined) {
             searchArgs.limit = limit;
           }
@@ -555,6 +572,33 @@ async function setupMCPServer(daemonClient: DaemonRESTClient): Promise<void> {
           }
 
           const result = await daemonEndpoints.searchContent(searchArgs);
+          return result as any;
+        }
+
+        case 'find_documents': {
+          const folderId = args?.folder_id as string;
+          const query = args?.query as string;
+          const limit = args?.limit as number | undefined;
+          const continuationToken = args?.continuation_token as string | undefined;
+
+          const findArgs: {
+            folder_id: string;
+            query: string;
+            limit?: number;
+            continuation_token?: string;
+          } = {
+            folder_id: folderId,
+            query: query
+          };
+
+          if (limit !== undefined) {
+            findArgs.limit = limit;
+          }
+          if (continuationToken !== undefined) {
+            findArgs.continuation_token = continuationToken;
+          }
+
+          const result = await daemonEndpoints.findDocuments(findArgs);
           return result as any;
         }
 
