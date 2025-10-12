@@ -249,8 +249,15 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     }
     
     if (changes.length === 0) {
+      // Optimization: If already active, skip unnecessary re-transition
+      // Periodic scans with no changes should not trigger state updates
+      if (this.state.status === 'active') {
+        this.logger.debug('[MANAGER-PROCESS] Already active with no changes, skipping re-transition');
+        return;
+      }
+
       this.logger.debug('[MANAGER-PROCESS] No changes detected, validating model and embeddings before transitioning to active');
-      
+
       // Validate model before transitioning to active
       const modelValidation = await this.validateModel();
       if (!modelValidation.valid) {
@@ -275,15 +282,18 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
         // Collect indexing statistics before transitioning to active
         const indexingStats = await this.collectIndexingStatistics();
         this.logger.debug(`[MANAGER-PROCESS] Collected indexing statistics for no-changes path: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
-        
+
         this.stateMachine.transitionTo('active');
-        this.updateState({ 
+        this.updateState({
           status: 'active',
           lastIndexCompleted: new Date(),
           fileEmbeddingTasks: [], // Empty task list
         });
         // Clear progress message when becoming active
         delete this.state.progressMessage;
+
+        // Store indexing statistics in state for later retrieval (no-changes path)
+        (this.state as any).indexingStats = indexingStats;
         
         // Emit scan complete with no tasks
         this.emit('scanComplete', this.getState());
@@ -748,17 +758,17 @@ return;
         return;
       }
       
-      // Collect indexing statistics before transitioning to active
+      // Collect indexing statistics ONCE before transitioning to active
       const indexingStats = await this.collectIndexingStatistics();
       this.logger.debug(`[MANAGER-TRANSITION] Collected indexing statistics: ${indexingStats.fileCount} files, ${indexingStats.indexingTimeSeconds}s duration`);
-      
+
       this.stateMachine.transitionTo('active');
-      
+
       // Set progress to 100% when transitioning to active
       const finalProgress = this.getProgress();
       finalProgress.percentage = 100; // Force 100% completion when active
-      
-      this.updateState({ 
+
+      this.updateState({
         status: 'active',
         progress: finalProgress,
         lastIndexCompleted: new Date(),
@@ -767,6 +777,9 @@ return;
       });
       // Clear progress message when becoming active
       delete this.state.progressMessage;
+
+      // Store indexing statistics in state for later retrieval (indexing path)
+      (this.state as any).indexingStats = indexingStats;
 
       // Emit final 100% progress event
       this.emit('progressUpdate', finalProgress);
@@ -1556,6 +1569,14 @@ return;
    * Collect indexing statistics for FMDM informational messages
    */
   private async collectIndexingStatistics(): Promise<{ fileCount: number; indexingTimeSeconds: number }> {
+    // FIX: Return stored statistics if they exist to prevent time from growing on every periodic sync
+    // This early return ensures statistics are calculated only once when transitioning to active,
+    // then reused on all subsequent calls (e.g., during FMDM updates every 60 seconds)
+    if ((this.state as any).indexingStats) {
+      this.logger.debug(`[STATISTICS] Using stored indexing statistics from state`);
+      return (this.state as any).indexingStats;
+    }
+
     try {
       // Get file count from embeddings database (most accurate)
       let fileCount = 0;
