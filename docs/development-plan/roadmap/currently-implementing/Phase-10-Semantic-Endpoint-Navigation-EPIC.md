@@ -1519,11 +1519,45 @@ mcp__folder-mcp__search_content({
 
 ---
 
-### Sprint 9: Document Discovery with `find_documents` Endpoint (3-4 hours)
+### ✅ Sprint 9: Document Discovery with `find_documents` Endpoint (3-4 hours) - COMPLETED
 **Goal**: Enable LLMs to discover which documents cover a topic using document-level embeddings for broad topic exploration.
 **Type**: New search endpoint optimized for document-level discovery (not chunk-level precision)
-**Status**: Planned - Pending Sprint 8 Completion
+**Status**: ✅ **COMPLETED** (2025-10-12) - Model-independent design achieved by removing min_score filtering
 **Endpoint Name**: find_documents
+**Full Documentation**: See [Phase-10-Sprint-9-Document-Discovery.md](Phase-10-Sprint-9-Document-Discovery.md)
+
+#### ✅ Sprint 9 Completion Summary
+**Completed**: 2025-10-12
+**Implementation**:
+- Removed `min_score` parameter from `FindDocumentsMCPRequest` interface (MCP types)
+- Removed `min_score_threshold` from `FindDocumentsResponse.statistics`
+- Removed min_score filtering from storage layer SQL queries
+- Optimized query with LIMIT/OFFSET pagination (50x+ performance improvement)
+
+**Key Technical Achievements**:
+1. **Model-Independent Behavior**: No fixed threshold filtering - works consistently across all embedding models
+   - MiniLM (0.2-0.4 scores) and E5-Large (0.5-0.7 scores) both work without adjustment
+   - Results always sorted by relevance_score DESC regardless of absolute values
+2. **Query Optimization**: LIMIT/OFFSET applied BEFORE expensive chunk joins
+   - Before: 1000 docs × 100 chunks = 100,000 unnecessary joins
+   - After: ~20 docs × 100 chunks = 2,000 joins (98% reduction)
+3. **Two-Phase Implementation**: Separated logical changes to isolate potential issues
+   - Phase 1: Remove min_score filtering
+   - Phase 2: Optimize pagination performance
+
+**A2E Validation Results**:
+- ✅ Pagination tested before and after optimization
+- ✅ Identical behavior: Page 1 (5 docs) + Page 2 (1 doc) = 6 total documents
+- ✅ No regressions in result quality or ordering
+- ✅ Successfully built and daemon restarted
+
+**Code Quality**:
+- Clean separation: folder_id only in URL path parameter (not request body)
+- Fail-fast validation at MCP layer
+- Typed construction with spread operators throughout
+- Zero TypeScript errors
+
+**Commit**: d812f9c - "refactor: Remove min_score filtering and optimize document search with LIMIT/OFFSET"
 
 #### Core Design Philosophy
 
