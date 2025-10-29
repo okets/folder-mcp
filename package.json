@@ -9,7 +9,7 @@
   },
   "scripts": {
     "preinstall": "node -e \"const v=process.version.slice(1).split('.'); if(+v[0]<20||(+v[0]===20&&+v[1]<0)) throw new Error('Node.js >=20.0.0 required')\"",
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs'),path=require('path');const src='src/config/curated-models.json',dst='dist/src/config';fs.mkdirSync(dst,{recursive:true});fs.copyFileSync(src,path.join(dst,'curated-models.json'))\"",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "config": "tsx src/interfaces/cli/folder-mcp.ts config",

@@ -886,7 +886,6 @@ export class ContainerListItem implements IListItem {
      * Move focus to confirmation line
      */
     private moveToConfirmation(): void {
-        console.error(`\n--- MOVE TO CONFIRMATION ---`);
         const currentChild = this._childItems[this._childSelectedIndex];
         if (currentChild) {
             console.error(`Deselecting current child: ${currentChild.constructor.name}`);
@@ -899,20 +898,16 @@ export class ContainerListItem implements IListItem {
         if (this._useDualButtons) {
             // In dual-button mode, focus the appropriate button
             if (this.isConfirmEnabled) {
-                console.error(`Focusing confirm button (enabled)`);
                 this._focusedButton = 'confirm';
             } else {
-                console.error(`Focusing cancel button (confirm disabled)`);
                 this._focusedButton = 'cancel';
             }
             this._isConfirmFocused = false;
         } else {
             // Traditional single-button mode
-            console.error(`Focusing traditional confirm`);
             this._isConfirmFocused = true;
             this._focusedButton = null;
         }
-        console.error(`Final state: _focusedButton=${this._focusedButton}, _isConfirmFocused=${this._isConfirmFocused}`);
     }
     
     /**

@@ -664,7 +664,11 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
       this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: env
+        env: {
+          ...env,
+          PYTHONIOENCODING: 'utf-8',  // Force UTF-8 encoding for stdin/stdout/stderr
+          PYTHONUTF8: '1'              // Enable UTF-8 mode (Python 3.7+)
+        }
       });
 
       console.error(`✅ Process spawned with PID: ${this.pythonProcess.pid}`);
@@ -993,7 +997,8 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       try {
         const requestStr = JSON.stringify(request) + '\n';
         if (this.pythonProcess?.stdin) {
-          this.pythonProcess.stdin.write(requestStr);
+          // Explicitly use UTF-8 encoding for Windows compatibility
+          this.pythonProcess.stdin.write(requestStr, 'utf8');
         } else {
           throw new Error('Python process stdin not available');
         }
