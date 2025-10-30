@@ -10,6 +10,7 @@ import { EventEmitter } from 'events';
 import type { ILoggingService } from '../../di/interfaces.js';
 import type { IEmbeddingModel, ModelLoadProgress } from '../../domain/models/embedding-model-interface.js';
 import type { IFolderLifecycleManager } from '../../domain/folders/folder-lifecycle-manager.js';
+import type { IModelDownloadManager } from './model-download-manager.js';
 import { getModelById } from '../../config/model-registry.js';
 
 export interface QueuedFolder {
@@ -38,6 +39,7 @@ export interface QueueStatus {
 export interface FolderIndexingQueueEvents {
   'queue:added': (folder: QueuedFolder) => void;
   'queue:started': (folder: QueuedFolder) => void;
+  'queue:model-downloading': (folder: QueuedFolder, modelId: string, progress: number) => void;
   'queue:model-loading': (folder: QueuedFolder, progress: ModelLoadProgress) => void;
   'queue:model-loaded': (folder: QueuedFolder, modelId: string) => void;
   'queue:model-unloaded': (modelId: string) => void;
@@ -58,7 +60,8 @@ export class FolderIndexingQueue extends EventEmitter {
   private isPaused = false;
   private pauseReason?: string;
   private modelFactory: any; // Will be injected
-  
+  private modelDownloadManager?: IModelDownloadManager; // Will be injected
+
   // Keep-alive mechanism for active agent sessions (rolling 3-minute window)
   private lastMcpCallTime: Date | null = null;
   private keepAliveTimeout: NodeJS.Timeout | null = null;
@@ -75,6 +78,13 @@ export class FolderIndexingQueue extends EventEmitter {
    */
   setModelFactory(factory: any): void {
     this.modelFactory = factory;
+  }
+
+  /**
+   * Set the model download manager for downloading models
+   */
+  setModelDownloadManager(manager: IModelDownloadManager): void {
+    this.modelDownloadManager = manager;
   }
 
   /**
@@ -357,14 +367,24 @@ export class FolderIndexingQueue extends EventEmitter {
         await this.loadModel(folder.modelId, folder);
       }
 
-      // Update status to indexing
-      folder.status = 'indexing';
-
-      // Start the folder manager's scanning/indexing
+      // Start scanning first (folder manager handles its own state)
       await folder.manager.startScanning();
 
-      // Wait for indexing to complete
-      await this.waitForIndexingCompletion(folder);
+      // After scanning completes, check if there are tasks to index
+      const state = folder.manager.getState();
+
+      if (state.fileEmbeddingTasks && state.fileEmbeddingTasks.length > 0) {
+        // Has tasks, start indexing directly (don't rely on events)
+        folder.status = 'indexing';
+        this.logger.info(`[QUEUE] Starting indexing for ${folder.folderPath} with ${state.fileEmbeddingTasks.length} tasks`);
+        await folder.manager.startIndexing();
+
+        // Wait for indexing to complete
+        await this.waitForIndexingCompletion(folder);
+      } else {
+        // No tasks, folder should already be active
+        this.logger.info(`[QUEUE] No tasks to index for ${folder.folderPath}, already active`);
+      }
 
       // Mark as completed
       folder.status = 'completed';
@@ -427,27 +447,93 @@ export class FolderIndexingQueue extends EventEmitter {
   }
 
   /**
-   * Load a model for processing
+   * Load a model for processing (3-step "load-model" phase)
+   * 1. Check if model is already loaded → proceed
+   * 2. Else, check if model is cached locally → load it → proceed
+   * 3. Else, download model → load it → proceed
    */
   private async loadModel(modelId: string, folder: QueuedFolder | null): Promise<void> {
-    this.logger.info(`[QUEUE] Loading model: ${modelId}`);
+    this.logger.info(`[QUEUE] Starting load-model phase for: ${modelId}`);
 
     if (!this.modelFactory) {
       throw new Error('Model factory not set. Call setModelFactory() first.');
     }
 
-    const progressCallback = folder ? (progress: ModelLoadProgress) => {
-      this.logger.debug(`[QUEUE] Model loading progress: ${progress.stage} ${progress.progress || 0}%`);
-      this.emit('queue:model-loading', folder, progress);
-    } : undefined;
+    if (!this.modelDownloadManager) {
+      throw new Error('Model download manager not set. Call setModelDownloadManager() first.');
+    }
 
     try {
-      // Get model info from curated models registry to get the proper HuggingFace ID
+      // STEP 1: Check if model is already loaded in memory
+      if (this.currentModelId === modelId && this.currentModel) {
+        this.logger.info(`[QUEUE] Model ${modelId} already loaded, reusing`);
+        if (folder) {
+          this.emit('queue:model-loaded', folder, modelId);
+        }
+        return;
+      }
+
+      // STEP 2 & 3: Check if model is cached, download if needed
+      const isAvailable = await this.modelDownloadManager.isModelAvailable(modelId);
+
+      if (!isAvailable) {
+        // Model not cached - download it first
+        this.logger.info(`[QUEUE] Model ${modelId} not cached, starting download...`);
+
+        // Start download (this will track progress internally)
+        const downloadPromise = this.modelDownloadManager.requestModelDownload(modelId);
+
+        // Create timeout promise to prevent infinite hangs
+        const MAX_DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`[QUEUE] Model download timeout after ${MAX_DOWNLOAD_TIMEOUT_MS}ms for ${modelId}`));
+          }, MAX_DOWNLOAD_TIMEOUT_MS);
+        });
+
+        // Poll for download progress and emit events
+        // Store reference to avoid TypeScript optional chaining in closure
+        const downloadManager = this.modelDownloadManager!; // Checked above, guaranteed to exist
+        const pollInterval = 500; // Check every 500ms
+        const progressPoller = setInterval(() => {
+          const progress = downloadManager.getDownloadProgress(modelId);
+          const isDownloading = downloadManager.isModelDownloading(modelId);
+
+          if (progress !== undefined && isDownloading && folder) {
+            this.logger.debug(`[QUEUE] Model download progress for ${modelId}: ${progress}%`);
+            this.emit('queue:model-downloading', folder, modelId, progress);
+          }
+        }, pollInterval);
+
+        try {
+          // Wait for download to complete with timeout protection
+          await Promise.race([downloadPromise, timeoutPromise]);
+          this.logger.info(`[QUEUE] Model ${modelId} downloaded successfully`);
+
+          // Emit final 100% progress
+          if (folder) {
+            this.emit('queue:model-downloading', folder, modelId, 100);
+          }
+        } finally {
+          // Always clear the progress poller, even on timeout or error
+          clearInterval(progressPoller);
+        }
+      } else {
+        this.logger.info(`[QUEUE] Model ${modelId} found in cache`);
+      }
+
+      // Now load the model into memory
+      const progressCallback = folder ? (progress: ModelLoadProgress) => {
+        this.logger.debug(`[QUEUE] Model memory loading progress: ${progress.stage} ${progress.progress || 0}%`);
+        this.emit('queue:model-loading', folder, progress);
+      } : undefined;
+
+      // Get model info from curated models registry
       const modelInfo = getModelById(modelId);
-      const modelName = modelInfo?.huggingfaceId; // This will be the clean HuggingFace ID without prefix
-      
-      this.logger.debug(`[QUEUE] Model ID: ${modelId}, HuggingFace ID: ${modelName || 'not found'}`);
-      
+      const modelName = modelInfo?.huggingfaceId;
+
+      this.logger.debug(`[QUEUE] Creating model instance - ID: ${modelId}, HuggingFace ID: ${modelName || 'not found'}`);
+
       // Create and load the model
       this.currentModel = await this.modelFactory.createModel({
         modelId,
@@ -456,11 +542,13 @@ export class FolderIndexingQueue extends EventEmitter {
       });
 
       if (this.currentModel) {
+        this.logger.info(`[QUEUE] Loading model ${modelId} into memory...`);
         await this.currentModel.load(progressCallback);
       }
-      this.currentModelId = modelId;
 
-      this.logger.info(`[QUEUE] Model loaded successfully: ${modelId}`);
+      this.currentModelId = modelId;
+      this.logger.info(`[QUEUE] Model ${modelId} fully loaded and ready`);
+
       if (folder) {
         this.emit('queue:model-loaded', folder, modelId);
       }

@@ -88,6 +88,10 @@ export class FolderHandlers {
       // Delegate all folder operations to MonitoredFoldersOrchestrator
       // The orchestrator will handle configuration persistence and FMDM updates
       if (this.monitoredFoldersOrchestrator) {
+        // CRITICAL FIX: Add folder to FMDM immediately to prevent race condition
+        // The model download manager may try to update status before addFolder completes
+        this.monitoredFoldersOrchestrator.addFolderToFMDMImmediate(path, model);
+
         // Don't await - let indexing run in background
         // The orchestrator will handle FMDM updates including error states
         this.monitoredFoldersOrchestrator.addFolder(path, model).catch((error: unknown) => {

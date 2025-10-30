@@ -1054,21 +1054,43 @@ class EmbeddingHandler:
             'batch_requests': self.batch_requests_processed
         }
     
+    def _send_download_progress_notification(self, progress: int):
+        """Send download progress notification to TypeScript via stdout"""
+        notification = {
+            'jsonrpc': '2.0',
+            'method': 'download_progress',
+            'params': {'progress': progress}
+        }
+        try:
+            sys.stdout.write(json.dumps(notification) + '\n')
+            sys.stdout.flush()
+        except Exception as e:
+            logger.error(f"Failed to send progress notification: {e}")
+
+    def _progress_monitor_thread(self, stop_event):
+        """Background thread that sends progress updates during download with responsive shutdown"""
+        progress = 10
+        while not stop_event.wait(10):  # Wait 10s or until stop_event is set
+            # Increment progress slowly to show activity (cap at 90% until actually done)
+            progress = min(90, progress + 10)
+            self._send_download_progress_notification(progress)
+            logger.debug(f"Download progress heartbeat: {progress}%")
+
     def download_model(self, request: dict) -> dict:
         """Download model with progress reporting for JSON-RPC"""
         model_name = request.get('model_name')
-        
+
         if not validate_model(model_name):
             return {
                 'success': False,
                 'error': f'Model {model_name} not in supported list',
                 'progress': 0
             }
-        
+
         try:
             # Reset keep-alive timer for model downloads to prevent shutdown
             self._reset_keep_alive_timer()
-            
+
             # Check if already cached
             if self.is_model_cached(model_name):
                 return {
@@ -1076,41 +1098,59 @@ class EmbeddingHandler:
                     'message': f'Model {model_name} already cached',
                     'progress': 100
                 }
-            
+
             logger.info(f"Downloading model {model_name}...")
-            
-            logger.info("Using safe download method for model")
-            
+
+            # Start progress monitoring thread
+            stop_event = threading.Event()
+            progress_thread = threading.Thread(
+                target=self._progress_monitor_thread,
+                args=(stop_event,),
+                daemon=True
+            )
+            progress_thread.start()
+
             try:
-                # Try huggingface_hub for direct download
-                from huggingface_hub import snapshot_download
-                
-                cache_dir = snapshot_download(
-                    repo_id=model_name,
-                    cache_dir=None,
-                    force_download=False
-                )
-                logger.info(f"Model {model_name} downloaded to {cache_dir}")
-                
-            except (ImportError, Exception) as e:
-                # Fallback to SentenceTransformer download
-                logger.info("Using SentenceTransformer for model download")
-                
-                import os
-                os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-                
-                # Download on CPU to avoid MPS issues
-                model = SentenceTransformer(model_name, device='cpu')
-                del model
-                
-                # Clear any memory used
-                self._clear_mps_memory()
-            
-            return {
-                'success': True,
-                'message': f'Model {model_name} downloaded successfully using CPU-safe method',
-                'progress': 100
-            }
+                logger.info("Using safe download method for model")
+
+                try:
+                    # Try huggingface_hub for direct download
+                    from huggingface_hub import snapshot_download
+
+                    cache_dir = snapshot_download(
+                        repo_id=model_name,
+                        cache_dir=None,
+                        force_download=False
+                    )
+                    logger.info(f"Model {model_name} downloaded to {cache_dir}")
+
+                except (ImportError, Exception) as e:
+                    # Fallback to SentenceTransformer download
+                    logger.info("Using SentenceTransformer for model download")
+
+                    import os
+                    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+
+                    # Download on CPU to avoid MPS issues
+                    model = SentenceTransformer(model_name, device='cpu')
+                    del model
+
+                    # Clear any memory used
+                    self._clear_mps_memory()
+
+                # Stop progress thread and send final 100%
+                stop_event.set()
+                progress_thread.join(timeout=1)
+                self._send_download_progress_notification(100)
+
+                return {
+                    'success': True,
+                    'message': f'Model {model_name} downloaded successfully using CPU-safe method',
+                    'progress': 100
+                }
+            finally:
+                # Ensure thread is stopped even on error
+                stop_event.set()
             
         except Exception as e:
             logger.error(f"Failed to download model {model_name}: {e}")

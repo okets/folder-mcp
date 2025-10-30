@@ -62,6 +62,11 @@ export interface IModelDownloadManager {
    * Set cache update callback (called when model download completes successfully)
    */
   setCacheUpdateCallback(callback: (modelId: string) => Promise<void>): void;
+
+  /**
+   * Set download complete callback (called when any model download finishes)
+   */
+  setDownloadCompleteCallback(callback: (modelId: string) => void): void;
 }
 
 /**
@@ -72,7 +77,9 @@ export class ModelDownloadManager implements IModelDownloadManager {
   private pythonEmbeddingService?: PythonEmbeddingService;
   private onnxDownloader?: ONNXDownloader;
   private cacheUpdateCallback?: (modelId: string) => Promise<void>;
-  
+  private downloadCompleteCallback?: (modelId: string) => void;
+  private maxProgress: Map<string, number> = new Map(); // Track max progress to prevent jumps
+
   constructor(
     private logger: ILoggingService,
     private fmdmService: IFMDMService
@@ -97,6 +104,15 @@ export class ModelDownloadManager implements IModelDownloadManager {
    */
   setCacheUpdateCallback(callback: (modelId: string) => Promise<void>): void {
     this.cacheUpdateCallback = callback;
+  }
+
+  /**
+   * Set download complete callback (called when any model download finishes)
+   * This is used by the orchestrator to trigger folder indexing for all folders
+   * waiting for this model
+   */
+  setDownloadCompleteCallback(callback: (modelId: string) => void): void {
+    this.downloadCompleteCallback = callback;
   }
   
   async requestModelDownload(modelId: string): Promise<void> {
@@ -186,7 +202,7 @@ export class ModelDownloadManager implements IModelDownloadManager {
       this.logger.debug(`[MODEL-DOWNLOAD] Download succeeded, marking as installed for ${modelId}`);
       this.updateModelDownloadState(modelId, false, 100, true);
       this.logger.info(`[MODEL-DOWNLOAD] Successfully downloaded model ${modelId}`);
-      
+
       // Update cache if callback is available
       if (this.cacheUpdateCallback) {
         try {
@@ -195,6 +211,17 @@ export class ModelDownloadManager implements IModelDownloadManager {
         } catch (error) {
           // Cache update is non-critical
           this.logger.warn(`[MODEL-DOWNLOAD] Failed to update cache for ${modelId}:`, error);
+        }
+      }
+
+      // Trigger download complete callback to notify orchestrator
+      // This allows folders waiting for this model to start indexing
+      if (this.downloadCompleteCallback) {
+        this.logger.debug(`[MODEL-DOWNLOAD] Triggering download complete callback for ${modelId}`);
+        try {
+          this.downloadCompleteCallback(modelId);
+        } catch (error) {
+          this.logger.error(`[MODEL-DOWNLOAD] Error in download complete callback for ${modelId}:`, error instanceof Error ? error : new Error(String(error)));
         }
       }
       
@@ -250,10 +277,19 @@ export class ModelDownloadManager implements IModelDownloadManager {
     this.logger.info(`[MODEL-DOWNLOAD] Starting download of ${huggingfaceId} via Python embedding service`);
     
     try {
-      // Set up real-time progress callback to replace simulation
+      // Initialize max progress for this download
+      this.maxProgress.set(modelId, 0);
+
+      // Set up real-time progress callback with monotonic progress (never decrease)
       this.pythonEmbeddingService!.setDownloadProgressCallback((progress: number) => {
-        this.logger.debug(`[MODEL-DOWNLOAD] Real progress for ${modelId}: ${progress}%`);
-        this.updateModelDownloadState(modelId, true, progress);
+        const currentMax = this.maxProgress.get(modelId) || 0;
+        const monotonicProgress = Math.max(currentMax, progress);
+
+        if (monotonicProgress > currentMax) {
+          this.maxProgress.set(modelId, monotonicProgress);
+          this.logger.debug(`[MODEL-DOWNLOAD] Progress for ${modelId}: ${monotonicProgress}% (raw: ${progress}%)`);
+          this.updateModelDownloadState(modelId, true, monotonicProgress);
+        }
       });
       
       try {
@@ -274,12 +310,13 @@ export class ModelDownloadManager implements IModelDownloadManager {
         this.updateModelDownloadState(modelId, false, 100);
         
       } catch (downloadError) {
-        // Clear the progress callback on error
-        this.pythonEmbeddingService!.setDownloadProgressCallback(() => {});
+        // Re-throw error - cleanup handled in finally block
         throw downloadError;
       } finally {
         // Always clear the progress callback after download completes/fails
         this.pythonEmbeddingService!.setDownloadProgressCallback(() => {});
+        // Clean up max progress tracking
+        this.maxProgress.delete(modelId);
       }
       
     } catch (error) {
@@ -301,19 +338,33 @@ export class ModelDownloadManager implements IModelDownloadManager {
     const isAvailable = await this.onnxDownloader.isModelAvailable(modelId);
     if (!isAvailable) {
       this.logger.info(`[MODEL-DOWNLOAD] Starting ONNX model download: ${modelId}`);
-      
-      // Download with progress callback for real-time updates
-      await this.onnxDownloader.downloadModel(modelId, {
-        onProgress: (progress) => {
-          this.logger.debug(`[MODEL-DOWNLOAD] ONNX progress for ${modelId}: ${progress.progress}%`);
-          this.updateModelDownloadState(modelId, progress.status === 'downloading', progress.progress);
-        },
-        verifySize: true
-      });
-      
-      // Update to 100% on success
-      this.logger.info(`[MODEL-DOWNLOAD] Successfully downloaded ONNX model ${modelId}`);
-      this.updateModelDownloadState(modelId, false, 100);
+
+      // Initialize max progress for this download
+      this.maxProgress.set(modelId, 0);
+
+      try {
+        // Download with progress callback for real-time updates with monotonic progress
+        await this.onnxDownloader.downloadModel(modelId, {
+          onProgress: (progress) => {
+            const currentMax = this.maxProgress.get(modelId) || 0;
+            const monotonicProgress = Math.max(currentMax, progress.progress);
+
+            if (monotonicProgress > currentMax) {
+              this.maxProgress.set(modelId, monotonicProgress);
+              this.logger.debug(`[MODEL-DOWNLOAD] ONNX progress for ${modelId}: ${monotonicProgress}% (raw: ${progress.progress}%)`);
+              this.updateModelDownloadState(modelId, progress.status === 'downloading', monotonicProgress);
+            }
+          },
+          verifySize: true
+        });
+
+        // Update to 100% on success
+        this.logger.info(`[MODEL-DOWNLOAD] Successfully downloaded ONNX model ${modelId}`);
+        this.updateModelDownloadState(modelId, false, 100);
+      } finally {
+        // Clean up max progress tracking
+        this.maxProgress.delete(modelId);
+      }
     } else {
       this.logger.debug(`[MODEL-DOWNLOAD] ONNX model ${modelId} already cached`);
     }

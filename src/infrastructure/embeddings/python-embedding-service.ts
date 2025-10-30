@@ -585,7 +585,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
         model_id: modelId,
         capabilities: capabilities,
         request_id: `load_model_${this.nextRequestId++}`
-      }, 60000); // 60 second timeout for model loading
+      }, 1200000); // 20 minute timeout for loading large GPU models into memory
 
       if (response.success) {
         // Update the config with the new model name
@@ -828,20 +828,30 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
   private handleJsonRpcResponse(responseStr: string): void {
     try {
       const message = JSON.parse(responseStr);
-      
+
       // Check for progress updates (no 'id' field, just method)
       if (message.method === 'progress_update') {
         this.handleProgressUpdate(message.params);
         return;
       }
-      
+
+      // Check for download progress notifications
+      if (message.method === 'download_progress') {
+        const progress = message.params?.progress;
+        if (progress !== undefined && this.downloadProgressCallback) {
+          console.error(`[PYTHON-DOWNLOAD] Progress notification: ${progress}%`);
+          this.downloadProgressCallback(progress);
+        }
+        return;
+      }
+
       // Normal response handling
       const response: JsonRpcResponse = message;
       const pending = this.pendingRequests.get(response.id);
       if (pending) {
         if (pending.timeout) clearTimeout(pending.timeout); // Clear timeout if any
         this.pendingRequests.delete(response.id);
-        
+
         if (response.error) {
           pending.reject(new Error(`RPC Error: ${response.error.message}`));
         } else {
@@ -1218,7 +1228,7 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       const response = await this.sendJsonRpcRequest('download_model', {
         model_name: modelName,
         request_id: `download_${this.nextRequestId++}`
-      }, 300000); // 5 minutes timeout for model downloads
+      }, 1200000); // 20 minutes timeout for large model downloads (GPU models can be 2-3GB)
 
       return response;
     } catch (error) {

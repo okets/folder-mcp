@@ -34,17 +34,23 @@ export interface IMonitoredFoldersOrchestrator {
    * Add a folder to be monitored
    */
   addFolder(path: string, model: string): Promise<void>;
-  
+
+  /**
+   * Add folder to FMDM immediately (synchronous, prevents race conditions)
+   * Called by WebSocket handler before async operations begin
+   */
+  addFolderToFMDMImmediate(path: string, model: string): void;
+
   /**
    * Remove a folder from monitoring
    */
   removeFolder(folderPath: string): Promise<void>;
-  
+
   /**
    * Start managing all configured folders
    */
   startAll(): Promise<void>;
-  
+
   /**
    * Stop all folder managers
    */
@@ -146,10 +152,13 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     
     // Initialize Model Download Manager (default if not provided)
     this.modelDownloadManager = modelDownloadManager || new ModelDownloadManager(this.logger, this.fmdmService);
-    
+
     // Initialize the sequential folder indexing queue
     this.folderIndexingQueue = new FolderIndexingQueue(this.logger);
-    
+
+    // Wire ModelDownloadManager to queue for sequential processing
+    this.folderIndexingQueue.setModelDownloadManager(this.modelDownloadManager);
+
     // Initialize the unified model factory
     this.modelFactory = new UnifiedModelFactory(this.logger);
     
@@ -265,7 +274,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       const currentFolders = [...currentFMDM.folders];
       
       // Check if folder already exists in current folders
-      const existingIndex = currentFolders.findIndex(f => f.path === path);
+      const existingIndex = currentFolders.findIndex(f => this.pathsEqual(f.path, path));
       if (existingIndex >= 0) {
         // Update existing folder
         currentFolders[existingIndex] = errorFolderConfig;
@@ -282,7 +291,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       throw error;
     }
   }
-  
+
+  /**
+   * Platform-aware path comparison helper
+   * Returns true if paths refer to the same folder (case-insensitive on Windows)
+   */
+  private pathsEqual(path1: string, path2: string): boolean {
+    const isWindows = process.platform === 'win32';
+    return isWindows ? path1.toLowerCase() === path2.toLowerCase() : path1 === path2;
+  }
+
   /**
    * Start lifecycle management for a folder already in FMDM (during daemon startup)
    */
@@ -298,38 +316,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       if (!modelInfo) {
         throw new Error(`Model ${model} not found in curated models`);
       }
-      
-      // If model is not installed, set folder to downloading state and trigger download
-      if (!modelInfo.installed) {
-        this.logger.info(`[ORCHESTRATOR] Model ${model} not installed, initiating download`);
-        
-        // Update folder status to downloading-model
-        this.fmdmService.updateFolderStatus(path, 'downloading-model', {
-          message: `Downloading model ${model}`,
-          type: 'info'
-        });
-        
-        // Request model download (non-blocking)
-        this.modelDownloadManager.requestModelDownload(model)
-          .then(() => {
-            this.logger.info(`[ORCHESTRATOR] Model ${model} download completed, starting folder scanning`);
-            // After download completes, transition folder to scanning
-            this.startFolderScanning(path, model, false); // Don't save to config during startup
-          })
-          .catch((error) => {
-            this.logger.error(`[ORCHESTRATOR] Model ${model} download failed`, error instanceof Error ? error : new Error(String(error)));
-            this.fmdmService.updateFolderStatus(path, 'error', {
-              message: `Failed to download model: ${error instanceof Error ? error.message : String(error)}`,
-              type: 'error'
-            });
-          });
-        
-        // Return early - folder will start scanning after model downloads
-        return;
-      }
-      
-      // Model is already installed, proceed with folder setup
-      this.logger.info(`🔍 [FILE-WATCH-TRACE] Model ${model} already installed, calling startFolderScanning()`);
+
+      // Queue will handle model download/loading if needed
+      this.logger.info(`🔍 [FILE-WATCH-TRACE] Model ${model} check complete, calling startFolderScanning()`);
       await this.startFolderScanning(path, model, false); // Don't save to config during startup
       
     } catch (error) {
@@ -348,75 +337,38 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
   /**
    * Execute the actual folder addition operation
+   * Simplified: Just add to FMDM and queue for processing
+   * The queue will handle model downloading/loading sequentially
    */
   private async executeAddFolder(path: string, model: string): Promise<void> {
     try {
-      this.logger.debug(`[ORCHESTRATOR] Creating folder lifecycle for ${path} with model ${model}`);
-      
-      // Check if model is available through FMDM
+      this.logger.debug(`[ORCHESTRATOR] Adding folder to queue: ${path} with model ${model}`);
+
+      // Validate model exists in curated models
       const fmdm = this.fmdmService.getFMDM();
       const modelInfo = fmdm.curatedModels.find(m => m.id === model);
-      
+
       if (!modelInfo) {
         throw new Error(`Model ${model} not found in curated models`);
       }
-      
-      // If model is not installed, set folder to downloading state and trigger download
-      if (!modelInfo.installed) {
-        this.logger.info(`[ORCHESTRATOR] Model ${model} not installed, initiating download`);
-        this.logger.debug(`[ORCHESTRATOR] Model info: installed=${modelInfo.installed}, type=${modelInfo.type}`);
-        
-        // CRITICAL: Add folder to FMDM FIRST before any status updates
-        this.logger.debug(`[ORCHESTRATOR] Adding folder to FMDM: ${path}`);
-        this.addFolderToFMDM(path, model, 'pending');
-        
-        // Now update folder status to downloading-model (folder exists in FMDM)
-        this.logger.debug(`[ORCHESTRATOR] Updating folder status to downloading-model`);
-        this.fmdmService.updateFolderStatus(path, 'downloading-model', {
-          message: `Downloading model ${model}`,
-          type: 'info'
-        });
-        
-        // Request model download (non-blocking)
-        this.logger.debug(`[ORCHESTRATOR] Requesting model download for ${model}`);
-        this.modelDownloadManager.requestModelDownload(model)
-          .then(() => {
-            this.logger.info(`[ORCHESTRATOR] Model ${model} download completed successfully`);
-            this.logger.debug(`[ORCHESTRATOR] Starting folder scanning after successful download`);
-            // After download completes, transition folder to scanning
-            this.startFolderScanning(path, model);
-          })
-          .catch((error) => {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            this.logger.error(`[ORCHESTRATOR] Model ${model} download failed: ${errorMsg}`);
-            this.logger.debug(`[ORCHESTRATOR] Updating folder status to error due to download failure`);
-            this.fmdmService.updateFolderStatus(path, 'error', {
-              message: `Failed to download model: ${errorMsg}`,
-              type: 'error'
-            });
-          });
-        
-        // Return early - folder will start scanning after model downloads
-        return;
-      }
-      
-      // Model is already installed, add folder to FMDM and proceed with folder setup
+
+      // Add folder to FMDM as pending
       this.addFolderToFMDM(path, model, 'pending');
+
+      // Start folder scanning (queue will handle model download/load if needed)
       await this.startFolderScanning(path, model);
-      
+
     } catch (error) {
       const errorObj = error instanceof Error ? error : new Error(String(error));
       this.logger.error(`[ORCHESTRATOR] Failed to add folder ${path}`, errorObj);
-      
-      // Ensure folder is in FMDM before updating status
-      this.addFolderToFMDM(path, model, 'error');
-      
+
       // Update FMDM with error status and message
+      // Folder already added to FMDM as 'pending' at line 347
       this.fmdmService.updateFolderStatus(path, 'error', {
         message: errorObj.message,
         type: 'error'
       });
-      
+
       throw errorObj;
     }
   }
@@ -564,7 +516,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       const currentFolders = [...currentFMDM.folders];
       
       // Check if folder already exists in current folders
-      const existingIndex = currentFolders.findIndex(f => f.path === path);
+      const existingIndex = currentFolders.findIndex(f => this.pathsEqual(f.path, path));
       if (existingIndex >= 0) {
         // Update existing folder
         currentFolders[existingIndex] = errorFolderConfig;
@@ -587,37 +539,52 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * This ensures the folder appears in FMDM before any status updates
    */
   private addFolderToFMDM(path: string, model: string, status: FolderIndexingStatus): void {
-    try {
-      // Get current FMDM folders
-      const currentFMDM = this.fmdmService.getFMDM();
-      const currentFolders = [...currentFMDM.folders];
-      
-      // Check if folder already exists
-      const existingIndex = currentFolders.findIndex(f => f.path === path);
-      
-      const folderConfig = {
-        path,
+    // Get current FMDM folders
+    const currentFMDM = this.fmdmService.getFMDM();
+    const currentFolders = [...currentFMDM.folders];
+
+    // Check if folder already exists (case-insensitive on Windows, case-sensitive on Unix)
+    const isWindows = process.platform === 'win32';
+    const normalizedPath = isWindows ? path.toLowerCase() : path;
+    const existingIndex = currentFolders.findIndex(f => {
+      const folderPathToCompare = isWindows ? f.path.toLowerCase() : f.path;
+      return folderPathToCompare === normalizedPath;
+    });
+
+    if (existingIndex >= 0) {
+      // Update existing folder but preserve original path casing
+      // On Windows, C:\Users\Test and c:\users\test are the same folder
+      // We keep the original casing to maintain consistency
+      const originalPath = currentFolders[existingIndex]!.path;
+      currentFolders[existingIndex] = {
+        path: originalPath,  // Preserve original path casing
         model,
         status,
         progress: 0
       };
-      
-      if (existingIndex >= 0) {
-        // Update existing folder
-        currentFolders[existingIndex] = folderConfig;
-        this.logger.debug(`[ORCHESTRATOR] Updated existing folder in FMDM: ${path}`);
-      } else {
-        // Add new folder
-        currentFolders.push(folderConfig);
-        this.logger.debug(`[ORCHESTRATOR] Added new folder to FMDM: ${path}`);
-      }
-      
-      // Update FMDM with the new folder list
-      this.fmdmService.updateFolders(currentFolders);
-      
-    } catch (error) {
-      this.logger.error(`[ORCHESTRATOR] Failed to add folder to FMDM: ${path}`, error as Error);
+      this.logger.debug(`[ORCHESTRATOR] Updated existing folder in FMDM (preserved casing): ${originalPath}`);
+    } else {
+      // Add new folder with provided path
+      currentFolders.push({
+        path,
+        model,
+        status,
+        progress: 0
+      });
+      this.logger.debug(`[ORCHESTRATOR] Added new folder to FMDM: ${path}`);
     }
+
+    // Update FMDM with the new folder list
+    this.fmdmService.updateFolders(currentFolders);
+  }
+
+  /**
+   * PUBLIC: Add folder to FMDM immediately with 'pending' status
+   * Called synchronously by WebSocket handler to prevent race conditions
+   * This ensures folder exists in FMDM before any async operations begin
+   */
+  addFolderToFMDMImmediate(path: string, model: string): void {
+    this.addFolderToFMDM(path, model, 'pending');
   }
   
   async removeFolder(folderPath: string): Promise<void> {
@@ -703,7 +670,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // For error state folders without managers, we need to explicitly remove from FMDM
       this.logger.debug(`[ORCHESTRATOR-REMOVE] No manager to delete, removing error folder from FMDM directly`);
       const currentFMDM = this.fmdmService.getFMDM();
-      const filteredFolders = currentFMDM.folders.filter(f => f.path !== folderPath);
+      const filteredFolders = currentFMDM.folders.filter(f => !this.pathsEqual(f.path, folderPath));
       this.fmdmService.updateFolders(filteredFolders);
     }
     
@@ -1118,7 +1085,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
     // Get the folder configuration from FMDM
     const currentFMDM = this.fmdmService.getFMDM();
-    const folderConfig = currentFMDM.folders.find(f => f.path === folderPath);
+    const folderConfig = currentFMDM.folders.find(f => this.pathsEqual(f.path, folderPath));
 
     if (!folderConfig) {
       this.logger.error(`[ORCHESTRATOR] Cannot re-queue ${folderPath} - folder not found in FMDM`);
@@ -1164,7 +1131,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't throw here - just log the error as this is a background operation
     }
   }
-  
+
   /**
    * Handle folder error
    */
@@ -1228,20 +1195,20 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private getCurrentFolderConfigs(): FolderConfig[] {
     const folders: FolderConfig[] = [];
-    
+
     // Get current FMDM state to preserve existing notifications
     const currentFMDM = this.fmdmService.getFMDM();
-    
+
     // Add folders with managers
     for (const [path, manager] of this.folderManagers) {
       const state = manager.getState();
       const folderConfig: FolderConfig = {
         path,
-        model: state.model || 'unknown', 
+        model: state.model || 'unknown',
         status: state.status,
         ...(state.errorMessage && { notification: this.createErrorNotification(state.errorMessage) })
       };
-      
+
       // Add indexing progress (for indexing phase and completed active folders)
       if (state.status === 'indexing') {
         folderConfig.progress = state.progress?.percentage;
@@ -1254,9 +1221,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         }
       } else if (state.status === 'active') {
         folderConfig.progress = 100; // Active folders are 100% complete
-        
+
         // Preserve completion notifications for active folders from current FMDM
-        const existingFolder = currentFMDM.folders.find(f => f.path === path);
+        const existingFolder = currentFMDM.folders.find(f => this.pathsEqual(f.path, path));
         if (existingFolder?.notification) {
           // Only preserve completion notifications (contain "files indexed")
           // Clear progress notifications (contain "processing" or "in progress")
@@ -1270,7 +1237,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           delete folderConfig.notification;
         }
       }
-      
+
       // Add scanning progress (only for scanning phase)
       if (state.status === 'scanning' && state.scanningProgress) {
         folderConfig.scanningProgress = {
@@ -1280,12 +1247,40 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           percentage: state.scanningProgress.percentage,
         };
       }
-      
+
       folders.push(folderConfig);
     }
-    
+
+    // CRITICAL FIX: Preserve folders from FMDM that don't have managers yet
+    // This prevents race conditions where folders are removed from FMDM before their managers are created
+    // Folders can exist in FMDM during pending/downloading-model states before managers are initialized
+
+    // Create a Set of folder paths already in the array to prevent duplicates
+    // IMPORTANT: Normalize to lowercase on Windows only (case-insensitive), keep original on Unix (case-sensitive)
+    const isWindows = process.platform === 'win32';
+    const existingPaths = new Set(folders.map(f => isWindows ? f.path.toLowerCase() : f.path));
+
+    for (const fmdmFolder of currentFMDM.folders) {
+      // Normalize path to lowercase on Windows only for case-insensitive comparison
+      const normalizedPath = isWindows ? fmdmFolder.path.toLowerCase() : fmdmFolder.path;
+      const isInExistingPaths = existingPaths.has(normalizedPath);
+      const hasManager = this.folderManagers.has(fmdmFolder.path);
+
+      // Skip if this folder is already in the array (deduplication)
+      if (isInExistingPaths) {
+        continue;
+      }
+
+      // Check if this folder already has a manager
+      if (!hasManager) {
+        // This folder is in FMDM but doesn't have a manager yet - preserve it
+        folders.push(fmdmFolder);
+        existingPaths.add(normalizedPath); // Add normalized path to prevent future duplicates
+      }
+    }
+
     // No need to add errorFolders separately - error state is tracked in folderManagers
-    
+
     return folders;
   }
 
@@ -1294,7 +1289,6 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private updateFMDM(): void {
     const folders = this.getCurrentFolderConfigs();
-    
     this.logger.debug(`[ORCHESTRATOR-FMDM] Updating FMDM with ${folders.length} folders`);
     
     // Update FMDM with all folder states
@@ -1677,13 +1671,32 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.updateFMDM();
     });
 
+    this.folderIndexingQueue.on('queue:model-downloading', (folder, modelId, progress) => {
+      this.logger.debug(`[ORCHESTRATOR] Model downloading for ${folder.folderPath}: ${modelId} - ${progress}%`);
+
+      // Update FMDM with downloading status and progress
+      this.fmdmService.updateFolderStatus(folder.folderPath, 'downloading-model', {
+        message: `Downloading model ${modelId}: ${progress}%`,
+        type: 'info'
+      });
+
+      // Also update the folder's downloadProgress field for TUI display
+      this.fmdmService.updateModelDownloadStatus(modelId, 'downloading', progress);
+    });
+
     this.folderIndexingQueue.on('queue:model-loading', (folder, progress) => {
       this.logger.debug(`[ORCHESTRATOR] Model loading for ${folder.folderPath}: ${progress.stage}`);
-      
+
       // Update FMDM with model loading progress
       if (progress.stage === 'downloading' && progress.progress !== undefined) {
         this.fmdmService.updateFolderStatus(folder.folderPath, 'downloading-model', {
           message: `Downloading model: ${progress.progress}%`,
+          type: 'info'
+        });
+      } else if (progress.stage === 'loading_model') {
+        // Model download complete, now loading into memory
+        this.fmdmService.updateFolderStatus(folder.folderPath, 'loading-model', {
+          message: `Loading model into memory${progress.progress ? `: ${progress.progress}%` : '...'}`,
           type: 'info'
         });
       }

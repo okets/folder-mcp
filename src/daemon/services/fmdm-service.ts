@@ -317,12 +317,40 @@ export class FMDMService implements IFMDMService {
   getConnectionCount(): number {
     return this.fmdm.connections.count;
   }
-  
+
+  /**
+   * Find folder index by path with proper normalization
+   * Handles relative paths, mixed separators, and platform-specific case sensitivity
+   * @private
+   */
+  private findFolderIndexByPath(folderPath: string): number {
+    try {
+      const normalizedSearchPath = PathNormalizer.normalize(folderPath);
+      return this.fmdm.folders.findIndex(folder => {
+        try {
+          const normalizedFolderPath = PathNormalizer.normalize(folder.path);
+          return normalizedFolderPath === normalizedSearchPath;
+        } catch {
+          // If normalization fails for stored path, try direct comparison
+          return folder.path === folderPath;
+        }
+      });
+    } catch {
+      // If normalization fails for search path, fall back to basic comparison
+      const isWindows = process.platform === 'win32';
+      const searchPath = isWindows ? folderPath.toLowerCase() : folderPath;
+      return this.fmdm.folders.findIndex(folder => {
+        const folderPathToCompare = isWindows ? folder.path.toLowerCase() : folder.path;
+        return folderPathToCompare === searchPath;
+      });
+    }
+  }
+
   /**
    * Update status for a specific folder
    */
   updateFolderStatus(folderPath: string, status: FolderIndexingStatus, notification?: { message: string; type: 'error' | 'warning' | 'info' } | null): void {
-    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    const folderIndex = this.findFolderIndexByPath(folderPath);
     
     if (folderIndex === -1) {
       this.logger.warn(`Attempted to update status for unknown folder: ${folderPath}`);
@@ -370,7 +398,7 @@ export class FMDMService implements IFMDMService {
    * Update progress for a specific folder
    */
   updateFolderProgress(folderPath: string, progressPercentage: number): void {
-    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    const folderIndex = this.findFolderIndexByPath(folderPath);
     
     if (folderIndex === -1) {
       this.logger.warn(`Attempted to update progress for unknown folder: ${folderPath}`);
@@ -430,7 +458,7 @@ export class FMDMService implements IFMDMService {
    * Update notification for a specific folder
    */
   updateFolderNotification(folderPath: string, notification: { message: string; type: 'error' | 'warning' | 'info' } | null): void {
-    const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+    const folderIndex = this.findFolderIndexByPath(folderPath);
     
     if (folderIndex === -1) {
       this.logger.warn(`Attempted to update notification for unknown folder: ${folderPath}`);
@@ -508,7 +536,7 @@ export class FMDMService implements IFMDMService {
     // Update all affected folders
     let updated = false;
     for (const folderPath of affectedFolders) {
-      const folderIndex = this.fmdm.folders.findIndex(folder => folder.path === folderPath);
+      const folderIndex = this.findFolderIndexByPath(folderPath);
       if (folderIndex !== -1) {
         const folder = this.fmdm.folders[folderIndex];
         if (folder) {

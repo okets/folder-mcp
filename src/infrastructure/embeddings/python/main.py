@@ -583,20 +583,22 @@ class EmbeddingRPCServer:
             Dictionary containing download result
         """
         try:
-            if not self.handler:
-                return {
-                    'success': False,
-                    'error': 'Handler not initialized'
-                }
-            
             logger.info(f"Download model request: {request_data}")
-            
+
+            # If no handler is initialized, create a temporary one for downloading
+            # Downloads don't require the model to be loaded into memory
+            handler_to_use = self.handler
+            if not handler_to_use:
+                model_name = request_data.get('model_name', '')
+                logger.info(f"Creating temporary handler for downloading {model_name}")
+                handler_to_use = EmbeddingHandler(model_name=model_name)
+
             # Call handler's download_model method
-            result = self.handler.download_model(request_data)
-            
+            result = handler_to_use.download_model(request_data)
+
             logger.info(f"Download model result: {result}")
             return result
-            
+
         except Exception as e:
             logger.error(f"Error in download_model: {e}")
             logger.error(traceback.format_exc())

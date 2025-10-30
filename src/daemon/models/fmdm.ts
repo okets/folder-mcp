@@ -39,9 +39,10 @@ export interface FolderConfig {
 /**
  * Indexing status for a monitored folder
  */
-export type FolderIndexingStatus = 
+export type FolderIndexingStatus =
   | 'pending'           // Not yet started indexing
   | 'downloading-model' // Downloading required model
+  | 'loading-model'     // Loading model into memory after download
   | 'scanning'          // Scanning for files
   | 'ready'             // Ready to start indexing (has tasks queued)
   | 'indexing'          // Currently indexing files

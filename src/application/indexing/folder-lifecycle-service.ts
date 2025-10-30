@@ -385,13 +385,13 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
 
     // Transition to indexing
     this.stateMachine.transitionTo('indexing');
-    this.updateState({ 
+    this.updateState({
       status: 'indexing',
-      lastIndexStarted: new Date(), 
+      lastIndexStarted: new Date(),
     });
 
-    // Start processing tasks
-    this.processTaskQueue();
+    // Start processing tasks and wait for completion
+    await this.processTaskQueue();
   }
 
   private async processTaskQueue(): Promise<void> {
@@ -1078,6 +1078,15 @@ return;
   }
 
   /**
+   * Normalize path for comparison - case-insensitive on Windows, case-sensitive elsewhere
+   * Windows filesystems are case-insensitive, so "File.txt" and "file.txt" are the same file
+   * Linux/macOS filesystems are case-sensitive, so "File.txt" and "file.txt" are different files
+   */
+  private normalizePathForComparison(path: string): string {
+    return process.platform === 'win32' ? path.toLowerCase() : path;
+  }
+
+  /**
    * Detect and handle orphaned database records if enough time has passed since last cleanup
    * Only runs orphan cleanup once per hour to avoid performance impact on frequent scans
    */
@@ -1099,11 +1108,14 @@ return;
       // Get all documents from database
       const allDatabaseDocs = await this.sqliteVecStorage.getAllDocumentPaths();
 
-      // Create a Set of current file paths for fast lookup
-      const currentFilesSet = new Set(currentFiles);
+      // Create a Set of current file paths for fast lookup (platform-aware comparison)
+      const currentFilesSet = new Set(currentFiles.map(p => this.normalizePathForComparison(p)));
 
       // Find orphaned documents (in database but not on disk)
-      const orphanedDocs = allDatabaseDocs.filter(dbPath => !currentFilesSet.has(dbPath));
+      // Platform-aware comparison: case-insensitive on Windows, case-sensitive on Linux/macOS
+      const orphanedDocs = allDatabaseDocs.filter(dbPath =>
+        !currentFilesSet.has(this.normalizePathForComparison(dbPath))
+      );
 
       if (orphanedDocs.length > 0) {
         this.logger.info(`[MANAGER-ORPHAN] Found ${orphanedDocs.length} orphaned records to clean up`);
