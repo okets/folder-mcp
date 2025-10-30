@@ -123,3 +123,4 @@ _debugScreenshots/
 
 # Claude contextual memory database
 .claude/smarter-claude/
+.claude/settings.local.json
