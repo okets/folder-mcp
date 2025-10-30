@@ -103,17 +103,17 @@ describe('SQLiteVecStorage Daemon Integration', () => {
     // Test that IndexingOrchestrator uses SQLiteVecStorage not mock
     expect(indexingOrchestrator).toBeDefined();
     expect(typeof indexingOrchestrator.indexFolder).toBe('function');
-    
+
     // Try to index a folder to verify the service works
     const result = await indexingOrchestrator.indexFolder(testFolder, {
       forceReindex: true,
       embeddingModel: 'gpu:paraphrase-multilingual-minilm' // Required model parameter
     });
-    
+
     expect(result).toBeDefined();
     expect(result.success).toBe(true);
     expect(result.filesProcessed).toBeGreaterThan(0);
-  });
+  }, 45000); // Increase timeout for model loading
   
   
   it('should handle indexing errors with proper status updates', async () => {
@@ -153,20 +153,23 @@ describe('FMDM Status Integration', () => {
   it('should update folder status via updateFolderStatus method', async () => {
     // Test FMDM service status updates
     const testPath = '/test/path';
-    
+
     // Add a folder first
     fmdmService.updateFolders([{
       path: testPath,
       model: 'test-model',
       status: 'pending'
     }]);
-    
+
     // Update status
     fmdmService.updateFolderStatus(testPath, 'indexing');
-    
+
     const fmdm = fmdmService.getFMDM();
-    const folder = fmdm.folders.find(f => f.path === testPath);
-    
+    // Use PathNormalizer for cross-platform path comparison since FMDM normalizes paths internally
+    const PathNormalizer = (await import('../../../src/daemon/utils/path-normalizer.js')).PathNormalizer;
+    const normalizedTestPath = PathNormalizer.normalize(testPath);
+    const folder = fmdm.folders.find(f => f.path === normalizedTestPath);
+
     expect(folder).toBeDefined();
     expect(folder?.status).toBe('indexing');
   });
@@ -198,22 +201,27 @@ describe('FMDM Status Integration', () => {
     // Test concurrent status updates for different folders
     const folder1 = '/test/path1';
     const folder2 = '/test/path2';
-    
+
     // Add multiple folders
     fmdmService.updateFolders([
       { path: folder1, model: 'model1', status: 'pending' },
       { path: folder2, model: 'model2', status: 'pending' }
     ]);
-    
+
     // Update statuses independently
     fmdmService.updateFolderStatus(folder1, 'indexing');
     fmdmService.updateFolderStatus(folder2, 'indexed');
-    
+
     const fmdm = fmdmService.getFMDM();
-    
-    const f1 = fmdm.folders.find(f => f.path === folder1);
-    const f2 = fmdm.folders.find(f => f.path === folder2);
-    
+
+    // Use PathNormalizer for cross-platform path comparison
+    const PathNormalizer = (await import('../../../src/daemon/utils/path-normalizer.js')).PathNormalizer;
+    const normalizedFolder1 = PathNormalizer.normalize(folder1);
+    const normalizedFolder2 = PathNormalizer.normalize(folder2);
+
+    const f1 = fmdm.folders.find(f => f.path === normalizedFolder1);
+    const f2 = fmdm.folders.find(f => f.path === normalizedFolder2);
+
     expect(f1?.status).toBe('indexing');
     expect(f2?.status).toBe('indexed');
   });

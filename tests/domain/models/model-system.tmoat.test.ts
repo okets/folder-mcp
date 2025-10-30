@@ -93,13 +93,15 @@ describe('Model System TMOAT', () => {
     it('clears cache correctly for testing', async () => {
       const capabilities1 = await capabilitiesDetector.detectCapabilities();
       capabilitiesDetector.clearCache();
-      
-      await new Promise(resolve => setTimeout(resolve, 10)); // Small delay
+
+      // Windows needs more time for timestamp precision
+      const delay = process.platform === 'win32' ? 100 : 10;
+      await new Promise(resolve => setTimeout(resolve, delay));
       const capabilities2 = await capabilitiesDetector.detectCapabilities();
 
       // Should have different detection times after cache clear
       expect(capabilities1.detectedAt.getTime()).not.toEqual(capabilities2.detectedAt.getTime());
-    });
+    }, 45000); // Increase timeout: capability detection takes ~15s per call, need 2 calls = 30s+
   });
 
   describe('Model Compatibility Evaluation', () => {

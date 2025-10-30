@@ -31,7 +31,7 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
 
     // Wait for daemon to be ready
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Daemon startup timeout')), 10000);
+      const timeout = setTimeout(() => reject(new Error('Daemon startup timeout')), 30000); // Increased for Windows
       
       let resolved = false;
       
@@ -81,7 +81,7 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
         reject(err);
       });
     });
-  });
+  }, 120000); // Increase timeout for Windows - daemon startup can be slow
 
   afterAll(async () => {
     // Clean up

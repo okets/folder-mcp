@@ -151,11 +151,13 @@ function checkDependencyInjectionUsage(): string[] {
         // This might be a violation - services should be injected
         // However, we need to check if it's in a factory or container setup
         // or if it's creating factory functions (which is allowed)
-        if (!file.includes('factory') && 
-            !file.includes('container') && 
-            !file.includes('setup') &&
-            !file.includes('provider') &&
-            !file.includes('daemon/rest') &&
+        // Normalize path separators for cross-platform compatibility
+        const normalizedFile = file.replace(/\\/g, '/');
+        if (!normalizedFile.includes('factory') &&
+            !normalizedFile.includes('container') &&
+            !normalizedFile.includes('setup') &&
+            !normalizedFile.includes('provider') &&
+            !normalizedFile.includes('daemon/rest') &&
             !content.includes('createContentProcessingService') &&
             !content.includes('createFileWatchingService') &&
             !content.includes('createFileWatchingDomainService') &&

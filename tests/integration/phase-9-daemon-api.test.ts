@@ -56,7 +56,7 @@ describe('Phase 9 - Daemon API Endpoints', () => {
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Daemon startup timeout'));
-      }, 30000);
+      }, 90000); // Windows needs extra time for Python embedding service initialization
       
       const handleOutput = (data: Buffer) => {
         const output = data.toString();
@@ -97,10 +97,10 @@ describe('Phase 9 - Daemon API Endpoints', () => {
       });
     });
     
-    // Connect daemon client
-    daemonClient = new DaemonClient();
+    // Connect daemon client with increased timeout for Windows
+    daemonClient = new DaemonClient({ timeout: 15000 }); // Windows needs more time
     await daemonClient.connect();
-  }, 60000);
+  }, 120000); // Increase timeout for Windows - daemon startup and build can be slow
   
   afterAll(async () => {
     // Disconnect client

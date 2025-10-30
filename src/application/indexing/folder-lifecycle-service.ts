@@ -33,6 +33,7 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
   private indexingLogger = getIndexingLogger();
   private model: string;
   private active = true;
+  private initialTotalTasks: number = 0; // Preserve original task count for progress reporting
 
   constructor(
     public readonly folderId: string,
@@ -175,11 +176,13 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
 
     // Transition to scanning
     this.stateMachine.transitionTo('scanning');
-    this.updateState({ 
+    this.updateState({
       status: 'scanning',
-      lastScanStarted: new Date(), 
+      lastScanStarted: new Date(),
     });
 
+    // Reset task count for new scan
+    this.initialTotalTasks = 0;
 
     try {
       this.logger.debug(`[MANAGER-SCAN] Scanning folder: ${this.folderPath}`);
@@ -346,7 +349,8 @@ export class FolderLifecycleService extends EventEmitter implements IFolderLifec
     });
 
     this.taskQueue.addTasks(tasks);
-    
+    this.initialTotalTasks = tasks.length; // Preserve original count for progress reporting
+
     // Transition to ready state (waiting for orchestrator to start indexing)
     if (this.stateMachine.canTransitionTo('ready')) {
       this.stateMachine.transitionTo('ready');
@@ -833,7 +837,7 @@ return;
       : Math.min(percentage, 100);
 
     return {
-      totalTasks: stats.totalTasks,
+      totalTasks: this.initialTotalTasks || stats.totalTasks, // Use preserved count if available
       completedTasks: stats.completedTasks,
       failedTasks: stats.failedTasks,
       inProgressTasks: stats.inProgressTasks,

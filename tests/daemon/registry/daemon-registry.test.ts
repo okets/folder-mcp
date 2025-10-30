@@ -19,39 +19,75 @@ describe('DaemonRegistry', () => {
     // CRITICAL: Kill any leftover daemon processes from other tests
     const { spawn } = await import('child_process');
     try {
-      const ps = spawn('ps', ['aux'], { stdio: 'pipe' });
-      let output = '';
-      ps.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-      
-      await new Promise<void>((resolve) => {
-        ps.on('close', () => {
-          const lines = output.split('\n');
-          for (const line of lines) {
-            if (line.includes('dist/src/daemon/index.js') && !line.includes('grep')) {
-              const parts = line.trim().split(/\s+/);
-              const pid = parts[1] ? parseInt(parts[1], 10) : NaN;
-              if (!isNaN(pid) && pid !== process.pid) {
-                try {
-                  process.kill(pid, 'SIGKILL');
-                  console.log(`[TEST-CLEANUP] Killed leftover daemon process ${pid}`);
-                } catch (e) {
-                  // Process might already be dead
+      const isWindows = process.platform === 'win32';
+
+      if (isWindows) {
+        // Windows: Use wmic to get command line details (only kill daemon processes, not Claude Code!)
+        const wmic = spawn('wmic', ['process', 'where', 'name="node.exe"', 'get', 'ProcessId,CommandLine', '/FORMAT:CSV'], { stdio: 'pipe' });
+        let output = '';
+        wmic.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        await new Promise<void>((resolve) => {
+          wmic.on('close', () => {
+            const lines = output.split('\n');
+            for (const line of lines) {
+              // Look specifically for daemon processes (both path separators)
+              if ((line.includes('dist\\src\\daemon\\index.js') || line.includes('dist/src/daemon/index.js')) && !line.includes('grep')) {
+                // Extract PID from CSV format - last numeric field
+                const match = line.match(/,(\d+)/);
+                const pid = match && match[1] ? parseInt(match[1], 10) : NaN;
+                if (!isNaN(pid) && pid !== process.pid) {
+                  try {
+                    // Use taskkill on Windows
+                    spawn('taskkill', ['/PID', pid.toString(), '/F'], { stdio: 'ignore' });
+                    console.log(`[TEST-CLEANUP] Killed leftover daemon process ${pid}`);
+                  } catch (e) {
+                    // Process might already be dead
+                  }
                 }
               }
             }
-          }
-          resolve();
+            resolve();
+          });
         });
-      });
+      } else {
+        // Unix: Use ps aux
+        const ps = spawn('ps', ['aux'], { stdio: 'pipe' });
+        let output = '';
+        ps.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+
+        await new Promise<void>((resolve) => {
+          ps.on('close', () => {
+            const lines = output.split('\n');
+            for (const line of lines) {
+              if (line.includes('dist/src/daemon/index.js') && !line.includes('grep')) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parts[1] ? parseInt(parts[1], 10) : NaN;
+                if (!isNaN(pid) && pid !== process.pid) {
+                  try {
+                    process.kill(pid, 'SIGKILL');
+                    console.log(`[TEST-CLEANUP] Killed leftover daemon process ${pid}`);
+                  } catch (e) {
+                    // Process might already be dead
+                  }
+                }
+              }
+            }
+            resolve();
+          });
+        });
+      }
     } catch (e) {
       // Ignore cleanup errors
     }
-    
+
     // Clean up any existing registry before each test
     await DaemonRegistry.cleanup();
-  });
+  }, 30000); // Increase timeout for Windows - process enumeration can be slower
 
   afterEach(async () => {
     // Clean up registry after each test
