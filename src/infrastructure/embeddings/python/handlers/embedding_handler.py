@@ -1149,12 +1149,16 @@ class EmbeddingHandler:
                     'progress': 100
                 }
             finally:
-                # Ensure thread is stopped even on error
+                # Ensure thread is stopped and cleaned up even on error
                 stop_event.set()
-            
+                progress_thread.join(timeout=1)
+
         except Exception as e:
             logger.error(f"Failed to download model {model_name}: {e}")
-            
+
+            # Send final progress notification indicating failure
+            self._send_download_progress_notification(0)
+
             error_str = str(e).lower()
             if any(keyword in error_str for keyword in ['meta tensor', 'mps', 'cumsum', 'not implemented']):
                 logger.error("MPS compatibility error during download")
@@ -1163,7 +1167,7 @@ class EmbeddingHandler:
                     'error': f'MPS compatibility error: {str(e)}',
                     'progress': 0
                 }
-            
+
             return {
                 'success': False,
                 'error': str(e),

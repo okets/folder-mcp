@@ -644,8 +644,9 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
       let stderrBuffer = '';
       let processStarted = false;
 
-      // Windows compatibility: Use 'python' on Windows, 'python3' on Unix
-      const defaultPythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+      // Windows compatibility: Use 'pythonw' on Windows to prevent console windows
+      // pythonw.exe is the windowless version of Python (no console window)
+      const defaultPythonCommand = process.platform === 'win32' ? 'pythonw' : 'python3';
 
       // Build args array - only include model name if provided
       const args = [
@@ -664,10 +665,14 @@ export class PythonEmbeddingService implements EmbeddingOperations, BatchEmbeddi
 
       this.pythonProcess = spawn(this.config.pythonPath || defaultPythonCommand, args, {
         stdio: ['pipe', 'pipe', 'pipe'],
+        windowsHide: true,  // Prevent terminal window from popping up on Windows
+        detached: false,    // Keep as child process
+        shell: false,       // Don't use shell - prevents cmd window
         env: {
           ...env,
           PYTHONIOENCODING: 'utf-8',  // Force UTF-8 encoding for stdin/stdout/stderr
-          PYTHONUTF8: '1'              // Enable UTF-8 mode (Python 3.7+)
+          PYTHONUTF8: '1',             // Enable UTF-8 mode (Python 3.7+)
+          PYTHONDONTWRITEBYTECODE: '1' // Prevent .pyc file creation
         }
       });
 

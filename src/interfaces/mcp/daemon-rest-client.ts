@@ -162,16 +162,19 @@ async function attemptDaemonAutoStart(): Promise<boolean> {
       return false;
     }
     
-    // Spawn daemon process with detachment
+    // Spawn daemon process
+    // CRITICAL: On Windows, detached:true breaks windowsHide inheritance for child processes
+    // Use detached:false on Windows to allow proper flag inheritance to Python subprocesses
     daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
-      detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'], // Capture stderr/stdout for debugging
+      detached: process.platform !== 'win32', // Only detach on Unix (Windows needs attached for windowsHide)
+      stdio: ['ignore', 'pipe', 'pipe'],       // Capture stderr/stdout for debugging
+      windowsHide: true,                       // Prevent terminal window on Windows
       env: {
         ...process.env,
         NODE_ENV: process.env.NODE_ENV || 'production'
       }
     });
-    
+
     // Set up error and exit listeners to detect immediate failures
     const handleProcessError = (error: Error) => {
       if (!processCleanedUp) {
@@ -381,11 +384,11 @@ export class DaemonRESTClient {
       this.baseUrl = await this.discoverDaemonUrl();
       // Ensure baseUrl doesn't have trailing slash
       this.baseUrl = this.baseUrl.replace(/\/$/, '');
-      
+
       console.error(`[DaemonRESTClient] Connecting to daemon at ${this.baseUrl}`);
-      
+
       const health = await this.getHealth();
-      
+
       if (health.status === 'healthy' || health.status === 'starting') {
         this.isConnected = true;
         console.error(`[DaemonRESTClient] Connected to daemon (status: ${health.status}, version: ${health.version})`);

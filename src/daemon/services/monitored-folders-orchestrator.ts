@@ -363,7 +363,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.error(`[ORCHESTRATOR] Failed to add folder ${path}`, errorObj);
 
       // Update FMDM with error status and message
-      // Folder already added to FMDM as 'pending' at line 347
+      // Folder already added to FMDM as 'pending' at line 356
+      // Model validation occurs at line 347
       this.fmdmService.updateFolderStatus(path, 'error', {
         message: errorObj.message,
         type: 'error'

@@ -14,6 +14,7 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync, appendFileSync } f
 import { join } from 'path';
 import { homedir } from 'os';
 import { spawn, type ChildProcess } from 'child_process';
+import { fileURLToPath } from 'url';
 import { FMDMWebSocketServer } from './websocket/server.js';
 import { FMDMService } from './services/fmdm-service.js';
 import { WebSocketProtocol } from './websocket/protocol.js';
@@ -43,14 +44,20 @@ const currentLogLevel = (process.env.DAEMON_LOG_LEVEL?.toLowerCase() || 'info') 
 const currentLogLevelValue = LOG_LEVELS[currentLogLevel] ?? LOG_LEVELS.info;
 
 // Create a logger with level support
+// CRITICAL: Wrapped in try-catch to prevent EPIPE crashes when stdio is redirected
 const log = (level: LogLevel, message: string, ...args: any[]) => {
   if (LOG_LEVELS[level] >= currentLogLevelValue) {
-    const timestamp = new Date().toISOString();
-    const levelStr = level.toUpperCase().padEnd(5);
-    if (args.length > 0) {
-      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`, ...args);
-    } else {
-      console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`);
+    try {
+      const timestamp = new Date().toISOString();
+      const levelStr = level.toUpperCase().padEnd(5);
+      if (args.length > 0) {
+        console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`, ...args);
+      } else {
+        console.error(`[${timestamp}] ${levelStr} [DAEMON] ${message}`);
+      }
+    } catch (err) {
+      // Ignore EPIPE errors when stdio is closed (daemon spawned with stdio: 'ignore')
+      // This is expected behavior when daemon runs in background
     }
   }
 };
@@ -210,7 +217,7 @@ class FolderMCPDaemon {
           warn,
           error: logError
         });
-        
+
         // Create ModelRegistry instance for Sprint 7 search functionality
         const { ModelRegistry } = await import('./services/model-registry.js');
         const { createPythonEmbeddingService, createONNXDownloader, createONNXEmbeddingService } = await import('./factories/model-factories.js');
@@ -221,14 +228,14 @@ class FolderMCPDaemon {
           createONNXDownloader,
           createONNXEmbeddingService
         );
-        
+
         // Create Multi-Folder Vector Search Service for Sprint 7 search functionality
         // This service dynamically loads the correct database for each folder
         const { MultiFolderVectorSearchService } = await import('../infrastructure/storage/multi-folder-vector-search.js');
         const vectorSearchService = new MultiFolderVectorSearchService(
           loggingService
         );
-        
+
         this.restAPIServer = new RESTAPIServer(
           this.fmdmService!,
           documentService,
@@ -243,7 +250,7 @@ class FolderMCPDaemon {
           }
         );
         debug('REST API server instance created successfully');
-        
+
         const restPort = 3002;
         debug(`Starting REST API server on port ${restPort}...`);
         await this.restAPIServer.start(restPort, '127.0.0.1');

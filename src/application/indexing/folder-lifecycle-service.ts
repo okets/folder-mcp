@@ -1373,14 +1373,40 @@ return;
       
       if (this.model.startsWith('gpu:')) {
         // GPU models - need Python service
-        const { exec } = await import('child_process');
-        const { promisify } = await import('util');
-        const execAsync = promisify(exec);
-        
+        const { spawn } = await import('child_process');
+
         try {
           // Use the same Python command detection as PythonEmbeddingService
-          const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-          await execAsync(`${pythonCommand} --version`, { timeout: 1000 });
+          // On Windows, use 'pythonw' (windowless Python) to prevent console windows
+          const pythonCommand = process.platform === 'win32' ? 'pythonw' : 'python3';
+
+          // Use spawn with windowsHide to prevent terminal windows on Windows
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(pythonCommand, ['--version'], {
+              windowsHide: true,
+              stdio: 'ignore'
+            });
+
+            const timeout = setTimeout(() => {
+              proc.kill();
+              reject(new Error('Python version check timeout'));
+            }, 1000);
+
+            proc.on('exit', (code) => {
+              clearTimeout(timeout);
+              if (code === 0) {
+                resolve();
+              } else {
+                reject(new Error(`Python exited with code ${code}`));
+              }
+            });
+
+            proc.on('error', (err) => {
+              clearTimeout(timeout);
+              reject(err);
+            });
+          });
+
           this.logger.debug(`[MANAGER-MODEL-VALIDATION] Python available for GPU model ${this.model}`);
           return { valid: true };
         } catch (error) {

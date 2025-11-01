@@ -324,6 +324,7 @@ export class FMDMService implements IFMDMService {
    * @private
    */
   private findFolderIndexByPath(folderPath: string): number {
+    // Attempt to normalize both paths and compare
     try {
       const normalizedSearchPath = PathNormalizer.normalize(folderPath);
       return this.fmdm.folders.findIndex(folder => {
@@ -331,18 +332,31 @@ export class FMDMService implements IFMDMService {
           const normalizedFolderPath = PathNormalizer.normalize(folder.path);
           return normalizedFolderPath === normalizedSearchPath;
         } catch {
-          // If normalization fails for stored path, try direct comparison
-          return folder.path === folderPath;
+          // If normalization fails for stored path, use symmetric fallback
+          return this.comparePaths(folder.path, folderPath);
         }
       });
     } catch {
-      // If normalization fails for search path, fall back to basic comparison
-      const isWindows = process.platform === 'win32';
-      const searchPath = isWindows ? folderPath.toLowerCase() : folderPath;
+      // If normalization fails for search path, use symmetric fallback
       return this.fmdm.folders.findIndex(folder => {
-        const folderPathToCompare = isWindows ? folder.path.toLowerCase() : folder.path;
-        return folderPathToCompare === searchPath;
+        return this.comparePaths(folder.path, folderPath);
       });
+    }
+  }
+
+  /**
+   * Symmetric path comparison fallback for when normalization fails
+   * Uses platform-appropriate case sensitivity
+   * @private
+   */
+  private comparePaths(path1: string, path2: string): boolean {
+    const isWindows = process.platform === 'win32';
+    if (isWindows) {
+      // Windows: case-insensitive comparison
+      return path1.toLowerCase() === path2.toLowerCase();
+    } else {
+      // Unix: exact comparison
+      return path1 === path2;
     }
   }
 

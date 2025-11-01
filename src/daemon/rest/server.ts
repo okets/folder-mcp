@@ -326,26 +326,52 @@ export class RESTAPIServer {
       const supportedModels = [...getSupportedGpuModelIds(), ...getSupportedCpuModelIds()];
 
       // Calculate total documents and chunks by getting real counts from databases
+      // Use timeout to prevent hanging on Windows SQLite locks
       let totalDocuments = 0;
       let totalChunks = 0;
+
+      const dbTimeout = 1000; // 1 second timeout per database
       for (const folder of folders) {
         try {
           const dbPath = `${folder.path}/.folder-mcp/embeddings.db`;
-          const fs = await import('fs/promises');
-          try {
-            await fs.access(dbPath);
-            const Database = await import('better-sqlite3');
-            const db = Database.default(dbPath);
-            const docResult = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
-            const chunkResult = db.prepare('SELECT COUNT(*) as count FROM chunks').get() as any;
-            totalDocuments += docResult?.count || 0;
-            totalChunks += chunkResult?.count || 0;
-            db.close();
-          } catch (dbError) {
-            // Database doesn't exist, skip this folder
+
+          // Wrap database access in timeout promise
+          const dbStats = await Promise.race([
+            (async () => {
+              const fs = await import('fs/promises');
+              await fs.access(dbPath);
+              const Database = await import('better-sqlite3');
+              let db: any = null;
+              try {
+                db = Database.default(dbPath, { readonly: true, fileMustExist: true, timeout: 500 });
+                const docResult = db.prepare('SELECT COUNT(*) as count FROM documents').get() as any;
+                const chunkResult = db.prepare('SELECT COUNT(*) as count FROM chunks').get() as any;
+                return {
+                  docs: docResult?.count || 0,
+                  chunks: chunkResult?.count || 0
+                };
+              } finally {
+                if (db) {
+                  try {
+                    db.close();
+                  } catch (e) {
+                    /* ignore close errors after timeout */
+                  }
+                }
+              }
+            })(),
+            new Promise<null>((_, reject) =>
+              setTimeout(() => reject(new Error('Database access timeout')), dbTimeout)
+            )
+          ]);
+
+          if (dbStats) {
+            totalDocuments += dbStats.docs;
+            totalChunks += dbStats.chunks;
           }
         } catch (error) {
-          // Error accessing folder, skip
+          // Database doesn't exist, is locked, or timed out - skip this folder
+          this.logger.debug(`[REST] Skipping database stats for ${folder.path}: ${error instanceof Error ? error.message : 'unknown error'}`);
         }
       }
 

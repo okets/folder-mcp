@@ -32,7 +32,7 @@ Now that we are sure that all models are downloading and indexing properly, let'
 to query a vec table, you need to use special libraries to query it, use the same as we use in our codebase.
 
 -----------------------------------------------------------------query tests-----------------------------------------------------------------------
-Now that we are sure that all models are downloading and indexing properly, let's test that querying works as expected.
+Now that we are sure that all models are downloading and indexing properly, let's test that querying works as expected. when I say "query" I mean use direct mcp client calls using the folder-mcp server as the mcp server.
 1. help me setup an agent-to-endpoint test where you use the folder-mcp mcp server to query each of the indexed folders for known content.
 add folder-mcp as an mcp server tool.
 2. query each of the indexed folders for content and see if the expected results are returned. (quality of results is not important at this stage, just that something is returned)

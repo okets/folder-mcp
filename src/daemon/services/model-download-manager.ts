@@ -64,7 +64,9 @@ export interface IModelDownloadManager {
   setCacheUpdateCallback(callback: (modelId: string) => Promise<void>): void;
 
   /**
-   * Set download complete callback (called when any model download finishes)
+   * Set download complete callback (called ONLY when a model download completes successfully)
+   * This callback is used to trigger folder indexing after model downloads.
+   * Note: The callback is NOT invoked on download failures.
    */
   setDownloadCompleteCallback(callback: (modelId: string) => void): void;
 }
@@ -218,11 +220,14 @@ export class ModelDownloadManager implements IModelDownloadManager {
       // This allows folders waiting for this model to start indexing
       if (this.downloadCompleteCallback) {
         this.logger.debug(`[MODEL-DOWNLOAD] Triggering download complete callback for ${modelId}`);
-        try {
-          this.downloadCompleteCallback(modelId);
-        } catch (error) {
-          this.logger.error(`[MODEL-DOWNLOAD] Error in download complete callback for ${modelId}:`, error instanceof Error ? error : new Error(String(error)));
-        }
+        // Wrap in Promise.resolve to catch both sync and async callback errors
+        Promise.resolve(this.downloadCompleteCallback(modelId))
+          .catch(error => {
+            this.logger.error(
+              `[MODEL-DOWNLOAD] Error in download complete callback for ${modelId}:`,
+              error instanceof Error ? error : new Error(String(error))
+            );
+          });
       }
       
     } catch (error) {

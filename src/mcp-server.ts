@@ -77,22 +77,25 @@ async function attemptDaemonAutoStart(): Promise<boolean> {
     }
     
     debug(`Starting daemon at: ${daemonPath}`);
-    
-    // Spawn daemon process with detachment for independence
+
+    // Spawn daemon process
+    // CRITICAL: On Windows, detached:true breaks windowsHide inheritance for child processes
+    // Use detached:false on Windows to allow proper flag inheritance to Python subprocesses
     const daemonProcess = spawn('node', [daemonPath, '--auto-start'], {
-      detached: true,
-      stdio: ['ignore', 'ignore', 'ignore'], // Detach completely
+      detached: process.platform !== 'win32', // Only detach on Unix (Windows needs attached for windowsHide)
+      stdio: ['ignore', 'ignore', 'ignore'],   // Detach stdio completely
+      windowsHide: true,                       // Prevent terminal window on Windows
       env: {
         ...process.env,
         NODE_ENV: process.env.NODE_ENV || 'production'
       }
     });
-    
+
     // Unref so parent can exit without waiting for daemon
     daemonProcess.unref();
-    
+
     debug(`Daemon process spawned with PID: ${daemonProcess.pid}`);
-    
+
     // Wait for daemon to be ready
     const isReady = await waitForDaemonReady(10000); // 10 second timeout
     
@@ -148,24 +151,26 @@ function findDaemonExecutable(): string | null {
 async function waitForDaemonReady(timeoutMs: number): Promise<boolean> {
   const startTime = Date.now();
   const pollInterval = 500; // Poll every 500ms
-  
+  let attempt = 0;
+
   debug(`Waiting for daemon to be ready (timeout: ${timeoutMs}ms)`);
-  
+
   while (Date.now() - startTime < timeoutMs) {
     // Declare tempClient outside try block for proper cleanup
     let tempClient: DaemonRESTClient | undefined;
-    
+    attempt++;
+
     try {
       // Create a temporary REST client to check daemon health
       tempClient = new DaemonRESTClient();
       await tempClient.connect();
       const health = await tempClient.getHealth();
-      
+
       if (health.status === 'healthy' || health.status === 'starting') {
         debug(`Daemon ready with status: ${health.status}`);
         return true;
       }
-      
+
       debug(`Daemon status: ${health.status}, continuing to wait...`);
     } catch (error) {
       // Daemon not ready yet, continue polling
@@ -186,7 +191,7 @@ async function waitForDaemonReady(timeoutMs: number): Promise<boolean> {
     // Wait before next poll
     await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
-  
+
   debug('Timeout waiting for daemon to be ready');
   return false;
 }
@@ -690,9 +695,10 @@ Please try your "${name}" request again in a moment. If the issue persists after
 
 export async function main(): Promise<void> {
   debug('main() function called');
+
   let devModeManager: DevModeManager | null = null;
   let daemonClient: DaemonRESTClient | null = null;
-  
+
   try {
     debug('Starting MCP server');
     
@@ -724,13 +730,13 @@ export async function main(): Promise<void> {
     
     if (isDaemonMode) {
       debug('No folder path provided - connecting to daemon REST API for multi-folder support');
-      
+
       // Connect to daemon REST API
       daemonClient = new DaemonRESTClient();
       try {
         await daemonClient.connect();
         debug('Successfully connected to daemon REST API');
-        
+
         // Get server info to verify connection
         const serverInfo = await daemonClient.getServerInfo();
         debug(`Daemon info: v${serverInfo.server_info?.version || 'unknown'}, ${serverInfo.capabilities?.total_folders || 0} folders configured`);
@@ -746,7 +752,7 @@ export async function main(): Promise<void> {
       } catch (error) {
         debug(`Failed to connect to daemon: ${error}`);
         debug('Attempting to auto-start daemon...');
-        
+
         // Try to auto-start the daemon
         const autoStartSuccess = await attemptDaemonAutoStart();
         

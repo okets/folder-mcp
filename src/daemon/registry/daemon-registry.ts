@@ -9,6 +9,8 @@ import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync } from 'fs';
+import { fileURLToPath } from 'url';
+
 
 export interface DaemonInfo {
   pid: number;
@@ -32,6 +34,7 @@ export class DaemonRegistry {
    */
   static async register(daemonInfo: DaemonInfo): Promise<void> {
     try {
+
       // Ensure registry directory exists
       if (!existsSync(DaemonRegistry.REGISTRY_DIR)) {
         mkdirSync(DaemonRegistry.REGISTRY_DIR, { recursive: true });
@@ -41,7 +44,8 @@ export class DaemonRegistry {
       // This prevents the race condition where both daemons write to the same file
       const runningDaemons = await DaemonRegistry.findRunningDaemonProcesses();
       const otherDaemons = runningDaemons.filter(pid => pid !== process.pid);
-      
+
+
       if (otherDaemons.length > 0) {
         // Found other daemon processes - strict singleton violation
         const otherPid = otherDaemons[0];
@@ -69,7 +73,7 @@ export class DaemonRegistry {
       // Write daemon info to registry file
       const registryData = JSON.stringify(daemonInfo, null, 2);
       writeFileSync(DaemonRegistry.REGISTRY_FILE, registryData, 'utf8');
-      
+
     } catch (error) {
       throw error;
     }
@@ -85,7 +89,10 @@ export class DaemonRegistry {
     return new Promise((resolve) => {
       if (isWindows) {
         // Use wmic on Windows to get command line information
-        const wmic = spawn('wmic', ['process', 'where', 'name="node.exe"', 'get', 'commandline,processid'], { stdio: 'pipe' });
+        const wmic = spawn('wmic', ['process', 'where', 'name="node.exe"', 'get', 'commandline,processid'], {
+          stdio: 'pipe',
+          windowsHide: true  // Prevent terminal window from appearing
+        });
         let output = '';
 
         wmic.stdout.on('data', (data) => {

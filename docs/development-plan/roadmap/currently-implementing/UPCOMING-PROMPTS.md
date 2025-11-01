@@ -102,7 +102,7 @@ The automated Code review system does not know what we worked on. I want you to:
 - the automated code review system might suggest changes that contradict our instruction not keep backwards compatibility. we are in pre-production and can do radical changes. do not accept suggestions that contradict this principle.
 
 MY Code review system's suggestions:
-1. 
+1.
 
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
@@ -179,5 +179,3 @@ the folders have change tracking, so removing a file should remove it from the d
 
 
 next, delete all files from all indexed folders except folder-mcp-roadmap-1.1.md (that exists in all of them). after a while test that the database only contains records for that file both in the regular tables and the vec tables.
-
-

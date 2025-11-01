@@ -170,11 +170,27 @@ describe('FolderLifecycleOrchestrator - Simple Real File Tests', () => {
     // Verify files were detected
     const state = orchestrator.currentState;
 
+    // Collect expected file types for validation (both branches should check this)
+    const expectedFileTypes = new Set(['pdf', 'docx', 'xlsx', 'pptx', 'txt']);
+
     // On fast systems (like Windows), indexing may complete so quickly that tasks are already cleared
     // In that case, check the progress instead
     if (state.status === 'active') {
       // If active, tasks have been cleared but we can check the total that was processed
       expect(state.progress.totalTasks).toBe(6);
+
+      // Verify file types from processedFiles or progress history
+      // The orchestrator should track what was processed
+      const processedEntries = state.progress.processedFiles || [];
+      if (processedEntries.length > 0) {
+        const fileTypes = new Set(
+          processedEntries.map((file: string) => file.split('.').pop()?.toLowerCase())
+        );
+        expect(fileTypes.size).toBeGreaterThanOrEqual(5); // At least 5 different types
+        expectedFileTypes.forEach(type => {
+          expect(fileTypes).toContain(type);
+        });
+      }
     } else {
       // If still indexing, tasks should be present
       expect(state.fileEmbeddingTasks.length).toBe(6);

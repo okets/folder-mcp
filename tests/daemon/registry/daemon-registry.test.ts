@@ -30,7 +30,7 @@ describe('DaemonRegistry', () => {
         });
 
         await new Promise<void>((resolve) => {
-          wmic.on('close', () => {
+          wmic.on('close', async () => {
             const lines = output.split('\n');
             for (const line of lines) {
               // Look specifically for daemon processes (both path separators)
@@ -40,11 +40,27 @@ describe('DaemonRegistry', () => {
                 const pid = match && match[1] ? parseInt(match[1], 10) : NaN;
                 if (!isNaN(pid) && pid !== process.pid) {
                   try {
-                    // Use taskkill on Windows
-                    spawn('taskkill', ['/PID', pid.toString(), '/F'], { stdio: 'ignore' });
-                    console.log(`[TEST-CLEANUP] Killed leftover daemon process ${pid}`);
+                    // Use taskkill on Windows - await completion to prevent race conditions
+                    await new Promise<void>((resolveKill, rejectKill) => {
+                      const killProcess = spawn('taskkill', ['/PID', pid.toString(), '/F'], { stdio: 'ignore' });
+
+                      killProcess.on('close', (code) => {
+                        if (code === 0 || code === 128) {
+                          // Success or process already dead
+                          console.log(`[TEST-CLEANUP] Killed leftover daemon process ${pid}`);
+                          resolveKill();
+                        } else {
+                          rejectKill(new Error(`taskkill exited with code ${code}`));
+                        }
+                      });
+
+                      killProcess.on('error', (err) => {
+                        rejectKill(err);
+                      });
+                    });
                   } catch (e) {
-                    // Process might already be dead
+                    // Process might already be dead or kill failed
+                    console.log(`[TEST-CLEANUP] Failed to kill process ${pid}: ${e}`);
                   }
                 }
               }

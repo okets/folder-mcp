@@ -590,6 +590,17 @@ class EmbeddingRPCServer:
             handler_to_use = self.handler
             if not handler_to_use:
                 model_name = request_data.get('model_name', '')
+
+                # Validate model_name before creating handler
+                if not model_name or not isinstance(model_name, str) or not model_name.strip():
+                    error_msg = "Invalid or empty model_name provided for download"
+                    logger.error(error_msg)
+                    return {
+                        'success': False,
+                        'error': error_msg,
+                        'progress': 0
+                    }
+
                 logger.info(f"Creating temporary handler for downloading {model_name}")
                 handler_to_use = EmbeddingHandler(model_name=model_name)
 
