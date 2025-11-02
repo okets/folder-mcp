@@ -399,7 +399,23 @@ export class ConfigurationComponent {
     /**
      * Folder array management methods
      */
-    
+
+    /**
+     * Platform-aware path comparison helper
+     * Returns true if paths refer to the same folder (case-insensitive on Windows)
+     * Also normalizes path separators on Windows (\ vs /)
+     */
+    private pathsEqual(path1: string, path2: string): boolean {
+        const isWindows = process.platform === 'win32';
+        if (isWindows) {
+            // Normalize both case and path separator on Windows
+            const normalized1 = path1.toLowerCase().replace(/\\/g, '/');
+            const normalized2 = path2.toLowerCase().replace(/\\/g, '/');
+            return normalized1 === normalized2;
+        }
+        return path1 === path2;
+    }
+
     /**
      * Get all configured folders
      */
@@ -432,7 +448,7 @@ export class ConfigurationComponent {
         
         // Get current folders in raw format
         const existingFolders = await this.get('folders.list') || [];
-        const existingIndex = existingFolders.findIndex((f: any) => f.path === path);
+        const existingIndex = existingFolders.findIndex((f: any) => this.pathsEqual(f.path, path));
         
         if (existingIndex !== -1) {
             // Update existing folder - use simplified structure
@@ -460,7 +476,7 @@ export class ConfigurationComponent {
      */
     async removeFolder(path: string): Promise<void> {
         const existingFolders = await this.get('folders.list') || [];
-        const updatedFolders = existingFolders.filter((f: any) => f.path !== path);
+        const updatedFolders = existingFolders.filter((f: any) => !this.pathsEqual(f.path, path));
         
         if (updatedFolders.length === existingFolders.length) {
             throw new Error(`Folder ${path} not found in configuration`);
@@ -480,8 +496,8 @@ export class ConfigurationComponent {
         }
         
         const existingFolders = await this.get('folders.list') || [];
-        const folderIndex = existingFolders.findIndex((f: any) => f.path === path);
-        
+        const folderIndex = existingFolders.findIndex((f: any) => this.pathsEqual(f.path, path));
+
         if (folderIndex === -1) {
             throw new Error(`Folder ${path} not found in configuration`);
         }
@@ -498,7 +514,7 @@ export class ConfigurationComponent {
      */
     async getFolder(path: string): Promise<{ path: string; model: string } | null> {
         const folders = await this.getFolders();
-        return folders.find(f => f.path === path) || null;
+        return folders.find(f => this.pathsEqual(f.path, path)) || null;
     }
     
     /**

@@ -208,8 +208,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   async addFolder(path: string, model: string): Promise<void> {
-    // Check if already managing this folder
-    if (this.folderManagers.has(path)) {
+    // Check if already managing this folder (use normalized path key for case-insensitive comparison on Windows)
+    const pathKey = this.normalizePathKey(path);
+    if (this.folderManagers.has(pathKey)) {
       this.logger.warn(`Already managing folder: ${path}`);
       return;
     }
@@ -295,10 +296,27 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   /**
    * Platform-aware path comparison helper
    * Returns true if paths refer to the same folder (case-insensitive on Windows)
+   * Also normalizes path separators on Windows (\ vs /)
    */
   private pathsEqual(path1: string, path2: string): boolean {
     const isWindows = process.platform === 'win32';
-    return isWindows ? path1.toLowerCase() === path2.toLowerCase() : path1 === path2;
+    if (isWindows) {
+      // Normalize both case and path separator on Windows
+      const normalized1 = path1.toLowerCase().replace(/\\/g, '/');
+      const normalized2 = path2.toLowerCase().replace(/\\/g, '/');
+      return normalized1 === normalized2;
+    }
+    return path1 === path2;
+  }
+
+  /**
+   * Normalize path for use as Map key
+   * Returns lowercase path with normalized separators on Windows for consistent Map key comparison
+   * On Unix, returns original path (case-sensitive filesystem)
+   */
+  private normalizePathKey(path: string): string {
+    const isWindows = process.platform === 'win32';
+    return isWindows ? path.toLowerCase().replace(/\\/g, '/') : path;
   }
 
   /**
@@ -342,6 +360,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async executeAddFolder(path: string, model: string): Promise<void> {
     try {
+      // Normalize path key for consistent Map operations
+      const pathKey = this.normalizePathKey(path);
+
       this.logger.debug(`[ORCHESTRATOR] Adding folder to queue: ${path} with model ${model}`);
 
       // Validate model exists in curated models
@@ -379,6 +400,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    */
   private async startFolderScanning(path: string, model: string, saveToConfig: boolean = true): Promise<void> {
     try {
+      // Normalize path key for consistent Map operations
+      const pathKey = this.normalizePathKey(path);
+
       this.logger.info(`🔍 [FILE-WATCH-TRACE] startFolderScanning() called for ${path}`);
       // Get the actual model dimensions from curated models
       const modelDimension = getModelDimensions(model);
@@ -439,9 +463,9 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.info(`🔍 [FILE-WATCH-TRACE] Calling subscribeFolderEvents() for ${path}`);
       this.subscribeFolderEvents(path, folderManager);
 
-      // Store manager and storage for periodic sync
-      this.folderManagers.set(path, folderManager);
-      this.folderStorages.set(path, storage);
+      // Store manager and storage for periodic sync (use normalized path key)
+      this.folderManagers.set(pathKey, folderManager);
+      this.folderStorages.set(pathKey, storage);
 
       // Update FMDM for initial pending state
       this.updateFMDM();
@@ -546,9 +570,19 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
     // Check if folder already exists (case-insensitive on Windows, case-sensitive on Unix)
     const isWindows = process.platform === 'win32';
-    const normalizedPath = isWindows ? path.toLowerCase() : path;
+
+    // Normalize path for comparison:
+    // 1. On Windows: lowercase for case-insensitive comparison
+    // 2. On Windows: replace backslashes with forward slashes for consistent separator
+    // 3. On Unix: keep original (case-sensitive filesystem)
+    const normalizedPath = isWindows
+      ? path.toLowerCase().replace(/\\/g, '/')
+      : path;
+
     const existingIndex = currentFolders.findIndex(f => {
-      const folderPathToCompare = isWindows ? f.path.toLowerCase() : f.path;
+      const folderPathToCompare = isWindows
+        ? f.path.toLowerCase().replace(/\\/g, '/')
+        : f.path;
       return folderPathToCompare === normalizedPath;
     });
 
@@ -594,8 +628,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     if (removedFromQueue) {
       this.logger.info(`[ORCHESTRATOR] Removed folder from indexing queue: ${folderPath}`);
     }
-    
-    const manager = this.folderManagers.get(folderPath);
+
+    // Use normalized path key for Map lookup
+    const pathKey = this.normalizePathKey(folderPath);
+    const manager = this.folderManagers.get(pathKey);
     if (!manager) {
       this.logger.warn(`No manager found for folder: ${folderPath}`);
       // Even without a manager, we need to:
@@ -662,10 +698,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't fail the entire operation if config removal fails
     }
     
-    // Only delete from managers if it existed
+    // Only delete from managers if it existed (use normalized path key)
     if (manager) {
-      this.folderManagers.delete(folderPath);
-      this.folderStorages.delete(folderPath); // Also remove storage tracking
+      this.folderManagers.delete(pathKey);
+      this.folderStorages.delete(pathKey); // Also remove storage tracking
       this.logger.debug(`[ORCHESTRATOR-REMOVE] Deleted manager for ${folderPath}, remaining managers: ${this.folderManagers.size}`);
     } else {
       // For error state folders without managers, we need to explicitly remove from FMDM
@@ -683,7 +719,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   }
   
   getManager(folderPath: string): IFolderLifecycleManager | undefined {
-    return this.folderManagers.get(folderPath);
+    const pathKey = this.normalizePathKey(folderPath);
+    return this.folderManagers.get(pathKey);
   }
   
   /**
@@ -748,7 +785,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       for (const folderConfig of currentFMDM.folders) {
         try {
           // Skip folders that already have managers (shouldn't happen but safety check)
-          if (this.folderManagers.has(folderConfig.path)) {
+          const pathKey = this.normalizePathKey(folderConfig.path);
+          if (this.folderManagers.has(pathKey)) {
             this.logger.debug(`Manager already exists for ${folderConfig.path}, skipping`);
             continue;
           }
@@ -1038,7 +1076,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         // Set up change detection callback
         this.monitoringOrchestrator.setChangeDetectionCallback((folderPath: string, changeCount: number) => {
           this.logger.info(`[ORCHESTRATOR] File changes detected in ${folderPath} (${changeCount} changes)`);
-          const manager = this.folderManagers.get(folderPath);
+          const pathKey = this.normalizePathKey(folderPath);
+          const manager = this.folderManagers.get(pathKey);
           if (manager) {
             // Directly trigger the change detection handling
             this.onChangesDetected(folderPath, manager);
@@ -1151,7 +1190,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.warn(`[ORCHESTRATOR] Python dependency error for ${folderPath}: ${errorMessage}`);
     } else if (errorMessage.includes('Python process failed to start') || errorMessage.includes('Failed to start Python process')) {
       // Generic Python process failure - enhance with model information
-      const manager = this.folderManagers.get(folderPath);
+      const pathKey = this.normalizePathKey(folderPath);
+      const manager = this.folderManagers.get(pathKey);
       if (manager) {
         const state = manager.getState();
         const model = state.model || 'unknown';
@@ -1168,9 +1208,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         this.logger.warn(`[ORCHESTRATOR] Enhanced Python error message for ${folderPath}: ${errorMessage}`);
       }
     }
-    
+
     // Use FMDM service to update folder status with specific error message
-    const manager = this.folderManagers.get(folderPath);
+    const pathKey = this.normalizePathKey(folderPath);
+    const manager = this.folderManagers.get(pathKey);
     if (manager) {
       const state = manager.getState();
       const model = state.model || 'unknown';
@@ -1265,7 +1306,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Normalize path to lowercase on Windows only for case-insensitive comparison
       const normalizedPath = isWindows ? fmdmFolder.path.toLowerCase() : fmdmFolder.path;
       const isInExistingPaths = existingPaths.has(normalizedPath);
-      const hasManager = this.folderManagers.has(fmdmFolder.path);
+      const pathKey = this.normalizePathKey(fmdmFolder.path);
+      const hasManager = this.folderManagers.has(pathKey);
 
       // Skip if this folder is already in the array (deduplication)
       if (isInExistingPaths) {
@@ -1378,7 +1420,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Mark folder as error and stop its lifecycle manager but keep it in tracking
    */
   private async markFolderAsError(folderPath: string, errorMessage: string): Promise<void> {
-    const manager = this.folderManagers.get(folderPath);
+    const pathKey = this.normalizePathKey(folderPath);
+    const manager = this.folderManagers.get(pathKey);
     if (!manager) {
       this.logger.debug(`[ORCHESTRATOR] No manager found for folder error marking: ${folderPath}`);
       return;
@@ -1437,7 +1480,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
    * Internal folder removal with optional error message
    */
   private async removeFolderInternal(folderPath: string, reason?: string): Promise<void> {
-    const manager = this.folderManagers.get(folderPath);
+    const pathKey = this.normalizePathKey(folderPath);
+    const manager = this.folderManagers.get(pathKey);
     if (!manager) {
       this.logger.debug(`[ORCHESTRATOR] No manager found for folder removal: ${folderPath}`);
       return;
@@ -1563,9 +1607,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       // 2. Stop and clean up any partially created folder manager
-      if (this.folderManagers.has(folderPath)) {
+      const pathKey = this.normalizePathKey(folderPath);
+      if (this.folderManagers.has(pathKey)) {
         try {
-          const manager = this.folderManagers.get(folderPath);
+          const manager = this.folderManagers.get(pathKey);
           if (manager) {
             this.logger.info(`[ORCHESTRATOR] Stopping partially created folder manager for ${folderPath}`);
             await manager.stop();
@@ -1578,7 +1623,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
               await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
             }
           }
-          this.folderManagers.delete(folderPath);
+          this.folderManagers.delete(pathKey);
         } catch (error) {
           this.logger.warn(`[ORCHESTRATOR] Error stopping folder manager during cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
         }
@@ -1719,7 +1764,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.info(`[ORCHESTRATOR] Completed processing folder: ${folder.folderPath}`);
 
       // Get the manager's state which should include indexingStats
-      const manager = this.folderManagers.get(folder.folderPath);
+      const pathKey = this.normalizePathKey(folder.folderPath);
+      const manager = this.folderManagers.get(pathKey);
       if (manager) {
         const state = manager.getState();
 
@@ -1758,7 +1804,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.logger.error(`[ORCHESTRATOR] Folder ${folder.folderPath} permanently failed after all retry attempts`);
 
       // Update the folder manager's state to error using the proper method
-      const manager = this.folderManagers.get(folder.folderPath);
+      const pathKey = this.normalizePathKey(folder.folderPath);
+      const manager = this.folderManagers.get(pathKey);
       if (manager) {
         // Call handleError to properly transition to error state
         (manager as any).handleError?.(error, 'Indexing failed after 3 attempts');
