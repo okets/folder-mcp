@@ -196,6 +196,14 @@ export class ONNXModelBridge implements IEmbeddingModel {
     return this.isModelLoaded;
   }
 
+  /**
+   * Verify model is actually loaded (ONNX keeps state locally so just check the flag)
+   * Matches Python bridge interface for consistency
+   */
+  async verifyLoaded(): Promise<boolean> {
+    return this.isModelLoaded && this.onnxService !== null;
+  }
+
   async generateEmbeddings(chunks: TextChunk[], immediate?: boolean): Promise<EmbeddingVector[]> {
     if (!this.isModelLoaded || !this.onnxService) {
       throw new Error('Model not loaded. Call load() first.');

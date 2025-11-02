@@ -253,19 +253,22 @@ export class FolderIndexingQueue extends EventEmitter {
     this.recordMcpCall();
 
     try {
-      // CRITICAL: Always switch models if different, regardless of pause state
+      // CRITICAL: Always switch models if different, with retry logic for Windows
       if (this.currentModelId !== modelId) {
-        this.logger.info(`[QUEUE] Model switch required: ${this.currentModelId} → ${modelId}`);
-        await this.unloadCurrentModel();
-        await this.loadModel(modelId, null); // null for no progress tracking in search
-        this.logger.info(`[QUEUE] Model switch completed, now using: ${this.currentModelId}`);
+        await this.switchModelWithRetry(modelId);
       } else {
-        this.logger.debug(`[QUEUE] Model ${modelId} already loaded, reusing`);
+        this.logger.debug(`[QUEUE] Model ${modelId} already loaded, verifying state`);
+        // Even if same model, verify it's still ready (Windows subprocess might have issues)
+        const isReady = await this.verifyModelLoaded();
+        if (!isReady) {
+          this.logger.warn(`[QUEUE] Current model ${modelId} not ready, reloading`);
+          await this.switchModelWithRetry(modelId);
+        }
       }
 
-      // Verify model is loaded before executing search
+      // Double-check model is loaded before executing search
       if (!this.currentModel) {
-        throw new Error(`Model ${modelId} not loaded after switch attempt`);
+        throw new Error(`Model ${modelId} not available after switch`);
       }
 
       // Execute the search
@@ -685,5 +688,84 @@ export class FolderIndexingQueue extends EventEmitter {
     this.currentFolder = null;
     this.isProcessing = false;
     this.isPaused = false;
+  }
+
+  /**
+   * Verify that the model is actually loaded and ready
+   * Checks both the bridge state and Python service state (for Python models)
+   */
+  private async verifyModelLoaded(): Promise<boolean> {
+    if (!this.currentModel) {
+      return false;
+    }
+
+    try {
+      // Use verifyLoaded() if available (Python models), fallback to isLoaded() (ONNX)
+      if ('verifyLoaded' in this.currentModel && typeof this.currentModel.verifyLoaded === 'function') {
+        return await (this.currentModel as any).verifyLoaded();
+      } else {
+        return await this.currentModel.isLoaded();
+      }
+    } catch (error) {
+      this.logger.warn('[QUEUE] Model verification failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Switch model with retry logic for Windows compatibility
+   * Windows has slower subprocess handling, so we retry with exponential backoff
+   */
+  private async switchModelWithRetry(modelId: string, maxRetries: number = 3): Promise<void> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.info(`[QUEUE] Model switch attempt ${attempt}/${maxRetries}: ${this.currentModelId} → ${modelId}`);
+
+        // Unload current model
+        await this.unloadCurrentModel();
+
+        // Load new model
+        await this.loadModel(modelId, null);
+
+        // Verify the model actually loaded
+        const isReady = await this.verifyModelLoaded();
+
+        if (isReady) {
+          this.logger.info(`[QUEUE] Model switch successful: ${modelId}`);
+          return; // Success!
+        }
+
+        // Model not ready, retry
+        this.logger.warn(`[QUEUE] Model state verification failed on attempt ${attempt}/${maxRetries}`);
+
+        if (attempt < maxRetries) {
+          const backoffMs = 100 * attempt; // 100ms, 200ms, 300ms
+          this.logger.info(`[QUEUE] Retrying model switch in ${backoffMs}ms...`);
+          await this.sleep(backoffMs);
+        }
+
+      } catch (error) {
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+        this.logger.error(`[QUEUE] Model switch attempt ${attempt}/${maxRetries} failed:`, errorObj);
+
+        if (attempt === maxRetries) {
+          throw new Error(`Failed to switch to model ${modelId} after ${maxRetries} attempts: ${errorObj.message}`);
+        }
+
+        // Exponential backoff before retry
+        const backoffMs = 100 * attempt;
+        this.logger.info(`[QUEUE] Retrying model switch in ${backoffMs}ms...`);
+        await this.sleep(backoffMs);
+      }
+    }
+
+    throw new Error(`Failed to verify model ${modelId} loaded after ${maxRetries} attempts`);
+  }
+
+  /**
+   * Sleep helper for retry backoff
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }

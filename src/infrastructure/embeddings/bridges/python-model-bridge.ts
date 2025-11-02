@@ -240,6 +240,52 @@ export class PythonModelBridge implements IEmbeddingModel {
     return this.isModelLoaded;
   }
 
+  /**
+   * Verify model is actually loaded by checking Python service state
+   * More thorough than isLoaded() - queries Python subprocess directly
+   * Waits for background loading to complete (important for GPU models on Windows)
+   */
+  async verifyLoaded(): Promise<boolean> {
+    if (!this.isModelLoaded) {
+      return false;
+    }
+
+    if (!this.pythonService) {
+      return false;
+    }
+
+    try {
+      // Poll with timeout to wait for background model loading to complete
+      // GPU models on Windows can take 5-10 seconds to load
+      const maxWaitMs = 15000; // 15 seconds max wait
+      const pollIntervalMs = 500; // Check every 500ms
+      const startTime = Date.now();
+
+      while (Date.now() - startTime < maxWaitMs) {
+        const health = await this.pythonService.healthCheck();
+
+        // Check if model is actually loaded (not just loading)
+        if (health.model_loaded === true && health.status === 'healthy') {
+          this.logger?.debug('[PYTHON-BRIDGE] Model verified as loaded and ready');
+          return true;
+        }
+
+        // Model is still loading, wait and retry
+        if (Date.now() - startTime < maxWaitMs) {
+          await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+        }
+      }
+
+      // Timeout - model didn't finish loading
+      this.logger?.warn('[PYTHON-BRIDGE] Timeout waiting for model to finish loading');
+      return false;
+
+    } catch (error) {
+      this.logger?.warn('[PYTHON-BRIDGE] Health check failed during verification:', error);
+      return false;
+    }
+  }
+
   async generateEmbeddings(chunks: TextChunk[], immediate?: boolean): Promise<EmbeddingVector[]> {
     if (!this.isModelLoaded || !this.pythonService) {
       throw new Error('Model not loaded. Call load() first.');
