@@ -713,6 +713,419 @@ export const StatusPanel: React.FC<{ epInfo: ExecutionProviderInfo }> = ({ epInf
 
 ## Implementation Roadmap
 
+### Phase 0: Baseline Establishment (Pre-Implementation)
+
+**Goal**: Document current CPU-only performance across all test machines before any optimization work begins.
+
+**Importance**:
+- Establishes empirical baseline for before/after comparison
+- Documents hardware diversity across test environments
+- Enables accurate speedup calculations post-optimization
+- Provides regression detection capability
+
+**Critical Note**: This exact same test must be run again after Phase 2-3 completion to measure GPU acceleration improvement.
+
+---
+
+#### Implementation Approach: WebSocket-Based Testing
+
+**Rationale**:
+- Cross-platform (Windows, macOS, Linux)
+- Auto-detects folder-mcp installation location
+- Uses production WebSocket interface (same as TUI uses)
+- Monitors real-time indexing progress via FMDM stream
+- Proven pattern from TMOAT test suite
+
+**Reference Implementation**: See `TMOAT/atomic-test-2-folder-addition.js` for WebSocket connection pattern.
+
+---
+
+#### Task: Create Cross-Platform Baseline Establishment Script
+
+**Deliverable**: `scripts/benchmark-baseline.js` (Node.js script, works everywhere)
+
+**Requirements**:
+
+1. **Auto-detect project installation**
+   - Use `require.resolve()` or `import.meta.url` to find project root
+   - Work from any directory (global install or local)
+
+2. **Cross-platform compatibility**
+   - Use Node.js path module (handles Windows/Unix paths)
+   - Use platform-agnostic commands
+   - Test on Windows, macOS, and Linux
+
+3. **WebSocket-based indexing**
+   - Connect to daemon WebSocket (ws://127.0.0.1:31850)
+   - Send `folder.add` with ./docs folder path
+   - Monitor `fmdm.update` stream for progress
+   - Track state transitions: pending → downloading_model → indexing → active
+
+4. **Force CPU execution**
+   - Set environment variables before daemon starts:
+     - `ONNX_EXECUTION_PROVIDER=cpu`
+     - `FOLDER_MCP_MODEL_ID=cpu:xenova-multilingual-e5-large`
+   - Or use daemon configuration API if available
+
+5. **Comprehensive metrics collection**
+   - Start time (when folder added)
+   - End time (when status = 'active' and progress = 100)
+   - Model download time (if first run)
+   - Indexing time (excluding model download)
+   - Documents processed (from FMDM state)
+   - Chunks generated (from database query)
+   - Database size (from filesystem)
+   - System information (CPU, RAM, GPU if detected)
+
+6. **Output format**
+   - Generate `ONNX_[hostname].md` with:
+     - Machine name and date
+     - Hardware configuration
+     - Baseline metrics (CPU-only)
+     - Placeholder table for post-optimization results
+     - Raw log output (collapsed in details section)
+   - Generate `ONNX_[hostname]_baseline.json` with:
+     - Structured data for programmatic comparison
+     - All metrics in machine-readable format
+
+---
+
+#### Script Implementation Guide
+
+**Note to Coding Agent**: Create `scripts/benchmark-baseline.js` using the TMOAT pattern.
+
+**Pseudo-code Structure**:
+
+```javascript
+#!/usr/bin/env node
+
+/**
+ * ONNX Runtime Baseline Benchmark
+ *
+ * Purpose: Establish CPU-only performance baseline before EP optimization
+ * Output: ONNX_[hostname].md and ONNX_[hostname]_baseline.json
+ *
+ * Usage: node scripts/benchmark-baseline.js
+ */
+
+import WebSocket from 'ws';
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// 1. Auto-detect project root
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const DOCS_PATH = path.resolve(PROJECT_ROOT, 'docs');
+const MACHINE_NAME = os.hostname();
+
+// 2. Collect system information
+function collectSystemInfo() {
+  return {
+    machineName: MACHINE_NAME,
+    platform: os.platform(),
+    arch: os.arch(),
+    cpus: os.cpus()[0].model,
+    cpuCount: os.cpus().length,
+    totalMemoryGB: (os.totalmem() / 1024 / 1024 / 1024).toFixed(2),
+    // GPU detection: platform-specific
+    gpu: detectGPU()  // Implement based on platform
+  };
+}
+
+// 3. Connect to daemon WebSocket
+const ws = new WebSocket('ws://127.0.0.1:31850');
+
+const metrics = {
+  startTime: null,
+  modelDownloadStart: null,
+  modelDownloadEnd: null,
+  indexingStart: null,
+  indexingEnd: null,
+  documentsProcessed: 0,
+  chunksGenerated: 0,
+  databaseSizeMB: 0
+};
+
+ws.on('open', () => {
+  console.log('✅ Connected to daemon WebSocket');
+
+  // Send connection init
+  ws.send(JSON.stringify({
+    type: 'connection.init',
+    clientType: 'benchmark'
+  }));
+
+  // Add docs folder for indexing
+  setTimeout(() => {
+    metrics.startTime = Date.now();
+
+    ws.send(JSON.stringify({
+      type: 'folder.add',
+      id: `benchmark-${Date.now()}`,
+      payload: {
+        path: DOCS_PATH,
+        model: 'cpu:xenova-multilingual-e5-large'
+      }
+    }));
+  }, 1000);
+});
+
+ws.on('message', (data) => {
+  const message = JSON.parse(data);
+
+  if (message.type === 'fmdm.update') {
+    const folder = message.fmdm?.folders?.find(f =>
+      f.path === DOCS_PATH
+    );
+
+    if (!folder) return;
+
+    // Track state transitions
+    if (folder.status === 'downloading_model' && !metrics.modelDownloadStart) {
+      metrics.modelDownloadStart = Date.now();
+      console.log('📥 Downloading model...');
+    }
+
+    if (folder.status === 'indexing' && !metrics.indexingStart) {
+      if (metrics.modelDownloadStart) {
+        metrics.modelDownloadEnd = Date.now();
+      }
+      metrics.indexingStart = Date.now();
+      console.log('⚡ Indexing started...');
+    }
+
+    if (folder.status === 'active' && folder.progress === 100) {
+      metrics.indexingEnd = Date.now();
+      metrics.documentsProcessed = folder.stats?.documentCount || 0;
+
+      // Query database for additional metrics
+      queryDatabaseMetrics().then(() => {
+        generateReport();
+        ws.close();
+      });
+    }
+  }
+});
+
+// 4. Generate output files
+function generateReport() {
+  const systemInfo = collectSystemInfo();
+
+  const baselineTime = (metrics.indexingEnd - metrics.indexingStart) / 1000;
+  const modelDownloadTime = metrics.modelDownloadEnd ?
+    (metrics.modelDownloadEnd - metrics.modelDownloadStart) / 1000 : 0;
+
+  const tokensPerSec = calculateTokensPerSecond();  // Calculate from chunks
+
+  // Generate Markdown report
+  const mdReport = generateMarkdownReport({
+    systemInfo,
+    metrics: {
+      totalTime: baselineTime,
+      modelDownloadTime,
+      tokensPerSec,
+      documentsProcessed: metrics.documentsProcessed,
+      chunksGenerated: metrics.chunksGenerated,
+      databaseSizeMB: metrics.databaseSizeMB
+    }
+  });
+
+  fs.writeFileSync(`ONNX_${MACHINE_NAME}.md`, mdReport);
+
+  // Generate JSON for programmatic comparison
+  const jsonReport = {
+    machine: MACHINE_NAME,
+    date: new Date().toISOString(),
+    phase: 'baseline',
+    systemInfo,
+    configuration: {
+      model: 'cpu:xenova-multilingual-e5-large',
+      provider: 'CPU',
+      workerPoolSize: 2,
+      threadsPerWorker: 2,
+      batchSize: 1
+    },
+    metrics: {
+      totalTimeSeconds: baselineTime,
+      modelDownloadSeconds: modelDownloadTime,
+      tokensPerSecond: tokensPerSec,
+      documentsProcessed: metrics.documentsProcessed,
+      chunksGenerated: metrics.chunksGenerated,
+      databaseSizeMB: metrics.databaseSizeMB
+    }
+  };
+
+  fs.writeFileSync(
+    `ONNX_${MACHINE_NAME}_baseline.json`,
+    JSON.stringify(jsonReport, null, 2)
+  );
+
+  console.log(`\n✅ Baseline report generated: ONNX_${MACHINE_NAME}.md`);
+  console.log(`✅ Baseline data saved: ONNX_${MACHINE_NAME}_baseline.json`);
+}
+
+// Helper functions
+function detectGPU() {
+  // Platform-specific GPU detection
+  // Windows: Use wmic or systeminfo
+  // macOS: Use system_profiler
+  // Linux: Use nvidia-smi or lspci
+}
+
+function queryDatabaseMetrics() {
+  // Query .folder-mcp/database.db for:
+  // - SELECT COUNT(*) FROM chunks
+  // - Database file size
+}
+
+function calculateTokensPerSecond() {
+  // Estimate tokens from chunks and time
+}
+
+function generateMarkdownReport(data) {
+  return `
+# ONNX Runtime Baseline Performance
+
+**Machine**: ${data.systemInfo.machineName}
+**Date**: ${new Date().toISOString()}
+**Phase**: Phase 0 - Baseline Establishment
+**Model**: Xenova/multilingual-e5-large (1024 dims, INT8)
+**Corpus**: ./docs folder
+
+---
+
+## System Configuration
+
+- **Platform**: ${data.systemInfo.platform} (${data.systemInfo.arch})
+- **CPU**: ${data.systemInfo.cpus} (${data.systemInfo.cpuCount} cores)
+- **Memory**: ${data.systemInfo.totalMemoryGB} GB
+- **GPU**: ${data.systemInfo.gpu || 'None detected'}
+
+---
+
+## Baseline Performance (CPU Only)
+
+### Configuration
+- Model ID: cpu:xenova-multilingual-e5-large
+- Execution Provider: CPU (forced)
+- Worker Pool Size: 2
+- Threads per Worker: 2
+- Batch Size: 1
+
+### Results
+
+| Metric | Value |
+|--------|-------|
+| Total Indexing Time | ${data.metrics.totalTime.toFixed(2)}s |
+| Model Download Time | ${data.metrics.modelDownloadTime.toFixed(2)}s |
+| Tokens/Sec | ${data.metrics.tokensPerSec.toFixed(0)} |
+| Documents Processed | ${data.metrics.documentsProcessed} |
+| Chunks Generated | ${data.metrics.chunksGenerated} |
+| Database Size | ${data.metrics.databaseSizeMB.toFixed(2)} MB |
+| Provider | CPU |
+
+---
+
+## Post-Optimization Results
+
+**Status**: ⏳ Pending (Phase 2-3 implementation)
+
+### GPU Optimization Comparison
+
+*To be filled after Phase 2-3 completion by running the same test with GPU enabled*
+
+| Metric | Baseline (CPU) | Optimized (GPU) | Speedup | Provider |
+|--------|---------------|-----------------|---------|----------|
+| Total Time | ${data.metrics.totalTime.toFixed(2)}s | - | - | - |
+| Tokens/Sec | ${data.metrics.tokensPerSec.toFixed(0)} | - | - | - |
+| Docs/Min | - | - | - | - |
+
+---
+
+## Notes
+
+- Baseline established via WebSocket benchmarking script
+- Script: \`scripts/benchmark-baseline.js\`
+- Same test must be run after Phase 2-3 to measure GPU improvement
+`;
+}
+
+// Auto-timeout
+setTimeout(() => {
+  console.log('⏱️  Benchmark timeout (5 minutes)');
+  ws.close();
+  process.exit(1);
+}, 300000);
+```
+
+---
+
+#### Usage Instructions (For All Test Machines)
+
+**Step 1: Ensure daemon is running with CPU-only configuration**
+
+```bash
+# Set CPU-only environment variables (before starting daemon)
+export ONNX_EXECUTION_PROVIDER=cpu
+
+# Restart daemon to apply configuration
+npm run daemon:restart
+
+# Wait for daemon to be ready (~5-10 seconds)
+```
+
+**Step 2: Run baseline benchmark**
+
+```bash
+# Run the WebSocket-based benchmark script
+node scripts/benchmark-baseline.js
+```
+
+**Step 3: Review generated reports**
+
+```bash
+# View Markdown report
+cat ONNX_$(hostname).md
+
+# View JSON data
+cat ONNX_$(hostname)_baseline.json
+```
+
+**Step 4: Commit baseline to repository (optional)**
+
+```bash
+# Add baseline reports
+git add "ONNX_$(hostname).md" "ONNX_$(hostname)_baseline.json"
+git commit -m "docs: Add baseline performance for $(hostname)"
+git push
+
+# Or save to benchmarks directory
+mkdir -p benchmarks/baselines/
+mv ONNX_$(hostname).* benchmarks/baselines/
+```
+
+---
+
+**Deliverables**:
+- ✅ `ONNX_[machine_name].md` - Baseline performance report for each test machine
+- ✅ `baseline-raw.log` - Complete indexing output
+- ✅ `system-info.txt` - Hardware configuration details
+- ✅ Clean `.folder-mcp/` database for comparison
+
+**Success Criteria**:
+- Baseline indexing completes successfully
+- All metrics captured (time, throughput, docs processed)
+- Machine configuration documented
+- Results reproducible (re-running gives similar times within 5%)
+
+**Timeline**: 1-2 days (across all test machines)
+
+**Next Step**: Only proceed to Phase 1 (Foundation) after all test machines have documented baselines.
+
+---
+
 ### Phase 1: Foundation (Week 1)
 
 **Goal**: Implement execution provider detection and configuration
@@ -818,6 +1231,159 @@ export const StatusPanel: React.FC<{ epInfo: ExecutionProviderInfo }> = ({ epInf
 - Enhanced TUI with EP display
 - Diagnostic logging
 - User documentation
+
+---
+
+### Phase 5: GPU Performance Validation (Post-Implementation)
+
+**Goal**: Run the exact same baseline test with GPU acceleration enabled to empirically measure performance improvement.
+
+**Critical**: This phase runs the **identical test** as Phase 0, but with GPU providers enabled instead of CPU-only.
+
+**Prerequisites**:
+- Phases 0-4 completed
+- All test machines have Phase 0 baseline reports (`ONNX_[machine].md` and `.json`)
+- GPU hardware available on test machines
+
+---
+
+#### Task: Run GPU-Enabled Benchmark
+
+**Step 1: Remove CPU-only restriction**
+
+```bash
+# Unset CPU-only environment variable
+unset ONNX_EXECUTION_PROVIDER
+
+# Or explicitly enable auto-detection
+export ONNX_EXECUTION_PROVIDER=auto
+
+# Restart daemon to apply new configuration
+npm run daemon:restart
+
+# Wait for daemon to be ready (~5-10 seconds)
+```
+
+**Step 2: Run the same benchmark script**
+
+```bash
+# Run the EXACT SAME script (it will detect GPU now)
+node scripts/benchmark-baseline.js --mode gpu
+```
+
+**Note**: The script should be enhanced to accept a `--mode` flag:
+- `--mode baseline` (default): Force CPU, generate `ONNX_[machine]_baseline.json`
+- `--mode gpu`: Auto-detect GPU, generate `ONNX_[machine]_gpu.json`
+
+**Step 3: Update baseline report with GPU results**
+
+The script should:
+1. Load existing `ONNX_[machine].md`
+2. Update the "Post-Optimization Results" table with GPU metrics
+3. Calculate speedup automatically (`baseline_time / gpu_time`)
+4. Save updated report
+
+**Step 4: Compare results programmatically**
+
+```bash
+# Create comparison script
+node scripts/compare-benchmarks.js \
+  ONNX_$(hostname)_baseline.json \
+  ONNX_$(hostname)_gpu.json
+```
+
+**Expected Output**:
+
+```
+=== BENCHMARK COMPARISON ===
+
+Machine: okets-windows-workstation
+Platform: Windows 11
+GPU: NVIDIA RTX 3060 (12GB)
+
+Baseline (CPU Only):
+- Total Time: 485.2s
+- Tokens/Sec: 130
+- Provider: CPU
+
+Optimized (CUDA):
+- Total Time: 52.1s
+- Tokens/Sec: 1,200
+- Provider: CUDA
+
+SPEEDUP: 9.3x ⚡
+CPU Usage: 650% → 280% (57% reduction)
+GPU Usage: 0% → 65%
+VRAM Usage: 0GB → 1.8GB
+
+✅ Performance improvement meets target (8-12x for NVIDIA GPUs)
+```
+
+---
+
+#### Validation Criteria
+
+**Speedup Targets** (must meet to pass):
+
+| Platform | GPU Type | Minimum Speedup | Target Speedup |
+|----------|----------|----------------|----------------|
+| Windows | NVIDIA | 8x | 10x |
+| Windows | AMD/Intel | 3x | 3.5x |
+| macOS | Apple Silicon | 4x | 5x |
+| Linux | NVIDIA | 10x | 12x |
+
+**Quality Checks**:
+1. ✅ Database size matches baseline (within 5%)
+2. ✅ Chunk count matches baseline (exact)
+3. ✅ Documents processed matches baseline (exact)
+4. ✅ Embedding similarity >0.999 (spot check)
+5. ✅ Search results identical to baseline
+
+**Failure Scenarios**:
+
+If speedup < target:
+- Investigate execution provider selection (check logs)
+- Verify GPU drivers installed correctly
+- Check VRAM constraints (model may not fit)
+- Profile GPU utilization (should be >50%)
+
+If quality degraded:
+- Compare embeddings from baseline vs GPU
+- Check for numerical precision issues
+- Verify model loaded correctly
+- Re-run with same EP to confirm reproducibility
+
+---
+
+#### Multi-Machine Results Matrix
+
+**Deliverable**: `benchmarks/BENCHMARK_RESULTS.md`
+
+Aggregate results from all test machines:
+
+| Machine | Platform | GPU | Baseline (CPU) | Optimized (GPU) | Provider | Speedup | Status |
+|---------|----------|-----|----------------|-----------------|----------|---------|--------|
+| okets-windows | Win 11 | RTX 3060 | 485s | 52s | CUDA | 9.3x | ✅ |
+| okets-macbook | macOS 14 | M1 Pro | 410s | 82s | CoreML | 5.0x | ✅ |
+| okets-ubuntu | Ubuntu 22 | RTX 4090 | 450s | 38s | CUDA | 11.8x | ✅ |
+
+---
+
+**Deliverables**:
+- ✅ `ONNX_[machine]_gpu.json` - GPU performance data for each machine
+- ✅ Updated `ONNX_[machine].md` - Complete before/after report
+- ✅ `benchmarks/BENCHMARK_RESULTS.md` - Cross-machine comparison
+- ✅ `scripts/compare-benchmarks.js` - Automated comparison tool
+
+**Success Criteria**:
+- All test machines meet minimum speedup targets
+- No quality degradation detected
+- Consistent results across multiple runs (within 5% variance)
+- GPU utilization >50% during indexing
+
+**Timeline**: 2-3 days (same as Phase 0, one run per machine)
+
+**Final Step**: Document results in implementation design, ready for PR and release.
 
 ---
 
