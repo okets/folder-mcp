@@ -8,6 +8,7 @@
 
 import { ValidationRule, VALIDATION_RULES } from './schema.js';
 import { createConsoleLogger } from '../infrastructure/logging/logger.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds } from './model-registry.js';
 
 const logger = createConsoleLogger('warn');
 
@@ -364,7 +365,16 @@ export class ConfigurationRegistry {
         const { getDefaultModelId } = require('./model-registry.js');
         return getDefaultModelId();
       },
-      examples: ['gpu:bge-m3', 'cpu:xenova-multilingual-e5-small', 'cpu:xenova-multilingual-e5-large'],
+      examples: (() => {
+        // Dynamically generate examples from model registry (single source of truth)
+        const gpuModels = getSupportedGpuModelIds();
+        const cpuModels = getSupportedCpuModelIds();
+        return [
+          gpuModels[0],  // First GPU model
+          cpuModels[0],  // First CPU model
+          cpuModels[1]   // Second CPU model (if available)
+        ].filter(Boolean);
+      })(),
       category: 'processing',
       tags: ['embedding', 'model', 'quality'],
       envVar: 'FOLDER_MCP_PROCESSING_MODEL_NAME',

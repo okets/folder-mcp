@@ -8,6 +8,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { ILoggingService } from '../../di/interfaces.js';
+import { isGpuRequired } from '../../config/model-registry.js';
 
 const execAsync = promisify(exec);
 
@@ -119,19 +120,34 @@ export class WindowsPerformanceService implements IWindowsPerformanceService {
   }
 
   private isPythonModel(modelName: string): boolean {
-    // Python models typically include these patterns
-    const pythonModelPatterns = [
+    // First check if it's a known GPU model from registry (GPU models use Python)
+    try {
+      // Try direct lookup
+      if (isGpuRequired(modelName)) {
+        return true;
+      }
+
+      // Try with gpu: prefix if not already present
+      if (!modelName.startsWith('gpu:') && !modelName.startsWith('cpu:')) {
+        if (isGpuRequired(`gpu:${modelName}`)) {
+          return true;
+        }
+      }
+    } catch {
+      // Model not in registry, fall back to pattern matching
+    }
+
+    // Fallback: Check for generic Python/ML patterns for unknown models
+    const pythonIndicators = [
       'transformers:',
-      'MiniLM',
-      'mpnet', 
-      'all-',
-      'bge-',
       'sentence-transformers',
       'huggingface'
     ];
 
     const lowerModel = modelName.toLowerCase();
-    return pythonModelPatterns.some(pattern => lowerModel.includes(pattern.toLowerCase()));
+    return pythonIndicators.some(indicator =>
+      lowerModel.includes(indicator.toLowerCase())
+    );
   }
 
   private generateWarningMessage(importTimeMs: number): string {

@@ -8,7 +8,7 @@
 import { CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
 import { join } from 'path';
-import { getSupportedGpuModelIds, getModelById } from '../../config/model-registry.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds, getModelById } from '../../config/model-registry.js';
 import { ONNXDownloader } from '../../infrastructure/embeddings/onnx/onnx-downloader.js';
 import { MachineCapabilitiesDetector } from '../../domain/models/machine-capabilities.js';
 
@@ -233,13 +233,10 @@ export class ModelCacheChecker {
   }
 
   /**
-   * Get curated CPU model IDs
+   * Get curated CPU model IDs from model registry (single source of truth)
    */
   private getCuratedCPUModelIds(): string[] {
-    return [
-      'cpu:xenova-multilingual-e5-small',
-      'cpu:xenova-multilingual-e5-large'
-    ];
+    return getSupportedCpuModelIds();
   }
 
   /**

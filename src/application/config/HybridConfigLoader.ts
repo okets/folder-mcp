@@ -15,6 +15,7 @@ import { NodeFileSystem } from '../../infrastructure/filesystem/node-filesystem.
 import { NodeFileWriter } from '../../infrastructure/filesystem/NodeFileWriter.js';
 import { YamlParser } from '../../infrastructure/parsers/YamlParser.js';
 import { createConsoleLogger } from '../../infrastructure/logging/logger.js';
+import { getDefaultModelId } from '../../config/model-registry.js';
 
 const logger = createConsoleLogger('info');
 
@@ -49,7 +50,7 @@ export function convertToResolvedConfig(hybridConfig: HybridConfig): any {
     chunkSize: hybridConfig.user.performance?.chunkSize || hybridConfig.system.model?.chunkSize || 1000,
     overlap: hybridConfig.user.performance?.overlap || hybridConfig.system.model?.overlap || 10,
     batchSize: hybridConfig.user.performance?.batchSize || hybridConfig.system.model?.batchSize || 32,
-    modelName: hybridConfig.user.model?.name || hybridConfig.system.model?.name || 'all-minilm',
+    modelName: hybridConfig.user.model?.name || hybridConfig.system.model?.name || getDefaultModelId(),
     maxConcurrentOperations: hybridConfig.user.performance?.maxConcurrentOperations || hybridConfig.system.model?.maxConcurrentOperations || 14,
     timeoutMs: hybridConfig.system.model?.timeoutMs || 30000,
     
