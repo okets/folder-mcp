@@ -898,6 +898,445 @@ describe('ONNX Execution Providers', () => {
 
 ---
 
+## Benchmarking Methodology
+
+### Objective
+
+Establish empirical before/after performance measurements to validate execution provider optimization claims using real-world indexing workloads.
+
+### Benchmark Setup
+
+#### Test Corpus: Project Documentation Folder
+
+**Location**: `./docs` (folder-mcp's own documentation)
+
+**Rationale**:
+- Real-world content (Markdown, design docs, technical documentation)
+- Consistent and reproducible across all platforms
+- Sufficient size to demonstrate performance differences
+- Self-contained (no external dependencies)
+
+**Corpus Statistics**:
+```bash
+# Analyze docs folder
+find ./docs -type f -name "*.md" | wc -l  # Document count
+find ./docs -type f -exec wc -w {} + | tail -1  # Total word count
+du -sh ./docs  # Total size
+```
+
+Expected characteristics:
+- ~30-50 Markdown files
+- ~50,000-100,000 words
+- ~500KB-2MB total size
+- Diverse content (code, tables, diagrams, text)
+
+#### Model Configuration: E5-Large ONNX
+
+**Model**: `cpu:xenova-multilingual-e5-large`
+**Rationale**:
+- Larger model (1024 dims) shows more dramatic GPU improvements
+- Higher computational intensity reveals execution provider differences
+- Production-grade model (not toy benchmark)
+
+**Configuration**:
+```json
+{
+  "modelId": "cpu:xenova-multilingual-e5-large",
+  "huggingfaceId": "Xenova/multilingual-e5-large",
+  "dimensions": 1024,
+  "modelSizeMB": 550,
+  "quantization": "int8",
+  "contextWindow": 512
+}
+```
+
+### Pre-Benchmark Preparation
+
+#### Step 1: Clean State
+```bash
+# Remove existing index database
+rm -rf .folder-mcp/
+
+# Clear model cache (force fresh download)
+rm -rf ~/.cache/folder-mcp/onnx-models/
+
+# Verify clean state
+ls -la .folder-mcp/  # Should not exist
+```
+
+#### Step 2: Configure E5-Large Model
+```bash
+# Option A: Configuration file
+cat > ~/.folder-mcp/config.yaml <<EOF
+modelId: cpu:xenova-multilingual-e5-large
+onnx:
+  workerPoolSize: 2
+  threadsPerWorker: 2
+  batchSize: 1
+  maxConcurrentFiles: 4
+  executionProvider:
+    autoDetect: true  # Will use CPU for baseline
+EOF
+
+# Option B: Environment variables
+export FOLDER_MCP_MODEL_ID=cpu:xenova-multilingual-e5-large
+export ONNX_EXECUTION_PROVIDER=cpu  # Force CPU for baseline
+```
+
+#### Step 3: Verify Configuration
+```bash
+folder-mcp config show
+# Should display:
+# modelId: cpu:xenova-multilingual-e5-large
+# onnx.executionProvider: cpu
+```
+
+### Baseline Measurement (Before Optimization)
+
+#### Execution
+
+```bash
+# Start indexing with timing
+time folder-mcp index ./docs --model cpu:xenova-multilingual-e5-large
+
+# Or use built-in benchmarking script
+npm run benchmark:baseline -- ./docs
+```
+
+#### Metrics to Collect
+
+**Primary Metrics**:
+1. **Total Indexing Time** (seconds)
+   - From model load to final commit
+   - Includes model download (first run only)
+   - Warm cache run (exclude download time)
+
+2. **Tokens Processed Per Second**
+   - Total tokens / (total time - model load time)
+   - Reported by ONNX embedding service
+
+3. **Documents Indexed Per Minute**
+   - Total documents / (total time in minutes)
+
+4. **Peak CPU Usage** (%)
+   - Monitor via `top` or `htop`
+   - Expected: 400-800% (4-8 cores at 100%)
+
+5. **Peak Memory Usage** (MB)
+   - Monitor RAM consumption
+   - Baseline for GPU comparison
+
+**Secondary Metrics**:
+6. Model Load Time (first run vs cached)
+7. Average Time Per Document
+8. Chunk Count (total chunks generated)
+9. Database Size (final .folder-mcp size)
+
+#### Sample Baseline Results (Expected)
+
+```
+Platform: Linux x86_64
+CPU: Intel i7-12700K (12 cores)
+RAM: 32GB
+GPU: NVIDIA RTX 3060 (12GB) [not used in baseline]
+
+Model: Xenova/multilingual-e5-large (1024 dims, int8)
+Corpus: ./docs (45 files, 75,000 words, 1.2MB)
+
+=== BASELINE (CPU Only) ===
+Model Load Time: 8.5s (first run), 0.8s (cached)
+Total Indexing Time: 485s (8m 5s)
+Documents Processed: 45
+Chunks Generated: 1,250
+Tokens Processed: ~62,500
+Tokens Per Second: 130 tok/s
+Documents Per Minute: 5.6 docs/min
+Peak CPU Usage: 650% (6.5 cores)
+Peak Memory: 2.8GB
+Database Size: 145MB
+Active Provider: CPU
+```
+
+### After-Optimization Measurement
+
+#### Step 1: Enable Execution Provider
+
+```bash
+# Remove CPU-only restriction
+unset ONNX_EXECUTION_PROVIDER
+
+# Or explicitly enable auto-detection
+cat > ~/.folder-mcp/config.yaml <<EOF
+modelId: cpu:xenova-multilingual-e5-large
+onnx:
+  workerPoolSize: 2
+  threadsPerWorker: 2
+  batchSize: 1
+  maxConcurrentFiles: 4
+  executionProvider:
+    autoDetect: true  # Will detect CUDA/DirectML/CoreML
+EOF
+```
+
+#### Step 2: Clean State (Same as Baseline)
+
+```bash
+# Remove existing index for fair comparison
+rm -rf .folder-mcp/
+
+# Keep model cache (avoid re-download)
+# Model files are provider-agnostic
+```
+
+#### Step 3: Execute with GPU
+
+```bash
+# Start indexing with GPU acceleration
+time folder-mcp index ./docs --model cpu:xenova-multilingual-e5-large
+
+# Monitor GPU usage
+# NVIDIA: nvidia-smi -l 1
+# AMD: radeontop
+# Apple: sudo powermetrics --samplers gpu_power
+```
+
+#### Metrics to Collect (Same as Baseline)
+
+**Primary Metrics**:
+1. Total Indexing Time
+2. Tokens Per Second
+3. Documents Per Minute
+4. Peak CPU Usage (should be lower)
+5. Peak GPU Usage (new metric)
+6. Peak Memory Usage
+
+**GPU-Specific Metrics**:
+7. GPU Utilization % (average)
+8. VRAM Usage (MB)
+9. Active Execution Provider (CUDA/DirectML/CoreML)
+10. GPU Speedup Factor (baseline time / GPU time)
+
+#### Sample GPU Results (Expected)
+
+```
+=== AFTER OPTIMIZATION (CUDA) ===
+Model Load Time: 0.8s (cached)
+Total Indexing Time: 52s
+Documents Processed: 45
+Chunks Generated: 1,250
+Tokens Processed: ~62,500
+Tokens Per Second: 1,200 tok/s
+Documents Per Minute: 52 docs/min
+Peak CPU Usage: 280% (2.8 cores - reduced!)
+Peak GPU Usage: 65% (NVIDIA RTX 3060)
+Peak Memory: 2.2GB
+VRAM Usage: 1.8GB / 12GB
+Database Size: 145MB (same as baseline)
+Active Provider: CUDA
+
+SPEEDUP: 9.3x (485s → 52s)
+```
+
+### Cross-Platform Benchmark Matrix
+
+#### Test Across All Target Platforms
+
+| Platform | Hardware | Baseline (CPU) | Optimized (GPU) | Provider | Speedup |
+|----------|----------|----------------|-----------------|----------|---------|
+| **Windows 11** | i7-12700K + RTX 3060 | 485s | 52s | CUDA | 9.3x |
+| **Windows 11** | i7-12700K + RX 6800 | 485s | 138s | DirectML | 3.5x |
+| **macOS 14** | M1 Pro (16GB) | 410s | 82s | CoreML | 5.0x |
+| **Linux** | Ryzen 9 5950X + RTX 4090 | 450s | 38s | CUDA | 11.8x |
+
+### Benchmark Validation Criteria
+
+#### Quality Checks
+
+**Embedding Consistency**:
+```bash
+# Verify embeddings are semantically equivalent
+folder-mcp test-embeddings \
+  --baseline ./baseline-embeddings.json \
+  --optimized ./gpu-embeddings.json \
+  --threshold 0.999
+
+# Expected: Cosine similarity > 0.999 for all vectors
+```
+
+**Search Quality**:
+```bash
+# Run identical search query on both indexes
+# Query: "execution provider GPU acceleration"
+
+# Baseline results
+folder-mcp search "execution provider GPU acceleration" \
+  --db ./baseline/.folder-mcp/database.db
+
+# GPU results
+folder-mcp search "execution provider GPU acceleration" \
+  --db ./gpu/.folder-mcp/database.db
+
+# Expected: Same documents, similar relevance scores
+```
+
+**Database Integrity**:
+```bash
+# Verify database sizes match (within 5%)
+du -sh ./baseline/.folder-mcp/database.db
+du -sh ./gpu/.folder-mcp/database.db
+
+# Verify chunk counts match
+sqlite3 ./baseline/.folder-mcp/database.db "SELECT COUNT(*) FROM chunks"
+sqlite3 ./gpu/.folder-mcp/database.db "SELECT COUNT(*) FROM chunks"
+```
+
+### Automated Benchmark Script
+
+Create `scripts/benchmark-execution-providers.sh`:
+
+```bash
+#!/bin/bash
+set -e
+
+CORPUS="${1:-./docs}"
+MODEL="${2:-cpu:xenova-multilingual-e5-large}"
+
+echo "=== Execution Provider Benchmark ==="
+echo "Corpus: $CORPUS"
+echo "Model: $MODEL"
+echo ""
+
+# Baseline (CPU)
+echo ">>> Running BASELINE (CPU only)..."
+rm -rf .folder-mcp/
+export ONNX_EXECUTION_PROVIDER=cpu
+time folder-mcp index "$CORPUS" --model "$MODEL" 2>&1 | tee baseline.log
+mv .folder-mcp .folder-mcp-baseline
+
+# GPU (Auto-detect)
+echo ""
+echo ">>> Running OPTIMIZED (GPU auto-detect)..."
+rm -rf .folder-mcp/
+unset ONNX_EXECUTION_PROVIDER
+time folder-mcp index "$CORPUS" --model "$MODEL" 2>&1 | tee gpu.log
+mv .folder-mcp .folder-mcp-gpu
+
+# Analysis
+echo ""
+echo "=== RESULTS ==="
+grep "Tokens Per Second" baseline.log
+grep "Tokens Per Second" gpu.log
+grep "Active Provider" baseline.log
+grep "Active Provider" gpu.log
+
+# Calculate speedup
+BASELINE_TIME=$(grep "Total Time" baseline.log | awk '{print $3}')
+GPU_TIME=$(grep "Total Time" gpu.log | awk '{print $3}')
+SPEEDUP=$(echo "scale=2; $BASELINE_TIME / $GPU_TIME" | bc)
+echo "Speedup: ${SPEEDUP}x"
+```
+
+Usage:
+```bash
+chmod +x scripts/benchmark-execution-providers.sh
+./scripts/benchmark-execution-providers.sh ./docs cpu:xenova-multilingual-e5-large
+```
+
+### Reporting Format
+
+#### Benchmark Report Template
+
+```markdown
+# Execution Provider Benchmark Report
+
+**Date**: 2025-11-04
+**Platform**: Linux (Ubuntu 22.04)
+**Hardware**:
+- CPU: Intel i7-12700K (12 cores, 3.6GHz)
+- GPU: NVIDIA RTX 3060 (12GB VRAM)
+- RAM: 32GB DDR4
+
+**Test Configuration**:
+- Corpus: ./docs (45 files, 75,000 words, 1.2MB)
+- Model: Xenova/multilingual-e5-large (1024 dims, int8)
+- ONNX Config: 2 workers × 2 threads, batch size 1
+
+## Baseline Results (CPU Only)
+
+| Metric | Value |
+|--------|-------|
+| Total Time | 485s (8m 5s) |
+| Tokens/Sec | 130 tok/s |
+| Docs/Min | 5.6 docs/min |
+| Peak CPU | 650% |
+| Memory | 2.8GB |
+| Provider | CPU |
+
+## Optimized Results (CUDA)
+
+| Metric | Value | vs Baseline |
+|--------|-------|-------------|
+| Total Time | 52s | **9.3x faster** |
+| Tokens/Sec | 1,200 tok/s | 9.2x |
+| Docs/Min | 52 docs/min | 9.3x |
+| Peak CPU | 280% | 57% reduction |
+| Peak GPU | 65% | - |
+| VRAM | 1.8GB / 12GB | - |
+| Memory | 2.2GB | 21% reduction |
+| Provider | CUDA | ✅ |
+
+## Quality Validation
+
+- ✅ Embedding similarity: 0.9995 (>0.999 threshold)
+- ✅ Search results: Identical top-10 documents
+- ✅ Database size: 145MB (baseline) vs 145MB (GPU) - match
+- ✅ Chunk count: 1,250 (both)
+
+## Conclusion
+
+CUDA execution provider delivers **9.3x speedup** for E5-Large model indexing with no quality degradation. Performance improvement meets design targets (8-12x for NVIDIA GPUs).
+```
+
+### Integration into Development Workflow
+
+#### Phase 0: Pre-Implementation Validation
+```bash
+# Establish current baseline before any code changes
+./scripts/benchmark-execution-providers.sh ./docs cpu:xenova-multilingual-e5-large
+# Save results: baseline-v1.0.0.log
+```
+
+#### Phase 1: Detection Layer
+```bash
+# No performance impact expected
+# Verify baseline unchanged
+```
+
+#### Phase 2: DirectML/CoreML Integration
+```bash
+# Run benchmark on Windows/macOS
+# Verify 3-5x speedup achieved
+./scripts/benchmark-execution-providers.sh ./docs cpu:xenova-multilingual-e5-large
+# Save results: directml-phase2.log
+```
+
+#### Phase 3: CUDA Support
+```bash
+# Run benchmark on Linux/Windows with NVIDIA
+# Verify 8-12x speedup achieved
+./scripts/benchmark-execution-providers.sh ./docs cpu:xenova-multilingual-e5-large
+# Save results: cuda-phase3.log
+```
+
+#### Phase 4: Regression Testing
+```bash
+# Final validation before release
+# Run on all platforms
+# Verify no baseline regression
+```
+
+---
+
 ## Risk Analysis
 
 ### Technical Risks
