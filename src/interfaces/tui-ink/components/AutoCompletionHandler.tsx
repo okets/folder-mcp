@@ -4,6 +4,7 @@ import { existsSync, statSync } from 'fs';
 import { getContainer } from '../../../di/container';
 import { CONFIG_SERVICE_TOKENS } from '../../../config/di-setup';
 import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
+import { getDefaultModelId } from '../../../config/model-registry.js';
 
 interface AutoCompletionHandlerProps {
     cliDir?: string | null | undefined;
@@ -82,7 +83,7 @@ export const AutoCompletionHandler: React.FC<AutoCompletionHandlerProps> = ({
                 setDirError('Failed to load directory information');
                 setModelError('Failed to load model information');
                 setAutoCompletedDir(process.cwd());
-                setAutoCompletedModel('cpu:xenova-multilingual-e5-small');
+                setAutoCompletedModel(getDefaultModelId());
                 setLoading(false);
             }
         };
