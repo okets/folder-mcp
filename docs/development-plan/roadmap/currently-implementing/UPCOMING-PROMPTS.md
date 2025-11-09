@@ -176,6 +176,3 @@ we implemented a manual synchronization mechanism between vec tables (containing
 1. verify deletion of a file removes it and it's embeddings from the database for all the chunks and the document itself. (please verify they actually existed before you delete the file)
 the folders have change tracking, so removing a file should remove it from the database.
 2. verify that changing a file's content removes it and re-adds it's data and embeddings properly.
-
-
-next, delete all files from all indexed folders except folder-mcp-roadmap-1.1.md (that exists in all of them). after a while test that the database only contains records for that file both in the regular tables and the vec tables.
