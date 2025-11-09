@@ -176,3 +176,33 @@ we implemented a manual synchronization mechanism between vec tables (containing
 1. verify deletion of a file removes it and it's embeddings from the database for all the chunks and the document itself. (please verify they actually existed before you delete the file)
 the folders have change tracking, so removing a file should remove it from the database.
 2. verify that changing a file's content removes it and re-adds it's data and embeddings properly.
+
+
+'/Users/hanan/Projects/folder-mcp/docs/development-plan/roadmap/folder-mcp-roadmap-1.1.md'
+We are finally in the user interface design of our application (phase 11)
+we have all of our core functionality working.
+This is how our TUI looks like:
+Landscape mode: [Image #1]
+Portrait mode: [Image #2]
+What you currently see in the "Main" panel is what will be the "Manage Monitored Folders" screen of 
+our app.
+The second panel (System Status) is just a container we used when we developed custom UI elements.
+
+We need to set up a full app layout. I don't know how it is going to look like yet but I have few 
+things we should consider when creating it:
+1. adding a remote access management screen (for the future phase 12)
+2. adding a live log screen
+3. adding a screen with a JSON connection string and button to help setup folder-mcp as an MCP 
+server in popular services like Claude desktop, Claude Code, VSCode, Cursor etc..
+
+please help me decide on a layout, navigation controller, and other screens we might need.
+The final outcome of our discussion should be ASCII screenshots, using our robust custom elements of
+ our app design. we should create a new .md document and work on these screens visually with a short
+ description of what belongs to each screen.
+Use the explore subagent to see what kind of custom ListItems we created and how our responsive 
+layout works.
+Use the planning subagent along with the sequential thinking mcp to work on how we can transform our
+ single functioning screen and wrapping it with a full app where everything is clear to the user and
+ uses mostly existing custom components.
+Interview me along the plan. I want to you to lead the solicitation and interview me as the main 
+client before coming up with the plan for the app layout, it's screens and navigation between them. 
