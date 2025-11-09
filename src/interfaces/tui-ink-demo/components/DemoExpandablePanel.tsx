@@ -5,7 +5,7 @@ import { TextInputItem } from './core/items/TextInputItem';
 import { LogItem, sampleLogs } from './core/items/LogItem';
 import { useNavigation } from '../hooks/useNavigation';
 import { useTerminalSize } from '../hooks/useTerminalSize';
-import { ThemeProvider } from '../contexts/ThemeContext';
+import { ThemeProvider } from '../../tui-ink/contexts/ThemeContext';
 
 // Mixed item types for demo
 type DemoItem = 

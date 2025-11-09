@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme } from '../../../../tui-ink/contexts/ThemeContext';
 import { useInput } from 'ink';
 
 export interface LogEntry {

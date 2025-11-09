@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Box, Text, useInput, Key } from 'ink';
 import { ExpandableListItem, useExpandableItem } from '../ExpandableListItem';
-import { useTheme } from '../../../contexts/ThemeContext';
+import { useTheme } from '../../../../tui-ink/contexts/ThemeContext';
 import { textColorProp } from '../../../utils/conditionalProps';
 
 export interface TextInputItemProps {

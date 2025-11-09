@@ -20,7 +20,7 @@ export const ThemedMainPanel: React.FC<{
     
     return (
         <GenericListPanel
-            title="Main"
+            title="Manage Folders"
             subtitle="Configuration"
             items={configItems}
             selectedIndex={navigation.mainSelectedIndex}
@@ -44,7 +44,7 @@ export const ThemedSecondaryPanel: React.FC<{
     
     return (
         <GenericListPanel
-            title="System Status"
+            title="Demo Controls"
             subtitle="Current state"
             items={statusItems}
             selectedIndex={navigation.statusSelectedIndex}

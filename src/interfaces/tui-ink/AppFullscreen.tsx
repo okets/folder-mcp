@@ -635,7 +635,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 isMainFocused={navigation.isMainFocused}
             >
                 <GenericListPanel
-                    title="Main"
+                    title="Manage Folders"
                     subtitle="Configuration"
                     items={configItems}
                     selectedIndex={navigation.mainSelectedIndex}
@@ -727,7 +727,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     }}
                 />
                 <GenericListPanel
-                    title="System Status"
+                    title="Demo Controls"
                     subtitle="Current state"
                     items={STATUS_ITEMS}
                     selectedIndex={navigation.statusSelectedIndex}
