@@ -250,7 +250,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     // Create a stable reference to handleModelChange for useMemo
     const stableHandleModelChange = React.useRef(handleModelChange);
     stableHandleModelChange.current = handleModelChange;
-    const { columns: rawColumns, rows } = useTerminalSize();
+    const { columns: rawColumns, rows, isResizing } = useTerminalSize();
     // Protect against narrow terminals that cause Yoga layout engine to freeze
     // Yoga doesn't handle automatic minimum sizes well, and text wrapping in narrow
     // spaces can cause infinite loops in layout calculations
@@ -580,6 +580,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             }
         }
     });
+
+    // Show resizing overlay during debounce period to prevent text overflow visibility
+    if (isResizing) {
+        return (
+            <Box flexDirection="column" height={rows} width={columns}>
+                <Box height={1} />
+                <Text color="blue" bold>⟳ Resizing...</Text>
+            </Box>
+        );
+    }
 
     // Check if daemon is connected - if not, show error screen (unless we're intentionally exiting)
     if (!fmdmConnection.connected && !fmdmConnection.connecting && !isExiting) {
