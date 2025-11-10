@@ -32,6 +32,7 @@ import { FolderIndexingStatus } from '../../daemon/models/fmdm';
 import { createValidationResult, ValidationState } from './components/core/ValidationState';
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { MINIMUM_TERMINAL_WIDTH } from './utils/terminalConstraints';
 
 /**
  * Maps folder indexing status to appropriate display color
@@ -249,7 +250,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     // Create a stable reference to handleModelChange for useMemo
     const stableHandleModelChange = React.useRef(handleModelChange);
     stableHandleModelChange.current = handleModelChange;
-    const { columns, rows } = useTerminalSize();
+    const { columns: rawColumns, rows } = useTerminalSize();
+    // Protect against narrow terminals that cause Yoga layout engine to freeze
+    // Yoga doesn't handle automatic minimum sizes well, and text wrapping in narrow
+    // spaces can cause infinite loops in layout calculations
+    const columns = Math.max(rawColumns, MINIMUM_TERMINAL_WIDTH);
+
     const di = useDI();
     const focusChainService = di.resolve(ServiceTokens.FocusChainService);
     const inputContextService = di.resolve(ServiceTokens.InputContextService);

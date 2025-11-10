@@ -111,6 +111,174 @@ This approach ensures:
 
 ---
 
+## Critical Architecture Findings: Focus Chain & Generic Patterns
+
+### StatusBar and Tab Indicator - ALREADY GENERIC ✅
+
+**Investigation Date**: 2025-11-09
+
+**Key Finding**: The TUI architecture is exceptionally well-designed. StatusBar keybindings and the `⁽ᵗᵃᵇ⁾` tab indicator are **already fully generic** and require NO refactoring.
+
+### 1. StatusBar Keybinding System (GENERIC)
+
+**How it Works:**
+- StatusBar uses `InputContextService.getFocusAwareKeyBindings()` method
+- This method **automatically** shows keybindings for whatever panel is currently focused
+- No hardcoded panel-specific logic exists
+- Completely dynamic based on focus chain state
+
+**Implementation:**
+```typescript
+// StatusBar.tsx
+const bindings = inputContextService.getFocusAwareKeyBindings();
+// Automatically shows correct bindings for focused panel
+```
+
+**Key Features:**
+- ✅ Modal-aware (shows only modal bindings when priority >= 1000)
+- ✅ Focus chain aware (collects bindings from focused element + ancestors)
+- ✅ Global handler support (includes handlers with priority < 0)
+- ✅ Automatic deduplication (prevents duplicate keys)
+- ✅ Change listeners (StatusBar updates automatically when focus changes)
+
+### 2. Tab Indicator `⁽ᵗᵃᵇ⁾` Logic (GENERIC)
+
+**How it Works:**
+- Implemented in `BorderedBox.tsx` (lines 56-68)
+- Shows `⁽ᵗᵃᵇ⁾` indicator when `focused={false}`
+- Hides indicator when `focused={true}`
+- Works for **any panel** that uses BorderedBox
+
+**Implementation:**
+```typescript
+const createTopBorder = () => {
+    if (focused) {
+        // Focused: show only title
+        return `${border.topLeft}${border.horizontal} ${title} ...${border.topRight}`;
+    } else {
+        // Not focused: show title + ⁽ᵗᵃᵇ⁾
+        const tabText = '⁽ᵗᵃᵇ⁾';
+        return `${border.topLeft}${border.horizontal} ${title} ... ${tabText} ${border.topRight}`;
+    }
+};
+```
+
+**Status**: ✅ No panel-specific logic, works universally
+
+### 3. Focus Chain Registration Pattern (FOR ALL PANELS)
+
+**Standard Pattern:**
+```typescript
+const MyPanel: React.FC<MyPanelProps> = ({
+    elementId,      // Unique panel identifier
+    parentId,       // Parent in focus hierarchy
+    isFocused,      // Current focus state
+    onInput         // Input handler callback
+}) => {
+    // 1. Define what keys this panel responds to
+    const keyBindings: IKeyBinding[] = [
+        { key: '↑↓', description: 'Navigate' },
+        { key: 'Enter', description: 'Select' }
+    ];
+
+    // 2. Implement input handler
+    const handleInput = useCallback((input: string, key: Key): boolean => {
+        if (!isFocused) return false;
+        // Handle keyboard input
+        return true; // Return true if consumed
+    }, [isFocused]);
+
+    // 3. Register with focus chain
+    useFocusChain({
+        elementId,
+        parentId,
+        isActive: isFocused,
+        keyBindings,        // ← StatusBar reads these automatically
+        onInput: handleInput,
+        priority: 100
+    });
+
+    // 4. Render with BorderedBox (gets ⁽ᵗᵃᵇ⁾ automatically)
+    return (
+        <BorderedBox
+            title="Panel Title"
+            focused={isFocused}  // ← Controls ⁽ᵗᵃᵇ⁾ indicator
+            width={width}
+            height={height}
+        >
+            {/* Content */}
+        </BorderedBox>
+    );
+};
+```
+
+### 4. Orientation-Aware Keybindings (PATTERN)
+
+**For NavigationPanel (and future panels with orientation awareness):**
+```typescript
+const keyBindings: IKeyBinding[] = orientation === 'landscape'
+    ? [{ key: '↑↓', description: 'Navigate' }]   // Landscape: up/down
+    : [{ key: '←→', description: 'Navigate' }];  // Portrait: left/right
+
+// StatusBar will automatically show correct bindings based on orientation
+```
+
+### 5. Automatic StatusBar Updates (THE MAGIC)
+
+**How StatusBar Updates When Focus Changes:**
+1. Panel focuses → `useFocusChain` called with `isActive: true`
+2. `focusChainService.setActive(elementId)` updates active element
+3. Panel's `handleInput` registered with its `keyBindings`
+4. `inputContextService.registerHandler()` → **notifies all listeners**
+5. StatusBar's change listener fires → calls `setKeyBindings()`
+6. StatusBar re-renders with new bindings
+
+**This is completely automatic - zero manual StatusBar updates needed!**
+
+### 6. What NavigationPanel Needs (FOLLOW THE PATTERN)
+
+**Current State:**
+- NavigationPanel exists visually but is NOT integrated with focus chain
+- Does NOT use `useFocusChain` hook
+- Does NOT register keybindings
+- Does NOT implement input handler
+
+**Required Changes:**
+1. Use `useFocusChain` hook with proper parameters
+2. Define `keyBindings` array (orientation-aware)
+3. Implement `handleInput` callback
+4. Pass `isFocused` from parent based on `activeContainer` state
+
+**That's it!** StatusBar and tab indicator will work automatically.
+
+### 7. Generic Pattern for Future Panels (5+ MORE PANELS)
+
+**No custom StatusBar logic needed per panel!**
+**No custom tab indicator logic needed per panel!**
+
+**To add a new panel:**
+1. Create component accepting `elementId`, `parentId`, `isFocused` props
+2. Define `keyBindings` array for that panel's keys
+3. Call `useFocusChain({ elementId, parentId, isActive: isFocused, keyBindings, onInput })`
+4. Use `BorderedBox` with `focused={isFocused}` prop
+5. StatusBar and `⁽ᵗᵃᵇ⁾` work automatically ✅
+
+### 8. Architecture Quality Assessment
+
+**Rating**: ⭐⭐⭐⭐⭐ Exceptional
+
+**Strengths:**
+- Fully generic and extensible
+- Focus chain pattern is clean and well-separated
+- StatusBar updates automatically via listener pattern
+- Tab indicator tied to focus state, not hardcoded
+- Orientation awareness supported
+- No code duplication needed for new panels
+
+**Conclusion**: The refactoring is **already complete**. NavigationPanel just needs to follow the existing pattern used by GenericListPanel.
+
+---
+
 ## Implementation Plan: 12 Steps
 
 ### Step 1: Rename Panel Titles ✅

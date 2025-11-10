@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext';
 import { ILayoutConstraints } from '../models/types';
+import { MINIMUM_TERMINAL_WIDTH, MINIMUM_TERMINAL_HEIGHT } from '../utils/terminalConstraints';
 // WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 // Removed useNavigationContext import to prevent re-renders
 
@@ -20,11 +21,16 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
     narrowBreakpoint = 100,
     isMainFocused = true
 }) => {
+    // Protect against invalid dimensions that cause Yoga layout engine issues
+    // Yoga layout engine can freeze with extremely small dimensions
+    const safeWidth = Math.max(availableWidth, MINIMUM_TERMINAL_WIDTH);
+    const safeHeight = Math.max(availableHeight, MINIMUM_TERMINAL_HEIGHT);
+
     // Remove navigation context usage to prevent re-renders
-    const isNarrow = availableWidth < narrowBreakpoint;
-    const isLowVerticalResolution = availableHeight < 20;
-    const isExtremelyLowVerticalResolution = availableHeight < 13;
-    
+    const isNarrow = safeWidth < narrowBreakpoint;
+    const isLowVerticalResolution = safeHeight < 20;
+    const isExtremelyLowVerticalResolution = safeHeight < 13;
+
     // WINDOWS FIX: Removed render-time debug logging to prevent ANSI packet fragmentation
     // Debug logging during render cycle causes Windows terminal flickering
     
@@ -38,8 +44,8 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
         if (isExtremelyLowVerticalResolution && panelCount === 2) {
             // Extremely low resolution: show frame only for inactive panel, full content for active
             const FRAME_ONLY_HEIGHT = 2; // Just borders touching (top + bottom)
-            const activeHeight = availableHeight - FRAME_ONLY_HEIGHT;
-            
+            const activeHeight = safeHeight - FRAME_ONLY_HEIGHT;
+
             if (isMainFocused) {
                 heights = [activeHeight, FRAME_ONLY_HEIGHT];
             } else {
@@ -48,8 +54,8 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
         } else if (isLowVerticalResolution && panelCount === 2) {
             // In low resolution, minimize inactive panel with message
             const MINIMIZED_HEIGHT = 3; // 1 content line + 2 borders for message
-            const activeHeight = availableHeight - MINIMIZED_HEIGHT;
-            
+            const activeHeight = safeHeight - MINIMIZED_HEIGHT;
+
             // Determine which panel is active
             if (isMainFocused) {
                 heights = [activeHeight, MINIMIZED_HEIGHT];
@@ -58,22 +64,22 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
             }
         } else {
             // Normal narrow mode: Use 70%/30% split
-            heights = panelCount === 2 
+            heights = panelCount === 2
                 ? (() => {
-                    const firstHeight = Math.floor(availableHeight * 0.7);
-                    const secondHeight = availableHeight - firstHeight;
+                    const firstHeight = Math.floor(safeHeight * 0.7);
+                    const secondHeight = safeHeight - firstHeight;
                     return [firstHeight, secondHeight];
                   })()
-                : children.map(() => Math.floor(availableHeight / panelCount));
+                : children.map(() => Math.floor(safeHeight / panelCount));
         }
-        
+
         return (
-            <Box flexDirection="column" height={availableHeight} width={availableWidth}>
+            <Box flexDirection="column" height={safeHeight} width={safeWidth}>
                 {children.map((child, index) => {
-                    
+
                     const constraints: ILayoutConstraints = {
-                        maxWidth: availableWidth,
-                        maxHeight: heights[index] ?? availableHeight,
+                        maxWidth: safeWidth,
+                        maxHeight: heights[index] ?? safeHeight,
                         overflow: 'truncate'
                     };
                     
@@ -92,10 +98,10 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
                     const layoutKey = `layout-narrow-${index}`;
                     return (
                         <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
-                            <Box height={heights[index]} width={availableWidth}>
+                            <Box height={heights[index]} width={safeWidth}>
                                 {React.cloneElement(child as React.ReactElement<any>, {
                                     height: heights[index],
-                                    width: availableWidth,
+                                    width: safeWidth,
                                     isMinimized,
                                     isFrameOnly
                                 })}
@@ -111,34 +117,34 @@ export const LayoutContainer: React.FC<LayoutContainerProps> = React.memo(({
         // Currently mimics the 70%/30% split for 2 panels
         const widths = children.length === 2
             ? (() => {
-                const firstWidth = Math.floor(availableWidth * 0.7);
-                const secondWidth = availableWidth - firstWidth; // Ensure no rounding errors
+                const firstWidth = Math.floor(safeWidth * 0.7);
+                const secondWidth = safeWidth - firstWidth; // Ensure no rounding errors
                 return [firstWidth, secondWidth];
               })()
             : (() => {
                 // Distribute width evenly, accounting for rounding
-                const baseWidth = Math.floor(availableWidth / children.length);
-                const remainder = availableWidth - (baseWidth * children.length);
-                return children.map((_, index) => 
+                const baseWidth = Math.floor(safeWidth / children.length);
+                const remainder = safeWidth - (baseWidth * children.length);
+                return children.map((_, index) =>
                     index < remainder ? baseWidth + 1 : baseWidth
                 );
               })();
-        
+
         return (
-            <Box height={availableHeight} width={availableWidth} flexDirection="row" flexWrap="nowrap" alignItems="flex-start">
+            <Box height={safeHeight} width={safeWidth} flexDirection="row" flexWrap="nowrap" alignItems="flex-start">
                 {children.map((child, index) => {
                     const constraints: ILayoutConstraints = {
-                        maxWidth: widths[index] ?? availableWidth,
-                        maxHeight: availableHeight,
+                        maxWidth: widths[index] ?? safeWidth,
+                        maxHeight: safeHeight,
                         overflow: 'truncate'
                     };
-                    
+
                     const layoutKey = `layout-wide-${index}`;
                     return (
                         <LayoutConstraintProvider key={layoutKey} constraints={constraints}>
-                            <Box width={widths[index]} height={availableHeight} flexShrink={0}>
+                            <Box width={widths[index]} height={safeHeight} flexShrink={0}>
                                 {React.cloneElement(child as React.ReactElement<any>, {
-                                    height: availableHeight,
+                                    height: safeHeight,
                                     width: widths[index]
                                 })}
                             </Box>
