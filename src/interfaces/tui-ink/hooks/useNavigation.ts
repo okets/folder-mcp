@@ -4,79 +4,99 @@ import { useFocusChain } from './useFocusChain';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
 
-export type ContainerType = 'main' | 'status';
+export type ContainerType = 'navigation' | 'main' | 'status';
+export type PanelId = 'folders' | 'demo';  // Panel IDs for navigation framework
 
 interface NavigationState {
     activeContainer: ContainerType;
+    navigationSelectedIndex: number;
     mainSelectedIndex: number;
     statusSelectedIndex: number;
+    activePanelId: PanelId;  // Active panel for navigation framework
 }
 
 interface UseNavigationOptions {
     isBlocked?: boolean;  // Whether navigation should be blocked (e.g., when editing)
+    navigationItemCount?: number;  // Number of navigation items
     configItemCount?: number;  // Number of configuration items
     statusItemCount?: number;  // Number of status items
 }
 
 export const useNavigation = (options: UseNavigationOptions = {}) => {
-    const { isBlocked = false, configItemCount = 20, statusItemCount = 20 } = options;
+    const { isBlocked = false, navigationItemCount = 2, configItemCount = 20, statusItemCount = 20 } = options;
     
     const [state, setState] = useState<NavigationState>({
-        activeContainer: 'main',
+        activeContainer: 'navigation',  // Start with navigation focused
+        navigationSelectedIndex: 0,
         mainSelectedIndex: 0,
-        statusSelectedIndex: 0
+        statusSelectedIndex: 0,
+        activePanelId: 'folders'  // Default to folders panel
     });
     const di = useDI();
 
     const switchContainer = useCallback(() => {
         if (isBlocked) return;
+        // Step 4: Only cycle between Navigation and Main (Demo Controls hidden)
         setState(prev => ({
             ...prev,
-            activeContainer: prev.activeContainer === 'main' ? 'status' : 'main'
+            activeContainer:
+                prev.activeContainer === 'navigation' ? 'main' : 'navigation'
         }));
     }, [isBlocked]);
 
     const navigateUp = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
-            const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
-            const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
+            const key =
+                prev.activeContainer === 'navigation' ? 'navigationSelectedIndex' :
+                prev.activeContainer === 'main' ? 'mainSelectedIndex' :
+                'statusSelectedIndex';
+            const maxItems =
+                prev.activeContainer === 'navigation' ? navigationItemCount :
+                prev.activeContainer === 'main' ? configItemCount :
+                statusItemCount;
             const currentIndex = prev[key];
             // Implement circular navigation - wrap from first to last
             const newIndex = currentIndex <= 0 ? maxItems - 1 : currentIndex - 1;
-            
+
             // Only update state if index actually changes
             if (currentIndex === newIndex) {
                 return prev; // Return the same state object to prevent re-render
             }
-            
+
             return {
                 ...prev,
                 [key]: newIndex
             };
         });
-    }, [isBlocked, configItemCount, statusItemCount]);
+    }, [isBlocked, navigationItemCount, configItemCount, statusItemCount]);
 
     const navigateDown = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
-            const key = prev.activeContainer === 'main' ? 'mainSelectedIndex' : 'statusSelectedIndex';
-            const maxItems = prev.activeContainer === 'main' ? configItemCount : statusItemCount;
+            const key =
+                prev.activeContainer === 'navigation' ? 'navigationSelectedIndex' :
+                prev.activeContainer === 'main' ? 'mainSelectedIndex' :
+                'statusSelectedIndex';
+            const maxItems =
+                prev.activeContainer === 'navigation' ? navigationItemCount :
+                prev.activeContainer === 'main' ? configItemCount :
+                statusItemCount;
             const currentIndex = prev[key];
             // Implement circular navigation - wrap from last to first
             const newIndex = currentIndex >= maxItems - 1 ? 0 : currentIndex + 1;
-            
+
             // CRITICAL: Only update state if index actually changes!
             if (currentIndex === newIndex) {
                 return prev; // Return the same state object to prevent re-render
             }
-            
+
             return {
                 ...prev,
                 [key]: newIndex
             };
         });
-    }, [isBlocked, configItemCount, statusItemCount]);
+    }, [isBlocked, navigationItemCount, configItemCount, statusItemCount]);
     
     const setMainSelectedIndex = useCallback((index: number) => {
         if (isBlocked) return;
@@ -124,6 +144,7 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         navigateUp,
         navigateDown,
         setMainSelectedIndex,
+        isNavigationFocused: state.activeContainer === 'navigation',
         isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
     }), [state, switchContainer, navigateUp, navigateDown, setMainSelectedIndex]);

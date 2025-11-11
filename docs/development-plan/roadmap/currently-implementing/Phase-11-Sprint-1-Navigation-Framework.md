@@ -376,244 +376,178 @@ const keyBindings: IKeyBinding[] = orientation === 'landscape'
 
 ---
 
-### Step 4: Add Static Navigation Items ✅
-**Status**: [ ] Not Started
+### Step 4: Single Panel with Navigation (Layout Verification) ✅
+**Status**: [x] Completed
 
-**Goal**: Display navigation menu items without interactivity
+**Goal**: Show only Manage Folders panel with Navigation, verify responsive behavior in all terminal sizes
 
 **Changes**:
-- Replace placeholder text in NavigationPanel with actual items:
-  - **Landscape**: Vertical list with two items:
-    - "📁 Manage Folders"
-    - "🎛️ Demo Controls"
-  - **Portrait**: Horizontal buttons (using `SimpleButtonsRow`) with same items
-- No selection state, no highlighting, no input handling yet
-- Items are just static visual elements
+1. Hide Demo Controls panel completely (remove from render or conditionally hide)
+2. Keep Navigation panel visible and functional
+3. Only show Manage Folders panel in content area
+4. Verify layout works in all terminal sizes and orientations
 
 **Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
+- `src/interfaces/tui-ink/AppFullscreen.tsx` - Removed LayoutContainer, rendering single GenericListPanel directly
+- `src/interfaces/tui-ink/hooks/useNavigation.ts` - Updated switchContainer to cycle between Navigation and Main only
+
+**Implementation Details**:
+- Replaced LayoutContainer (which requires multiple children) with direct Box wrapper
+- Removed Demo Controls panel from render completely
+- Updated Tab cycling to only move between Navigation → Main → Navigation (2-panel cycle)
+- Maintained all responsive dimension calculations (landscape vs portrait)
 
 **Verification Checklist**:
-- [ ] **Landscape**: Two items appear vertically in navigation panel
-- [ ] **Portrait**: Two items appear horizontally (button-like)
-- [ ] Icons (📁, 🎛️) render correctly
-- [ ] Text not truncated in landscape mode
-- [ ] Items fit properly in portrait mode (not overlapping)
-- [ ] No interaction possible yet (expected)
+- [ ] Only 2 panels visible: Navigation + Manage Folders
+- [ ] Demo Controls panel is completely hidden
+- [ ] **Landscape mode (>100 cols)**:
+  - [ ] Navigation panel on left (vertical list, 15% width)
+  - [ ] Manage Folders panel on right (85% width)
+  - [ ] No gaps or layout issues
+- [ ] **Portrait mode (≤100 cols)**:
+  - [ ] Navigation panel on top (horizontal list, 3 lines)
+  - [ ] Manage Folders panel below
+  - [ ] No overlapping or broken borders
+- [ ] Tab cycles between Navigation and Manage Folders only
+- [ ] Responsive behavior works at all terminal sizes
+- [ ] No layout breakage in narrow terminals (<60 cols)
+- [ ] No layout breakage in low-res terminals (<25 rows)
 
-**Rollback**: Revert to placeholder "Items coming soon" text
+**Rollback**: Re-show Demo Controls panel, restore LayoutContainer, restore 3-container cycle
 
 ---
 
-### Step 5: Add Navigation Selection Visual ✅
-**Status**: [ ] Not Started
+### Step 5: Navigation Focus & Orientation-Aware Hints ✅
+**Status**: [x] Completed
 
-**Goal**: Show visual indication of which panel is "active"
-
-**Changes**:
-- Add visual highlighting to first item ("📁 Manage Folders")
-- Use focus border color or background color to indicate active item
-- Hardcode selection to first item for now
-- Still no interactivity, purely visual
-
-**Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
-
-**Verification Checklist**:
-- [ ] First item ("📁 Manage Folders") appears highlighted/selected
-- [ ] Second item ("🎛️ Demo Controls") appears normal/unselected
-- [ ] Highlighting visible in both landscape and portrait modes
-- [ ] Highlighting uses appropriate theme color (focused border color)
-- [ ] No keyboard interaction yet (expected)
-
-**Rollback**: Remove highlighting styles, return to plain static items
-
----
-
-### Step 6: Wire Navigation Input (Landscape) ✅
-**Status**: [ ] Not Started
-
-**Goal**: Make navigation items respond to arrow keys in landscape mode only
+**Goal**: Navigation panel starts focused with first item selected, StatusBar shows correct navigation hints for orientation
 
 **Changes**:
-- Add `selectedIndex` state to NavigationPanel (0 = first item, 1 = second item)
-- Add keyboard input handler:
-  - ↑ (Up Arrow): Move selection to previous item (with boundary check)
-  - ↓ (Down Arrow): Move selection to next item (with boundary check)
-- Update visual highlighting based on `selectedIndex`
-- **Landscape mode only** - portrait mode stays static for now
-- No panel switching yet, just selection visual feedback
+1. Ensure Navigation panel is first in focus on TUI load (already done: `activeContainer: 'navigation'`)
+2. Ensure first item ("○ Manage Folders") is selected by default (already done: `navigationSelectedIndex: 0`)
+3. Update StatusBar to show orientation-aware navigation hints:
+   - **Landscape mode (>100 cols)**: "Navigate:↑↓"
+   - **Portrait mode (≤100 cols)**: "Navigate:←→"
+4. Ensure arrow keys work correctly in both orientations:
+   - Landscape: Up/Down navigate between items vertically
+   - Portrait: Left/Right navigate between items horizontally
 
 **Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
+- `src/interfaces/tui-ink/components/GenericListPanel.tsx` - Added `customKeyBindings` prop to allow panels to override automatic keybinding detection
+- `src/interfaces/tui-ink/components/NavigationPanel.tsx` - Added orientation-aware custom keybindings
+
+**Implementation Details**:
+- Added optional `customKeyBindings?: Array<{key: string, description: string}>` prop to GenericListPanel
+- Modified keybinding logic to use customKeyBindings if provided, otherwise auto-detect based on item type
+- NavigationPanel now computes keybindings based on orientation:
+  ```typescript
+  const customKeyBindings = orientation === 'landscape'
+      ? [{ key: '↑↓', description: 'Navigate' }]      // Landscape: up/down
+      : [{ key: '←→', description: 'Navigate' }];     // Portrait: left/right
+  ```
+- StatusBar automatically displays correct hints via focus chain (no StatusBar changes needed!)
+
+**Architecture Note**:
+This implementation leverages the existing generic focus chain system documented in the architecture guide. StatusBar uses `InputContextService.getFocusAwareKeyBindings()` which automatically reads keybindings from the focused element's focus chain registration. No manual StatusBar updates needed - it's fully automatic!
 
 **Verification Checklist**:
+- [ ] On TUI launch, Navigation panel is focused (border highlighted)
+- [ ] First item ("○ Manage Folders") is selected/highlighted
 - [ ] **Landscape mode**:
-  - [ ] Pressing ↓ moves selection from "Manage Folders" to "Demo Controls"
-  - [ ] Pressing ↑ moves selection from "Demo Controls" to "Manage Folders"
-  - [ ] Selection stops at boundaries (no wrap-around)
-  - [ ] Visual highlighting updates correctly
-  - [ ] No errors in console
-- [ ] **Portrait mode**: No changes (still static, expected)
-
-**Rollback**: Remove keyboard handler and selectedIndex state
-
----
-
-### Step 7: Wire Navigation Input (Portrait) ✅
-**Status**: [ ] Not Started
-
-**Goal**: Make navigation items respond to Left/Right arrows in portrait mode
-
-**Changes**:
-- Extend keyboard input handler for portrait mode:
-  - ← (Left Arrow): Move selection to previous item
-  - → (Right Arrow): Move selection to next item
-- Update `SimpleButtonsRow` to show selection highlight
-- Boundary checks apply (no wrap-around)
-
-**Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
-
-**Verification Checklist**:
+  - [ ] StatusBar shows "Navigate:↑↓"
+  - [ ] Up arrow moves selection up
+  - [ ] Down arrow moves selection down
+  - [ ] Items navigate vertically
 - [ ] **Portrait mode**:
-  - [ ] Pressing → moves selection from "Manage Folders" to "Demo Controls"
-  - [ ] Pressing ← moves selection from "Demo Controls" to "Manage Folders"
-  - [ ] Selection stops at boundaries
-  - [ ] Visual highlighting works in horizontal layout
-- [ ] **Landscape mode**: Still works as in Step 6
+  - [ ] StatusBar shows "Navigate:←→"
+  - [ ] Left arrow moves selection left
+  - [ ] Right arrow moves selection right
+  - [ ] Items navigate horizontally
+- [ ] Selection wraps/stops at boundaries appropriately
+- [ ] Switching between landscape/portrait updates StatusBar hints correctly
 
-**Rollback**: Remove portrait keyboard handling, keep landscape mode working
-
----
-
-### Step 8: Hide "Demo Controls" Panel by Default ✅
-**Status**: [ ] Not Started
-
-**Goal**: Prepare for dynamic panel switching by showing only one content panel
-
-**Changes**:
-- Modify `AppFullscreen.tsx` to conditionally render content panels
-- Show only "Manage Folders" panel initially
-- Hide "Demo Controls" panel completely (not just minimized)
-- Navigation still shows both items
-
-**Files Modified**:
-- `src/interfaces/tui-ink/AppFullscreen.tsx`
-
-**Verification Checklist**:
-- [ ] Navigation panel shows both items (📁 Manage Folders, 🎛️ Demo Controls)
-- [ ] Content area shows only "Manage Folders" panel
-- [ ] "Demo Controls" panel is not visible anywhere
-- [ ] Layout still looks correct (no weird gaps)
-- [ ] Manage Folders panel is fully functional
-
-**Rollback**: Re-show Demo Controls panel alongside Manage Folders
+**Rollback**: Remove customKeyBindings prop from GenericListPanel, remove keybinding logic from NavigationPanel
 
 ---
 
-### Step 9: Wire Panel Switching ✅
+### Step 6: Auto-Select Without Enter ✅
 **Status**: [ ] Not Started
 
-**Goal**: Make navigation selection actually switch between content panels
+**Goal**: Navigation items auto-select on cursor movement, no need to press Enter/Space
+
+**Current Behavior**:
+- Navigation items are TextListItem with `isNavigable = false`
+- Selection happens via `navigationSelectedIndex` change
+- Moving cursor should automatically "select" the item
+
+**Target Behavior**:
+- Moving cursor automatically selects the item (no Enter/Space required)
+- Remove any "Select:⏎" or "Select:␣" hints from StatusBar for Navigation panel
+- Visual feedback shows which item is under cursor
 
 **Changes**:
-- When navigation selection changes → call `setActivePanel(panelId)`
-- When `activePanelId` changes → update which content panel is rendered
-- Only one content panel visible at a time
-- Panel switching logic:
-  - Selection index 0 → `activePanelId = 'folders'` → Show Manage Folders
-  - Selection index 1 → `activePanelId = 'demo'` → Show Demo Controls
+1. Verify TextListItem auto-selection behavior (should already work this way)
+2. Update StatusBar to not show "Select" hints when Navigation panel is focused
+3. Ensure visual feedback is clear for which item is selected
 
 **Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx` (emit panel change)
-- `src/interfaces/tui-ink/AppFullscreen.tsx` (respond to panel change)
+- `src/interfaces/tui-ink/components/StatusBar.tsx` - Conditional hints based on active panel
+- Possibly `src/interfaces/tui-ink/components/NavigationPanel.tsx` - Ensure selection highlighting works
 
 **Verification Checklist**:
-- [ ] Selecting "📁 Manage Folders" in navigation → shows Manage Folders panel
-- [ ] Selecting "🎛️ Demo Controls" in navigation → shows Demo Controls panel
+- [ ] Moving up/down (landscape) or left/right (portrait) changes selection immediately
+- [ ] No "Select:⏎" or "Select:␣" hint in StatusBar when Navigation focused
+- [ ] Visual feedback clearly shows which item is selected
+- [ ] Selection works without pressing Enter or Space
+- [ ] StatusBar shows only navigation hints (not selection hints) for Navigation panel
+
+**Rollback**: Revert StatusBar changes
+
+---
+
+### Step 7: Panel Switching Based on Navigation Selection ✅
+**Status**: [ ] Not Started
+
+**Goal**: Switching navigation selection switches visible content panel
+
+**Changes**:
+1. Wire navigation selection to panel visibility:
+   - `navigationSelectedIndex === 0` → Show Manage Folders panel
+   - `navigationSelectedIndex === 1` → Show Demo Controls panel
+2. Bring back Demo Controls panel rendering (was hidden in Step 4)
+3. Only one content panel visible at a time
+4. Panel switch happens immediately when navigation selection changes
+
+**Implementation Pattern**:
+```typescript
+// In AppFullscreen.tsx
+const showManageFolders = navigation.navigationSelectedIndex === 0;
+const showDemoControls = navigation.navigationSelectedIndex === 1;
+
+// Then in render:
+{showManageFolders && <ManageFoldersPanel ... />}
+{showDemoControls && <DemoControlsPanel ... />}
+```
+
+**Files Modified**:
+- `src/interfaces/tui-ink/AppFullscreen.tsx` - Conditional rendering based on `navigation.navigationSelectedIndex`
+
+**Verification Checklist**:
+- [ ] Selecting "○ Manage Folders" (index 0) shows Manage Folders panel
+- [ ] Selecting "○ Demo Controls" (index 1) shows Demo Controls panel
 - [ ] Only one content panel visible at a time
 - [ ] Panel switching works in both landscape and portrait modes
-- [ ] FMDM data still displays correctly in Manage Folders panel
-- [ ] Demo controls still function properly in Demo Controls panel
-- [ ] No flickering or visual glitches during switch
+- [ ] Panel switching is instant (no flicker or visual glitches)
+- [ ] Tab key still works to move focus between Navigation and active content panel
+- [ ] Content panel maintains its own selection/scroll state
+- [ ] FMDM data displays correctly in Manage Folders panel
+- [ ] Demo controls function correctly in Demo Controls panel
 
-**Rollback**: Disconnect panel switching, show only Manage Folders panel statically
-
----
-
-### Step 10: Add Number Key Shortcuts ✅
-**Status**: [ ] Not Started
-
-**Goal**: Allow pressing "1" or "2" to directly switch panels from anywhere
-
-**Changes**:
-- Add global keyboard handler in `AppFullscreen.tsx`:
-  - Press `1` → Switch to Manage Folders panel
-  - Press `2` → Switch to Demo Controls panel
-- Works regardless of which panel currently has focus
-- Updates navigation selection to match
-
-**Files Modified**:
-- `src/interfaces/tui-ink/AppFullscreen.tsx`
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx` (accept external selection updates)
-
-**Verification Checklist**:
-- [ ] Pressing `1` switches to Manage Folders from any state
-- [ ] Pressing `2` switches to Demo Controls from any state
-- [ ] Navigation selection updates to match active panel
-- [ ] Shortcuts work when navigation panel has focus
-- [ ] Shortcuts work when content panel has focus
-- [ ] No conflicts with existing keyboard shortcuts
-
-**Rollback**: Remove number key handlers
+**Rollback**: Revert to showing only Manage Folders panel statically
 
 ---
 
-### Step 11: Create Panel Registry ✅
-**Status**: [ ] Not Started
-
-**Goal**: Formalize panel definitions for future extensibility
-
-**Changes**:
-- Create `src/interfaces/tui-ink/PanelRegistry.ts`:
-  ```typescript
-  interface PanelDefinition {
-    id: string;           // 'folders' | 'demo'
-    label: string;        // Display name
-    icon: string;         // Emoji or symbol
-    shortcut: string;     // '1' | '2'
-    component: React.FC<PanelProps>;
-  }
-
-  export const PANEL_REGISTRY: PanelDefinition[] = [
-    { id: 'folders', label: 'Manage Folders', icon: '📁', shortcut: '1', component: ManageFoldersPanel },
-    { id: 'demo', label: 'Demo Controls', icon: '🎛️', shortcut: '2', component: DemoControlsPanel }
-  ];
-  ```
-- Refactor NavigationPanel to read from registry
-- Refactor AppFullscreen to use registry for rendering
-- No visual changes, pure code organization
-
-**Files Created**:
-- `src/interfaces/tui-ink/PanelRegistry.ts`
-
-**Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
-- `src/interfaces/tui-ink/AppFullscreen.tsx`
-
-**Verification Checklist**:
-- [ ] TUI launches without errors
-- [ ] Everything works exactly as in Step 10 (no visual changes)
-- [ ] TypeScript compiles without errors
-- [ ] Panel switching still works
-- [ ] Number shortcuts still work
-
-**Rollback**: Revert to hardcoded panel definitions
-
----
-
-### Step 12: Comprehensive Responsiveness Verification ✅
+### Step 8: Comprehensive Responsiveness Verification ✅
 **Status**: [ ] Not Started
 
 **Goal**: Verify all responsive scenarios work correctly
@@ -838,19 +772,15 @@ After Sprint 1 completion, adding new panels is straightforward:
 ## Completion Tracking
 
 - [x] Step 1: Rename Panel Titles
-- [ ] Step 2: Add Navigation State to Context
-- [ ] Step 3: Create Empty Navigation Panel
-- [ ] Step 4: Add Static Navigation Items
-- [ ] Step 5: Add Navigation Selection Visual
-- [ ] Step 6: Wire Navigation Input (Landscape)
-- [ ] Step 7: Wire Navigation Input (Portrait)
-- [ ] Step 8: Hide "Demo Controls" Panel by Default
-- [ ] Step 9: Wire Panel Switching
-- [ ] Step 10: Add Number Key Shortcuts
-- [ ] Step 11: Create Panel Registry
-- [ ] Step 12: Comprehensive Responsiveness Verification
+- [x] Step 2: Add Navigation State to Context
+- [x] Step 3: Create Empty Navigation Panel (with Tab focus)
+- [x] Step 4: Single Panel with Navigation (Layout Verification)
+- [x] Step 5: Navigation Focus & Orientation-Aware Hints
+- [ ] Step 6: Auto-Select Without Enter
+- [ ] Step 7: Panel Switching Based on Navigation Selection
+- [ ] Step 8: Comprehensive Responsiveness Verification
 
-**Sprint Status**: 1/12 steps completed (8%)
+**Sprint Status**: 5/8 steps completed (63%)
 
 ---
 
@@ -861,3 +791,5 @@ After Sprint 1 completion, adding new panels is straightforward:
 | 2025-11-09 | Sprint 1 work document created            | Claude |
 | 2025-11-09 | Step 1 completed: Panel titles renamed    | Claude |
 | 2025-11-09 | Legacy code cleanup: 13 files deleted     | Claude |
+| 2025-11-10 | Step 4 completed: Single panel layout verified | Claude |
+| 2025-11-10 | Step 5 completed: Orientation-aware navigation hints | Claude |

@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { StatusBar } from './components/StatusBar';
 import { LayoutContainer } from './components/LayoutContainer';
 import { GenericListPanel } from './components/GenericListPanel';
+import { NavigationPanel } from './components/NavigationPanel';
 import { useNavigationContext } from './contexts/NavigationContext';
 import { useTerminalSize } from './hooks/useTerminalSize';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain';
@@ -633,127 +634,150 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const isLowResolution = rows < 25;
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
-    
+    const NAV_PANEL_HEIGHT = isLowResolution ? 1 : 3; // Navigation panel height for portrait mode
+
     // Windows needs rows-1 to prevent jittering on large terminals
     // Other platforms can use full rows with proper cursor positioning
     const isWindows = process.platform === 'win32';
     const effectiveRows = isWindows ? rows - 1 : rows;
-    const availableHeight = effectiveRows - HEADER_HEIGHT - STATUS_BAR_HEIGHT;
-    
+
+    // Detect orientation based on terminal width
+    const isLandscape = columns > 100;
+    const NAV_PANEL_WIDTH = isLandscape ? Math.floor(columns * 0.15) : 0;
+
+    // Calculate available dimensions for content area
+    const contentAvailableHeight = isLandscape
+        ? effectiveRows - HEADER_HEIGHT - STATUS_BAR_HEIGHT
+        : effectiveRows - HEADER_HEIGHT - STATUS_BAR_HEIGHT - NAV_PANEL_HEIGHT;
+    const contentAvailableWidth = isLandscape ? columns - NAV_PANEL_WIDTH : columns;
+
     return (
         <Box flexDirection="column" height={effectiveRows} width={columns}>
             <Header themeName={themeContext.themeName} />
-            
-            <LayoutContainer
-                availableHeight={availableHeight}
-                availableWidth={columns}
-                narrowBreakpoint={100}
-                isMainFocused={navigation.isMainFocused}
-            >
-                <GenericListPanel
-                    title="Manage Folders"
-                    subtitle="Configuration"
-                    items={configItems}
-                    selectedIndex={navigation.mainSelectedIndex}
-                    isFocused={navigation.isMainFocused}
-                    elementId="main-panel"
-                    parentId="navigation"
-                    priority={50}
-                    onInput={(input, key) => {
-                        // Check if current item is controlling input (expanded)
-                        const currentItem = configItems[navigation.mainSelectedIndex];
-                        if (currentItem?.isControllingInput) {
-                            // Let the GenericListPanel delegate to the expanded item
-                            return false;
-                        }
-                        
-                        // Special handling for SimpleButtonsRow - when it delegates navigation,
-                        // it has already exited control mode, so we need to handle re-selection
-                        if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
-                            // Ensure the item is properly selected after navigation from buttons
-                            currentItem.isActive = true;
-                            currentItem.onSelect();
-                        }
-                        
-                        // Handle navigation with awareness of navigable items only for collapsed items
-                        if (key.downArrow) {
-                            const currentIndex = navigation.mainSelectedIndex;
-                            // Find next navigable item
-                            let nextIndex = currentIndex;
-                            let found = false;
-                            
-                            // Try to find next navigable item
-                            for (let i = currentIndex + 1; i < configItems.length; i++) {
-                                const item = configItems[i];
-                                if (item && item.isNavigable !== false) {
-                                    nextIndex = i;
-                                    found = true;
-                                    break;
-                                }
+
+            {/* Navigation Panel - Portrait Mode (top) */}
+            {!isLandscape && (
+                <NavigationPanel
+                    width={columns}
+                    height={NAV_PANEL_HEIGHT}
+                    isFocused={navigation.isNavigationFocused}
+                    orientation="portrait"
+                    selectedIndex={navigation.navigationSelectedIndex}
+                />
+            )}
+
+            {/* Main Content Area */}
+            <Box flexDirection="row" width={columns} height={contentAvailableHeight}>
+                {/* Navigation Panel - Landscape Mode (left) */}
+                {isLandscape && (
+                    <NavigationPanel
+                        width={NAV_PANEL_WIDTH}
+                        height={contentAvailableHeight}
+                        isFocused={navigation.isNavigationFocused}
+                        orientation="landscape"
+                        selectedIndex={navigation.navigationSelectedIndex}
+                    />
+                )}
+
+                {/* Content Panel - Step 4: Only show Manage Folders for layout verification */}
+                <Box width={contentAvailableWidth} height={contentAvailableHeight}>
+                    <GenericListPanel
+                        title="Manage Folders"
+                        subtitle="Configuration"
+                        items={configItems}
+                        selectedIndex={navigation.mainSelectedIndex}
+                        isFocused={navigation.isMainFocused}
+                        width={contentAvailableWidth}
+                        height={contentAvailableHeight}
+                        elementId="main-panel"
+                        parentId="navigation"
+                        priority={50}
+                        onInput={(input, key) => {
+                            // Check if current item is controlling input (expanded)
+                            const currentItem = configItems[navigation.mainSelectedIndex];
+                            if (currentItem?.isControllingInput) {
+                                // Let the GenericListPanel delegate to the expanded item
+                                return false;
                             }
-                            
-                            // If not found, wrap to beginning and find first navigable
-                            if (!found) {
-                                for (let i = 0; i <= currentIndex; i++) {
+
+                            // Special handling for SimpleButtonsRow - when it delegates navigation,
+                            // it has already exited control mode, so we need to handle re-selection
+                            if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
+                                // Ensure the item is properly selected after navigation from buttons
+                                currentItem.isActive = true;
+                                currentItem.onSelect();
+                            }
+
+                            // Handle navigation with awareness of navigable items only for collapsed items
+                            if (key.downArrow) {
+                                const currentIndex = navigation.mainSelectedIndex;
+                                // Find next navigable item
+                                let nextIndex = currentIndex;
+                                let found = false;
+
+                                // Try to find next navigable item
+                                for (let i = currentIndex + 1; i < configItems.length; i++) {
                                     const item = configItems[i];
                                     if (item && item.isNavigable !== false) {
                                         nextIndex = i;
+                                        found = true;
                                         break;
                                     }
                                 }
-                            }
-                            
-                            if (nextIndex !== currentIndex) {
-                                navigation.setMainSelectedIndex(nextIndex);
-                                return true;
-                            }
-                        } else if (key.upArrow) {
-                            const currentIndex = navigation.mainSelectedIndex;
-                            // Find previous navigable item
-                            let prevIndex = currentIndex;
-                            let found = false;
-                            
-                            // Try to find previous navigable item
-                            for (let i = currentIndex - 1; i >= 0; i--) {
-                                const item = configItems[i];
-                                if (item && item.isNavigable !== false) {
-                                    prevIndex = i;
-                                    found = true;
-                                    break;
+
+                                // If not found, wrap to beginning and find first navigable
+                                if (!found) {
+                                    for (let i = 0; i <= currentIndex; i++) {
+                                        const item = configItems[i];
+                                        if (item && item.isNavigable !== false) {
+                                            nextIndex = i;
+                                            break;
+                                        }
+                                    }
                                 }
-                            }
-                            
-                            // If not found, wrap to end and find last navigable
-                            if (!found) {
-                                for (let i = configItems.length - 1; i >= currentIndex; i--) {
+
+                                if (nextIndex !== currentIndex) {
+                                    navigation.setMainSelectedIndex(nextIndex);
+                                    return true;
+                                }
+                            } else if (key.upArrow) {
+                                const currentIndex = navigation.mainSelectedIndex;
+                                // Find previous navigable item
+                                let prevIndex = currentIndex;
+                                let found = false;
+
+                                // Try to find previous navigable item
+                                for (let i = currentIndex - 1; i >= 0; i--) {
                                     const item = configItems[i];
                                     if (item && item.isNavigable !== false) {
                                         prevIndex = i;
+                                        found = true;
                                         break;
                                     }
                                 }
+
+                                // If not found, wrap to end and find last navigable
+                                if (!found) {
+                                    for (let i = configItems.length - 1; i >= currentIndex; i--) {
+                                        const item = configItems[i];
+                                        if (item && item.isNavigable !== false) {
+                                            prevIndex = i;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (prevIndex !== currentIndex) {
+                                    navigation.setMainSelectedIndex(prevIndex);
+                                    return true;
+                                }
                             }
-                            
-                            if (prevIndex !== currentIndex) {
-                                navigation.setMainSelectedIndex(prevIndex);
-                                return true;
-                            }
-                        }
-                        return false; // Let other navigation handle it
-                    }}
-                />
-                <GenericListPanel
-                    title="Demo Controls"
-                    subtitle="Current state"
-                    items={STATUS_ITEMS}
-                    selectedIndex={navigation.statusSelectedIndex}
-                    isFocused={navigation.isStatusFocused}
-                    elementId="status-panel"
-                    parentId="navigation"
-                    priority={50}
-                />
-            </LayoutContainer>
-            
+                            return false; // Let other navigation handle it
+                        }}
+                    />
+                </Box>
+            </Box>
+
             <StatusBar countdown={countdown} />
         </Box>
     );

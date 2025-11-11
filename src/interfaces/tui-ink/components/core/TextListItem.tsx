@@ -184,7 +184,7 @@ export class TextListItem implements IListItem {
                         <Text>
                             {"   "}
                         </Text>
-                        <Text color="gray">
+                        <Text color={this.isActive ? theme.colors.accent : "gray"}>
                             {displayText}
                         </Text>
                     </Transform>

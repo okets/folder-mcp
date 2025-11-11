@@ -26,6 +26,7 @@ interface GenericListPanelProps {
     elementId: string;
     parentId: string;
     priority?: number;
+    customKeyBindings?: Array<{key: string, description: string}>;  // Override automatic keybinding detection
 }
 
 const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
@@ -41,7 +42,8 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     isFrameOnly = false,
     elementId,
     parentId,
-    priority = 50
+    priority = 50,
+    customKeyBindings
 }) => {
     const { columns, rows } = useTerminalSize();
     
@@ -311,35 +313,42 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         return false;
     }, [items, selectedIndex, onInput, triggerUpdate]);
     
-    // Determine key bindings based on selected item
-    const selectedItem = items[selectedIndex];
-    const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
-    const hasDetails = isLogItem && (selectedItem as any).details;
-    const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
-    
+    // Determine key bindings based on selected item (or use custom bindings if provided)
     let keyBindings: Array<{key: string, description: string}> = [];
-    if (isLogItem && hasDetails) {
-        // LogItem with details - can expand/collapse
-        if (isExpanded) {
-            keyBindings = [
-                { key: '←/Esc', description: 'Collapse' },
-                { key: 'Enter', description: 'Toggle' }
-            ];
+
+    if (customKeyBindings) {
+        // Use custom keybindings if provided (for special panels like Navigation)
+        keyBindings = customKeyBindings;
+    } else {
+        // Auto-detect keybindings based on selected item type
+        const selectedItem = items[selectedIndex];
+        const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+        const hasDetails = isLogItem && (selectedItem as any).details;
+        const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
+
+        if (isLogItem && hasDetails) {
+            // LogItem with details - can expand/collapse
+            if (isExpanded) {
+                keyBindings = [
+                    { key: '←/Esc', description: 'Collapse' },
+                    { key: 'Enter', description: 'Toggle' }
+                ];
+            } else {
+                keyBindings = [
+                    { key: '→/Enter', description: 'Expand' }
+                ];
+            }
+        } else if (isLogItem) {
+            // LogItem without details - no actions
+            keyBindings = [];
         } else {
+            // For ConfigurationListItem and other items
             keyBindings = [
-                { key: '→/Enter', description: 'Expand' }
+                { key: 'Enter', description: 'Edit' }
             ];
         }
-    } else if (isLogItem) {
-        // LogItem without details - no actions
-        keyBindings = [];
-    } else {
-        // For ConfigurationListItem and other items
-        keyBindings = [
-            { key: 'Enter', description: 'Edit' }
-        ];
     }
-    
+
     // Use focus chain
     useFocusChain({
         elementId: elementId,
