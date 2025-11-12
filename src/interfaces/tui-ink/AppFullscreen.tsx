@@ -684,20 +684,22 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     />
                 )}
 
-                {/* Content Panel - Step 4: Only show Manage Folders for layout verification */}
+                {/* Content Panel - Conditionally render based on navigation selection */}
                 <Box width={contentAvailableWidth} height={contentAvailableHeight}>
-                    <GenericListPanel
-                        title="Manage Folders"
-                        subtitle="Configuration"
-                        items={configItems}
-                        selectedIndex={navigation.mainSelectedIndex}
-                        isFocused={navigation.isMainFocused}
-                        width={contentAvailableWidth}
-                        height={contentAvailableHeight}
-                        elementId="main-panel"
-                        parentId="navigation"
-                        priority={50}
-                        onInput={(input, key) => {
+                    {navigation.navigationSelectedIndex === 0 ? (
+                        // Manage Folders Panel
+                        <GenericListPanel
+                            title="Manage Folders"
+                            subtitle="Configuration"
+                            items={configItems}
+                            selectedIndex={navigation.mainSelectedIndex}
+                            isFocused={navigation.isMainFocused}
+                            width={contentAvailableWidth}
+                            height={contentAvailableHeight}
+                            elementId="main-panel"
+                            parentId="navigation"
+                            priority={50}
+                            onInput={(input, key) => {
                             // Check if current item is controlling input (expanded)
                             const currentItem = configItems[navigation.mainSelectedIndex];
                             if (currentItem?.isControllingInput) {
@@ -780,6 +782,103 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             return false; // Let other navigation handle it
                         }}
                     />
+                    ) : (
+                        // Demo Controls Panel
+                        <GenericListPanel
+                            title="Demo Controls"
+                            subtitle="Component Testing"
+                            items={STATUS_ITEMS}
+                            selectedIndex={navigation.statusSelectedIndex}
+                            isFocused={navigation.isMainFocused}
+                            width={contentAvailableWidth}
+                            height={contentAvailableHeight}
+                            elementId="status-panel"
+                            parentId="navigation"
+                            priority={50}
+                            onInput={(input, key) => {
+                                // Check if current item is controlling input (expanded)
+                                const currentItem = STATUS_ITEMS[navigation.statusSelectedIndex];
+                                if (currentItem?.isControllingInput) {
+                                    // Let the GenericListPanel delegate to the expanded item
+                                    return false;
+                                }
+
+                                // Special handling for SimpleButtonsRow - when it delegates navigation,
+                                // it has already exited control mode, so we need to handle re-selection
+                                if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
+                                    // Ensure the item is properly selected after navigation from buttons
+                                    currentItem.isActive = true;
+                                    currentItem.onSelect();
+                                }
+
+                                // Handle navigation with awareness of navigable items only for collapsed items
+                                if (key.downArrow) {
+                                    const currentIndex = navigation.statusSelectedIndex;
+                                    // Find next navigable item
+                                    let nextIndex = currentIndex;
+                                    let found = false;
+
+                                    // Try to find next navigable item
+                                    for (let i = currentIndex + 1; i < STATUS_ITEMS.length; i++) {
+                                        const item = STATUS_ITEMS[i];
+                                        if (item && item.isNavigable !== false) {
+                                            nextIndex = i;
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+
+                                    // If not found, wrap to beginning and find first navigable
+                                    if (!found) {
+                                        for (let i = 0; i <= currentIndex; i++) {
+                                            const item = STATUS_ITEMS[i];
+                                            if (item && item.isNavigable !== false) {
+                                                nextIndex = i;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (nextIndex !== currentIndex) {
+                                        navigation.setStatusSelectedIndex(nextIndex);
+                                        return true;
+                                    }
+                                } else if (key.upArrow) {
+                                    const currentIndex = navigation.statusSelectedIndex;
+                                    // Find previous navigable item
+                                    let prevIndex = currentIndex;
+                                    let found = false;
+
+                                    // Try to find previous navigable item
+                                    for (let i = currentIndex - 1; i >= 0; i--) {
+                                        const item = STATUS_ITEMS[i];
+                                        if (item && item.isNavigable !== false) {
+                                            prevIndex = i;
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+
+                                    // If not found, wrap to end and find last navigable
+                                    if (!found) {
+                                        for (let i = STATUS_ITEMS.length - 1; i >= currentIndex; i--) {
+                                            const item = STATUS_ITEMS[i];
+                                            if (item && item.isNavigable !== false) {
+                                                prevIndex = i;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (prevIndex !== currentIndex) {
+                                        navigation.setStatusSelectedIndex(prevIndex);
+                                        return true;
+                                    }
+                                }
+                                return false; // Let other navigation handle it
+                            }}
+                        />
+                    )}
                 </Box>
             </Box>
 

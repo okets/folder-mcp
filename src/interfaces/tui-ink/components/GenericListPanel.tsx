@@ -323,6 +323,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         // Auto-detect keybindings based on selected item type
         const selectedItem = items[selectedIndex];
         const isLogItem = selectedItem && 'onExpand' in selectedItem && 'onCollapse' in selectedItem;
+        const isTextItem = selectedItem && 'isNavigable' in selectedItem && !selectedItem.isNavigable;
         const hasDetails = isLogItem && (selectedItem as any).details;
         const isExpanded = isLogItem && (selectedItem as any)._isExpanded;
 
@@ -338,11 +339,11 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                     { key: '→/Enter', description: 'Expand' }
                 ];
             }
-        } else if (isLogItem) {
-            // LogItem without details - no actions
+        } else if (isLogItem || isTextItem) {
+            // LogItem without details OR TextItem - no action keys needed
             keyBindings = [];
         } else {
-            // For ConfigurationListItem and other items
+            // For ConfigurationListItem and other interactive items
             keyBindings = [
                 { key: 'Enter', description: 'Edit' }
             ];

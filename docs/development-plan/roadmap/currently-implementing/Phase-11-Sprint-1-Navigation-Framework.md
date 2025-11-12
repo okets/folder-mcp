@@ -532,9 +532,9 @@ This implementation leverages the existing generic focus chain system documented
 ---
 
 ### Step 6: Auto-Select Without Enter ✅
-**Status**: [ ] Not Started
+**Status**: [x] Completed (2025-11-12)
 
-**Goal**: Navigation items auto-select on cursor movement, no need to press Enter/Space
+**Goal**: Navigation items auto-select on cursor movement, implement proper highlighting and arrow key navigation
 
 **Current Behavior**:
 - Navigation items are TextListItem with `isNavigable = false`
@@ -543,68 +543,111 @@ This implementation leverages the existing generic focus chain system documented
 
 **Target Behavior**:
 - Moving cursor automatically selects the item (no Enter/Space required)
-- Remove any "Select:⏎" or "Select:␣" hints from StatusBar for Navigation panel
-- Visual feedback shows which item is under cursor
+- Navigation items stay highlighted when focus moves to Main panel
+- Proper icon states: `▶` when active, `●` when selected but not active, `○` when not selected
 
-**Changes**:
-1. Verify TextListItem auto-selection behavior (should already work this way)
-2. Update StatusBar to not show "Select" hints when Navigation panel is focused
-3. Ensure visual feedback is clear for which item is selected
+**Changes Implemented**:
+1. **Created NavigationListItem class** (`src/interfaces/tui-ink/components/core/NavigationListItem.tsx`):
+   - Uses separate `isSelected` property for visual state (independent of focus)
+   - Implements proper icon logic: `▶` (active cursor), `●` (selected), `○` (not selected)
+   - Has `isActive` getter/setter for interface compliance but rendering uses `isSelected`
+   - Added `formattedText` getter to expose text for HorizontalListRenderer
+
+2. **Updated NavigationPanel** to use NavigationListItem instead of TextListItem:
+   - Navigation items now maintain blue highlighting when focus moves away
+   - Proper cursor icon management (only one `▶` on screen at a time)
+
+3. **Added setStatusSelectedIndex()** to NavigationContext:
+   - Allows Demo Controls panel to update its selection state
+   - Mirrors existing `setMainSelectedIndex()` pattern
+
+4. **Fixed portrait mode text rendering**:
+   - Added `formattedText` getter to NavigationListItem
+   - HorizontalListRenderer now correctly displays navigation item labels
 
 **Files Modified**:
-- `src/interfaces/tui-ink/components/StatusBar.tsx` - Conditional hints based on active panel
-- Possibly `src/interfaces/tui-ink/components/NavigationPanel.tsx` - Ensure selection highlighting works
+- `src/interfaces/tui-ink/components/core/NavigationListItem.tsx` (NEW) - Navigation-specific list item
+- `src/interfaces/tui-ink/components/NavigationPanel.tsx` - Use NavigationListItem
+- `src/interfaces/tui-ink/hooks/useNavigation.ts` - Added setStatusSelectedIndex
+
+**Implementation Details**:
+- **Icon Logic**: `(isSelected && isActive) ? '▶' : (isSelected ? '●' : icon)`
+  - Prevents duplicate cursors across panels
+  - Clear visual distinction between active, selected, and inactive states
+
+- **State Separation**: `isSelected` (visual) vs `isActive` (focus)
+  - `isSelected` = true when navigationSelectedIndex matches this item
+  - `isActive` = true when panel has focus (set by GenericListPanel/HorizontalListRenderer)
+  - Rendering uses only `isSelected` for colors and `isSelected && isActive` for cursor
 
 **Verification Checklist**:
-- [ ] Moving up/down (landscape) or left/right (portrait) changes selection immediately
-- [ ] No "Select:⏎" or "Select:␣" hint in StatusBar when Navigation focused
-- [ ] Visual feedback clearly shows which item is selected
-- [ ] Selection works without pressing Enter or Space
-- [ ] StatusBar shows only navigation hints (not selection hints) for Navigation panel
+- [x] Moving up/down (landscape) or left/right (portrait) changes selection immediately
+- [x] Navigation item stays blue when Tab moves focus to Main panel
+- [x] Only one `▶` cursor visible at any time
+- [x] Selected navigation item shows `●` when not active, `▶` when active
+- [x] Portrait mode shows navigation text labels correctly
+- [x] Selection works without pressing Enter or Space
 
-**Rollback**: Revert StatusBar changes
+**Rollback**: Replace NavigationListItem with TextListItem in NavigationPanel
 
 ---
 
 ### Step 7: Panel Switching Based on Navigation Selection ✅
-**Status**: [ ] Not Started
+**Status**: [x] Completed (2025-11-12)
 
-**Goal**: Switching navigation selection switches visible content panel
+**Goal**: Switching navigation selection switches visible content panel, implement arrow key navigation for Demo Controls
 
-**Changes**:
-1. Wire navigation selection to panel visibility:
-   - `navigationSelectedIndex === 0` → Show Manage Folders panel
-   - `navigationSelectedIndex === 1` → Show Demo Controls panel
-2. Bring back Demo Controls panel rendering (was hidden in Step 4)
-3. Only one content panel visible at a time
-4. Panel switch happens immediately when navigation selection changes
+**Changes Implemented**:
+1. **Panel Conditional Rendering** in AppFullscreen.tsx:
+   - Used ternary operator for efficient conditional rendering
+   - `navigationSelectedIndex === 0` → Manage Folders panel
+   - `navigationSelectedIndex === 1` → Demo Controls panel
+   - Only one content panel rendered at a time
+
+2. **Demo Controls Navigation** (lines 798-879 in AppFullscreen.tsx):
+   - Added comprehensive `onInput` handler to Demo Controls GenericListPanel
+   - Implements up/down arrow navigation with circular wrapping
+   - Skips non-navigable items (like TextListItem section headers)
+   - Handles expanded item control mode (dropdowns, inputs)
+   - Supports SimpleButtonsRow special handling
 
 **Implementation Pattern**:
 ```typescript
-// In AppFullscreen.tsx
-const showManageFolders = navigation.navigationSelectedIndex === 0;
-const showDemoControls = navigation.navigationSelectedIndex === 1;
-
-// Then in render:
-{showManageFolders && <ManageFoldersPanel ... />}
-{showDemoControls && <DemoControlsPanel ... />}
+// In AppFullscreen.tsx (lines 691-881)
+{navigation.navigationSelectedIndex === 0 ? (
+    // Manage Folders Panel with navigation logic
+    <GenericListPanel ... onInput={manageFoldersInputHandler} />
+) : (
+    // Demo Controls Panel with navigation logic
+    <GenericListPanel ... onInput={demoControlsInputHandler} />
+)}
 ```
 
+**Navigation Logic Details**:
+- **Arrow Down**: Find next navigable item, wrap to beginning if at end
+- **Arrow Up**: Find previous navigable item, wrap to end if at beginning
+- **Expanded Items**: Delegate input handling to expanded items (dropdowns, pickers)
+- **State Updates**: Use `navigation.setMainSelectedIndex()` / `navigation.setStatusSelectedIndex()`
+- **Change Detection**: Only update state if index actually changed (prevents re-renders)
+
 **Files Modified**:
-- `src/interfaces/tui-ink/AppFullscreen.tsx` - Conditional rendering based on `navigation.navigationSelectedIndex`
+- `src/interfaces/tui-ink/AppFullscreen.tsx` - Conditional rendering + Demo Controls onInput handler
+- `src/interfaces/tui-ink/hooks/useNavigation.ts` - Added setStatusSelectedIndex method
 
 **Verification Checklist**:
-- [ ] Selecting "○ Manage Folders" (index 0) shows Manage Folders panel
-- [ ] Selecting "○ Demo Controls" (index 1) shows Demo Controls panel
-- [ ] Only one content panel visible at a time
-- [ ] Panel switching works in both landscape and portrait modes
-- [ ] Panel switching is instant (no flicker or visual glitches)
-- [ ] Tab key still works to move focus between Navigation and active content panel
-- [ ] Content panel maintains its own selection/scroll state
-- [ ] FMDM data displays correctly in Manage Folders panel
-- [ ] Demo controls function correctly in Demo Controls panel
+- [x] Selecting "○ Manage Folders" (index 0) shows Manage Folders panel
+- [x] Selecting "○ Demo Controls" (index 1) shows Demo Controls panel
+- [x] Only one content panel visible at a time
+- [x] Panel switching works in both landscape and portrait modes
+- [x] Panel switching is instant (no flicker or visual glitches)
+- [x] Tab key still works to move focus between Navigation and active content panel
+- [x] Arrow keys navigate items in Demo Controls panel
+- [x] Navigation skips non-navigable items
+- [x] Circular wrapping works correctly
+- [x] FMDM data displays correctly in Manage Folders panel
+- [x] Demo controls function correctly in Demo Controls panel
 
-**Rollback**: Revert to showing only Manage Folders panel statically
+**Rollback**: Revert to showing only Manage Folders panel statically, remove Demo Controls onInput handler
 
 ---
 
@@ -838,11 +881,11 @@ After Sprint 1 completion, adding new panels is straightforward:
 - [x] Step 4: Single Panel with Navigation (Layout Verification)
 - [x] Step 5: Navigation Focus & Orientation-Aware Hints
 - [x] Step 5.5: Layout Improvements & Spacing Optimization (Added 2025-11-12)
-- [ ] Step 6: Auto-Select Without Enter
-- [ ] Step 7: Panel Switching Based on Navigation Selection
+- [x] Step 6: Auto-Select Without Enter (Navigation highlighting & icon logic)
+- [x] Step 7: Panel Switching Based on Navigation Selection (+ Demo Controls navigation)
 - [ ] Step 8: Comprehensive Responsiveness Verification
 
-**Sprint Status**: 6/9 steps completed (67%)
+**Sprint Status**: 8/9 steps completed (89%)
 
 ---
 
@@ -860,3 +903,9 @@ After Sprint 1 completion, adding new panels is straightforward:
 | 2025-11-12 | Fixed SelectionBody 15-char truncation bug | Claude |
 | 2025-11-12 | Optimized spacing: icon-to-text 3→1 space | Claude |
 | 2025-11-12 | Fixed borderOverhead calculations (6→4) | Claude |
+| 2025-11-12 | Step 6 completed: Created NavigationListItem with proper icon logic | Claude |
+| 2025-11-12 | Fixed navigation highlighting (▶/●/○ states) | Claude |
+| 2025-11-12 | Fixed portrait mode missing text (formattedText getter) | Claude |
+| 2025-11-12 | Step 7 completed: Panel switching + Demo Controls navigation | Claude |
+| 2025-11-12 | Added setStatusSelectedIndex() to NavigationContext | Claude |
+| 2025-11-12 | Implemented Demo Controls arrow key navigation | Claude |

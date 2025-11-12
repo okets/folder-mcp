@@ -106,6 +106,14 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         }));
     }, [isBlocked, configItemCount]);
 
+    const setStatusSelectedIndex = useCallback((index: number) => {
+        if (isBlocked) return;
+        setState(prev => ({
+            ...prev,
+            statusSelectedIndex: Math.max(0, Math.min(statusItemCount - 1, index))
+        }));
+    }, [isBlocked, statusItemCount]);
+
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {
         if (isBlocked) return false;
@@ -144,8 +152,9 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         navigateUp,
         navigateDown,
         setMainSelectedIndex,
+        setStatusSelectedIndex,
         isNavigationFocused: state.activeContainer === 'navigation',
         isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
-    }), [state, switchContainer, navigateUp, navigateDown, setMainSelectedIndex]);
+    }), [state, switchContainer, navigateUp, navigateDown, setMainSelectedIndex, setStatusSelectedIndex]);
 };

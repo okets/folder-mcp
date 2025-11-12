@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Key } from 'ink';
 import { GenericListPanel } from './GenericListPanel';
-import { TextListItem } from './core/TextListItem';
+import { NavigationListItem } from './core/NavigationListItem';
 import { IListItem } from './core/IListItem';
 import { HorizontalListRenderer } from './core/HorizontalListRenderer';
 import { getVisualWidth } from '../utils/validationDisplay';
@@ -16,20 +16,20 @@ export interface NavigationPanelProps {
     onInput?: (input: string, key: Key) => boolean;
 }
 
-// Create navigation items using TextListItem
-const createNavigationItems = (): IListItem[] => {
+// Create navigation items using NavigationListItem
+const createNavigationItems = (selectedIndex: number): IListItem[] => {
     return [
-        new TextListItem(
+        new NavigationListItem(
             '○', // Single-char bullet
             'Manage Folders',
-            false, // isActive
+            selectedIndex === 0, // isSelected - blue when selected
             undefined, // onSelect callback
             'truncate' // overflow mode
         ),
-        new TextListItem(
+        new NavigationListItem(
             '○',
             'Demo Controls',
-            false,
+            selectedIndex === 1, // isSelected - blue when selected
             undefined,
             'truncate'
         )
@@ -44,8 +44,8 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     selectedIndex,
     onInput
 }) => {
-    const items = createNavigationItems();
     const navigation = useNavigationContext();
+    const items = createNavigationItems(selectedIndex);
 
     // State to track if we need to fallback to vertical due to truncation
     const [forcedVertical, setForcedVertical] = useState(false);
