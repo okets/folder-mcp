@@ -642,7 +642,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const effectiveRows = isWindows ? rows - 1 : rows;
 
     // Panel width constraints based on actual content requirements
-    const NAV_PANEL_WIDTH_FIXED = 18; // 16 chars for "▶ Manage Folders" + 2 borders
+    const NAV_PANEL_WIDTH_FIXED = 21; // 21 chars for "▶ Manage Folders" + 2 reserved scroll bar space +2 borders
     const MAIN_PANEL_MIN_WIDTH = 80; // Minimum usable width for main content
 
     // Content-based orientation detection: switch to landscape only when we have space for both panels
