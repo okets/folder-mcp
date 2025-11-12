@@ -83,7 +83,7 @@ export class TextListItem implements IListItem {
         // Use cursor arrow when active, otherwise use the normal icon
         const displayIcon = this.isActive ? '▶' : this.icon;
         const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
-        const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+        const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
         
         if (availableWidth <= 0) return 1;
         
@@ -164,7 +164,7 @@ export class TextListItem implements IListItem {
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
             const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
-            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
             
             // Extract text and truncate if needed
             const plainText = this.extractTextContent(this.formattedText);
@@ -182,7 +182,7 @@ export class TextListItem implements IListItem {
                             {displayIcon}
                         </Text>
                         <Text>
-                            {"   "}
+                            {" "}
                         </Text>
                         <Text color={this.isActive ? theme.colors.accent : "gray"}>
                             {displayText}
@@ -202,7 +202,7 @@ export class TextListItem implements IListItem {
         
         if (typeof this.formattedText === 'string') {
             // Handle string text with wrapping
-            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
             const textLines = this.wrapText(this.formattedText, availableWidth);
             
             // First line: icon + indentation + start of text
@@ -214,21 +214,21 @@ export class TextListItem implements IListItem {
                                 {displayIcon}
                             </Text>
                             <Text>
-                                {"   "}{textLines[0]}
+                                {" "}{textLines[0]}
                             </Text>
                         </Transform>
                     </Text>
                 );
                 linesUsed++;
             }
-            
+
             // Continuation lines for text
             for (let i = 1; i < textLines.length && linesUsed < maxLinesToUse; i++) {
                 elements.push(
                     <Text key={`text-line-${i}`}>
                         <Transform transform={output => output}>
                             <Text>
-                                {"   "}{textLines[i]}
+                                {" "}{textLines[i]}
                             </Text>
                         </Transform>
                     </Text>
@@ -237,7 +237,7 @@ export class TextListItem implements IListItem {
             }
         } else {
             // Handle React element with wrapping - extract text and apply same logic as strings
-            const availableWidth = maxWidth - iconWidth - 3; // Reserve 3 spaces for indentation
+            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
             const plainText = this.extractTextContent(this.formattedText);
             const textLines = this.wrapText(plainText, availableWidth);
             
@@ -250,21 +250,21 @@ export class TextListItem implements IListItem {
                                 {displayIcon}
                             </Text>
                             <Text color="gray">
-                                {"   "}{textLines[0]}
+                                {" "}{textLines[0]}
                             </Text>
                         </Transform>
                     </Text>
                 );
                 linesUsed++;
             }
-            
+
             // Continuation lines for React element text
             for (let i = 1; i < textLines.length && linesUsed < maxLinesToUse; i++) {
                 elements.push(
                     <Text key={`react-line-${i}`}>
                         <Transform transform={output => output}>
                             <Text color="gray">
-                                {"   "}{textLines[i]}
+                                {" "}{textLines[i]}
                             </Text>
                         </Transform>
                     </Text>

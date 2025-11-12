@@ -61,10 +61,10 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         setItemUpdateTrigger(prev => prev + 1);
     }, []);
     
-    // Memoize expensive width calculations  
+    // Memoize expensive width calculations
     const { panelWidth, itemMaxWidth } = useMemo(() => {
         const calcPanelWidth = width || columns - 2;
-        const borderOverhead = 6; // Back to reasonable margin - the issue is BorderedBox border rendering, not text
+        const borderOverhead = 4; // Matches BorderedBox actual overhead: 2 chars left (│ ) + 3 chars right ( X│ where X=scrollbar or space)
         const calcItemMaxWidth = calcPanelWidth - borderOverhead;
         return { panelWidth: calcPanelWidth, itemMaxWidth: calcItemMaxWidth };
     }, [width, columns]);

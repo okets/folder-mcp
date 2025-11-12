@@ -62,19 +62,20 @@ export const SelectionBody = ({
             // Check if any option has details
             const hasDetails = options.some(opt => opt.details && Object.keys(opt.details).length > 0);
             if (hasDetails) {
-                // Available width for columns is panel width minus prefix and scrollbar
-                // Need to account for: "│ " (2) + symbol (1) + space (1) = 4
-                // But the logs show the prefix is actually "│  " which is 3 chars, not 2!
-                // So: prefix (3) + symbol (1) + space (1) = 5
-                // Plus potential scrollbar indicator (1) and its preceding space (1) = 2
-                const scrollbarSpace = (maxLines && options.length > maxLines - 1) ? 2 : 0;
-                const availableWidth = width - 5 - scrollbarSpace;
+                // Available width for columns is panel width minus:
+                // - linePrefix with space: "│ " + " " = 3 chars
+                // - symbol: "◉" = 1 char
+                // - space after symbol: " " = 1 char
+                // - scrollbar if present: 1 char
+                const scrollbarSpace = (maxLines && options.length > maxLines - 1) ? 1 : 0;
+                const symbolAndSpacing = 2; // symbol (1) + space after (1)
+                const availableWidth = width - 3 - symbolAndSpacing - scrollbarSpace;
                 columnLayout = calculateColumnLayout(options, detailColumns, availableWidth, true);
             }
         }
         
-        if (columnLayout && columnLayout.columns.length > 0) {
-            // Render header row for detailed view
+        if (columnLayout && columnLayout.columns.length >= 2) {
+            // Render header row for detailed view (requires Name + at least 1 detail column)
             const headerPrefix = '│  ';
             let headerText = '';
             
@@ -207,8 +208,8 @@ export const SelectionBody = ({
                         cellValue = option.details[col.name] || '';
                     }
                     
-                    // Truncate if needed
-                    if (col.truncated && getVisualWidth(cellValue) > col.width) {
+                    // Truncate if needed - always check actual width vs column width
+                    if (getVisualWidth(cellValue) > col.width) {
                         cellValue = truncateToWidth(cellValue, col.width);
                     }
                     

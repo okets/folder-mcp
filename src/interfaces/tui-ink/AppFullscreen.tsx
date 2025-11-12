@@ -634,16 +634,21 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const isLowResolution = rows < 25;
     const HEADER_HEIGHT = isLowResolution ? 2 : 4; // Low res: 1 line + 1 margin, Normal: 3 lines + 1 margin
     const STATUS_BAR_HEIGHT = isLowResolution ? 1 : 3; // Low res: 1 line (no border), Normal: 3 lines (border + content + border)
-    const NAV_PANEL_HEIGHT = isLowResolution ? 1 : 3; // Navigation panel height for portrait mode
+    const NAV_PANEL_HEIGHT = 3; // Always 3 rows with borders in portrait mode (never drop to 1)
 
     // Windows needs rows-1 to prevent jittering on large terminals
     // Other platforms can use full rows with proper cursor positioning
     const isWindows = process.platform === 'win32';
     const effectiveRows = isWindows ? rows - 1 : rows;
 
-    // Detect orientation based on terminal width
-    const isLandscape = columns > 100;
-    const NAV_PANEL_WIDTH = isLandscape ? Math.floor(columns * 0.15) : 0;
+    // Panel width constraints based on actual content requirements
+    const NAV_PANEL_WIDTH_FIXED = 18; // 16 chars for "▶ Manage Folders" + 2 borders
+    const MAIN_PANEL_MIN_WIDTH = 80; // Minimum usable width for main content
+
+    // Content-based orientation detection: switch to landscape only when we have space for both panels
+    const minWidthForLandscape = NAV_PANEL_WIDTH_FIXED + MAIN_PANEL_MIN_WIDTH + 2; // +2 for margins
+    const isLandscape = columns >= minWidthForLandscape;
+    const NAV_PANEL_WIDTH = isLandscape ? NAV_PANEL_WIDTH_FIXED : 0;
 
     // Calculate available dimensions for content area
     const contentAvailableHeight = isLandscape

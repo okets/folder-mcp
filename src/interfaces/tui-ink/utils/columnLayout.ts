@@ -57,18 +57,18 @@ export function calculateColumnLayout(
     
     // If we can't fit minimum columns, try with just label column
     if (availableForColumns < columnNames.length * MIN_COLUMN_WIDTH) {
-        // Try with just the label column
-        if (includeLabel && availableForColumns >= MIN_COLUMN_WIDTH) {
+        // Try with just the label column - use full available width, not post-spacing width
+        if (includeLabel && availableWidth >= MIN_COLUMN_WIDTH) {
             return {
                 columns: [{
                     name: 'label',
-                    width: availableForColumns,
+                    width: availableWidth,
                     truncated: false
                 }],
-                totalWidth: availableForColumns
+                totalWidth: availableWidth
             };
         }
-        
+
         return {
             columns: [],
             totalWidth: 0
@@ -113,8 +113,8 @@ function distributeColumnWidths(
         // But ensure we leave enough space for other columns
         const minSpaceForOthers = (columnNames.length - 1) * MIN_COLUMN_WIDTH;
         const maxLabelWidth = Math.max(MIN_COLUMN_WIDTH, availableWidth - minSpaceForOthers);
-        const labelWidth = includesLabel(columnNames) ? 
-            Math.min(maxWidths.label || 0, Math.max(MIN_COLUMN_WIDTH, Math.min(maxLabelWidth, Math.floor(availableWidth * 0.35)))) : 0;
+        const labelWidth = includesLabel(columnNames) ?
+            Math.min(maxWidths.label || 0, Math.max(MIN_COLUMN_WIDTH, Math.min(maxLabelWidth, Math.floor(availableWidth * 0.50)))) : 0;
         
         let remainingWidth = availableWidth - labelWidth;
         const detailColumns = columnNames.filter(col => col !== 'label');
