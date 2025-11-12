@@ -418,7 +418,7 @@ const keyBindings: IKeyBinding[] = orientation === 'landscape'
 ---
 
 ### Step 5: Navigation Focus & Orientation-Aware Hints ✅
-**Status**: [x] Completed
+**Status**: [x] Completed (2025-11-10)
 
 **Goal**: Navigation panel starts focused with first item selected, StatusBar shows correct navigation hints for orientation
 
@@ -467,6 +467,67 @@ This implementation leverages the existing generic focus chain system documented
 - [ ] Switching between landscape/portrait updates StatusBar hints correctly
 
 **Rollback**: Remove customKeyBindings prop from GenericListPanel, remove keybinding logic from NavigationPanel
+
+---
+
+### Step 5.5: Layout Improvements & Spacing Optimization ✅
+**Status**: [x] Completed (2025-11-12)
+
+**Goal**: Fix TUI layout transitions, spacing issues, and truncation bugs to achieve professional presentation
+
+**Changes Implemented**:
+
+1. **Content-Based Layout Transitions**:
+   - Replaced magic 100-column threshold with calculated minimum widths
+   - Navigation panel: Fixed width of 18 cols (16 chars + 2 borders)
+   - Main panel: Minimum 80 cols for usable content
+   - Transition point: `18 + 80 + 2 = 100 cols` (calculated, not magic number)
+   - Navigation panel always shows 3 rows in portrait (never drops to 1)
+
+2. **Spacing Optimization**:
+   - Reduced icon-to-text spacing from 3 spaces to 1 space in TextListItem
+   - Fixed GenericListPanel borderOverhead from 6 to 4 (matches BorderedBox actual overhead)
+   - Eliminated excessive 5-char right padding across all panels
+
+3. **SelectionBody Truncation Fix** (Major Bug):
+   - **Root Cause**: SelectionBody calculated available width incorrectly, causing 15-char loss
+   - **Problem Flow**:
+     - Terminal 32 cols → itemMaxWidth 26 → SelectionBody overhead -7 → Only 19 chars
+     - calculateColumnLayout spacing 12 chars → Post-spacing width 7 → Label only 7 chars!
+     - Result: "BGE-M3 (Comprehensive)" truncated to "BGE-M…" (only 6 chars shown)
+   - **Solution**:
+     - SelectionBody: Reduced overhead from -5 to -3, scrollbar space from 2 to 1, added symbolAndSpacing calculation
+     - columnLayout: Use full availableWidth in fallback, not post-spacing availableForColumns
+     - Result: Label column gets 22 chars instead of 7 at width 32
+   - **Files Modified**:
+     - `src/interfaces/tui-ink/components/core/SelectionBody.tsx` (lines 65-72)
+     - `src/interfaces/tui-ink/utils/columnLayout.ts` (lines 59-69)
+
+4. **Additional Fixes**:
+   - SelectionBody: Require minimum 2 columns for columnar view (fixes single "Name" column bug)
+   - SelectionBody: Always truncate when text exceeds width (removed col.truncated dependency)
+   - columnLayout: Increased label column allocation from 35% to 50%
+
+**Results**:
+- ✅ Navigation panel visible at 24 rows (no more disappearing)
+- ✅ Smooth transitions between portrait/landscape modes
+- ✅ Proper text truncation without wrapping or border breaks
+- ✅ Model selection dropdown shows full text: "BGE-M3 (Comprehensi…)" instead of "BGE-M…"
+- ✅ Professional spacing throughout all panels
+- ✅ Consistent behavior across all terminal widths (23, 32, 40+ cols)
+
+**Commits**:
+- `3c0bbbd` - feat(tui): implement Phase 11 Sprint 1 - navigation framework with adaptive orientation
+- `2a22e01` - fix(tui): resolve SelectionBody truncation discrepancy
+
+**Verification**:
+- [x] Terminal 32w × 29h: Shows ~19 chars in model selection (previously 6)
+- [x] Terminal 40w × 29h: Shows ~35 chars in model selection (previously 14)
+- [x] No text wrapping or border breaks
+- [x] Navigation panel always shows 3 rows in portrait
+- [x] Smooth landscape/portrait transitions
+- [x] File picker columnar layout works correctly
+- [x] All spacing feels professional and consistent
 
 ---
 
@@ -776,11 +837,12 @@ After Sprint 1 completion, adding new panels is straightforward:
 - [x] Step 3: Create Empty Navigation Panel (with Tab focus)
 - [x] Step 4: Single Panel with Navigation (Layout Verification)
 - [x] Step 5: Navigation Focus & Orientation-Aware Hints
+- [x] Step 5.5: Layout Improvements & Spacing Optimization (Added 2025-11-12)
 - [ ] Step 6: Auto-Select Without Enter
 - [ ] Step 7: Panel Switching Based on Navigation Selection
 - [ ] Step 8: Comprehensive Responsiveness Verification
 
-**Sprint Status**: 5/8 steps completed (63%)
+**Sprint Status**: 6/9 steps completed (67%)
 
 ---
 
@@ -793,3 +855,8 @@ After Sprint 1 completion, adding new panels is straightforward:
 | 2025-11-09 | Legacy code cleanup: 13 files deleted     | Claude |
 | 2025-11-10 | Step 4 completed: Single panel layout verified | Claude |
 | 2025-11-10 | Step 5 completed: Orientation-aware navigation hints | Claude |
+| 2025-11-12 | Step 5.5 completed: Layout improvements & spacing optimization | Claude |
+| 2025-11-12 | Fixed content-based transitions (18+80+2 cols) | Claude |
+| 2025-11-12 | Fixed SelectionBody 15-char truncation bug | Claude |
+| 2025-11-12 | Optimized spacing: icon-to-text 3→1 space | Claude |
+| 2025-11-12 | Fixed borderOverhead calculations (6→4) | Claude |
