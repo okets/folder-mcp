@@ -702,18 +702,17 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             onInput={(input, key) => {
                             // Check if current item is controlling input (expanded)
                             const currentItem = configItems[navigation.mainSelectedIndex];
+                            const itemLabel = currentItem && 'label' in currentItem ? (currentItem as any).label : 'unknown';
+
+                            console.error(`[APPFULLSCREEN MANAGE] onInput: index=${navigation.mainSelectedIndex}, item=${itemLabel}, isControllingInput=${currentItem?.isControllingInput}, key=${JSON.stringify(key)}`);
+
                             if (currentItem?.isControllingInput) {
                                 // Let the GenericListPanel delegate to the expanded item
+                                console.error(`[APPFULLSCREEN MANAGE] Item is controlling input - returning false to delegate`);
                                 return false;
                             }
 
-                            // Special handling for SimpleButtonsRow - when it delegates navigation,
-                            // it has already exited control mode, so we need to handle re-selection
-                            if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
-                                // Ensure the item is properly selected after navigation from buttons
-                                currentItem.isActive = true;
-                                currentItem.onSelect();
-                            }
+                            console.error(`[APPFULLSCREEN MANAGE] Item NOT controlling input - parent handler taking control`);
 
                             // Handle navigation with awareness of navigable items only for collapsed items
                             if (key.downArrow) {
@@ -798,18 +797,17 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             onInput={(input, key) => {
                                 // Check if current item is controlling input (expanded)
                                 const currentItem = STATUS_ITEMS[navigation.statusSelectedIndex];
+                                const itemLabel = currentItem && 'label' in currentItem ? (currentItem as any).label : 'unknown';
+
+                                console.error(`[APPFULLSCREEN DEMO] onInput: index=${navigation.statusSelectedIndex}, item=${itemLabel}, isControllingInput=${currentItem?.isControllingInput}, key=${JSON.stringify(key)}`);
+
                                 if (currentItem?.isControllingInput) {
                                     // Let the GenericListPanel delegate to the expanded item
+                                    console.error(`[APPFULLSCREEN DEMO] Item is controlling input - returning false to delegate`);
                                     return false;
                                 }
 
-                                // Special handling for SimpleButtonsRow - when it delegates navigation,
-                                // it has already exited control mode, so we need to handle re-selection
-                                if (currentItem && 'onSelect' in currentItem && typeof currentItem.onSelect === 'function') {
-                                    // Ensure the item is properly selected after navigation from buttons
-                                    currentItem.isActive = true;
-                                    currentItem.onSelect();
-                                }
+                                console.error(`[APPFULLSCREEN DEMO] Item NOT controlling input - parent handler taking control`);
 
                                 // Handle navigation with awareness of navigable items only for collapsed items
                                 if (key.downArrow) {
