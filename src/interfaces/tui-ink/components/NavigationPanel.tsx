@@ -60,10 +60,16 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         return orientation;
     }, [orientation, forcedVertical]);
 
-    // Orientation-aware keybindings
+    // Orientation-aware keybindings (Step 9.7)
     const customKeyBindings = effectiveOrientation === 'landscape'
-        ? [{ key: '↑↓', description: 'Navigate' }]      // Vertical: up/down arrows
-        : [{ key: '←→', description: 'Navigate' }];     // Horizontal: left/right arrows
+        ? [
+            { key: '↑↓', description: 'Navigate' },           // Vertical: up/down arrows
+            { key: 'tab/→', description: 'Switch Panel' }     // Tab or right arrow switches to content
+          ]
+        : [
+            { key: '←→', description: 'Navigate' },           // Horizontal: left/right arrows
+            { key: 'tab/↓', description: 'Switch Panel' }     // Tab or down arrow switches to content
+          ];
 
     // Callback for HorizontalListRenderer if truncation threshold exceeded
     const handleTruncationThreshold = () => {
@@ -84,9 +90,20 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 navigation.navigateDown();
                 return true;
             }
-            // In portrait mode, CONSUME ↑↓ keys to prevent them from falling through to global handler
-            if (key.upArrow || key.downArrow) {
-                return true; // Return true to consume the event and prevent fallthrough
+            // In portrait mode, down arrow switches to content panel (spatial navigation)
+            if (key.downArrow) {
+                // Auto-select first item when using down arrow in portrait mode (Step 9.6)
+                if (navigation.navigationSelectedIndex === 0) {
+                    navigation.setMainSelectedIndex(0);
+                } else {
+                    navigation.setStatusSelectedIndex(0);
+                }
+                navigation.switchToContent();
+                return true;
+            }
+            // Up arrow reserved for future use
+            if (key.upArrow) {
+                return true; // Consume but don't use
             }
         } else {
             // In landscape mode, ONLY handle ↑↓ keys (vertical navigation)
@@ -98,9 +115,14 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 navigation.navigateDown();
                 return true;
             }
-            // In landscape mode, CONSUME ←→ keys to prevent unwanted behavior
-            if (key.leftArrow || key.rightArrow) {
-                return true; // Return true to consume the event
+            // In landscape mode, right arrow switches to content panel (spatial navigation)
+            if (key.rightArrow) {
+                navigation.switchToContent();
+                return true;
+            }
+            // Left arrow reserved for future use
+            if (key.leftArrow) {
+                return true; // Consume but don't use
             }
         }
 

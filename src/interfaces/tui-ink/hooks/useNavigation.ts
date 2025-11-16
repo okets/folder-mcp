@@ -44,6 +44,22 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         }));
     }, [isBlocked]);
 
+    const switchToContent = useCallback(() => {
+        if (isBlocked) return;
+        setState(prev => ({
+            ...prev,
+            activeContainer: 'main'
+        }));
+    }, [isBlocked]);
+
+    const switchToNavigation = useCallback(() => {
+        if (isBlocked) return;
+        setState(prev => ({
+            ...prev,
+            activeContainer: 'navigation'
+        }));
+    }, [isBlocked]);
+
     const navigateUp = useCallback(() => {
         if (isBlocked) return;
         setState(prev => {
@@ -149,6 +165,8 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
     return React.useMemo(() => ({
         ...state,
         switchContainer,
+        switchToContent,
+        switchToNavigation,
         navigateUp,
         navigateDown,
         setMainSelectedIndex,
@@ -156,5 +174,5 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         isNavigationFocused: state.activeContainer === 'navigation',
         isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
-    }), [state, switchContainer, navigateUp, navigateDown, setMainSelectedIndex, setStatusSelectedIndex]);
+    }), [state, switchContainer, switchToContent, switchToNavigation, navigateUp, navigateDown, setMainSelectedIndex, setStatusSelectedIndex]);
 };

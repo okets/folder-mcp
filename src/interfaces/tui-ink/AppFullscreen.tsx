@@ -86,7 +86,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Navigation context for focus management - must be declared before usage
     const navigation = useNavigationContext();
-    
+
     // Get current folders from FMDM context
     const currentFolders = useConfiguredFolders();
     const fmdmOperations = useFMDMOperations();
@@ -699,6 +699,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             elementId="main-panel"
                             parentId="navigation"
                             priority={50}
+                            customKeyBindings={isLandscape
+                                ? [
+                                    { key: '↑↓', description: 'Navigate' },
+                                    { key: 'tab/←', description: 'Switch Panel' }
+                                  ]
+                                : [
+                                    { key: '↑↓', description: 'Navigate' },
+                                    { key: 'tab/↑', description: 'Switch Panel' }
+                                  ]
+                            }
                             onInput={(input, key) => {
                             // Check if current item is controlling input (expanded)
                             const currentItem = configItems[navigation.mainSelectedIndex];
@@ -713,6 +723,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             }
 
                             console.error(`[APPFULLSCREEN MANAGE] Item NOT controlling input - parent handler taking control`);
+
+                            // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
+                            if (key.leftArrow && isLandscape) {
+                                navigation.switchToNavigation();
+                                return true;
+                            }
 
                             // Handle navigation with awareness of navigable items only for collapsed items
                             if (key.downArrow) {
@@ -748,6 +764,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                 }
                             } else if (key.upArrow) {
                                 const currentIndex = navigation.mainSelectedIndex;
+
+                                // Portrait mode: If at first item, switch back to navigation panel
+                                if (!isLandscape && currentIndex === 0) {
+                                    navigation.switchToNavigation();
+                                    return true;
+                                }
+
                                 // Find previous navigable item
                                 let prevIndex = currentIndex;
                                 let found = false;
@@ -794,6 +817,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             elementId="status-panel"
                             parentId="navigation"
                             priority={50}
+                            customKeyBindings={isLandscape
+                                ? [
+                                    { key: '↑↓', description: 'Navigate' },
+                                    { key: 'tab/←', description: 'Switch Panel' }
+                                  ]
+                                : [
+                                    { key: '↑↓', description: 'Navigate' },
+                                    { key: 'tab/↑', description: 'Switch Panel' }
+                                  ]
+                            }
                             onInput={(input, key) => {
                                 // Check if current item is controlling input (expanded)
                                 const currentItem = STATUS_ITEMS[navigation.statusSelectedIndex];
@@ -808,6 +841,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                 }
 
                                 console.error(`[APPFULLSCREEN DEMO] Item NOT controlling input - parent handler taking control`);
+
+                                // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
+                                if (key.leftArrow && isLandscape) {
+                                    navigation.switchToNavigation();
+                                    return true;
+                                }
 
                                 // Handle navigation with awareness of navigable items only for collapsed items
                                 if (key.downArrow) {
@@ -843,6 +882,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                     }
                                 } else if (key.upArrow) {
                                     const currentIndex = navigation.statusSelectedIndex;
+
+                                    // Portrait mode: If at first item, switch back to navigation panel
+                                    if (!isLandscape && currentIndex === 0) {
+                                        navigation.switchToNavigation();
+                                        return true;
+                                    }
+
                                     // Find previous navigable item
                                     let prevIndex = currentIndex;
                                     let found = false;

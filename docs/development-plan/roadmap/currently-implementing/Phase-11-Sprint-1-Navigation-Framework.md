@@ -660,6 +660,92 @@ This implementation leverages the existing generic focus chain system documented
 - No code changes
 - Comprehensive testing phase
 
+---
+
+### Step 9: Natural Arrow-Key Panel Switching ✅
+**Status**: [ ] Not Started
+
+**Goal**: Implement intuitive directional navigation between panels using spatial metaphors
+
+**Motivation**:
+Currently, only Tab switches between panels. This enhancement leverages unused directional arrow keys to create natural, spatial panel navigation:
+- **Portrait mode**: Navigation on top → ↓ moves to content below, ↑ returns
+- **Landscape mode**: Navigation on left → → moves to content on right, ← returns
+
+**Changes**:
+
+**Phase 1: Extend Navigation Context API**
+- Add `switchToContent()` method to `useNavigation` hook
+- Add `switchToNavigation()` method to `useNavigation` hook
+- Both use existing `setState()` to update `activeContainer`
+
+**Phase 2: Navigation Panel Directional Switching**
+- **Portrait mode**: ↓ calls `navigation.switchToContent()`
+- **Landscape mode**: → calls `navigation.switchToContent()`
+- Repurpose currently-blocked arrow keys for focus switching
+
+**Phase 3: Content Panel Return Navigation**
+- **Portrait mode**: ↑ from first item calls `navigation.switchToNavigation()`
+- **Landscape mode**: ← from any item calls `navigation.switchToNavigation()`
+- Natural "escape back to navigation" gestures
+
+**Phase 4: First Item Auto-Selection**
+- Add `useEffect` watching `isFocused` prop in content panel
+- When `isFocused` changes from false → true, set `selectedIndex = 0`
+- Creates predictable behavior: always land on first item when entering content
+
+**Phase 5: Update Keyboard Hints**
+- **Navigation Panel Focused (Portrait)**: Add `↓ Content` hint
+- **Navigation Panel Focused (Landscape)**: Add `→ Content` hint
+- **Content Panel Focused (Portrait)**: Add `↑ Navigation` hint (when at first item)
+- **Content Panel Focused (Landscape)**: Add `← Navigation` hint
+- Hints update dynamically based on focus and orientation
+
+**Implementation Strategy**: Gradual, step-by-step with human verification after each phase
+
+**Files Modified**:
+- `src/interfaces/tui-ink/hooks/useNavigation.ts` - Add switch methods
+- `src/interfaces/tui-ink/components/NavigationPanel.tsx` - Directional switching logic
+- `src/interfaces/tui-ink/AppFullscreen.tsx` - Content panel return navigation + first item selection
+- Both panels - Update `customKeyBindings` for new hints
+
+**Test Matrix**:
+| Layout | Focused Panel | Key Press | Expected Behavior |
+|--------|---------------|-----------|-------------------|
+| Portrait | Navigation | ↓ | Switch to content, select first item |
+| Portrait | Content (first item) | ↑ | Switch to navigation |
+| Portrait | Content (other item) | ↑ | Navigate to previous item |
+| Landscape | Navigation | → | Switch to content, select first item |
+| Landscape | Content (any item) | ← | Switch to navigation |
+| Either | Either | Tab | Toggle between panels (existing) |
+
+**Verification Checklist** (verify each phase separately):
+- [ ] **Phase 1**: Switch methods callable (no visual change yet)
+- [ ] **Phase 2 Portrait**: ↓ from navigation switches to content
+- [ ] **Phase 2 Landscape**: → from navigation switches to content
+- [ ] **Phase 3 Portrait**: ↑ from first item switches to navigation
+- [ ] **Phase 3 Landscape**: ← from any item switches to navigation
+- [ ] **Phase 4**: Content panel auto-selects first item on focus
+- [ ] **Phase 5**: Keyboard hints show correct directional options
+- [ ] **Integration**: All phases work together smoothly
+- [ ] **No Regression**: Tab navigation still works correctly
+
+**Rollback Plan**:
+- Remove switch methods from NavigationContext
+- Restore original handleInput logic in both panels
+- Remove keyboard hint updates
+
+**Design Rationale**:
+- **Spatial Navigation**: Matches visual layout (top→down, left→right)
+- **Leverage Existing**: Repurposes blocked keys instead of adding new combinations
+- **User Intuition**: Users naturally try directional keys matching panel positions
+- **No Breaking Changes**: Tab navigation preserved as fallback
+
+**Trade-offs**:
+- ⚠️ Portrait mode: ↑ from first item no longer wraps to last (switches to navigation instead)
+- ⚠️ Landscape mode: ← from content always switches (limits future left arrow usage)
+- ✅ Mitigation: Page Up/Down and End key available for wrap-around navigation
+
 **Testing Scenarios**:
 
 #### Landscape Mode (Terminal width > 100 cols)
@@ -884,8 +970,9 @@ After Sprint 1 completion, adding new panels is straightforward:
 - [x] Step 6: Auto-Select Without Enter (Navigation highlighting & icon logic)
 - [x] Step 7: Panel Switching Based on Navigation Selection (+ Demo Controls navigation)
 - [ ] Step 8: Comprehensive Responsiveness Verification
+- [ ] Step 9: Natural Arrow-Key Panel Switching
 
-**Sprint Status**: 8/9 steps completed (89%)
+**Sprint Status**: 8/10 steps completed (80%)
 
 ---
 
@@ -909,3 +996,4 @@ After Sprint 1 completion, adding new panels is straightforward:
 | 2025-11-12 | Step 7 completed: Panel switching + Demo Controls navigation | Claude |
 | 2025-11-12 | Added setStatusSelectedIndex() to NavigationContext | Claude |
 | 2025-11-12 | Implemented Demo Controls arrow key navigation | Claude |
+| 2025-11-16 | Added Step 9: Natural Arrow-Key Panel Switching | Claude |
