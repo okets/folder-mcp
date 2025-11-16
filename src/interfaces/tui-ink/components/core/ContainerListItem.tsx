@@ -681,18 +681,18 @@ export class ContainerListItem implements IListItem {
                     this.cancelAndExit();
                     return true;
                 }
-            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
-                // Check if child wants to handle left arrow for expansion (like VerticalToggleRow)
-                activeChild.onExpand(key);
-                return true;
             } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onCollapse) {
-                // New behavior: only try to collapse child if it's expanded
+                // FIRST: Try to collapse child if it's expanded
                 const wasCollapsed = activeChild.onCollapse();
                 if (wasCollapsed) {
                     return true; // Item was expanded and got collapsed, consume the input
                 }
                 // Item was already collapsed, fall through to exit container
                 this.cancelAndExit();
+                return true;
+            } else if (!this._isConfirmFocused && !this._focusedButton && activeChild?.onExpand) {
+                // SECOND: Check if child wants to handle left arrow for expansion (like VerticalToggleRow)
+                activeChild.onExpand(key);
                 return true;
             } else if (!this._isConfirmFocused && !this._focusedButton && this._useDualButtons) {
                 // In dual-button mode: if no expandable/collapsible item, move to buttons (like right arrow)
@@ -776,13 +776,22 @@ export class ContainerListItem implements IListItem {
         }
         
         if (key.escape) {
+            // First try to collapse active child if it's expanded
+            if (activeChild?.onCollapse) {
+                const wasCollapsed = activeChild.onCollapse();
+                if (wasCollapsed) {
+                    return true; // Item was expanded and got collapsed
+                }
+            }
+
+            // Child wasn't expanded or doesn't support collapse, proceed with normal escape behavior
             if (this._cancelConfirmationMode) {
                 // Exit confirmation mode, restore original text
                 this._cancelConfirmationMode = false;
                 this._customCancelText = this._originalCancelText;
                 return true;
             } else {
-                // Escape: always close the container
+                // Escape: close the container
                 this.cancelAndExit();
                 return true;
             }
