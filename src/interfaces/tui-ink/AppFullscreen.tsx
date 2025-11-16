@@ -79,7 +79,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // State to preserve folder expansion and child selection during terminal resizes and re-renders
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
-    const [folderChildState, setFolderChildState] = useState<Map<string, { selectedIndex: number; childExpanded?: boolean }>>(new Map());
+    const [folderChildState, setFolderChildState] = useState<Map<string, { selectedIndex: number; childExpanded?: boolean; childInternalCursor?: number }>>(new Map());
     
     // State to track when we're intentionally exiting to prevent daemon error screen
     const [isExiting, setIsExiting] = useState<boolean>(false);
@@ -351,26 +351,39 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 
                 // Restore expansion state if this folder was previously expanded
                 if (expandedFolders.has(folderPath)) {
-                    manageFolderItem.onEnter(); // Expand the item
-                    
-                    // Also restore child selection state if available
                     const childState = folderChildState.get(folderPath);
+
+                    // SYNCHRONOUS state restoration (no setTimeout)
                     if (childState) {
-                        // Restore child selection after a short delay to ensure the item is fully expanded
-                        setTimeout(() => {
-                            if (manageFolderItem.isControllingInput) {
-                                // Access the private _childSelectedIndex property via type assertion
-                                (manageFolderItem as any)._childSelectedIndex = childState.selectedIndex;
-                                
-                                // If the child (model selector) was expanded, try to expand it
-                                if (childState.childExpanded && childState.selectedIndex < manageFolderItem.childItems.length) {
-                                    const childItem = manageFolderItem.childItems[childState.selectedIndex];
-                                    if (childItem && 'onEnter' in childItem && typeof childItem.onEnter === 'function') {
-                                        childItem.onEnter();
-                                    }
-                                }
+                        // STEP 1: Restore child's internal cursor BEFORE expanding
+                        if (childState.childExpanded &&
+                            childState.childInternalCursor !== undefined &&
+                            childState.selectedIndex < manageFolderItem.childItems.length) {
+
+                            const childItem = manageFolderItem.childItems[childState.selectedIndex];
+
+                            // Restore child's internal cursor position
+                            if (childItem && 'selectedIndex' in childItem) {
+                                (childItem as any).selectedIndex = childState.childInternalCursor;
                             }
-                        }, 0);
+                        }
+
+                        // STEP 2: Expand parent folder
+                        manageFolderItem.onEnter();
+
+                        // STEP 3: Restore child selection index
+                        (manageFolderItem as any)._childSelectedIndex = childState.selectedIndex;
+
+                        // STEP 4: Expand child if it was expanded
+                        if (childState.childExpanded && childState.selectedIndex < manageFolderItem.childItems.length) {
+                            const childItem = manageFolderItem.childItems[childState.selectedIndex];
+                            if (childItem && 'onEnter' in childItem && typeof childItem.onEnter === 'function') {
+                                childItem.onEnter();
+                            }
+                        }
+                    } else {
+                        // No child state, just expand the folder
+                        manageFolderItem.onEnter();
                     }
                 }
                 
@@ -412,21 +425,31 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 // Override navigation methods to track child state changes
                 const originalHandleInput = manageFolderItem.handleInput.bind(manageFolderItem);
                 manageFolderItem.handleInput = (input: string, key: any) => {
-                    const wasChildExpanded = manageFolderItem.childItems.some(child => child.isControllingInput);
+                    const wasChildExpanded = manageFolderItem.childItems.some(child =>
+                        child.isControllingInput || ('_isExpanded' in child && (child as any)._isExpanded)
+                    );
                     const oldSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
                     
                     const result = originalHandleInput(input, key);
                     
                     // If navigation changed, update stored state
                     const newSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
-                    const isChildExpanded = manageFolderItem.childItems.some(child => child.isControllingInput);
+                    const isChildExpanded = manageFolderItem.childItems.some(child =>
+                        child.isControllingInput || ('_isExpanded' in child && (child as any)._isExpanded)
+                    );
                     
                     if (manageFolderItem.isControllingInput && (oldSelectedIndex !== newSelectedIndex || wasChildExpanded !== isChildExpanded)) {
                         setFolderChildState(prev => {
                             const newMap = new Map(prev);
-                            const stateUpdate: { selectedIndex: number; childExpanded?: boolean } = { selectedIndex: newSelectedIndex };
+                            const stateUpdate: { selectedIndex: number; childExpanded?: boolean; childInternalCursor?: number } = { selectedIndex: newSelectedIndex };
                             if (isChildExpanded) {
                                 stateUpdate.childExpanded = true;
+
+                                // Capture child's internal cursor position
+                                const expandedChild = manageFolderItem.childItems[newSelectedIndex];
+                                if (expandedChild && 'selectedIndex' in expandedChild) {
+                                    stateUpdate.childInternalCursor = (expandedChild as any).selectedIndex;
+                                }
                             }
                             newMap.set(folderPath, stateUpdate);
                             return newMap;
