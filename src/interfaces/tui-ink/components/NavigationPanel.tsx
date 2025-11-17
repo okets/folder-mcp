@@ -81,6 +81,24 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         setForcedVertical(true);
     };
 
+    /**
+     * Helper to set the first navigable item when switching to content panel
+     * Eliminates duplication between portrait DOWN arrow and landscape RIGHT arrow
+     */
+    const setFirstNavigableItem = useCallback(() => {
+        if (navigation.navigationSelectedIndex === 0) {
+            const firstNavigable = mainPanelItems
+                ? findFirstNavigableIndex(mainPanelItems)
+                : 0;
+            navigation.setMainSelectedIndex(firstNavigable);
+        } else {
+            const firstNavigable = statusPanelItems
+                ? findFirstNavigableIndex(statusPanelItems)
+                : 0;
+            navigation.setStatusSelectedIndex(firstNavigable);
+        }
+    }, [navigation, mainPanelItems, statusPanelItems]);
+
     // Wrap parent's onInput to translate keys for portrait mode (direction-aware navigation)
     const wrappedOnInput = useCallback((input: string, key: Key): boolean => {
         if (effectiveOrientation === 'portrait') {
@@ -98,17 +116,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             // In portrait mode, down arrow switches to content panel (spatial navigation)
             if (key.downArrow) {
                 // Find first navigable item when entering panel (Step 8.2)
-                if (navigation.navigationSelectedIndex === 0) {
-                    const firstNavigable = mainPanelItems
-                        ? findFirstNavigableIndex(mainPanelItems)
-                        : 0;
-                    navigation.setMainSelectedIndex(firstNavigable);
-                } else {
-                    const firstNavigable = statusPanelItems
-                        ? findFirstNavigableIndex(statusPanelItems)
-                        : 0;
-                    navigation.setStatusSelectedIndex(firstNavigable);
-                }
+                setFirstNavigableItem();
                 navigation.switchToContent();
                 return true;
             }
@@ -129,17 +137,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             // In landscape mode, right arrow switches to content panel (spatial navigation)
             if (key.rightArrow) {
                 // Find first navigable item when entering panel (Step 8.2)
-                if (navigation.navigationSelectedIndex === 0) {
-                    const firstNavigable = mainPanelItems
-                        ? findFirstNavigableIndex(mainPanelItems)
-                        : 0;
-                    navigation.setMainSelectedIndex(firstNavigable);
-                } else {
-                    const firstNavigable = statusPanelItems
-                        ? findFirstNavigableIndex(statusPanelItems)
-                        : 0;
-                    navigation.setStatusSelectedIndex(firstNavigable);
-                }
+                setFirstNavigableItem();
                 navigation.switchToContent();
                 return true;
             }
@@ -151,7 +149,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
         // Pass through other keys to parent if provided
         return onInput ? onInput(input, key) : false;
-    }, [effectiveOrientation, onInput, navigation]);
+    }, [effectiveOrientation, onInput, navigation, mainPanelItems, statusPanelItems, setFirstNavigableItem]);
 
     // Render based on effective orientation
     if (effectiveOrientation === 'portrait') {

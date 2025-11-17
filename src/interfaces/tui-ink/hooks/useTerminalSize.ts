@@ -18,11 +18,16 @@ export const useTerminalSize = (debounceMs: number = 100) => {
     const [size, setSize] = useState(getSize());
     const [isResizing, setIsResizing] = useState(false);
     const resizeTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const mountedRef = useRef(true);
 
     useEffect(() => {
+        mountedRef.current = true; // Track that component is mounted
+
         const handleResize = () => {
-            // Mark as resizing immediately to show overlay
-            setIsResizing(true);
+            // Mark as resizing immediately to show overlay (only if mounted)
+            if (mountedRef.current) {
+                setIsResizing(true);
+            }
 
             // Clear any pending resize timer
             if (resizeTimerRef.current) {
@@ -31,8 +36,11 @@ export const useTerminalSize = (debounceMs: number = 100) => {
 
             // Set new timer to update size after debounce delay
             resizeTimerRef.current = setTimeout(() => {
-                setSize(getSize());
-                setIsResizing(false); // Clear resizing state after update
+                // Only update state if component is still mounted
+                if (mountedRef.current) {
+                    setSize(getSize());
+                    setIsResizing(false); // Clear resizing state after update
+                }
                 resizeTimerRef.current = null;
             }, debounceMs);
         };
@@ -43,13 +51,14 @@ export const useTerminalSize = (debounceMs: number = 100) => {
         process.stdout.on('resize', handleResize);
 
         return () => {
+            mountedRef.current = false; // Mark as unmounted to prevent state updates
             process.stdout.off('resize', handleResize);
             // Clear any pending timer on cleanup
             if (resizeTimerRef.current) {
                 clearTimeout(resizeTimerRef.current);
                 resizeTimerRef.current = null;
             }
-            setIsResizing(false);
+            // Don't call setIsResizing(false) here - component is unmounting
         };
     }, [debounceMs]);
 

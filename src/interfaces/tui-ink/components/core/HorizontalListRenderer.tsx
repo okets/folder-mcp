@@ -118,11 +118,6 @@ export const HorizontalListRenderer: React.FC<HorizontalListRendererProps> = ({
     const renderHorizontalItems = () => {
         const { availablePerItem } = layoutAnalysis;
 
-        // Set active state on items BEFORE rendering (like GenericListPanel does)
-        items.forEach((item, index) => {
-            item.isActive = (index === selectedIndex);
-        });
-
         // Build the entire line as a single string to ensure consistent spacing
         const parts: Array<{icon: string, text: string, isActive: boolean}> = [];
 
