@@ -47,7 +47,9 @@ export const useTerminalSize = (debounceMs: number = 100) => {
             // Clear any pending timer on cleanup
             if (resizeTimerRef.current) {
                 clearTimeout(resizeTimerRef.current);
+                resizeTimerRef.current = null;
             }
+            setIsResizing(false);
         };
     }, [debounceMs]);
 

@@ -6,6 +6,7 @@ import { IListItem } from './core/IListItem';
 import { HorizontalListRenderer } from './core/HorizontalListRenderer';
 import { getVisualWidth } from '../utils/validationDisplay';
 import { useNavigationContext } from '../contexts/NavigationContext';
+import { findFirstNavigableIndex } from '../utils/navigationUtils';
 
 export interface NavigationPanelProps {
     width: number;
@@ -14,6 +15,8 @@ export interface NavigationPanelProps {
     orientation: 'landscape' | 'portrait';
     selectedIndex: number;
     onInput?: (input: string, key: Key) => boolean;
+    mainPanelItems?: IListItem[];     // Items for main panel (to find first navigable)
+    statusPanelItems?: IListItem[];   // Items for status panel (to find first navigable)
 }
 
 // Create navigation items using NavigationListItem
@@ -42,7 +45,9 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
     isFocused,
     orientation,
     selectedIndex,
-    onInput
+    onInput,
+    mainPanelItems,
+    statusPanelItems
 }) => {
     const navigation = useNavigationContext();
     const items = createNavigationItems(selectedIndex);
@@ -92,11 +97,17 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             }
             // In portrait mode, down arrow switches to content panel (spatial navigation)
             if (key.downArrow) {
-                // Auto-select first item when using down arrow in portrait mode (Step 9.6)
+                // Find first navigable item when entering panel (Step 8.2)
                 if (navigation.navigationSelectedIndex === 0) {
-                    navigation.setMainSelectedIndex(0);
+                    const firstNavigable = mainPanelItems
+                        ? findFirstNavigableIndex(mainPanelItems)
+                        : 0;
+                    navigation.setMainSelectedIndex(firstNavigable);
                 } else {
-                    navigation.setStatusSelectedIndex(0);
+                    const firstNavigable = statusPanelItems
+                        ? findFirstNavigableIndex(statusPanelItems)
+                        : 0;
+                    navigation.setStatusSelectedIndex(firstNavigable);
                 }
                 navigation.switchToContent();
                 return true;
@@ -117,6 +128,18 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             }
             // In landscape mode, right arrow switches to content panel (spatial navigation)
             if (key.rightArrow) {
+                // Find first navigable item when entering panel (Step 8.2)
+                if (navigation.navigationSelectedIndex === 0) {
+                    const firstNavigable = mainPanelItems
+                        ? findFirstNavigableIndex(mainPanelItems)
+                        : 0;
+                    navigation.setMainSelectedIndex(firstNavigable);
+                } else {
+                    const firstNavigable = statusPanelItems
+                        ? findFirstNavigableIndex(statusPanelItems)
+                        : 0;
+                    navigation.setStatusSelectedIndex(firstNavigable);
+                }
                 navigation.switchToContent();
                 return true;
             }

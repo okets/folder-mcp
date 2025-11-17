@@ -1,5 +1,6 @@
 import { IListItem } from '../components/core/IListItem';
 import { LogItem } from '../components/core/LogItem';
+import { TextListItem } from '../components/core/TextListItem';
 import { ConfigurationListItem } from '../components/core/ConfigurationListItem';
 import { SelectionListItem } from '../components/core/SelectionListItem';
 import { FilePickerListItem } from '../components/core/FilePickerListItem';
@@ -12,8 +13,17 @@ import * as os from 'os';
 // Combined items for SecondaryPanel - all demo/test items
 export function createStatusPanelItems(): IListItem[] {
     return [
+        // ===== TEST ITEM FOR STEP 8 COLOR VERIFICATION =====
+        new TextListItem(
+            '●',
+            'TEST WRAP MODE COLOR: This is a very long text item that should wrap to multiple lines and allow you to verify that active items show the accent color in wrap mode, not just gray. Navigate to this item and check if all lines show accent color when active.',
+            false,  // isActive (will be controlled by navigation)
+            undefined,  // onSelectCallback
+            'wrap'  // overflowMode
+        ),
+
         // ===== CONFIGURATION ITEMS (from MainPanel) =====
-        
+
         // Test SelectionListItem with detailed view (Task 8)
         new SelectionListItem(
             '■',

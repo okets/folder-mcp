@@ -52,19 +52,14 @@ export class SimpleButtonsRow implements IListItem {
         const wasActive = this._isActive;
         this._isActive = value;
 
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] isActive setter: wasActive=${wasActive}, newValue=${value}, isControllingInput=${this._isControllingInput}`);
-
         // If becoming active for the first time, auto-enter control mode
         if (!wasActive && value) {
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] First activation - entering control mode`);
             this._isControllingInput = true;
             this._focusedButtonIndex = 0;
         }
         // REMOVED: Zombie state handler - was causing navigation trap
         // The handler would re-enter control mode when isActive stayed true after exiting control,
         // creating an infinite loop where navigation was impossible
-
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] After isActive setter: isControllingInput=${this._isControllingInput}`);
     }
     
     get isControllingInput(): boolean {
@@ -421,17 +416,13 @@ export class SimpleButtonsRow implements IListItem {
         // Allow input handling when row is active, not just when controlling
         // This allows immediate keyboard navigation when arriving at the row
         if (!this.isActive && !this._isControllingInput) {
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] handleInput: NOT active or controlling - returning false`);
             return false;
         }
-
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] handleInput: isActive=${this.isActive}, isControllingInput=${this._isControllingInput}, key=${JSON.stringify(key)}`);
 
         if (key.leftArrow) {
             this._focusedButtonIndex = this._focusedButtonIndex > 0
                 ? this._focusedButtonIndex - 1
                 : this.buttons.length - 1;
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] LEFT arrow - new focusedButtonIndex=${this._focusedButtonIndex}`);
             return true;
         }
 
@@ -439,7 +430,6 @@ export class SimpleButtonsRow implements IListItem {
             this._focusedButtonIndex = this._focusedButtonIndex < this.buttons.length - 1
                 ? this._focusedButtonIndex + 1
                 : 0;
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] RIGHT arrow - new focusedButtonIndex=${this._focusedButtonIndex}`);
             return true;
         }
 
@@ -448,29 +438,24 @@ export class SimpleButtonsRow implements IListItem {
             if (activeButton && this.onButtonActivate) {
                 this.onButtonActivate(activeButton, this._focusedButtonIndex);
             }
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] ENTER/SPACE pressed`);
             return true;
         }
 
         if (key.upArrow || key.downArrow) {
-            console.error(`[SIMPLEBUTTONSROW ${this.label}] UP/DOWN arrow - exiting control mode, returning false`);
             this._isControllingInput = false;
             this._focusedButtonIndex = 0; // Reset to first button for next time
             return false; // Let parent handle list navigation
         }
 
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] Unhandled input - returning false`);
         return false;
     }
-    
+
     onSelect(): void {
         // Reset focus to first button and automatically enter control mode
         // This ensures immediate button focus when navigating to the row
         // This also handles the case where navigation was blocked and we need to re-enter control mode
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] onSelect() called - entering control mode`);
         this._focusedButtonIndex = 0;
         this._isControllingInput = true;
-        console.error(`[SIMPLEBUTTONSROW ${this.label}] After onSelect: isControllingInput=${this._isControllingInput}`);
     }
     
     onDeselect(): void {

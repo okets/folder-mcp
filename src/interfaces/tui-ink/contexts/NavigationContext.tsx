@@ -1,29 +1,34 @@
 import React, { createContext, useContext, ReactNode, memo } from 'react';
 import { useNavigation } from '../hooks/useNavigation';
 import { buildProps } from '../utils/conditionalProps';
+import { IListItem } from '../components/core/IListItem';
 
 type NavigationContextType = ReturnType<typeof useNavigation>;
 
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
 interface NavigationProviderProps {
-    children: ReactNode; 
+    children: ReactNode;
     isBlocked?: boolean;
     configItemCount?: number;
     statusItemCount?: number;
+    mainPanelItems?: IListItem[];
+    statusPanelItems?: IListItem[];
 }
 
-export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({ 
-    children, 
+export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({
+    children,
     isBlocked = false,
     configItemCount,
-    statusItemCount
+    statusItemCount,
+    mainPanelItems,
+    statusPanelItems
 }) => {
-    const navigation = useNavigation({ 
-        isBlocked, 
-        ...buildProps({ configItemCount, statusItemCount })
+    const navigation = useNavigation({
+        isBlocked,
+        ...buildProps({ configItemCount, statusItemCount, mainPanelItems, statusPanelItems })
     });
-    
+
     return (
         <NavigationContext.Provider value={navigation}>
             {children}

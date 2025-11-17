@@ -83,7 +83,7 @@ export class TextListItem implements IListItem {
         // Use cursor arrow when active, otherwise use the normal icon
         const displayIcon = this.isActive ? '▶' : this.icon;
         const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
-        const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
+        const availableWidth = maxWidth - iconWidth; // Match render() calculation
         
         if (availableWidth <= 0) return 1;
         
@@ -155,16 +155,17 @@ export class TextListItem implements IListItem {
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
         // For wrap mode, calculate actual required lines based on content
-        // Don't artificially limit with maxLines - let the content determine space needed
         const actualRequiredLines = this.getRequiredLines(maxWidth);
-        const maxLinesToUse = this._overflowMode === 'wrap' ? actualRequiredLines : (maxLines || actualRequiredLines);
+        // In wrap mode, respect maxLines from GenericListPanel's viewport allocation
+        // This ensures wrapped items fit within available panel space
+        const maxLinesToUse = maxLines || actualRequiredLines;
         
         if (this._overflowMode === 'truncate') {
             // Single line with truncation
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
             const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
-            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
+            const availableWidth = maxWidth - iconWidth;
             
             // Extract text and truncate if needed
             const plainText = this.extractTextContent(this.formattedText);
@@ -184,7 +185,7 @@ export class TextListItem implements IListItem {
                         <Text>
                             {" "}
                         </Text>
-                        <Text color={this.isActive ? theme.colors.accent : "gray"}>
+                        <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                             {displayText}
                         </Text>
                     </Transform>
@@ -202,7 +203,7 @@ export class TextListItem implements IListItem {
         
         if (typeof this.formattedText === 'string') {
             // Handle string text with wrapping
-            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
+            const availableWidth = maxWidth - iconWidth;
             const textLines = this.wrapText(this.formattedText, availableWidth);
             
             // First line: icon + indentation + start of text
@@ -213,7 +214,7 @@ export class TextListItem implements IListItem {
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
                                 {displayIcon}
                             </Text>
-                            <Text>
+                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                                 {" "}{textLines[0]}
                             </Text>
                         </Transform>
@@ -227,7 +228,7 @@ export class TextListItem implements IListItem {
                 elements.push(
                     <Text key={`text-line-${i}`}>
                         <Transform transform={output => output}>
-                            <Text>
+                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                                 {" "}{textLines[i]}
                             </Text>
                         </Transform>
@@ -237,10 +238,10 @@ export class TextListItem implements IListItem {
             }
         } else {
             // Handle React element with wrapping - extract text and apply same logic as strings
-            const availableWidth = maxWidth - iconWidth - 1; // Reserve 1 space after icon
+            const availableWidth = maxWidth - iconWidth;
             const plainText = this.extractTextContent(this.formattedText);
             const textLines = this.wrapText(plainText, availableWidth);
-            
+
             // First line: icon + indentation + start of text
             if (linesUsed < maxLinesToUse && textLines.length > 0) {
                 elements.push(
@@ -249,7 +250,7 @@ export class TextListItem implements IListItem {
                             <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textMuted)}>
                                 {displayIcon}
                             </Text>
-                            <Text color="gray">
+                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                                 {" "}{textLines[0]}
                             </Text>
                         </Transform>
@@ -263,7 +264,7 @@ export class TextListItem implements IListItem {
                 elements.push(
                     <Text key={`react-line-${i}`}>
                         <Transform transform={output => output}>
-                            <Text color="gray">
+                            <Text color={this.isActive ? theme.colors.accent : theme.colors.textMuted}>
                                 {" "}{textLines[i]}
                             </Text>
                         </Transform>

@@ -3,6 +3,8 @@ import { Key } from 'ink';
 import { useFocusChain } from './useFocusChain';
 import { useDI } from '../di/DIContext';
 import { ServiceTokens } from '../di/tokens';
+import { IListItem } from '../components/core/IListItem';
+import { findFirstNavigableIndex } from '../utils/navigationUtils';
 
 export type ContainerType = 'navigation' | 'main' | 'status';
 export type PanelId = 'folders' | 'demo';  // Panel IDs for navigation framework
@@ -20,10 +22,19 @@ interface UseNavigationOptions {
     navigationItemCount?: number;  // Number of navigation items
     configItemCount?: number;  // Number of configuration items
     statusItemCount?: number;  // Number of status items
+    mainPanelItems?: IListItem[];  // Items for main panel (to find first navigable)
+    statusPanelItems?: IListItem[];  // Items for status panel (to find first navigable)
 }
 
 export const useNavigation = (options: UseNavigationOptions = {}) => {
-    const { isBlocked = false, navigationItemCount = 2, configItemCount = 20, statusItemCount = 20 } = options;
+    const {
+        isBlocked = false,
+        navigationItemCount = 2,
+        configItemCount = 20,
+        statusItemCount = 20,
+        mainPanelItems,
+        statusPanelItems
+    } = options;
     
     const [state, setState] = useState<NavigationState>({
         activeContainer: 'navigation',  // Start with navigation focused
@@ -36,13 +47,43 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
 
     const switchContainer = useCallback(() => {
         if (isBlocked) return;
-        // Step 4: Only cycle between Navigation and Main (Demo Controls hidden)
-        setState(prev => ({
-            ...prev,
-            activeContainer:
-                prev.activeContainer === 'navigation' ? 'main' : 'navigation'
-        }));
-    }, [isBlocked]);
+
+        setState(prev => {
+            const nextContainer = prev.activeContainer === 'navigation' ? 'main' : 'navigation';
+
+            // When switching TO main panel, find first navigable item (Step 8.2-D)
+            if (nextContainer === 'main') {
+                const targetItems = prev.navigationSelectedIndex === 0
+                    ? mainPanelItems
+                    : statusPanelItems;
+
+                if (targetItems) {
+                    const firstNavigable = findFirstNavigableIndex(targetItems);
+
+                    // Update the appropriate panel's selected index
+                    if (prev.navigationSelectedIndex === 0) {
+                        return {
+                            ...prev,
+                            activeContainer: nextContainer,
+                            mainSelectedIndex: firstNavigable
+                        };
+                    } else {
+                        return {
+                            ...prev,
+                            activeContainer: nextContainer,
+                            statusSelectedIndex: firstNavigable
+                        };
+                    }
+                }
+            }
+
+            // Default behavior: just switch container
+            return {
+                ...prev,
+                activeContainer: nextContainer
+            };
+        });
+    }, [isBlocked, mainPanelItems, statusPanelItems]);
 
     const switchToContent = useCallback(() => {
         if (isBlocked) return;

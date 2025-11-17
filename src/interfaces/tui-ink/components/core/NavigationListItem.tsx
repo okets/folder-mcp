@@ -68,7 +68,7 @@ export class NavigationListItem implements IListItem {
      * Break text into lines that fit within maxWidth using word boundaries
      */
     private wrapText(text: string, maxWidth: number, indent: string = ''): string[] {
-        if (maxWidth <= 0) return [text];
+        if (maxWidth <= 0) return [];
 
         const lines: string[] = [];
         const words = text.split(' ');
@@ -207,11 +207,7 @@ export class NavigationListItem implements IListItem {
         return false;
     }
 
-    onSelect?(): void {
-        // Visual feedback when selected
-    }
+    onSelect?(): void;
 
-    onDeselect?(): void {
-        // Remove visual feedback when deselected
-    }
+    onDeselect?(): void;
 }

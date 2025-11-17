@@ -64,7 +64,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     // Memoize expensive width calculations
     const { panelWidth, itemMaxWidth } = useMemo(() => {
         const calcPanelWidth = width || columns - 2;
-        const borderOverhead = 4; // Matches BorderedBox actual overhead: 2 chars left (│ ) + 3 chars right ( X│ where X=scrollbar or space)
+        const borderOverhead = 4; // Matches BorderedBox actual overhead: 2 chars left (│ ) + 2 chars right (X│) where X=scrollbar or space
         const calcItemMaxWidth = calcPanelWidth - borderOverhead;
         return { panelWidth: calcPanelWidth, itemMaxWidth: calcItemMaxWidth };
     }, [width, columns]);

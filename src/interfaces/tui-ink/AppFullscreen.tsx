@@ -60,9 +60,10 @@ const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 interface AppContentInnerProps {
     config?: any;
     onConfigItemsCountChange?: (count: number) => void;
+    onConfigItemsChange?: (items: IListItem[]) => void;  // Pass actual items to parent
 }
 
-const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfigItemsCountChange }) => {
+const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfigItemsCountChange, onConfigItemsChange }) => {
     // Main app now displays actual config from wizard
     
     const { exit } = useApp();
@@ -531,7 +532,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         if (onConfigItemsCountChange) {
             onConfigItemsCountChange(configItems.length);
         }
-    }, [configItems.length, onConfigItemsCountChange]);
+        if (onConfigItemsChange) {
+            onConfigItemsChange(configItems);  // Pass actual items for navigation
+        }
+    }, [configItems, onConfigItemsCountChange, onConfigItemsChange]);
     
     // Set up root input handler
     useRootInput();
@@ -691,6 +695,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     isFocused={navigation.isNavigationFocused}
                     orientation="portrait"
                     selectedIndex={navigation.navigationSelectedIndex}
+                    mainPanelItems={configItems}
+                    statusPanelItems={STATUS_ITEMS}
                 />
             )}
 
@@ -704,6 +710,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         isFocused={navigation.isNavigationFocused}
                         orientation="landscape"
                         selectedIndex={navigation.navigationSelectedIndex}
+                        mainPanelItems={configItems}
+                        statusPanelItems={STATUS_ITEMS}
                     />
                 )}
 
@@ -735,17 +743,11 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             onInput={(input, key) => {
                             // Check if current item is controlling input (expanded)
                             const currentItem = configItems[navigation.mainSelectedIndex];
-                            const itemLabel = currentItem && 'label' in currentItem ? (currentItem as any).label : 'unknown';
-
-                            console.error(`[APPFULLSCREEN MANAGE] onInput: index=${navigation.mainSelectedIndex}, item=${itemLabel}, isControllingInput=${currentItem?.isControllingInput}, key=${JSON.stringify(key)}`);
 
                             if (currentItem?.isControllingInput) {
                                 // Let the GenericListPanel delegate to the expanded item
-                                console.error(`[APPFULLSCREEN MANAGE] Item is controlling input - returning false to delegate`);
                                 return false;
                             }
-
-                            console.error(`[APPFULLSCREEN MANAGE] Item NOT controlling input - parent handler taking control`);
 
                             // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
                             if (key.leftArrow && isLandscape) {
@@ -788,12 +790,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             } else if (key.upArrow) {
                                 const currentIndex = navigation.mainSelectedIndex;
 
-                                // Portrait mode: If at first item, switch back to navigation panel
-                                if (!isLandscape && currentIndex === 0) {
-                                    navigation.switchToNavigation();
-                                    return true;
-                                }
-
                                 // Find previous navigable item
                                 let prevIndex = currentIndex;
                                 let found = false;
@@ -808,7 +804,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                     }
                                 }
 
-                                // If not found, wrap to end and find last navigable
+                                // Portrait mode: If no previous navigable item found, switch to navigation panel
+                                if (!isLandscape && !found) {
+                                    navigation.switchToNavigation();
+                                    return true;
+                                }
+
+                                // Landscape mode: If not found, wrap to end and find last navigable
                                 if (!found) {
                                     for (let i = configItems.length - 1; i >= currentIndex; i--) {
                                         const item = configItems[i];
@@ -853,17 +855,11 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             onInput={(input, key) => {
                                 // Check if current item is controlling input (expanded)
                                 const currentItem = STATUS_ITEMS[navigation.statusSelectedIndex];
-                                const itemLabel = currentItem && 'label' in currentItem ? (currentItem as any).label : 'unknown';
-
-                                console.error(`[APPFULLSCREEN DEMO] onInput: index=${navigation.statusSelectedIndex}, item=${itemLabel}, isControllingInput=${currentItem?.isControllingInput}, key=${JSON.stringify(key)}`);
 
                                 if (currentItem?.isControllingInput) {
                                     // Let the GenericListPanel delegate to the expanded item
-                                    console.error(`[APPFULLSCREEN DEMO] Item is controlling input - returning false to delegate`);
                                     return false;
                                 }
-
-                                console.error(`[APPFULLSCREEN DEMO] Item NOT controlling input - parent handler taking control`);
 
                                 // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
                                 if (key.leftArrow && isLandscape) {
@@ -906,12 +902,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                 } else if (key.upArrow) {
                                     const currentIndex = navigation.statusSelectedIndex;
 
-                                    // Portrait mode: If at first item, switch back to navigation panel
-                                    if (!isLandscape && currentIndex === 0) {
-                                        navigation.switchToNavigation();
-                                        return true;
-                                    }
-
                                     // Find previous navigable item
                                     let prevIndex = currentIndex;
                                     let found = false;
@@ -926,7 +916,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                         }
                                     }
 
-                                    // If not found, wrap to end and find last navigable
+                                    // Portrait mode: If no previous navigable item found, switch to navigation panel
+                                    if (!isLandscape && !found) {
+                                        navigation.switchToNavigation();
+                                        return true;
+                                    }
+
+                                    // Landscape mode: If not found, wrap to end and find last navigable
                                     if (!found) {
                                         for (let i = STATUS_ITEMS.length - 1; i >= currentIndex; i--) {
                                             const item = STATUS_ITEMS[i];
@@ -961,12 +957,20 @@ interface AppContentProps {
 const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
     const [isNodeInEditMode, setIsNodeInEditMode] = useState(false);
     const [configItemCount, setConfigItemCount] = useState(1); // Start with 1 for at least the button
-    
+    const [configItems, setConfigItems] = useState<IListItem[]>([]);  // Store actual items for navigation
+
     return (
-        <NavigationProvider isBlocked={isNodeInEditMode} configItemCount={configItemCount} statusItemCount={STATUS_ITEM_COUNT}>
-            <AppContentInner 
-                config={config} 
+        <NavigationProvider
+            isBlocked={isNodeInEditMode}
+            configItemCount={configItemCount}
+            statusItemCount={STATUS_ITEM_COUNT}
+            mainPanelItems={configItems}      // Pass items for first navigable detection
+            statusPanelItems={STATUS_ITEMS}   // Pass status items for first navigable detection
+        >
+            <AppContentInner
+                config={config}
                 onConfigItemsCountChange={setConfigItemCount}
+                onConfigItemsChange={setConfigItems}  // Receive items from child
             />
         </NavigationProvider>
     );
