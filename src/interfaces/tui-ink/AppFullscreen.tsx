@@ -57,6 +57,114 @@ const STATUS_ITEM_COUNT = STATUS_ITEMS.length;
 const CONFIG_ITEMS = createConfigurationPanelItems();
 const CONFIG_ITEM_COUNT = CONFIG_ITEMS.length;
 
+/**
+ * Factory function to create navigation input handlers with consistent behavior
+ * Eliminates code duplication between main and status panel handlers (DRY principle)
+ *
+ * @param items - Array of list items to navigate
+ * @param getSelectedIndex - Function to get current selected index
+ * @param setSelectedIndex - Function to set selected index
+ * @param isLandscape - Whether in landscape orientation
+ * @param switchToNavigation - Function to switch back to navigation panel
+ * @returns Input handler function
+ */
+const createNavigationInputHandler = (
+    items: IListItem[],
+    getSelectedIndex: () => number,
+    setSelectedIndex: (index: number) => void,
+    isLandscape: boolean,
+    switchToNavigation: () => void
+) => {
+    return (input: string, key: Key): boolean => {
+        // Check if current item is controlling input (expanded)
+        const currentItem = items[getSelectedIndex()];
+
+        if (currentItem?.isControllingInput) {
+            // Let the GenericListPanel delegate to the expanded item
+            return false;
+        }
+
+        // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
+        if (key.leftArrow && isLandscape) {
+            switchToNavigation();
+            return true;
+        }
+
+        // Handle navigation with awareness of navigable items only for collapsed items
+        if (key.downArrow) {
+            const currentIndex = getSelectedIndex();
+            // Find next navigable item
+            let nextIndex = currentIndex;
+            let found = false;
+
+            // Try to find next navigable item
+            for (let i = currentIndex + 1; i < items.length; i++) {
+                const item = items[i];
+                if (item && item.isNavigable !== false) {
+                    nextIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+
+            // If not found, wrap to beginning and find first navigable
+            if (!found) {
+                for (let i = 0; i <= currentIndex; i++) {
+                    const item = items[i];
+                    if (item && item.isNavigable !== false) {
+                        nextIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (nextIndex !== currentIndex) {
+                setSelectedIndex(nextIndex);
+                return true;
+            }
+        } else if (key.upArrow) {
+            const currentIndex = getSelectedIndex();
+
+            // Find previous navigable item
+            let prevIndex = currentIndex;
+            let found = false;
+
+            // Try to find previous navigable item
+            for (let i = currentIndex - 1; i >= 0; i--) {
+                const item = items[i];
+                if (item && item.isNavigable !== false) {
+                    prevIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+
+            // Portrait mode: If no previous navigable item found, switch to navigation panel
+            if (!isLandscape && !found) {
+                switchToNavigation();
+                return true;
+            }
+
+            // Landscape mode: If not found, wrap to end and find last navigable
+            if (!found) {
+                for (let i = items.length - 1; i >= currentIndex; i--) {
+                    const item = items[i];
+                    if (item && item.isNavigable !== false) {
+                        prevIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (prevIndex !== currentIndex) {
+                setSelectedIndex(prevIndex);
+                return true;
+            }
+        }
+        return false; // Let other navigation handle it
+    };
+};
+
 interface AppContentInnerProps {
     config?: any;
     onConfigItemsCountChange?: (count: number) => void;
@@ -361,19 +469,18 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             childState.childInternalCursor !== undefined &&
                             childState.selectedIndex < manageFolderItem.childItems.length) {
 
-                            const childItem = manageFolderItem.childItems[childState.selectedIndex];
-
-                            // Restore child's internal cursor position
-                            if (childItem && 'selectedIndex' in childItem) {
-                                (childItem as any).selectedIndex = childState.childInternalCursor;
-                            }
+                            // Use public API to restore child item's internal cursor
+                            manageFolderItem.restoreChildCursor(
+                                childState.selectedIndex,
+                                childState.childInternalCursor
+                            );
                         }
 
                         // STEP 2: Expand parent folder
                         manageFolderItem.onEnter();
 
-                        // STEP 3: Restore child selection index
-                        (manageFolderItem as any)._childSelectedIndex = childState.selectedIndex;
+                        // STEP 3: Restore child selection index using public API
+                        manageFolderItem.restoreChildSelection(childState.selectedIndex);
 
                         // STEP 4: Expand child if it was expanded
                         if (childState.childExpanded && childState.selectedIndex < manageFolderItem.childItems.length) {
@@ -400,7 +507,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 manageFolderItem.onExit = () => {
                     // Save current child selection state before exiting
                     if (manageFolderItem.isControllingInput) {
-                        const selectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
+                        const selectedIndex = manageFolderItem.selectedChildIndex || 0;
                         const selectedChild = manageFolderItem.childItems[selectedIndex];
                         const childExpanded = selectedChild && selectedChild.isControllingInput;
                         
@@ -427,16 +534,16 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 const originalHandleInput = manageFolderItem.handleInput.bind(manageFolderItem);
                 manageFolderItem.handleInput = (input: string, key: any) => {
                     const wasChildExpanded = manageFolderItem.childItems.some(child =>
-                        child.isControllingInput || ('_isExpanded' in child && (child as any)._isExpanded)
+                        child.isControllingInput || ('isExpanded' in child && (child as any).isExpanded)
                     );
-                    const oldSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
-                    
+                    const oldSelectedIndex = manageFolderItem.selectedChildIndex || 0;
+
                     const result = originalHandleInput(input, key);
-                    
+
                     // If navigation changed, update stored state
-                    const newSelectedIndex = (manageFolderItem as any)._childSelectedIndex || 0;
+                    const newSelectedIndex = manageFolderItem.selectedChildIndex || 0;
                     const isChildExpanded = manageFolderItem.childItems.some(child =>
-                        child.isControllingInput || ('_isExpanded' in child && (child as any)._isExpanded)
+                        child.isControllingInput || ('isExpanded' in child && (child as any).isExpanded)
                     );
                     
                     if (manageFolderItem.isControllingInput && (oldSelectedIndex !== newSelectedIndex || wasChildExpanded !== isChildExpanded)) {
@@ -448,8 +555,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
 
                                 // Capture child's internal cursor position
                                 const expandedChild = manageFolderItem.childItems[newSelectedIndex];
-                                if (expandedChild && 'selectedIndex' in expandedChild) {
-                                    stateUpdate.childInternalCursor = (expandedChild as any).selectedIndex;
+                                if (expandedChild && 'selectedChildIndex' in expandedChild) {
+                                    stateUpdate.childInternalCursor = (expandedChild as any).selectedChildIndex;
                                 }
                             }
                             newMap.set(folderPath, stateUpdate);
@@ -740,94 +847,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                     { key: 'tab/↑', description: 'Switch Panel' }
                                   ]
                             }
-                            onInput={(input, key) => {
-                            // Check if current item is controlling input (expanded)
-                            const currentItem = configItems[navigation.mainSelectedIndex];
-
-                            if (currentItem?.isControllingInput) {
-                                // Let the GenericListPanel delegate to the expanded item
-                                return false;
-                            }
-
-                            // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
-                            if (key.leftArrow && isLandscape) {
-                                navigation.switchToNavigation();
-                                return true;
-                            }
-
-                            // Handle navigation with awareness of navigable items only for collapsed items
-                            if (key.downArrow) {
-                                const currentIndex = navigation.mainSelectedIndex;
-                                // Find next navigable item
-                                let nextIndex = currentIndex;
-                                let found = false;
-
-                                // Try to find next navigable item
-                                for (let i = currentIndex + 1; i < configItems.length; i++) {
-                                    const item = configItems[i];
-                                    if (item && item.isNavigable !== false) {
-                                        nextIndex = i;
-                                        found = true;
-                                        break;
-                                    }
-                                }
-
-                                // If not found, wrap to beginning and find first navigable
-                                if (!found) {
-                                    for (let i = 0; i <= currentIndex; i++) {
-                                        const item = configItems[i];
-                                        if (item && item.isNavigable !== false) {
-                                            nextIndex = i;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (nextIndex !== currentIndex) {
-                                    navigation.setMainSelectedIndex(nextIndex);
-                                    return true;
-                                }
-                            } else if (key.upArrow) {
-                                const currentIndex = navigation.mainSelectedIndex;
-
-                                // Find previous navigable item
-                                let prevIndex = currentIndex;
-                                let found = false;
-
-                                // Try to find previous navigable item
-                                for (let i = currentIndex - 1; i >= 0; i--) {
-                                    const item = configItems[i];
-                                    if (item && item.isNavigable !== false) {
-                                        prevIndex = i;
-                                        found = true;
-                                        break;
-                                    }
-                                }
-
-                                // Portrait mode: If no previous navigable item found, switch to navigation panel
-                                if (!isLandscape && !found) {
-                                    navigation.switchToNavigation();
-                                    return true;
-                                }
-
-                                // Landscape mode: If not found, wrap to end and find last navigable
-                                if (!found) {
-                                    for (let i = configItems.length - 1; i >= currentIndex; i--) {
-                                        const item = configItems[i];
-                                        if (item && item.isNavigable !== false) {
-                                            prevIndex = i;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (prevIndex !== currentIndex) {
-                                    navigation.setMainSelectedIndex(prevIndex);
-                                    return true;
-                                }
-                            }
-                            return false; // Let other navigation handle it
-                        }}
+                            onInput={createNavigationInputHandler(
+                                configItems,
+                                () => navigation.mainSelectedIndex,
+                                navigation.setMainSelectedIndex,
+                                isLandscape,
+                                navigation.switchToNavigation
+                            )}
                     />
                     ) : (
                         // Demo Controls Panel
@@ -852,94 +878,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                     { key: 'tab/↑', description: 'Switch Panel' }
                                   ]
                             }
-                            onInput={(input, key) => {
-                                // Check if current item is controlling input (expanded)
-                                const currentItem = STATUS_ITEMS[navigation.statusSelectedIndex];
-
-                                if (currentItem?.isControllingInput) {
-                                    // Let the GenericListPanel delegate to the expanded item
-                                    return false;
-                                }
-
-                                // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
-                                if (key.leftArrow && isLandscape) {
-                                    navigation.switchToNavigation();
-                                    return true;
-                                }
-
-                                // Handle navigation with awareness of navigable items only for collapsed items
-                                if (key.downArrow) {
-                                    const currentIndex = navigation.statusSelectedIndex;
-                                    // Find next navigable item
-                                    let nextIndex = currentIndex;
-                                    let found = false;
-
-                                    // Try to find next navigable item
-                                    for (let i = currentIndex + 1; i < STATUS_ITEMS.length; i++) {
-                                        const item = STATUS_ITEMS[i];
-                                        if (item && item.isNavigable !== false) {
-                                            nextIndex = i;
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-
-                                    // If not found, wrap to beginning and find first navigable
-                                    if (!found) {
-                                        for (let i = 0; i <= currentIndex; i++) {
-                                            const item = STATUS_ITEMS[i];
-                                            if (item && item.isNavigable !== false) {
-                                                nextIndex = i;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    if (nextIndex !== currentIndex) {
-                                        navigation.setStatusSelectedIndex(nextIndex);
-                                        return true;
-                                    }
-                                } else if (key.upArrow) {
-                                    const currentIndex = navigation.statusSelectedIndex;
-
-                                    // Find previous navigable item
-                                    let prevIndex = currentIndex;
-                                    let found = false;
-
-                                    // Try to find previous navigable item
-                                    for (let i = currentIndex - 1; i >= 0; i--) {
-                                        const item = STATUS_ITEMS[i];
-                                        if (item && item.isNavigable !== false) {
-                                            prevIndex = i;
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-
-                                    // Portrait mode: If no previous navigable item found, switch to navigation panel
-                                    if (!isLandscape && !found) {
-                                        navigation.switchToNavigation();
-                                        return true;
-                                    }
-
-                                    // Landscape mode: If not found, wrap to end and find last navigable
-                                    if (!found) {
-                                        for (let i = STATUS_ITEMS.length - 1; i >= currentIndex; i--) {
-                                            const item = STATUS_ITEMS[i];
-                                            if (item && item.isNavigable !== false) {
-                                                prevIndex = i;
-                                                break;
-                                            }
-                                        }
-                                    }
-
-                                    if (prevIndex !== currentIndex) {
-                                        navigation.setStatusSelectedIndex(prevIndex);
-                                        return true;
-                                    }
-                                }
-                                return false; // Let other navigation handle it
-                            }}
+                            onInput={createNavigationInputHandler(
+                                STATUS_ITEMS,
+                                () => navigation.statusSelectedIndex,
+                                navigation.setStatusSelectedIndex,
+                                isLandscape,
+                                navigation.switchToNavigation
+                            )}
                         />
                     )}
                 </Box>

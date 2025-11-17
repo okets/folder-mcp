@@ -88,7 +88,31 @@ export class ContainerListItem implements IListItem {
     get selectedChildIndex(): number {
         return this._childSelectedIndex;
     }
-    
+
+    /**
+     * Restore child selection index (for state preservation across re-renders)
+     * This is a public API for restoring saved state without using 'as any' casts
+     */
+    restoreChildSelection(index: number): void {
+        if (index >= 0 && index < this._childItems.length) {
+            this._childSelectedIndex = index;
+        }
+    }
+
+    /**
+     * Restore a child item's internal cursor position (for nested containers)
+     * This allows proper state restoration when child items are themselves containers
+     */
+    restoreChildCursor(childIndex: number, cursorPosition: number): void {
+        if (childIndex >= 0 && childIndex < this._childItems.length) {
+            const childItem = this._childItems[childIndex];
+            // Check if child is also a ContainerListItem with its own cursor
+            if (childItem && typeof (childItem as any).restoreChildSelection === 'function') {
+                (childItem as any).restoreChildSelection(cursorPosition);
+            }
+        }
+    }
+
     /**
      * Update validation state
      */

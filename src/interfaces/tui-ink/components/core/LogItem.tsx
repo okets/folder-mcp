@@ -35,6 +35,10 @@ export class LogItem implements IListItem {
         }
     }
     
+    get isExpanded(): boolean {
+        return this._isExpanded;
+    }
+
     get isControllingInput(): boolean {
         return this._isControllingInput;
     }
