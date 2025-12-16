@@ -19,52 +19,20 @@ Implement the Settings screen - the simplest of the new screens. This establishe
 
 ### Scope
 - **In Scope**: Settings screen, 4-item navigation, placeholder panels for Connect and Activity Log
-- **Out of Scope**: Connect screen functionality, Activity Log functionality, configuration persistence (use existing ConfigurationManager)
+- **Out of Scope**: Connect screen functionality, Activity Log functionality
 
-### Approach: Visual Validation Methodology
-Same step-by-step approach as Sprint 1:
-1. Agent implements minimal change
-2. Agent builds the code (`npm run build`)
-3. Human runs TUI (`npm run tui`) and verifies
-4. Human provides feedback
-5. Agent proceeds or fixes
+### Approach: ONE TUI Change at a Time
+Each step makes exactly ONE visual change. Human verifies before proceeding.
+
+```
+Agent implements ONE change → npm run build → Human runs TUI → Human approves → Next step
+```
 
 ---
 
-## Settings Screen Design
+## Target State
 
-### Component Structure
-
-**Container**: `GenericListPanel` with title="Settings"
-
-**Items** (3 total):
-| # | Component | Label | Options | Layout |
-|---|-----------|-------|---------|--------|
-| 1 | `SelectionListItem` | Theme | Light, Dark, Auto | horizontal |
-| 2 | `SelectionListItem` | Log Verbosity | Quiet, Normal, Verbose | horizontal |
-| 3 | `SelectionListItem` | Default Model | (from model registry) | vertical |
-
-### Behavior
-- All items are navigable (up/down arrows)
-- Enter or right-arrow expands item to edit selection
-- Escape collapses back to list
-- Changes persist to config immediately via ConfigurationManager
-- SelectionListItem auto-switches layout if truncation >10%
-
-### Icons
-All items use single-char icon "◇" (diamond outline)
-
----
-
-## Navigation Panel Update
-
-### Current State (2 items)
-```
-◈ Manage Folders
-◇ Demo Controls
-```
-
-### Target State (4 items)
+### Navigation Panel (4 items)
 ```
 ◈ Manage Folders
 ◇ Connect
@@ -72,229 +40,247 @@ All items use single-char icon "◇" (diamond outline)
 ○ Settings
 ```
 
-### Navigation Data Structure
-```typescript
-const navigationItems = [
-    { icon: '◈', label: 'Manage Folders', panelId: 'folders' },
-    { icon: '◇', label: 'Connect', panelId: 'connect' },
-    { icon: '◆', label: 'Activity Log', panelId: 'activity' },
-    { icon: '○', label: 'Settings', panelId: 'settings' },
-];
+### Settings Panel Content
+```
+◇ Theme              [Light] [Dark] [Auto]
+◇ Log Verbosity      [Quiet] [Normal] [Verbose]
+◇ Default Model      (vertical list of models)
 ```
 
 ---
 
-## Implementation Plan: 6 Steps
+## Implementation Plan: 14 Steps
 
-### Step 1: Update Navigation Items to 4
-**Goal**: Change NavigationPanel from 2 items to 4 items
+### Phase A: Navigation Panel Changes
 
-**Changes**:
-- Update `NavigationPanel.tsx` or data source to have 4 items
-- Update icons and labels as specified above
-- Keep panel switching logic working for index 0 and 1 (existing panels)
+#### Step 1.1: Rename "Demo Controls" to "Connect"
+**Goal**: Change the second navigation item label only
 
-**Files Modified**:
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
-- Possibly `src/interfaces/tui-ink/AppFullscreen.tsx` (if navigation data is there)
+**Change**: In navigation data, change label from "Demo Controls" to "Connect"
 
-**Verification Checklist**:
-- [ ] Navigation shows 4 items with correct icons and labels
-- [ ] Landscape mode: 4 items displayed vertically
-- [ ] Portrait mode: 4 items displayed horizontally (may truncate)
-- [ ] Arrow navigation works through all 4 items
-- [ ] Selecting items 0 and 1 still shows existing panels
+**Verification**:
+- [ ] Navigation shows "Connect" instead of "Demo Controls"
+- [ ] Everything else unchanged
+- [ ] Panel switching still works
 
-**Rollback**: Revert navigation items back to 2
+**Rollback**: Change label back to "Demo Controls"
 
 ---
 
-### Step 2: Create Placeholder Panels
-**Goal**: Add empty placeholder panels for Connect, Activity Log, and Settings
+#### Step 1.2: Add 3rd Navigation Item "Activity Log"
+**Goal**: Add third item to navigation
 
-**Changes**:
-- Create `ConnectPanel.tsx` - simple GenericListPanel with title and placeholder TextListItem
-- Create `ActivityLogPanel.tsx` - simple GenericListPanel with title and placeholder TextListItem
-- Create `SettingsPanel.tsx` - simple GenericListPanel with title and placeholder TextListItem
-- Do NOT wire up content yet - just placeholders
+**Change**: Add item `{ icon: '◆', label: 'Activity Log' }` after Connect
 
-**Files Created**:
-- `src/interfaces/tui-ink/components/ConnectPanel.tsx`
-- `src/interfaces/tui-ink/components/ActivityLogPanel.tsx`
-- `src/interfaces/tui-ink/components/SettingsPanel.tsx`
+**Verification**:
+- [ ] Navigation shows 3 items: Manage Folders, Connect, Activity Log
+- [ ] Arrow navigation works through all 3
+- [ ] Selecting Activity Log does NOT crash (may show nothing or existing panel)
 
-**Panel Props Pattern**:
-```typescript
-interface PanelProps {
-    width: number;
-    height: number;
-    isFocused: boolean;
-    elementId: string;
-    parentId: string;
-}
-```
-
-**Verification Checklist**:
-- [ ] All 3 new files compile without errors
-- [ ] Each panel renders a bordered box with title
-- [ ] Placeholder text visible in each panel
-
-**Rollback**: Delete the 3 new panel files
+**Rollback**: Remove 3rd navigation item
 
 ---
 
-### Step 3: Wire Up Panel Switching for All 4
-**Goal**: Make navigation selection switch between all 4 panels
+#### Step 1.3: Add 4th Navigation Item "Settings"
+**Goal**: Add fourth item to navigation
 
-**Changes**:
-- Update `AppFullscreen.tsx` conditional rendering:
-  - Index 0 → Manage Folders (existing)
-  - Index 1 → Connect (placeholder)
-  - Index 2 → Activity Log (placeholder)
-  - Index 3 → Settings (placeholder)
-- Pass correct props to each panel
+**Change**: Add item `{ icon: '○', label: 'Settings' }` after Activity Log
 
-**Files Modified**:
-- `src/interfaces/tui-ink/AppFullscreen.tsx`
+**Verification**:
+- [ ] Navigation shows 4 items: Manage Folders, Connect, Activity Log, Settings
+- [ ] Arrow navigation works through all 4
+- [ ] Landscape: 4 items vertically
+- [ ] Portrait: 4 items horizontally (may truncate)
 
-**Verification Checklist**:
-- [ ] Navigating to each item shows corresponding panel
-- [ ] Panel titles match: "Manage Folders", "Connect", "Activity Log", "Settings"
-- [ ] Focus switching (Tab) works with all 4 panels
-- [ ] No errors when switching between panels
-- [ ] Landscape and portrait modes both work
-
-**Rollback**: Revert AppFullscreen conditional rendering to 2-panel logic
+**Rollback**: Remove 4th navigation item
 
 ---
 
-### Step 4: Implement Settings Panel Content
-**Goal**: Add the 3 SelectionListItems to Settings panel
+### Phase B: Placeholder Panels (one at a time)
+
+#### Step 2.1: Create SettingsPanel Placeholder
+**Goal**: Create empty Settings panel and wire to nav index 3
 
 **Changes**:
-- Create 3 SelectionListItem instances in SettingsPanel:
-  1. Theme: Light, Dark, Auto (default: Auto)
-  2. Log Verbosity: Quiet, Normal, Verbose (default: Normal)
-  3. Default Model: (from model registry, default: first available)
-- Wire up onValueChange handlers
-- Items should be navigable with up/down arrows
+1. Create `SettingsPanel.tsx` with GenericListPanel + one TextListItem placeholder
+2. Wire nav index 3 to render SettingsPanel
 
-**Model Registry Integration**:
-```typescript
-// Get models from registry
-import { getAvailableModels } from '../../config/model-registry';
-const models = getAvailableModels();
-const modelOptions = models.map(m => ({ value: m.id, label: m.displayName }));
-```
+**Verification**:
+- [ ] Selecting "Settings" in nav shows Settings panel
+- [ ] Panel has title "Settings"
+- [ ] Panel shows placeholder text
+- [ ] Focus switching (Tab) works
 
-**Files Modified**:
-- `src/interfaces/tui-ink/components/SettingsPanel.tsx`
+**Rollback**: Delete SettingsPanel.tsx, revert nav wiring
 
-**Verification Checklist**:
+---
+
+#### Step 2.2: Create ActivityLogPanel Placeholder
+**Goal**: Create empty Activity Log panel and wire to nav index 2
+
+**Changes**:
+1. Create `ActivityLogPanel.tsx` with GenericListPanel + one TextListItem placeholder
+2. Wire nav index 2 to render ActivityLogPanel
+
+**Verification**:
+- [ ] Selecting "Activity Log" in nav shows Activity Log panel
+- [ ] Panel has title "Activity Log"
+- [ ] Panel shows placeholder text
+- [ ] Focus switching (Tab) works
+
+**Rollback**: Delete ActivityLogPanel.tsx, revert nav wiring
+
+---
+
+#### Step 2.3: Create ConnectPanel Placeholder
+**Goal**: Create empty Connect panel and wire to nav index 1 (replacing Demo Controls)
+
+**Changes**:
+1. Create `ConnectPanel.tsx` with GenericListPanel + one TextListItem placeholder
+2. Wire nav index 1 to render ConnectPanel (instead of Demo Controls)
+
+**Verification**:
+- [ ] Selecting "Connect" in nav shows Connect panel
+- [ ] Panel has title "Connect"
+- [ ] Panel shows placeholder text
+- [ ] Demo Controls panel no longer appears
+- [ ] All 4 panels now accessible
+
+**Rollback**: Delete ConnectPanel.tsx, restore Demo Controls wiring
+
+---
+
+### Phase C: Settings Panel Content (one item at a time)
+
+#### Step 3.1: Add Theme SelectionListItem
+**Goal**: Add first real setting to Settings panel
+
+**Change**: Replace placeholder with one SelectionListItem:
+- icon: "◇"
+- label: "Theme"
+- options: Light, Dark, Auto
+- layout: horizontal
+- default: Auto
+
+**Verification**:
+- [ ] Settings panel shows Theme item
+- [ ] Can expand with Enter/→
+- [ ] Can select options
+- [ ] Escape collapses
+- [ ] Horizontal layout displays correctly
+
+**Rollback**: Revert to placeholder
+
+---
+
+#### Step 3.2: Add Log Verbosity SelectionListItem
+**Goal**: Add second setting below Theme
+
+**Change**: Add SelectionListItem below Theme:
+- icon: "◇"
+- label: "Log Verbosity"
+- options: Quiet, Normal, Verbose
+- layout: horizontal
+- default: Normal
+
+**Verification**:
+- [ ] Settings panel shows 2 items
+- [ ] Arrow navigation between items works
+- [ ] Both items expand/collapse correctly
+- [ ] Horizontal layout for both
+
+**Rollback**: Remove Log Verbosity item
+
+---
+
+#### Step 3.3: Add Default Model SelectionListItem
+**Goal**: Add third setting below Log Verbosity
+
+**Change**: Add SelectionListItem below Log Verbosity:
+- icon: "◇"
+- label: "Default Model"
+- options: (from model registry or hardcoded list for now)
+- layout: vertical (many options)
+- default: first available
+
+**Verification**:
 - [ ] Settings panel shows 3 items
-- [ ] Each item has correct icon, label, and options
-- [ ] Arrow navigation moves between items
-- [ ] Enter/→ expands item to show options
-- [ ] Can select different options
-- [ ] Escape collapses back to item list
-- [ ] Horizontal layout works for Theme and Log Verbosity
-- [ ] Vertical layout works for Default Model (many options)
+- [ ] Arrow navigation through all 3
+- [ ] Default Model uses vertical layout
+- [ ] Can select from model list
 
-**Rollback**: Revert SettingsPanel to placeholder
+**Rollback**: Remove Default Model item
 
 ---
 
-### Step 5: Wire Settings to Configuration
-**Goal**: Persist settings changes to ConfigurationManager
+### Phase D: Configuration Persistence (one setting at a time)
+
+#### Step 4.1: Wire Theme to Configuration
+**Goal**: Theme setting persists to config
 
 **Changes**:
-- Read initial values from ConfigurationManager on mount
-- Write changes to ConfigurationManager on selection change
-- Handle configuration errors gracefully
+- Read theme from ConfigurationManager on mount
+- Write theme changes to ConfigurationManager
 
-**Configuration Keys**:
-- `theme`: 'light' | 'dark' | 'auto'
-- `logLevel`: 'quiet' | 'normal' | 'verbose'
-- `defaultModel`: string (model ID)
+**Verification**:
+- [ ] Theme loads saved value on TUI start
+- [ ] Changing theme saves immediately
+- [ ] Restart TUI, theme persists
 
-**Files Modified**:
-- `src/interfaces/tui-ink/components/SettingsPanel.tsx`
-
-**Verification Checklist**:
-- [ ] Settings load current config values on mount
-- [ ] Changing a setting updates config immediately
-- [ ] Restarting TUI shows saved settings
-- [ ] Invalid config values handled gracefully
-
-**Rollback**: Remove config integration, use hardcoded defaults
+**Rollback**: Use hardcoded default
 
 ---
 
-### Step 6: Comprehensive Testing
-**Goal**: Verify all functionality across different scenarios
+#### Step 4.2: Wire Log Verbosity to Configuration
+**Goal**: Log Verbosity setting persists to config
+
+**Changes**:
+- Read logLevel from ConfigurationManager on mount
+- Write logLevel changes to ConfigurationManager
+
+**Verification**:
+- [ ] Log Verbosity loads saved value
+- [ ] Changing it saves immediately
+- [ ] Restart TUI, persists
+
+**Rollback**: Use hardcoded default
+
+---
+
+#### Step 4.3: Wire Default Model to Configuration
+**Goal**: Default Model setting persists to config
+
+**Changes**:
+- Read defaultModel from ConfigurationManager on mount
+- Write defaultModel changes to ConfigurationManager
+
+**Verification**:
+- [ ] Default Model loads saved value
+- [ ] Changing it saves immediately
+- [ ] Restart TUI, persists
+
+**Rollback**: Use hardcoded default
+
+---
+
+### Phase E: Final Verification
+
+#### Step 5: Comprehensive Testing
+**Goal**: Verify everything works together
 
 **Test Scenarios**:
-1. **Fresh start**: TUI launches with default settings
-2. **Change settings**: All 3 settings can be changed and persist
-3. **Responsive**: Works in landscape and portrait
-4. **Navigation**: All 4 screens accessible, Tab switching works
-5. **Keyboard**: All keyboard shortcuts work correctly
-6. **Edge cases**: Very narrow terminals, very short terminals
+1. Fresh start with defaults
+2. Change all 3 settings, restart, verify persistence
+3. Landscape mode - all 4 screens
+4. Portrait mode - all 4 screens
+5. Very narrow terminal
+6. Very short terminal
 
-**No code changes in this step - testing only**
-
-**Verification Checklist**:
-- [ ] All Step 1-5 verifications pass
-- [ ] Settings persist across TUI restart
-- [ ] No visual glitches in any terminal size
-- [ ] No errors in console
-
----
-
-## Success Criteria
-
-At completion of Sprint 2:
-
-### Functional Requirements
-- [ ] Navigation shows 4 items (Manage Folders, Connect, Activity Log, Settings)
-- [ ] All 4 panels accessible via navigation
-- [ ] Settings panel has 3 working SelectionListItems
-- [ ] Settings persist to configuration
-- [ ] Placeholder content visible in Connect and Activity Log panels
-
-### Non-Functional Requirements
-- [ ] Responsive design works in landscape and portrait
-- [ ] No visual glitches during panel switching
-- [ ] TypeScript compiles without errors
-- [ ] `npm run build` succeeds
-- [ ] `npm run tui` launches without errors
-
-### Code Quality
-- [ ] Uses only existing custom components
-- [ ] Follows established patterns from Sprint 1
-- [ ] No emojis (single-char icons only)
-- [ ] Proper focus chain integration
-
----
-
-## Risk Mitigation
-
-### Identified Risks
-
-1. **Navigation Panel Overflow**
-   - **Risk**: 4 items may not fit in portrait mode
-   - **Mitigation**: HorizontalListRenderer handles truncation, test early
-   - **Rollback**: Reduce label lengths if needed
-
-2. **Configuration Integration**
-   - **Risk**: ConfigurationManager API may not match expected interface
-   - **Mitigation**: Explore ConfigurationManager early, adapt as needed
-   - **Rollback**: Use local state only, defer persistence
-
-3. **Model Registry Access**
-   - **Risk**: Model list may be empty or unavailable
-   - **Mitigation**: Handle empty model list gracefully
-   - **Fallback**: Show "No models available" message
+**Verification**:
+- [ ] All 14 prior steps verified
+- [ ] No visual glitches
+- [ ] No console errors
+- [ ] Settings persist correctly
 
 ---
 
@@ -306,22 +292,37 @@ At completion of Sprint 2:
 - `src/interfaces/tui-ink/components/ActivityLogPanel.tsx`
 
 ### Files to Modify
-- `src/interfaces/tui-ink/components/NavigationPanel.tsx`
+- `src/interfaces/tui-ink/components/NavigationPanel.tsx` (or data source)
 - `src/interfaces/tui-ink/AppFullscreen.tsx`
-- `src/interfaces/tui-ink/hooks/useNavigation.ts` (possibly)
 
 ---
 
 ## Completion Tracking
 
-- [ ] Step 1: Update Navigation Items to 4
-- [ ] Step 2: Create Placeholder Panels
-- [ ] Step 3: Wire Up Panel Switching for All 4
-- [ ] Step 4: Implement Settings Panel Content
-- [ ] Step 5: Wire Settings to Configuration
-- [ ] Step 6: Comprehensive Testing
+### Phase A: Navigation
+- [ ] Step 1.1: Rename "Demo Controls" to "Connect"
+- [ ] Step 1.2: Add "Activity Log" (3rd item)
+- [ ] Step 1.3: Add "Settings" (4th item)
 
-**Sprint Status**: 0/6 steps completed (0%)
+### Phase B: Placeholder Panels
+- [ ] Step 2.1: SettingsPanel placeholder + wire
+- [ ] Step 2.2: ActivityLogPanel placeholder + wire
+- [ ] Step 2.3: ConnectPanel placeholder + wire
+
+### Phase C: Settings Content
+- [ ] Step 3.1: Theme SelectionListItem
+- [ ] Step 3.2: Log Verbosity SelectionListItem
+- [ ] Step 3.3: Default Model SelectionListItem
+
+### Phase D: Configuration
+- [ ] Step 4.1: Wire Theme to config
+- [ ] Step 4.2: Wire Log Verbosity to config
+- [ ] Step 4.3: Wire Default Model to config
+
+### Phase E: Testing
+- [ ] Step 5: Comprehensive testing
+
+**Sprint Status**: 0/14 steps completed (0%)
 
 ---
 
@@ -330,3 +331,4 @@ At completion of Sprint 2:
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-12-16 | Sprint 2 document created | Claude |
+| 2025-12-16 | Expanded to 14 granular steps (one TUI change at a time) | Claude |
