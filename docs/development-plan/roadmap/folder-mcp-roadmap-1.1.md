@@ -621,32 +621,49 @@ Discovery: get_server_info → find_documents → get_document_text
 
 **📋 [Detailed Phase Plan](completed/Phase-10-Semantic-Endpoint-Navigation-EPIC.md)**
 
-## Phase 11: TUI Rebuild & Professional Interface
+## Phase 11: Complete App Interface
 
-**Goal**: Rebuild TUI with proper screens, navigation menu, and professional interface
+**Goal**: Build complete 4-screen TUI application
 
-**Why**: Current TUI is functional but needs proper screen architecture, navigation system, and polished user experience for production use.
+**Why**: Core functionality is complete. Need professional multi-screen interface for production use.
 
-**What**:
-- Complete TUI architecture rebuild with proper screen management
-- Navigation menu system for different application areas
-- Multiple screens (folder management, agent connections, settings, monitoring)
-- Professional interface design and user experience improvements
-- Centralized focus management and keyboard navigation system
+**4-Screen Architecture**:
+| Screen | Purpose |
+|--------|---------|
+| **Manage Folders** | Add/remove folders, model selection, indexing status |
+| **Connect** | Local MCP setup (JSON configs for Claude Desktop, VSCode, etc.) |
+| **Activity Log** | Live logs, indexing events, daemon health |
+| **Settings** | Theme, log verbosity, default model |
 
-**Success Criteria**: Professional TUI interface with intuitive navigation and multiple functional screens.
+**Sprints**:
+- Sprint 1 ✅: Navigation Framework (landscape/portrait adaptive, arrow-key switching)
+- Sprint 2: Settings Screen (3 SelectionListItems: Theme, Log Verbosity, Default Model)
+- Sprint 3: Activity Log Screen (LogItems with filter, real-time daemon logs)
+- Sprint 4: Connect Screen (Local MCP connection strings with copy buttons)
 
-## Phase 12: Remote Access
+**Components**: All screens use existing tested components (GenericListPanel, SelectionListItem, TextListItem, ButtonsRow, LogItem). NO new components needed.
 
-**Goal**: Enable secure remote access to knowledge base
+**Success Criteria**: 4 functional screens with responsive layouts and keyboard navigation.
+
+## Phase 12: Remote Access (Connect Screen Enhancement)
+
+**Goal**: Add remote access capabilities to the Connect screen built in Phase 11
 
 **Why**: Users want to access their knowledge base from anywhere, not just locally.
 
-**What**:
-- Remote access via Server-Sent Events (SSE) with authentication
-- Cloudflare tunnel support for easy setup
-- Enable LLM direct file access via public URLs (images, PDFs, documents)
-  - Replace localhost URLs with public tunnel URLs in all file-referencing endpoints
+**What** (Additions to Connect Screen):
+- Enable/disable remote access toggle (SelectionListItem)
+- Cloudflare tunnel setup wizard
+- Custom domain configuration
+- Authentication settings (API keys)
+- Connection status indicator
+- Remote connection string (when enabled)
+
+**Backend Work**:
+- Express server with SSE endpoint at `/mcp/sse`
+- Cloudflare tunnel integration
+- API key authentication
+- Public URL generation for file downloads
 
 **Current REST API Endpoints (14 total - 13 implemented, 1 planned)**:
 

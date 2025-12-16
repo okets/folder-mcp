@@ -102,7 +102,7 @@ The automated Code review system does not know what we worked on. I want you to:
 - the automated code review system might suggest changes that contradict our instruction not keep backwards compatibility. we are in pre-production and can do radical changes. do not accept suggestions that contradict this principle.
 
 MY Code review system's suggestions:
-1.
+1. 
 
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:

@@ -14,13 +14,13 @@ import * as os from 'os';
 export function createStatusPanelItems(): IListItem[] {
     return [
         // ===== TEST ITEM FOR STEP 8 COLOR VERIFICATION =====
-        new TextListItem(
-            '●',
-            'TEST WRAP MODE COLOR: This is a very long text item that should wrap to multiple lines and allow you to verify that active items show the accent color in wrap mode, not just gray. Navigate to this item and check if all lines show accent color when active.',
-            false,  // isActive (will be controlled by navigation)
-            undefined,  // onSelectCallback
-            'wrap'  // overflowMode
-        ),
+        // new TextListItem(
+        //     '●',
+        //     'TEST WRAP MODE COLOR: This is a very long text item that should wrap to multiple lines and allow you to verify that active items show the accent color in wrap mode, not just gray. Navigate to this item and check if all lines show accent color when active.',
+        //     false,  // isActive (will be controlled by navigation)
+        //     undefined,  // onSelectCallback
+        //     'wrap'  // overflowMode
+        // ),
 
         // ===== CONFIGURATION ITEMS (from MainPanel) =====
 
