@@ -5,6 +5,9 @@ import { StatusBar } from './components/StatusBar';
 import { LayoutContainer } from './components/LayoutContainer';
 import { GenericListPanel } from './components/GenericListPanel';
 import { NavigationPanel } from './components/NavigationPanel';
+import { SettingsPanel } from './components/SettingsPanel';
+import { ActivityLogPanel } from './components/ActivityLogPanel';
+import { ConnectPanel } from './components/ConnectPanel';
 import { useNavigationContext } from './contexts/NavigationContext';
 import { useTerminalSize } from './hooks/useTerminalSize';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain';
@@ -13,7 +16,7 @@ import { ServiceTokens } from './di/tokens';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
 import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
-import { useTheme, themes, ThemeName } from './contexts/ThemeContext';
+import { useTheme } from './contexts/ThemeContext';
 import { theme } from './utils/theme';
 import { IListItem } from './components/core/IListItem';
 import { FilePickerListItem } from './components/core/FilePickerListItem';
@@ -654,19 +657,6 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             toggleAnimations();
             return true;
         }
-        // Handle 'T' to cycle themes
-        if ((input === 't' || input === 'T') && themeContext) {
-            const themeNames = Object.keys(themes) as ThemeName[];
-            const currentIndex = themeNames.indexOf(themeContext.themeName);
-            const nextIndex = (currentIndex + 1) % themeNames.length;
-            const nextTheme = themeNames[nextIndex];
-            if (nextTheme) {
-                themeContext.setTheme(nextTheme).catch(() => {
-                    // Ignore theme change errors
-                });
-            }
-            return true;
-        }
         // Handle 'esc' to quit - simple countdown safety mechanism
         if (key.escape) {
             if (countdown !== null) {
@@ -684,7 +674,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             return true;
         }
         return false;
-    }, [robustExit, toggleAnimations, themeContext, countdown]);
+    }, [robustExit, toggleAnimations, countdown]);
     
     // Use focus chain for app-level component
     useFocusChain({
@@ -692,8 +682,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
             { key: countdown !== null && countdown >= 0 ? `Esc(again ${countdown}…)` : 'Esc', description: 'Exit' },
-            { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' },
-            { key: 'T', description: `Theme (${themeContext.themeName || 'auto'})` }
+            { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' }
         ],
         priority: -100 // Low priority so active elements can override
     });
@@ -776,7 +765,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     const effectiveRows = isWindows ? rows - 1 : rows;
 
     // Panel width constraints based on actual content requirements
-    const NAV_PANEL_WIDTH_FIXED = 21; // 21 chars for "▶ Manage Folders" + 2 reserved scroll bar space +2 borders
+    const NAV_PANEL_WIDTH_FIXED = 22; // 22 chars for "○ Connect Clients" + padding + borders
     const MAIN_PANEL_MIN_WIDTH = 80; // Minimum usable width for main content
 
     // Content-based orientation detection: switch to landscape only when we have space for both panels
@@ -825,7 +814,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 {/* Content Panel - Conditionally render based on navigation selection */}
                 <Box width={contentAvailableWidth} height={contentAvailableHeight}>
                     {navigation.navigationSelectedIndex === 0 ? (
-                        // Manage Folders Panel
+                        // Manage Folders Panel (index 0)
                         <GenericListPanel
                             title="Manage Folders"
                             subtitle="Configuration"
@@ -855,8 +844,35 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                 navigation.switchToNavigation
                             )}
                     />
+                    ) : navigation.navigationSelectedIndex === 1 ? (
+                        // Connect Panel (index 1)
+                        <ConnectPanel
+                            width={contentAvailableWidth}
+                            height={contentAvailableHeight}
+                            isFocused={navigation.isMainFocused}
+                            isLandscape={isLandscape}
+                            onSwitchToNavigation={navigation.switchToNavigation}
+                        />
+                    ) : navigation.navigationSelectedIndex === 2 ? (
+                        // Activity Log Panel (index 2)
+                        <ActivityLogPanel
+                            width={contentAvailableWidth}
+                            height={contentAvailableHeight}
+                            isFocused={navigation.isMainFocused}
+                            isLandscape={isLandscape}
+                            onSwitchToNavigation={navigation.switchToNavigation}
+                        />
+                    ) : navigation.navigationSelectedIndex === 3 ? (
+                        // Settings Panel (index 3)
+                        <SettingsPanel
+                            width={contentAvailableWidth}
+                            height={contentAvailableHeight}
+                            isFocused={navigation.isMainFocused}
+                            isLandscape={isLandscape}
+                            onSwitchToNavigation={navigation.switchToNavigation}
+                        />
                     ) : (
-                        // Demo Controls Panel
+                        // Demo Controls Panel (index 4)
                         <GenericListPanel
                             title="Demo Controls"
                             subtitle="Component Testing"
@@ -907,6 +923,7 @@ const AppContent: React.FC<AppContentProps> = memo(({ config }) => {
     return (
         <NavigationProvider
             isBlocked={isNodeInEditMode}
+            navigationItemCount={5}           // Manage Folders, Connect, Activity Log, Settings, Demo Controls
             configItemCount={configItemCount}
             statusItemCount={STATUS_ITEM_COUNT}
             mainPanelItems={configItems}      // Pass items for first navigable detection

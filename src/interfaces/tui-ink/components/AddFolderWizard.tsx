@@ -621,19 +621,21 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
             // Only update if languages actually changed
             const oldLanguages = JSON.stringify(selectedLanguages);
             const currentLanguages = JSON.stringify(newLanguages);
-            
+
             if (oldLanguages !== currentLanguages) {
                 selectedLanguages = newLanguages;
                 // Update the selectedValues property of the component to maintain state
                 languageSelector.selectedValues = newLanguages;
-                
+
                 // Trigger model re-evaluation for current mode
                 await updateModelOptions(selectedMode, newLanguages);
-                
+
                 // Validate only if data model changed
                 await updateDataModelAndValidate();
             }
         },
+        undefined, // onPreviewChange - not used here
+        undefined, // onCancel - not used here
         1, // minSelections - at least one language required
         undefined, // maxSelections - no maximum
         false, // autoSwitchLayout
@@ -689,6 +691,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 }
             }
         },
+        undefined, // onPreviewChange - not used here
+        undefined, // onCancel - not used here
         undefined, // minSelections
         undefined, // maxSelections
         false, // autoSwitchLayout
@@ -722,6 +726,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
                 }
             }
         },
+        undefined, // onPreviewChange - not used here
+        undefined, // onCancel - not used here
         undefined, // minSelections
         undefined, // maxSelections
         false, // autoSwitchLayout

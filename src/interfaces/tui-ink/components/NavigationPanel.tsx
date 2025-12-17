@@ -31,8 +31,29 @@ const createNavigationItems = (selectedIndex: number): IListItem[] => {
         ),
         new NavigationListItem(
             '○',
+            'Connect Clients',
+            selectedIndex === 1,
+            undefined,
+            'truncate'
+        ),
+        new NavigationListItem(
+            '○',
+            'Activity Log',
+            selectedIndex === 2,
+            undefined,
+            'truncate'
+        ),
+        new NavigationListItem(
+            '○',
+            'Settings',
+            selectedIndex === 3,
+            undefined,
+            'truncate'
+        ),
+        new NavigationListItem(
+            '○',
             'Demo Controls',
-            selectedIndex === 1, // isSelected - blue when selected
+            selectedIndex === 4, // Moved to index 4
             undefined,
             'truncate'
         )

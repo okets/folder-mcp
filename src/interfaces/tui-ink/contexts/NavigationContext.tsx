@@ -10,6 +10,7 @@ const NavigationContext = createContext<NavigationContextType | null>(null);
 interface NavigationProviderProps {
     children: ReactNode;
     isBlocked?: boolean;
+    navigationItemCount?: number;  // Number of navigation items (for circular navigation)
     configItemCount?: number;
     statusItemCount?: number;
     mainPanelItems?: IListItem[];
@@ -19,6 +20,7 @@ interface NavigationProviderProps {
 export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({
     children,
     isBlocked = false,
+    navigationItemCount,
     configItemCount,
     statusItemCount,
     mainPanelItems,
@@ -26,7 +28,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = memo(({
 }) => {
     const navigation = useNavigation({
         isBlocked,
-        ...buildProps({ configItemCount, statusItemCount, mainPanelItems, statusPanelItems })
+        ...buildProps({ navigationItemCount, configItemCount, statusItemCount, mainPanelItems, statusPanelItems })
     });
 
     return (

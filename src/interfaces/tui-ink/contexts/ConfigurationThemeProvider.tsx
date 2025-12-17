@@ -80,20 +80,28 @@ const ThemeProviderWithPersistence: React.FC<{
 
 /**
  * Resolve theme name from configuration value
+ * Handles both new theme names and legacy theme name migrations
  */
 function resolveThemeName(configTheme: string): ThemeName {
+    // Direct match for new theme names
+    const validThemes: ThemeName[] = [
+        'default', 'light', 'minimal',
+        'high-contrast', 'colorblind',
+        'ocean', 'forest', 'sunset',
+        'dracula', 'nord', 'monokai', 'solarized', 'gruvbox'
+    ];
+    if (validThemes.includes(configTheme as ThemeName)) {
+        return configTheme as ThemeName;
+    }
+
+    // Legacy theme name migration
     switch (configTheme) {
-        case 'light':
         case 'light-optimized':
-            return 'light-optimized';
+            return 'light';  // Renamed
         case 'dark':
         case 'dark-optimized':
-            return 'dark-optimized';
         case 'auto':
-        case 'default':
-            return 'default';
-        case 'minimal':
-            return 'minimal';
+            return 'default';  // Removed themes fallback to default
         default:
             return 'default';
     }

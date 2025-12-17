@@ -66,16 +66,25 @@ export class ConfigurableThemeService implements IThemeService {
             return 'default';
         }
         
-        // Map configuration theme names to TUI theme names
+        // Direct match for new theme names
+        const validThemes: ThemeName[] = [
+            'default', 'light', 'minimal',
+            'high-contrast', 'colorblind',
+            'ocean', 'forest', 'sunset',
+            'dracula', 'nord', 'monokai', 'solarized', 'gruvbox'
+        ];
+        if (validThemes.includes(configTheme as ThemeName)) {
+            return configTheme as ThemeName;
+        }
+
+        // Legacy theme name migration
         switch (configTheme) {
-            case 'light':
             case 'light-optimized':
-                return 'light-optimized';
+                return 'light';  // Renamed
             case 'dark':
             case 'dark-optimized':
-                return 'dark-optimized';
-            case 'minimal':
-                return 'minimal';
+            case 'auto':
+                return 'default';  // Removed themes fallback to default
             default:
                 return 'default';
         }

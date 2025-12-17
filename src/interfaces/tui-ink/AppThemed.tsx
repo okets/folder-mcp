@@ -1,40 +1,12 @@
 import React from 'react';
-import { Box, Text, useInput } from 'ink';
-import { themes, ThemeName, useTheme } from './contexts/ThemeContext';
+import { Box, Text } from 'ink';
+import { useTheme } from './contexts/ThemeContext';
 import { ThemedMainPanel, ThemedSecondaryPanel } from './components/core/ThemedPanel';
 import { useResponsiveLayout } from './hooks/useResponsiveLayout';
 import { NavigationProvider, useNavigationContext } from './contexts/NavigationContext';
 import { AnimationProvider } from './contexts/AnimationContext';
 import { configItems } from './models/sampleData';
 import { statusItems } from './models/sampleData';
-
-/**
- * Theme switcher component
- */
-const ThemeSwitcher: React.FC = () => {
-    const { theme, themeName, setTheme } = useTheme();
-    const themeNames = Object.keys(themes) as ThemeName[];
-    const currentIndex = themeNames.indexOf(themeName);
-    
-    useInput((input, key) => {
-        if (input === 't' || input === 'T') {
-            // Cycle through themes
-            const nextIndex = (currentIndex + 1) % themeNames.length;
-            const nextTheme = themeNames[nextIndex];
-            if (nextTheme) {
-                setTheme(nextTheme);
-            }
-        }
-    });
-    
-    return (
-        <Box>
-            <Text color={theme.colors.textMuted}>
-                Theme: <Text color={theme.colors.accent}>{theme.name}</Text> (press 't' to switch)
-            </Text>
-        </Box>
-    );
-};
 
 /**
  * Main app content with themed panels
@@ -108,7 +80,6 @@ const ThemedAppContent: React.FC = () => {
                     <Text color={theme.colors.textMuted}>
                         Tab: Switch panels | ↑↓: Navigate | Esc: Exit
                     </Text>
-                    <ThemeSwitcher />
                 </Box>
                 <Text color={theme.colors.textMuted}>
                     Layout: {layout} | Active: {navigation.isMainFocused ? 'Main' : 'Status'}

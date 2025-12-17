@@ -38,9 +38,50 @@ export interface Theme {
     };
 }
 
+// =============================================================================
+// SHARED ICONS AND SYMBOLS
+// =============================================================================
+
+const defaultIcons = {
+    active: '▶',
+    inactive: '·',
+    expanded: '▼',
+    collapsed: '▶',
+    success: '✓',
+    warning: '⚠',
+    error: '✗',
+    info: 'ℹ'
+};
+
+const defaultSymbols = {
+    border: {
+        topLeft: '╭',
+        topRight: '╮',
+        bottomLeft: '╰',
+        bottomRight: '╯',
+        horizontal: '─',
+        vertical: '│'
+    }
+};
+
+const asciiSymbols = {
+    border: {
+        topLeft: '+',
+        topRight: '+',
+        bottomLeft: '+',
+        bottomRight: '+',
+        horizontal: '-',
+        vertical: '|'
+    }
+};
+
+// =============================================================================
+// CORE THEMES (3)
+// =============================================================================
+
 // Default theme - works well on dark terminals
 export const defaultTheme: Theme = {
-    name: 'default',
+    name: 'Default',
     colors: {
         primary: 'blue',
         accent: 'cyan',
@@ -48,77 +89,39 @@ export const defaultTheme: Theme = {
         warning: '#F59E0B',
         error: 'red',
         text: 'white',
-        textMuted: 'gray', // Match dark theme style
+        textMuted: 'gray',
         border: 'gray',
         borderFocus: '#578ce0',
         headerBorder: '#7f0fbf',
         titleText: '#af87ff'
     },
-    icons: {
-        active: '▶',
-        inactive: '·',
-        expanded: '▼',
-        collapsed: '▶',
-        success: '✓',
-        warning: '⚠',
-        error: '✗',
-        info: 'ℹ'
-    },
-    symbols: {
-        border: {
-            topLeft: '╭',
-            topRight: '╮',
-            bottomLeft: '╰',
-            bottomRight: '╯',
-            horizontal: '─',
-            vertical: '│'
-        }
-    }
+    icons: defaultIcons,
+    symbols: defaultSymbols
 };
 
-// Dark-optimized theme - optimized for dark terminals
-export const darkOptimizedTheme: Theme = {
-    name: 'dark-optimized',
-    colors: {
-        primary: 'blueBright',
-        accent: 'cyanBright',
-        success: 'greenBright',
-        warning: '#F59E0B',
-        error: 'redBright',
-        text: 'white',
-        textMuted: 'whiteBright', // Bright white for visibility
-        border: 'gray',
-        borderFocus: 'cyanBright',
-        headerBorder: 'rgb(169, 137, 248)',
-        titleText: '#af87ff'
-    },
-    icons: defaultTheme.icons,
-    symbols: defaultTheme.symbols
-};
-
-// Light-optimized theme - optimized for light terminals
-export const lightOptimizedTheme: Theme = {
-    name: 'light-optimized',
+// Light theme - for light terminal backgrounds (renamed from light-optimized)
+export const lightTheme: Theme = {
+    name: 'Light',
     colors: {
         primary: 'blueBright',
         accent: 'blueBright',
-        success: 'greenBright', 
+        success: 'greenBright',
         warning: '#F59E0B',
         error: 'redBright',
         text: 'black',
-        textMuted: 'blackBright', // Dark but visible on light backgrounds
+        textMuted: 'blackBright',
         border: 'blackBright',
         borderFocus: 'blueBright',
         headerBorder: 'rgb(169, 137, 248)',
         titleText: '#af87ff'
     },
-    icons: defaultTheme.icons,
-    symbols: defaultTheme.symbols
+    icons: defaultIcons,
+    symbols: defaultSymbols
 };
 
-// Minimal theme
+// Minimal theme - ASCII only for maximum compatibility
 export const minimalTheme: Theme = {
-    name: 'minimal',
+    name: 'Minimal',
     colors: {
         primary: 'white',
         accent: 'white',
@@ -130,7 +133,7 @@ export const minimalTheme: Theme = {
         border: 'gray',
         borderFocus: 'white',
         headerBorder: 'gray',
-        titleText: '#af87ff'
+        titleText: 'white'
     },
     icons: {
         active: '>',
@@ -142,87 +145,243 @@ export const minimalTheme: Theme = {
         error: '[X]',
         info: '[i]'
     },
-    symbols: {
-        border: {
-            topLeft: '+',
-            topRight: '+',
-            bottomLeft: '+',
-            bottomRight: '+',
-            horizontal: '-',
-            vertical: '|'
-        }
-    }
+    symbols: asciiSymbols
 };
 
-// Light theme - basic light colors
-export const lightTheme: Theme = {
-    name: 'light',
+// =============================================================================
+// ACCESSIBILITY THEMES (2)
+// =============================================================================
+
+// High Contrast - maximum visibility for visually impaired users
+export const highContrastTheme: Theme = {
+    name: 'High Contrast',
     colors: {
-        primary: 'blue',
-        accent: 'blue',
-        success: 'green',
-        warning: '#F59E0B',
-        error: 'red',
-        text: 'black',
-        textMuted: 'gray',
-        border: 'gray',
-        borderFocus: 'blue',
-        headerBorder: 'rgb(169, 137, 248)',
-        titleText: '#af87ff'
+        primary: 'yellow',
+        accent: 'yellowBright',
+        success: 'greenBright',
+        warning: 'yellowBright',
+        error: 'redBright',
+        text: 'whiteBright',
+        textMuted: 'white',
+        border: 'whiteBright',
+        borderFocus: 'yellowBright',
+        headerBorder: 'yellowBright',
+        titleText: 'yellowBright'
     },
-    icons: defaultTheme.icons,
-    symbols: defaultTheme.symbols
+    icons: defaultIcons,
+    symbols: defaultSymbols
 };
 
-// Dark theme - basic dark colors
-export const darkTheme: Theme = {
-    name: 'dark',
+// Colorblind - deuteranopia-safe (no red/green differentiation)
+export const colorblindTheme: Theme = {
+    name: 'Colorblind',
     colors: {
         primary: 'blue',
         accent: 'cyan',
-        success: 'green',
-        warning: '#F59E0B',
-        error: 'red',
+        success: 'blueBright',      // Blue instead of green
+        warning: 'yellow',
+        error: '#FF8C00',           // Orange instead of red
         text: 'white',
         textMuted: 'gray',
         border: 'gray',
         borderFocus: 'cyan',
-        headerBorder: 'rgb(169, 137, 248)',
-        titleText: '#af87ff'
+        headerBorder: 'blue',
+        titleText: 'cyanBright'
     },
-    icons: defaultTheme.icons,
-    symbols: defaultTheme.symbols
+    icons: defaultIcons,
+    symbols: defaultSymbols
 };
 
-// Auto theme - will be resolved to light or dark based on system preference
-export const autoTheme: Theme = {
-    name: 'auto',
+// =============================================================================
+// NATURE THEMES (3)
+// =============================================================================
+
+// Ocean - blue/cyan oceanic palette
+export const oceanTheme: Theme = {
+    name: 'Ocean',
     colors: {
-        primary: 'blue',
-        accent: 'cyan',
-        success: 'green',
+        primary: '#0077B6',
+        accent: '#00B4D8',
+        success: '#48CAE4',
         warning: '#F59E0B',
-        error: 'red',
+        error: '#FF6B6B',
         text: 'white',
-        textMuted: 'whiteBright',
-        border: 'gray',
-        borderFocus: 'rgb(240, 240, 239)',
-        headerBorder: 'rgb(169, 137, 248)',
-        titleText: '#af87ff'
+        textMuted: '#90E0EF',
+        border: '#023E8A',
+        borderFocus: '#00B4D8',
+        headerBorder: '#0077B6',
+        titleText: '#48CAE4'
     },
-    icons: defaultTheme.icons,
-    symbols: defaultTheme.symbols
+    icons: defaultIcons,
+    symbols: defaultSymbols
 };
 
-// Available themes
+// Forest - green nature palette
+export const forestTheme: Theme = {
+    name: 'Forest',
+    colors: {
+        primary: '#2D6A4F',
+        accent: '#40916C',
+        success: '#52B788',
+        warning: '#F59E0B',
+        error: '#E63946',
+        text: 'white',
+        textMuted: '#95D5B2',
+        border: '#1B4332',
+        borderFocus: '#40916C',
+        headerBorder: '#2D6A4F',
+        titleText: '#52B788'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Sunset - warm orange/red palette
+export const sunsetTheme: Theme = {
+    name: 'Sunset',
+    colors: {
+        primary: '#E85D04',
+        accent: '#F48C06',
+        success: '#FFBA08',
+        warning: '#FAA307',
+        error: '#D00000',
+        text: 'white',
+        textMuted: '#FFBA08',
+        border: '#9D0208',
+        borderFocus: '#F48C06',
+        headerBorder: '#E85D04',
+        titleText: '#FFBA08'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// =============================================================================
+// CLASSIC EDITOR THEMES (5)
+// =============================================================================
+
+// Dracula - purple/pink vampire theme
+export const draculaTheme: Theme = {
+    name: 'Dracula',
+    colors: {
+        primary: '#BD93F9',
+        accent: '#FF79C6',
+        success: '#50FA7B',
+        warning: '#F1FA8C',
+        error: '#FF5555',
+        text: '#F8F8F2',
+        textMuted: '#6272A4',
+        border: '#44475A',
+        borderFocus: '#BD93F9',
+        headerBorder: '#FF79C6',
+        titleText: '#BD93F9'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Nord - cool arctic blues
+export const nordTheme: Theme = {
+    name: 'Nord',
+    colors: {
+        primary: '#5E81AC',
+        accent: '#88C0D0',
+        success: '#A3BE8C',
+        warning: '#EBCB8B',
+        error: '#BF616A',
+        text: '#ECEFF4',
+        textMuted: '#4C566A',
+        border: '#3B4252',
+        borderFocus: '#88C0D0',
+        headerBorder: '#5E81AC',
+        titleText: '#88C0D0'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Monokai - classic editor theme
+export const monokaiTheme: Theme = {
+    name: 'Monokai',
+    colors: {
+        primary: '#F92672',
+        accent: '#66D9EF',
+        success: '#A6E22E',
+        warning: '#E6DB74',
+        error: '#F92672',
+        text: '#F8F8F2',
+        textMuted: '#75715E',
+        border: '#49483E',
+        borderFocus: '#66D9EF',
+        headerBorder: '#F92672',
+        titleText: '#A6E22E'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Solarized Dark - Ethan Schoonover's classic
+export const solarizedTheme: Theme = {
+    name: 'Solarized',
+    colors: {
+        primary: '#268BD2',
+        accent: '#2AA198',
+        success: '#859900',
+        warning: '#B58900',
+        error: '#DC322F',
+        text: '#839496',
+        textMuted: '#586E75',
+        border: '#073642',
+        borderFocus: '#2AA198',
+        headerBorder: '#268BD2',
+        titleText: '#2AA198'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Gruvbox - retro warm theme
+export const gruvboxTheme: Theme = {
+    name: 'Gruvbox',
+    colors: {
+        primary: '#D79921',
+        accent: '#689D6A',
+        success: '#98971A',
+        warning: '#D79921',
+        error: '#CC241D',
+        text: '#EBDBB2',
+        textMuted: '#928374',
+        border: '#3C3836',
+        borderFocus: '#D79921',
+        headerBorder: '#689D6A',
+        titleText: '#D79921'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// =============================================================================
+// THEME REGISTRY
+// =============================================================================
+
 export const themes = {
-    auto: autoTheme,
-    light: lightTheme,
-    dark: darkTheme,
-    'light-optimized': lightOptimizedTheme,
-    'dark-optimized': darkOptimizedTheme,
+    // Core
     default: defaultTheme,
-    minimal: minimalTheme
+    light: lightTheme,
+    minimal: minimalTheme,
+    // Accessibility
+    'high-contrast': highContrastTheme,
+    colorblind: colorblindTheme,
+    // Nature
+    ocean: oceanTheme,
+    forest: forestTheme,
+    sunset: sunsetTheme,
+    // Classic Editor
+    dracula: draculaTheme,
+    nord: nordTheme,
+    monokai: monokaiTheme,
+    solarized: solarizedTheme,
+    gruvbox: gruvboxTheme
 } as const;
 
 export type ThemeName = keyof typeof themes;

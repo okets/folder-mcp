@@ -23,6 +23,8 @@ export class SelectionListItem implements IListItem {
     private _selectedValues: string[] = [];
     private _focusedIndex: number = 0;
     private onValueChange?: (newValues: string[]) => void;
+    private onPreviewChange?: (newValues: string[]) => void;  // Called on navigation for live preview
+    private onCancel?: (originalValues: string[]) => void;    // Called when canceling (Escape/back)
     private _validationError: string | null = null;
     public _validationMessage: any = null; // For external validation messages
     
@@ -41,6 +43,8 @@ export class SelectionListItem implements IListItem {
         private mode: SelectionMode = 'radio',
         private layout: SelectionLayout = 'vertical',
         onValueChange?: (newValues: string[]) => void,
+        onPreviewChange?: (newValues: string[]) => void,  // Called on navigation for live preview
+        onCancel?: (originalValues: string[]) => void,    // Called when canceling (Escape/back)
         private minSelections?: number,
         private maxSelections?: number,
         private autoSwitchLayout: boolean = false,
@@ -51,6 +55,12 @@ export class SelectionListItem implements IListItem {
         this._workingSelectedValues = [...selectedValues];
         if (onValueChange !== undefined) {
             this.onValueChange = onValueChange;
+        }
+        if (onPreviewChange !== undefined) {
+            this.onPreviewChange = onPreviewChange;
+        }
+        if (onCancel !== undefined) {
+            this.onCancel = onCancel;
         }
         this._effectiveLayout = layout; // Initialize with the original layout
     }
@@ -98,15 +108,17 @@ export class SelectionListItem implements IListItem {
         if (!this._isControllingInput) return false;
         
         if (key.escape) {
-            // Cancel changes
+            // Cancel changes - revert to original
             this._workingSelectedValues = [...this._selectedValues];
             this._focusedIndex = 0;
+            this.onCancel?.(this._selectedValues);  // Notify cancel with original values
             this.onExit();
             return true;
         } else if ((key.upArrow || key.downArrow) && this._effectiveLayout === 'horizontal') {
             // In horizontal layout, up/down arrows exit without saving
             this._workingSelectedValues = [...this._selectedValues];
             this._focusedIndex = 0;
+            this.onCancel?.(this._selectedValues);  // Notify cancel with original values
             this.onExit();
             return true;
         } else if (key.return) {
@@ -133,29 +145,33 @@ export class SelectionListItem implements IListItem {
             return true;
         } else if (key.upArrow && this._effectiveLayout === 'vertical') {
             // Move focus up
-            this._focusedIndex = this._focusedIndex > 0 
-                ? this._focusedIndex - 1 
+            this._focusedIndex = this._focusedIndex > 0
+                ? this._focusedIndex - 1
                 : this.options.length - 1; // Wrap to bottom
-            
+
             // Auto-select in radio mode
             if (this.mode === 'radio') {
                 const option = this.options[this._focusedIndex];
                 if (option) {
                     this._workingSelectedValues = [option.value];
+                    // Live preview callback
+                    this.onPreviewChange?.(this._workingSelectedValues);
                 }
             }
             return true;
         } else if (key.downArrow && this._effectiveLayout === 'vertical') {
             // Move focus down
-            this._focusedIndex = this._focusedIndex < this.options.length - 1 
-                ? this._focusedIndex + 1 
+            this._focusedIndex = this._focusedIndex < this.options.length - 1
+                ? this._focusedIndex + 1
                 : 0; // Wrap to top
-            
+
             // Auto-select in radio mode
             if (this.mode === 'radio') {
                 const option = this.options[this._focusedIndex];
                 if (option) {
                     this._workingSelectedValues = [option.value];
+                    // Live preview callback
+                    this.onPreviewChange?.(this._workingSelectedValues);
                 }
             }
             return true;
@@ -163,6 +179,7 @@ export class SelectionListItem implements IListItem {
             // In vertical layout, left arrow acts as back/cancel
             this._workingSelectedValues = [...this._selectedValues];
             this._focusedIndex = 0;
+            this.onCancel?.(this._selectedValues);  // Notify cancel with original values
             this.onExit();
             return true;
         } else if (key.leftArrow && this._effectiveLayout === 'horizontal') {
@@ -171,32 +188,37 @@ export class SelectionListItem implements IListItem {
                 // At first option, act as back/cancel
                 this._workingSelectedValues = [...this._selectedValues];
                 this._focusedIndex = 0;
+                this.onCancel?.(this._selectedValues);  // Notify cancel with original values
                 this.onExit();
                 return true;
             } else {
                 // Otherwise, move focus left
                 this._focusedIndex = this._focusedIndex - 1;
-                
+
                 // Auto-select in radio mode
                 if (this.mode === 'radio') {
                     const option = this.options[this._focusedIndex];
                     if (option) {
                         this._workingSelectedValues = [option.value];
+                        // Live preview callback
+                        this.onPreviewChange?.(this._workingSelectedValues);
                     }
                 }
                 return true;
             }
         } else if (key.rightArrow && this._effectiveLayout === 'horizontal') {
             // Move focus right
-            this._focusedIndex = this._focusedIndex < this.options.length - 1 
-                ? this._focusedIndex + 1 
+            this._focusedIndex = this._focusedIndex < this.options.length - 1
+                ? this._focusedIndex + 1
                 : 0; // Wrap to start
-            
+
             // Auto-select in radio mode
             if (this.mode === 'radio') {
                 const option = this.options[this._focusedIndex];
                 if (option) {
                     this._workingSelectedValues = [option.value];
+                    // Live preview callback
+                    this.onPreviewChange?.(this._workingSelectedValues);
                 }
             }
             return true;

@@ -235,11 +235,13 @@ export function createStatusPanelItems(): IListItem[] {
             'radio',
             'vertical',
             (newValues) => console.log('AI Model selected:', newValues),
-            undefined,
-            undefined,
-            false,
-            true,
-            ['provider', 'speed', 'cost', 'quality']
+            undefined, // onPreviewChange
+            undefined, // onCancel
+            undefined, // minSelections
+            undefined, // maxSelections
+            false, // autoSwitchLayout
+            true, // showDetails
+            ['provider', 'speed', 'cost', 'quality'] // detailColumns
         ),
         
         // Destructive confirmation test items
@@ -490,8 +492,10 @@ export function createStatusPanelItems(): IListItem[] {
             'checkbox',
             'vertical',
             (newValues) => console.log('Features changed to:', newValues),
-            1,
-            3
+            undefined, // onPreviewChange
+            undefined, // onCancel
+            1, // minSelections
+            3  // maxSelections
         ),
         
         // Invalid value test cases
@@ -712,8 +716,10 @@ export function createStatusPanelItems(): IListItem[] {
             'radio',
             'horizontal',
             (newValues) => console.log('Log level changed to:', newValues),
-            1,
-            1
+            undefined, // onPreviewChange
+            undefined, // onCancel
+            1, // minSelections
+            1  // maxSelections
         ),
         
         new SelectionListItem(
