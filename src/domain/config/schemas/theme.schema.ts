@@ -1,21 +1,15 @@
 /**
  * Theme Configuration Schema
- * 
- * Defines the schema for theme configuration validation
+ *
+ * Defines the schema for theme configuration validation.
+ * Uses ThemeContext as single source of truth for valid theme names.
  */
 
 import { ConfigItem, ConfigGroup, ConfigSchema } from '../IConfigSchema.js';
+import { themes, ThemeName } from '../../../interfaces/tui-ink/contexts/ThemeContext.js';
 
-// All valid theme values (current + legacy for migration)
-const validThemes = [
-  // Current themes
-  'auto', 'default', 'light', 'minimal',
-  'high-contrast', 'colorblind',
-  'ocean', 'forest', 'sunset',
-  'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',
-  // Legacy names (mapped to current themes on load)
-  'dark', 'light-optimized', 'dark-optimized'
-];
+// Valid themes from ThemeContext - single source of truth
+const validThemes = Object.keys(themes) as ThemeName[];
 
 /**
  * Theme configuration item schema
@@ -28,31 +22,17 @@ export const themeConfigItem: ConfigItem = {
   required: false,
   validation: {
     enum: validThemes,
-    errorMessage: 'Theme must be one of: default, light, minimal, high-contrast, colorblind, ocean, forest, sunset, dracula, nord, monokai, solarized, gruvbox'
+    errorMessage: `Theme must be one of: ${validThemes.join(', ')}`
   },
   ui: {
     label: 'Theme',
     component: 'select',
     helpText: 'Choose your preferred color theme',
-    options: [
-      // Core
-      { value: 'default', label: 'Default' },
-      { value: 'light', label: 'Light' },
-      { value: 'minimal', label: 'Minimal' },
-      // Accessibility
-      { value: 'high-contrast', label: 'High Contrast' },
-      { value: 'colorblind', label: 'Colorblind' },
-      // Nature
-      { value: 'ocean', label: 'Ocean' },
-      { value: 'forest', label: 'Forest' },
-      { value: 'sunset', label: 'Sunset' },
-      // Classic Editor
-      { value: 'dracula', label: 'Dracula' },
-      { value: 'nord', label: 'Nord' },
-      { value: 'monokai', label: 'Monokai' },
-      { value: 'solarized', label: 'Solarized' },
-      { value: 'gruvbox', label: 'Gruvbox' }
-    ]
+    // Generated from ThemeContext - each theme has a .name property for display label
+    options: validThemes.map(key => ({
+      value: key,
+      label: themes[key].name
+    }))
   }
 };
 

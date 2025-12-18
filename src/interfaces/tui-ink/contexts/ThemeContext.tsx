@@ -76,6 +76,18 @@ const asciiSymbols = {
     }
 };
 
+// Double-line box drawing for BBS/DOS aesthetic
+const doubleSymbols = {
+    border: {
+        topLeft: '╔',
+        topRight: '╗',
+        bottomLeft: '╚',
+        bottomRight: '╝',
+        horizontal: '═',
+        vertical: '║'
+    }
+};
+
 // =============================================================================
 // CORE THEMES (3)
 // =============================================================================
@@ -363,6 +375,71 @@ export const gruvboxTheme: Theme = {
 };
 
 // =============================================================================
+// RETRO THEMES (3)
+// =============================================================================
+
+// 90's BBS - ANSI art bulletin board system aesthetic
+// Pure RGB primary colors for that classic DOS look
+export const bbsTheme: Theme = {
+    name: "90's BBS",
+    colors: {
+        primary: '#FF0000',          // Pure Red - selections
+        accent: '#FF0000',           // Pure Red - accents
+        success: '#00FF00',          // Pure Green
+        warning: '#FFFF00',          // Pure Yellow
+        error: '#FF0000',            // Pure Red
+        text: '#0000FF',             // Pure Blue - base text
+        textMuted: '#00AAAA',        // EGA Cyan (3) - secondary
+        border: '#00AAAA',           // EGA Cyan (3) - borders
+        borderFocus: '#55FFFF',      // EGA Light Cyan (11)
+        headerBorder: '#0000FF',     // Pure Blue - headers
+        titleText: '#0000FF'         // Pure Blue - titles
+    },
+    icons: defaultIcons,
+    symbols: doubleSymbols           // Double-line borders ╔═╗║╚╝
+};
+
+// CGA - Classic IBM PC 4-color palette (Mode 1: Cyan, Magenta, White)
+export const cgaTheme: Theme = {
+    name: 'CGA',
+    colors: {
+        primary: '#FF55FF',          // CGA bright magenta (hot pink)
+        accent: '#55FFFF',           // CGA bright cyan
+        success: '#55FFFF',          // Cyan for positive
+        warning: '#FF55FF',          // Magenta for attention
+        error: '#FF55FF',            // Magenta (no red in CGA mode 1)
+        text: 'white',
+        textMuted: '#55FFFF',        // Cyan for secondary text
+        border: '#FF55FF',           // Hot pink borders
+        borderFocus: '#55FFFF',      // Cyan focus
+        headerBorder: '#FF55FF',     // Pink header
+        titleText: '#55FFFF'         // Cyan titles
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// Matrix - green-on-black hacker aesthetic
+export const matrixTheme: Theme = {
+    name: 'Matrix',
+    colors: {
+        primary: '#00FF00',
+        accent: '#00FF00',
+        success: '#00FF00',
+        warning: '#ADFF2F',
+        error: '#FF0000',
+        text: '#00FF00',
+        textMuted: '#008F00',
+        border: '#003300',
+        borderFocus: '#00FF00',
+        headerBorder: '#00FF00',
+        titleText: '#00FF00'
+    },
+    icons: defaultIcons,
+    symbols: defaultSymbols
+};
+
+// =============================================================================
 // THEME REGISTRY
 // =============================================================================
 
@@ -383,7 +460,11 @@ export const themes = {
     nord: nordTheme,
     monokai: monokaiTheme,
     solarized: solarizedTheme,
-    gruvbox: gruvboxTheme
+    gruvbox: gruvboxTheme,
+    // Retro
+    bbs: bbsTheme,
+    cga: cgaTheme,
+    matrix: matrixTheme
 } as const;
 
 export type ThemeName = keyof typeof themes;

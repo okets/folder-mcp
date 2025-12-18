@@ -2,13 +2,53 @@
 
 **Phase**: 11 - Complete App Interface
 **Sprint**: 2 - Settings Screen
-**Status**: Not Started
-**Start Date**: TBD
+**Status**: Phase A, B, Step 3.1 Complete → Ready for Step 3.2
+**Start Date**: 2025-12-18
 
 ## Related Documentation
 - [Phase 11 Overview](../folder-mcp-roadmap-1.1.md#phase-11-complete-app-interface)
 - [Sprint 1: Navigation Framework](Phase-11-Sprint-1-Navigation-Framework.md)
 - [TUI Component Visual Guide](../../design/TUI_COMPONENT_VISUAL_GUIDE.md)
+- [Theme Cleanup Tasks](theme-cleanup-tasks.md) - Code review evaluation document
+
+---
+
+## Pre-Sprint: Theme Foundation ✅ COMPLETE
+
+Before implementing the Settings screen, we completed essential theme infrastructure work to ensure the Theme selector will function correctly.
+
+### What Was Done
+
+#### 1. Theme Integration Across All Components
+- **Problem**: Many components used `undefined` for non-selected text color, causing terminal default (white) to override theme
+- **Fix**: Replaced `textColorProp(undefined)` with `textColorProp(theme.colors.textPrimary)` across 30+ components
+- **Files**: SelectionBody, SelectionListItem, CollapsedSummary, VerticalToggleRow, ButtonsRow, and many others
+
+#### 2. Minimal Theme Visibility
+- **Problem**: Minimal theme had no visual distinction (all colors white)
+- **Fix**: Changed base text to `gray` so `whiteBright` selections stand out
+- **Result**: Proper contrast hierarchy for ASCII-only theme
+
+#### 3. Theme Preview Lag Elimination
+- **Problem**: When changing themes, selection highlight briefly showed OLD theme color
+- **Fix**: Call `setCurrentTheme()` synchronously before React state update in ThemeContext
+- **Result**: Instant theme application with no visual lag
+
+#### 4. Legacy Theme Cleanup
+- **Problem**: CliArgumentParser had hardcoded theme list with legacy names (`dark-optimized`, `light-optimized`)
+- **Fix**: Import `ThemeName` from ThemeContext as single source of truth, use `Object.keys(themes)`
+- **Files**: CliArgumentParser.ts, simple-config.ts, ProgressBar.tsx
+
+### Why This Matters for Sprint 2
+The Settings screen will include a Theme selector (Step 3.1). Without this foundation work:
+- Theme changes wouldn't apply to all UI elements
+- Minimal theme would be unusable
+- Users would see jarring color lag when selecting themes
+- Legacy theme names could cause validation errors
+
+### Commits
+- `dc95892` - fix(tui): complete theme integration and cleanup legacy code
+- `a0e28e8` - feat(tui): comprehensive theme overhaul with 13 distinct themes
 
 ---
 
@@ -299,18 +339,18 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 
 ## Completion Tracking
 
-### Phase A: Navigation
-- [ ] Step 1.1: Rename "Demo Controls" to "Connect"
-- [ ] Step 1.2: Add "Activity Log" (3rd item)
-- [ ] Step 1.3: Add "Settings" (4th item)
+### Phase A: Navigation ✅ COMPLETE
+- [x] Step 1.1: Rename "Demo Controls" to "Connect"
+- [x] Step 1.2: Add "Activity Log" (3rd item)
+- [x] Step 1.3: Add "Settings" (4th item)
 
-### Phase B: Placeholder Panels
-- [ ] Step 2.1: SettingsPanel placeholder + wire
-- [ ] Step 2.2: ActivityLogPanel placeholder + wire
-- [ ] Step 2.3: ConnectPanel placeholder + wire
+### Phase B: Placeholder Panels ✅ COMPLETE
+- [x] Step 2.1: SettingsPanel placeholder + wire
+- [x] Step 2.2: ActivityLogPanel placeholder + wire
+- [x] Step 2.3: ConnectPanel placeholder + wire
 
 ### Phase C: Settings Content
-- [ ] Step 3.1: Theme SelectionListItem
+- [x] Step 3.1: Theme SelectionListItem ✅ COMPLETE
 - [ ] Step 3.2: Log Verbosity SelectionListItem
 - [ ] Step 3.3: Default Model SelectionListItem
 
@@ -322,7 +362,7 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 ### Phase E: Testing
 - [ ] Step 5: Comprehensive testing
 
-**Sprint Status**: 0/14 steps completed (0%)
+**Sprint Status**: 7/14 steps completed (50%)
 
 ---
 
@@ -332,3 +372,4 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 |------|--------|--------|
 | 2025-12-16 | Sprint 2 document created | Claude |
 | 2025-12-16 | Expanded to 14 granular steps (one TUI change at a time) | Claude |
+| 2025-12-18 | Pre-Sprint Foundation complete: theme integration, minimal theme fix, preview lag fix, legacy cleanup | Claude |

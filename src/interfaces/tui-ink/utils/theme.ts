@@ -104,10 +104,3 @@ export function setCurrentTheme(contextTheme: ThemeContextTheme): void {
         symbols: contextTheme.symbols
     };
 }
-
-/**
- * @deprecated Use getCurrentTheme() instead for dynamic theme support.
- * This static export is kept for backward compatibility during migration.
- */
-export const theme: Theme = defaultThemeColors;
-

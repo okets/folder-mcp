@@ -8,8 +8,8 @@ import { IThemeService } from './interfaces';
 import { ThemeColors, ThemeSymbols, BorderStyle } from '../models/types';
 import { IConfigManager } from '../../../domain/config/IConfigManager';
 import { ConfigurationComponent } from '../../../config/ConfigurationComponent';
-import { theme as defaultTheme } from '../utils/theme';
 import { themes, ThemeName } from '../contexts/ThemeContext';
+import { getCurrentTheme } from '../utils/theme';
 
 export interface ConfigurableTheme {
     colors: ThemeColors;
@@ -57,37 +57,18 @@ export class ConfigurableThemeService implements IThemeService {
     }
     
     /**
-     * Resolve theme name, handling 'auto' option
+     * Resolve theme name - validates against ThemeContext (single source of truth)
      */
     private resolveThemeName(configTheme: string): ThemeName {
-        if (configTheme === 'auto') {
-            // In a real implementation, this would detect system theme
-            // For now, we'll default to 'default' theme
-            return 'default';
-        }
-        
-        // Direct match for new theme names
-        const validThemes: ThemeName[] = [
-            'default', 'light', 'minimal',
-            'high-contrast', 'colorblind',
-            'ocean', 'forest', 'sunset',
-            'dracula', 'nord', 'monokai', 'solarized', 'gruvbox'
-        ];
+        // Valid themes from ThemeContext
+        const validThemes = Object.keys(themes) as ThemeName[];
+
         if (validThemes.includes(configTheme as ThemeName)) {
             return configTheme as ThemeName;
         }
 
-        // Legacy theme name migration
-        switch (configTheme) {
-            case 'light-optimized':
-                return 'light';  // Renamed
-            case 'dark':
-            case 'dark-optimized':
-            case 'auto':
-                return 'default';  // Removed themes fallback to default
-            default:
-                return 'default';
-        }
+        // Invalid theme name - fail visibly by returning default
+        return 'default';
     }
     
     /**
@@ -100,10 +81,11 @@ export class ConfigurableThemeService implements IThemeService {
             return this.adaptContextTheme(contextTheme);
         }
         
-        // Otherwise, return default theme
+        // Otherwise, return current theme (from ThemeContext store)
+        const currentTheme = getCurrentTheme();
         return {
-            colors: defaultTheme.colors,
-            symbols: defaultTheme.symbols
+            colors: currentTheme.colors,
+            symbols: currentTheme.symbols
         };
     }
     
@@ -127,7 +109,7 @@ export class ConfigurableThemeService implements IThemeService {
                 warningOrange: contextTheme.colors.warning === 'yellow' ? '#F59E0B' : contextTheme.colors.warning,
                 dangerRed: contextTheme.colors.error === 'red' ? '#EF4444' : contextTheme.colors.error,
             },
-            symbols: defaultTheme.symbols
+            symbols: getCurrentTheme().symbols
         };
     }
     

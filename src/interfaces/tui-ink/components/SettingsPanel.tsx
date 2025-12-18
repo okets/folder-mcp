@@ -21,7 +21,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onSwitchToNavigation
 }) => {
     const { themeName, setTheme } = useTheme();
-    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [selectedIndex] = useState(0);
 
     // Theme options - use display name from theme object
     const themeOptions: SelectionOption[] = useMemo(() =>
