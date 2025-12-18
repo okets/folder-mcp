@@ -284,12 +284,12 @@ SET defaultModel → stores user's choice in daemon config
 - [x] Step 2: Simplify Add Folder Wizard ✅
 
 ### Phase D: First Run Wizard Integration
-- [ ] Step 3: Add model picker to First Run Wizard
+- [x] Step 3: Add model picker to First Run Wizard ✅
 
 ### Phase E: CLI Integration
 - [ ] Step 4: Verify CLI uses FMDM default model
 
-**Sprint Status**: 3/6 steps completed (50%)
+**Sprint Status**: 5/6 steps completed (83%)
 
 ---
 

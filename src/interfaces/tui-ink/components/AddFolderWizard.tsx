@@ -116,6 +116,8 @@ export interface AddFolderWizardOptions {
     onComplete: (result: AddFolderWizardResult) => void;
     onCancel?: () => void;
     fmdmOperations?: any;
+    /** Hide the model override option (e.g., when used in First Run after model selection) */
+    hideModelOverride?: boolean;
 }
 
 /**
@@ -274,7 +276,8 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
         defaultModel,
         onComplete,
         onCancel,
-        fmdmOperations
+        fmdmOperations,
+        hideModelOverride = false
     } = options;
 
     // Initialize WebSocket client for daemon communication
@@ -358,38 +361,40 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
     childItems.push(folderPicker);
 
     // Step 2: Model override (experimental)
-    // Create model selector for override (initially hidden/collapsed by default behavior)
-    // Users can expand to select a different model
+    // Only create selector when needed (not in First Run after model selection)
     let modelOptions: SelectionOption[] = [];
+    let modelOverrideSelector: SelectionListItem | null = null;
 
-    const modelOverrideSelector = new SelectionListItem(
-        '⚠',
-        'Default Model Override (beta)',
-        modelOptions,
-        selectedModel ? [selectedModel] : [],
-        false,
-        'radio',
-        'vertical',
-        async (values) => {
-            if (values.length > 0 && values[0]) {
-                const newModel = values[0];
-                if (newModel !== overrideModel) {
-                    overrideModel = newModel;
-                    useModelOverride = true;
-                    selectedModel = newModel;
-                    await validateAndUpdateContainer(selectedPath, newModel);
+    if (!hideModelOverride) {
+        modelOverrideSelector = new SelectionListItem(
+            '⚠',
+            'Default Model Override (beta)',
+            modelOptions,
+            selectedModel ? [selectedModel] : [],
+            false,
+            'radio',
+            'vertical',
+            async (values) => {
+                if (values.length > 0 && values[0]) {
+                    const newModel = values[0];
+                    if (newModel !== overrideModel) {
+                        overrideModel = newModel;
+                        useModelOverride = true;
+                        selectedModel = newModel;
+                        await validateAndUpdateContainer(selectedPath, newModel);
+                    }
                 }
-            }
-        },
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        false,
-        true, // showDetails
-        ['Default', 'Match', 'Speed', 'Languages', 'Type', 'Size', 'Downloaded']
-    );
-    childItems.push(modelOverrideSelector);
+            },
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            false,
+            true, // showDetails
+            ['Default', 'Match', 'Speed', 'Languages', 'Type', 'Size', 'Downloaded']
+        );
+        childItems.push(modelOverrideSelector);
+    }
 
     // Model recommendation functionality
     let requestIdCounter = 0;
@@ -473,6 +478,11 @@ export async function createAddFolderWizard(options: AddFolderWizardOptions): Pr
 
     // Function to update model options
     const updateModelOptions = async () => {
+        // Skip if model override is hidden - no selector to update
+        if (hideModelOverride || !modelOverrideSelector) {
+            return;
+        }
+
         try {
             const models = await requestModelRecommendations();
             currentModels = models;

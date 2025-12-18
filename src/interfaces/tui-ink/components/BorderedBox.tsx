@@ -7,7 +7,10 @@ import { ConstrainedContent } from './ConstrainedContent';
 // WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 
 interface BorderedBoxProps {
-    title: string;
+    /** Title can be a string or React element (for bold/styled text) */
+    title: string | React.ReactNode;
+    /** Optional: plain text version for width calculations when title is a React element */
+    titlePlainText?: string;
     subtitle?: string;
     focused?: boolean;
     width: number;
@@ -20,6 +23,7 @@ interface BorderedBoxProps {
 
 export const BorderedBox: React.FC<BorderedBoxProps> = ({
     title,
+    titlePlainText,
     subtitle,
     focused = false,
     width,
@@ -54,17 +58,31 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     };
     
     // Create top border with embedded title
-    const createTopBorder = () => {
+    // Title can be a string or React element (for bold/styled text)
+    const createTopBorder = (): React.ReactElement => {
+        // For width calculations, use titlePlainText if provided, otherwise extract from string title
+        const titleLength = titlePlainText
+            ? titlePlainText.length
+            : (typeof title === 'string' ? title.length : 0);
+
         if (focused) {
-            // Total content: title + 2 spaces around title + 2 corner chars = title.length + 4
-            const padding = Math.max(0, width - title.length - 5);
-            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)}${border.topRight}`;
+            // Total content: title + 2 spaces around title + 2 corner chars = titleLength + 4
+            const padding = Math.max(0, width - titleLength - 5);
+            return (
+                <Text color={borderColor}>
+                    {border.topLeft}{border.horizontal}{' '}{title}{' '}{border.horizontal.repeat(padding)}{border.topRight}
+                </Text>
+            );
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
-            // Total content: title + tab + 4 spaces + 2 corner chars = title.length + tab.length + 6
-            const totalContentLength = title.length + tabText.length + 6;
+            // Total content: title + tab + 4 spaces + 2 corner chars = titleLength + tab.length + 6
+            const totalContentLength = titleLength + tabText.length + 6;
             const padding = Math.max(0, width - totalContentLength - 1);
-            return `${border.topLeft}${border.horizontal} ${title} ${border.horizontal.repeat(padding)} ${tabText} ${border.topRight}`;
+            return (
+                <Text color={borderColor}>
+                    {border.topLeft}{border.horizontal}{' '}{title}{' '}{border.horizontal.repeat(padding)}{' '}{tabText}{' '}{border.topRight}
+                </Text>
+            );
         }
     };
     
@@ -95,7 +113,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
         <LayoutConstraintProvider constraints={childConstraints}>
             <Box flexDirection="column" height={height} width={width}>
                 {/* Top border with embedded title */}
-                <Text color={borderColor}>{createTopBorder()}</Text>
+                {createTopBorder()}
                 
                 {/* Subtitle line if present */}
                 {subtitle && createSideBorder(

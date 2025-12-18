@@ -8,7 +8,10 @@ import { ContentService } from '../../services/ContentService';
 // WINDOWS FIX: Removed DebugService imports to prevent render-time console.error calls
 
 export interface BorderedBoxProps {
-    title: string;
+    /** Title can be a string or React element (for bold/styled text) */
+    title: string | React.ReactNode;
+    /** Optional: plain text version for width calculations when title is a React element */
+    titlePlainText?: string;
     subtitle?: string;
     focused?: boolean;
     width: number;
@@ -21,6 +24,7 @@ export interface BorderedBoxProps {
 
 export const BorderedBox: React.FC<BorderedBoxProps> = ({
     title,
+    titlePlainText,
     subtitle,
     focused = false,
     width,
@@ -56,70 +60,106 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     };
     
     // Create top border with embedded title and proper truncation
-    const createTopBorder = () => {
+    // Title can be a React element (for styled text) - use titlePlainText for measurements
+    const createTopBorder = (): React.ReactElement => {
+        // Get plain text for measurements
+        const titleText = titlePlainText || (typeof title === 'string' ? title : '');
+        const isReactTitle = typeof title !== 'string';
+
+        // Fail loudly: warn if React title without plain text for measurement
+        if (isReactTitle && !titlePlainText) {
+            console.error('BorderedBox: React element title provided without titlePlainText - width calculations will be incorrect');
+        }
+
+        // DRY helper: compute displayTitle and titleWidth based on title type
+        const getTitleDisplay = (availableWidth: number) => {
+            if (isReactTitle) {
+                return {
+                    displayTitle: title,
+                    titleWidth: contentService.measureText(titleText)
+                };
+            }
+            const displayTitle = contentService.truncateText(titleText, availableWidth);
+            return {
+                displayTitle,
+                titleWidth: contentService.measureText(displayTitle)
+            };
+        };
+
         if (focused) {
             // Structure: ╭─ TITLE ─[padding]─╮
             // Components: topLeft(1) + "─ "(2) + TITLE + " "(1) + padding + topRight(1)
             const fixedChars = 5; // topLeft + "─ " + " " + topRight
             const availableForTitle = width - fixedChars;
-            
+
             if (availableForTitle <= 0) {
                 // Not enough space for any title, just show border
-                return `${border.topLeft}${border.horizontal.repeat(Math.max(0, width - 2))}${border.topRight}`;
+                return <Text color={borderColor}>{border.topLeft}{border.horizontal.repeat(Math.max(0, width - 2))}{border.topRight}</Text>;
             }
-            
-            // Truncate title if needed
-            const displayTitle = contentService.truncateText(title, availableForTitle);
-            const titleWidth = contentService.measureText(displayTitle);
+
+            const { displayTitle, titleWidth } = getTitleDisplay(availableForTitle);
             const paddingWidth = Math.max(0, width - fixedChars - titleWidth);
             const padding = border.horizontal.repeat(paddingWidth);
-            
-            return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding}${border.topRight}`;
+
+            return (
+                <Text color={borderColor}>
+                    {border.topLeft}{border.horizontal} {displayTitle} {padding}{border.topRight}
+                </Text>
+            );
         } else {
             const tabText = '⁽ᵗᵃᵇ⁾';
             const tabTextWidth = contentService.measureText(tabText);
-            
+
             // Structure: ╭─ TITLE ─[padding]─ ⁽ᵗᵃᵇ⁾ ╮
             // Components: topLeft(1) + "─ "(2) + TITLE + " "(1) + padding + " "(1) + tabText + " "(1) + topRight(1)
             const fixedCharsWithTab = 7 + tabTextWidth; // topLeft + "─ " + " " + " " + tabText + " " + topRight
-            
+
             if (width >= fixedCharsWithTab) {
                 // Enough space for tab indicator
                 const availableForTitle = width - fixedCharsWithTab;
-                
+
                 if (availableForTitle > 0) {
-                    // Truncate title if needed
-                    const displayTitle = contentService.truncateText(title, availableForTitle);
-                    const titleWidth = contentService.measureText(displayTitle);
+                    const { displayTitle, titleWidth } = getTitleDisplay(availableForTitle);
                     const paddingWidth = Math.max(0, width - fixedCharsWithTab - titleWidth);
                     const padding = border.horizontal.repeat(paddingWidth);
-                    
-                    return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding} ${tabText} ${border.topRight}`;
+
+                    return (
+                        <Text color={borderColor}>
+                            {border.topLeft}{border.horizontal} {displayTitle} {padding} {tabText} {border.topRight}
+                        </Text>
+                    );
                 } else {
                     // No space for title, just show tab
                     // Structure: ╭─[padding]─ ⁽ᵗᵃᵇ⁾ ╮
                     const fixedForTabOnly = 5 + tabTextWidth; // topLeft + "─" + " " + tabText + " " + topRight
                     const paddingWidth = Math.max(0, width - fixedForTabOnly);
                     const padding = border.horizontal.repeat(paddingWidth);
-                    
-                    return `${border.topLeft}${border.horizontal}${padding} ${tabText} ${border.topRight}`;
+
+                    return (
+                        <Text color={borderColor}>
+                            {border.topLeft}{border.horizontal}{padding} {tabText} {border.topRight}
+                        </Text>
+                    );
                 }
             } else {
                 // Not enough space for tab indicator, show title only
                 // Structure: ╭─ TITLE ─[padding]─╮ (same as focused)
                 const fixedChars = 5; // topLeft + "─ " + " " + topRight
                 const availableForTitle = width - fixedChars;
-                
+
                 if (availableForTitle > 0) {
-                    const displayTitle = contentService.truncateText(title, availableForTitle);
-                    const titleWidth = contentService.measureText(displayTitle);
+                    const { displayTitle, titleWidth } = getTitleDisplay(availableForTitle);
                     const paddingWidth = Math.max(0, width - fixedChars - titleWidth);
                     const padding = border.horizontal.repeat(paddingWidth);
-                    
-                    return `${border.topLeft}${border.horizontal} ${displayTitle} ${padding}${border.topRight}`;
+
+                    return (
+                        <Text color={borderColor}>
+                            {border.topLeft}{border.horizontal} {displayTitle} {padding}{border.topRight}
+                        </Text>
+                    );
                 } else {
                     // No space for anything, just border
-                    return `${border.topLeft}${border.horizontal.repeat(Math.max(0, width - 2))}${border.topRight}`;
+                    return <Text color={borderColor}>{border.topLeft}{border.horizontal.repeat(Math.max(0, width - 2))}{border.topRight}</Text>;
                 }
             }
         }
@@ -156,7 +196,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
         <LayoutConstraintProvider constraints={childConstraints}>
             <Box flexDirection="column" height={height} width={width} flexWrap="nowrap" overflow="hidden">
                 {/* Top border with embedded title */}
-                <Text color={borderColor}>{createTopBorder()}</Text>
+                {createTopBorder()}
                 
                 {/* Subtitle line if present */}
                 {subtitle && createSideBorder(

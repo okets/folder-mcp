@@ -8,7 +8,10 @@ import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useRootInput } from '../hooks/useFocusChain';
 import { useFMDMFolderOperations, useFMDMConnection, useFMDM } from '../contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './AddFolderWizard';
+import { createDefaultModelWizard, DefaultModelWizardResult } from './DefaultModelWizard';
 import { IListItem } from './core/IListItem';
+
+type WizardStep = 'model-picker' | 'add-folder';
 
 interface FirstRunWizardProps {
     onComplete: (config: any) => void;
@@ -53,38 +56,49 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     const { columns } = useTerminalSize();
     const fmdmOperations = useFMDMFolderOperations();
     const fmdmConnection = useFMDMConnection();
-    const { fmdm } = useFMDM();
+    const { fmdm, setDefaultModel } = useFMDM();
 
     const [isComplete, setIsComplete] = useState(false);
     const [hasValidationError, setHasValidationError] = useState(false);
     const [validationErrors, setValidationErrors] = useState<{ folder?: string; model?: string }>({});
-    const [wizardItem, setWizardItem] = useState<IListItem | null>(null);
+
+    // Two-step wizard state
+    const [wizardStep, setWizardStep] = useState<WizardStep>('model-picker');
+    const [modelPickerItem, setModelPickerItem] = useState<IListItem | null>(null);
+    const [addFolderItem, setAddFolderItem] = useState<IListItem | null>(null);
     const [wizardLoading, setWizardLoading] = useState(true);
 
-    // Get default model from FMDM
-    const defaultModel = fmdm?.defaultModel?.modelId;
-    
+    // Track the user-selected model (from model picker step)
+    const [userSelectedModel, setUserSelectedModel] = useState<string | undefined>(undefined);
+
+    // Get default model from FMDM (used as initial value for model picker)
+    const fmdmDefaultModel = fmdm?.defaultModel?.modelId;
+
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
     const initialPath = folderResult.path;
-    // CLI model overrides FMDM default, otherwise use FMDM default
-    const effectiveDefaultModel = cliModel || defaultModel;
+    // CLI model overrides everything
+    const cliModelOverride = cliModel || undefined;
 
     // Use refs for stable values that shouldn't trigger re-renders
     const stableRefs = useRef({
         initialPath,
-        effectiveDefaultModel,
+        fmdmDefaultModel,
+        cliModelOverride,
         onComplete,
-        fmdmOperations
+        fmdmOperations,
+        setDefaultModel
     });
-    
+
     // Update refs when values change
     useEffect(() => {
         stableRefs.current = {
             initialPath,
-            effectiveDefaultModel,
+            fmdmDefaultModel,
+            cliModelOverride,
             onComplete,
-            fmdmOperations
+            fmdmOperations,
+            setDefaultModel
         };
     });
     
@@ -124,23 +138,79 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
         validateParams();
     }, [cliDir, cliModel, folderResult.error]);
     
-    // Create wizard asynchronously after daemon connection
+    // Step 1: Create Model Picker wizard after daemon connection
     useEffect(() => {
-        
-        // Skip if already have a wizard or if not ready
-        if (wizardItem || !fmdmConnection.connected || hasValidationError) {
+        // Skip if already have model picker, CLI model provided, or not ready
+        if (modelPickerItem || cliModelOverride || !fmdmConnection.connected || hasValidationError) {
+            // If CLI model is provided, skip to step 2 directly
+            if (cliModelOverride && wizardStep === 'model-picker') {
+                setUserSelectedModel(cliModelOverride);
+                setWizardStep('add-folder');
+            }
             return;
         }
-        
-        const createWizard = async () => {
-            // Get stable references
-            const { initialPath, effectiveDefaultModel, onComplete, fmdmOperations } = stableRefs.current;
 
-            // Handle wizard completion - defined inside useEffect to avoid dependency issues
-            const handleWizardComplete = async (result: AddFolderWizardResult) => {
+        const createModelPicker = async () => {
+            const { fmdmDefaultModel, setDefaultModel } = stableRefs.current;
+
+            // Handle model picker completion
+            const handleModelPickerComplete = async (result: DefaultModelWizardResult) => {
+                try {
+                    // Save the selected model as default via FMDM
+                    await setDefaultModel(result.model, result.languages);
+                    setUserSelectedModel(result.model);
+                    // Move to step 2
+                    setWizardStep('add-folder');
+                } catch (error) {
+                    console.error('Failed to set default model during first run:', error);
+                    // Still proceed to step 2 even if saving fails
+                    setUserSelectedModel(result.model);
+                    setWizardStep('add-folder');
+                }
+            };
+
+            try {
+                setWizardLoading(true);
+                const modelPicker = await createDefaultModelWizard({
+                    initialLanguages: ['en'],
+                    // Use FMDM default as initial selection if available
+                    ...(fmdmDefaultModel && { initialModel: fmdmDefaultModel }),
+                    onComplete: handleModelPickerComplete,
+                    onCancel: () => {
+                        process.exit(0);
+                    }
+                });
+
+                // Start wizard in expanded mode
+                modelPicker.onEnter();
+                setModelPickerItem(modelPicker);
+            } catch (error) {
+                console.error('Failed to create model picker:', error);
+            } finally {
+                setWizardLoading(false);
+            }
+        };
+
+        createModelPicker();
+    }, [fmdmConnection.connected, hasValidationError, modelPickerItem, cliModelOverride, wizardStep]);
+
+    // Step 2: Create Add Folder wizard after model selection
+    useEffect(() => {
+        // Only create add folder wizard when in step 2 and don't have one yet
+        if (wizardStep !== 'add-folder' || addFolderItem || !fmdmConnection.connected) {
+            return;
+        }
+
+        const createFolderWizard = async () => {
+            const { initialPath, onComplete, fmdmOperations } = stableRefs.current;
+
+            // Use CLI model, user-selected model, or FMDM default
+            const effectiveModel = cliModelOverride || userSelectedModel || fmdmDefaultModel;
+
+            // Handle folder wizard completion
+            const handleFolderWizardComplete = async (result: AddFolderWizardResult) => {
                 setIsComplete(true);
 
-                // Add folder using FMDM operations
                 try {
                     await fmdmOperations.addFolder(result.path, result.model);
 
@@ -155,7 +225,6 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                             batchSize: 32
                         },
                         server: {
-                            // Port auto-discovered from daemon registry
                             host: '127.0.0.1'
                         }
                     };
@@ -170,27 +239,28 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                 setWizardLoading(true);
                 const wizard = await createAddFolderWizard({
                     initialPath,
-                    // Pass default model from FMDM (or CLI override) - conditional spread for exactOptionalPropertyTypes
-                    ...(effectiveDefaultModel && { defaultModel: effectiveDefaultModel }),
-                    onComplete: handleWizardComplete,
+                    ...(effectiveModel && { defaultModel: effectiveModel }),
+                    onComplete: handleFolderWizardComplete,
                     onCancel: () => {
                         process.exit(0);
                     },
-                    fmdmOperations
+                    fmdmOperations,
+                    // Hide model override in First Run - we just selected a model in Step 1
+                    hideModelOverride: true
                 });
 
                 // Start wizard in expanded mode
                 wizard.onEnter();
-                setWizardItem(wizard);
+                setAddFolderItem(wizard);
             } catch (error) {
-                // Failed to create wizard
+                console.error('Failed to create folder wizard:', error);
             } finally {
                 setWizardLoading(false);
             }
         };
-        
-        createWizard();
-    }, [fmdmConnection.connected, hasValidationError, wizardItem]); // Removed unstable dependencies
+
+        createFolderWizard();
+    }, [wizardStep, addFolderItem, fmdmConnection.connected, userSelectedModel, cliModelOverride, fmdmDefaultModel]);
     
     // Color constants
     const frameColor = '#4c1589';
@@ -282,20 +352,35 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     }
     
     // Show loading while wizard is being created
-    if (wizardLoading || !wizardItem) {
+    const currentWizardItem = wizardStep === 'model-picker' ? modelPickerItem : addFolderItem;
+    if (wizardLoading || !currentWizardItem) {
         return (
             <Box flexDirection="column" height="100%" justifyContent="center" alignItems="center">
-                <Text color="yellow">Loading models...</Text>
+                <Text color="yellow">{wizardStep === 'model-picker' ? 'Loading models...' : 'Preparing folder wizard...'}</Text>
             </Box>
         );
     }
     
+    // Determine panel title and subtitle based on current step
+    // Use React elements for bold step indicator
+    const panelTitle = wizardStep === 'model-picker'
+        ? <Text>folder-mcp · <Text bold>(Step 1/2)</Text> Choose Default Model</Text>
+        : <Text>folder-mcp · <Text bold>(Step 2/2)</Text> Add Your First Folder</Text>;
+    // Plain text version for width calculations
+    const panelTitlePlainText = wizardStep === 'model-picker'
+        ? 'folder-mcp · (Step 1/2) Choose Default Model'
+        : 'folder-mcp · (Step 2/2) Add Your First Folder';
+    const panelSubtitle = wizardStep === 'model-picker'
+        ? 'Select your preferred embedding model'
+        : 'Select a folder to index';
+
     return (
         <Box flexDirection="column" height="100%">
             <GenericListPanel
-                title="folder-mcp · Add Folder Wizard"
-                subtitle="Let's configure your knowledge base"
-                items={[wizardItem]}
+                title={panelTitle}
+                titlePlainText={panelTitlePlainText}
+                subtitle={panelSubtitle}
+                items={[currentWizardItem]}
                 selectedIndex={0}
                 isFocused={true}
                 elementId="wizard-main"

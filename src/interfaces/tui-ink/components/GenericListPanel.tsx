@@ -13,7 +13,10 @@ import { IListItem } from './core/IListItem';
 import { updateGlobalTerminalSize } from './core/SimpleButtonsRow';
 
 interface GenericListPanelProps {
-    title: string;
+    /** Title can be a string or React element (for bold/styled text) */
+    title: string | React.ReactNode;
+    /** Optional: plain text version for width calculations when title is a React element */
+    titlePlainText?: string;
     subtitle?: string;
     items: IListItem[];
     selectedIndex: number;
@@ -31,6 +34,7 @@ interface GenericListPanelProps {
 
 const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     title,
+    titlePlainText,
     subtitle,
     items,
     selectedIndex,
@@ -387,6 +391,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         return (
             <BorderedBox
                 title={title}
+                {...(titlePlainText ? { titlePlainText } : {})}
                 focused={false}
                 width={panelWidth}
                 height={actualHeight}
@@ -414,6 +419,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         <ProgressModeProvider width={panelWidth}>
             <BorderedBox
                 title={title}
+                {...(titlePlainText ? { titlePlainText } : {})}
                 focused={isFocused}
                 width={width || columns - 2}
                 height={actualHeight}
