@@ -2,8 +2,9 @@
 
 **Phase**: 11 - Complete App Interface
 **Sprint**: 2 - Settings Screen
-**Status**: Phase A, B, Step 3.1 Complete → Ready for Step 3.2
+**Status**: ✅ COMPLETE
 **Start Date**: 2025-12-18
+**End Date**: 2025-12-18
 
 ## Related Documentation
 - [Phase 11 Overview](../folder-mcp-roadmap-1.1.md#phase-11-complete-app-interface)
@@ -84,12 +85,15 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 ```
 ◇ Theme              [Light] [Dark] [Auto]
 ◇ Log Verbosity      [Quiet] [Normal] [Verbose]
-◇ Default Model      (vertical list of models)
 ```
+
+> **Note**: Default Model was moved to Sprint 3 due to expanded scope (FMDM integration, Add Folder Wizard simplification, First Run Wizard integration)
 
 ---
 
-## Implementation Plan: 14 Steps
+## Implementation Plan: 8 Steps (Revised)
+
+> **Scope Change**: Original plan had 14 steps including Default Model and Configuration Persistence. These were moved to Sprint 3 to properly integrate with FMDM architecture.
 
 ### Phase A: Navigation Panel Changes
 
@@ -213,7 +217,7 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 
 ---
 
-#### Step 3.2: Add Log Verbosity SelectionListItem
+#### Step 3.2: Add Log Verbosity SelectionListItem ✅ COMPLETE
 **Goal**: Add second setting below Theme
 
 **Change**: Add SelectionListItem below Theme:
@@ -224,103 +228,42 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 - default: Normal
 
 **Verification**:
-- [ ] Settings panel shows 2 items
-- [ ] Arrow navigation between items works
-- [ ] Both items expand/collapse correctly
-- [ ] Horizontal layout for both
+- [x] Settings panel shows 2 items
+- [x] Arrow navigation between items works (circular navigation)
+- [x] Both items expand/collapse correctly
+- [x] Horizontal layout for both
 
-**Rollback**: Remove Log Verbosity item
-
----
-
-#### Step 3.3: Add Default Model SelectionListItem
-**Goal**: Add third setting below Log Verbosity
-
-**Change**: Add SelectionListItem below Log Verbosity:
-- icon: "◇"
-- label: "Default Model"
-- options: (from model registry or hardcoded list for now)
-- layout: vertical (many options)
-- default: first available
-
-**Verification**:
-- [ ] Settings panel shows 3 items
-- [ ] Arrow navigation through all 3
-- [ ] Default Model uses vertical layout
-- [ ] Can select from model list
-
-**Rollback**: Remove Default Model item
+**Implementation Notes**:
+- Added `setSelectedIndex` to enable navigation state changes
+- Implemented circular navigation matching `createNavigationInputHandler` pattern
+- Left arrow switches to nav panel from any item (landscape)
+- Up arrow on first item switches to nav panel (portrait)
 
 ---
 
-### Phase D: Configuration Persistence (one setting at a time)
+### ~~Phase D: Configuration Persistence~~ → Moved to Sprint 3
 
-#### Step 4.1: Wire Theme to Configuration
-**Goal**: Theme setting persists to config
-
-**Changes**:
-- Read theme from ConfigurationManager on mount
-- Write theme changes to ConfigurationManager
-
-**Verification**:
-- [ ] Theme loads saved value on TUI start
-- [ ] Changing theme saves immediately
-- [ ] Restart TUI, theme persists
-
-**Rollback**: Use hardcoded default
+> Configuration persistence for all settings (Theme, Log Verbosity, Default Model) moved to Sprint 3 to integrate properly with FMDM architecture.
 
 ---
 
-#### Step 4.2: Wire Log Verbosity to Configuration
-**Goal**: Log Verbosity setting persists to config
+### Phase D: Final Verification (Sprint 2 Scope)
 
-**Changes**:
-- Read logLevel from ConfigurationManager on mount
-- Write logLevel changes to ConfigurationManager
-
-**Verification**:
-- [ ] Log Verbosity loads saved value
-- [ ] Changing it saves immediately
-- [ ] Restart TUI, persists
-
-**Rollback**: Use hardcoded default
-
----
-
-#### Step 4.3: Wire Default Model to Configuration
-**Goal**: Default Model setting persists to config
-
-**Changes**:
-- Read defaultModel from ConfigurationManager on mount
-- Write defaultModel changes to ConfigurationManager
-
-**Verification**:
-- [ ] Default Model loads saved value
-- [ ] Changing it saves immediately
-- [ ] Restart TUI, persists
-
-**Rollback**: Use hardcoded default
-
----
-
-### Phase E: Final Verification
-
-#### Step 5: Comprehensive Testing
-**Goal**: Verify everything works together
+#### Step 4: Basic Testing ✅ COMPLETE
+**Goal**: Verify Sprint 2 deliverables work
 
 **Test Scenarios**:
-1. Fresh start with defaults
-2. Change all 3 settings, restart, verify persistence
-3. Landscape mode - all 4 screens
-4. Portrait mode - all 4 screens
-5. Very narrow terminal
-6. Very short terminal
+1. All 4 navigation items accessible
+2. Theme selector functional (live preview)
+3. Log Verbosity selector functional
+4. Navigation between settings works
+5. Focus switching (Tab) between nav and panel
 
 **Verification**:
-- [ ] All 14 prior steps verified
-- [ ] No visual glitches
-- [ ] No console errors
-- [ ] Settings persist correctly
+- [x] 4-screen navigation works
+- [x] Settings panel shows 2 items
+- [x] Both selectors expand/collapse correctly
+- [x] Circular navigation in settings panel
 
 ---
 
@@ -349,20 +292,20 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 - [x] Step 2.2: ActivityLogPanel placeholder + wire
 - [x] Step 2.3: ConnectPanel placeholder + wire
 
-### Phase C: Settings Content
-- [x] Step 3.1: Theme SelectionListItem ✅ COMPLETE
-- [ ] Step 3.2: Log Verbosity SelectionListItem
-- [ ] Step 3.3: Default Model SelectionListItem
+### Phase C: Settings Content ✅ COMPLETE
+- [x] Step 3.1: Theme SelectionListItem
+- [x] Step 3.2: Log Verbosity SelectionListItem
 
-### Phase D: Configuration
-- [ ] Step 4.1: Wire Theme to config
-- [ ] Step 4.2: Wire Log Verbosity to config
-- [ ] Step 4.3: Wire Default Model to config
+### Phase D: Final Verification ✅ COMPLETE
+- [x] Step 4: Basic Testing
 
-### Phase E: Testing
-- [ ] Step 5: Comprehensive testing
+### Moved to Sprint 3
+- Default Model SelectionListItem (rich model picker with FMDM)
+- Configuration Persistence (Theme, Log Verbosity, Default Model)
+- Add Folder Wizard Simplification
+- First Run Wizard Integration
 
-**Sprint Status**: 7/14 steps completed (50%)
+**Sprint Status**: ✅ 8/8 steps completed (100%)
 
 ---
 
@@ -373,3 +316,12 @@ Agent implements ONE change → npm run build → Human runs TUI → Human appro
 | 2025-12-16 | Sprint 2 document created | Claude |
 | 2025-12-16 | Expanded to 14 granular steps (one TUI change at a time) | Claude |
 | 2025-12-18 | Pre-Sprint Foundation complete: theme integration, minimal theme fix, preview lag fix, legacy cleanup | Claude |
+| 2025-12-18 | Step 3.2 Log Verbosity complete with navigation fixes | Claude |
+| 2025-12-18 | Scope revised: Default Model and Config Persistence moved to Sprint 3 (FMDM integration) | Claude |
+| 2025-12-18 | **Sprint 2 COMPLETE** - 8/8 steps finished | Claude |
+
+---
+
+## Next Steps
+
+→ **[Sprint 3: Default Model System](Phase-11-Sprint-3-Default-Model.md)** - Rich model picker, FMDM integration, Add Folder Wizard simplification

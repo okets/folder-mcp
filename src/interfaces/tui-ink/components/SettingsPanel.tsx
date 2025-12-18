@@ -21,7 +21,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onSwitchToNavigation
 }) => {
     const { themeName, setTheme } = useTheme();
-    const [selectedIndex] = useState(0);
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [logVerbosity, setLogVerbosity] = useState<string>('normal');
 
     // Theme options - use display name from theme object
     const themeOptions: SelectionOption[] = useMemo(() =>
@@ -30,6 +31,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             label: themes[name].name  // Use the theme's display name (e.g., "High Contrast")
         }))
     , []);
+
+    // Log verbosity options
+    const verbosityOptions: SelectionOption[] = useMemo(() => [
+        { value: 'quiet', label: 'Quiet' },
+        { value: 'normal', label: 'Normal' },
+        { value: 'verbose', label: 'Verbose' }
+    ], []);
 
     // Create items - SelectionListItem constructor:
     // (icon, label, options, selectedValues, isActive, mode, layout, onValueChange, onPreviewChange, onCancel, ...)
@@ -57,13 +65,29 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     setTheme(originalValues[0] as ThemeName);
                 }
             }
+        ),
+        new SelectionListItem(
+            '◇',                    // icon
+            'Log Verbosity',        // label
+            verbosityOptions,       // options
+            [logVerbosity],         // selectedValues - current verbosity from state
+            false,                  // isActive (managed by GenericListPanel)
+            'radio',                // mode
+            'horizontal',           // layout - horizontal as requested
+            async (values: string[]) => { // onValueChange - confirm selection
+                if (values.length > 0 && values[0]) {
+                    setLogVerbosity(values[0]);
+                }
+            },
+            undefined,              // onPreviewChange - not needed for verbosity
+            undefined               // onCancel - not needed for verbosity
         )
-    // NOTE: themeName is intentionally NOT in dependencies!
+    // NOTE: themeName and logVerbosity are intentionally NOT in dependencies!
     // SelectionListItem maintains its own internal _selectedValues state.
-    // If themeName were a dependency, calling setTheme() in onPreviewChange
-    // would recreate the items array with a NEW SelectionListItem instance
-    // that has _isControllingInput = false, breaking navigation.
-    ], [themeOptions, setTheme]);
+    // If they were dependencies, changing values would recreate the items array
+    // with NEW SelectionListItem instances that have _isControllingInput = false,
+    // breaking navigation.
+    ], [themeOptions, setTheme, verbosityOptions, setLogVerbosity]);
 
     const customKeyBindings = isLandscape
         ? [
@@ -76,33 +100,93 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           ];
 
     const handleInput = (input: string, key: Key): boolean => {
-        // Check if any item is currently controlling input (expanded)
+        // Check if current item is controlling input (expanded)
         const currentItem = items[selectedIndex];
-        const itemIsControllingInput = currentItem && 'isControllingInput' in currentItem &&
-            (currentItem as any).isControllingInput;
 
-        // If item is controlling input, don't intercept - let GenericListPanel delegate to item
-        if (itemIsControllingInput) {
+        if (currentItem?.isControllingInput) {
+            // Let the GenericListPanel delegate to the expanded item
             return false;
         }
 
-        // Item is NOT controlling input (collapsed state)
-        // Handle panel switching when at first item
-        if (selectedIndex === 0) {
-            // In landscape: left arrow switches to nav panel
-            if (isLandscape && key.leftArrow) {
+        // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
+        // This works from ANY item, not just the first one
+        if (key.leftArrow && isLandscape) {
+            onSwitchToNavigation();
+            return true;
+        }
+
+        // Handle navigation with circular wrapping (same pattern as createNavigationInputHandler)
+        if (key.downArrow) {
+            const currentIndex = selectedIndex;
+            // Find next navigable item
+            let nextIndex = currentIndex;
+            let found = false;
+
+            // Try to find next navigable item
+            for (let i = currentIndex + 1; i < items.length; i++) {
+                const item = items[i];
+                if (item && item.isNavigable !== false) {
+                    nextIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+
+            // If not found, wrap to beginning and find first navigable (circular navigation)
+            if (!found) {
+                for (let i = 0; i <= currentIndex; i++) {
+                    const item = items[i];
+                    if (item && item.isNavigable !== false) {
+                        nextIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (nextIndex !== currentIndex) {
+                setSelectedIndex(nextIndex);
+                return true;
+            }
+        } else if (key.upArrow) {
+            const currentIndex = selectedIndex;
+
+            // Find previous navigable item
+            let prevIndex = currentIndex;
+            let found = false;
+
+            // Try to find previous navigable item
+            for (let i = currentIndex - 1; i >= 0; i--) {
+                const item = items[i];
+                if (item && item.isNavigable !== false) {
+                    prevIndex = i;
+                    found = true;
+                    break;
+                }
+            }
+
+            // Portrait mode: If no previous navigable item found, switch to navigation panel
+            if (!isLandscape && !found) {
                 onSwitchToNavigation();
                 return true;
             }
-            // In portrait: up arrow switches to nav panel
-            if (!isLandscape && key.upArrow) {
-                onSwitchToNavigation();
+
+            // Landscape mode: If not found, wrap to end and find last navigable (circular navigation)
+            if (!found) {
+                for (let i = items.length - 1; i >= currentIndex; i--) {
+                    const item = items[i];
+                    if (item && item.isNavigable !== false) {
+                        prevIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (prevIndex !== currentIndex) {
+                setSelectedIndex(prevIndex);
                 return true;
             }
         }
-
-        // Don't intercept other navigation keys - let GenericListPanel handle them
-        return false;
+        return false; // Let other navigation handle it
     };
 
     return (
