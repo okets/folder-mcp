@@ -17,17 +17,17 @@ describe('CliArgumentParser', () => {
     });
 
     it('should parse theme override with folder path', () => {
-      const result = CliArgumentParser.parse(['node', 'script.js', '--theme', 'dark', '/path/to/folder']);
-      
+      const result = CliArgumentParser.parse(['node', 'script.js', '--theme', 'dracula', '/path/to/folder']);
+
       expect(result.errors).toEqual([]);
       expect(result.showHelp).toBe(false);
       expect(result.args.folderPath).toBe('/path/to/folder');
-      expect(result.args.theme).toBe('dark');
+      expect(result.args.theme).toBe('dracula');
     });
 
     it('should parse theme override with folder path in different order', () => {
       const result = CliArgumentParser.parse(['node', 'script.js', '/path/to/folder', '--theme', 'light']);
-      
+
       expect(result.errors).toEqual([]);
       expect(result.showHelp).toBe(false);
       expect(result.args.folderPath).toBe('/path/to/folder');
@@ -35,11 +35,18 @@ describe('CliArgumentParser', () => {
     });
 
     it('should handle all valid theme values', () => {
-      const themes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
-      
+      // Current valid themes from ThemeContext
+      const themes = [
+        'default', 'light', 'minimal',  // Core
+        'high-contrast', 'colorblind',   // Accessibility
+        'ocean', 'forest', 'sunset',     // Nature
+        'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',  // Classic Editor
+        'bbs', 'cga', 'matrix'           // Retro
+      ];
+
       themes.forEach(theme => {
         const result = CliArgumentParser.parse(['node', 'script.js', '--theme', theme, '/path/to/folder']);
-        
+
         expect(result.errors).toEqual([]);
         expect(result.args.theme).toBe(theme);
       });
@@ -61,15 +68,18 @@ describe('CliArgumentParser', () => {
 
     it('should error on invalid theme value', () => {
       const result = CliArgumentParser.parse(['node', 'script.js', '--theme', 'invalid', '/path/to/folder']);
-      
-      expect(result.errors).toContain('Invalid theme value: invalid. Must be one of: auto, light, dark, light-optimized, dark-optimized, default, minimal');
+
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain('Invalid theme value: invalid');
+      expect(result.errors[0]).toContain('Must be one of:');
       expect(result.args.folderPath).toBe('/path/to/folder');
     });
 
     it('should error when --theme has no value', () => {
       const result = CliArgumentParser.parse(['node', 'script.js', '--theme']);
-      
-      expect(result.errors).toContain('--theme requires a value (auto, light, dark, light-optimized, dark-optimized, default, or minimal)');
+
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0]).toContain('--theme requires a value');
     });
 
     it('should error on unknown option', () => {
@@ -107,12 +117,12 @@ describe('CliArgumentParser', () => {
   describe('getHelpText', () => {
     it('should return help text', () => {
       const help = CliArgumentParser.getHelpText();
-      
+
       // Phase 9: folder path is now optional - shown with brackets
       expect(help).toContain('Usage: folder-mcp [options] [folder-path]');
       expect(help).toContain('--theme <theme>');
       expect(help).toContain('Examples:');
-      expect(help).toContain('folder-mcp --theme dark');
+      expect(help).toContain('folder-mcp --theme dracula');  // Updated to current theme
       expect(help).toContain('Connect to daemon for multi-folder support');
     });
   });

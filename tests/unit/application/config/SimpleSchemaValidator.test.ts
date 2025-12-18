@@ -17,8 +17,15 @@ describe('SimpleSchemaValidator', () => {
   describe('validateValue', () => {
     describe('theme validation', () => {
       it('should validate valid theme values', async () => {
-        const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
-        
+        // Current valid themes from ThemeContext
+        const validThemes = [
+          'default', 'light', 'minimal',  // Core
+          'high-contrast', 'colorblind',   // Accessibility
+          'ocean', 'forest', 'sunset',     // Nature
+          'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',  // Classic Editor
+          'bbs', 'cga', 'matrix'           // Retro
+        ];
+
         for (const theme of validThemes) {
           const result = await validator.validateValue('theme', theme);
           expect(result.valid).toBe(true);
@@ -27,8 +34,8 @@ describe('SimpleSchemaValidator', () => {
       });
 
       it('should reject invalid theme values', async () => {
-        const invalidThemes = ['blue', 'invalid', 123, true, null, undefined];
-        
+        const invalidThemes = ['blue', 'invalid', 'auto', 'dark', 123, true, null, undefined];
+
         for (const theme of invalidThemes) {
           const result = await validator.validateValue('theme', theme);
           expect(result.valid).toBe(false);
@@ -38,11 +45,12 @@ describe('SimpleSchemaValidator', () => {
 
       it('should provide helpful error message for invalid theme', async () => {
         const result = await validator.validateValue('theme', 'invalid');
-        expect((result as any).error).toContain('Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
+        expect((result as any).error).toContain('Theme must be one of:');
+        expect((result as any).error).toContain('default');
       });
 
       it('should validate theme with full path', async () => {
-        const result = await validator.validateValue('appearance.theme', 'dark');
+        const result = await validator.validateValue('appearance.theme', 'dracula');
         expect(result.valid).toBe(true);
       });
     });
@@ -59,10 +67,10 @@ describe('SimpleSchemaValidator', () => {
     it('should validate complete configuration', async () => {
       const config = {
         appearance: {
-          theme: 'dark'
+          theme: 'dracula'
         }
       };
-      
+
       const result = await validator.validateConfig(config);
       expect(result.valid).toBe(true);
     });
@@ -73,7 +81,7 @@ describe('SimpleSchemaValidator', () => {
           theme: 'invalid'
         }
       };
-      
+
       const result = await validator.validateConfig(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toBeDefined();
@@ -83,13 +91,13 @@ describe('SimpleSchemaValidator', () => {
     it('should validate multiple fields', async () => {
       const config = {
         appearance: {
-          theme: 'dark'
+          theme: 'nord'
         },
         other: {
           field: 'value'
         }
       };
-      
+
       const result = await validator.validateConfig(config);
       expect(result.valid).toBe(true);
     });
@@ -99,10 +107,10 @@ describe('SimpleSchemaValidator', () => {
     it('should extract value and validate', async () => {
       const config = {
         appearance: {
-          theme: 'auto'
+          theme: 'ocean'
         }
       };
-      
+
       const result = await validator.validateByPath(config, 'appearance.theme');
       expect(result.valid).toBe(true);
     });

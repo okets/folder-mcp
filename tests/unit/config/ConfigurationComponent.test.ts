@@ -60,8 +60,15 @@ describe('ConfigurationComponent', () => {
 
     describe('Theme validation', () => {
         it('should accept valid themes', async () => {
-            const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'];
-            
+            // Current valid themes from ThemeContext
+            const validThemes = [
+                'default', 'light', 'minimal',  // Core
+                'high-contrast', 'colorblind',   // Accessibility
+                'ocean', 'forest', 'sunset',     // Nature
+                'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',  // Classic Editor
+                'bbs', 'cga', 'matrix'           // Retro
+            ];
+
             for (const theme of validThemes) {
                 const result = await configComponent.validate('theme', theme);
                 expect(result.valid).toBe(true);
@@ -70,12 +77,13 @@ describe('ConfigurationComponent', () => {
         });
 
         it('should reject invalid themes', async () => {
-            const invalidThemes = ['invalid-theme', 'bright', 'medium', '', 'AUTO'];
-            
+            // Invalid themes including old themes that no longer exist
+            const invalidThemes = ['invalid-theme', 'auto', 'dark', 'light-optimized', '', 'AUTO'];
+
             for (const theme of invalidThemes) {
                 const result = await configComponent.validate('theme', theme);
                 expect(result.valid).toBe(false);
-                expect(result.errors?.[0]?.message).toBe('Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
+                expect(result.errors?.[0]?.message).toContain('Theme must be one of:');
             }
         });
     });
@@ -259,7 +267,7 @@ describe('ConfigurationComponent', () => {
         it('should reject invalid values when setting', async () => {
             // Invalid set should throw (this tests validation without requiring file operations)
             await expect(configComponent.set('theme', 'invalid-theme'))
-                .rejects.toThrow('Invalid value for theme: Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal');
+                .rejects.toThrow(/Invalid value for theme: Theme must be one of:/);
         });
 
         it('should have get method defined', () => {

@@ -60,11 +60,11 @@ describe('SimpleConfigCommand', () => {
       // Execute the command
       await themeListCmd?.parseAsync(['node', 'test']);
       
-      // Check output
+      // Check output - verify themes from ThemeContext (16 themes)
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Available Themes'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('light'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('dark'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('auto'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('dracula'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('default'));
     });
 
     it('should validate theme values', () => {
