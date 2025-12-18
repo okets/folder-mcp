@@ -924,7 +924,6 @@ export class ContainerListItem implements IListItem {
     private moveToConfirmation(): void {
         const currentChild = this._childItems[this._childSelectedIndex];
         if (currentChild) {
-            console.error(`Deselecting current child: ${currentChild.constructor.name}`);
             currentChild.isActive = false;
             if (currentChild.onDeselect) {
                 currentChild.onDeselect();
@@ -960,19 +959,14 @@ export class ContainerListItem implements IListItem {
      * Cancel selection and exit
      */
     private cancelAndExit(): void {
-        console.error(`\n--- CANCEL AND EXIT ---`);
-        console.error(`Has onCancel handler: ${!!this._onCancel}`);
         // For destructive buttons, only call handler if confirmed
         // For non-destructive buttons, always call handler
         if (this._onCancel) {
             const isDestructive = this._cancelButtonConfig.isDestructive;
-            console.error(`Is destructive: ${isDestructive}, confirmed removal: ${this._confirmedRemoval}`);
             if (!isDestructive || this._confirmedRemoval) {
-                console.error(`Calling onCancel handler`);
                 this._onCancel();
             }
         }
-        console.error(`Calling onExit()`);
         this.onExit();
     }
     
