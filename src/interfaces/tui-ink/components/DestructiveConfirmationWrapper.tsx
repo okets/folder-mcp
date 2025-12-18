@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Text, Key } from 'ink';
 import { ConfirmationBody } from './ConfirmationBody';
 import { IDestructiveConfig } from '../models/configuration';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { textColorProp } from '../utils/conditionalProps';
 
 export interface DestructiveConfirmationWrapperProps {
@@ -35,7 +35,9 @@ export const DestructiveConfirmationWrapper: React.FC<DestructiveConfirmationWra
     const [scrollOffset, setScrollOffset] = useState<number>(0);
     const [cursorLine, setCursorLine] = useState<number>(0);
     const [totalLines, setTotalLines] = useState<number>(0);
-    
+
+    const theme = getCurrentTheme();
+
     // Handle input for navigation and confirmation
     const handleInput = (input: string, key: Key): boolean => {
         // Tab key to switch between buttons

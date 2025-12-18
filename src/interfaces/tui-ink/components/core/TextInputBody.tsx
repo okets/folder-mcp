@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import type { IValidationRule } from '../../models/configuration';
 import { generatePasswordHint } from '../../utils/validationHints';
 import { textColorProp } from '../../utils/conditionalProps';
@@ -34,6 +34,7 @@ export const TextInputBody = ({
     placeholder,
     validationRules
 }: TextInputBodyProps): React.ReactElement[] => {
+    const theme = getCurrentTheme();
     // Calculate border width to fit within available space
     // The width parameter is the max width available for the entire item including indent
     // Account for: 3-char indent (│ + 2 spaces), 2 borders, 2 spaces inside borders

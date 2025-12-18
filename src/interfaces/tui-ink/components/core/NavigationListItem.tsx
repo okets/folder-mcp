@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 
 export type TextOverflowMode = 'truncate' | 'wrap';
@@ -115,6 +115,9 @@ export class NavigationListItem implements IListItem {
     }
 
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Get current theme at render time for dynamic theme support
+        const theme = getCurrentTheme();
+
         const actualRequiredLines = this.getRequiredLines(maxWidth);
         const maxLinesToUse = this._overflowMode === 'wrap' ? actualRequiredLines : (maxLines || actualRequiredLines);
 

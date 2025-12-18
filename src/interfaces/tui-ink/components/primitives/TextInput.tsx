@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 
 interface TextInputProps {
@@ -62,6 +62,7 @@ export const TextInput: React.FC<TextInputProps> = ({
 
     // Render text with cursor
     const renderContent = () => {
+        const theme = getCurrentTheme();
         const displayValue = value || placeholder;
         const isPlaceholder = !value && placeholder;
         

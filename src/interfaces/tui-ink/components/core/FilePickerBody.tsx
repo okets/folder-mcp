@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, Transform } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { getValidationColor, getValidationIcon, getVisualWidth } from '../../utils/validationDisplay';
 import { textColorProp } from '../../utils/conditionalProps';
 
@@ -113,6 +113,7 @@ export const FilePickerBody = ({
     mode,
     validationMessage
 }: FilePickerBodyProps): React.ReactElement[] => {
+    const theme = getCurrentTheme();
     const elements: React.ReactElement[] = [];
     
     // Display current path with progressive truncation

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text, measureElement } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 
 export interface NotificationAreaProps {
     validationError?: string | null;
@@ -12,11 +12,12 @@ export interface NotificationAreaProps {
  * Shared notification area component that displays either validation errors or keyboard hints
  * Used in the header of expanded ConfigurationListItems
  */
-export const NotificationArea: React.FC<NotificationAreaProps> = ({ 
-    validationError, 
+export const NotificationArea: React.FC<NotificationAreaProps> = ({
+    validationError,
     showKeyboardHints = true,
     maxWidth
 }) => {
+    const theme = getCurrentTheme();
     // Validation errors take priority over keyboard hints
     if (validationError) {
         const errorPrefix = ' ✗ ';

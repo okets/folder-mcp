@@ -1,15 +1,19 @@
 /**
  * CLI Argument Parser for Theme Configuration Override
- * 
+ *
  * Supports parsing CLI arguments like:
  * - folder-mcp --theme light /path/to/folder
- * - folder-mcp --theme dark-optimized /path/to/folder
- * - folder-mcp --theme auto /path/to/folder
+ * - folder-mcp --theme dracula /path/to/folder
  */
+
+import { themes, ThemeName } from '../../interfaces/tui-ink/contexts/ThemeContext.js';
+
+// ThemeValue is ThemeName from ThemeContext - single source of truth
+export type ThemeValue = ThemeName;
 
 export interface CliArguments {
   folderPath?: string;
-  theme?: 'auto' | 'light' | 'dark' | 'light-optimized' | 'dark-optimized' | 'default' | 'minimal';
+  theme?: ThemeValue;
   help?: boolean;
 }
 
@@ -45,16 +49,16 @@ export class CliArgumentParser {
       } else if (arg === '--theme') {
         i++;
         if (i >= args.length) {
-          result.errors.push('--theme requires a value (auto, light, dark, light-optimized, dark-optimized, default, or minimal)');
+          result.errors.push('--theme requires a value (e.g., default, light, dracula, nord, ocean, etc.)');
           break;
         }
-        
+
         const themeValue = args[i];
-        const validThemes = ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'] as const;
-        if (validThemes.includes(themeValue as any)) {
-          result.args.theme = themeValue as typeof validThemes[number];
+        const validThemes = Object.keys(themes) as ThemeName[];
+        if (validThemes.includes(themeValue as ThemeName)) {
+          result.args.theme = themeValue as ThemeValue;
         } else {
-          result.errors.push(`Invalid theme value: ${themeValue}. Must be one of: auto, light, dark, light-optimized, dark-optimized, default, minimal`);
+          result.errors.push(`Invalid theme value: ${themeValue}. Must be one of: ${validThemes.join(', ')}`);
         }
         i++;
       } else if (arg && arg.startsWith('--')) {
@@ -87,14 +91,17 @@ Arguments:
   [folder-path]     Optional: Path to the folder to serve (if not provided, connects to daemon)
 
 Options:
-  --theme <theme>   Override theme configuration (auto, light, dark, light-optimized, dark-optimized, default, minimal)
+  --theme <theme>   Override theme configuration
+                    Core: default, light, minimal
+                    Accessibility: high-contrast, colorblind
+                    Nature: ocean, forest, sunset
+                    Editor: dracula, nord, monokai, solarized, gruvbox
   --help, -h        Show this help message
 
 Examples:
-  folder-mcp                                            # Connect to daemon for multi-folder support
-  folder-mcp --theme dark-optimized                     # Connect to daemon with theme override  
-  folder-mcp --theme light                              # Connect to daemon with light theme
-  folder-mcp --theme auto                               # Connect to daemon with auto theme
+  folder-mcp                        # Connect to daemon for multi-folder support
+  folder-mcp --theme dracula        # Connect to daemon with Dracula theme
+  folder-mcp --theme ocean          # Connect to daemon with Ocean theme
 `.trim();
   }
 

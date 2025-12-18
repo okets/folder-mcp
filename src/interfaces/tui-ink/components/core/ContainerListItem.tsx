@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 import { ViewportSystem } from './viewport';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION } from './ValidationState';
@@ -206,11 +206,11 @@ export class ContainerListItem implements IListItem {
         // Store width and maxLines for navigation calculations
         this._lastRenderWidth = maxWidth;
         this._lastMaxLines = maxLines;
-        
+
         if (!this._isControllingInput) {
             return this.renderCollapsed(maxWidth);
         }
-        
+
         return this.renderExpanded(maxWidth, maxLines);
     }
     
@@ -218,6 +218,7 @@ export class ContainerListItem implements IListItem {
      * Render collapsed state with text truncation
      */
     private renderCollapsed(maxWidth: number): ReactElement {
+        const theme = getCurrentTheme();
         const viewport = this.viewportSystem.viewportCalculator.calculateViewport(maxWidth);
         const headerLayout = this.viewportSystem.viewportCalculator.calculateHeaderLayout(
             this.icon,
@@ -263,6 +264,7 @@ export class ContainerListItem implements IListItem {
      * Render expanded state using viewport system
      */
     private renderExpanded(maxWidth: number, maxLines?: number): ReactElement[] {
+        const theme = getCurrentTheme();
         const elements: ReactElement[] = [];
         
         // Step 1: Calculate viewport (don't use getRequiredLines to avoid circular dependency)
@@ -494,6 +496,7 @@ export class ContainerListItem implements IListItem {
         viewport: any,
         scrollIndicators: any
     ): void {
+        const theme = getCurrentTheme();
         // Track current line position within viewport for accurate indicator placement
         let currentViewportLine = 0;
         

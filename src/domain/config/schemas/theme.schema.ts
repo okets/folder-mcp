@@ -6,6 +6,17 @@
 
 import { ConfigItem, ConfigGroup, ConfigSchema } from '../IConfigSchema.js';
 
+// All valid theme values (current + legacy for migration)
+const validThemes = [
+  // Current themes
+  'auto', 'default', 'light', 'minimal',
+  'high-contrast', 'colorblind',
+  'ocean', 'forest', 'sunset',
+  'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',
+  // Legacy names (mapped to current themes on load)
+  'dark', 'light-optimized', 'dark-optimized'
+];
+
 /**
  * Theme configuration item schema
  */
@@ -16,21 +27,31 @@ export const themeConfigItem: ConfigItem = {
   description: 'Application color theme preference',
   required: false,
   validation: {
-    enum: ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'],
-    errorMessage: 'Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal'
+    enum: validThemes,
+    errorMessage: 'Theme must be one of: default, light, minimal, high-contrast, colorblind, ocean, forest, sunset, dracula, nord, monokai, solarized, gruvbox'
   },
   ui: {
     label: 'Theme',
     component: 'select',
     helpText: 'Choose your preferred color theme',
     options: [
-      { value: 'auto', label: 'Auto (System)' },
-      { value: 'light', label: 'Light Mode' },
-      { value: 'dark', label: 'Dark Mode' },
-      { value: 'light-optimized', label: 'Light Optimized' },
-      { value: 'dark-optimized', label: 'Dark Optimized' },
+      // Core
       { value: 'default', label: 'Default' },
-      { value: 'minimal', label: 'Minimal' }
+      { value: 'light', label: 'Light' },
+      { value: 'minimal', label: 'Minimal' },
+      // Accessibility
+      { value: 'high-contrast', label: 'High Contrast' },
+      { value: 'colorblind', label: 'Colorblind' },
+      // Nature
+      { value: 'ocean', label: 'Ocean' },
+      { value: 'forest', label: 'Forest' },
+      { value: 'sunset', label: 'Sunset' },
+      // Classic Editor
+      { value: 'dracula', label: 'Dracula' },
+      { value: 'nord', label: 'Nord' },
+      { value: 'monokai', label: 'Monokai' },
+      { value: 'solarized', label: 'Solarized' },
+      { value: 'gruvbox', label: 'Gruvbox' }
     ]
   }
 };

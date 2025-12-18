@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { IDestructiveConfig } from '../models/configuration';
 import { getVisualWidth } from '../utils/validationDisplay';
 
@@ -79,6 +79,7 @@ export const ConfirmationBody = ({
     scrollOffset = 0,
     cursorLine = 0
 }: ConfirmationBodyProps): ConfirmationBodyResult => {
+    const theme = getCurrentTheme();
     // Debug input parameters
     if (process.env.TUI_DEBUG === 'true') {
         console.error(`\n=== ConfirmationBody Called ===`);

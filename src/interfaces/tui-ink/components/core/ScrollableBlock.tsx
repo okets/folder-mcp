@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import { IListItem } from './IListItem';
 import { calculateScrollbar } from './ScrollbarCalculator';
 import type { ScrollbarConfig } from './ScrollbarCalculator';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 
 export interface ScrollableBlockProps {
     items: (IListItem | React.ReactNode)[];
@@ -131,6 +131,7 @@ export const ScrollableBlock: React.FC<ScrollableBlockProps> = ({
     
     // Render content with scrollbar
     const renderContent = () => {
+        const theme = getCurrentTheme();
         const contentWidth = width - (showScrollbar && scrollbarElements.length > 0 ? 2 : 0);
         const elements: React.ReactElement[] = [];
         let lineIndex = 0;

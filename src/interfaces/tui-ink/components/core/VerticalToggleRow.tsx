@@ -1,6 +1,6 @@
 import React, { ReactElement } from 'react';
 import { Text, Key } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 import { ContentService } from '../../services/ContentService';
 import { IListItem } from './IListItem';
@@ -113,6 +113,7 @@ export class VerticalToggleRow {
      * Render the toggle row with truncation handling
      */
     render(): ReactElement {
+        const theme = getCurrentTheme();
         const { label, options, selectedValue, hasFocus, maxWidth, showNavigationHint = true } = this.props;
         
         // Find selected option
@@ -120,7 +121,7 @@ export class VerticalToggleRow {
         if (!selectedOption) {
             // Fallback if selected value not found
             return (
-                <Text {...textColorProp(hasFocus ? theme.colors.accent : undefined)}>
+                <Text {...textColorProp(hasFocus ? theme.colors.accent : theme.colors.textPrimary)}>
                     ⁃ {label}: Invalid selection
                 </Text>
             );
@@ -133,7 +134,7 @@ export class VerticalToggleRow {
         const cursor = hasFocus ? '▶' : '⁃';
         return (
             <Text>
-                <Text {...textColorProp(hasFocus ? theme.colors.accent : undefined)}>
+                <Text {...textColorProp(hasFocus ? theme.colors.accent : theme.colors.textPrimary)}>
                     {cursor} {layout.displayLabel}{layout.displayLabel && ': '}
                 </Text>
                 {layout.optionElements}
@@ -473,10 +474,11 @@ export class VerticalToggleRow {
      * Render option elements with selection symbols
      */
     private renderOptions(
-        options: ToggleOption[], 
-        selectedOption: ToggleOption, 
+        options: ToggleOption[],
+        selectedOption: ToggleOption,
         truncations: Map<string, string> | null
     ): ReactElement[] {
+        const theme = getCurrentTheme();
         const elements: ReactElement[] = [];
 
         options.forEach((option, index) => {
@@ -491,7 +493,7 @@ export class VerticalToggleRow {
             }
 
             elements.push(
-                <Text key={option.value} {...textColorProp(isSelected ? theme.colors.accent : undefined)}>
+                <Text key={option.value} {...textColorProp(isSelected ? theme.colors.accent : theme.colors.textPrimary)}>
                     {symbol} {displayLabel}
                 </Text>
             );
@@ -504,6 +506,7 @@ export class VerticalToggleRow {
      * Render minimal options for extreme space constraints
      */
     private renderMinimalOptions(options: ToggleOption[], selectedOption: ToggleOption): ReactElement[] {
+        const theme = getCurrentTheme();
         // Ultra-minimal: just show symbols and first letter of each option
         return options.map((option, index) => {
             const isSelected = option.value === selectedOption.value;
@@ -519,7 +522,7 @@ export class VerticalToggleRow {
             }
 
             elements.push(
-                <Text key={option.value} {...textColorProp(isSelected ? theme.colors.accent : undefined)}>
+                <Text key={option.value} {...textColorProp(isSelected ? theme.colors.accent : theme.colors.textPrimary)}>
                     {symbol} {shortLabel}…
                 </Text>
             );

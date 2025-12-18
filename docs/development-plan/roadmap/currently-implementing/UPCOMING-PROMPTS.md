@@ -103,7 +103,6 @@ The automated Code review system does not know what we worked on. I want you to:
 
 MY Code review system's suggestions:
 1. 
-
 -----------------------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
 You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste

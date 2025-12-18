@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 
 export type TextOverflowMode = 'truncate' | 'wrap';
@@ -154,12 +154,15 @@ export class TextListItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Get current theme at render time for dynamic theme support
+        const theme = getCurrentTheme();
+
         // For wrap mode, calculate actual required lines based on content
         const actualRequiredLines = this.getRequiredLines(maxWidth);
         // In wrap mode, respect maxLines from GenericListPanel's viewport allocation
         // This ensures wrapped items fit within available panel space
         const maxLinesToUse = maxLines || actualRequiredLines;
-        
+
         if (this._overflowMode === 'truncate') {
             // Single line with truncation
             // Use cursor arrow when active, otherwise use the normal icon

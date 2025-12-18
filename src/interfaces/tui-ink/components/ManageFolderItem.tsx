@@ -13,7 +13,7 @@ import { LogItem } from './core/LogItem';
 import { IListItem } from './core/IListItem';
 import { TextListItem } from './core/TextListItem';
 import { getModelMetadata } from '../models/modelMetadata';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { useModelDownloadEvents, ModelDownloadEvent } from '../contexts/FMDMContext';
 import { formatFolderWithStatus } from '../utils/validationDisplay';
 
@@ -71,6 +71,7 @@ class ManageFolderContainerItem extends ContainerListItem {
     
     // Override render to update label based on expansion state
     render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
+        const theme = getCurrentTheme();
         if (this.isControllingInput) {
             // Expanded: just show the path without status
             (this as any).label = this.folderPath;
@@ -273,10 +274,11 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         
         // Override render method to handle colored text
         render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
+            const theme = getCurrentTheme();
             if ((this as any)._isExpanded && (this as any).details) {
                 // For expanded state, use parent logic but we'll override the header
                 const parentResult = super.render(maxWidth, maxLines) as React.ReactElement[];
-                
+
                 // Replace the first element (header) with our custom colored version
                 // When expanded, always use ■ (cursor will be on bottom detail line)
                 const displayIcon = '■';
@@ -429,19 +431,20 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
         }
         
         render(maxWidth: number, maxLines?: number): React.ReactElement | React.ReactElement[] {
+            const theme = getCurrentTheme();
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
             const iconWidth = displayIcon.length === 0 ? 1 : displayIcon.length + 1;
             const availableWidth = maxWidth - iconWidth; // No extra indentation
-            
+
             // Use stored statusText directly
             let displayText = this.statusText;
-            
+
             if (this.statusText.length > availableWidth) {
                 // Truncate with ellipsis
                 displayText = this.statusText.substring(0, Math.max(0, availableWidth - 1)) + '…';
             }
-            
+
             return (
                 <Text>
                     <Text color={this.isActive ? theme.colors.accent : this.statusColor}>
@@ -480,16 +483,17 @@ export function createManageFolderItem(options: ManageFolderItemOptions): Contai
             }
             
             render(maxWidth: number): React.ReactElement | React.ReactElement[] {
+                const theme = getCurrentTheme();
                 const displayIcon = this.isActive ? '▶' : this.icon;
                 const iconWidth = displayIcon.length + 1; // icon + space
                 const availableWidth = maxWidth - iconWidth;
-                
+
                 let displayText = this.errorText;
-                
+
                 if (this.errorText.length > availableWidth) {
                     displayText = this.errorText.substring(0, Math.max(0, availableWidth - 1)) + '…';
                 }
-                
+
                 return (
                     <Text>
                         <Text color={this.isActive ? theme.colors.accent : theme.colors.dangerRed}>

@@ -5,7 +5,7 @@ import { TextInputBody, TextInputBodyProps } from './TextInputBody';
 import { NotificationArea } from './NotificationArea';
 import { ConfirmationBody } from '../ConfirmationBody';
 import { SimpleMessageScroll } from '../SimpleMessageScroll';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
 import { formatValidationDisplay, formatCollapsedValidation, getValidationColor, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
 import { truncateButtons } from '../../utils/buttonTruncation';
@@ -476,6 +476,8 @@ export class ConfigurationListItem extends ValidatedListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        const theme = getCurrentTheme();
+
         if (this._isControllingInput) {
             // Expanded edit mode
             const elements: ReactElement[] = [];

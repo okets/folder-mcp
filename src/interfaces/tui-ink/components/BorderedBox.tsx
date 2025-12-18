@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../utils/theme';
+import { useTheme } from '../contexts/ThemeContext';
 import { ILayoutConstraints } from '../models/types';
 import { LayoutConstraintProvider } from '../contexts/LayoutContext';
 import { ConstrainedContent } from './ConstrainedContent';
@@ -29,6 +29,7 @@ export const BorderedBox: React.FC<BorderedBoxProps> = ({
     scrollbarElements = [],
     constraints
 }) => {
+    const { theme } = useTheme();
     const { border } = theme.symbols;
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
     

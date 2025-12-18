@@ -17,7 +17,7 @@ import { NavigationProvider } from './contexts/NavigationContext';
 import { AnimationProvider, useAnimationContext } from './contexts/AnimationContext';
 import { createStatusPanelItems, createConfigurationPanelItems } from './models/mixedSampleData';
 import { useTheme } from './contexts/ThemeContext';
-import { theme } from './utils/theme';
+import { getCurrentTheme } from './utils/theme';
 import { IListItem } from './components/core/IListItem';
 import { FilePickerListItem } from './components/core/FilePickerListItem';
 import { ConfigurationListItem } from './components/core/ConfigurationListItem';
@@ -43,6 +43,7 @@ import { MINIMUM_TERMINAL_WIDTH } from './utils/terminalConstraints';
  * active = green, error = red, everything else = orange
  */
 function getStatusColor(status?: FolderIndexingStatus): string {
+    const theme = getCurrentTheme();
     switch (status) {
         case 'active':
             return theme.colors.successGreen;
@@ -381,6 +382,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     // Create config items from current folders or fall back to sample data
     // Memoize to prevent unnecessary recalculations
     const configItems = React.useMemo(() => {
+        const theme = getCurrentTheme();
         const items: IListItem[] = [];
         
         // Add configured folders first (main content)

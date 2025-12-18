@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 
 // Global terminal size state - updated by parent components
 let globalTerminalRows = 30; // Default safe value for normal resolution
@@ -144,6 +144,7 @@ export class SimpleButtonsRow implements IListItem {
      * Focused button is underlined
      */
     private renderLowResolution(maxWidth: number, focusedButtonIndex: number): ReactElement {
+        const theme = getCurrentTheme();
         const elements: ReactElement[] = [];
         
         // Calculate available space for buttons
@@ -247,6 +248,7 @@ export class SimpleButtonsRow implements IListItem {
      * ╚─────────╝  ╰──────────╯
      */
     private renderRegularMode(maxWidth: number, focusedButtonIndex: number): ReactElement[] {
+        const theme = getCurrentTheme();
         // Calculate available width for buttons
         const spacingBetweenButtons = 1;
         const totalSpacing = (this.buttons.length - 1) * spacingBetweenButtons;

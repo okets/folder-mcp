@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { textColorProp } from '../utils/conditionalProps';
 
 export interface SimpleMessageScrollProps {
@@ -25,6 +25,7 @@ export const SimpleMessageScroll = ({
     cursorLine = -1,
     hasTitle = false
 }: SimpleMessageScrollProps): SimpleMessageScrollResult => {
+    const theme = getCurrentTheme();
     const elements: React.ReactElement[] = [];
     
     // Calculate content width accounting for the line structure

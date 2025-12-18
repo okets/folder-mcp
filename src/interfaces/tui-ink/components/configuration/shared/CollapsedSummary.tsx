@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'ink';
-import { theme } from '../../../utils/theme';
+import { getCurrentTheme } from '../../../utils/theme';
 import { useDI } from '../../../di/DIContext';
 import { ServiceTokens } from '../../../di/tokens';
 import { textColorProp } from '../../../utils/conditionalProps';
@@ -12,12 +12,13 @@ interface ICollapsedSummaryProps {
     isSelected: boolean;
 }
 
-export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({ 
-    label, 
-    value, 
+export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
+    label,
+    value,
     maxWidth,
-    isSelected 
+    isSelected
 }) => {
+    const theme = getCurrentTheme();
     const di = useDI();
     const contentService = di.resolve(ServiceTokens.ContentService);
     
@@ -46,7 +47,7 @@ export const CollapsedSummary: React.FC<ICollapsedSummaryProps> = ({
     const fullDisplayText = `${prefix} ${truncatedLabel}: [${displayValue}] →`;
     
     return (
-        <Text {...textColorProp(isSelected ? theme.colors.accent : undefined)}>
+        <Text {...textColorProp(isSelected ? theme.colors.accent : theme.colors.textPrimary)}>
             {fullDisplayText}
         </Text>
     );

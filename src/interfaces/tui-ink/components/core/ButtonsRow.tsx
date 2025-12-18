@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key, Transform } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { textColorProp } from '../../utils/conditionalProps';
 import { useTerminalSize } from '../../hooks/useTerminalSize';
 
@@ -63,6 +63,7 @@ export class ButtonsRow implements IListItem {
      * Render low resolution mode: [▶cancel ] [ Save ]
      */
     private renderLowResolution(maxWidth: number, focusedButtonIndex: number): ReactElement {
+        const theme = getCurrentTheme();
         const elements: ReactElement[] = [];
         
         for (let i = 0; i < this.buttons.length; i++) {
@@ -75,7 +76,7 @@ export class ButtonsRow implements IListItem {
             // Apply ANSI text using Transform wrapper to prevent spacing issues
             const buttonText = (
                 <Transform transform={output => output}>
-                    <Text bold {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                    <Text bold {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                         [{arrow}{button.text} ]
                     </Text>
                 </Transform>
@@ -99,6 +100,7 @@ export class ButtonsRow implements IListItem {
      * ╚─────────╝  ╰──────────╯
      */
     private renderRegularMode(maxWidth: number, focusedButtonIndex: number): ReactElement {
+        const theme = getCurrentTheme();
         const buttonElements: ReactElement[] = [];
         
         
@@ -159,7 +161,7 @@ export class ButtonsRow implements IListItem {
                     <Text {...textColorProp(sideColor)}>│</Text>
                     <Text> </Text>
                     <Transform transform={output => output}>
-                        <Text bold {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                        <Text bold {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                             {displayText}
                         </Text>
                     </Transform>

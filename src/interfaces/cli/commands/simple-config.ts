@@ -57,7 +57,7 @@ export class SimpleConfigCommand {
     // Theme-specific commands
     this.command
       .command('theme [value]')
-      .description('Get or set theme (light-optimized, dark-optimized, auto)')
+      .description('Get or set theme (default, light, dracula, nord, ocean, etc.)')
       .action((value) => {
         if (value) {
           this.executeSetTheme(value);
@@ -165,10 +165,10 @@ export class SimpleConfigCommand {
   private async executeGetTheme(): Promise<void> {
     try {
       const configComponent = await this.initConfigurationComponent();
-      const theme = await configComponent.get('theme') || 'auto';
-      
+      const theme = await configComponent.get('theme') || 'default';
+
       console.log(chalk.bold('Current theme:'), theme);
-      console.log(chalk.gray('\nAvailable themes: light-optimized, dark-optimized, auto'));
+      console.log(chalk.gray('\nRun `folder-mcp config themes` to see all available themes'));
     } catch (error) {
       console.error(chalk.red('❌ Error:'), error instanceof Error ? error.message : String(error));
       process.exit(1);
@@ -192,15 +192,32 @@ export class SimpleConfigCommand {
   private async executeListThemes(): Promise<void> {
     console.log(chalk.bold('\n🎨 Available Themes:'));
     console.log(chalk.gray('===================\n'));
-    
-    console.log('• ' + chalk.bold('light-optimized') + ' - Optimized for light terminal backgrounds');
-    console.log('• ' + chalk.bold('dark-optimized') + ' - Optimized for dark terminal backgrounds');
-    console.log('• ' + chalk.bold('auto') + ' - Use system default theme\n');
-    
+
+    console.log(chalk.bold('Core:'));
+    console.log('  • ' + chalk.cyan('default') + ' - Default dark theme');
+    console.log('  • ' + chalk.cyan('light') + ' - Light terminal backgrounds');
+    console.log('  • ' + chalk.cyan('minimal') + ' - ASCII-only, maximum compatibility\n');
+
+    console.log(chalk.bold('Accessibility:'));
+    console.log('  • ' + chalk.cyan('high-contrast') + ' - Maximum visibility');
+    console.log('  • ' + chalk.cyan('colorblind') + ' - Deuteranopia-safe (no red/green)\n');
+
+    console.log(chalk.bold('Nature:'));
+    console.log('  • ' + chalk.cyan('ocean') + ' - Blue/cyan oceanic palette');
+    console.log('  • ' + chalk.cyan('forest') + ' - Green nature palette');
+    console.log('  • ' + chalk.cyan('sunset') + ' - Warm orange/red palette\n');
+
+    console.log(chalk.bold('Classic Editor:'));
+    console.log('  • ' + chalk.cyan('dracula') + ' - Purple/pink vampire theme');
+    console.log('  • ' + chalk.cyan('nord') + ' - Cool arctic blues');
+    console.log('  • ' + chalk.cyan('monokai') + ' - Classic editor theme');
+    console.log('  • ' + chalk.cyan('solarized') + ' - Ethan Schoonover\'s classic');
+    console.log('  • ' + chalk.cyan('gruvbox') + ' - Retro warm theme\n');
+
     try {
       const configComponent = await this.initConfigurationComponent();
-      const currentTheme = await configComponent.get('theme') || 'auto';
-      console.log(chalk.gray('Current theme:'), chalk.cyan(currentTheme));
+      const currentTheme = await configComponent.get('theme') || 'default';
+      console.log(chalk.gray('Current theme:'), chalk.bold.cyan(currentTheme));
     } catch {
       // Ignore errors when getting current theme
     }

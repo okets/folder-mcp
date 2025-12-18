@@ -1,8 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { AnimationContainer } from './AnimationContainer';
-import { BRAILLE_SPINNER, createProgressBarFrames, createWaveFrames } from '../../utils/animations';
-import { theme } from '../../utils/theme';
+import { BRAILLE_SPINNER } from '../../utils/animations';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface ProgressBarProps {
@@ -49,7 +48,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     showPercentage = true,
     color
 }) => {
-    const { theme: currentTheme } = useTheme();
+    const { theme } = useTheme();
     const isError = value === -1;
     const isIndeterminate = value === undefined;
     const percentage = (isIndeterminate || isError) ? 0 : Math.min(100, Math.max(0, Math.round(value)));
@@ -58,7 +57,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     const renderShortMode = () => {
         if (isError) {
             // Error state: show red X with ERR
-            return <Text color={theme.colors.dangerRed}>✗ERR</Text>;
+            return <Text color={theme.colors.error}>✗ERR</Text>;
         }
         if (isIndeterminate) {
             // Just spinner with 3 spaces for indeterminate
@@ -67,7 +66,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                     <AnimationContainer 
                         frames={BRAILLE_SPINNER}
                         interval={80}
-                        color={theme.colors.warningOrange}
+                        color={theme.colors.warning}
                     />
                     <Text>   </Text>
                 </Box>
@@ -78,7 +77,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         let percentText: string;
         if (percentage === 100) {
             // At 100%, show green checkmark with spaces
-            return <Text color={theme.colors.successGreen}>✓   </Text>;
+            return <Text color={theme.colors.success}>✓   </Text>;
         } else if (percentage < 10) {
             // 0-9: " 0%" with space before number
             percentText = ` ${percentage}%`;
@@ -93,9 +92,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                 <AnimationContainer 
                     frames={BRAILLE_SPINNER}
                     interval={80}
-                    color={theme.colors.warningOrange}
+                    color={theme.colors.warning}
                 />
-                <Text color={theme.colors.warningOrange}>{percentText}</Text>
+                <Text color={theme.colors.warning}>{percentText}</Text>
             </Box>
         );
     };
@@ -109,9 +108,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             // Error state in long mode
             return (
                 <Box>
-                    <Text color={theme.colors.dangerRed}>✗</Text>
-                    <Text color={theme.colors.dangerRed}>{(currentTheme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
-                    <Text color={theme.colors.dangerRed}> ERR</Text>
+                    <Text color={theme.colors.error}>✗</Text>
+                    <Text color={theme.colors.error}>{(theme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
+                    <Text color={theme.colors.error}> ERR</Text>
                 </Box>
             );
         }
@@ -123,10 +122,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                     <AnimationContainer 
                         frames={BRAILLE_SPINNER}
                         interval={80}
-                        color={theme.colors.warningOrange}
+                        color={theme.colors.warning}
                     />
-                    <Text color={theme.colors.warningOrange}>{(currentTheme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
-                    <Text color={theme.colors.warningOrange}> ...</Text>
+                    <Text color={theme.colors.warning}>{(theme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
+                    <Text color={theme.colors.warning}> ...</Text>
                 </Box>
             );
         }
@@ -134,7 +133,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         // Determinate progress - use different characters for minimal theme
         const filledCount = Math.round((percentage / 100) * barWidth);
         const emptyCount = barWidth - filledCount;
-        const isMinimalTheme = currentTheme.name === 'minimal';
+        const isMinimalTheme = theme.name === 'minimal';
         const filledChar = isMinimalTheme ? '■' : '▰'; // Use small square for minimal, original block for others
         const emptyChar = isMinimalTheme ? '□' : '▱'; // Use empty square for minimal, original empty for others
         const progressBar = filledChar.repeat(filledCount) + emptyChar.repeat(emptyCount);
@@ -143,9 +142,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             // Complete state
             return (
                 <Box>
-                    <Text color={theme.colors.successGreen}>✓</Text>
-                    <Text color={theme.colors.successGreen}>{progressBar}</Text>
-                    <Text color={theme.colors.successGreen}>100%</Text>
+                    <Text color={theme.colors.success}>✓</Text>
+                    <Text color={theme.colors.success}>{progressBar}</Text>
+                    <Text color={theme.colors.success}>100%</Text>
                 </Box>
             );
         }
@@ -157,10 +156,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                 <AnimationContainer 
                     frames={BRAILLE_SPINNER}
                     interval={80}
-                    color={theme.colors.warningOrange}
+                    color={theme.colors.warning}
                 />
-                <Text color={theme.colors.warningOrange}>{progressBar}</Text>
-                <Text color={theme.colors.warningOrange}>{percentText}</Text>
+                <Text color={theme.colors.warning}>{progressBar}</Text>
+                <Text color={theme.colors.warning}>{percentText}</Text>
             </Box>
         );
     };
@@ -175,14 +174,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         if (width < 6) {
             // Too narrow for any progress bar, just show percentage or status
             if (isError) {
-                return <Text color={theme.colors.dangerRed}>ERR </Text>;
+                return <Text color={theme.colors.error}>ERR </Text>;
             } else if (isIndeterminate) {
-                return <Text color={theme.colors.warningOrange}>... </Text>;
+                return <Text color={theme.colors.warning}>... </Text>;
             } else if (percentage === 100) {
-                return <Text color={theme.colors.successGreen}>100%</Text>;
+                return <Text color={theme.colors.success}>100%</Text>;
             } else {
                 const percentText = percentage < 10 ? `  ${percentage}%` : ` ${percentage}%`;
-                return <Text color={theme.colors.warningOrange}>{percentText}</Text>;
+                return <Text color={theme.colors.warning}>{percentText}</Text>;
             }
         } else if (width < 20) {
             // Use short mode for narrow spaces

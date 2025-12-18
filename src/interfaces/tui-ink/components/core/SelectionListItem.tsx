@@ -1,7 +1,7 @@
 import React, { ReactElement } from 'react';
 import { Box, Text, Key } from 'ink';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { SelectionBody } from './SelectionBody';
 import { NotificationArea } from './NotificationArea';
 import { getVisualWidth } from '../../utils/validationDisplay';
@@ -293,6 +293,9 @@ export class SelectionListItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Get current theme at render time for dynamic theme support
+        const theme = getCurrentTheme();
+
         if (this._isControllingInput) {
             // Expanded mode with keyboard hints in header
             const elements: ReactElement[] = [];
@@ -350,7 +353,7 @@ export class SelectionListItem implements IListItem {
             this._effectiveLayout = effectiveLayout;
             
             // Header with inline notification area
-            const bulletColor = this.isActive ? theme.colors.accent : (this._validationError ? 'red' : undefined);
+            const bulletColor = this.isActive ? theme.colors.accent : (this._validationError ? 'red' : theme.colors.textPrimary);
             
             // Build header text with truncation support
             const prefix = '■ ';
@@ -382,7 +385,7 @@ export class SelectionListItem implements IListItem {
                     elements.push(
                         <Text key="header">
                             <Text {...textColorProp(bulletColor)}>■ </Text>
-                            <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
+                            <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>{labelPart}</Text>
                             <Text {...textColorProp('red')}>{errorText}</Text>
                         </Text>
                     );
@@ -394,7 +397,7 @@ export class SelectionListItem implements IListItem {
                         elements.push(
                             <Text key="header">
                                 <Text {...textColorProp(bulletColor)}>■ </Text>
-                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart}</Text>
+                                <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>{labelPart}</Text>
                                 <Text {...textColorProp('red')}> ✗ {truncatedError}</Text>
                             </Text>
                         );
@@ -403,7 +406,7 @@ export class SelectionListItem implements IListItem {
                         elements.push(
                             <Text key="header">
                                 <Text {...textColorProp(bulletColor)}>■ </Text>
-                                <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart} </Text>
+                                <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>{labelPart} </Text>
                             </Text>
                         );
                     }
@@ -426,8 +429,8 @@ export class SelectionListItem implements IListItem {
                 
                 elements.push(
                     <Text key="header">
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>■ </Text>
-                        <Text {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>{labelPart} </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>■ </Text>
+                        <Text {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>{labelPart} </Text>
                         {showFullHints && (
                             <>
                                 <Text {...textColorProp(theme.colors.textMuted)} bold>enter </Text>
@@ -476,13 +479,13 @@ export class SelectionListItem implements IListItem {
             // Use cursor arrow when active, otherwise use the normal icon
             const displayIcon = this.isActive ? '▶' : this.icon;
             const elements = [
-                <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                <Text key="main" {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>
                     {displayIcon} {label} [
                 </Text>,
                 <Text key="value" {...textColorProp(theme.colors.configValuesColor)}>
                     {value}{truncated ? '…' : ''}
                 </Text>,
-                <Text key="bracket" {...textColorProp(this.isActive ? theme.colors.accent : undefined)}>
+                <Text key="bracket" {...textColorProp(this.isActive ? theme.colors.accent : theme.colors.textPrimary)}>
                     ]
                 </Text>
             ];

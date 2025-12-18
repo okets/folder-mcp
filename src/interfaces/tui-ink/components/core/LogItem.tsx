@@ -2,7 +2,7 @@ import React, { ReactElement } from 'react';
 import { Box, Text } from 'ink';
 import chalk from 'chalk';
 import { IListItem } from './IListItem';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { ProgressBar } from './ProgressBar';
 import { useProgressMode } from '../../contexts/ProgressModeContext';
 import { textColorProp, buildProps } from '../../utils/conditionalProps';
@@ -82,7 +82,8 @@ export class LogItem implements IListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
-        
+        const theme = getCurrentTheme();
+
         if (this._isExpanded && this.details) {
             const elements: ReactElement[] = [];
             
@@ -269,6 +270,7 @@ export class LogItem implements IListItem {
     }
     
     private getStatusColor(): string | undefined {
+        const theme = getCurrentTheme();
         switch (this.status) {
             case '✓':
                 return theme.colors.successGreen;
@@ -282,6 +284,7 @@ export class LogItem implements IListItem {
     }
     
     private buildSegments(maxWidth: number): Segment[] {
+        const theme = getCurrentTheme();
         const BUFFER = 1; // Small buffer for ellipsis and safety
         const safeWidth = maxWidth - BUFFER;
         

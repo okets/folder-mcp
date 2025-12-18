@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import { setCurrentTheme } from '../utils/theme';
 
 export interface Theme {
     name: string;
@@ -120,19 +121,20 @@ export const lightTheme: Theme = {
 };
 
 // Minimal theme - ASCII only for maximum compatibility
+// Creates contrast by dimming base text (gray) so selections (whiteBright) stand out
 export const minimalTheme: Theme = {
     name: 'Minimal',
     colors: {
-        primary: 'white',
-        accent: 'white',
-        success: 'white',
-        warning: 'white',
-        error: 'white',
-        text: 'white',
-        textMuted: 'gray',
-        border: 'gray',
+        primary: 'whiteBright',
+        accent: 'whiteBright',
+        success: 'whiteBright',
+        warning: 'whiteBright',
+        error: 'whiteBright',
+        text: 'gray',
+        textMuted: 'blackBright',
+        border: 'blackBright',
         borderFocus: 'white',
-        headerBorder: 'gray',
+        headerBorder: 'blackBright',
         titleText: 'white'
     },
     icons: {
@@ -242,11 +244,11 @@ export const sunsetTheme: Theme = {
     colors: {
         primary: '#E85D04',
         accent: '#F48C06',
-        success: '#FFBA08',
-        warning: '#FAA307',
+        success: '#90BE6D',         // Olive green - distinct from orange palette
+        warning: '#F77F00',         // Darker orange - distinct from success
         error: '#D00000',
         text: 'white',
-        textMuted: '#FFBA08',
+        textMuted: '#FFC09F',       // Pale peach - muted but readable
         border: '#9D0208',
         borderFocus: '#F48C06',
         headerBorder: '#E85D04',
@@ -394,16 +396,25 @@ interface ThemeContextValue {
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-export const ThemeProvider: React.FC<{ 
+export const ThemeProvider: React.FC<{
     children: ReactNode;
     initialTheme?: ThemeName;
     onThemeChange?: (name: ThemeName) => void | Promise<void>;
 }> = ({ children, initialTheme = 'default', onThemeChange }) => {
     const [themeName, setThemeName] = useState<ThemeName>(initialTheme);
     const theme = themes[themeName];
-    
+
+    // Sync theme store for class components whenever theme changes
+    useEffect(() => {
+        setCurrentTheme(theme);
+    }, [theme]);
+
     const setTheme = useCallback(async (name: ThemeName) => {
         if (themes[name]) {
+            // Update store FIRST so class components get new theme immediately
+            // This prevents the "lag" where selection shows old theme color
+            setCurrentTheme(themes[name]);
+            // Then update React state
             setThemeName(name);
             // Call the optional callback for persistence
             if (onThemeChange) {
@@ -411,7 +422,7 @@ export const ThemeProvider: React.FC<{
             }
         }
     }, [onThemeChange]);
-    
+
     // Memoize context value to prevent unnecessary re-renders
     const contextValue = useMemo(() => ({
         theme,

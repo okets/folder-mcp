@@ -1,11 +1,12 @@
 import { ValidationState, ValidationMessage } from '../validation/ValidationState';
-import { theme } from './theme';
+import { getCurrentTheme } from './theme';
 import { buildProps } from './conditionalProps';
 
 /**
  * Get the appropriate color for a validation state
  */
 export function getValidationColor(state: ValidationState): string {
+    const theme = getCurrentTheme();
     switch (state) {
         case ValidationState.Valid:
             return theme.colors.successGreen;
@@ -298,6 +299,7 @@ export function formatFolderWithStatus(
     showValidation: boolean;
     validationColor?: string;
 } {
+    const theme = getCurrentTheme();
     // Calculate base components width
     const iconWidth = getVisualWidth(`${icon} `);
     const statusWidth = getVisualWidth(` [${status}]`);

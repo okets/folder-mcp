@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { SelectionOption, SelectionMode, SelectionLayout } from './SelectionListItem';
 import { getVisualWidth } from '../../utils/validationDisplay';
 import { calculateColumnLayout, formatColumnHeader, truncateToWidth, padToWidth } from '../../utils/columnLayout';
@@ -47,6 +47,9 @@ export const SelectionBody = ({
     showDetails = false,
     detailColumns
 }: SelectionBodyProps): React.ReactElement[] => {
+    // Get current theme at render time for dynamic theme support
+    const theme = getCurrentTheme();
+
     const symbols = useASCII 
         ? (mode === 'radio' ? SYMBOLS.radio.ascii : SYMBOLS.checkbox.ascii)
         : (mode === 'radio' ? SYMBOLS.radio.unicode : SYMBOLS.checkbox.unicode);
@@ -188,7 +191,7 @@ export const SelectionBody = ({
                 
                 // Add selection symbol with space
                 rowElements.push(
-                    <Text key="symbol" {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                    <Text key="symbol" {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                         {symbol}
                     </Text>
                 );
@@ -217,7 +220,7 @@ export const SelectionBody = ({
                     cellValue = padToWidth(cellValue, col.width);
                     
                     rowElements.push(
-                        <Text key={`col-${colIndex}`} {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                        <Text key={`col-${colIndex}`} {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                             {cellValue}
                         </Text>
                     );
@@ -270,7 +273,7 @@ export const SelectionBody = ({
                 elements.push(
                     <Box key={`option-${actualIndex}`}>
                         <Text {...textColorProp(headerColor)}>{linePrefix} </Text>
-                        <Text {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                        <Text {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                             {symbol} {displayLabel}
                         </Text>
                         {spaceHintToShow && (
@@ -328,7 +331,7 @@ export const SelectionBody = ({
             }
             
             optionElements.push(
-                <Text key={`opt-${index}`} {...textColorProp(isFocused ? theme.colors.accent : undefined)}>
+                <Text key={`opt-${index}`} {...textColorProp(isFocused ? theme.colors.accent : theme.colors.textPrimary)}>
                     {symbol} {option.label}
                 </Text>
             );

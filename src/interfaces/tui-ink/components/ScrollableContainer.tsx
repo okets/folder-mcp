@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 
 interface ScrollableContainerProps {
     title: string;
@@ -12,15 +12,16 @@ interface ScrollableContainerProps {
     height?: number;
 }
 
-export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({ 
-    title, 
-    subtitle, 
+export const ScrollableContainer: React.FC<ScrollableContainerProps> = ({
+    title,
+    subtitle,
     focused = false,
     children,
     selectedIndex = 0,
     onScroll,
     height
 }) => {
+    const theme = getCurrentTheme();
     const borderColor = focused ? theme.colors.borderFocus : theme.colors.border;
     
     // Calculate visible items based on container height

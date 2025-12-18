@@ -3,7 +3,7 @@ import { Box, Text, Key } from 'ink';
 import { BorderedBox } from '../BorderedBox';
 import { IListItem } from './IListItem';
 import { calculateScrollbar } from './ScrollbarCalculator';
-import { theme } from '../../utils/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 import { SelfConstrainedWrapper } from './SelfConstrainedWrapper';
 import { buildProps } from '../../utils/conditionalProps';
 
@@ -30,6 +30,7 @@ export const GenericListPanel: React.FC<GenericListPanelProps> = ({
     onSelectionChange,
     onInput
 }) => {
+    const { theme } = useTheme();
     const [scrollOffset, setScrollOffset] = useState(0);
     
     // Calculate dimensions

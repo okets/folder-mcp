@@ -2,7 +2,7 @@ import React, { ReactElement } from 'react';
 import { Text, Key, Transform } from 'ink';
 import { ValidatedListItem } from './ValidatedListItem';
 import { FilePickerBody } from './FilePickerBody';
-import { theme } from '../../utils/theme';
+import { getCurrentTheme } from '../../utils/theme';
 import { ValidationMessage, ValidationState, createValidationMessage, getDefaultIcon } from '../../validation/ValidationState';
 import { formatCollapsedValidation, getValidationColor, formatValidationDisplay, getVisualWidth, getValidationIcon } from '../../utils/validationDisplay';
 import { textColorProp } from '../../utils/conditionalProps';
@@ -162,13 +162,14 @@ export class FilePickerListItem extends ValidatedListItem {
                 return 'yellow';
             }
         }
-        
+
         // Fall back to path validity check
         if (!this._selectedPathValid) {
             return 'red';
         }
-        
+
         // Default to config values color (green)
+        const theme = getCurrentTheme();
         return theme.colors.configValuesColor;
     }
     
@@ -745,6 +746,9 @@ export class FilePickerListItem extends ValidatedListItem {
     }
     
     render(maxWidth: number, maxLines?: number): ReactElement | ReactElement[] {
+        // Get current theme at render time for dynamic theme support
+        const theme = getCurrentTheme();
+
         if (this._isControllingInput) {
             // Expanded view
             const elements: ReactElement[] = [];

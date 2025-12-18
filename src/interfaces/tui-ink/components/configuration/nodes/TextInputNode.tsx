@@ -3,7 +3,7 @@ import { Box, Text, useInput } from 'ink';
 import { TextInput } from '../../primitives/TextInput';
 import { CollapsedSummary } from '../shared/CollapsedSummary';
 import { BorderedBox } from '../../BorderedBox';
-import { theme } from '../../../utils/theme';
+import { getCurrentTheme } from '../../../utils/theme';
 import { useDI } from '../../../di/DIContext';
 import { ServiceTokens } from '../../../di/tokens';
 import type { ITextInputNode } from '../../../models/configuration';
@@ -20,6 +20,7 @@ export const TextInputNode: React.FC<TextInputNodeProps> = ({
     isSelected,
     width
 }) => {
+    const theme = getCurrentTheme();
     const di = useDI();
     const formNavService = di.resolve(ServiceTokens.FormNavigationService);
     const inputService = di.resolve(ServiceTokens.InputService);

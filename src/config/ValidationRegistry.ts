@@ -32,10 +32,19 @@ export class ValidationRegistry {
     private static initialize(): void {
         if (this.initialized) return;
 
-        // Theme validation
+        // Theme validation - includes all current themes plus legacy names for migration
+        const validThemes = [
+            // Current themes
+            'auto', 'default', 'light', 'minimal',
+            'high-contrast', 'colorblind',
+            'ocean', 'forest', 'sunset',
+            'dracula', 'nord', 'monokai', 'solarized', 'gruvbox',
+            // Legacy theme names (for config file migration compatibility)
+            'dark', 'light-optimized', 'dark-optimized'
+        ];
         this.registerRule('theme', {
-            validate: (value: string) => ['auto', 'light', 'dark', 'light-optimized', 'dark-optimized', 'default', 'minimal'].includes(value),
-            message: 'Theme must be auto, light, dark, light-optimized, dark-optimized, default, or minimal'
+            validate: (value: string) => validThemes.includes(value),
+            message: `Theme must be one of: ${validThemes.filter(t => !['dark', 'light-optimized', 'dark-optimized'].includes(t)).join(', ')}`
         });
 
         // Folder path validation

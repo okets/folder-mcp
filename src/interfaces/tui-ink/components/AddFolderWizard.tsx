@@ -17,7 +17,7 @@ import { FMDMValidationAdapter } from '../services/FMDMValidationAdapter';
 import { ValidationState, ValidationResult, DEFAULT_VALIDATION, createValidationResult } from './core/ValidationState';
 import { ValidationState as ValidatedListItemValidationState, createValidationMessage } from '../validation/ValidationState';
 import { IDestructiveConfig } from '../models/configuration';
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { DaemonConnector } from '../daemon-connector.js';
 import { 
     ModelRecommendMessage, 
@@ -320,6 +320,7 @@ class AddFolderContainerItem extends ContainerListItem {
     }
     
     private renderCollapsedWithPathAndValidation(maxWidth: number): React.ReactElement {
+        const theme = getCurrentTheme();
         const icon = this.icon;
         const label = 'Add Folder';
         const path = this.selectedPath;

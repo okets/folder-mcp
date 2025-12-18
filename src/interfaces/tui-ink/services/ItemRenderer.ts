@@ -1,4 +1,4 @@
-import { theme } from '../utils/theme';
+import { getCurrentTheme } from '../utils/theme';
 import { buildProps } from '../utils/conditionalProps';
 
 /**
@@ -47,12 +47,15 @@ export interface ItemRenderConfig {
  * Service for consistent item rendering across all panels
  */
 export class ItemRenderer {
-    private defaultConfig: ItemRenderConfig = {
-        activeColor: theme.colors.accent,
-        activeIcon: '▶',
-        inactiveIcon: '·',
-        showValueBrackets: true
-    };
+    private getDefaultConfig(): ItemRenderConfig {
+        const theme = getCurrentTheme();
+        return {
+            activeColor: theme.colors.accent,
+            activeIcon: '▶',
+            inactiveIcon: '·',
+            showValueBrackets: true
+        };
+    }
     
     /**
      * Convert various item formats to unified ListItemData
@@ -130,7 +133,7 @@ export class ItemRenderer {
         color?: string;
         statusColor?: string;
     } {
-        const mergedConfig = { ...this.defaultConfig, ...config };
+        const mergedConfig = { ...this.getDefaultConfig(), ...config };
         
         // Determine icon
         let icon = item.icon;
