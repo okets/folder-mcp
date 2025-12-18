@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { FilePickerListItem, FilePickerMode } from './FilePickerListItem';
-import { useFMDMOperations } from '../../contexts/FMDMContext';
+import { useFMDMFolderOperations } from '../../contexts/FMDMContext';
 import { FMDMValidationAdapter } from '../../services/FMDMValidationAdapter';
 
 interface FilePickerListItemWrapperProps {
@@ -37,7 +37,7 @@ export const FilePickerListItemWrapper: React.FC<FilePickerListItemWrapperProps>
     showHiddenFiles = false
 }) => {
     // Get FMDM operations from context
-    const fmdmOperations = useFMDMOperations();
+    const fmdmOperations = useFMDMFolderOperations();
 
     // Create validation adapter
     const validationAdapter = React.useMemo(() => {
@@ -103,7 +103,7 @@ export const useFilePickerWithFMDM = (
     onChange?: () => void,
     showHiddenFiles: boolean = false
 ): FilePickerListItem => {
-    const fmdmOperations = useFMDMOperations();
+    const fmdmOperations = useFMDMFolderOperations();
 
     // Create validation adapter
     const validationAdapter = React.useMemo(() => {

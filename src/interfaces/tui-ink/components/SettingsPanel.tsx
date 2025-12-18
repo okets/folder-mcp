@@ -1,9 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Key } from 'ink';
 import { GenericListPanel } from './GenericListPanel';
 import { SelectionListItem, SelectionOption } from './core/SelectionListItem';
+import { ContainerListItem } from './core/ContainerListItem';
 import { IListItem } from './core/IListItem';
 import { useTheme, ThemeName, themes } from '../contexts/ThemeContext';
+import { useFMDM } from '../contexts/FMDMContext';
+import { createDefaultModelWizard, DefaultModelWizardResult } from './DefaultModelWizard';
 
 export interface SettingsPanelProps {
     width: number;
@@ -21,8 +24,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onSwitchToNavigation
 }) => {
     const { themeName, setTheme } = useTheme();
+    const { fmdm, setDefaultModel } = useFMDM();
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [logVerbosity, setLogVerbosity] = useState<string>('normal');
+
+    // State for the async Default Model wizard
+    const [defaultModelWizard, setDefaultModelWizard] = useState<ContainerListItem | null>(null);
+    const [wizardUpdateTrigger, setWizardUpdateTrigger] = useState(0);
+
+    // Track the current default model and languages from FMDM
+    const currentDefaultModel = fmdm?.defaultModel?.modelId;
+    const currentDefaultLanguages = fmdm?.defaultModel?.languages;
 
     // Theme options - use display name from theme object
     const themeOptions: SelectionOption[] = useMemo(() =>
@@ -39,55 +51,115 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         { value: 'verbose', label: 'Verbose' }
     ], []);
 
-    // Create items - SelectionListItem constructor:
-    // (icon, label, options, selectedValues, isActive, mode, layout, onValueChange, onPreviewChange, onCancel, ...)
-    const items: IListItem[] = useMemo(() => [
-        new SelectionListItem(
-            '○',                    // icon
-            'Theme',                // label
-            themeOptions,           // options
-            [themeName],            // selectedValues - current theme from context
-            false,                  // isActive (managed by GenericListPanel)
-            'radio',                // mode
-            'vertical',             // layout - vertical as requested
-            async (values: string[]) => { // onValueChange - confirm on Enter (theme already previewed)
-                if (values.length > 0 && values[0]) {
-                    await setTheme(values[0] as ThemeName);
+    // Handler for when Default Model wizard completes
+    const handleDefaultModelComplete = useCallback(async (result: DefaultModelWizardResult) => {
+        try {
+            // Pass both model and languages to persist both selections
+            await setDefaultModel(result.model, result.languages);
+            // Force re-render to show updated state
+            setWizardUpdateTrigger(prev => prev + 1);
+        } catch (error) {
+            // Log error for debugging but don't rethrow - continue with UI update
+            console.error('[SettingsPanel] Failed to set default model:', error);
+            setWizardUpdateTrigger(prev => prev + 1);
+        }
+    }, [setDefaultModel]);
+
+    // Handler for when Default Model wizard is cancelled
+    const handleDefaultModelCancel = useCallback(() => {
+        // Wizard cancelled - nothing to do
+        setWizardUpdateTrigger(prev => prev + 1);
+    }, []);
+
+    // Initialize the Default Model wizard asynchronously
+    // Only recreates when the model changes, NOT when languages change
+    // (to avoid infinite loop since the wizard itself updates languages)
+    useEffect(() => {
+        let mounted = true;
+
+        const initWizard = async () => {
+            try {
+                const wizard = await createDefaultModelWizard({
+                    // Use languages from FMDM if available, otherwise default to English
+                    // Note: currentDefaultLanguages is captured at wizard creation time
+                    initialLanguages: currentDefaultLanguages || ['en'],
+                    // Only pass initialModel if defined (conditional spread for exactOptionalPropertyTypes)
+                    ...(currentDefaultModel && { initialModel: currentDefaultModel }),
+                    onComplete: handleDefaultModelComplete,
+                    onCancel: handleDefaultModelCancel
+                });
+
+                if (mounted) {
+                    setDefaultModelWizard(wizard);
                 }
-            },
-            (values: string[]) => { // onPreviewChange - live preview while navigating
-                if (values.length > 0 && values[0]) {
-                    setTheme(values[0] as ThemeName);
-                }
-            },
-            (originalValues: string[]) => { // onCancel - revert to original theme on Escape
-                if (originalValues.length > 0 && originalValues[0]) {
-                    setTheme(originalValues[0] as ThemeName);
-                }
+            } catch (error) {
+                // Failed to initialize Default Model wizard
             }
-        ),
-        new SelectionListItem(
-            '◇',                    // icon
-            'Log Verbosity',        // label
-            verbosityOptions,       // options
-            [logVerbosity],         // selectedValues - current verbosity from state
-            false,                  // isActive (managed by GenericListPanel)
-            'radio',                // mode
-            'horizontal',           // layout - horizontal as requested
-            async (values: string[]) => { // onValueChange - confirm selection
-                if (values.length > 0 && values[0]) {
-                    setLogVerbosity(values[0]);
+        };
+
+        initWizard();
+
+        return () => {
+            mounted = false;
+        };
+    // IMPORTANT: currentDefaultLanguages intentionally excluded to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [handleDefaultModelComplete, handleDefaultModelCancel, currentDefaultModel]);
+
+    // Create items - combine static items with async wizard
+    const items: IListItem[] = useMemo(() => {
+        const staticItems: IListItem[] = [
+            new SelectionListItem(
+                '○',                    // icon
+                'Theme',                // label
+                themeOptions,           // options
+                [themeName],            // selectedValues - current theme from context
+                false,                  // isActive (managed by GenericListPanel)
+                'radio',                // mode
+                'vertical',             // layout - vertical as requested
+                async (values: string[]) => { // onValueChange - confirm on Enter (theme already previewed)
+                    if (values.length > 0 && values[0]) {
+                        await setTheme(values[0] as ThemeName);
+                    }
+                },
+                (values: string[]) => { // onPreviewChange - live preview while navigating
+                    if (values.length > 0 && values[0]) {
+                        setTheme(values[0] as ThemeName);
+                    }
+                },
+                (originalValues: string[]) => { // onCancel - revert to original theme on Escape
+                    if (originalValues.length > 0 && originalValues[0]) {
+                        setTheme(originalValues[0] as ThemeName);
+                    }
                 }
-            },
-            undefined,              // onPreviewChange - not needed for verbosity
-            undefined               // onCancel - not needed for verbosity
-        )
-    // NOTE: themeName and logVerbosity are intentionally NOT in dependencies!
-    // SelectionListItem maintains its own internal _selectedValues state.
-    // If they were dependencies, changing values would recreate the items array
-    // with NEW SelectionListItem instances that have _isControllingInput = false,
-    // breaking navigation.
-    ], [themeOptions, setTheme, verbosityOptions, setLogVerbosity]);
+            ),
+            new SelectionListItem(
+                '○',                    // icon
+                'Log Verbosity',        // label
+                verbosityOptions,       // options
+                [logVerbosity],         // selectedValues - current verbosity from state
+                false,                  // isActive (managed by GenericListPanel)
+                'radio',                // mode
+                'horizontal',           // layout - horizontal as requested
+                async (values: string[]) => { // onValueChange - confirm selection
+                    if (values.length > 0 && values[0]) {
+                        setLogVerbosity(values[0]);
+                    }
+                },
+                undefined,              // onPreviewChange - not needed for verbosity
+                undefined               // onCancel - not needed for verbosity
+            )
+        ];
+
+        // Add the Default Model wizard if it's loaded
+        if (defaultModelWizard) {
+            staticItems.push(defaultModelWizard);
+        }
+
+        return staticItems;
+    // NOTE: themeName, logVerbosity are intentionally NOT in dependencies to avoid recreating items
+    // wizardUpdateTrigger forces re-render when wizard state changes
+    }, [themeOptions, setTheme, verbosityOptions, setLogVerbosity, defaultModelWizard, wizardUpdateTrigger]);
 
     const customKeyBindings = isLandscape
         ? [

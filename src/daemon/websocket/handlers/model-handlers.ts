@@ -5,15 +5,18 @@
  * Provides model list retrieval and cache status checking.
  */
 
-import { 
+import {
   WSClientMessage,
   ModelListResponseMessage,
   ModelRecommendResponseMessage,
   ModelCompatibilityScore,
+  DefaultModelSetResponseMessage,
   isModelListMessage,
   isModelRecommendMessage,
+  isDefaultModelSetMessage,
   createModelListResponse,
   createModelRecommendResponse,
+  createDefaultModelSetResponse,
   createErrorMessage
 } from '../message-types.js';
 import { ILoggingService } from '../../../di/interfaces.js';
@@ -22,6 +25,7 @@ import { createStructuredLogger, CorrelationIdManager } from '../../../infrastru
 import { ModelSelectionService } from '../../../application/models/model-selection-service.js';
 import { OllamaDetector } from '../../../infrastructure/ollama/ollama-detector.js';
 import { IFMDMService } from '../../services/fmdm-service.js';
+import { IDefaultModelService } from '../../services/default-model-service.js';
 
 
 /**
@@ -35,7 +39,8 @@ export class ModelHandlers {
     private logger: ILoggingService,
     private modelSelectionService: ModelSelectionService,
     private ollamaDetector: OllamaDetector,
-    private fmdmService: IFMDMService
+    private fmdmService: IFMDMService,
+    private defaultModelService: IDefaultModelService
   ) {
     this.requestLogger = new RequestLogger(this.logger);
     this.structuredLogger = createStructuredLogger(this.logger, 'model-handler');
@@ -350,6 +355,117 @@ export class ModelHandlers {
         [],
         { hasGPU: false, cpuCores: 1, ramGB: 1 }
       );
+    }
+  }
+
+  /**
+   * Handle default model set request
+   * Allows clients to set the system-wide default embedding model
+   */
+  async handleDefaultModelSet(message: WSClientMessage, clientId?: string): Promise<DefaultModelSetResponseMessage> {
+    if (!isDefaultModelSetMessage(message)) {
+      throw new Error('Invalid default model set message');
+    }
+
+    const { id, payload } = message;
+    const { modelId, languages } = payload;
+
+    // Generate correlation ID and start operation tracking
+    const correlationId = CorrelationIdManager.generateId('default-model-set');
+
+    return CorrelationIdManager.withId(correlationId, () => {
+      // Start structured operation logging
+      const operationRequestId = this.structuredLogger.logOperation('started', 'default_model_set_request', {
+        requestId: correlationId,
+        clientId: clientId || 'unknown',
+        metadata: {
+          messageId: id,
+          triggerType: 'user',
+          modelId,
+          languages: languages?.join(',')
+        }
+      });
+
+      // Also use the existing request logger for compatibility
+      const requestId = this.requestLogger.startRequest(
+        'default_model_set',
+        { messageId: id, modelId, languages },
+        {
+          triggerType: 'user',
+          ...(clientId && { clientId })
+        }
+      );
+
+      return this.executeDefaultModelSetOperation(id, requestId, operationRequestId, modelId, languages, clientId);
+    });
+  }
+
+  private async executeDefaultModelSetOperation(
+    messageId: string,
+    requestId: string,
+    operationRequestId: string,
+    modelId: string,
+    languages: string[] | undefined,
+    clientId?: string
+  ): Promise<DefaultModelSetResponseMessage> {
+
+    const startTime = Date.now();
+
+    try {
+      // Use DefaultModelService to set the model (handles validation, persistence, and FMDM broadcast)
+      const newConfig = await this.defaultModelService.setDefaultModel(modelId, languages);
+
+      const duration = Date.now() - startTime;
+
+      // Complete structured operation logging
+      this.structuredLogger.logOperation('completed', 'default_model_set_request', {
+        requestId: operationRequestId,
+        clientId: clientId || 'unknown',
+        duration,
+        metadata: {
+          modelId: newConfig.modelId,
+          source: newConfig.source,
+          languages: newConfig.languages?.join(',')
+        }
+      });
+
+      // Complete legacy request tracking for compatibility
+      this.requestLogger.completeRequest(requestId, 'success', {
+        performanceMetrics: {
+          processingTime: duration
+        }
+      });
+
+      this.logger.info(`[ModelHandlers] Default model set to: ${newConfig.modelId}${newConfig.languages ? ` with languages: ${newConfig.languages.join(', ')}` : ''} by client ${clientId || 'unknown'}`);
+
+      return createDefaultModelSetResponse(messageId, true, {
+        modelId: newConfig.modelId,
+        source: newConfig.source,
+        ...(newConfig.languages && { languages: newConfig.languages })
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Complete structured operation logging with error
+      this.structuredLogger.logOperation('failed', 'default_model_set_request', {
+        requestId: operationRequestId,
+        clientId: clientId || 'unknown',
+        duration,
+        error: error instanceof Error ? error : new Error(String(error)),
+        recommendedAction: 'Check model ID is valid and model exists in curated models list'
+      });
+
+      // Complete legacy request tracking for compatibility
+      this.requestLogger.completeRequest(requestId, 'failure', {
+        errorCode: 'DEFAULT_MODEL_SET_ERROR',
+        errorMessage
+      });
+
+      this.logger.error(`[ModelHandlers] Failed to set default model: ${errorMessage}`);
+
+      return createDefaultModelSetResponse(messageId, false, undefined, errorMessage);
     }
   }
 

@@ -170,8 +170,8 @@ class FolderMCPDaemon {
       info('Loading cached model status...');
       await this.loadCachedModelStatus(loggingService, configComponent);
       
-      // Select default model based on cached status
-      await this.selectDefaultModel(loggingService);
+      // Select default model based on cached status and user preference
+      await this.selectDefaultModel(loggingService, configComponent);
       
       debug('Loading configured folders into FMDM...');
       await this.fmdmService!.loadFoldersFromConfig();
@@ -450,33 +450,61 @@ class FolderMCPDaemon {
   }
 
   /**
-   * Select default model based on current FMDM state
+   * Select default model based on current FMDM state and user preference
+   * Priority: 1. User's persisted preference  2. Hardware-based recommendation
    */
-  private async selectDefaultModel(loggingService: any): Promise<void> {
+  private async selectDefaultModel(loggingService: any, configComponent: any): Promise<void> {
     try {
+      // First, check if user has explicitly set a preference
+      const storedSelection = await configComponent.getDefaultModelSelection?.();
+
+      if (storedSelection && storedSelection.modelId) {
+        // User has explicitly set a model - use that (including languages if saved)
+        setDynamicDefaultModel(storedSelection.modelId);
+
+        // Update FMDM with user's preference
+        this.fmdmService!.updateDefaultModel({
+          modelId: storedSelection.modelId,
+          source: 'user',
+          ...(storedSelection.languages && { languages: storedSelection.languages })
+        });
+
+        const languageInfo = storedSelection.languages ? ` with languages: ${storedSelection.languages.join(', ')}` : '';
+        info(`Using user's default model: ${storedSelection.modelId}${languageInfo}`);
+        loggingService.info(`[DAEMON] Using user's default model: ${storedSelection.modelId}${languageInfo}`);
+        return;
+      }
+
+      // No user preference - use hardware-based selection
       // Get current model status from FMDM
       const fmdm = this.fmdmService!.getFMDM();
       const models = fmdm.curatedModels || [];
       const status = fmdm.modelCheckStatus || { pythonAvailable: false, gpuModelsCheckable: false };
-      
+
       if (models.length === 0) {
         debug('No model information available for default selection');
         return;
       }
-      
+
       loggingService.info('[DAEMON] Starting default model selection...');
       const defaultSelector = new DefaultModelSelector(
         loggingService,
         models,
         status.pythonAvailable
       );
-      
+
       loggingService.info('[DAEMON] Determining optimal default model...');
       const defaultSelection = await defaultSelector.determineOptimalDefault();
-      
+
       // Update model registry immediately
       setDynamicDefaultModel(defaultSelection.modelId);
-      
+
+      // Update FMDM with recommended model
+      this.fmdmService!.updateDefaultModel({
+        modelId: defaultSelection.modelId,
+        source: 'recommended'
+      });
+
       info(`Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
       loggingService.info(`[DAEMON] Selected default model: ${defaultSelection.modelId} (${defaultSelection.selectionReason})`);
     } catch (error) {

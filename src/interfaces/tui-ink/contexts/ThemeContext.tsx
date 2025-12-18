@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
-import { setCurrentTheme } from '../utils/theme';
+import { setCurrentTheme } from '../utils/theme.js';
 
 export interface Theme {
     name: string;

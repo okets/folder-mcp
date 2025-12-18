@@ -6,9 +6,9 @@
  * client connection tracking.
  */
 
-import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ClientConnection, CuratedModelInfo, ModelCheckStatus } from '../models/fmdm.js';
+import { FMDM, FolderConfig, FolderIndexingStatus, DaemonStatus, ClientConnection, CuratedModelInfo, ModelCheckStatus, DefaultModelConfig } from '../models/fmdm.js';
 import { ILoggingService } from '../../di/interfaces.js';
-import { getSupportedGpuModelIds, getSupportedCpuModelIds } from '../../config/model-registry.js';
+import { getSupportedGpuModelIds, getSupportedCpuModelIds, findSmallestCpuModel } from '../../config/model-registry.js';
 import { PathNormalizer } from '../utils/path-normalizer.js';
 
 /**
@@ -90,6 +90,17 @@ export interface IFMDMService {
    * This should be called after FMDM service creation to populate curated models
    */
   initializeCuratedModels(): Promise<void>;
+
+  /**
+   * Update the default model configuration
+   * Called by DefaultModelService when user changes default model or during startup
+   */
+  updateDefaultModel(defaultModel: DefaultModelConfig): void;
+
+  /**
+   * Get current default model configuration
+   */
+  getDefaultModel(): DefaultModelConfig;
 }
 
 /**
@@ -152,8 +163,22 @@ export class FMDMService implements IFMDMService {
         clients: []
       },
       models: this.getDefaultModels(),
-      curatedModels: [] // Will be populated during daemon startup
+      curatedModels: [], // Will be populated during daemon startup
       // modelCheckStatus omitted initially - will be set when models are checked
+      defaultModel: this.getInitialDefaultModel() // Will be updated by DefaultModelService
+    };
+  }
+
+  /**
+   * Get initial default model configuration
+   * Returns a placeholder that will be updated by DefaultModelService during daemon startup
+   */
+  private getInitialDefaultModel(): DefaultModelConfig {
+    // Use curated-models.json as source of truth - no hardcoded model names
+    // DefaultModelService will update this based on hardware detection and user preferences
+    return {
+      modelId: findSmallestCpuModel(),
+      source: 'recommended'
     };
   }
   
@@ -605,6 +630,25 @@ export class FMDMService implements IFMDMService {
     };
   }
   
+  /**
+   * Update the default model configuration
+   * Called by DefaultModelService when user changes default model or during startup
+   */
+  updateDefaultModel(defaultModel: DefaultModelConfig): void {
+    this.fmdm.defaultModel = { ...defaultModel };
+    this.fmdm.version = this.generateVersion();
+
+    this.logger.debug(`Default model updated: ${defaultModel.modelId} (source: ${defaultModel.source})`);
+    this.broadcast();
+  }
+
+  /**
+   * Get current default model configuration
+   */
+  getDefaultModel(): DefaultModelConfig {
+    return { ...this.fmdm.defaultModel };
+  }
+
   /**
    * Initialize curated models by checking their installation status
    * This method loads curated-models.json and checks which models are actually installed

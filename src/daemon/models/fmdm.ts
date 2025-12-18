@@ -13,6 +13,17 @@ export interface FMDM {
   models: string[]; // Legacy - will be deprecated
   curatedModels: CuratedModelInfo[]; // Enhanced model tracking
   modelCheckStatus?: ModelCheckStatus; // Status of model checks
+  defaultModel: DefaultModelConfig; // System-wide default embedding model
+}
+
+/**
+ * Default model configuration - source of truth for all clients
+ * Used when adding folders without specifying a model
+ */
+export interface DefaultModelConfig {
+  modelId: string;              // e.g., 'gpu:bge-m3' or 'cpu:all-MiniLM-L6-v2'
+  source: 'user' | 'recommended';  // How this value was determined
+  languages?: string[];         // Supported languages for model recommendation (e.g., ['en', 'fr'])
 }
 
 /**

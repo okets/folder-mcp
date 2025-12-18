@@ -39,6 +39,20 @@ export interface ModelDownloadEvent {
 }
 
 /**
+ * Result type for setDefaultModel operation
+ * Shared between FMDMClient and FMDMContext
+ */
+export interface SetDefaultModelResult {
+  success: boolean;
+  defaultModel?: {
+    modelId: string;
+    source: string;
+    languages?: string[];
+  };
+  error?: string;
+}
+
+/**
  * FMDM WebSocket Client for TUI components
  */
 export class FMDMClient {
@@ -383,6 +397,25 @@ export class FMDMClient {
       id,
       payload: { path }
     });
+  }
+
+  /**
+   * Set the default embedding model
+   * @param modelId - The model ID to set as default
+   * @param languages - Optional language codes for model recommendation (e.g., ['en', 'fr'])
+   */
+  async setDefaultModel(modelId: string, languages?: string[]): Promise<SetDefaultModelResult> {
+    const id = this.generateId();
+    const response = await this.sendRequest({
+      type: 'defaultModel.set',
+      id,
+      payload: { modelId, ...(languages && { languages }) }
+    });
+    return {
+      success: response.success,
+      defaultModel: response.defaultModel,
+      error: response.error
+    };
   }
 
   /**

@@ -6,7 +6,7 @@ import { AppFullscreen } from './AppFullscreen';
 import { FirstRunWizard } from './components/FirstRunWizard';
 import { AutoCompletionHandler } from './components/AutoCompletionHandler';
 import { ConfigurationThemeProvider } from './contexts/ConfigurationThemeProvider';
-import { FMDMProvider, useFMDM, useFMDMOperations } from './contexts/FMDMContext';
+import { FMDMProvider, useFMDM, useFMDMFolderOperations } from './contexts/FMDMContext';
 import { FMDM } from '../../daemon/models/fmdm';
 import { DIProvider, setupDIContainer } from './di/index';
 import { setupDependencyInjection } from '../../di/setup';
@@ -67,7 +67,7 @@ const MainApp: React.FC<{ cliDir?: string | null | undefined; cliModel?: string 
     
     // Get FMDM data to determine if we have configured folders
     const { fmdm, isConnected } = useFMDM();
-    const fmdmOperations = useFMDMOperations();
+    const fmdmOperations = useFMDMFolderOperations();
     
     // FMDM-based first run detection - make decisions based on daemon state
     React.useEffect(() => {

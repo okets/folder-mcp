@@ -15,43 +15,88 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
   beforeAll(async () => {
     // Start the daemon
     const daemonPath = path.join(process.cwd(), 'dist', 'src', 'daemon', 'index.js');
-    
+
     // Check if daemon exists
     try {
       await fs.access(daemonPath);
     } catch {
       throw new Error(`Daemon not built at ${daemonPath}. Run npm run build first.`);
     }
-    
+
     console.log('Starting daemon...');
     daemonProcess = spawn('node', [daemonPath], {
       env: { ...process.env, DAEMON_PORT: DAEMON_PORT.toString() },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    // Wait for daemon to be ready
+    // Wait for daemon to be ready - specifically wait for REST API server
+    // IMPORTANT: WebSocket starts before REST API, so we must wait for REST API
+    // to ensure MCP server connection tests don't fail with ECONNREFUSED
     await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Daemon startup timeout')), 30000); // Increased for Windows
-      
-      let resolved = false;
-      
+      let restApiReady = false;
+      let hasResolved = false;
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        // Remove process listeners to prevent memory leaks
+        daemonProcess!.removeAllListeners('exit');
+        daemonProcess!.removeAllListeners('close');
+        daemonProcess!.removeAllListeners('error');
+        // Remove stream listeners (safely handle null/undefined)
+        daemonProcess!.stdout?.removeAllListeners('data');
+        daemonProcess!.stderr?.removeAllListeners('data');
+      };
+
+      // Timeout should cleanup before rejecting
+      const timeout = setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          reject(new Error('Daemon startup timeout'));
+        }
+      }, 30000); // Increased for Windows
+
       const checkOutput = (data: Buffer) => {
         const output = data.toString();
-        // Check for WebSocket server started message (still needed for TUI)
-        // Also check for REST API server started message
-        if (!resolved && (
-            output.includes('WebSocket server started on ws://') || 
-            output.includes('Daemon WebSocket server listening') || 
+        // CRITICAL: Wait specifically for REST API server to be ready
+        // WebSocket starts first but MCP server needs REST API on port 3002
+        if (!restApiReady && !hasResolved && (
             output.includes('REST API server started on') ||
             output.includes('[REST] API server started') ||
-            output.includes('ready on port'))) {
-          resolved = true;
-          clearTimeout(timeout);
+            output.includes('http://127.0.0.1:3002'))) {
+          restApiReady = true;
+          hasResolved = true;
+          cleanup();
           // Add a small delay to ensure the server is fully ready
           setTimeout(resolve, 500);
         }
       };
-      
+
+      // Fail fast if daemon crashes during startup
+      daemonProcess!.on('exit', (code, signal) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          reject(new Error(`Daemon exited unexpectedly during startup with code ${code}, signal ${signal}`));
+        }
+      });
+
+      daemonProcess!.on('close', (code, signal) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          reject(new Error(`Daemon closed unexpectedly during startup with code ${code}, signal ${signal}`));
+        }
+      });
+
+      daemonProcess!.on('error', (error) => {
+        if (!hasResolved) {
+          hasResolved = true;
+          cleanup();
+          reject(new Error(`Daemon error during startup: ${error.message}`));
+        }
+      });
+
       daemonProcess!.stdout?.on('data', (data) => {
         console.log('Daemon stdout:', data.toString());
         checkOutput(data);

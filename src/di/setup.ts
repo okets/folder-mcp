@@ -50,6 +50,7 @@ import { DaemonConfigurationService } from '../daemon/services/configuration-ser
 import { FMDMService } from '../daemon/services/fmdm-service.js';
 import { DaemonFolderValidationService } from '../daemon/services/folder-validation-service.js';
 import { MonitoredFoldersOrchestrator } from '../daemon/services/monitored-folders-orchestrator.js';
+import { DefaultModelService } from '../daemon/services/default-model-service.js';
 
 // Import ONNX configuration
 import { OnnxConfiguration } from '../infrastructure/config/onnx-configuration.js';
@@ -425,13 +426,22 @@ export function setupDependencyInjection(options: {
     return new OllamaDetector();
   });
 
+  // Register Default Model Service
+  container.registerSingleton(SERVICE_TOKENS.DEFAULT_MODEL_SERVICE, () => {
+    const configurationComponent = container.resolve(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT) as any;
+    const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
+    const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
+    return new DefaultModelService(configurationComponent, fmdmService, loggingService);
+  });
+
   // Register Model Handlers
   container.registerSingleton(SERVICE_TOKENS.MODEL_HANDLERS, () => {
     const loggingService = container.resolve(SERVICE_TOKENS.LOGGING) as any;
     const modelSelectionService = container.resolve(SERVICE_TOKENS.MODEL_SELECTION_SERVICE) as any;
     const ollamaDetector = container.resolve(SERVICE_TOKENS.OLLAMA_DETECTOR) as any;
     const fmdmService = container.resolve(SERVICE_TOKENS.FMDM_SERVICE) as any;
-    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector, fmdmService);
+    const defaultModelService = container.resolve(SERVICE_TOKENS.DEFAULT_MODEL_SERVICE) as any;
+    return new ModelHandlers(loggingService, modelSelectionService, ollamaDetector, fmdmService, defaultModelService);
   });
 
   // Register Folder Handlers

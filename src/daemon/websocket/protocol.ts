@@ -16,6 +16,7 @@ import {
   ErrorMessage,
   ModelListResponseMessage,
   ModelRecommendResponseMessage,
+  DefaultModelSetResponseMessage,
   GetFoldersConfigResponseMessage,
   GetServerInfoResponseMessage,
   GetFolderInfoResponseMessage,
@@ -28,6 +29,7 @@ import {
   isPingMessage,
   isModelListMessage,
   isModelRecommendMessage,
+  isDefaultModelSetMessage,
   isGetFoldersConfigMessage,
   isGetServerInfoMessage,
   isGetFolderInfoMessage,
@@ -158,6 +160,9 @@ export class WebSocketProtocol {
         case 'models.recommend':
           return await this.modelHandlers.handleModelRecommend(message, clientId);
 
+        case 'defaultModel.set':
+          return await this.modelHandlers.handleDefaultModelSet(message, clientId);
+
         case 'getFoldersConfig':
           return this.handleGetFoldersConfig(message);
 
@@ -171,7 +176,7 @@ export class WebSocketProtocol {
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, getFoldersConfig, get_server_info, get_folder_info`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, defaultModel.set, getFoldersConfig, get_server_info, get_folder_info`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }

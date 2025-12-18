@@ -27,7 +27,7 @@ import { TextListItem } from './components/core/TextListItem';
 import { SimpleButtonsRow } from './components/core/SimpleButtonsRow';
 import { LogItem } from './components/core/LogItem';
 import { existsSync, statSync } from 'fs';
-import { useFMDM, useConfiguredFolders, useFMDMOperations, useFMDMConnection } from './contexts/FMDMContext';
+import { useFMDM, useConfiguredFolders, useFMDMFolderOperations, useFMDMConnection } from './contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './components/AddFolderWizard';
 import { createManageFolderItem, ModelDownloadManagerInitializer } from './components/ManageFolderItem';
 import { runAllCleanup } from './utils/cleanup';
@@ -202,7 +202,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
 
     // Get current folders from FMDM context
     const currentFolders = useConfiguredFolders();
-    const fmdmOperations = useFMDMOperations();
+    const fmdmOperations = useFMDMFolderOperations();
     // Create wizard asynchronously when needed
     useEffect(() => {
         const createWizard = async () => {

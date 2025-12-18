@@ -9,7 +9,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { FMDM, FolderConfig } from '../../../daemon/models/fmdm.js';
 import { registerCleanupHandler, unregisterCleanupHandler } from '../utils/cleanup.js';
-import { FMDMClient, FMDMConnectionStatus, ModelDownloadEvent } from '../services/FMDMClient.js';
+import { FMDMClient, FMDMConnectionStatus, ModelDownloadEvent, SetDefaultModelResult } from '../services/FMDMClient.js';
 
 // Export types for use in other components
 export type { ModelDownloadEvent } from '../services/FMDMClient.js';
@@ -23,22 +23,23 @@ export interface FMDMContextType {
   // FMDM State
   fmdm: FMDM | null;
   connectionStatus: FMDMConnectionStatus;
-  
+
   // Operations
   validateFolder: (path: string) => Promise<ValidationResult>;
   addFolder: (path: string, model: string) => Promise<{ success: boolean; error?: string }>;
   removeFolder: (path: string) => Promise<{ success: boolean; error?: string }>;
   getModels: () => Promise<{ models: string[]; backend: 'python' | 'ollama' }>;
-  
+  setDefaultModel: (modelId: string, languages?: string[]) => Promise<SetDefaultModelResult>;
+
   // Connection management
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   ping: () => Promise<void>;
   retryNow: () => void;
-  
+
   // Model download events
   subscribeToModelDownloads: (listener: (event: ModelDownloadEvent) => void) => () => void;
-  
+
   // Utility
   isConnected: boolean;
   isConnecting: boolean;
@@ -156,6 +157,10 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     return await client.getModels();
   }, [client]);
 
+  const setDefaultModel = useCallback(async (modelId: string, languages?: string[]): Promise<{ success: boolean; defaultModel?: { modelId: string; source: string; languages?: string[] }; error?: string }> => {
+    return await client.setDefaultModel(modelId, languages);
+  }, [client]);
+
   // Model download subscription
   const subscribeToModelDownloads = useCallback((listener: (event: ModelDownloadEvent) => void) => {
     return client.subscribeToModelDownloads(listener);
@@ -175,22 +180,23 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     // State
     fmdm,
     connectionStatus,
-    
+
     // Operations
     validateFolder,
     addFolder,
     removeFolder,
     getModels,
-    
+    setDefaultModel,
+
     // Connection management
     connect,
     disconnect,
     ping,
     retryNow,
-    
+
     // Model download events
     subscribeToModelDownloads,
-    
+
     // Utility
     isConnected,
     isConnecting
@@ -201,6 +207,7 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
     addFolder,
     removeFolder,
     getModels,
+    setDefaultModel,
     connect,
     disconnect,
     ping,
@@ -246,10 +253,11 @@ export const useFMDMConnection = (): FMDMConnectionStatus => {
 
 /**
  * Hook to access folder operations only
+ * Note: setDefaultModel is intentionally excluded as it's not a folder operation
  */
-export const useFMDMOperations = () => {
+export const useFMDMFolderOperations = () => {
   const { validateFolder, addFolder, removeFolder, getModels } = useFMDM();
-  
+
   // Memoize operations object to prevent unnecessary re-renders
   return React.useMemo(() => ({
     validateFolder,

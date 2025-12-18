@@ -121,9 +121,23 @@ export interface GetFolderInfoMessage extends WSClientMessageBase {
 }
 
 /**
+ * Set default model request message
+ * For Phase 11 - Sprint 3: Default Model System
+ * Allows TUI/CLI to set the system-wide default embedding model
+ */
+export interface DefaultModelSetMessage extends WSClientMessageBase {
+  type: 'defaultModel.set';
+  id: string; // Required for correlation
+  payload: {
+    modelId: string;  // e.g., 'gpu:bge-m3' or 'cpu:all-MiniLM-L6-v2'
+    languages?: string[];  // Optional: supported languages for model recommendation
+  };
+}
+
+/**
  * Union type for all client messages
  */
-export type WSClientMessage = 
+export type WSClientMessage =
   | ConnectionInitMessage
   | FolderValidateMessage
   | FolderAddMessage
@@ -133,7 +147,8 @@ export type WSClientMessage =
   | ModelRecommendMessage
   | GetFoldersConfigMessage
   | GetServerInfoMessage
-  | GetFolderInfoMessage;
+  | GetFolderInfoMessage
+  | DefaultModelSetMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -367,9 +382,25 @@ export interface GetFolderInfoResponseMessage extends WSServerMessageBase {
 }
 
 /**
+ * Default model set response message
+ * For Phase 11 - Sprint 3: Default Model System
+ */
+export interface DefaultModelSetResponseMessage extends WSServerMessageBase {
+  type: 'defaultModel.set.response';
+  id: string; // Matches request ID
+  success: boolean;
+  defaultModel?: {
+    modelId: string;
+    source: 'user' | 'recommended';
+    languages?: string[];  // Persisted languages
+  };
+  error?: string;  // If setting failed (invalid model ID, etc.)
+}
+
+/**
  * Union type for all server messages
  */
-export type WSServerMessage = 
+export type WSServerMessage =
   | FMDMUpdateMessage
   | ValidationResponseMessage
   | ActionResponseMessage
@@ -384,7 +415,8 @@ export type WSServerMessage =
   | ModelRecommendResponseMessage
   | GetFoldersConfigResponseMessage
   | GetServerInfoResponseMessage
-  | GetFolderInfoResponseMessage;
+  | GetFolderInfoResponseMessage
+  | DefaultModelSetResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -418,11 +450,11 @@ export function validateClientMessage(message: any): MessageValidationResult {
       valid: false,
       errorCode: 'MISSING_TYPE',
       errorMessage: 'Message must have a "type" field of type string',
-      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info']
+      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set']
     };
   }
 
-  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info'];
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set'];
   
   switch (message.type) {
     case 'connection.init':
@@ -444,6 +476,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
     case 'getFoldersConfig':
     case 'get_server_info':
     case 'get_folder_info':
+    case 'defaultModel.set':
       if (typeof message.id !== 'string' || message.id.length === 0) {
         return {
           valid: false,
@@ -473,8 +506,47 @@ export function validateClientMessage(message: any): MessageValidationResult {
           };
         }
       }
+      // Additional validation for defaultModel.set
+      if (message.type === 'defaultModel.set') {
+        if (!message.payload || typeof message.payload.modelId !== 'string') {
+          return {
+            valid: false,
+            errorCode: 'INVALID_PAYLOAD',
+            errorMessage: 'defaultModel.set requires payload with modelId string'
+          };
+        }
+        // Validate modelId is not empty
+        if (message.payload.modelId.trim() === '') {
+          return {
+            valid: false,
+            errorCode: 'INVALID_PAYLOAD',
+            errorMessage: 'defaultModel.set: modelId cannot be empty'
+          };
+        }
+        // Validate languages array format if provided
+        if (message.payload.languages !== undefined) {
+          if (!Array.isArray(message.payload.languages)) {
+            return {
+              valid: false,
+              errorCode: 'INVALID_PAYLOAD',
+              errorMessage: 'defaultModel.set: languages must be an array of strings'
+            };
+          }
+          // Validate each language is a non-empty string
+          const invalidLang = message.payload.languages.find(
+            (lang: any) => typeof lang !== 'string' || lang.trim() === ''
+          );
+          if (invalidLang !== undefined) {
+            return {
+              valid: false,
+              errorCode: 'INVALID_PAYLOAD',
+              errorMessage: 'defaultModel.set: each language must be a non-empty string'
+            };
+          }
+        }
+      }
       return { valid: true };
-    
+
     default:
       return {
         valid: false,
@@ -571,10 +643,20 @@ export function isGetServerInfoMessage(message: WSClientMessage): message is Get
  * Type guard for get_folder_info messages
  */
 export function isGetFolderInfoMessage(message: WSClientMessage): message is GetFolderInfoMessage {
-  return message.type === 'get_folder_info' && 
+  return message.type === 'get_folder_info' &&
          typeof message.id === 'string' &&
          message.payload &&
          typeof message.payload.folderPath === 'string';
+}
+
+/**
+ * Type guard for defaultModel.set messages
+ */
+export function isDefaultModelSetMessage(message: WSClientMessage): message is DefaultModelSetMessage {
+  return message.type === 'defaultModel.set' &&
+         typeof message.id === 'string' &&
+         message.payload &&
+         typeof message.payload.modelId === 'string';
 }
 
 // =============================================================================
@@ -762,6 +844,28 @@ export function createGetFolderInfoResponse(
     type: 'get_folder_info_response',
     id,
     ...(folderInfo && { folderInfo }),
+    ...(error && { error })
+  };
+}
+
+/**
+ * Create a defaultModel.set response message
+ */
+export function createDefaultModelSetResponse(
+  id: string,
+  success: boolean,
+  defaultModel?: {
+    modelId: string;
+    source: 'user' | 'recommended';
+    languages?: string[];
+  },
+  error?: string
+): DefaultModelSetResponseMessage {
+  return {
+    type: 'defaultModel.set.response',
+    id,
+    success,
+    ...(defaultModel && { defaultModel }),
     ...(error && { error })
   };
 }

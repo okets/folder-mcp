@@ -657,7 +657,9 @@ export const SERVICE_TOKENS = {  // Infrastructure Layer
   DAEMON_CONFIGURATION_SERVICE: Symbol('DaemonConfigurationService'),
   DAEMON_FOLDER_VALIDATION_SERVICE: Symbol('DaemonFolderValidationService'),
   MONITORED_FOLDERS_ORCHESTRATOR: Symbol('MonitoredFoldersOrchestrator'),
-  
+  /** Service for managing the system-wide default embedding model selection and persistence */
+  DEFAULT_MODEL_SERVICE: Symbol('DefaultModelService'),
+
   // Model Selection Services
   MODEL_SELECTION_SERVICE: Symbol('ModelSelectionService'),
   OLLAMA_DETECTOR: Symbol('OllamaDetector'),

@@ -6,7 +6,7 @@ import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useRootInput } from '../hooks/useFocusChain';
-import { useFMDMOperations, useFMDMConnection } from '../contexts/FMDMContext';
+import { useFMDMFolderOperations, useFMDMConnection } from '../contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './AddFolderWizard';
 import { IListItem } from './core/IListItem';
 
@@ -51,7 +51,7 @@ function getDefaultFolderPath(cliDir?: string | null | undefined): { path: strin
 
 const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, cliDir, cliModel }) => {
     const { columns } = useTerminalSize();
-    const fmdmOperations = useFMDMOperations();
+    const fmdmOperations = useFMDMFolderOperations();
     const fmdmConnection = useFMDMConnection();
     
     const [isComplete, setIsComplete] = useState(false);

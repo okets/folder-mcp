@@ -29,7 +29,8 @@ export interface DefaultModelSelection {
     modelId: string;
     selectedAt: string;
     selectionReason: string;
-    hardwareProfile: {
+    languages?: string[];  // User's selected languages for model recommendation
+    hardwareProfile?: {    // Optional - not relevant for user-initiated selections
         hasGPU: boolean;
         gpuType?: string;
         totalRAMGB: number;
