@@ -6,7 +6,7 @@ import { GenericListPanel } from './GenericListPanel';
 import { AnimationProvider } from '../contexts/AnimationContext';
 import { useTerminalSize } from '../hooks/useTerminalSize';
 import { useRootInput } from '../hooks/useFocusChain';
-import { useFMDMFolderOperations, useFMDMConnection } from '../contexts/FMDMContext';
+import { useFMDMFolderOperations, useFMDMConnection, useFMDM } from '../contexts/FMDMContext';
 import { createAddFolderWizard, AddFolderWizardResult } from './AddFolderWizard';
 import { IListItem } from './core/IListItem';
 
@@ -53,23 +53,27 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     const { columns } = useTerminalSize();
     const fmdmOperations = useFMDMFolderOperations();
     const fmdmConnection = useFMDMConnection();
-    
+    const { fmdm } = useFMDM();
+
     const [isComplete, setIsComplete] = useState(false);
     const [hasValidationError, setHasValidationError] = useState(false);
     const [validationErrors, setValidationErrors] = useState<{ folder?: string; model?: string }>({});
     const [wizardItem, setWizardItem] = useState<IListItem | null>(null);
     const [wizardLoading, setWizardLoading] = useState(true);
-    const [layoutVersion, setLayoutVersion] = useState(0); // Force re-render trigger
+
+    // Get default model from FMDM
+    const defaultModel = fmdm?.defaultModel?.modelId;
     
     // Calculate initial values
     const folderResult = getDefaultFolderPath(cliDir);
     const initialPath = folderResult.path;
-    const initialModel = cliModel || undefined; // Will be set from daemon's model list
-    
+    // CLI model overrides FMDM default, otherwise use FMDM default
+    const effectiveDefaultModel = cliModel || defaultModel;
+
     // Use refs for stable values that shouldn't trigger re-renders
     const stableRefs = useRef({
         initialPath,
-        initialModel,
+        effectiveDefaultModel,
         onComplete,
         fmdmOperations
     });
@@ -78,7 +82,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     useEffect(() => {
         stableRefs.current = {
             initialPath,
-            initialModel,
+            effectiveDefaultModel,
             onComplete,
             fmdmOperations
         };
@@ -130,16 +134,16 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
         
         const createWizard = async () => {
             // Get stable references
-            const { initialPath, initialModel, onComplete, fmdmOperations } = stableRefs.current;
-            
+            const { initialPath, effectiveDefaultModel, onComplete, fmdmOperations } = stableRefs.current;
+
             // Handle wizard completion - defined inside useEffect to avoid dependency issues
             const handleWizardComplete = async (result: AddFolderWizardResult) => {
                 setIsComplete(true);
-                
+
                 // Add folder using FMDM operations
                 try {
                     await fmdmOperations.addFolder(result.path, result.model);
-                    
+
                     // Create config object for backward compatibility
                     const config = {
                         folders: [{
@@ -155,33 +159,31 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
                             host: '127.0.0.1'
                         }
                     };
-                    
+
                     onComplete(config);
                 } catch (error) {
                     console.error('Failed to add folder during first run:', error);
                 }
             };
-            
+
             try {
                 setWizardLoading(true);
                 const wizard = await createAddFolderWizard({
                     initialPath,
-                    ...(initialModel ? { initialModel } : {}),
+                    // Pass default model from FMDM (or CLI override) - conditional spread for exactOptionalPropertyTypes
+                    ...(effectiveDefaultModel && { defaultModel: effectiveDefaultModel }),
                     onComplete: handleWizardComplete,
                     onCancel: () => {
                         process.exit(0);
                     },
-                    fmdmOperations,
-                    onModeChange: () => {
-                        // Increment layout version to force React re-render
-                        setLayoutVersion(v => v + 1);
-                    }
+                    fmdmOperations
                 });
-                
+
                 // Start wizard in expanded mode
                 wizard.onEnter();
                 setWizardItem(wizard);
             } catch (error) {
+                // Failed to create wizard
             } finally {
                 setWizardLoading(false);
             }
@@ -289,7 +291,7 @@ const WizardContent: React.FC<FirstRunWizardProps> = React.memo(({ onComplete, c
     }
     
     return (
-        <Box flexDirection="column" height="100%" key={`wizard-${layoutVersion}`}>
+        <Box flexDirection="column" height="100%">
             <GenericListPanel
                 title="folder-mcp · Add Folder Wizard"
                 subtitle="Let's configure your knowledge base"

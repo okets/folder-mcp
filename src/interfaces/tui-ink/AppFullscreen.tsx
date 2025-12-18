@@ -182,7 +182,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // Check daemon connection first
     const fmdmConnection = useFMDMConnection();
-    const { retryNow } = useFMDM();
+    const { fmdm, retryNow } = useFMDM();
+
+    // Get default model from FMDM for Add Folder Wizard
+    const defaultModel = fmdm?.defaultModel?.modelId;
     
     // State for showing Add Folder Wizard
     const [showAddFolderWizard, setShowAddFolderWizard] = useState(false);
@@ -218,6 +221,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     setWizardLoading(true);
                     
                     const wizard = await createAddFolderWizard({
+                        // Pass default model from FMDM (conditional spread for exactOptionalPropertyTypes)
+                        ...(defaultModel && { defaultModel }),
                         onComplete: async (result: AddFolderWizardResult) => {
                             try {
                                 await fmdmOperations.addFolder(result.path, result.model);
@@ -258,7 +263,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         };
         
         createWizard();
-    }, [showAddFolderWizard, wizardCreationRequest, fmdmOperations, currentFolders, navigation]); // Dependencies updated
+    }, [showAddFolderWizard, wizardCreationRequest, fmdmOperations, currentFolders, navigation, defaultModel]); // Dependencies updated
     
     // Create a robust exit function that works properly across platforms
     const robustExit = useCallback(async () => {

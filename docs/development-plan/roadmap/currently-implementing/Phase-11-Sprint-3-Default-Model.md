@@ -274,14 +274,14 @@ SET defaultModel → stores user's choice in daemon config
 ## Completion Tracking
 
 ### Phase A: FMDM & Daemon Integration
-- [ ] Step 1a: Add `defaultModel` to FMDM interface
-- [ ] Step 1b: Create DefaultModelService + WebSocket handler
+- [x] Step 1a: Add `defaultModel` to FMDM interface ✅
+- [x] Step 1b: Create DefaultModelService + WebSocket handler ✅
 
 ### Phase B: Settings Panel UI
-- [ ] Step 1c: Add Default Model picker to Settings
+- [x] Step 1c: Add Default Model picker to Settings ✅
 
 ### Phase C: Add Folder Wizard Simplification
-- [ ] Step 2: Simplify Add Folder Wizard
+- [x] Step 2: Simplify Add Folder Wizard ✅
 
 ### Phase D: First Run Wizard Integration
 - [ ] Step 3: Add model picker to First Run Wizard
@@ -289,7 +289,7 @@ SET defaultModel → stores user's choice in daemon config
 ### Phase E: CLI Integration
 - [ ] Step 4: Verify CLI uses FMDM default model
 
-**Sprint Status**: 0/6 steps completed (0%)
+**Sprint Status**: 3/6 steps completed (50%)
 
 ---
 
