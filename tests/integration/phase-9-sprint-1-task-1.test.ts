@@ -13,6 +13,103 @@ describe('Phase 9 - Sprint 1 - Task 1: Daemon Folder Configuration API', { timeo
   const DAEMON_URL = `http://localhost:${REST_PORT}`;  // MCP server now uses REST API
 
   beforeAll(async () => {
+    // CRITICAL: Clean up any leftover daemon processes and stale registry file
+    // Cross-platform implementation (Windows + Unix) - pattern from daemon-registry.test.ts
+    const { spawn: spawnCleanup } = await import('child_process');
+    const { unlinkSync, existsSync } = await import('fs');
+    const os = await import('os');
+    const pathLib = await import('path');
+
+    // Remove stale daemon.pid file
+    const daemonPidFile = pathLib.join(os.homedir(), '.folder-mcp', 'daemon.pid');
+    if (existsSync(daemonPidFile)) {
+      try {
+        unlinkSync(daemonPidFile);
+        console.log('[TEST-SETUP] Removed stale daemon.pid file');
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    // Kill any leftover daemon processes (cross-platform)
+    try {
+      const isWindows = process.platform === 'win32';
+
+      if (isWindows) {
+        // Windows: Use wmic to get command line details
+        const wmic = spawnCleanup('wmic', ['process', 'where', 'name="node.exe"', 'get', 'ProcessId,CommandLine', '/FORMAT:CSV'], { stdio: 'pipe' });
+        let output = '';
+        wmic.stdout?.on('data', (data) => {
+          output += data.toString();
+        });
+
+        await new Promise<void>((resolve) => {
+          wmic.on('close', async () => {
+            const lines = output.split('\n');
+            for (const line of lines) {
+              // Look specifically for daemon processes (both path separators)
+              if ((line.includes('dist\\src\\daemon\\index.js') || line.includes('dist/src/daemon/index.js')) && !line.includes('grep')) {
+                // Extract PID from CSV format - last numeric field
+                const match = line.match(/,(\d+)/);
+                const pid = match && match[1] ? parseInt(match[1], 10) : NaN;
+                if (!isNaN(pid) && pid !== process.pid) {
+                  try {
+                    // Use taskkill on Windows
+                    await new Promise<void>((resolveKill) => {
+                      const killProcess = spawnCleanup('taskkill', ['/PID', pid.toString(), '/F'], { stdio: 'ignore' });
+                      killProcess.on('close', () => {
+                        console.log(`[TEST-SETUP] Killed leftover daemon process ${pid}`);
+                        resolveKill();
+                      });
+                      killProcess.on('error', () => resolveKill());
+                    });
+                  } catch (e) {
+                    // Process might already be dead
+                  }
+                }
+              }
+            }
+            resolve();
+          });
+          wmic.on('error', () => resolve());
+        });
+      } else {
+        // Unix: Use ps aux
+        const ps = spawnCleanup('ps', ['aux'], { stdio: 'pipe' });
+        let output = '';
+        ps.stdout?.on('data', (data) => {
+          output += data.toString();
+        });
+
+        await new Promise<void>((resolve) => {
+          ps.on('close', () => {
+            const lines = output.split('\n');
+            for (const line of lines) {
+              if (line.includes('dist/src/daemon/index.js') && !line.includes('grep')) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parts[1] ? parseInt(parts[1], 10) : NaN;
+                if (!isNaN(pid) && pid !== process.pid) {
+                  try {
+                    process.kill(pid, 'SIGKILL');
+                    console.log(`[TEST-SETUP] Killed leftover daemon process ${pid}`);
+                  } catch (e) {
+                    // Process might already be dead
+                  }
+                }
+              }
+            }
+            resolve();
+          });
+          ps.on('error', () => resolve());
+        });
+      }
+
+      // Wait for processes to die
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+
     // Start the daemon
     const daemonPath = path.join(process.cwd(), 'dist', 'src', 'daemon', 'index.js');
 

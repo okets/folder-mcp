@@ -115,11 +115,23 @@ export function getConfigurationComponent(container: DependencyContainer): Confi
 
 /**
  * Register configuration services in the global DI setup
- * This should be called from src/di/setup.ts
+ * This should be called from src/di/setup.ts AFTER registerConfigurationServices has been called
+ * with the correct paths. This function only adds compatibility aliases.
  */
 export function integrateConfigurationServices(container: DependencyContainer): void {
-  registerConfigurationServices(container);
-  
+  // Fail loudly if prerequisite not met - prevents regression of config path bug
+  if (!container.isRegistered(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER)) {
+    throw new Error(
+      'integrateConfigurationServices requires registerConfigurationServices to be called first ' +
+      'with the correct userConfigPath (e.g., ~/.folder-mcp/config.yaml). ' +
+      'See src/di/setup.ts for correct usage.'
+    );
+  }
+
+  // NOTE: Do NOT call registerConfigurationServices here!
+  // It was already called with the correct userConfigPath.
+  // Calling it again would overwrite with default (wrong) path.
+
   // Also register under the old CONFIGURATION token for compatibility
   container.registerSingleton('SIMPLE_CONFIG_MANAGER' as any, () => {
     return container.resolve(CONFIG_SERVICE_TOKENS.CONFIG_MANAGER);

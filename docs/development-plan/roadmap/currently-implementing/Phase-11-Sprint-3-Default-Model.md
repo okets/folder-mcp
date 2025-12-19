@@ -234,24 +234,28 @@ export interface FMDM {
 
 ### Phase E: CLI Integration
 
-#### Step 4: Verify CLI Uses FMDM Default Model
-**Goal**: CLI uses same source of truth for default model
+#### Step 4: CLI Uses Default Model from Config
+**Goal**: CLI (headless mode) uses same source of truth for default model
+
+**Architecture Note**: There is no `folder-mcp add` command. Folder management uses:
+- **TUI mode**: `folder-mcp -d <path>` → shows FirstRunWizard which uses FMDM default
+- **Headless mode**: `folder-mcp -d <path> --headless` → reads config directly
+
+**Implementation**:
+Headless mode now supports default model fallback:
+1. CLI `-m` flag (explicit) → use specified model
+2. User preference from `~/.folder-mcp/config.yaml` → use saved default
+3. Hardware-detected recommendation → use optimal model
 
 **Verification**:
-- [ ] `folder-mcp add <path>` (no model) → uses default from FMDM
-- [ ] `folder-mcp add <path> -m <model>` → uses specified model
-- [ ] Default model = user's choice OR recommended if never set
+- [x] `folder-mcp -d <path> --headless` (no model) → uses default from config
+- [x] `folder-mcp -d <path> -m <model> --headless` → uses specified model
+- [x] Default model = user's choice OR recommended if never set
 
 **Files**:
-- `src/interfaces/cli/commands/add.ts`
+- `src/interfaces/tui-ink/index.tsx` (headless mode execution)
 
-**API Behavior**:
-```
-GET defaultModel → returns { modelId, source: 'user' | 'recommended' }
-SET defaultModel → stores user's choice in daemon config
-```
-
-**Rollback**: N/A (verification step)
+**Rollback**: Revert headless mode changes
 
 ---
 
@@ -287,9 +291,9 @@ SET defaultModel → stores user's choice in daemon config
 - [x] Step 3: Add model picker to First Run Wizard ✅
 
 ### Phase E: CLI Integration
-- [ ] Step 4: Verify CLI uses FMDM default model
+- [x] Step 4: CLI uses default model from config ✅
 
-**Sprint Status**: 5/6 steps completed (83%)
+**Sprint Status**: 6/6 steps completed (100%) ✅
 
 ---
 
@@ -308,3 +312,6 @@ SET defaultModel → stores user's choice in daemon config
 | Date | Change | Author |
 |------|--------|--------|
 | 2025-12-18 | Sprint 3 document created from plan | Claude |
+| 2025-12-19 | All 6 steps completed (100%) | Claude |
+| 2025-12-19 | Code review: DI runtime validation implemented | Claude |
+| 2025-12-19 | Code review: Cross-platform test cleanup implemented | Claude |

@@ -473,36 +473,54 @@ async function executeHeadless() {
         mainContainer = setupDependencyInjection({
             logLevel: 'error' // Quiet for headless
         });
-        
+
         const container = getContainer();
         const configComponent = container.resolve<ConfigurationComponent>(CONFIG_SERVICE_TOKENS.CONFIGURATION_COMPONENT);
         await configComponent.load();
-        
-        // Validate parameters
-        if (cliDir && cliModel) {
-            // Validate folder
-            const pathValidation = await configComponent.validate('folders.list[].path', cliDir);
-            if (!pathValidation.valid) {
-                console.error(`✗ Invalid folder path "${cliDir}": ${pathValidation.errors?.[0]?.message}`);
-                process.exit(1);
-            }
-            
-            // Validate model
-            const modelValidation = await configComponent.validate('folders.list[].model', cliModel);
-            if (!modelValidation.valid) {
-                console.error(`✗ Invalid model "${cliModel}": ${modelValidation.errors?.[0]?.message}`);
-                process.exit(1);
-            }
-            
-            // Add folder
-            await configComponent.addFolder(cliDir, cliModel);
-            console.log(`✓ Folder added successfully: ${cliDir} with model ${cliModel}`);
-            process.exit(0);
-        } else {
-            console.error('✗ Headless mode requires both -d and -m parameters');
-            console.error('Usage: folder-mcp -d <path> -m <model> --headless');
+
+        // Headless mode requires at least -d (folder path)
+        if (!cliDir) {
+            console.error('✗ Headless mode requires -d parameter (folder path)');
+            console.error('Usage: folder-mcp -d <path> [--headless]');
+            console.error('       folder-mcp -d <path> -m <model> [--headless]');
             process.exit(1);
         }
+
+        // Validate folder
+        const pathValidation = await configComponent.validate('folders.list[].path', cliDir);
+        if (!pathValidation.valid) {
+            console.error(`✗ Invalid folder path "${cliDir}": ${pathValidation.errors?.[0]?.message}`);
+            process.exit(1);
+        }
+
+        // Determine model: CLI flag > user preference > default
+        let effectiveModel = cliModel;
+
+        if (!effectiveModel) {
+            // Try to get user's default model from config
+            const defaultSelection = await configComponent.getDefaultModelSelection();
+            if (defaultSelection?.modelId) {
+                effectiveModel = defaultSelection.modelId;
+                console.log(`ℹ Using default model: ${effectiveModel}`);
+            } else {
+                // Fall back to system default
+                effectiveModel = await configComponent.getDefaultModel();
+                console.log(`ℹ Using recommended model: ${effectiveModel}`);
+            }
+        }
+
+        // Validate model
+        const modelValidation = await configComponent.validate('folders.list[].model', effectiveModel);
+        if (!modelValidation.valid) {
+            console.error(`✗ Invalid model "${effectiveModel}": ${modelValidation.errors?.[0]?.message}`);
+            process.exit(1);
+        }
+
+        // Add folder
+        await configComponent.addFolder(cliDir, effectiveModel);
+        console.log(`✓ Folder added successfully: ${cliDir} with model ${effectiveModel}`);
+        process.exit(0);
+
     } catch (error) {
         console.error('✗ Error in headless mode:', error);
         process.exit(1);
