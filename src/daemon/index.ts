@@ -29,6 +29,7 @@ import { MonitoredFoldersOrchestrator } from './services/monitored-folders-orche
 import { DaemonRegistry } from './registry/daemon-registry.js';
 import { ModelCacheChecker } from './services/model-cache-checker.js';
 import { DefaultModelSelector } from './services/default-model-selector.js';
+import { getActivityService, ActivityService } from './services/activity-service.js';
 
 // Log level configuration
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -87,6 +88,7 @@ class FolderMCPDaemon {
   private indexingService: IMultiFolderIndexingWorkflow | null = null;
   private monitoredFoldersOrchestrator: MonitoredFoldersOrchestrator | null = null;
   private CONFIG_SERVICE_TOKENS: any = null;
+  private activityService: ActivityService | null = null;
 
   constructor(config: DaemonConfig) {
     this.config = config;
@@ -154,12 +156,19 @@ class FolderMCPDaemon {
       const fileSystemService = this.diContainer.resolve(SERVICE_TOKENS.FILE_SYSTEM);
       const indexingOrchestrator = await this.diContainer.resolveAsync('IIndexingOrchestrator');
 
+      // Initialize ActivityService early so orchestrator can emit progress events
+      debug('Initializing ActivityService...');
+      this.activityService = getActivityService();
+
       this.monitoredFoldersOrchestrator = new MonitoredFoldersOrchestrator(
         indexingOrchestrator,
         this.fmdmService!,
         fileSystemService,
         loggingService,
-        configComponent // Reuse existing configComponent
+        configComponent, // Reuse existing configComponent
+        undefined, // windowsPerformanceService - use default
+        undefined, // modelDownloadManager - use default
+        this.activityService // Pass ActivityService for progress events
       );
       debug('Services initialized');
       
@@ -191,16 +200,18 @@ class FolderMCPDaemon {
 
       const daemonConfigService = this.diContainer.resolve(SERVICE_TOKENS.DAEMON_CONFIGURATION_SERVICE);
       const modelHandlers = this.diContainer.resolve(SERVICE_TOKENS.MODEL_HANDLERS);
+
       const webSocketProtocol = new WebSocketProtocol(
         validationService,
         daemonConfigService,
         this.fmdmService!,
         loggingService,
         modelHandlers,
-        this.monitoredFoldersOrchestrator // Pass monitored folders orchestrator directly
+        this.monitoredFoldersOrchestrator, // Pass monitored folders orchestrator directly
+        this.activityService // Pass activity service for activity.history requests
       );
-      
-      this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService);
+
+      this.webSocketServer!.setDependencies(this.fmdmService!, webSocketProtocol, loggingService, this.activityService);
 
       // Start WebSocket server on daemon port + 1 for TUI communication
       const wsPort = this.config.port + 1;
@@ -247,7 +258,8 @@ class FolderMCPDaemon {
             warn,
             error: logError,
             debug
-          }
+          },
+          this.activityService // Pass ActivityService for MCP search query events
         );
         debug('REST API server instance created successfully');
 
@@ -283,6 +295,21 @@ class FolderMCPDaemon {
       info(`- WebSocket (TUI): ws://127.0.0.1:${wsPort}`);
       info(`- REST API (MCP): http://127.0.0.1:3002`);
       debug(`PID file: ${this.config.pidFile}`);
+
+      // Emit daemon startup activity event
+      if (this.activityService) {
+        this.activityService.emit({
+          type: 'system',
+          level: 'success',
+          message: 'Daemon started',
+          userInitiated: false,
+          details: [
+            `PID: ${process.pid}`,
+            `WebSocket: ws://127.0.0.1:${wsPort}`,
+            `REST API: http://127.0.0.1:3002`
+          ]
+        });
+      }
     } catch (err) {
       const errorMessage = `Error during daemon startup: ${err instanceof Error ? err.message : String(err)}`;
       logError(errorMessage);

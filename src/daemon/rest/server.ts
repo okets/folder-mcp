@@ -60,6 +60,7 @@ import { ONNXEmbeddingService, EmbeddingResult } from '../../infrastructure/embe
 import { MultiFolderVectorSearchService } from '../../infrastructure/storage/multi-folder-vector-search.js';
 import { PathNormalizer } from '../utils/path-normalizer.js';
 import { SemanticMetadataService } from '../services/semantic-metadata-service.js';
+import { ActivityService } from '../services/activity-service.js';
 import { getDefaultModelId } from '../../config/model-registry.js';
 import { selectRepresentativeKeyPhrases, calculateComplexityIndicator, getRelativePath } from '../utils/key-phrase-selection.js';
 import { validateDownloadToken, generateDownloadUrl } from '../../utils/file-utils.js';
@@ -112,6 +113,7 @@ export class RESTAPIServer {
   private server: Server | null = null;
   private startTime: Date;
   private semanticService: SemanticMetadataService;
+  private activityService: ActivityService | undefined;
 
   constructor(
     private fmdmService: FMDMService,
@@ -124,8 +126,10 @@ export class RESTAPIServer {
       warn: (message: string, ...args: any[]) => void;
       error: (message: string, ...args: any[]) => void;
       debug: (message: string, ...args: any[]) => void;
-    }
+    },
+    activityService?: ActivityService
   ) {
+    this.activityService = activityService;
     this.app = express();
     this.startTime = new Date();
     // Initialize semantic metadata service
@@ -2936,6 +2940,19 @@ export class RESTAPIServer {
           navigation_hints: navigationHints
         };
 
+        // Emit activity event for MCP search query
+        const queryPreview = searchParams.semantic_concepts?.length > 0
+          ? searchParams.semantic_concepts.join(', ').substring(0, 40)
+          : searchParams.exact_terms?.join(', ').substring(0, 40) || '';
+        const folderName = folderPath.split(/[/\\]/).pop() || folderPath;
+        this.activityService?.emit({
+          type: 'search',
+          level: 'info',
+          message: `Search: "${queryPreview}${queryPreview.length >= 40 ? '...' : ''}"`,
+          userInitiated: true,
+          details: [`Folder: ${folderName}`, `Results: ${results.length}`]
+        });
+
         res.status(200).json(response);
       } finally {
         db.close();
@@ -3189,6 +3206,17 @@ export class RESTAPIServer {
           },
           navigation_hints: navigationHints
         };
+
+        // Emit activity event for MCP find documents query
+        const queryPreview = body.query.substring(0, 40);
+        const folderName = folderPath.split(/[/\\]/).pop() || folderPath;
+        this.activityService?.emit({
+          type: 'search',
+          level: 'info',
+          message: `Find: "${queryPreview}${body.query.length > 40 ? '...' : ''}"`,
+          userInitiated: true,
+          details: [`Folder: ${folderName}`, `Documents: ${findResults.length}`]
+        });
 
         res.status(200).json(response);
       } finally {

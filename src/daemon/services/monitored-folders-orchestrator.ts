@@ -28,6 +28,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { ActivityService } from './activity-service.js';
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -132,7 +133,8 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private pythonInitializationPromise?: Promise<void>;
   private periodicSyncService: PeriodicSyncService;
   private folderStorages = new Map<string, SQLiteVecStorage>(); // Track storage per folder
-  
+  private activityService: ActivityService | undefined = undefined;
+
   constructor(
     private indexingOrchestrator: IIndexingOrchestrator,
     private fmdmService: FMDMService,
@@ -140,10 +142,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     private logger: ILoggingService,
     private configService: any, // TODO: Add proper type
     windowsPerformanceService?: IWindowsPerformanceService,
-    modelDownloadManager?: IModelDownloadManager
+    modelDownloadManager?: IModelDownloadManager,
+    activityService?: ActivityService
   ) {
     super();
-    
+
+    // Store activity service for progress event emission
+    this.activityService = activityService;
+
     // Initialize ONNX configuration service with config component
     this.onnxConfiguration = new OnnxConfiguration(this.configService);
     
@@ -317,6 +323,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   private normalizePathKey(path: string): string {
     const isWindows = process.platform === 'win32';
     return isWindows ? path.toLowerCase().replace(/\\/g, '/') : path;
+  }
+
+  /**
+   * Extract a readable folder name from a full path
+   * Returns the last component of the path
+   */
+  private extractFolderName(folderPath: string): string {
+    const parts = folderPath.split(/[/\\]/);
+    return parts[parts.length - 1] || folderPath;
   }
 
   /**
@@ -1728,6 +1743,16 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
       // Also update the folder's downloadProgress field for TUI display
       this.fmdmService.updateModelDownloadStatus(modelId, 'downloading', progress);
+
+      // Emit activity event for model download progress
+      this.activityService?.emit({
+        type: 'model',
+        level: 'info',
+        message: `Downloading: ${modelId} (${progress}%)`,
+        progress,
+        userInitiated: false,
+        details: [`Folder: ${this.extractFolderName(folder.folderPath)}`]
+      });
     });
 
     this.folderIndexingQueue.on('queue:model-loading', (folder, progress) => {
@@ -1751,6 +1776,14 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.folderIndexingQueue.on('queue:model-loaded', (folder, modelId) => {
       this.logger.info(`[ORCHESTRATOR] Model loaded for ${folder.folderPath}: ${modelId}`);
       this.updateFMDM();
+
+      // Emit activity event for model ready
+      this.activityService?.emit({
+        type: 'model',
+        level: 'success',
+        message: `Model ready: ${modelId}`,
+        userInitiated: false
+      });
     });
 
     this.folderIndexingQueue.on('queue:progress', (folder, progress) => {
@@ -1758,6 +1791,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Update FMDM with current progress
       this.fmdmService.updateFolderProgress(folder.folderPath, progress.percentage);
       this.updateFMDM();
+
+      // Emit activity event for indexing progress
+      this.activityService?.emit({
+        type: 'indexing',
+        level: 'info',
+        message: `Indexing: ${this.extractFolderName(folder.folderPath)} (${progress.percentage}%)`,
+        progress: progress.percentage,
+        userInitiated: false
+      });
     });
 
     this.folderIndexingQueue.on('queue:completed', async (folder) => {
@@ -1782,8 +1824,26 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
             message: `${fileCount} files indexed • indexing time ${indexingTimeSeconds}s`,
             type: 'info'
           });
+          // Emit activity event for indexing complete with stats
+          this.activityService?.emit({
+            type: 'indexing',
+            level: 'success',
+            message: `Indexed: ${this.extractFolderName(folder.folderPath)}`,
+            progress: 100,
+            userInitiated: false,
+            details: [`Files: ${fileCount}`, `Duration: ${indexingTimeSeconds}s`]
+          });
         } else {
           this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folder.folderPath}`);
+
+          // Emit activity event without stats
+          this.activityService?.emit({
+            type: 'indexing',
+            level: 'success',
+            message: `Indexed: ${this.extractFolderName(folder.folderPath)}`,
+            progress: 100,
+            userInitiated: false
+          });
         }
       }
 
@@ -1797,6 +1857,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.fmdmService.updateFolderStatus(folder.folderPath, 'error', {
         message: error.message,
         type: 'error'
+      });
+
+      // Emit activity event for indexing failure
+      this.activityService?.emit({
+        type: 'error',
+        level: 'error',
+        message: `Failed: ${this.extractFolderName(folder.folderPath)}`,
+        userInitiated: false,
+        details: [error.message]
       });
     });
 

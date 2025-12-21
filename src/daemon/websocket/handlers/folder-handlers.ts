@@ -18,6 +18,7 @@ import { IDaemonFolderValidationService } from '../../services/folder-validation
 import { ModelHandlers } from './model-handlers.js';
 import { IMonitoredFoldersOrchestrator } from '../../services/monitored-folders-orchestrator.js';
 import { RequestLogger } from '../../../domain/daemon/request-logger.js';
+import { ActivityService } from '../../services/activity-service.js';
 
 /**
  * FMDM service interface for folder handlers
@@ -38,9 +39,18 @@ export class FolderHandlers {
     private validationService: IDaemonFolderValidationService,
     private modelHandlers: ModelHandlers,
     private logger: ILoggingService,
-    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
+    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator,
+    private activityService?: ActivityService
   ) {
     this.requestLogger = new RequestLogger(this.logger);
+  }
+
+  /**
+   * Extract a readable folder name from a full path
+   */
+  private extractFolderName(folderPath: string): string {
+    const parts = folderPath.split(/[/\\]/);
+    return parts[parts.length - 1] || folderPath;
   }
 
   /**
@@ -91,6 +101,15 @@ export class FolderHandlers {
         // CRITICAL FIX: Add folder to FMDM immediately to prevent race condition
         // The model download manager may try to update status before addFolder completes
         this.monitoredFoldersOrchestrator.addFolderToFMDMImmediate(path, model);
+
+        // Emit activity event for folder add (user-initiated action)
+        this.activityService?.emit({
+          type: 'indexing',
+          level: 'info',
+          message: `Added: ${this.extractFolderName(path)}`,
+          userInitiated: true,
+          details: [`Path: ${path}`, `Model: ${model}`]
+        });
 
         // Don't await - let indexing run in background
         // The orchestrator will handle FMDM updates including error states
@@ -152,6 +171,15 @@ export class FolderHandlers {
       // The orchestrator will handle configuration persistence and FMDM updates
       if (this.monitoredFoldersOrchestrator) {
         await this.monitoredFoldersOrchestrator.removeFolder(path);
+
+        // Emit activity event for folder remove (user-initiated action)
+        this.activityService?.emit({
+          type: 'indexing',
+          level: 'warning',
+          message: `Removed: ${this.extractFolderName(path)}`,
+          userInitiated: true,
+          details: [`Path: ${path}`]
+        });
       } else {
         throw new Error('No folder lifecycle manager available');
       }

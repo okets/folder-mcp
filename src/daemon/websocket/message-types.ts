@@ -7,6 +7,7 @@
  */
 
 import { FMDM } from '../models/fmdm.js';
+import { SerializedActivityEvent } from '../models/activity-event.js';
 
 // =============================================================================
 // Client → Daemon Messages
@@ -135,6 +136,19 @@ export interface DefaultModelSetMessage extends WSClientMessageBase {
 }
 
 /**
+ * Activity history request message
+ * For Phase 11 - Sprint 4: Activity Log Screen
+ * Request recent activity events from daemon's ring buffer
+ */
+export interface ActivityHistoryRequestMessage extends WSClientMessageBase {
+  type: 'activity.history';
+  id: string; // Required for correlation
+  payload: {
+    limit?: number;  // Max events to return (default: 100)
+  };
+}
+
+/**
  * Union type for all client messages
  */
 export type WSClientMessage =
@@ -148,7 +162,8 @@ export type WSClientMessage =
   | GetFoldersConfigMessage
   | GetServerInfoMessage
   | GetFolderInfoMessage
-  | DefaultModelSetMessage;
+  | DefaultModelSetMessage
+  | ActivityHistoryRequestMessage;
 
 // =============================================================================
 // Daemon → Client Messages
@@ -398,6 +413,27 @@ export interface DefaultModelSetResponseMessage extends WSServerMessageBase {
 }
 
 /**
+ * Activity event broadcast message
+ * For Phase 11 - Sprint 4: Activity Log Screen
+ * Broadcast to all connected clients when new activity occurs
+ */
+export interface ActivityEventMessage extends WSServerMessageBase {
+  type: 'activity.event';
+  event: SerializedActivityEvent;
+}
+
+/**
+ * Activity history response message
+ * For Phase 11 - Sprint 4: Activity Log Screen
+ * Response to activity.history request with recent events
+ */
+export interface ActivityHistoryResponseMessage extends WSServerMessageBase {
+  type: 'activity.history.response';
+  id: string; // Matches request ID
+  events: SerializedActivityEvent[];
+}
+
+/**
  * Union type for all server messages
  */
 export type WSServerMessage =
@@ -416,7 +452,9 @@ export type WSServerMessage =
   | GetFoldersConfigResponseMessage
   | GetServerInfoResponseMessage
   | GetFolderInfoResponseMessage
-  | DefaultModelSetResponseMessage;
+  | DefaultModelSetResponseMessage
+  | ActivityEventMessage
+  | ActivityHistoryResponseMessage;
 
 // =============================================================================
 // Message Validation and Type Guards
@@ -450,11 +488,11 @@ export function validateClientMessage(message: any): MessageValidationResult {
       valid: false,
       errorCode: 'MISSING_TYPE',
       errorMessage: 'Message must have a "type" field of type string',
-      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set']
+      supportedTypes: ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set', 'activity.history']
     };
   }
 
-  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set'];
+  const supportedTypes = ['connection.init', 'folder.validate', 'folder.add', 'folder.remove', 'ping', 'models.list', 'models.recommend', 'getFoldersConfig', 'get_server_info', 'get_folder_info', 'defaultModel.set', 'activity.history'];
   
   switch (message.type) {
     case 'connection.init':
@@ -477,6 +515,7 @@ export function validateClientMessage(message: any): MessageValidationResult {
     case 'get_server_info':
     case 'get_folder_info':
     case 'defaultModel.set':
+    case 'activity.history':
       if (typeof message.id !== 'string' || message.id.length === 0) {
         return {
           valid: false,
@@ -541,6 +580,20 @@ export function validateClientMessage(message: any): MessageValidationResult {
               valid: false,
               errorCode: 'INVALID_PAYLOAD',
               errorMessage: 'defaultModel.set: each language must be a non-empty string'
+            };
+          }
+        }
+      }
+      // Additional validation for activity.history
+      if (message.type === 'activity.history') {
+        // payload is optional, but if provided, limit must be a positive number
+        if (message.payload !== undefined) {
+          if (message.payload.limit !== undefined &&
+              (typeof message.payload.limit !== 'number' || message.payload.limit < 1)) {
+            return {
+              valid: false,
+              errorCode: 'INVALID_PAYLOAD',
+              errorMessage: 'activity.history: limit must be a positive number'
             };
           }
         }
@@ -657,6 +710,14 @@ export function isDefaultModelSetMessage(message: WSClientMessage): message is D
          typeof message.id === 'string' &&
          message.payload &&
          typeof message.payload.modelId === 'string';
+}
+
+/**
+ * Type guard for activity.history messages
+ */
+export function isActivityHistoryRequestMessage(message: WSClientMessage): message is ActivityHistoryRequestMessage {
+  return message.type === 'activity.history' &&
+         typeof message.id === 'string';
 }
 
 // =============================================================================
@@ -867,6 +928,32 @@ export function createDefaultModelSetResponse(
     success,
     ...(defaultModel && { defaultModel }),
     ...(error && { error })
+  };
+}
+
+/**
+ * Create an activity event broadcast message
+ */
+export function createActivityEventMessage(
+  event: SerializedActivityEvent
+): ActivityEventMessage {
+  return {
+    type: 'activity.event',
+    event
+  };
+}
+
+/**
+ * Create an activity history response message
+ */
+export function createActivityHistoryResponse(
+  id: string,
+  events: SerializedActivityEvent[]
+): ActivityHistoryResponseMessage {
+  return {
+    type: 'activity.history.response',
+    id,
+    events
   };
 }
 

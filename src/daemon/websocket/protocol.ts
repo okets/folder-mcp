@@ -20,6 +20,7 @@ import {
   GetFoldersConfigResponseMessage,
   GetServerInfoResponseMessage,
   GetFolderInfoResponseMessage,
+  ActivityHistoryResponseMessage,
   ValidationResult,
   isValidClientMessage,
   validateClientMessage,
@@ -33,6 +34,7 @@ import {
   isGetFoldersConfigMessage,
   isGetServerInfoMessage,
   isGetFolderInfoMessage,
+  isActivityHistoryRequestMessage,
   createValidationResponse,
   createPongResponse,
   createConnectionAck,
@@ -40,6 +42,7 @@ import {
   createGetFoldersConfigResponse,
   createGetServerInfoResponse,
   createGetFolderInfoResponse,
+  createActivityHistoryResponse,
   VALIDATION_ERRORS
 } from './message-types.js';
 
@@ -52,6 +55,7 @@ import { IDaemonFolderValidationService } from '../services/folder-validation-se
 import { IMonitoredFoldersOrchestrator } from '../services/monitored-folders-orchestrator.js';
 import { ModelSelectionService } from '../../application/models/model-selection-service.js';
 import { OllamaDetector } from '../../infrastructure/ollama/ollama-detector.js';
+import { ActivityService } from '../services/activity-service.js';
 
 /**
  * Folder validation service interface
@@ -84,17 +88,19 @@ export class WebSocketProtocol {
     private fmdmService: IProtocolFMDMService,
     private logger: ILoggingService,
     modelHandlers: ModelHandlers,
-    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator
+    private monitoredFoldersOrchestrator?: IMonitoredFoldersOrchestrator,
+    private activityService?: ActivityService
   ) {
     this.modelHandlers = modelHandlers;
-    
+
     // Create folder handlers with proper interfaces, including model handlers
     this.folderHandlers = new FolderHandlers(
       this.fmdmService,
       this.validationService,
       this.modelHandlers,
       this.logger,
-      this.monitoredFoldersOrchestrator
+      this.monitoredFoldersOrchestrator,
+      this.activityService
     );
   }
 
@@ -172,11 +178,14 @@ export class WebSocketProtocol {
         case 'get_folder_info':
           return this.handleGetFolderInfo(message);
 
+        case 'activity.history':
+          return this.handleActivityHistory(message);
+
         default:
           // This should never happen due to validation above, but just in case
           this.logger.warn(`Unknown message type: ${(message as any).type}`);
           return createErrorMessage(
-            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, defaultModel.set, getFoldersConfig, get_server_info, get_folder_info`,
+            `Unknown message type: ${(message as any).type}. Supported types: connection.init, folder.validate, folder.add, folder.remove, ping, models.list, models.recommend, defaultModel.set, getFoldersConfig, get_server_info, get_folder_info, activity.history`,
             'UNKNOWN_MESSAGE_TYPE'
           );
       }
@@ -208,13 +217,24 @@ export class WebSocketProtocol {
     this.fmdmService.addClient(client);
 
     this.logger.info(`Client ${clientId} initialized as ${message.clientType}`);
-    
+
+    // Emit activity event for client connection
+    if (this.activityService) {
+      this.activityService.emit({
+        type: 'connection',
+        level: 'info',
+        message: `${message.clientType.toUpperCase()} client connected`,
+        userInitiated: false,
+        details: [`Client ID: ${clientId}`]
+      });
+    }
+
     // Notify that client is connected (so server can send initial FMDM)
     if (this.onClientConnected) {
       this.logger.debug(`Calling onClientConnected callback for client ${clientId}`);
       this.onClientConnected(clientId);
     }
-    
+
     return createConnectionAck(clientId);
   }
 
@@ -456,6 +476,32 @@ export class WebSocketProtocol {
       model: folder.model || 'unknown',
       status: folder.status || 'pending'
     });
+  }
+
+  /**
+   * Handle activity history request
+   * Phase 11 - Sprint 4: Activity Log Screen
+   */
+  private handleActivityHistory(message: WSClientMessage): ActivityHistoryResponseMessage {
+    if (!isActivityHistoryRequestMessage(message)) {
+      throw new Error('Invalid activity.history message');
+    }
+
+    const { id, payload } = message;
+    const limit = payload?.limit ?? 100;
+
+    this.logger.debug(`Getting activity history (limit: ${limit})`);
+
+    // Get serialized events from activity service
+    if (!this.activityService) {
+      this.logger.warn('Activity service not available');
+      return createActivityHistoryResponse(id, []);
+    }
+
+    const events = this.activityService.getRecentSerialized(limit);
+    this.logger.debug(`Returning ${events.length} activity events`);
+
+    return createActivityHistoryResponse(id, events);
   }
 
   /**

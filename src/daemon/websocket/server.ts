@@ -6,8 +6,10 @@ import { FMDM, ClientConnection } from '../models/fmdm.js';
 import { WebSocketProtocol } from './protocol.js';
 import { IFMDMService } from '../services/fmdm-service.js';
 import { ILoggingService } from '../../di/interfaces.js';
-import { createFMDMUpdateMessage } from './message-types.js';
+import { createFMDMUpdateMessage, createActivityEventMessage } from './message-types.js';
 import { BroadcastThrottler } from './broadcast-throttler.js';
+import { ActivityService } from '../services/activity-service.js';
+import { serializeActivityEvent } from '../models/activity-event.js';
 
 /**
  * WebSocket server that manages client connections and broadcasts FMDM updates
@@ -18,8 +20,10 @@ export class FMDMWebSocketServer {
   private isStarted = false;
   private protocol: WebSocketProtocol | null = null;
   private fmdmUnsubscribe: (() => void) | null = null;
+  private activityUnsubscribe: (() => void) | null = null;
   private broadcastThrottler: BroadcastThrottler;
   private latestFMDM: FMDM | null = null;
+  private activityService: ActivityService | undefined = undefined;
 
   constructor(
     private fmdmService?: IFMDMService,
@@ -40,11 +44,17 @@ export class FMDMWebSocketServer {
   /**
    * Set dependencies (for cases where DI isn't used in constructor)
    */
-  setDependencies(fmdmService: IFMDMService, protocol: WebSocketProtocol, logger: ILoggingService): void {
+  setDependencies(
+    fmdmService: IFMDMService,
+    protocol: WebSocketProtocol,
+    logger: ILoggingService,
+    activityService?: ActivityService
+  ): void {
     this.fmdmService = fmdmService;
     this.protocol = protocol;
     this.logger = logger;
-    
+    this.activityService = activityService;
+
     // Set up callback to send initial FMDM when client connects
     this.protocol.setClientConnectedCallback((clientId: string) => {
       this.log('debug', `Client ${clientId} connected, sending initial state`);
@@ -89,10 +99,10 @@ export class FMDMWebSocketServer {
       // progressFolders.forEach(f => {
       //   this.log('info', `[INDEXING] Progress: ${f.path} (${f.progress}%)`);
       // });
-      
+
       // Store latest FMDM state
       this.latestFMDM = fmdm;
-      
+
       // Request throttled broadcast
       this.broadcastThrottler.requestBroadcast(() => {
         if (this.latestFMDM) {
@@ -100,6 +110,16 @@ export class FMDMWebSocketServer {
         }
       });
     });
+
+    // Subscribe to activity events for real-time broadcasting
+    if (this.activityService) {
+      this.log('debug', `Subscribing to activity events`);
+      this.activityUnsubscribe = this.activityService.subscribe((event) => {
+        // Broadcast activity event to all connected clients
+        const message = createActivityEventMessage(serializeActivityEvent(event));
+        this.broadcastMessage(message);
+      });
+    }
 
     this.isStarted = true;
     // Log message already handled by daemon
@@ -124,6 +144,13 @@ export class FMDMWebSocketServer {
       this.log('debug', `Unsubscribing from FMDM updates`);
       this.fmdmUnsubscribe();
       this.fmdmUnsubscribe = null;
+    }
+
+    // Unsubscribe from activity events
+    if (this.activityUnsubscribe) {
+      this.log('debug', `Unsubscribing from activity events`);
+      this.activityUnsubscribe();
+      this.activityUnsubscribe = null;
     }
 
     // Close all client connections
@@ -293,7 +320,7 @@ export class FMDMWebSocketServer {
   public broadcastFMDM(fmdm: FMDM): void {
     const message = createFMDMUpdateMessage(fmdm);
     let successCount = 0;
-    
+
     this.clients.forEach(({ ws }) => {
       if (ws.readyState === WebSocket.OPEN) {
         this.sendMessage(ws, message);
@@ -303,6 +330,25 @@ export class FMDMWebSocketServer {
 
     if (successCount > 0) {
       this.log('debug', `Broadcast update to ${successCount} client${successCount > 1 ? 's' : ''}`);
+    }
+  }
+
+  /**
+   * Broadcast a typed message to all connected clients
+   * Used for activity events and other real-time updates
+   */
+  public broadcastMessage(message: any): void {
+    let successCount = 0;
+
+    this.clients.forEach(({ ws }) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        this.sendMessage(ws, message);
+        successCount++;
+      }
+    });
+
+    if (successCount > 0 && message.type) {
+      this.log('debug', `Broadcast '${message.type}' to ${successCount} client${successCount > 1 ? 's' : ''}`);
     }
   }
 
