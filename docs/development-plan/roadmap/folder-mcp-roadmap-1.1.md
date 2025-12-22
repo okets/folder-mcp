@@ -639,7 +639,7 @@ Discovery: get_server_info → find_documents → get_document_text
 - Sprint 1 ✅: Navigation Framework (landscape/portrait adaptive, arrow-key switching)
 - Sprint 2 ✅: Settings Screen (Theme, Log Verbosity settings)
 - Sprint 3 ✅: Default Model System (FMDM integration, Settings UI, Wizard simplification, CLI integration)
-- Sprint 4: Activity Log Screen (LogItems with filter, real-time daemon logs)
+- Sprint 4 ✅: Activity Log Screen (Progress River model, real-time daemon events, code review fixes)
 - Sprint 5: Connect Screen (Local MCP connection strings with copy buttons)
 
 **Components**: All screens use existing tested components (GenericListPanel, SelectionListItem, TextListItem, ButtonsRow, LogItem). NO new components needed.

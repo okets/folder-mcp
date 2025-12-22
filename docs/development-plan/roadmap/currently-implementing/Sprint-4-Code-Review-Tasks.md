@@ -3,6 +3,9 @@
 **Sprint Context**: Activity Log Screen - Real-time daemon event visualization with Progress River model, consistent icons/colors, and comprehensive MCP activity logging.
 
 **Review Date**: 2025-12-22
+**Completion Date**: 2025-12-23
+
+**Status**: ✅ COMPLETED
 
 ---
 
@@ -13,6 +16,28 @@
 | High Priority | 10 | 1 | 11 |
 | Low Priority | 23 | 9 | 32 |
 | **Total** | **33** | **10** | **43** |
+
+## Implementation Summary
+
+**Commit**: `33c167b fix(tui): Sprint 4 code review fixes + scroll/color improvements`
+
+### Completed Fixes:
+- ✅ Group 1.1: MCP Activity Type Fix (pass eventType instead of hardcoded 'search')
+- ✅ Group 1.2: History Fetch Race Condition (functional updater for merging)
+- ⏭️ Group 1.3: Folder Add Event Timing (SKIPPED - intentional design)
+- ✅ Group 1.4: ActivityLogPanel Index Mismatch (guard for placeholder items)
+- ✅ Group 2: TypeScript Type/Runtime Mismatches (payload optional, validation)
+- ✅ Group 3.1-3.3: Input Validation (timestamp, progress bar width, date formatting)
+- ⏭️ Group 3.4-3.5: Narrow Terminal Handling (SKIPPED - per user request)
+- ✅ Group 4: Dead Code Removal (unused imports, truncateText, try-catch blocks)
+- ✅ Group 6.1: extractFolderName uses path.basename()
+- ✅ Group 6.3: FMDMClient substr to substring
+- ✅ Group 8: High Contrast Theme Warning Color (yellow)
+
+### Additional Bug Fixes (Found During Implementation):
+- ✅ Scroll calculation with expanded items (cursor no longer vanishes)
+- ✅ In-progress color changed from orange to cyan (accent) for clarity
+- ✅ DI allowlist updated for ActivityService
 
 ---
 

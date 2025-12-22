@@ -71,11 +71,12 @@ export function renderProgressBar(
  * Icons indicate WHAT happened (event type), not HOW it went (status).
  * Color indicates status (in-progress, completed, error, info).
  *
- * All icons are single-cell ASCII symbols for consistent layout.
+ * All icons are Unicode symbols chosen for single-cell width in most terminals.
+ * Note: Some terminals may render these as double-width.
  * Note: '▶' is reserved for cursor, not used here.
  *
  * @param type - The event type (indexing, search, connection, system, model, config)
- * @returns The appropriate ASCII symbol (single-cell)
+ * @returns The appropriate Unicode symbol (single-cell width in most terminals)
  */
 export function getActivityIcon(type: string): string {
   switch (type) {

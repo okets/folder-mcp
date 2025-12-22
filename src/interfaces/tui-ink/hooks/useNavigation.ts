@@ -179,18 +179,20 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
 
     // Activity Log state setters - lifted here to survive resize overlay
     const setActivitySelectedIndex = useCallback((index: number) => {
+        if (isBlocked) return;
         setState(prev => ({
             ...prev,
             activitySelectedIndex: index
         }));
-    }, []);
+    }, [isBlocked]);
 
     const setActivityExpandedState = useCallback((updater: (prev: Record<string, boolean>) => Record<string, boolean>) => {
+        if (isBlocked) return;
         setState(prev => ({
             ...prev,
             activityExpandedState: updater(prev.activityExpandedState)
         }));
-    }, []);
+    }, [isBlocked]);
 
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {

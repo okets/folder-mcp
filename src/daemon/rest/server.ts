@@ -1207,10 +1207,11 @@ export class RESTAPIServer {
             const keyPhrases = JSON.parse(row.document_keywords || '[]');
             // Take top 5 diverse key phrases
             topKeyPhrases = Array.isArray(keyPhrases)
-              ? keyPhrases.slice(0, 5).map((kp: any) => ({
-                  text: kp.text || kp,
-                  score: kp.score || 0.8
-                }))
+              ? keyPhrases.slice(0, 5).map((kp: KeyPhrase | string) =>
+                  typeof kp === 'string'
+                    ? { text: kp, score: 0.8 }
+                    : { text: kp.text, score: kp.score }
+                )
               : [];
           } catch {
             topKeyPhrases = [];
@@ -1293,7 +1294,7 @@ export class RESTAPIServer {
           listDetails.push(`📄 ${documents.length}/${totalCount} documents:`);
           documents.slice(0, 5).forEach(doc => {
             const docName = doc.file_path.split(/[/\\]/).pop() || doc.file_path;
-            const topPhrase = (doc as any).top_key_phrases?.[0]?.text || '';
+            const topPhrase = doc.top_key_phrases?.[0]?.text || '';
             listDetails.push(`   • ${docName}`);
             if (topPhrase) {
               listDetails.push(`     → "${topPhrase}"`);
@@ -1903,7 +1904,9 @@ export class RESTAPIServer {
           docDetails.push(`   Purpose: ${sem.primaryPurpose}`);
         }
         if (sem?.keyPhrases && sem.keyPhrases.length > 0) {
-          const topPhrases = sem.keyPhrases.slice(0, 3).map((kp: any) => kp.text || kp).join(', ');
+          const topPhrases = sem.keyPhrases.slice(0, 3).map((kp: KeyPhrase | string) =>
+            typeof kp === 'string' ? kp : kp.text
+          ).join(', ');
           docDetails.push(`   Topics: ${topPhrases}`);
         }
         if (sem?.hasCodeExamples) {
@@ -2424,7 +2427,7 @@ export class RESTAPIServer {
         const firstChunk = processedChunks[0];
         if (firstChunk) {
           if (firstChunk.key_phrases && firstChunk.key_phrases.length > 0) {
-            const phrases = firstChunk.key_phrases.slice(0, 3).map((kp: any) => kp.text).join(', ');
+            const phrases = firstChunk.key_phrases.slice(0, 3).map((kp: KeyPhrase) => kp.text).join(', ');
             metaDetails.push(`   Topics: ${phrases}`);
           }
           // Show preview of first chunk

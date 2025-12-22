@@ -2,7 +2,37 @@
 
 **Goal**: Build the Activity Log screen showing real-time daemon events with visual feedback
 
-**Status**: 🔲 Not Started
+**Status**: ✅ COMPLETED
+
+**Completion Date**: 2025-12-23
+
+**Implementation Summary**:
+Phase A (Daemon Data Flow) and Phase B (TUI Visualization) both completed with comprehensive code review fixes.
+
+**Key Commits**:
+- `c7932ca feat(activity): Phase B - Progress-oriented activity events in daemon`
+- `33c167b fix(tui): Sprint 4 code review fixes + scroll/color improvements`
+
+**What Was Built**:
+- **ActivityService**: Ring buffer (500 events) with pub/sub pattern
+- **WebSocket Integration**: Real-time activity.event broadcasts + activity.history requests
+- **Progress River Model**: In-progress items float to top, completed flow downstream
+- **ActivityLogPanel**: Real-time visualization with expand/collapse details
+- **LogItem Component**: Icon + timestamp + message + progress bar layout
+- **Theme Colors**: Cyan (in-progress), Green (completed), Orange (warning), White (info)
+
+**Code Review Fixes Applied** (see Sprint-4-Code-Review-Tasks.md for details):
+- ✅ MCP Activity Type Fix (pass eventType instead of hardcoded 'search')
+- ✅ History Fetch Race Condition (functional updater for merging)
+- ✅ TypeScript Type/Runtime Mismatches (payload optional, validation)
+- ✅ Input Validation (timestamp, progress bar width, date formatting)
+- ✅ Dead Code Removal (unused imports, truncateText, try-catch blocks)
+- ✅ extractFolderName uses path.basename()
+- ✅ FMDMClient substr to substring
+- ✅ High Contrast Theme Warning Color (yellow)
+- ✅ Scroll calculation with expanded items (cursor no longer vanishes)
+- ✅ In-progress color changed from orange to cyan (accent) for clarity
+- ✅ DI allowlist updated for ActivityService
 
 ---
 

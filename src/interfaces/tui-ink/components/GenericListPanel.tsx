@@ -200,7 +200,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     // Calculate visible lines for the current viewport
     let visibleLines = 0;
     visibleItems.forEach((listItem) => {
-        const itemLines = listItem.getRequiredLines(itemMaxWidth);
+        const itemLines = listItem.getRequiredLines ? listItem.getRequiredLines(itemMaxWidth) : 1;
         visibleLines += itemLines;
     });
     
@@ -471,7 +471,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                                     );
                                 });
                                 // Use the actual required lines, not the number of React elements
-                                const requiredLines = listItem.getRequiredLines(itemMaxWidth);
+                                const requiredLines = listItem.getRequiredLines ? listItem.getRequiredLines(itemMaxWidth) : 1;
                                 // Cap to actual lines rendered to prevent underflow
                                 const linesUsed = Math.min(requiredLines, itemMaxLines);
                                 remainingLines -= linesUsed;

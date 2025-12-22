@@ -105,8 +105,8 @@ export class LogItem implements IListItem {
             // Detail lines - word wrapped to fit width and height
             const allDetailLines: Array<{text: string, isLast: boolean}> = [];
 
-            // Calculate indent for detail lines: timestamp (8 chars if present) + symbol (2 chars) + space
-            const detailIndentWidth = (this.timestamp ? 8 : 0) + 3;
+            // Calculate indent for detail lines: timestamp (8 chars if present) + symbol+spacing (2 chars)
+            const detailIndentWidth = (this.timestamp ? 8 : 0) + 2;
 
             // First collect all detail lines
             for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
@@ -360,8 +360,8 @@ export class LogItem implements IListItem {
             const progressMode = useProgressMode();
             const hasProgress = this.progress !== undefined || this.status === '⋯';
 
-            // Calculate space needed for progress
-            const progressWidth = hasProgress ? (progressMode === 'short' ? 5 : 16) : 0;
+            // Calculate space needed for progress (width matches ProgressBar component)
+            const progressWidth = hasProgress ? 15 : 0;
             const availableForText = maxWidth - fixedWidth - progressWidth;
 
             // Truncate text if needed
