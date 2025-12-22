@@ -28,11 +28,9 @@ export class LogItem implements IListItem {
         public progress?: number
     ) {
         this._isExpanded = isExpanded;
-        // Use status symbol as the bullet icon if available
-        // But preserve selection indicator (▶) when active
-        if (this.status && this.icon !== '▶') {
-            this.icon = this.status;
-        }
+        // Icon is TYPE-based (what happened) - passed in from caller
+        // Status determines COLOR (how it went) - used by getStatusColor()
+        // No longer overwrite icon with status - they serve different purposes
     }
     
     get isExpanded(): boolean {
@@ -269,6 +267,26 @@ export class LogItem implements IListItem {
         return lines;
     }
     
+    /**
+     * Get theme color based on status character
+     *
+     * Status symbols and their semantic meanings:
+     * - '⋯' = in-progress (warningOrange - yellow/orange from theme)
+     * - '✓' = completed indexing (green/successGreen)
+     * - '⚠' = error/warning (orange/warningOrange)
+     * - '•' = neutral info (white/default)
+     *
+     * Color usage:
+     * - Cyan (accent): ONLY for selection highlight
+     * - Green (successGreen): ONLY for completed progress
+     * - Yellow/Orange (warningOrange): In-progress and errors/warnings
+     * - White (default): Neutral instant events
+     *
+     * Theme requirements: Themes MUST have distinct accent and warning colors
+     * to differentiate selection from in-progress state. Fixed in:
+     * - sunset: warning changed from orange to yellow (#FFD60A)
+     * - highContrast: warning changed from yellowBright to magentaBright
+     */
     private getStatusColor(): string | undefined {
         const theme = getCurrentTheme();
         switch (this.status) {
@@ -277,7 +295,9 @@ export class LogItem implements IListItem {
             case '⚠':
                 return theme.colors.warningOrange;
             case '⋯':
-                return theme.colors.accent;
+                return theme.colors.warningOrange;  // Orange/yellow - in progress
+            case '•':
+                return undefined;  // Neutral - use default text color
             default:
                 return undefined;
         }
@@ -297,20 +317,24 @@ export class LogItem implements IListItem {
         let displayText = this.text;
         
         // Build segments
-        // Apply color to the icon (which is now the status symbol)
-        const iconColor = this.status ? this.getStatusColor() : undefined;
-        
+        // Icon is TYPE-based, but colored by STATUS
+        const statusColor = this.status ? this.getStatusColor() : undefined;
+
         // When expanded, always use status color for icon to match vertical lines
         const useStatusColor = this._isExpanded && this.icon === '■';
-        
+
+        // Active items use accent color, otherwise use status color for both icon and text
+        const iconColor = useStatusColor ? statusColor : (this.isActive ? theme.colors.accent : statusColor);
+        const textColor = this.isActive ? theme.colors.accent : statusColor;
+
         const segments: Segment[] = [
-            { 
+            {
                 text: this.icon,
-                color: useStatusColor ? iconColor : (this.isActive ? theme.colors.accent : iconColor)
+                color: iconColor
             },
             {
                 text: displayText,
-                color: this.isActive ? theme.colors.accent : undefined
+                color: textColor
             }
         ];
         

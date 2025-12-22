@@ -10,15 +10,18 @@
 
 import WebSocket from 'ws';
 import { FMDM } from '../../../daemon/models/fmdm.js';
-import { 
+import {
   ValidationResponseMessage,
   WSClientMessage,
   WSServerMessage,
   ModelDownloadStartMessage,
   ModelDownloadProgressMessage,
   ModelDownloadCompleteMessage,
-  ModelDownloadErrorMessage
+  ModelDownloadErrorMessage,
+  ActivityEventMessage,
+  ActivityHistoryResponseMessage
 } from '../../../daemon/websocket/message-types.js';
+import { SerializedActivityEvent } from '../../../daemon/models/activity-event.js';
 import { DaemonConnector } from '../daemon-connector.js';
 
 export interface FMDMConnectionStatus {
@@ -53,6 +56,14 @@ export interface SetDefaultModelResult {
 }
 
 /**
+ * Generate a stable client ID for this TUI session
+ * Uses timestamp + random suffix, generated once per FMDMClient instance
+ */
+function generateStableClientId(): string {
+  return `tui-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
+/**
  * FMDM WebSocket Client for TUI components
  */
 export class FMDMClient {
@@ -61,6 +72,7 @@ export class FMDMClient {
   private listeners = new Set<(fmdm: FMDM) => void>();
   private statusListeners = new Set<(status: FMDMConnectionStatus) => void>();
   private modelDownloadListeners = new Set<(event: ModelDownloadEvent) => void>();
+  private activityListeners = new Set<(event: SerializedActivityEvent) => void>();
   private requests = new Map<string, (response: any) => void>();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private countdownTimer: NodeJS.Timeout | null = null;
@@ -72,12 +84,19 @@ export class FMDMClient {
   private isReconnecting = false; // Track if we're in reconnection mode
   private nextRetryIn = 0; // Countdown in seconds
   private retryDelayMs = 0; // Current retry delay in milliseconds
-  
+
+  /** Stable client ID for this TUI session - survives reconnects */
+  private readonly clientId: string;
+
   constructor() {
+    // Generate stable client ID once - this survives reconnections
+    this.clientId = generateStableClientId();
+
     this.daemonConnector = new DaemonConnector({
       debug: false,
       timeoutMs: 5000,
-      maxRetries: 3
+      maxRetries: 3,
+      clientId: this.clientId  // Pass to DaemonConnector for handshake
     });
   }
 
@@ -110,13 +129,10 @@ export class FMDMClient {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
       }
-      
-      // Initialize connection with daemon
-      this.ws.send(JSON.stringify({
-        type: 'connection.init',
-        clientType: 'tui'
-      }));
-      
+
+      // Note: connection.init is already sent by DaemonConnector during handshake
+      // No need to send it again here
+
       // Set up event handlers
       this.ws.on('message', (data) => {
         try {
@@ -245,7 +261,17 @@ export class FMDMClient {
           });
         }
         break;
-        
+
+      case 'activity.event':
+        {
+          const activityMessage = message as ActivityEventMessage;
+          this.notifyActivityListeners(activityMessage.event);
+        }
+        break;
+
+      case 'activity.history.response':
+        // Falls through to default handler for request/response pattern
+
       default:
         // Handle request responses
         if (message.id && this.requests.has(message.id)) {
@@ -500,8 +526,31 @@ export class FMDMClient {
    */
   subscribeToModelDownloads(listener: (event: ModelDownloadEvent) => void): () => void {
     this.modelDownloadListeners.add(listener);
-    
+
     return () => this.modelDownloadListeners.delete(listener);
+  }
+
+  /**
+   * Subscribe to activity events (real-time broadcasts)
+   */
+  subscribeToActivity(listener: (event: SerializedActivityEvent) => void): () => void {
+    this.activityListeners.add(listener);
+
+    return () => this.activityListeners.delete(listener);
+  }
+
+  /**
+   * Request activity history from daemon
+   */
+  async requestActivityHistory(limit = 100): Promise<SerializedActivityEvent[]> {
+    const id = this.generateId();
+    const response = await this.sendRequest({
+      type: 'activity.history',
+      id,
+      payload: { limit }
+    } as WSClientMessage);
+
+    return (response as ActivityHistoryResponseMessage).events || [];
   }
 
   /**
@@ -540,6 +589,19 @@ export class FMDMClient {
         listener(event);
       } catch (error) {
         console.error('Error in model download listener:', error);
+      }
+    });
+  }
+
+  /**
+   * Notify all activity listeners
+   */
+  private notifyActivityListeners(event: SerializedActivityEvent): void {
+    this.activityListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (error) {
+        console.error('Error in activity listener:', error);
       }
     });
   }

@@ -20,7 +20,7 @@ import { ModelDownloadManager, IModelDownloadManager } from './model-download-ma
 import { FolderIndexingQueue } from './folder-indexing-queue.js';
 import { UnifiedModelFactory } from '../factories/unified-model-factory.js';
 import { PythonEmbeddingServiceRegistry } from '../factories/model-factories.js';
-import { getDefaultModelId, getSentenceTransformerIdFromModelId } from '../../config/model-registry.js';
+import { getDefaultModelId, getSentenceTransformerIdFromModelId, getModelMetadata } from '../../config/model-registry.js';
 import { OnnxConfiguration } from '../../infrastructure/config/onnx-configuration.js';
 import { PeriodicSyncService } from '../../application/monitoring/periodic-sync-service.js';
 import * as fs from 'fs';
@@ -1793,12 +1793,37 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       this.updateFMDM();
 
       // Emit activity event for indexing progress
+      // Use correlationId to group progress updates for same folder
+      // Include useful details about current progress
+      const details: string[] = [];
+
+      // Line 1: Model being used (always show)
+      const modelMeta = getModelMetadata(folder.modelId);
+      const modelName = modelMeta?.displayName || folder.modelId;
+      details.push(`Model: ${modelName}`);
+
+      // Line 2: File progress - use "Scanning..." if count not yet available
+      if (progress.totalFiles > 0) {
+        details.push(`Files: ${progress.processedFiles}/${progress.totalFiles}`);
+      } else {
+        details.push('Scanning files...');
+      }
+
+      // Line 3: Chunk progress if available (embedding phase)
+      if (progress.totalChunks > 0) {
+        details.push(`Chunks: ${progress.processedChunks}/${progress.totalChunks}`);
+      } else if (progress.processedFiles > 0) {
+        details.push('Preparing chunks...');
+      }
+
       this.activityService?.emit({
         type: 'indexing',
         level: 'info',
-        message: `Indexing: ${this.extractFolderName(folder.folderPath)} (${progress.percentage}%)`,
+        correlationId: `indexing-${folder.folderPath}`,
+        message: `Indexing: ${folder.folderPath}`,
         progress: progress.percentage,
-        userInitiated: false
+        userInitiated: false,
+        details
       });
     });
 
@@ -1825,10 +1850,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
             type: 'info'
           });
           // Emit activity event for indexing complete with stats
+          // Use same correlationId as progress events so TUI replaces the in-progress event
           this.activityService?.emit({
             type: 'indexing',
             level: 'success',
-            message: `Indexed: ${this.extractFolderName(folder.folderPath)}`,
+            correlationId: `indexing-${folder.folderPath}`,
+            message: `Indexed: ${folder.folderPath}`,
             progress: 100,
             userInitiated: false,
             details: [`Files: ${fileCount}`, `Duration: ${indexingTimeSeconds}s`]
@@ -1837,10 +1864,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           this.logger.debug(`[ORCHESTRATOR] No indexing statistics available for ${folder.folderPath}`);
 
           // Emit activity event without stats
+          // Use same correlationId as progress events so TUI replaces the in-progress event
           this.activityService?.emit({
             type: 'indexing',
             level: 'success',
-            message: `Indexed: ${this.extractFolderName(folder.folderPath)}`,
+            correlationId: `indexing-${folder.folderPath}`,
+            message: `Indexed: ${folder.folderPath}`,
             progress: 100,
             userInitiated: false
           });

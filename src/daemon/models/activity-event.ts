@@ -40,6 +40,12 @@ export interface ActivityEvent {
   /** UUID for React keys and deduplication */
   id: string;
 
+  /**
+   * Groups related events together (e.g., same folder indexing session)
+   * Used by TUI to update existing in-progress events instead of duplicating
+   */
+  correlationId?: string;
+
   /** When the event occurred */
   timestamp: Date;
 
@@ -81,6 +87,7 @@ export type ActivityEventInput = Omit<ActivityEvent, 'id' | 'timestamp'>;
  */
 export interface SerializedActivityEvent {
   id: string;
+  correlationId?: string;
   timestamp: string;  // ISO 8601 format
   type: ActivityType;
   level: ActivityLevel;

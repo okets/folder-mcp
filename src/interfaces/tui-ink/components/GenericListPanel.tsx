@@ -509,7 +509,8 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                         const result = elements.length > 0 ? elements : <Text {...textColorProp(theme.colors.textMuted)}>{items.length} items</Text>;
                         return result;
                     } catch (error) {
-                        return <Text>Error rendering items</Text>;
+                        console.error('GenericListPanel render error:', error);
+                        return <Text>Error rendering items: {error instanceof Error ? error.message : String(error)}</Text>;
                     }
                 })()}
             </BorderedBox>

@@ -17,6 +17,8 @@ export interface ConnectionOptions {
   retryDelayMs?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** Stable client ID (survives reconnects) */
+  clientId?: string;
 }
 
 /**
@@ -34,14 +36,21 @@ export interface ConnectionInfo {
  * Auto-discovery connector for daemon WebSocket connections
  */
 export class DaemonConnector {
-  private options: Required<ConnectionOptions>;
+  private options: {
+    timeoutMs: number;
+    maxRetries: number;
+    retryDelayMs: number;
+    debug: boolean;
+    clientId?: string;
+  };
 
   constructor(options: ConnectionOptions = {}) {
     this.options = {
       timeoutMs: options.timeoutMs ?? 5000,
       maxRetries: options.maxRetries ?? 3,
       retryDelayMs: options.retryDelayMs ?? 1000,
-      debug: options.debug ?? false
+      debug: options.debug ?? false,
+      ...(options.clientId ? { clientId: options.clientId } : {})  // Optional stable client ID
     };
   }
 
@@ -213,13 +222,18 @@ export class DaemonConnector {
 
       ws.on('open', () => {
         this.log('WebSocket connected, performing handshake...');
-        
+
         // Send connection.init message to identify as TUI client
-        const initMessage = {
+        // Include stable clientId if provided (survives reconnects)
+        const initMessage: { type: string; clientType: string; clientId?: string } = {
           type: 'connection.init',
           clientType: 'tui'
         };
-        
+
+        if (this.options.clientId) {
+          initMessage.clientId = this.options.clientId;
+        }
+
         ws.send(JSON.stringify(initMessage));
       });
 

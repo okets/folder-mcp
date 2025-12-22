@@ -171,9 +171,9 @@ export const highContrastTheme: Theme = {
     name: 'High Contrast',
     colors: {
         primary: 'yellow',
-        accent: 'yellowBright',
-        success: 'greenBright',
-        warning: 'yellowBright',
+        accent: 'yellowBright',      // Selection
+        success: 'greenBright',      // Completed
+        warning: 'magentaBright',    // In-progress/warnings - distinct from yellow selection
         error: 'redBright',
         text: 'whiteBright',
         textMuted: 'white',
@@ -255,12 +255,12 @@ export const sunsetTheme: Theme = {
     name: 'Sunset',
     colors: {
         primary: '#E85D04',
-        accent: '#F48C06',
-        success: '#90BE6D',         // Olive green - distinct from orange palette
-        warning: '#F77F00',         // Darker orange - distinct from success
+        accent: '#F48C06',           // Orange - selection color
+        success: '#90BE6D',          // Olive green - completed
+        warning: '#FFD60A',          // Bright yellow - distinct from orange accent
         error: '#D00000',
         text: 'white',
-        textMuted: '#FFC09F',       // Pale peach - muted but readable
+        textMuted: '#FFC09F',        // Pale peach - muted but readable
         border: '#9D0208',
         borderFocus: '#F48C06',
         headerBorder: '#E85D04',

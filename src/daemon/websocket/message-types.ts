@@ -27,6 +27,8 @@ export interface WSClientMessageBase {
 export interface ConnectionInitMessage extends WSClientMessageBase {
   type: 'connection.init';
   clientType: 'tui' | 'cli' | 'web';
+  /** Optional stable client ID (survives reconnects) */
+  clientId?: string;
 }
 
 /**

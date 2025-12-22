@@ -207,8 +207,11 @@ export class WebSocketProtocol {
       throw new Error('Invalid connection init message');
     }
 
+    // Use client-provided ID if available (stable across reconnects)
+    const displayClientId = message.clientId || clientId;
+
     const client: ClientConnection = {
-      id: clientId,
+      id: clientId,  // Internal tracking still uses server-generated ID
       type: message.clientType,
       connectedAt: new Date().toISOString()
     };
@@ -216,16 +219,19 @@ export class WebSocketProtocol {
     // Add client to FMDM service
     this.fmdmService.addClient(client);
 
-    this.logger.info(`Client ${clientId} initialized as ${message.clientType}`);
+    this.logger.info(`Client ${displayClientId} initialized as ${message.clientType}`);
 
     // Emit activity event for client connection
+    // Use client-provided ID as correlationId to deduplicate on reconnects
     if (this.activityService) {
       this.activityService.emit({
         type: 'connection',
         level: 'info',
         message: `${message.clientType.toUpperCase()} client connected`,
         userInitiated: false,
-        details: [`Client ID: ${clientId}`]
+        details: [`Client ID: ${displayClientId}`],
+        // Use stable client ID as correlationId - this deduplicates reconnection events
+        ...(message.clientId ? { correlationId: `connection-${message.clientId}` } : {})
       });
     }
 
@@ -235,7 +241,7 @@ export class WebSocketProtocol {
       this.onClientConnected(clientId);
     }
 
-    return createConnectionAck(clientId);
+    return createConnectionAck(displayClientId);
   }
 
   /**
