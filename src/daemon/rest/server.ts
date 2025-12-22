@@ -207,13 +207,22 @@ export class RESTAPIServer {
 
   /**
    * Emit activity event for MCP operations
+   * @param req - Express request for client identification
+   * @param operation - Description of the operation
+   * @param details - Optional array of detail strings
+   * @param eventType - Type of event (default: 'search')
    */
-  private emitMcpActivity(req: Request, operation: string, details?: string[]): void {
+  private emitMcpActivity(
+    req: Request,
+    operation: string,
+    details?: string[],
+    eventType: 'indexing' | 'search' | 'connection' | 'model' | 'system' | 'error' = 'search'
+  ): void {
     if (!this.activityService) return;
 
     const client = this.getClientName(req);
     const event: Parameters<typeof this.activityService.emit>[0] = {
-      type: 'search',
+      type: eventType,
       level: 'info',
       message: `${client}: ${operation}`,
       userInitiated: true
@@ -854,7 +863,7 @@ export class RESTAPIServer {
       } else {
         folderDetails.push('No folders configured');
       }
-      this.emitMcpActivity(req, 'list_folders', folderDetails);
+      this.emitMcpActivity(req, 'list_folders', folderDetails, 'system');
 
       res.json(response);
     } catch (error) {

@@ -173,7 +173,7 @@ export const highContrastTheme: Theme = {
         primary: 'yellow',
         accent: 'yellowBright',      // Selection
         success: 'greenBright',      // Completed
-        warning: 'magentaBright',    // In-progress/warnings - distinct from yellow selection
+        warning: 'yellow',           // Standard warning color for accessibility
         error: 'redBright',
         text: 'whiteBright',
         textMuted: 'white',

@@ -125,104 +125,84 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
     
     
     // Don't mutate items during render - this causes re-renders
-    
+
     // Calculate total content lines and line positions using list items
     let totalContentLines = 0;
     const itemLinePositions: Array<{start: number, end: number}> = [];
     let currentLine = 0;
-    
-    try {
-        // Only calculate if we have items
-        if (items.length > 0) {
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (!item) continue;
-                
-                const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
-                // Cap item lines to maxLines to prevent overflow
-                const cappedItemLines = Math.min(itemLines, maxLines);
-                
-                totalContentLines += cappedItemLines;
-                itemLinePositions.push({
-                    start: currentLine,
-                    end: currentLine + cappedItemLines
-                });
-                currentLine += cappedItemLines;
-                
-            }
+
+    // Only calculate if we have items
+    if (items.length > 0) {
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (!item) continue;
+
+            const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
+            // Cap item lines to maxLines to prevent overflow
+            const cappedItemLines = Math.min(itemLines, maxLines);
+
+            totalContentLines += cappedItemLines;
+            itemLinePositions.push({
+                start: currentLine,
+                end: currentLine + cappedItemLines
+            });
+            currentLine += cappedItemLines;
         }
-    } catch (error) {
-        throw error;
     }
-    
+
     // Calculate scroll offset in lines
     let lineScrollOffset = 0;
-    
-    try {
-        // Only calculate scroll if content exceeds viewport
-        if (totalContentLines > maxLines && selectedIndex < itemLinePositions.length) {
-            const activeItem = itemLinePositions[selectedIndex];
-            
-            // Bring active item into view
-            if (activeItem && activeItem.end > lineScrollOffset + maxLines) {
-                // Item is cut off at bottom - scroll down to align bottom
-                lineScrollOffset = activeItem.end - maxLines;
-            } else if (activeItem && activeItem.start < lineScrollOffset) {
-                // Item is cut off at top - scroll up to show it
-                lineScrollOffset = activeItem.start;
-            }
+
+    // Only calculate scroll if content exceeds viewport
+    if (totalContentLines > maxLines && selectedIndex < itemLinePositions.length) {
+        const activeItem = itemLinePositions[selectedIndex];
+
+        // Bring active item into view
+        if (activeItem && activeItem.end > lineScrollOffset + maxLines) {
+            // Item is cut off at bottom - scroll down to align bottom
+            lineScrollOffset = activeItem.end - maxLines;
+        } else if (activeItem && activeItem.start < lineScrollOffset) {
+            // Item is cut off at top - scroll up to show it
+            lineScrollOffset = activeItem.start;
         }
-    } catch (error) {
-        throw error;
     }
-    
+
     // Find first visible item based on line scroll offset
     let scrollOffset = 0;
-    try {
-        for (let i = 0; i < items.length && i < itemLinePositions.length; i++) {
-            const pos = itemLinePositions[i];
-            if (pos && pos.end > lineScrollOffset) {
-                scrollOffset = i;
-                break;
-            }
+    for (let i = 0; i < items.length && i < itemLinePositions.length; i++) {
+        const pos = itemLinePositions[i];
+        if (pos && pos.end > lineScrollOffset) {
+            scrollOffset = i;
+            break;
         }
-    } catch (error) {
-        throw error;
     }
-    
+
     // Calculate how many items actually fit in the viewport
     let visibleCount = 0;
-    
-    try {
-        for (let i = scrollOffset; i < items.length && i < itemLinePositions.length; i++) {
-            const item = items[i];
-            const pos = itemLinePositions[i];
-            if (!item || !pos) continue;
-            const itemLines = item.getRequiredLines ? item.getRequiredLines(itemMaxWidth) : 1;
-            const remainingSpace = maxLines - (pos.start - (itemLinePositions[scrollOffset]?.start ?? 0));
-            // Include item if it at least partially fits (minimum 1 line for header)
-            if (remainingSpace >= 1) {
-                visibleCount++;
-            } else {
-                break;
-            }
+
+    for (let i = scrollOffset; i < items.length && i < itemLinePositions.length; i++) {
+        const pos = itemLinePositions[i];
+        if (!pos) continue;
+        // Calculate remaining viewport space for this item
+        // Use lineScrollOffset as reference (not first item's start) to account for partial scrolling
+        const linesUsedBeforeThisItem = pos.start - lineScrollOffset;
+        const remainingSpace = maxLines - Math.max(0, linesUsedBeforeThisItem);
+        // Include item if it at least partially fits (minimum 1 line for header)
+        if (remainingSpace >= 1) {
+            visibleCount++;
+        } else {
+            break;
         }
-    } catch (error) {
-        throw error;
     }
-    
+
     const visibleItems = items.slice(scrollOffset, scrollOffset + visibleCount);
-    
+
     // Calculate visible lines for the current viewport
     let visibleLines = 0;
-    try {
-        visibleItems.forEach((listItem, index) => {
-            const itemLines = listItem.getRequiredLines(itemMaxWidth);
-            visibleLines += itemLines;
-        });
-    } catch (error) {
-        throw error;
-    }
+    visibleItems.forEach((listItem) => {
+        const itemLines = listItem.getRequiredLines(itemMaxWidth);
+        visibleLines += itemLines;
+    });
     
     // Show scrollbar only if total lines exceed available space
     const showScrollbar = totalContentLines > maxLines;

@@ -327,11 +327,10 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
 
   /**
    * Extract a readable folder name from a full path
-   * Returns the last component of the path
+   * Returns the last component of the path using cross-platform path.basename
    */
   private extractFolderName(folderPath: string): string {
-    const parts = folderPath.split(/[/\\]/);
-    return parts[parts.length - 1] || folderPath;
+    return path.basename(folderPath) || folderPath;
   }
 
   /**

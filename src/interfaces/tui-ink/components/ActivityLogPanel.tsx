@@ -11,7 +11,7 @@
  * @see Phase-11-Sprint-4-Activity-Log-Screen.md
  */
 
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { Key } from 'ink';
 import { GenericListPanel } from './GenericListPanel';
 import { TextListItem } from './core/TextListItem';
@@ -31,7 +31,7 @@ import { formatActivityTime, getActivityIcon } from '../utils/progress-bar.js';
  * - Progress bar (for in-progress items)
  *
  * Color Rules (using theme colors):
- * - '⋯' = orange (warningOrange) - in-progress
+ * - '⋯' = cyan (accent) - in-progress
  * - '✓' = green (successGreen) - completed indexing ONLY
  * - '⚠' = orange (warningOrange) - errors/warnings
  * - '•' = white (default) - all instant events
@@ -52,7 +52,7 @@ function createLogItemFromEvent(
     // Green is ONLY for completed progress events, not for level='success'
     let status: string;
     if (isInProgress) {
-        status = '⋯';  // orange (theme.colors.warningOrange) - in progress
+        status = '⋯';  // cyan (theme.colors.accent) - in progress
     } else if (isCompleted) {
         status = '✓';  // green (theme.colors.successGreen) - completed indexing ONLY
     } else if (event.level === 'error' || event.level === 'warning') {
@@ -174,6 +174,16 @@ export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({
 
         // Left arrow: First try to collapse expanded item, then switch panels
         if (key.leftArrow) {
+            // Guard: If showing placeholders (not connected or no events), skip collapse logic
+            // Placeholder items can't be expanded, so just switch panels
+            if (!connectionStatus.connected || activityEvents.length === 0) {
+                if (isLandscape) {
+                    onSwitchToNavigation();
+                    return true;
+                }
+                return false;
+            }
+
             // Check if current item is a LogItem and is expanded
             if (currentItem && 'onCollapse' in currentItem && typeof currentItem.onCollapse === 'function') {
                 const logItem = currentItem as LogItem;

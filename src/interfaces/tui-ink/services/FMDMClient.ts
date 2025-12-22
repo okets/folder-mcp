@@ -610,7 +610,7 @@ export class FMDMClient {
    * Generate unique request ID
    */
   private generateId(): string {
-    return `tui-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return `tui-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
   }
 
   /**

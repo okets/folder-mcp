@@ -19,19 +19,33 @@ import { ValidationResult, createValidationResult } from '../components/core/Val
 import { ValidationResponseMessage } from '../../../daemon/websocket/message-types.js';
 
 /**
+ * Parse timestamp to epoch milliseconds with validation
+ * Returns -Infinity for invalid timestamps (sorts to end)
+ */
+function parseTimestampToEpoch(timestamp: string): number {
+  const epoch = new Date(timestamp).getTime();
+  if (!Number.isFinite(epoch)) {
+    console.error(`[FMDMContext] Invalid timestamp encountered: ${timestamp}`);
+    return -Infinity;
+  }
+  return epoch;
+}
+
+/**
  * Deduplicate activity events by correlationId
  * Keeps only the latest event per correlationId (highest timestamp)
  * Events without correlationId are kept as-is
  */
 function deduplicateByCorrelationId(events: SerializedActivityEvent[]): SerializedActivityEvent[] {
-  const byCorrelationId = new Map<string, SerializedActivityEvent>();
+  const byCorrelationId = new Map<string, { event: SerializedActivityEvent; epoch: number }>();
   const noCorrelationId: SerializedActivityEvent[] = [];
 
   for (const event of events) {
     if (event.correlationId) {
+      const eventEpoch = parseTimestampToEpoch(event.timestamp);
       const existing = byCorrelationId.get(event.correlationId);
-      if (!existing || new Date(event.timestamp) > new Date(existing.timestamp)) {
-        byCorrelationId.set(event.correlationId, event);
+      if (!existing || eventEpoch > existing.epoch) {
+        byCorrelationId.set(event.correlationId, { event, epoch: eventEpoch });
       }
     } else {
       noCorrelationId.push(event);
@@ -39,7 +53,7 @@ function deduplicateByCorrelationId(events: SerializedActivityEvent[]): Serializ
   }
 
   // Combine deduplicated events with non-correlated events
-  return [...byCorrelationId.values(), ...noCorrelationId];
+  return [...Array.from(byCorrelationId.values()).map(v => v.event), ...noCorrelationId];
 }
 
 /**
@@ -178,16 +192,44 @@ export const FMDMProvider: React.FC<FMDMProviderProps> = ({
   // Fetch activity history when connected
   useEffect(() => {
     if (connectionStatus.connected && !historyFetched.current) {
+      // Mark as fetching (not fetched) to prevent duplicate requests
+      // Will be set to true only on success
       historyFetched.current = true;
+
       client.requestActivityHistory(100)
-        .then(events => {
+        .then(historyEvents => {
           // Deduplicate history by correlationId - keep only the latest event per correlationId
           // This handles multiple progress updates (10%, 20%, etc.) stored in history
-          const deduped = deduplicateByCorrelationId(events);
-          setActivityEvents(deduped);
+          const dedupedHistory = deduplicateByCorrelationId(historyEvents);
+
+          // Merge with any live events that arrived during fetch
+          // Live events take precedence (they're more recent)
+          setActivityEvents(liveEvents => {
+            if (liveEvents.length === 0) {
+              return dedupedHistory;
+            }
+
+            // Build set of IDs and correlationIds from live events
+            const liveIds = new Set(liveEvents.map(e => e.id));
+            const liveCorrelationIds = new Set(
+              liveEvents.filter(e => e.correlationId).map(e => e.correlationId)
+            );
+
+            // Filter out history events that are duplicates of live events
+            const uniqueHistory = dedupedHistory.filter(histEvent => {
+              if (liveIds.has(histEvent.id)) return false;
+              if (histEvent.correlationId && liveCorrelationIds.has(histEvent.correlationId)) return false;
+              return true;
+            });
+
+            // Combine: live events first (more recent), then unique history
+            return [...liveEvents, ...uniqueHistory];
+          });
         })
         .catch(error => {
           console.error('Failed to fetch activity history:', error);
+          // Reset flag on failure so we can retry
+          historyFetched.current = false;
         });
     }
 

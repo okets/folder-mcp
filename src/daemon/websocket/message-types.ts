@@ -145,7 +145,7 @@ export interface DefaultModelSetMessage extends WSClientMessageBase {
 export interface ActivityHistoryRequestMessage extends WSClientMessageBase {
   type: 'activity.history';
   id: string; // Required for correlation
-  payload: {
+  payload?: {
     limit?: number;  // Max events to return (default: 100)
   };
 }
@@ -588,8 +588,15 @@ export function validateClientMessage(message: any): MessageValidationResult {
       }
       // Additional validation for activity.history
       if (message.type === 'activity.history') {
-        // payload is optional, but if provided, limit must be a positive number
+        // payload is optional, but if provided, must be an object with optional limit
         if (message.payload !== undefined) {
+          if (typeof message.payload !== 'object' || message.payload === null) {
+            return {
+              valid: false,
+              errorCode: 'INVALID_PAYLOAD',
+              errorMessage: 'activity.history: payload must be an object if provided'
+            };
+          }
           if (message.payload.limit !== undefined &&
               (typeof message.payload.limit !== 'number' || message.payload.limit < 1)) {
             return {

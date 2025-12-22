@@ -29,14 +29,21 @@ export function renderProgressBar(
   width: number,
   options: ProgressBarOptions = {}
 ): string {
+  // Validate width - fail loudly if invalid (not finite positive number)
+  if (!Number.isFinite(width) || width < 1) {
+    throw new TypeError(`renderProgressBar: width must be a finite positive number, got ${width}`);
+  }
+
   const {
     filledChar = '█',
     emptyChar = '░',
     showPercentage = false
   } = options;
 
-  // Clamp percentage between 0 and 100
-  const clampedPercentage = Math.max(0, Math.min(100, percentage));
+  // Clamp percentage between 0 and 100 (handle NaN/Infinity gracefully)
+  const clampedPercentage = Number.isFinite(percentage)
+    ? Math.max(0, Math.min(100, percentage))
+    : 0;
 
   // Calculate the bar width (account for percentage suffix if shown)
   let barWidth = width;
@@ -95,11 +102,15 @@ export function getActivityIcon(type: string): string {
  * Format a timestamp for display in the activity log
  *
  * @param timestamp - ISO timestamp string
- * @returns Formatted time string (e.g., "14:32")
+ * @returns Formatted time string (e.g., "14:32") or '--:--' for invalid timestamps
  */
 export function formatActivityTime(timestamp: string): string {
   try {
     const date = new Date(timestamp);
+    // Check for invalid dates explicitly before formatting
+    if (isNaN(date.getTime())) {
+      return '--:--';
+    }
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',

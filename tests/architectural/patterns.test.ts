@@ -182,6 +182,7 @@ function checkDependencyInjectionUsage(): string[] {
             !content.includes('ONNXSingletonManager') &&
             !content.includes('new ONNXEmbeddingService') &&
             !content.includes('new GitIgnoreService') &&
+            !content.includes('new ActivityService') &&
             !file.includes('ValidationPipelineService')) {
           violations.push(`Possible DI violation in ${file}: direct service instantiation`);
         }

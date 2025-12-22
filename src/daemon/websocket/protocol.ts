@@ -494,7 +494,15 @@ export class WebSocketProtocol {
     }
 
     const { id, payload } = message;
-    const limit = payload?.limit ?? 100;
+
+    // Validate and clamp limit: coerce to number, validate finite integer, clamp 1-1000
+    let limit = 100;  // default
+    if (payload?.limit !== undefined) {
+      const rawLimit = Number(payload.limit);
+      if (Number.isFinite(rawLimit) && Number.isInteger(rawLimit)) {
+        limit = Math.max(1, Math.min(1000, rawLimit));
+      }
+    }
 
     this.logger.debug(`Getting activity history (limit: ${limit})`);
 

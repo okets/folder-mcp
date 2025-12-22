@@ -187,23 +187,7 @@ export class LogItem implements IListItem {
         
         return lines;
     }
-    
-    private truncateText(maxWidth: number): string {
-        const iconWidth = 2; // icon + space
-        const statusWidth = this.status ? 2 : 0; // space + status
-        const availableWidth = maxWidth - iconWidth - statusWidth;
-        
-        if (this.text.length <= availableWidth) {
-            return this.text;
-        }
-        
-        if (availableWidth <= 3) {
-            return '…';
-        }
-        
-        return this.text.slice(0, availableWidth - 1) + '…';
-    }
-    
+
     private wordWrap(text: string, maxWidth: number, maxLines?: number): string[] {
         if (text.length <= maxWidth) {
             return [text];
@@ -280,33 +264,32 @@ export class LogItem implements IListItem {
      * Get theme color based on status character
      *
      * Status symbols and their semantic meanings:
-     * - '⋯' = in-progress (warningOrange - yellow/orange from theme)
-     * - '✓' = completed indexing (green/successGreen)
-     * - '⚠' = error/warning (orange/warningOrange)
+     * - '⋯' = in-progress (accent/cyan)
+     * - '✓' = completed indexing (successGreen)
+     * - '⚠' = error/warning (warningOrange)
      * - '•' = neutral info (white/default)
      *
      * Color usage:
-     * - Cyan (accent): ONLY for selection highlight
+     * - Cyan (accent): In-progress operations AND selection highlight
      * - Green (successGreen): ONLY for completed progress
-     * - Yellow/Orange (warningOrange): In-progress and errors/warnings
+     * - Orange (warningOrange): Errors and warnings only
      * - White (default): Neutral instant events
      *
-     * Theme requirements: Themes MUST have distinct accent and warning colors
-     * to differentiate selection from in-progress state. Fixed in:
-     * - sunset: warning changed from orange to yellow (#FFD60A)
-     * - highContrast: warning changed from yellowBright to magentaBright
+     * Note: Selection uses accent color (cyan) for highlighting, which
+     * matches in-progress items. This is intentional - selected in-progress
+     * items appear brighter due to the combined effect.
      */
     private getStatusColor(): string | undefined {
         const theme = getCurrentTheme();
         switch (this.status) {
             case '✓':
-                return theme.colors.successGreen;
+                return theme.colors.successGreen;   // Green - completed indexing ONLY
             case '⚠':
-                return theme.colors.warningOrange;
+                return theme.colors.warningOrange;  // Orange - errors/warnings
             case '⋯':
-                return theme.colors.warningOrange;  // Orange/yellow - in progress
+                return theme.colors.accent;         // Cyan - in progress
             case '•':
-                return undefined;  // Neutral - use default text color
+                return undefined;                   // White - all instant events
             default:
                 return undefined;
         }
