@@ -204,3 +204,4 @@ Use the planning subagent along with the sequential thinking mcp to work on how 
  uses mostly existing custom components.
 Interview me along the plan. I want to you to lead the solicitation and interview me as the main 
 client before coming up with the plan for the app layout, it's screens and navigation between them. 
+

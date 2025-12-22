@@ -823,6 +823,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     {navigation.navigationSelectedIndex === 0 ? (
                         // Manage Folders Panel (index 0)
                         <GenericListPanel
+                            key="manage-folders-panel"
                             title="Manage Folders"
                             subtitle="Configuration"
                             items={configItems}
@@ -854,6 +855,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     ) : navigation.navigationSelectedIndex === 1 ? (
                         // Connect Panel (index 1)
                         <ConnectPanel
+                            key="connect-panel"
                             width={contentAvailableWidth}
                             height={contentAvailableHeight}
                             isFocused={navigation.isMainFocused}
@@ -862,7 +864,9 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         />
                     ) : navigation.navigationSelectedIndex === 2 ? (
                         // Activity Log Panel (index 2)
+                        // Key ensures state persists across layout changes (portrait ↔ landscape)
                         <ActivityLogPanel
+                            key="activity-log-panel"
                             width={contentAvailableWidth}
                             height={contentAvailableHeight}
                             isFocused={navigation.isMainFocused}
@@ -872,6 +876,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     ) : navigation.navigationSelectedIndex === 3 ? (
                         // Settings Panel (index 3)
                         <SettingsPanel
+                            key="settings-panel"
                             width={contentAvailableWidth}
                             height={contentAvailableHeight}
                             isFocused={navigation.isMainFocused}
@@ -881,6 +886,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     ) : (
                         // Demo Controls Panel (index 4)
                         <GenericListPanel
+                            key="demo-controls-panel"
                             title="Demo Controls"
                             subtitle="Component Testing"
                             items={STATUS_ITEMS}

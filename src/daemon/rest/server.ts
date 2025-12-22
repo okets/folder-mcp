@@ -170,6 +170,63 @@ export class RESTAPIServer {
   }
 
   /**
+   * Extract client name from User-Agent header for activity logging
+   * Identifies common MCP clients: Claude Desktop, Cursor, VSCode, etc.
+   */
+  private getClientName(req: Request): string {
+    const userAgent = req.get('user-agent') || '';
+
+    // Check for known MCP clients
+    if (userAgent.includes('Claude') || userAgent.includes('claude')) {
+      return 'Claude';
+    }
+    if (userAgent.includes('Cursor') || userAgent.includes('cursor')) {
+      return 'Cursor';
+    }
+    if (userAgent.includes('VSCode') || userAgent.includes('vscode') || userAgent.includes('Visual Studio Code')) {
+      return 'VSCode';
+    }
+    if (userAgent.includes('Windsurf') || userAgent.includes('windsurf')) {
+      return 'Windsurf';
+    }
+    if (userAgent.includes('node-fetch') || userAgent.includes('Node')) {
+      return 'Node.js';
+    }
+    if (userAgent.includes('Python') || userAgent.includes('python')) {
+      return 'Python';
+    }
+
+    // Extract first part of user-agent as fallback
+    const firstPart = userAgent.split('/')[0]?.trim();
+    if (firstPart && firstPart.length > 0 && firstPart.length < 20) {
+      return firstPart;
+    }
+
+    return 'MCP Client';
+  }
+
+  /**
+   * Emit activity event for MCP operations
+   */
+  private emitMcpActivity(req: Request, operation: string, details?: string[]): void {
+    if (!this.activityService) return;
+
+    const client = this.getClientName(req);
+    const event: Parameters<typeof this.activityService.emit>[0] = {
+      type: 'search',
+      level: 'info',
+      message: `${client}: ${operation}`,
+      userInitiated: true
+    };
+
+    if (details && details.length > 0) {
+      event.details = details;
+    }
+
+    this.activityService.emit(event);
+  }
+
+  /**
    * Configure Express middleware
    */
   private setupMiddleware(): void {
@@ -781,6 +838,24 @@ export class RESTAPIServer {
       };
 
       this.logger.debug(`[REST] Returning ${enhancedFolders.length} folders with semantic previews`);
+
+      // Log MCP activity with rich details - show folder names and doc counts
+      const folderDetails: string[] = [];
+      if (enhancedFolders.length > 0) {
+        folderDetails.push(`📁 ${enhancedFolders.length} configured folders:`);
+        enhancedFolders.forEach(folder => {
+          const folderName = folder.base_folder_path.split(/[/\\]/).pop() || folder.base_folder_path;
+          const status = folder.indexing_status.is_indexed ? '✓' : '○';
+          const docCount = folder.document_count || 0;
+          folderDetails.push(`   ${status} ${folderName} (${docCount} docs)`);
+        });
+        const totalDocs = enhancedFolders.reduce((sum, f) => sum + (f.document_count || 0), 0);
+        folderDetails.push(`📊 Total: ${totalDocs} documents indexed`);
+      } else {
+        folderDetails.push('No folders configured');
+      }
+      this.emitMcpActivity(req, 'list_folders', folderDetails);
+
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Enhanced list folders failed:', error);
@@ -1200,6 +1275,33 @@ export class RESTAPIServer {
         };
 
         this.logger.debug(`[REST] Returning ${documents.length} of ${totalCount} documents`);
+
+        // Log MCP activity with rich details - show actual document names
+        const folderName = baseFolderPath.split(/[/\\]/).pop() || baseFolderPath;
+        const listDetails: string[] = [];
+
+        if (documents.length > 0) {
+          listDetails.push(`📄 ${documents.length}/${totalCount} documents:`);
+          documents.slice(0, 5).forEach(doc => {
+            const docName = doc.file_path.split(/[/\\]/).pop() || doc.file_path;
+            const topPhrase = (doc as any).top_key_phrases?.[0]?.text || '';
+            listDetails.push(`   • ${docName}`);
+            if (topPhrase) {
+              listDetails.push(`     → "${topPhrase}"`);
+            }
+          });
+          if (documents.length > 5) {
+            listDetails.push(`   ... and ${documents.length - 5} more`);
+          }
+          if (totalCount > documents.length) {
+            listDetails.push(`📊 Use continuation_token for ${totalCount - documents.length} more`);
+          }
+        } else {
+          listDetails.push('No indexed documents found');
+        }
+
+        this.emitMcpActivity(req, `list_documents ${folderName}`, listDetails);
+
         res.json(response);
 
       } catch (dbError) {
@@ -1431,6 +1533,40 @@ export class RESTAPIServer {
           } : {})
         }
       };
+
+      // Log MCP activity with rich details - show actual directory and file names
+      const folderName = baseFolderPath.split(/[/\\]/).pop() || baseFolderPath;
+      const exploreDetails: string[] = [];
+
+      // Show directories (up to 5)
+      if (allDirs.length > 0) {
+        exploreDetails.push(`📁 ${allDirs.length} directories:`);
+        allDirs.slice(0, 5).forEach(dir => {
+          const dirInfo = subdirectoriesWithData.find(s => s.name === dir);
+          const docCount = dirInfo?.indexed_document_count || 0;
+          exploreDetails.push(`   • ${dir}/ ${docCount > 0 ? `(${docCount} docs)` : ''}`);
+        });
+        if (allDirs.length > 5) {
+          exploreDetails.push(`   ... and ${allDirs.length - 5} more directories`);
+        }
+      }
+
+      // Show files (up to 5)
+      if (allFiles.length > 0) {
+        exploreDetails.push(`📄 ${allFiles.length} files:`);
+        allFiles.slice(0, 5).forEach(file => {
+          exploreDetails.push(`   • ${file}`);
+        });
+        if (allFiles.length > 5) {
+          exploreDetails.push(`   ... and ${allFiles.length - 5} more files`);
+        }
+      }
+
+      if (allDirs.length === 0 && allFiles.length === 0) {
+        exploreDetails.push('Empty directory');
+      }
+
+      this.emitMcpActivity(req, `explore ${folderName}${normalizedSubPath ? '/' + normalizedSubPath : ''}`, exploreDetails);
 
       res.json(response);
     } catch (error) {
@@ -1738,6 +1874,38 @@ export class RESTAPIServer {
       }
 
       this.logger.debug(`[REST] Returning document data for ${filePath} from folder ${folderPath}`);
+
+      // Log MCP activity with rich details - show document info
+      const fileName = filePath.split(/[/\\]/).pop() || filePath;
+      const docDetails: string[] = [];
+
+      if (response.document) {
+        const sem = response.document.semanticMetadata;
+        const meta = response.document.metadata;
+
+        docDetails.push(`📄 Retrieved: ${fileName}`);
+        if (meta?.contentType) {
+          docDetails.push(`   Type: ${meta.contentType}`);
+        }
+        if (meta?.characterCount) {
+          docDetails.push(`   Size: ${meta.characterCount.toLocaleString()} chars`);
+        }
+        if (sem?.primaryPurpose) {
+          docDetails.push(`   Purpose: ${sem.primaryPurpose}`);
+        }
+        if (sem?.keyPhrases && sem.keyPhrases.length > 0) {
+          const topPhrases = sem.keyPhrases.slice(0, 3).map((kp: any) => kp.text || kp).join(', ');
+          docDetails.push(`   Topics: ${topPhrases}`);
+        }
+        if (sem?.hasCodeExamples) {
+          docDetails.push(`   ✓ Contains code examples`);
+        }
+      } else {
+        docDetails.push(`Retrieved: ${fileName}`);
+      }
+
+      this.emitMcpActivity(req, `get_document ${fileName}`, docDetails);
+
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document failed:', error);
@@ -1974,6 +2142,44 @@ export class RESTAPIServer {
       }
 
       this.logger.debug(`[REST] Returning document outline for ${filePath} from folder ${folderPath}`);
+
+      // Log MCP activity with rich details - show outline structure
+      const fileName = filePath.split(/[/\\]/).pop() || filePath;
+      const outlineDetails: string[] = [];
+
+      outlineDetails.push(`📑 Outline: ${fileName}`);
+
+      if (response.outline?.headings && response.outline.headings.length > 0) {
+        const headings = response.outline.headings;
+        outlineDetails.push(`   ${headings.length} headings/sections:`);
+        // Show first 4 headings
+        headings.slice(0, 4).forEach((h: any) => {
+          const indent = '  '.repeat(Math.min(h.level || 1, 3));
+          outlineDetails.push(`   ${indent}• ${h.text?.substring(0, 40) || 'Untitled'}${h.text?.length > 40 ? '...' : ''}`);
+        });
+        if (headings.length > 4) {
+          outlineDetails.push(`   ... and ${headings.length - 4} more sections`);
+        }
+        // Check for code examples
+        const hasCode = headings.some((h: any) => h.semantics?.hasCodeExamples);
+        if (hasCode) {
+          outlineDetails.push(`   ✓ Contains code examples`);
+        }
+      } else if (response.outline?.sections && response.outline.sections.length > 0) {
+        const sections = response.outline.sections;
+        outlineDetails.push(`   ${sections.length} sections:`);
+        sections.slice(0, 4).forEach((s: any) => {
+          outlineDetails.push(`   • ${s.title?.substring(0, 40) || 'Untitled'}${s.title?.length > 40 ? '...' : ''}`);
+        });
+        if (sections.length > 4) {
+          outlineDetails.push(`   ... and ${sections.length - 4} more sections`);
+        }
+      } else {
+        outlineDetails.push(`   No structured outline found`);
+      }
+
+      this.emitMcpActivity(req, `get_outline ${fileName}`, outlineDetails);
+
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document outline failed:', error);
@@ -2195,6 +2401,35 @@ export class RESTAPIServer {
           }
         };
 
+        // Log MCP activity with rich details - show metadata structure
+        const metaDetails: string[] = [];
+        metaDetails.push(`📋 Metadata: ${fileName}`);
+        metaDetails.push(`   Chunks: ${processedChunks.length}/${totalChunks}`);
+
+        // Show code chunks info
+        if (chunksWithCode.length > 0) {
+          metaDetails.push(`   ✓ ${chunksWithCode.length} chunks with code examples`);
+        }
+
+        // Show sample key phrases from first chunk
+        const firstChunk = processedChunks[0];
+        if (firstChunk) {
+          if (firstChunk.key_phrases && firstChunk.key_phrases.length > 0) {
+            const phrases = firstChunk.key_phrases.slice(0, 3).map((kp: any) => kp.text).join(', ');
+            metaDetails.push(`   Topics: ${phrases}`);
+          }
+          // Show preview of first chunk
+          if (firstChunk.preview) {
+            metaDetails.push(`   Preview: "${firstChunk.preview.substring(0, 50)}..."`);
+          }
+        }
+
+        if (totalChunks > processedChunks.length) {
+          metaDetails.push(`📊 ${totalChunks - processedChunks.length} more chunks available`);
+        }
+
+        this.emitMcpActivity(req, `get_metadata ${fileName}`, metaDetails);
+
         res.json(response);
 
       } catch (dbError) {
@@ -2329,6 +2564,28 @@ export class RESTAPIServer {
         download_url: downloadUrl,
         chunks: processedChunks
       };
+
+      // Log MCP activity with rich details - show chunk content previews
+      const fileName = filePath.split(/[/\\]/).pop() || filePath;
+      const chunkDetails: string[] = [];
+
+      if (processedChunks.length > 0) {
+        chunkDetails.push(`📦 Retrieved ${processedChunks.length} chunks from ${fileName}:`);
+        processedChunks.slice(0, 3).forEach((chunk: any) => {
+          const preview = chunk.content?.substring(0, 60)?.replace(/\n/g, ' ') || '';
+          chunkDetails.push(`   • ${chunk.chunk_id}: "${preview}..."`);
+        });
+        if (processedChunks.length > 3) {
+          chunkDetails.push(`   ... and ${processedChunks.length - 3} more chunks`);
+        }
+        // Show total characters retrieved
+        const totalChars = processedChunks.reduce((sum: number, c: any) => sum + (c.content?.length || 0), 0);
+        chunkDetails.push(`📊 Total: ${totalChars.toLocaleString()} characters`);
+      } else {
+        chunkDetails.push(`No chunks found for requested IDs in ${fileName}`);
+      }
+
+      this.emitMcpActivity(req, `get_chunks ${fileName}`, chunkDetails);
 
       res.json(response);
 
@@ -2527,6 +2784,37 @@ export class RESTAPIServer {
           pagination: pagination,
           navigation_hints: navigationHints
         };
+
+        // Log MCP activity with rich details - show text extraction info
+        const fileName = filePath.split(/[/\\]/).pop() || filePath;
+        const textDetails: string[] = [];
+
+        textDetails.push(`📝 Text: ${fileName}`);
+        textDetails.push(`   Extracted: ${charactersReturned.toLocaleString()}/${totalChars.toLocaleString()} chars`);
+
+        // Show progress percentage
+        const progressPct = totalChars > 0 ? Math.round((offset + charactersReturned) / totalChars * 100) : 100;
+        if (progressPct < 100) {
+          textDetails.push(`   Progress: ${progressPct}% (${((totalChars - offset - charactersReturned) / 1000).toFixed(1)}K remaining)`);
+        } else {
+          textDetails.push(`   ✓ Complete`);
+        }
+
+        // Show preview of content
+        if (extractedText && extractedText.length > 0) {
+          const preview = extractedText.substring(0, 80).replace(/\n/g, ' ').trim();
+          textDetails.push(`   Preview: "${preview}..."`);
+        }
+
+        // Show warnings if any
+        if (metadata.has_formatting_loss) {
+          textDetails.push(`   ⚠ Some formatting was lost`);
+        }
+        if (metadata.extraction_warnings && metadata.extraction_warnings.length > 0) {
+          textDetails.push(`   ⚠ ${metadata.extraction_warnings.length} extraction warnings`);
+        }
+
+        this.emitMcpActivity(req, `get_text ${fileName}`, textDetails);
 
         res.json(response);
 
@@ -2940,18 +3228,46 @@ export class RESTAPIServer {
           navigation_hints: navigationHints
         };
 
-        // Emit activity event for MCP search query
+        // Log MCP activity with rich details - show actual documents found
         const queryPreview = searchParams.semantic_concepts?.length > 0
           ? searchParams.semantic_concepts.join(', ').substring(0, 40)
           : searchParams.exact_terms?.join(', ').substring(0, 40) || '';
         const folderName = folderPath.split(/[/\\]/).pop() || folderPath;
-        this.activityService?.emit({
-          type: 'search',
-          level: 'info',
-          message: `Search: "${queryPreview}${queryPreview.length >= 40 ? '...' : ''}"`,
-          userInitiated: true,
-          details: [`Folder: ${folderName}`, `Results: ${results.length}`]
-        });
+
+        // Build rich details: show actual file names, relevance, and matched content preview
+        const searchDetails: string[] = [];
+        if (uniqueFiles.length > 0) {
+          // Show top matching files with their relevance scores
+          const fileScores = new Map<string, number>();
+          results.forEach(r => {
+            const fileName = r.file_path.split(/[/\\]/).pop() || r.file_path;
+            if (!fileScores.has(fileName) || r.relevance_score > fileScores.get(fileName)!) {
+              fileScores.set(fileName, r.relevance_score);
+            }
+          });
+
+          // Sort by relevance and show top 5 files
+          const sortedFiles = Array.from(fileScores.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+          searchDetails.push(`📄 Matched ${uniqueFiles.length} files:`);
+          sortedFiles.forEach(([fileName, score]) => {
+            searchDetails.push(`   • ${fileName} (${(score * 100).toFixed(0)}% match)`);
+          });
+          if (uniqueFiles.length > 5) {
+            searchDetails.push(`   ... and ${uniqueFiles.length - 5} more files`);
+          }
+        } else {
+          searchDetails.push(`No matches found in ${folderName}`);
+        }
+
+        // Show search interpretation
+        if (avgRelevance > 0) {
+          searchDetails.push(`📊 Avg relevance: ${(avgRelevance * 100).toFixed(0)}%`);
+        }
+
+        this.emitMcpActivity(req, `search "${queryPreview}${queryPreview.length >= 40 ? '...' : ''}"`, searchDetails);
 
         res.status(200).json(response);
       } finally {
@@ -3207,16 +3523,32 @@ export class RESTAPIServer {
           navigation_hints: navigationHints
         };
 
-        // Emit activity event for MCP find documents query
+        // Log MCP activity with rich details - show actual documents found
         const queryPreview = body.query.substring(0, 40);
         const folderName = folderPath.split(/[/\\]/).pop() || folderPath;
-        this.activityService?.emit({
-          type: 'search',
-          level: 'info',
-          message: `Find: "${queryPreview}${body.query.length > 40 ? '...' : ''}"`,
-          userInitiated: true,
-          details: [`Folder: ${folderName}`, `Documents: ${findResults.length}`]
-        });
+
+        // Build rich details: show actual document names and relevance
+        const findDetails: string[] = [];
+        if (findResults.length > 0) {
+          findDetails.push(`📚 Found ${findResults.length} documents:`);
+          // Show top 5 documents with relevance
+          findResults.slice(0, 5).forEach(doc => {
+            const docName = doc.file_path.split(/[/\\]/).pop() || doc.file_path;
+            const topPhrase = doc.document_summary.top_key_phrases[0]?.text || '';
+            findDetails.push(`   • ${docName} (${(doc.relevance_score * 100).toFixed(0)}% match)`);
+            if (topPhrase) {
+              findDetails.push(`     → "${topPhrase}"`);
+            }
+          });
+          if (findResults.length > 5) {
+            findDetails.push(`   ... and ${findResults.length - 5} more documents`);
+          }
+          findDetails.push(`📊 Avg relevance: ${(avgRelevance * 100).toFixed(0)}%`);
+        } else {
+          findDetails.push(`No documents found matching "${body.query}" in ${folderName}`);
+        }
+
+        this.emitMcpActivity(req, `find_documents "${queryPreview}${body.query.length > 40 ? '...' : ''}"`, findDetails);
 
         res.status(200).json(response);
       } finally {

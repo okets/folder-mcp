@@ -25,12 +25,13 @@ export class LogItem implements IListItem {
         public isActive: boolean,
         isExpanded: boolean,
         private details?: string[],
-        public progress?: number
+        public progress?: number,
+        private timestamp?: string  // Optional timestamp displayed before icon: "[HH:MM] "
     ) {
         this._isExpanded = isExpanded;
         // Icon is TYPE-based (what happened) - passed in from caller
         // Status determines COLOR (how it went) - used by getStatusColor()
-        // No longer overwrite icon with status - they serve different purposes
+        // Timestamp (if provided) is displayed first: "[HH:MM] ◆ Message"
     }
     
     get isExpanded(): boolean {
@@ -103,14 +104,17 @@ export class LogItem implements IListItem {
             
             // Detail lines - word wrapped to fit width and height
             const allDetailLines: Array<{text: string, isLast: boolean}> = [];
-            
+
+            // Calculate indent for detail lines: timestamp (8 chars if present) + symbol (2 chars) + space
+            const detailIndentWidth = (this.timestamp ? 8 : 0) + 3;
+
             // First collect all detail lines
             for (let i = 0; i < this.details.length && (!remainingLines || allDetailLines.length < remainingLines); i++) {
                 const detail = this.details[i] ?? '';
                 const maxLinesForDetail = remainingLines ? remainingLines - allDetailLines.length : undefined;
-                const wrappedLines = maxLinesForDetail !== undefined 
-                    ? this.wordWrap(String(detail), maxWidth - 3, maxLinesForDetail)
-                    : this.wordWrap(String(detail), maxWidth - 3);
+                const wrappedLines = maxLinesForDetail !== undefined
+                    ? this.wordWrap(String(detail), maxWidth - detailIndentWidth, maxLinesForDetail)
+                    : this.wordWrap(String(detail), maxWidth - detailIndentWidth);
                 
                 for (let j = 0; j < wrappedLines.length && (!remainingLines || allDetailLines.length < remainingLines); j++) {
                     const line = wrappedLines[j];
@@ -132,21 +136,26 @@ export class LogItem implements IListItem {
             }
             
             // Now render with appropriate symbols
+            // Indent detail lines to align │ under the icon (after timestamp)
+            // Timestamp is "[HH:MM] " = 8 chars
+            const timestampIndent = this.timestamp ? ' '.repeat(8) : '';
+
             allDetailLines.forEach((line, index) => {
                 let symbol = line.isLast ? '└' : '│';
                 let spacing = ' '; // Normal 1-space spacing
-                
+
                 // Show cursor on the last line when item is active
                 if (line.isLast && this.isActive) {
                     symbol = '└▶';
                     spacing = ''; // No extra spacing since cursor takes up space
                 }
-                
+
                 // Use cyan (selection blue) for symbols when active, otherwise use header color
                 const symbolColor = this.isActive ? theme.colors.accent : headerColor;
-                
+
                 elements.push(
                     <Text key={`detail-${index}`}>
+                        <Text>{timestampIndent}</Text>
                         <Text {...textColorProp(symbolColor)}>{symbol}{spacing}</Text>
                         <Text {...textColorProp(theme.colors.textMuted)}>{line.text}</Text>
                     </Text>
@@ -305,18 +314,8 @@ export class LogItem implements IListItem {
     
     private buildSegments(maxWidth: number): Segment[] {
         const theme = getCurrentTheme();
-        const BUFFER = 1; // Small buffer for ellipsis and safety
-        const safeWidth = maxWidth - BUFFER;
-        
-        
-        // Calculate space allocation
-        const iconWidth = this.icon.length + 1; // icon + space
-        
-        // For progress items, we need to reserve minimum space
-        // But we'll pass the full text and let renderSegments handle truncation
-        let displayText = this.text;
-        
-        // Build segments
+
+        // Build segments: [timestamp] icon text
         // Icon is TYPE-based, but colored by STATUS
         const statusColor = this.status ? this.getStatusColor() : undefined;
 
@@ -327,95 +326,61 @@ export class LogItem implements IListItem {
         const iconColor = useStatusColor ? statusColor : (this.isActive ? theme.colors.accent : statusColor);
         const textColor = this.isActive ? theme.colors.accent : statusColor;
 
-        const segments: Segment[] = [
-            {
-                text: this.icon,
-                color: iconColor
-            },
-            {
-                text: displayText,
-                color: textColor
-            }
-        ];
-        
+        const segments: Segment[] = [];
+
+        // Timestamp segment (optional) - fixed width, muted color
+        // Format: "[HH:MM] " = 8 chars total
+        if (this.timestamp) {
+            segments.push({
+                text: `[${this.timestamp}]`,
+                color: this.isActive ? theme.colors.accent : theme.colors.textMuted
+            });
+        }
+
+        // Icon segment - colored by status
+        segments.push({
+            text: this.icon,
+            color: iconColor
+        });
+
+        // Text segment - colored by status
+        segments.push({
+            text: this.text,
+            color: textColor
+        });
+
         return segments;
     }
     
     private renderSegments(segments: Segment[], maxWidth: number): ReactElement {
-        
-        const iconSegment = segments[0];
-        const textSegment = segments[1];
-        
+        // Segments structure: [timestamp?, icon, text]
+        // With timestamp: 3 segments
+        // Without timestamp: 2 segments
+        const hasTimestamp = segments.length === 3;
+        const timestampSegment = hasTimestamp ? segments[0] : undefined;
+        const iconSegment = hasTimestamp ? segments[1] : segments[0];
+        const textSegment = hasTimestamp ? segments[2] : segments[1];
+
         // Handle missing segments
         if (!iconSegment || !textSegment) {
             return <Text></Text>;
         }
-        
-        // If both have the same color, render as single Text to avoid issues
-        if (iconSegment.color === textSegment.color && this.progress === undefined) {
-            // APPLY TRUNCATION EVEN IN SAME-COLOR PATH
-            const iconLength = iconSegment.text.length + 1; // icon + space
-            const BUFFER = 1; // Small buffer for ellipsis and safety
-            const availableForText = maxWidth - iconLength - BUFFER;
-            
-            let displayText = textSegment.text;
-            if (textSegment.text.length > availableForText) {
-                if (availableForText <= 3) {
-                    displayText = '…';
-                } else {
-                    displayText = textSegment.text.slice(0, availableForText - 1) + '…';
-                }
-            }
-            
-            const finalText = iconSegment.text + ' ' + displayText;
-            
-            return (
-                <Text {...textColorProp(iconSegment.color)}>
-                    {finalText}
-                </Text>
-            );
-        }
-        
+
+        // Calculate fixed widths
+        const BUFFER = 1;
+        const timestampWidth = timestampSegment ? timestampSegment.text.length + 1 : 0; // "[HH:MM] " = 8 chars
+        const iconWidth = iconSegment.text.length + 1; // icon + space
+        const fixedWidth = timestampWidth + iconWidth + BUFFER;
+
         // Create a wrapper component to use hooks and handle text truncation
         const ContentWithProgress = () => {
             const progressMode = useProgressMode();
             const hasProgress = this.progress !== undefined || this.status === '⋯';
-            
-            // Calculate available space for text
-            const iconLength = iconSegment.text.length + 1; // icon + space
-            const BUFFER = 1; // Small buffer for ellipsis and safety
-            
-            if (!hasProgress) {
-                // No progress bar, use all available space
-                const availableForText = maxWidth - iconLength - BUFFER;
-                
-                // Truncate text if needed
-                let displayText = textSegment.text;
-                if (textSegment.text.length > availableForText) {
-                    if (availableForText <= 3) {
-                        displayText = '…';
-                    } else {
-                        displayText = textSegment.text.slice(0, availableForText - 1) + '…';
-                    }
-                }
-                
-                // Combine all text into a single string to prevent any wrapping
-                const fullText = iconSegment.text + ' ' + displayText;
-                
-                return (
-                    <Text {...textColorProp(iconSegment.color || textSegment.color)}>
-                        {fullText}
-                    </Text>
-                );
-            }
-            
+
             // Calculate space needed for progress
-            // Short: 4 chars + 1 space = 5
-            // Long: 1 spinner + 10 bar + 1 space + 3-4 percentage = 15-16
-            const progressWidth = progressMode === 'short' ? 5 : 16; // Account for consistent spacing
-            const availableForText = maxWidth - iconLength - progressWidth - BUFFER;
-            
-            
+            const progressWidth = hasProgress ? (progressMode === 'short' ? 5 : 16) : 0;
+            const availableForText = maxWidth - fixedWidth - progressWidth;
+
             // Truncate text if needed
             let displayText = textSegment.text;
             if (textSegment.text.length > availableForText) {
@@ -425,17 +390,41 @@ export class LogItem implements IListItem {
                     displayText = textSegment.text.slice(0, availableForText - 1) + '…';
                 }
             }
-            
-            return (
-                <Box justifyContent="space-between" width="100%">
+
+            if (!hasProgress) {
+                // No progress bar - render all segments inline
+                return (
                     <Text>
+                        {timestampSegment && (
+                            <>
+                                <Text {...textColorProp(timestampSegment.color)}>{timestampSegment.text}</Text>
+                                <Text> </Text>
+                            </>
+                        )}
                         <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
                         <Text> </Text>
                         <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
                     </Text>
-                    <ProgressBar 
+                );
+            }
+
+            // With progress bar - use flex layout
+            return (
+                <Box justifyContent="space-between" width="100%">
+                    <Text>
+                        {timestampSegment && (
+                            <>
+                                <Text {...textColorProp(timestampSegment.color)}>{timestampSegment.text}</Text>
+                                <Text> </Text>
+                            </>
+                        )}
+                        <Text {...textColorProp(iconSegment.color)}>{iconSegment.text}</Text>
+                        <Text> </Text>
+                        <Text {...textColorProp(textSegment.color)}>{displayText}</Text>
+                    </Text>
+                    <ProgressBar
                         mode={progressMode}
-                        width={15}  // Not used in long mode since bar is fixed at 10
+                        width={15}
                         {...(this.progress !== undefined ? { value: this.progress } : {})}
                     />
                 </Box>

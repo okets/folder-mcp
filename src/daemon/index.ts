@@ -267,6 +267,16 @@ class FolderMCPDaemon {
         debug(`Starting REST API server on port ${restPort}...`);
         await this.restAPIServer.start(restPort, '127.0.0.1');
         info(`REST API server started on http://127.0.0.1:${restPort}`);
+
+        // Emit activity event for MCP server started
+        if (this.activityService) {
+          this.activityService.emit({
+            type: 'connection',
+            level: 'info',
+            message: `MCP server started on port ${restPort}`,
+            userInitiated: false
+          });
+        }
       } catch (restError) {
         logError('Failed to start REST API server:', restError);
         throw restError;

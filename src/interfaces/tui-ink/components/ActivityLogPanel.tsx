@@ -11,24 +11,27 @@
  * @see Phase-11-Sprint-4-Activity-Log-Screen.md
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Key } from 'ink';
 import { GenericListPanel } from './GenericListPanel';
 import { TextListItem } from './core/TextListItem';
 import { LogItem } from './core/LogItem';
 import { IListItem } from './core/IListItem';
 import { useActivityEvents, useFMDMConnection, SerializedActivityEvent } from '../contexts/FMDMContext';
+import { useNavigationContext } from '../contexts/NavigationContext';
 import { formatActivityTime, getActivityIcon } from '../utils/progress-bar.js';
 
 /**
  * Convert a SerializedActivityEvent to a LogItem
  *
- * Visual Design:
+ * Layout: "[HH:MM] ◆ Message text"
+ * - Timestamp first (fixed 7 chars: "[HH:MM]")
  * - Icon = Event TYPE (what happened) - always type-based
- * - Color = Event STATUS (how it went) - determined by status character
+ * - Message text
+ * - Progress bar (for in-progress items)
  *
  * Color Rules (using theme colors):
- * - '⋯' = cyan (accent) - in-progress
+ * - '⋯' = orange (warningOrange) - in-progress
  * - '✓' = green (successGreen) - completed indexing ONLY
  * - '⚠' = orange (warningOrange) - errors/warnings
  * - '•' = white (default) - all instant events
@@ -40,8 +43,7 @@ function createLogItemFromEvent(
 ): LogItem {
     const isInProgress = event.progress !== undefined && event.progress < 100;
     const isCompleted = event.progress !== undefined && event.progress >= 100;
-    const timestamp = formatActivityTime(event.timestamp);
-    const text = `[${timestamp}] ${event.message}`;
+    const timestamp = formatActivityTime(event.timestamp);  // "HH:MM" format
 
     // Icon is ALWAYS type-based (what happened)
     const icon = getActivityIcon(event.type);
@@ -50,7 +52,7 @@ function createLogItemFromEvent(
     // Green is ONLY for completed progress events, not for level='success'
     let status: string;
     if (isInProgress) {
-        status = '⋯';  // cyan (theme.colors.accent) - in progress
+        status = '⋯';  // orange (theme.colors.warningOrange) - in progress
     } else if (isCompleted) {
         status = '✓';  // green (theme.colors.successGreen) - completed indexing ONLY
     } else if (event.level === 'error' || event.level === 'warning') {
@@ -59,14 +61,17 @@ function createLogItemFromEvent(
         status = '•';  // white (default) - all other instant events
     }
 
+    // Layout: "[HH:MM] ◆ Message text"
+    // Timestamp is passed separately and rendered first
     return new LogItem(
         icon,
-        text,
+        event.message,  // Just the message, no timestamp
         status,
         isActive,
         isExpanded,
         event.details,
-        isInProgress ? event.progress : (isCompleted ? 100 : undefined)
+        isInProgress ? event.progress : (isCompleted ? 100 : undefined),
+        timestamp  // Timestamp displayed before icon
     );
 }
 
@@ -85,13 +90,15 @@ export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({
     isLandscape,
     onSwitchToNavigation
 }) => {
-    // Track selected index for navigation
-    const [selectedIndex, setSelectedIndex] = useState(0);
-
-    // Track expanded state per event correlationId or ID
-    // Using correlationId ensures expanded state survives progress updates (which create new event IDs)
-    // Using state (not ref) ensures React properly tracks and re-renders on changes
-    const [expandedState, setExpandedState] = useState<Record<string, boolean>>({});
+    // Use navigation context for state that survives resize overlay
+    // This is lifted here because the resize check in AppContentInner unmounts this component,
+    // losing any local useState. NavigationContext survives because NavigationProvider
+    // is above the resize check in the component tree.
+    const navigation = useNavigationContext();
+    const selectedIndex = navigation.activitySelectedIndex;
+    const setSelectedIndex = navigation.setActivitySelectedIndex;
+    const expandedState = navigation.activityExpandedState;
+    const setExpandedState = navigation.setActivityExpandedState;
 
     // Get activity events with Progress River sorting from context
     const activityEvents = useActivityEvents();

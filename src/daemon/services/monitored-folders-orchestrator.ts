@@ -391,6 +391,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Add folder to FMDM as pending
       this.addFolderToFMDM(path, model, 'pending');
 
+      // Emit activity event for folder added
+      this.activityService?.emit({
+        type: 'indexing',
+        level: 'info',
+        message: `Folder added: ${this.extractFolderName(path)}`,
+        userInitiated: true,
+        details: [path]
+      });
+
       // Start folder scanning (queue will handle model download/load if needed)
       await this.startFolderScanning(path, model);
 
@@ -730,6 +739,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     this.logger.debug(`[ORCHESTRATOR-REMOVE] Calling updateFMDM after folder removal`);
     this.updateFMDM();
     
+    // Emit activity event for folder removed
+    this.activityService?.emit({
+      type: 'indexing',
+      level: 'info',
+      message: `Folder removed: ${this.extractFolderName(folderPath)}`,
+      userInitiated: true,
+      details: [folderPath]
+    });
+
     this.logger.info(`Removed folder from monitoring: ${folderPath}`);
   }
   
@@ -1164,6 +1182,15 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
         return;
       }
     }
+
+    // Emit activity event for folder change detected
+    this.activityService?.emit({
+      type: 'indexing',
+      level: 'info',
+      message: `Folder changed, initiating re-indexing: ${this.extractFolderName(folderPath)}`,
+      userInitiated: false,
+      details: [folderPath]
+    });
 
     // Re-queue the folder for full indexing (same as daemon restart behavior)
     try {

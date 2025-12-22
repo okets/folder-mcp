@@ -15,6 +15,9 @@ interface NavigationState {
     mainSelectedIndex: number;
     statusSelectedIndex: number;
     activePanelId: PanelId;  // Active panel for navigation framework
+    // Activity Log state - lifted here to survive resize overlay
+    activitySelectedIndex: number;
+    activityExpandedState: Record<string, boolean>;
 }
 
 interface UseNavigationOptions {
@@ -41,7 +44,10 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         navigationSelectedIndex: 0,
         mainSelectedIndex: 0,
         statusSelectedIndex: 0,
-        activePanelId: 'folders'  // Default to folders panel
+        activePanelId: 'folders',  // Default to folders panel
+        // Activity Log state - survives resize overlay
+        activitySelectedIndex: 0,
+        activityExpandedState: {}
     });
     const di = useDI();
 
@@ -171,6 +177,21 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         }));
     }, [isBlocked, statusItemCount]);
 
+    // Activity Log state setters - lifted here to survive resize overlay
+    const setActivitySelectedIndex = useCallback((index: number) => {
+        setState(prev => ({
+            ...prev,
+            activitySelectedIndex: index
+        }));
+    }, []);
+
+    const setActivityExpandedState = useCallback((updater: (prev: Record<string, boolean>) => Record<string, boolean>) => {
+        setState(prev => ({
+            ...prev,
+            activityExpandedState: updater(prev.activityExpandedState)
+        }));
+    }, []);
+
     // Handle navigation input through focus chain
     const handleNavigationInput = useCallback((input: string, key: Key): boolean => {
         if (isBlocked) return false;
@@ -212,8 +233,10 @@ export const useNavigation = (options: UseNavigationOptions = {}) => {
         navigateDown,
         setMainSelectedIndex,
         setStatusSelectedIndex,
+        setActivitySelectedIndex,
+        setActivityExpandedState,
         isNavigationFocused: state.activeContainer === 'navigation',
         isMainFocused: state.activeContainer === 'main',
         isStatusFocused: state.activeContainer === 'status'
-    }), [state, switchContainer, switchToContent, switchToNavigation, navigateUp, navigateDown, setMainSelectedIndex, setStatusSelectedIndex]);
+    }), [state, switchContainer, switchToContent, switchToNavigation, navigateUp, navigateDown, setMainSelectedIndex, setStatusSelectedIndex, setActivitySelectedIndex, setActivityExpandedState]);
 };
