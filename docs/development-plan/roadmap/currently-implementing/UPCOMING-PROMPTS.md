@@ -103,7 +103,6 @@ The automated Code review system does not know what we worked on. I want you to:
 MY Code review system's suggestions:
 High priority suggestions:
 1. 
-
 ------------- ----------------agent-to-endpoint
 agent-to-endpoint testing using project's directory indexing:
 You are ignoring the fact that the folder mcp project is indexed in the folder mcp. So basically every md file that you have access to also is indexed, our tests/fixtures folder also contains many documents. read them directly and through the endpoints. this will be much faste
@@ -206,4 +205,72 @@ Use the planning subagent along with the sequential thinking mcp to work on how 
  uses mostly existing custom components.
 Interview me along the plan. I want to you to lead the solicitation and interview me as the main 
 client before coming up with the plan for the app layout, it's screens and navigation between them. 
+
+
+
+Context Recap
+
+  We're building the Connect Screen - the 3rd of 4 screens in our Phase 11 TUI application. This screen helps users set up folder-mcp as an MCP server in their AI tools.
+
+  Completed Screens: Manage Folders ✅, Settings ✅, Activity Log ✅
+  This Sprint: Connect Screen
+  After This: Phase 11 complete → Phase 12 (Remote Access)
+
+  ---
+  Agenda
+
+  1. Research: MCP Configuration Formats
+  - What's the exact JSON format for Claude Desktop config?
+  - What's the exact format for Claude Code / VSCode MCP extension?
+  - What's the Cursor MCP configuration format?
+  - Are there other popular MCP clients we should support?
+  - What are the platform-specific config file paths (macOS/Windows/Linux)?
+
+  2. Design Discussion: Screen Layout
+  Let's sketch ASCII layouts for:
+  - How do we display multiple connection configs (tabs? scrollable list?)
+  - Where do copy buttons go? Inline or separate action bar?
+  - Do we show setup instructions inline or in an expandable section?
+  - Portrait vs landscape responsive behavior
+
+  3. Technical Decisions
+  - Do we need to detect the daemon's running status?
+  - Should we detect which tools are installed and prioritize those?
+  - Do we auto-detect the user's platform for correct paths?
+  - Clipboard access in terminal - how does Ink handle this?
+
+  4. Component Mapping
+  Review existing components and map them to UI needs:
+  - TextListItem - for connection string display
+  - ButtonsRow - for copy/action buttons
+  - GenericListPanel - for tool list if multiple
+  - Any gaps? (Hoping none - NO new components policy)
+
+  5. User Stories
+  - As a user, I want to copy the Claude Desktop config with one click
+  - As a user, I want to see platform-correct paths (not generic placeholders)
+  - As a user, I want clear step-by-step setup instructions
+  - As a user, I want to know if my daemon is running before I configure clients
+
+  ---
+  Key Files to Explore
+
+  src/interfaces/tui-ink/components/  # Existing components
+  src/interfaces/tui-ink/AppFullscreen.tsx  # Screen navigation
+  docs/development-plan/roadmap/currently-implementing/  # Sprint docs location
+
+  ---
+  Output Expected
+
+  1. Sprint-5-Connect-Screen.md - Detailed sprint plan with:
+    - User stories
+    - Technical tasks grouped by priority
+    - ASCII mockups for both orientations
+    - Component mapping
+    - Success criteria
+  2. Research answers for MCP config formats across all supported tools
+
+  ---
+  Start Command:
+  Read the Phase 11 epic and existing screen implementations, then lead a planning discussion for Sprint 5. Research MCP configuration formats for Claude Desktop, Claude Code, VSCode, and Cursor. Create ASCII mockups and a sprint plan document.
 

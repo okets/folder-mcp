@@ -422,17 +422,31 @@ export class SimpleButtonsRow implements IListItem {
         }
 
         if (key.leftArrow) {
-            this._focusedButtonIndex = this._focusedButtonIndex > 0
-                ? this._focusedButtonIndex - 1
-                : this.buttons.length - 1;
-            return true;
+            if (this._focusedButtonIndex > 0) {
+                // Move to previous button
+                this._focusedButtonIndex--;
+                return true;
+            } else {
+                // At first button - exit to let parent collapse
+                this._isControllingInput = false;
+                return false;
+            }
         }
 
         if (key.rightArrow) {
-            this._focusedButtonIndex = this._focusedButtonIndex < this.buttons.length - 1
-                ? this._focusedButtonIndex + 1
-                : 0;
+            if (this._focusedButtonIndex < this.buttons.length - 1) {
+                // Move to next button
+                this._focusedButtonIndex++;
+                return true;
+            }
+            // At last button - stay in place (consume input but don't change)
             return true;
+        }
+
+        if (key.escape) {
+            // Exit to let parent handle collapse
+            this._isControllingInput = false;
+            return false;
         }
 
         if (key.return || input === ' ') {

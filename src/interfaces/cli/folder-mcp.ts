@@ -1,23 +1,29 @@
 #!/usr/bin/env node
 /**
  * folder-mcp CLI
- * 
+ *
  * Unified command-line interface for folder-mcp.
- * 
+ *
  * Default behavior:
  * - folder-mcp → Launch TUI (detect daemon, connect or start)
  * - folder-mcp --daemon → Start daemon only
  * - folder-mcp --headless → Skip TUI (future)
  * - folder-mcp config → Configuration management
+ * - folder-mcp mcp server → Start MCP server in stdio mode (for client connections)
  */
 
 import { Command } from 'commander';
 import { createSimpleConfigCommand } from './commands/simple-config.js';
 import { spawn } from 'child_process';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { existsSync, readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import chalk from 'chalk';
+
+// Get current file directory for relative path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const program = new Command();
 
@@ -33,6 +39,29 @@ program
 
 // Add the config command
 program.addCommand(createSimpleConfigCommand());
+
+// Add the mcp command with server subcommand
+const mcpCommand = new Command('mcp')
+  .description('MCP server commands');
+
+mcpCommand
+  .command('server')
+  .description('Start MCP server in stdio mode (for MCP client connections)')
+  .action(async () => {
+    // Import and run MCP server
+    // Path is relative from dist/src/interfaces/cli/ to dist/src/mcp-server.js
+    const mcpServerPath = join(__dirname, '..', '..', 'mcp-server.js');
+
+    if (!existsSync(mcpServerPath)) {
+      console.error(chalk.red('MCP server not found. Please run: npm run build'));
+      process.exit(1);
+    }
+
+    // Dynamic import to run the MCP server
+    await import(mcpServerPath);
+  });
+
+program.addCommand(mcpCommand);
 
 // Add a simple help enhancement
 program.on('command:*', () => {

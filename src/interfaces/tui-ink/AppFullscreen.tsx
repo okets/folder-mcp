@@ -7,7 +7,7 @@ import { GenericListPanel } from './components/GenericListPanel';
 import { NavigationPanel } from './components/NavigationPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ActivityLogPanel } from './components/ActivityLogPanel';
-import { ConnectPanel } from './components/ConnectPanel';
+import { ConnectPanel, ConnectPanelExternalState, PopupState } from './components/ConnectPanel';
 import { useNavigationContext } from './contexts/NavigationContext';
 import { useTerminalSize } from './hooks/useTerminalSize';
 import { useRootInput, useFocusChain } from './hooks/useFocusChain';
@@ -199,7 +199,21 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     
     // State to track when we're intentionally exiting to prevent daemon error screen
     const [isExiting, setIsExiting] = useState<boolean>(false);
-    
+
+    // ConnectPanel external state - survives component remounts during resize
+    const connectPanelSelectedIndexRef = useRef(1); // Start at index 1 (first navigable client)
+    const connectPanelPopupStateRef = useRef<PopupState>({
+        visible: false,
+        clientId: null,
+        configJson: '',
+    });
+    const connectPanelItemsRef = useRef<IListItem[] | null>(null);
+    const connectPanelExternalState: ConnectPanelExternalState = useMemo(() => ({
+        selectedIndexRef: connectPanelSelectedIndexRef,
+        popupStateRef: connectPanelPopupStateRef,
+        itemsRef: connectPanelItemsRef,
+    }), []);
+
     // Navigation context for focus management - must be declared before usage
     const navigation = useNavigationContext();
 
@@ -861,6 +875,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                             isFocused={navigation.isMainFocused}
                             isLandscape={isLandscape}
                             onSwitchToNavigation={navigation.switchToNavigation}
+                            externalState={connectPanelExternalState}
                         />
                     ) : navigation.navigationSelectedIndex === 2 ? (
                         // Activity Log Panel (index 2)
