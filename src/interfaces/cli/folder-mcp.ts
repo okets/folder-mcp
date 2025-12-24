@@ -10,6 +10,7 @@
  * - folder-mcp --headless → Skip TUI (future)
  * - folder-mcp config → Configuration management
  * - folder-mcp mcp server → Start MCP server in stdio mode (for client connections)
+ * - folder-mcp connect claude-desktop → Auto-configure Claude Desktop (cross-platform)
  */
 
 import { Command } from 'commander';
@@ -20,6 +21,14 @@ import { homedir } from 'os';
 import { existsSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
+import {
+  configureClaudeDesktop,
+  checkClaudeDesktopStatus,
+  removeFromClaudeDesktop,
+  getClaudeDesktopConfigPath,
+  getPlatformDisplayName,
+  formatConfigForDisplay
+} from '../../infrastructure/claude-desktop-config.js';
 
 // Get current file directory for relative path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -65,6 +74,98 @@ mcpCommand
   });
 
 program.addCommand(mcpCommand);
+
+// Add the connect command for Claude Desktop configuration
+const connectCommand = new Command('connect')
+  .description('Configure MCP clients to connect to folder-mcp');
+
+connectCommand
+  .command('claude-desktop')
+  .description('Auto-configure Claude Desktop to use folder-mcp')
+  .option('-f, --force', 'Overwrite existing configuration')
+  .option('--remove', 'Remove folder-mcp from Claude Desktop')
+  .option('--status', 'Check current configuration status')
+  .action(async (options) => {
+    const platform = getPlatformDisplayName();
+    const configPath = getClaudeDesktopConfigPath();
+
+    console.log(chalk.blue(`\nClaude Desktop Configuration (${platform})`));
+    console.log(chalk.gray(`Config: ${configPath}\n`));
+
+    // Status check
+    if (options.status) {
+      const status = checkClaudeDesktopStatus();
+      if (status.success) {
+        if (status.isConfigured) {
+          console.log(chalk.green('✅ folder-mcp is configured'));
+          if (status.needsUpdate) {
+            console.log(chalk.yellow('⚠️  Configuration differs from current installation'));
+            console.log(chalk.gray('\nCurrent config:'));
+            console.log(formatConfigForDisplay(status.previousConfig!));
+            console.log(chalk.gray('\nExpected config:'));
+            console.log(formatConfigForDisplay(status.newConfig!));
+            console.log(chalk.gray('\nRun without --status to update.'));
+          } else {
+            console.log(chalk.gray('\nConfig:'));
+            console.log(formatConfigForDisplay(status.previousConfig!));
+          }
+        } else {
+          console.log(chalk.yellow('⚠️  folder-mcp is not configured'));
+          console.log(chalk.gray('\nRun without --status to configure.'));
+        }
+      } else {
+        console.log(chalk.red(`❌ ${status.message}`));
+      }
+      return;
+    }
+
+    // Remove configuration
+    if (options.remove) {
+      const result = removeFromClaudeDesktop();
+      if (result.success) {
+        console.log(chalk.green(`✅ ${result.message}`));
+        if (result.previousConfig) {
+          console.log(chalk.gray('\nRemoved config:'));
+          console.log(formatConfigForDisplay(result.previousConfig));
+        }
+        console.log(chalk.yellow('\n⚠️  Restart Claude Desktop to apply changes'));
+      } else {
+        console.log(chalk.red(`❌ ${result.message}`));
+        process.exit(1);
+      }
+      return;
+    }
+
+    // Configure
+    const result = configureClaudeDesktop('folder-mcp', options.force);
+    if (result.success) {
+      console.log(chalk.green(`✅ ${result.message}`));
+      console.log(chalk.gray(`\nMCP Server: ${result.mcpServerPath}`));
+      console.log(chalk.gray('\nConfig entry:'));
+      console.log(formatConfigForDisplay(result.newConfig!));
+
+      if (result.previousConfig) {
+        console.log(chalk.gray('\nPrevious config:'));
+        console.log(formatConfigForDisplay(result.previousConfig));
+      }
+
+      console.log(chalk.yellow('\n⚠️  Restart Claude Desktop to apply changes'));
+    } else {
+      console.log(chalk.red(`❌ ${result.message}`));
+      process.exit(1);
+    }
+  });
+
+// Shortcut: `folder-mcp connect` defaults to claude-desktop
+connectCommand.action(() => {
+  console.log(chalk.blue('Available connection targets:'));
+  console.log('  claude-desktop  Configure Claude Desktop app');
+  console.log(chalk.gray('\nUsage: folder-mcp connect claude-desktop [options]'));
+  console.log(chalk.gray('       folder-mcp connect claude-desktop --status'));
+  console.log(chalk.gray('       folder-mcp connect claude-desktop --remove'));
+});
+
+program.addCommand(connectCommand);
 
 // Add a simple help enhancement
 program.on('command:*', () => {

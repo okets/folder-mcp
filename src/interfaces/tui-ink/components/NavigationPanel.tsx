@@ -141,6 +141,12 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
                 navigation.switchToContent();
                 return true;
             }
+            // Enter also switches to content panel (intuitive "select" action)
+            if (key.return) {
+                setFirstNavigableItem();
+                navigation.switchToContent();
+                return true;
+            }
             // Up arrow reserved for future use
             if (key.upArrow) {
                 return true; // Consume but don't use
@@ -158,6 +164,12 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             // In landscape mode, right arrow switches to content panel (spatial navigation)
             if (key.rightArrow) {
                 // Find first navigable item when entering panel (Step 8.2)
+                setFirstNavigableItem();
+                navigation.switchToContent();
+                return true;
+            }
+            // Enter also switches to content panel (intuitive "select" action)
+            if (key.return) {
                 setFirstNavigableItem();
                 navigation.switchToContent();
                 return true;

@@ -4,13 +4,41 @@
  * Utility for generating, detecting, and managing MCP configurations
  * across different AI clients (Claude Desktop, Claude Code, Cursor, etc.)
  *
- * All configurations use the deployment-safe format:
- * {
- *   "command": "folder-mcp",
- *   "args": ["mcp", "server"]
- * }
+ * Configurations use absolute paths resolved at runtime via
+ * `folder-mcp connect <client>` command. This works for both:
+ * - Development: paths resolve to local project dist/
+ * - Production: paths resolve to npm-installed package location
  *
- * This works because `npm install -g folder-mcp` adds it to PATH.
+ * ============================================================================
+ * CONNECTOR STATUS (tested and verified working)
+ * ============================================================================
+ *
+ * ✅ Claude Desktop - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via `folder-mcp connect claude-desktop`
+ *    - Uses absolute node + script path for reliability
+ *    - Requires restart after config change
+ *
+ * ⏳ Claude Code - NOT YET TESTED
+ *    - Config at ~/.claude.json
+ *    - Uses mcpServers key
+ *
+ * ⏳ Cursor - NOT YET TESTED
+ *    - Config at ~/.cursor/mcp.json
+ *    - Uses mcpServers key
+ *
+ * ⏳ Windsurf - NOT YET TESTED
+ *    - Config at ~/.windsurf/mcp.json
+ *    - Uses mcpServers key
+ *
+ * ⏳ Codex CLI - NOT YET TESTED
+ *    - Config at ~/.codex/config.json
+ *    - Uses mcpServers key
+ *
+ * ⏳ VS Code - NOT YET TESTED (project-level config)
+ *    - Config at .vscode/mcp.json (per-project)
+ *    - Cannot auto-configure (manual setup required)
+ *
+ * ============================================================================
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';

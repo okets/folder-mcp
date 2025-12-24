@@ -59,6 +59,9 @@ export class ConnectClientItem implements IListItem {
 
         // Initialize buttons (will be updated when expanded)
         this._updateButtons();
+
+        // Check config status immediately so collapsed view shows correct state
+        this._checkConfigStatus();
     }
 
     get isControllingInput(): boolean {
@@ -229,7 +232,7 @@ export class ConnectClientItem implements IListItem {
 
     private _renderCollapsed(maxWidth: number): ReactElement {
         const theme = getCurrentTheme();
-        const statusIndicator = this._isConfigured ? ' ✓' : '';
+        const statusIndicator = this._isConfigured ? ' ✓ connected' : '';
 
         // Calculate available width for label
         const iconWidth = 2; // icon + space
@@ -265,7 +268,7 @@ export class ConnectClientItem implements IListItem {
         const elements: ReactElement[] = [];
 
         // Header line (selected state)
-        const statusIndicator = this._isConfigured ? ' ✓' : '';
+        const statusIndicator = this._isConfigured ? ' ✓ connected' : '';
         elements.push(
             <Box key="header">
                 <Text {...textColorProp(theme.colors.accent)}>

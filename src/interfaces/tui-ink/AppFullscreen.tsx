@@ -679,7 +679,18 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             return true;
         }
         // Handle 'esc' to quit - simple countdown safety mechanism
+        // Skip if popup is visible (ESC closes popup, not app)
         if (key.escape) {
+            // Don't count this ESC toward exit if a popup is open
+            // The popup will handle its own close
+            if (connectPanelPopupStateRef.current.visible) {
+                // Reset countdown since user is interacting with popup, not trying to exit
+                if (countdown !== null) {
+                    setCountdown(null);
+                }
+                return false; // Let popup handle it
+            }
+
             if (countdown !== null) {
                 // Second escape during countdown - exit immediately
                 setCountdown(null);
@@ -689,7 +700,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                 });
                 return true;
             }
-            
+
             // First escape - start countdown
             setCountdown(3);
             return true;
