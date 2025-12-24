@@ -693,7 +693,11 @@ Please try your "${name}" request again in a moment. If the issue persists after
   });
 }
 
-export async function main(): Promise<void> {
+/**
+ * Main entry point for MCP server
+ * @param options Optional configuration to bypass argument parsing (used when called from CLI)
+ */
+export async function main(options?: { folderPath?: string }): Promise<void> {
   debug('main() function called');
 
   let devModeManager: DevModeManager | null = null;
@@ -701,29 +705,38 @@ export async function main(): Promise<void> {
 
   try {
     debug('Starting MCP server');
-    
-    // Parse command line arguments
-    const parseResult = CliArgumentParser.parse(process.argv);
-    
-    if (parseResult.showHelp) {
-      debug(CliArgumentParser.getHelpText());
-      process.exit(0);
+
+    let folderPath: string | undefined;
+
+    // If options provided (called from CLI), use them directly
+    // Otherwise parse command line arguments
+    if (options !== undefined) {
+      debug('Using provided options (CLI mode)');
+      folderPath = options.folderPath;
+    } else {
+      // Parse command line arguments
+      const parseResult = CliArgumentParser.parse(process.argv);
+
+      if (parseResult.showHelp) {
+        debug(CliArgumentParser.getHelpText());
+        process.exit(0);
+      }
+
+      if (parseResult.errors.length > 0) {
+        parseResult.errors.forEach(error => debug(`Error: ${error}`));
+        debug('\n' + CliArgumentParser.getHelpText());
+        process.exit(1);
+      }
+
+      const validationErrors = CliArgumentParser.validate(parseResult.args);
+      if (validationErrors.length > 0) {
+        validationErrors.forEach(error => debug(`Error: ${error}`));
+        debug('\n' + CliArgumentParser.getHelpText());
+        process.exit(1);
+      }
+
+      folderPath = parseResult.args.folderPath;
     }
-    
-    if (parseResult.errors.length > 0) {
-      parseResult.errors.forEach(error => debug(`Error: ${error}`));
-      debug('\n' + CliArgumentParser.getHelpText());
-      process.exit(1);
-    }
-    
-    const validationErrors = CliArgumentParser.validate(parseResult.args);
-    if (validationErrors.length > 0) {
-      validationErrors.forEach(error => debug(`Error: ${error}`));
-      debug('\n' + CliArgumentParser.getHelpText());
-      process.exit(1);
-    }
-    
-    const { folderPath } = parseResult.args;
     
     // Phase 9: Determine mode based on folderPath presence
     const isDaemonMode = !folderPath;

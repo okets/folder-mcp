@@ -57,8 +57,11 @@ mcpCommand
       process.exit(1);
     }
 
-    // Dynamic import to run the MCP server
-    await import(mcpServerPath);
+    // Dynamic import and explicitly call main() to start the server
+    // The module guard doesn't trigger when imported, so we call main() directly
+    // Pass empty options to use daemon mode (no folder path = connect to daemon)
+    const mcpModule = await import(mcpServerPath);
+    await mcpModule.main({});
   });
 
 program.addCommand(mcpCommand);
