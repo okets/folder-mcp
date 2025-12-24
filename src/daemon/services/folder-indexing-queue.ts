@@ -45,6 +45,7 @@ export interface FolderIndexingQueueEvents {
   'queue:model-unloaded': (modelId: string) => void;
   'queue:progress': (folder: QueuedFolder, progress: any) => void;
   'queue:completed': (folder: QueuedFolder) => void;
+  'queue:cancelled': (folder: QueuedFolder) => void;
   'queue:failed': (folder: QueuedFolder, error: Error) => void;
   'queue:empty': () => void;
   'queue:paused': (reason: string) => void;
@@ -61,6 +62,9 @@ export class FolderIndexingQueue extends EventEmitter {
   private pauseReason?: string;
   private modelFactory: any; // Will be injected
   private modelDownloadManager?: IModelDownloadManager; // Will be injected
+
+  // Cancellation mechanism for removing folders during processing
+  private cancelledFolders: Set<string> = new Set();
 
   // Keep-alive mechanism for active agent sessions (rolling 3-minute window)
   private lastMcpCallTime: Date | null = null;
@@ -172,7 +176,7 @@ export class FolderIndexingQueue extends EventEmitter {
   }
 
   /**
-   * Remove a folder from the queue (if not currently processing)
+   * Remove a folder from the queue or mark for cancellation if processing
    */
   removeFolder(folderPath: string): boolean {
     const index = this.queue.findIndex(f => f.folderPath === folderPath);
@@ -182,13 +186,28 @@ export class FolderIndexingQueue extends EventEmitter {
       return true;
     }
 
-    // Can't remove if currently processing
+    // If currently processing, mark for cancellation instead of refusing
     if (this.currentFolder?.folderPath === folderPath) {
-      this.logger.warn(`[QUEUE] Cannot remove currently processing folder: ${folderPath}`);
-      return false;
+      this.cancelledFolders.add(folderPath);
+      this.logger.info(`[QUEUE] Marked folder for cancellation (currently processing): ${folderPath}`);
+      return true; // Return true - removal will complete when processing checks cancellation
     }
 
     return false;
+  }
+
+  /**
+   * Check if a folder has been marked for cancellation
+   */
+  isCancelled(folderPath: string): boolean {
+    return this.cancelledFolders.has(folderPath);
+  }
+
+  /**
+   * Clear cancellation status for a folder
+   */
+  private clearCancellation(folderPath: string): void {
+    this.cancelledFolders.delete(folderPath);
   }
 
   /**
@@ -364,14 +383,35 @@ export class FolderIndexingQueue extends EventEmitter {
     this.emit('queue:started', folder);
 
     try {
+      // Check for cancellation before loading model
+      if (this.isCancelled(folder.folderPath)) {
+        this.logger.info(`[QUEUE] Folder ${folder.folderPath} was cancelled before model load`);
+        this.emit('queue:cancelled', folder);
+        return;
+      }
+
       // Load the model if needed
       if (this.currentModelId !== folder.modelId) {
         await this.unloadCurrentModel();
         await this.loadModel(folder.modelId, folder);
       }
 
+      // Check for cancellation before scanning
+      if (this.isCancelled(folder.folderPath)) {
+        this.logger.info(`[QUEUE] Folder ${folder.folderPath} was cancelled before scanning`);
+        this.emit('queue:cancelled', folder);
+        return;
+      }
+
       // Start scanning first (folder manager handles its own state)
       await folder.manager.startScanning();
+
+      // Check for cancellation before indexing
+      if (this.isCancelled(folder.folderPath)) {
+        this.logger.info(`[QUEUE] Folder ${folder.folderPath} was cancelled after scanning`);
+        this.emit('queue:cancelled', folder);
+        return;
+      }
 
       // After scanning completes, check if there are tasks to index
       const state = folder.manager.getState();
@@ -382,8 +422,15 @@ export class FolderIndexingQueue extends EventEmitter {
         this.logger.info(`[QUEUE] Starting indexing for ${folder.folderPath} with ${state.fileEmbeddingTasks.length} tasks`);
         await folder.manager.startIndexing();
 
-        // Wait for indexing to complete
+        // Wait for indexing to complete (with cancellation support)
         await this.waitForIndexingCompletion(folder);
+
+        // Check for cancellation after indexing
+        if (this.isCancelled(folder.folderPath)) {
+          this.logger.info(`[QUEUE] Folder ${folder.folderPath} was cancelled during indexing`);
+          this.emit('queue:cancelled', folder);
+          return;
+        }
       } else {
         // No tasks, folder should already be active
         this.logger.info(`[QUEUE] No tasks to index for ${folder.folderPath}, already active`);
@@ -425,6 +472,11 @@ export class FolderIndexingQueue extends EventEmitter {
         this.emit('queue:permanently-failed', folder, errorObj);
       }
     } finally {
+      // Clear cancellation status for this folder
+      if (folder) {
+        this.clearCancellation(folder.folderPath);
+      }
+
       this.currentFolder = null;
       this.isProcessing = false;
 
@@ -602,6 +654,15 @@ export class FolderIndexingQueue extends EventEmitter {
       const startTime = Date.now();
 
       const checkStatus = async () => {
+        // CRITICAL: Check for cancellation first - exit loop immediately if folder was removed
+        if (this.isCancelled(folder.folderPath)) {
+          this.logger.info(`[QUEUE] Cancellation detected in waitForIndexingCompletion for: ${folder.folderPath}`);
+          // The FolderManager might still be running, but we break out of this loop
+          // The manager will be cleaned up when the orchestrator's removeFolder completes
+          resolve(); // Resolve (not reject) so the finally block can clean up and move to next
+          return;
+        }
+
         // Check if paused - if so, wait
         if (this.isPaused) {
           setTimeout(checkStatus, checkInterval);
@@ -609,12 +670,12 @@ export class FolderIndexingQueue extends EventEmitter {
         }
 
         const state = folder.manager.getState();
-        
+
         // Emit progress updates while indexing
         if (state.status === 'indexing' && state.progress) {
           this.emit('queue:progress', folder, state.progress);
         }
-        
+
         if (state.status === 'active' || state.status === 'ready') {
           resolve();
         } else if (state.status === 'error') {

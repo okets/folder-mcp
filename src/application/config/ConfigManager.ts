@@ -1,6 +1,6 @@
 /**
  * User Configuration Manager Implementation
- * 
+ *
  * Loads and merges YAML configuration files with dependency injection pattern.
  */
 
@@ -15,6 +15,9 @@ export class ConfigManager implements IConfigManager {
   private userConfig: any = {};
   private mergedConfig: any = {};
   private loaded: boolean = false;
+
+  // Safeguard: Track initially loaded folders to prevent accidental clearing
+  private loadedFoldersList: any[] | undefined;
 
   constructor(
     private readonly fileSystem: IFileSystem,
@@ -48,19 +51,43 @@ export class ConfigManager implements IConfigManager {
     // Merge configurations (user overrides defaults)
     this.mergedConfig = this.deepMerge(this.defaultConfig, this.userConfig);
     this.loaded = true;
+
+    // Safeguard: Capture initially loaded folders to prevent accidental clearing
+    const initialFolders = this.userConfig?.folders?.list;
+    if (Array.isArray(initialFolders) && initialFolders.length > 0) {
+      // Deep copy to prevent mutation
+      this.loadedFoldersList = JSON.parse(JSON.stringify(initialFolders));
+    }
   }
 
   get(path: string): any {
     if (!this.loaded) {
       throw new Error('Configuration not loaded. Call load() first.');
     }
-    
+
     return this.getValueByPath(this.mergedConfig, path);
   }
 
   async set(path: string, value: any): Promise<void> {
     if (!this.loaded) {
       throw new Error('Configuration not loaded. Call load() first.');
+    }
+
+    // Track if this is an intentional folders modification
+    const isIntentionalFoldersChange = path === 'folders' || path.startsWith('folders.');
+
+    // Update the safeguard baseline when folders are intentionally modified
+    // This prevents the safeguard from blocking legitimate operations
+    if (isIntentionalFoldersChange) {
+      if (path === 'folders' && value?.list !== undefined) {
+        this.loadedFoldersList = Array.isArray(value.list) && value.list.length > 0
+          ? JSON.parse(JSON.stringify(value.list))
+          : undefined;
+      } else if (path === 'folders.list') {
+        this.loadedFoldersList = Array.isArray(value) && value.length > 0
+          ? JSON.parse(JSON.stringify(value))
+          : undefined;
+      }
     }
 
     // Validate the value first
@@ -72,10 +99,10 @@ export class ConfigManager implements IConfigManager {
 
     // Set the value in user config
     this.setValueByPath(this.userConfig, path, value);
-    
+
     // Save user config
     await this.saveUserConfig();
-    
+
     // Re-merge configs
     this.mergedConfig = this.deepMerge(this.defaultConfig, this.userConfig);
   }
@@ -84,7 +111,7 @@ export class ConfigManager implements IConfigManager {
     if (!this.loaded) {
       throw new Error('Configuration not loaded. Call load() first.');
     }
-    
+
     return { ...this.mergedConfig };
   }
 
@@ -92,7 +119,7 @@ export class ConfigManager implements IConfigManager {
     try {
       // Call validateValue with path and value
       const result = await this.schemaValidator.validateValue(path, value);
-      
+
       // Convert simple result to ValidationResult with errors array
       if (result.valid) {
         return { valid: true };
@@ -132,17 +159,32 @@ export class ConfigManager implements IConfigManager {
 
   /**
    * Save user configuration to file
+   *
+   * SAFEGUARD: If folders.list is empty but we loaded folders previously,
+   * restore them to prevent accidental clearing (bug protection).
    */
   private async saveUserConfig(): Promise<void> {
+    const foldersList = this.userConfig?.folders?.list;
+
+    // SAFEGUARD: Prevent accidental folder clearing
+    if ((!foldersList || foldersList.length === 0) &&
+        this.loadedFoldersList && this.loadedFoldersList.length > 0) {
+      // Restore the originally loaded folders
+      if (!this.userConfig.folders) {
+        this.userConfig.folders = {};
+      }
+      this.userConfig.folders.list = JSON.parse(JSON.stringify(this.loadedFoldersList));
+    }
+
     const yamlContent = await this.yamlParser.stringify(this.userConfig);
-    
+
     // Ensure directory exists
     const lastSlashIndex = this.userConfigPath.lastIndexOf('/');
     if (lastSlashIndex > 0) {
       const configDir = this.userConfigPath.substring(0, lastSlashIndex);
       await this.fileWriter.ensureDir(configDir);
     }
-    
+
     await this.fileWriter.writeFile(this.userConfigPath, yamlContent);
   }
 
@@ -153,7 +195,7 @@ export class ConfigManager implements IConfigManager {
     if (overrides === null || overrides === undefined) {
       return defaults;
     }
-    
+
     if (defaults === null || defaults === undefined) {
       return overrides;
     }
@@ -167,10 +209,10 @@ export class ConfigManager implements IConfigManager {
     }
 
     const result = { ...defaults };
-    
+
     for (const key in overrides) {
       if (overrides.hasOwnProperty(key)) {
-        if (typeof overrides[key] === 'object' && !Array.isArray(overrides[key]) && 
+        if (typeof overrides[key] === 'object' && !Array.isArray(overrides[key]) &&
             typeof defaults[key] === 'object' && !Array.isArray(defaults[key])) {
           result[key] = this.deepMerge(defaults[key], overrides[key]);
         } else {
@@ -178,7 +220,7 @@ export class ConfigManager implements IConfigManager {
         }
       }
     }
-    
+
     return result;
   }
 
@@ -188,14 +230,14 @@ export class ConfigManager implements IConfigManager {
   private getValueByPath(obj: any, path: string): any {
     const parts = path.split('.');
     let current = obj;
-    
+
     for (const part of parts) {
       if (current === null || current === undefined) {
         return undefined;
       }
       current = current[part];
     }
-    
+
     return current;
   }
 
@@ -205,17 +247,17 @@ export class ConfigManager implements IConfigManager {
   private setValueByPath(obj: any, path: string, value: any): void {
     const parts = path.split('.');
     let current = obj;
-    
+
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       if (!part) continue; // Skip empty parts
-      
+
       if (!(part in current) || typeof current[part] !== 'object') {
         current[part] = {};
       }
       current = current[part];
     }
-    
+
     const lastPart = parts[parts.length - 1];
     if (lastPart) {
       current[lastPart] = value;

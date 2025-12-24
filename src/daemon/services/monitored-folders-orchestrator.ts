@@ -655,6 +655,27 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
     // Use normalized path key for Map lookup
     const pathKey = this.normalizePathKey(folderPath);
     const manager = this.folderManagers.get(pathKey);
+
+    // IMMEDIATELY remove from folderManagers to prevent race conditions
+    // This ensures getCurrentFolderConfigs() won't include this folder in FMDM updates
+    // during async cleanup operations
+    if (manager) {
+      this.folderManagers.delete(pathKey);
+      this.folderStorages.delete(pathKey);
+      this.logger.info(`[ORCHESTRATOR] Immediately removed folder from tracking: ${folderPath}`);
+
+      // CRITICAL: Remove folder from FMDM DIRECTLY before calling updateFMDM()
+      // This prevents getCurrentFolderConfigs() from re-adding it via the preservation logic
+      // (which preserves FMDM folders without managers - but we want this one GONE)
+      const currentFMDM = this.fmdmService.getFMDM();
+      const filteredFolders = currentFMDM.folders.filter(f => !this.pathsEqual(f.path, folderPath));
+      this.logger.debug(`[ORCHESTRATOR] Removing folder from FMDM directly: ${folderPath} (${currentFMDM.folders.length} -> ${filteredFolders.length} folders)`);
+      this.fmdmService.updateFolders(filteredFolders);
+
+      // Now updateFMDM won't re-add it since it's gone from FMDM
+      this.updateFMDM();
+    }
+
     if (!manager) {
       this.logger.warn(`No manager found for folder: ${folderPath}`);
       // Even without a manager, we need to:
@@ -721,21 +742,17 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       // Don't fail the entire operation if config removal fails
     }
     
-    // Only delete from managers if it existed (use normalized path key)
-    if (manager) {
-      this.folderManagers.delete(pathKey);
-      this.folderStorages.delete(pathKey); // Also remove storage tracking
-      this.logger.debug(`[ORCHESTRATOR-REMOVE] Deleted manager for ${folderPath}, remaining managers: ${this.folderManagers.size}`);
-    } else {
-      // For error state folders without managers, we need to explicitly remove from FMDM
+    // For error state folders without managers, we need to explicitly remove from FMDM
+    // (Manager was already removed immediately at the start of removeFolder)
+    if (!manager) {
       this.logger.debug(`[ORCHESTRATOR-REMOVE] No manager to delete, removing error folder from FMDM directly`);
       const currentFMDM = this.fmdmService.getFMDM();
       const filteredFolders = currentFMDM.folders.filter(f => !this.pathsEqual(f.path, folderPath));
       this.fmdmService.updateFolders(filteredFolders);
     }
-    
-    // Update FMDM after removal - ALWAYS do this
-    this.logger.debug(`[ORCHESTRATOR-REMOVE] Calling updateFMDM after folder removal`);
+
+    // Final FMDM update after all cleanup
+    this.logger.debug(`[ORCHESTRATOR-REMOVE] Final updateFMDM after folder removal complete`);
     this.updateFMDM();
     
     // Emit activity event for folder removed
