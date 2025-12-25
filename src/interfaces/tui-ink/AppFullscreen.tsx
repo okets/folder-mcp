@@ -206,6 +206,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
         visible: false,
         clientId: null,
         configJson: '',
+        instruction: null,
     });
     const connectPanelItemsRef = useRef<IListItem[] | null>(null);
     const connectPanelExternalState: ConnectPanelExternalState = useMemo(() => ({

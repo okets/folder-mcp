@@ -22,6 +22,8 @@ import { ServiceTokens } from '../di/tokens';
 export interface ConnectionStringPopupProps {
     clientId: McpClientId;
     configJson: string;
+    /** Optional instruction text to display above the JSON (e.g., for VS Code) */
+    instruction: string | null;
     width: number;
     height: number;
     onClose: () => void;
@@ -30,6 +32,7 @@ export interface ConnectionStringPopupProps {
 export const ConnectionStringPopup: React.FC<ConnectionStringPopupProps> = ({
     clientId,
     configJson,
+    instruction,
     width,
     height,
     onClose,
@@ -49,10 +52,14 @@ export const ConnectionStringPopup: React.FC<ConnectionStringPopupProps> = ({
     const jsonLines = configJson.split('\n');
 
     // Calculate viewport for JSON content
-    // Compact layout (when scrolling needed): top(1) + path(1) + JSON + bottom(1) = 3 fixed
-    // Spacious layout (no scroll): top(1) + path(1) + spacer(1) + JSON + spacer(1) + status(1) + bottom(1) = 6 fixed
-    const compactFixedLines = 3;
-    const spaciousFixedLines = 6;
+    // Account for instruction line if present (adds 1 line)
+    const hasInstruction = Boolean(instruction);
+    const instructionLines = hasInstruction ? 1 : 0;
+
+    // Compact layout (when scrolling needed): top(1) + path(1) + [instruction(1)] + JSON + bottom(1) = 3-4 fixed
+    // Spacious layout (no scroll): top(1) + path(1) + [instruction(1)] + spacer(1) + JSON + spacer(1) + status(1) + bottom(1) = 6-7 fixed
+    const compactFixedLines = 3 + instructionLines;
+    const spaciousFixedLines = 6 + instructionLines;
 
     // First check if we'd need scrolling with spacious layout
     const spaciousViewport = Math.max(1, height - spaciousFixedLines);
@@ -283,6 +290,15 @@ export const ConnectionStringPopup: React.FC<ConnectionStringPopupProps> = ({
                 )}
                 <Text color={theme.colors.border}>│</Text>
             </Text>
+
+            {/* Instruction line (e.g., for VS Code project-level config) */}
+            {hasInstruction && (
+                <Text>
+                    <Text color={theme.colors.border}>│</Text>
+                    <Text color={theme.colors.warning}>{padToWidth(instruction || '', contentWidth)}</Text>
+                    <Text color={theme.colors.border}>│</Text>
+                </Text>
+            )}
 
             {/* Empty line before JSON - only in spacious layout */}
             {!useCompactLayout && <Text color={theme.colors.border}>{emptyLine}</Text>}

@@ -341,9 +341,15 @@ export function getClientInfo(clientId: McpClientId): McpClientInfo {
 function generateServerEntry(clientId: McpClientId): Record<string, unknown> {
     const info = CLIENT_INFO[clientId];
 
+    // Use npx with absolute path for macOS GUI apps (they don't inherit shell PATH)
+    // This is consistent with how other MCP servers (desktop-commander, etc.) work
+    const npxCommand = process.platform === 'darwin'
+        ? '/opt/homebrew/bin/npx'  // macOS Homebrew location
+        : 'npx';                    // Windows/Linux use PATH
+
     const entry: Record<string, unknown> = {
-        command: 'folder-mcp',
-        args: ['mcp', 'server'],
+        command: npxCommand,
+        args: ['-y', 'folder-mcp', 'mcp', 'server'],
     };
 
     // Claude Code requires 'type: stdio'
@@ -361,6 +367,7 @@ function generateServerEntry(clientId: McpClientId): Record<string, unknown> {
 
 /**
  * Generate a complete config snippet for display (Show Config)
+ * Returns only the JSON config - use getConfigInstruction() for any instruction text
  */
 export function generateConfigSnippet(clientId: McpClientId): string {
     const info = CLIENT_INFO[clientId];
@@ -375,14 +382,18 @@ export function generateConfigSnippet(clientId: McpClientId): string {
         },
     };
 
-    const jsonConfig = JSON.stringify(config, null, 2);
+    return JSON.stringify(config, null, 2);
+}
 
-    // Add instruction header for project-level configs
+/**
+ * Get instruction text for clients that need it (e.g., VS Code project-level config)
+ * Returns null if no special instruction is needed
+ */
+export function getConfigInstruction(clientId: McpClientId): string | null {
     if (clientId === 'vscode') {
-        return `Create or edit: <project>/.vscode/mcp.json\n\n${jsonConfig}`;
+        return 'Create or edit: <project>/.vscode/mcp.json';
     }
-
-    return jsonConfig;
+    return null;
 }
 
 // ============================================================================
@@ -527,10 +538,14 @@ function addToTomlConfig(configPath: string, info: Omit<McpClientInfo, 'configPa
     }
 
     // Generate TOML entry
+    // Use npx for consistency across all clients
+    const npxCommand = process.platform === 'darwin'
+        ? '/opt/homebrew/bin/npx'
+        : 'npx';
     const tomlEntry = `
 [mcp_servers.folder-mcp]
-command = "folder-mcp"
-args = ["mcp", "server"]
+command = "${npxCommand}"
+args = ["-y", "folder-mcp", "mcp", "server"]
 `;
 
     // Append to file

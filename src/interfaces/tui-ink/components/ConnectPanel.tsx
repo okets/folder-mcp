@@ -11,6 +11,7 @@ export interface PopupState {
     visible: boolean;
     clientId: McpClientId | null;
     configJson: string;
+    instruction: string | null;
 }
 
 /**
@@ -48,6 +49,7 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
         visible: false,
         clientId: null,
         configJson: '',
+        instruction: null,
     });
     const internalItemsRef = useRef<IListItem[] | null>(null);
 
@@ -72,11 +74,12 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
     triggerRenderRef.current = triggerRender;
 
     // Handler for showing popup - calls through ref to avoid stale closures
-    const handleShowPopup = useCallback((clientId: McpClientId, configJson: string) => {
+    const handleShowPopup = useCallback((clientId: McpClientId, configJson: string, instruction: string | null = null) => {
         popupStateRef.current = {
             visible: true,
             clientId,
             configJson,
+            instruction,
         };
         // Use ref to always call current triggerRender, even after remounts
         triggerRenderRef.current();
@@ -88,6 +91,7 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
             visible: false,
             clientId: null,
             configJson: '',
+            instruction: null,
         };
         // Use ref to always call current triggerRender, even after remounts
         triggerRenderRef.current();
@@ -266,6 +270,7 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
                 <ConnectionStringPopup
                     clientId={popupState.clientId}
                     configJson={popupState.configJson}
+                    instruction={popupState.instruction}
                     width={width}
                     height={height}
                     onClose={handleClosePopup}

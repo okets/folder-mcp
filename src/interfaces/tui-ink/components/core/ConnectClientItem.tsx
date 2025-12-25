@@ -23,6 +23,7 @@ import {
     addToConfig,
     removeFromConfig,
     generateConfigSnippet,
+    getConfigInstruction,
 } from '../../utils/mcp-config-generator';
 import { copyToClipboard } from '../../utils/clipboard';
 
@@ -31,7 +32,7 @@ export type ConnectClientAction = 'connect' | 'remove' | 'show-config';
 export interface ConnectClientItemProps {
     clientId: McpClientId;
     onAction?: (action: ConnectClientAction, clientId: McpClientId, result: { success: boolean; error?: string }) => void;
-    onShowPopup?: (clientId: McpClientId, configJson: string) => void;
+    onShowPopup?: (clientId: McpClientId, configJson: string, instruction?: string | null) => void;
 }
 
 export class ConnectClientItem implements IListItem {
@@ -186,15 +187,15 @@ export class ConnectClientItem implements IListItem {
 
     private _handleShowConfig(): void {
         const configJson = generateConfigSnippet(this._clientInfo.id);
+        const instruction = getConfigInstruction(this._clientInfo.id);
 
         // If popup handler is provided, use it
         if (this._onShowPopup) {
-            this._onShowPopup(this._clientInfo.id, configJson);
+            this._onShowPopup(this._clientInfo.id, configJson, instruction);
             return;
         }
 
-
-        // Otherwise, copy to clipboard
+        // Otherwise, copy to clipboard (only the JSON, not the instruction)
         copyToClipboard(configJson).then((result) => {
             if (result.success) {
                 this._statusMessage = '✓ Copied to clipboard';
