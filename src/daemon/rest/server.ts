@@ -158,9 +158,14 @@ export class RESTAPIServer {
       await fs.access(dbPath);
       return dbPath;
     } catch {
+      const errorMsg = `No indexed data found for folder '${folderPath}'. Please ensure the folder has been indexed.`;
+
+      // Log to Activity Log before sending response
+      this.emitMcpActivity(req, `database access failed`, [errorMsg], 'error');
+
       const errorResponse: ErrorResponse = {
         error: 'Database Not Found',
-        message: `No indexed data found for folder '${path.basename(folderPath)}'. Please ensure the folder has been indexed.`,
+        message: errorMsg,
         timestamp: new Date().toISOString(),
         path: req.url
       };
@@ -190,7 +195,7 @@ export class RESTAPIServer {
       return 'Windsurf';
     }
     if (userAgent.includes('node-fetch') || userAgent.includes('Node')) {
-      return 'Node.js';
+      return 'MCP Request';
     }
     if (userAgent.includes('Python') || userAgent.includes('python')) {
       return 'Python';
@@ -223,7 +228,7 @@ export class RESTAPIServer {
     const client = this.getClientName(req);
     const event: Parameters<typeof this.activityService.emit>[0] = {
       type: eventType,
-      level: 'info',
+      level: eventType === 'error' ? 'error' : 'info',
       message: `${client}: ${operation}`,
       userInitiated: true
     };
@@ -691,14 +696,16 @@ export class RESTAPIServer {
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] List folders failed:', error);
-      
+      const errorMsg = error instanceof Error ? error.message : 'Failed to retrieve folder list';
+      this.emitMcpActivity(req, 'list_folders failed', [errorMsg], 'error');
+
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
         message: 'Failed to retrieve folder list',
         timestamp: new Date().toISOString(),
         path: req.url
       };
-      
+
       res.status(500).json(errorResponse);
     }
   }
@@ -1338,6 +1345,8 @@ export class RESTAPIServer {
       }
     } catch (error) {
       this.logger.error('[REST] Enhanced list documents failed:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to retrieve document list';
+      this.emitMcpActivity(req, 'list_documents failed', [errorMsg], 'error');
 
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
@@ -1581,6 +1590,9 @@ export class RESTAPIServer {
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Explore endpoint failed:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to explore folder';
+      this.emitMcpActivity(req, 'explore failed', [errorMsg], 'error');
+
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
         message: process.env.NODE_ENV === 'development'
@@ -1921,10 +1933,10 @@ export class RESTAPIServer {
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document failed:', error);
-      
+
       let statusCode = 500;
       let message = 'Failed to retrieve document';
-      
+
       if (error instanceof Error) {
         if (error.message.includes('not found') || error.message.includes('does not exist')) {
           statusCode = 404;
@@ -1935,13 +1947,15 @@ export class RESTAPIServer {
         }
       }
 
+      this.emitMcpActivity(req, 'get_document failed', [message], 'error');
+
       const errorResponse: ErrorResponse = {
         error: statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
         message,
         timestamp: new Date().toISOString(),
         path: req.url
       };
-      
+
       res.status(statusCode).json(errorResponse);
     }
   }
@@ -2195,10 +2209,10 @@ export class RESTAPIServer {
       res.json(response);
     } catch (error) {
       this.logger.error('[REST] Get document outline failed:', error);
-      
+
       let statusCode = 500;
       let message = 'Failed to retrieve document outline';
-      
+
       if (error instanceof Error) {
         if (error.message.includes('not found') || error.message.includes('does not exist')) {
           statusCode = 404;
@@ -2209,13 +2223,15 @@ export class RESTAPIServer {
         }
       }
 
+      this.emitMcpActivity(req, 'get_outline failed', [message], 'error');
+
       const errorResponse: ErrorResponse = {
         error: statusCode === 404 ? 'Not Found' : statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
         message,
         timestamp: new Date().toISOString(),
         path: req.url
       };
-      
+
       res.status(statusCode).json(errorResponse);
     }
   }
@@ -2446,6 +2462,9 @@ export class RESTAPIServer {
 
       } catch (dbError) {
         this.logger.error('[REST] Error accessing document metadata:', dbError);
+        const errorMsg = dbError instanceof Error ? dbError.message : 'Failed to retrieve document metadata';
+        this.emitMcpActivity(req, 'get_metadata failed', [errorMsg], 'error');
+
         const errorResponse: ErrorResponse = {
           error: 'Internal Server Error',
           message: 'Failed to retrieve document metadata',
@@ -2457,6 +2476,9 @@ export class RESTAPIServer {
 
     } catch (error) {
       this.logger.error('[REST] Error in handleGetDocumentMetadata:', error);
+      const errorMsg = error instanceof Error ? error.message : 'An error occurred';
+      this.emitMcpActivity(req, 'get_metadata failed', [errorMsg], 'error');
+
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
         message: process.env.NODE_ENV === 'development' ? (error as Error).message : 'An error occurred',
@@ -2603,6 +2625,8 @@ export class RESTAPIServer {
 
     } catch (error) {
       this.logger.error('[REST] Error getting chunks:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to get chunks';
+      this.emitMcpActivity(req, 'get_chunks failed', [errorMsg], 'error');
 
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
@@ -2837,6 +2861,8 @@ export class RESTAPIServer {
 
     } catch (error) {
       this.logger.error('[REST] Error getting document text:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to get document text';
+      this.emitMcpActivity(req, 'get_text failed', [errorMsg], 'error');
 
       const errorResponse: ErrorResponse = {
         error: 'Internal Server Error',
@@ -3287,6 +3313,9 @@ export class RESTAPIServer {
       }
     } catch (error) {
       this.logger.error(`[REST] Error in search_content: ${error}`);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.emitMcpActivity(req, 'search failed', [errorMsg], 'error');
+
       res.status(500).json({
         error: 'Internal Server Error',
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -3568,6 +3597,9 @@ export class RESTAPIServer {
       }
     } catch (error) {
       this.logger.error(`[REST] Error in find_documents: ${error}`);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      this.emitMcpActivity(req, 'find_documents failed', [errorMsg], 'error');
+
       res.status(500).json({
         error: 'Internal Server Error',
         message: error instanceof Error ? error.message : 'Unknown error',

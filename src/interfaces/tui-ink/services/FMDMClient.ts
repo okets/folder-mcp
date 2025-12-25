@@ -138,8 +138,8 @@ export class FMDMClient {
         try {
           const message = JSON.parse(data.toString()) as WSServerMessage;
           this.handleMessage(message);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+        } catch {
+          // Silently ignore parse errors to prevent TUI flickering
         }
       });
       
@@ -561,8 +561,8 @@ export class FMDMClient {
     this.listeners.forEach(listener => {
       try {
         listener(this.fmdm!);
-      } catch (error) {
-        console.error('Error in FMDM listener:', error);
+      } catch {
+        // Silently ignore listener errors to prevent TUI flickering
       }
     });
   }
@@ -574,8 +574,8 @@ export class FMDMClient {
     this.statusListeners.forEach(listener => {
       try {
         listener(status);
-      } catch (error) {
-        console.error('Error in status listener:', error);
+      } catch {
+        // Silently ignore listener errors to prevent TUI flickering
       }
     });
   }
@@ -587,8 +587,8 @@ export class FMDMClient {
     this.modelDownloadListeners.forEach(listener => {
       try {
         listener(event);
-      } catch (error) {
-        console.error('Error in model download listener:', error);
+      } catch {
+        // Silently ignore listener errors to prevent TUI flickering
       }
     });
   }
@@ -600,8 +600,8 @@ export class FMDMClient {
     this.activityListeners.forEach(listener => {
       try {
         listener(event);
-      } catch (error) {
-        console.error('Error in activity listener:', error);
+      } catch {
+        // Silently ignore listener errors to prevent TUI flickering
       }
     });
   }

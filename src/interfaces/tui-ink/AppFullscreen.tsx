@@ -244,8 +244,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                                 setShowAddFolderWizard(false);
                                 setWizardInstance(null); // Clear instance when done
                                 setWizardCreationRequest(null); // Reset for next time
-                            } catch (error) {
-                                console.error('Failed to add folder:', error);
+                            } catch {
+                                // Errors handled through Activity Log, not console
                             }
                         },
                         onCancel: () => {
@@ -267,8 +267,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                     
                     // Mark creation as done
                     setWizardCreationRequest('done');
-                } catch (error) {
-                    console.error('Failed to create wizard:', error);
+                } catch {
+                    // Errors handled through Activity Log, not console
                     setWizardCreationRequest(null); // Reset on error
                 } finally {
                     setWizardLoading(false);
@@ -375,8 +375,8 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             await fmdmOperations.removeFolder(folderPath);
             await fmdmOperations.addFolder(folderPath, newModel);
             // FMDM context will automatically update with the new state
-        } catch (error) {
-            console.error('Failed to update folder model:', error);
+        } catch {
+            // Errors handled through Activity Log, not console
         }
     }, [fmdmOperations]);
     
@@ -449,8 +449,7 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         if (folder.model && folder.model !== 'unknown') {
                             return folder.model;
                         }
-                        // Log error but use fallback to prevent UI crash
-                        console.error(`Warning: No valid model found for folder ${folderPath}. Using default model.`);
+                        // Use fallback to prevent UI crash (no console.error to avoid TUI flickering)
                         return getDefaultModelId(); // Fallback to default model
                     })(),
                     isValid: folderValid,
@@ -468,12 +467,12 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
                         try {
                             await fmdmOperations.removeFolder(pathToRemove);
                             // FMDM context will automatically update the folder list
-                        } catch (error) {
-                            console.error('Failed to remove folder:', error);
+                        } catch {
+                            // Errors handled through Activity Log, not console
                         }
                     },
-                    onError: (error: string) => {
-                        console.error('Folder management error:', error);
+                    onError: () => {
+                        // Errors handled through Activity Log, not console
                     }
                 });
                 
