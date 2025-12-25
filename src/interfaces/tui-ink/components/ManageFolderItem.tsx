@@ -1,6 +1,6 @@
 /**
  * Manage Folder Item Component
- * 
+ *
  * A reusable component factory that creates a ConfigurationListItem for managing existing folders.
  * Provides read-only display of folder information and a remove button with destructive confirmation.
  */
@@ -12,10 +12,41 @@ import { ContainerListItem } from './core/ContainerListItem';
 import { LogItem } from './core/LogItem';
 import { IListItem } from './core/IListItem';
 import { TextListItem } from './core/TextListItem';
+import { AnimationContainer } from './core/AnimationContainer';
+import { BRAILLE_SPINNER } from '../utils/animations';
 import { getModelMetadata } from '../models/modelMetadata';
 import { getCurrentTheme } from '../utils/theme';
 import { useModelDownloadEvents, ModelDownloadEvent } from '../contexts/FMDMContext';
+import { useAnimationContext } from '../contexts/AnimationContext';
 import { formatFolderWithStatus } from '../utils/validationDisplay';
+
+/**
+ * Functional component for folder status spinner with trailing space
+ * Used when folder is actively indexing or downloading a model
+ * Returns null when animations are paused to avoid showing a stuck spinner
+ * Includes trailing space so layout stays consistent
+ */
+const FolderStatusSpinner: React.FC<{ color?: string }> = ({ color }) => {
+    const { animationsPaused } = useAnimationContext();
+
+    // Don't show spinner at all when animations are paused - it would look stuck
+    if (animationsPaused) {
+        return null;
+    }
+
+    // Only pass color prop when defined to satisfy exactOptionalPropertyTypes
+    const colorProp = color ? { color } : {};
+    return (
+        <>
+            <AnimationContainer
+                frames={BRAILLE_SPINNER}
+                interval={80}
+                {...colorProp}
+            />
+            <Text> </Text>
+        </>
+    );
+};
 
 export interface ManageFolderItemOptions {
     folderPath: string;
@@ -95,7 +126,13 @@ class ManageFolderContainerItem extends ContainerListItem {
                 this.isActive
             );
             
-            // Render the formatted output
+            // Determine if we should show a spinner (actively working statuses)
+            const showSpinner = this.folderStatus === 'indexing' ||
+                               this.folderStatus === 'downloading-model' ||
+                               this.folderStatus === 'loading-model' ||
+                               this.folderStatus === 'scanning';
+
+            // Render the formatted output with optional spinner for active statuses
             return (
                 <Text>
                     <Text color={this.isActive ? theme.colors.accent : 'gray'}>
@@ -107,6 +144,9 @@ class ManageFolderContainerItem extends ContainerListItem {
                     <Text {...(this.isActive ? { color: theme.colors.accent } : {})}>
                         {' ['}
                     </Text>
+                    {showSpinner && (
+                        <FolderStatusSpinner color={this.statusColor} />
+                    )}
                     <Text color={this.folderStatus === 'error' ? theme.colors.dangerRed : this.statusColor}>
                         {formatted.statusDisplay}
                     </Text>

@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Key } from 'ink';
+import { Key, Text } from 'ink';
 import { GenericListPanel } from './GenericListPanel';
 import { SelectionListItem, SelectionOption } from './core/SelectionListItem';
 import { ContainerListItem } from './core/ContainerListItem';
 import { IListItem } from './core/IListItem';
+import { TextListItem } from './core/TextListItem';
+import { VerticalToggleRowListItem } from './core/VerticalToggleRow';
 import { useTheme, ThemeName, themes } from '../contexts/ThemeContext';
+import { useAnimationContext } from '../contexts/AnimationContext';
 import { useFMDM } from '../contexts/FMDMContext';
 import { createDefaultModelWizard, DefaultModelWizardResult } from './DefaultModelWizard';
 
@@ -24,6 +27,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     onSwitchToNavigation
 }) => {
     const { themeName, setTheme } = useTheme();
+    const { animationsPaused, toggleAnimations } = useAnimationContext();
     const { fmdm, setDefaultModel } = useFMDM();
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [logVerbosity, setLogVerbosity] = useState<string>('normal');
@@ -110,7 +114,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     const items: IListItem[] = useMemo(() => {
         const staticItems: IListItem[] = [
             new SelectionListItem(
-                '○',                    // icon
+                '›',                    // icon
                 'Theme',                // label
                 themeOptions,           // options
                 [themeName],            // selectedValues - current theme from context
@@ -133,8 +137,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     }
                 }
             ),
+            // Animation toggle - placed below Theme selector
+            new VerticalToggleRowListItem(
+                '›',                    // icon
+                'Animations',           // label
+                [
+                    { value: 'on', label: 'On' },
+                    { value: 'off', label: 'Off' }
+                ],
+                animationsPaused ? 'off' : 'on',  // selectedValue
+                false,                  // isActive (managed by GenericListPanel)
+                (value: string) => {    // onSelectionChange
+                    // Toggle if the new value differs from current state
+                    if ((value === 'off') !== animationsPaused) {
+                        toggleAnimations();
+                    }
+                }
+            ),
+            // Help text for animation shortcut
+            new TextListItem(
+                ' ',                    // no icon, just indent
+                <Text dimColor>Ctrl+A to toggle animations anywhere</Text>,
+                false
+            ),
             new SelectionListItem(
-                '○',                    // icon
+                '›',                    // icon
                 'Log Verbosity',        // label
                 verbosityOptions,       // options
                 [logVerbosity],         // selectedValues - current verbosity from state
@@ -158,8 +185,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
         return staticItems;
     // NOTE: themeName, logVerbosity are intentionally NOT in dependencies to avoid recreating items
+    // animationsPaused IS included because the toggle display needs to update when state changes
     // wizardUpdateTrigger forces re-render when wizard state changes
-    }, [themeOptions, setTheme, verbosityOptions, setLogVerbosity, defaultModelWizard, wizardUpdateTrigger]);
+    }, [themeOptions, setTheme, verbosityOptions, setLogVerbosity, defaultModelWizard, wizardUpdateTrigger, animationsPaused, toggleAnimations]);
 
     const customKeyBindings = isLandscape
         ? [
@@ -181,8 +209,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         }
 
         // Landscape mode: Left arrow switches back to navigation panel (spatial navigation)
-        // This works from ANY item, not just the first one
+        // But first check if current item can handle the left arrow (e.g., toggle not at leftmost)
         if (key.leftArrow && isLandscape) {
+            // Check if item has position check method (like toggle items)
+            if (currentItem && 'isAtLeftmostPosition' in currentItem &&
+                typeof (currentItem as any).isAtLeftmostPosition === 'function') {
+                // If not at leftmost, let GenericListPanel delegate to the item
+                if (!(currentItem as any).isAtLeftmostPosition()) {
+                    return false; // Let item handle left arrow
+                }
+            }
             onSwitchToNavigation();
             return true;
         }

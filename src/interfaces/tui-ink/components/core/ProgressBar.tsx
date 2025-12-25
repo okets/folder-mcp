@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { AnimationContainer } from './AnimationContainer';
 import { BRAILLE_SPINNER } from '../../utils/animations';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAnimationContext } from '../../contexts/AnimationContext';
 
 interface ProgressBarProps {
     /**
@@ -49,6 +50,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     color
 }) => {
     const { theme } = useTheme();
+    const { animationsPaused } = useAnimationContext();
     const isError = value === -1;
     const isIndeterminate = value === undefined;
     const percentage = (isIndeterminate || isError) ? 0 : Math.min(100, Math.max(0, Math.round(value)));
@@ -63,11 +65,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             // Just spinner with 3 spaces for indeterminate
             return (
                 <Box>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={80}
-                        color={theme.colors.warning}
-                    />
+                    {animationsPaused ? (
+                        <Text> </Text>
+                    ) : (
+                        <AnimationContainer
+                            frames={BRAILLE_SPINNER}
+                            interval={80}
+                            color={theme.colors.warning}
+                        />
+                    )}
                     <Text>   </Text>
                 </Box>
             );
@@ -89,16 +95,20 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         // Show spinner + percentage for all values < 100%
         return (
             <Box>
-                <AnimationContainer 
-                    frames={BRAILLE_SPINNER}
-                    interval={80}
-                    color={theme.colors.warning}
-                />
+                {animationsPaused ? (
+                    <Text> </Text>
+                ) : (
+                    <AnimationContainer
+                        frames={BRAILLE_SPINNER}
+                        interval={80}
+                        color={theme.colors.warning}
+                    />
+                )}
                 <Text color={theme.colors.warning}>{percentText}</Text>
             </Box>
         );
     };
-    
+
     // For Step 7.3, implement long mode
     const renderLongMode = () => {
         // Fixed bar width of 10 cells
@@ -119,11 +129,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             // Indeterminate state - could add wave animation later
             return (
                 <Box>
-                    <AnimationContainer 
-                        frames={BRAILLE_SPINNER}
-                        interval={80}
-                        color={theme.colors.warning}
-                    />
+                    {animationsPaused ? (
+                        <Text> </Text>
+                    ) : (
+                        <AnimationContainer
+                            frames={BRAILLE_SPINNER}
+                            interval={80}
+                            color={theme.colors.warning}
+                        />
+                    )}
                     <Text color={theme.colors.warning}>{(theme.name === 'minimal' ? '□' : '▱').repeat(barWidth)}</Text>
                     <Text color={theme.colors.warning}> ...</Text>
                 </Box>
@@ -153,11 +167,15 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         const percentText = percentage < 10 ? `  ${percentage}%` : ` ${percentage}%`;
         return (
             <Box>
-                <AnimationContainer 
-                    frames={BRAILLE_SPINNER}
-                    interval={80}
-                    color={theme.colors.warning}
-                />
+                {animationsPaused ? (
+                    <Text> </Text>
+                ) : (
+                    <AnimationContainer
+                        frames={BRAILLE_SPINNER}
+                        interval={80}
+                        color={theme.colors.warning}
+                    />
+                )}
                 <Text color={theme.colors.warning}>{progressBar}</Text>
                 <Text color={theme.colors.warning}>{percentText}</Text>
             </Box>

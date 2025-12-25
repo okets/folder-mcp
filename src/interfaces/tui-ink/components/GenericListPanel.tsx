@@ -259,7 +259,7 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
         } else if (key.rightArrow && selectedItem) {
             // Right arrow expands (if item supports it)
             if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
-                selectedItem.onExpand();
+                selectedItem.onExpand(key);
                 // Trigger re-render for expansion
                 triggerUpdate();
                 return true;
@@ -279,7 +279,20 @@ const GenericListPanelComponent: React.FC<GenericListPanelProps> = ({
                     triggerUpdate();
                     return true;
                 }
+                // For toggle items that don't collapse, try onExpand with the key
+                // This allows left arrow to toggle direction in toggle items
+                if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
+                    selectedItem.onExpand(key);
+                    triggerUpdate();
+                    return true;
+                }
                 return false;
+            }
+            // For items without onCollapse (like toggle items), try onExpand directly
+            if ('onExpand' in selectedItem && typeof selectedItem.onExpand === 'function') {
+                selectedItem.onExpand(key);
+                triggerUpdate();
+                return true;
             }
         } else if (key.escape && selectedItem) {
             // ESC collapses (if item supports it), but if nothing to collapse, let it bubble up for app exit

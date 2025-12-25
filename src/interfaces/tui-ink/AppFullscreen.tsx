@@ -709,12 +709,13 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
     }, [robustExit, toggleAnimations, countdown]);
     
     // Use focus chain for app-level component
+    // Note: Ctrl+A still works for toggling animations (handled in handleAppInput above)
+    // but is not shown in status bar - see Settings panel for animation controls
     useFocusChain({
         elementId: 'app',
         onInput: handleAppInput,
         keyBindings: isNodeInEditMode ? [] : [
-            { key: countdown !== null && countdown >= 0 ? `Esc(again ${countdown}…)` : 'Esc', description: 'Exit' },
-            { key: 'Ctrl+A', description: animationsPaused ? 'Resume Animations' : 'Pause Animations' }
+            { key: countdown !== null && countdown >= 0 ? `Esc(again ${countdown}…)` : 'Esc', description: 'Exit' }
         ],
         priority: -100 // Low priority so active elements can override
     });

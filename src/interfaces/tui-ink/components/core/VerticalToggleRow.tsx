@@ -131,7 +131,7 @@ export class VerticalToggleRow {
         const layout = this.calculateLayout(label, options, selectedOption, maxWidth, showNavigationHint);
         
         // Render the single line with dynamic cursor
-        const cursor = hasFocus ? '▶' : '⁃';
+        const cursor = hasFocus ? '▶' : '›';
         return (
             <Text>
                 <Text {...textColorProp(hasFocus ? theme.colors.accent : theme.colors.textPrimary)}>
@@ -652,14 +652,12 @@ export class VerticalToggleRowListItem implements IListItem {
     }
 
     handleInput(_input: string, key: Key): boolean {
-        // Only handle input when controlling (after onExpand was called)
-        if (!this._isControllingInput) {
-            return false; // Pass through to parent when not controlling
-        }
-
-        // Handle left/right arrows for toggling
+        // Handle left/right arrows for toggling when active OR when controlling
+        // This allows immediate toggling when focused in a settings panel
         if (key.leftArrow || key.rightArrow) {
-            return this.handleArrowToggle(key.leftArrow, key.rightArrow);
+            if (this.isActive || this._isControllingInput) {
+                return this.handleArrowToggle(key.leftArrow, key.rightArrow);
+            }
         }
 
         // Up/Down arrows exit controlling mode and pass through for seamless navigation
@@ -673,8 +671,9 @@ export class VerticalToggleRowListItem implements IListItem {
             return false;
         }
 
-        // Consume other input when controlling (like escape)
-        return true;
+        // Only consume other input when in controlling mode (like escape)
+        // When just active (focused), let other input pass through
+        return this._isControllingInput;
     }
 
     render(maxWidth: number, _maxLines?: number): ReactElement | ReactElement[] {
@@ -735,5 +734,23 @@ export class VerticalToggleRowListItem implements IListItem {
             maxWidth: this.toggleRow.props.maxWidth,
             showNavigationHint: false
         });
+    }
+
+    /**
+     * Check if the toggle is at the leftmost position (first option)
+     * Used by parent panels to decide whether left arrow should exit the panel
+     */
+    isAtLeftmostPosition(): boolean {
+        const currentIndex = this._options.findIndex(opt => opt.value === this._selectedValue);
+        return currentIndex === 0;
+    }
+
+    /**
+     * Check if the toggle is at the rightmost position (last option)
+     * Used by parent panels to decide whether right arrow should exit the panel
+     */
+    isAtRightmostPosition(): boolean {
+        const currentIndex = this._options.findIndex(opt => opt.value === this._selectedValue);
+        return currentIndex === this._options.length - 1;
     }
 }

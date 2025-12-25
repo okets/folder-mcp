@@ -586,7 +586,7 @@ export async function createDefaultModelWizard(options: DefaultModelWizardOption
 
     // Create the container
     containerWizard = new DefaultModelContainerItem(
-        '○',
+        '›',
         'Default Model',
         selectedModel || '',
         currentValidation,
