@@ -64,33 +64,43 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
         forceUpdate((prev) => prev + 1);
     }, []);
 
-    // Handler for showing popup
+    // CRITICAL FIX: Use a ref for the trigger function to avoid stale closure bug
+    // When ConnectPanel remounts (e.g., during resize), items preserved in external state
+    // still hold references to the OLD triggerRender from the previous mount.
+    // By using a ref that's updated on every render, items always call the current trigger.
+    const triggerRenderRef = useRef(triggerRender);
+    triggerRenderRef.current = triggerRender;
+
+    // Handler for showing popup - calls through ref to avoid stale closures
     const handleShowPopup = useCallback((clientId: McpClientId, configJson: string) => {
         popupStateRef.current = {
             visible: true,
             clientId,
             configJson,
         };
-        triggerRender();
-    }, [triggerRender]);
+        // Use ref to always call current triggerRender, even after remounts
+        triggerRenderRef.current();
+    }, [popupStateRef]); // popupStateRef is stable (from useRef or external)
 
-    // Handler for closing popup
+    // Handler for closing popup - calls through ref to avoid stale closures
     const handleClosePopup = useCallback(() => {
         popupStateRef.current = {
             visible: false,
             clientId: null,
             configJson: '',
         };
-        triggerRender();
-    }, [triggerRender]);
+        // Use ref to always call current triggerRender, even after remounts
+        triggerRenderRef.current();
+    }, [popupStateRef]);
 
-    // Handler for client actions (connect/remove/show-config)
+    // Handler for client actions (connect/remove/show-config) - calls through ref to avoid stale closures
     const handleClientAction = useCallback(
         (action: ConnectClientAction, clientId: McpClientId, result: { success: boolean; error?: string }) => {
             // Trigger re-render to update status indicators without recreating items
-            triggerRender();
+            // Use ref to always call current triggerRender, even after remounts
+            triggerRenderRef.current();
         },
-        [triggerRender]
+        []
     );
 
     // Create items once on mount, preserve across re-renders
@@ -127,6 +137,21 @@ export const ConnectPanel: React.FC<ConnectPanelProps> = ({
 
         itemsRef.current = clientItems;
     }
+
+    // CRITICAL FIX: Update callbacks on existing items after each mount
+    // When ConnectPanel remounts (e.g., during resize), items preserved in external state
+    // still hold references to OLD callbacks from the previous mount. This causes the
+    // stale closure bug where triggerRender updates the wrong React state.
+    // By updating callbacks on every mount, items always use fresh callbacks.
+    useEffect(() => {
+        if (itemsRef.current) {
+            itemsRef.current.forEach((item) => {
+                if (item instanceof ConnectClientItem) {
+                    item.updateCallbacks(handleClientAction, handleShowPopup);
+                }
+            });
+        }
+    }, [handleClientAction, handleShowPopup]);
 
     const items = itemsRef.current;
 

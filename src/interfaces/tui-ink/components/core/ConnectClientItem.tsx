@@ -51,6 +51,20 @@ export class ConnectClientItem implements IListItem {
     public icon: string;
     public isActive: boolean = false;
 
+    /**
+     * Update the callback handlers.
+     * This is needed when ConnectPanel remounts to avoid stale closure bugs -
+     * items preserved in external state need fresh callbacks that reference
+     * the current component's state.
+     */
+    public updateCallbacks(
+        onAction?: ConnectClientItemProps['onAction'],
+        onShowPopup?: ConnectClientItemProps['onShowPopup']
+    ): void {
+        this._onAction = onAction;
+        this._onShowPopup = onShowPopup;
+    }
+
     constructor(props: ConnectClientItemProps) {
         this._clientInfo = getClientInfo(props.clientId);
         this.icon = this._clientInfo.icon;
