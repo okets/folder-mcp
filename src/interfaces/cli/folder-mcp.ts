@@ -140,12 +140,11 @@ connectCommand
     const result = configureClaudeDesktop('folder-mcp', options.force);
     if (result.success) {
       console.log(chalk.green(`✅ ${result.message}`));
-      console.log(chalk.gray(`\nMCP Server: ${result.mcpServerPath}`));
       console.log(chalk.gray('\nConfig entry:'));
       console.log(formatConfigForDisplay(result.newConfig!));
 
       if (result.previousConfig) {
-        console.log(chalk.gray('\nPrevious config:'));
+        console.log(chalk.gray('\nPrevious config (will be replaced):'));
         console.log(formatConfigForDisplay(result.previousConfig));
       }
 

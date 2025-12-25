@@ -2,8 +2,12 @@
  * Claude Desktop Configuration Manager
  *
  * Auto-configures Claude Desktop to connect to folder-mcp MCP server.
- * Resolves paths dynamically based on where the package is installed,
- * working for both development and production environments.
+ *
+ * IMPORTANT: Uses the globally-installed `folder-mcp` CLI command instead of
+ * version-specific Node.js paths. This ensures configurations survive:
+ * - Node.js version updates (Homebrew, nvm, etc.)
+ * - Package reinstalls
+ * - System PATH changes
  *
  * Supports: macOS, Windows, Linux
  */
@@ -99,7 +103,12 @@ export function resolveMcpServerPath(): string {
 
 /**
  * Get the node executable path
- * Uses process.execPath which gives the absolute path to node
+ *
+ * @deprecated Use generateFolderMcpConfig() instead which uses the stable
+ * `folder-mcp` CLI command. This function returns version-specific paths
+ * that break when Node.js is updated (e.g., Homebrew updates).
+ *
+ * Kept for backward compatibility but should not be used for new configs.
  */
 export function getNodePath(): string {
   return process.execPath;
@@ -139,19 +148,39 @@ export function writeClaudeDesktopConfig(configPath: string, config: ClaudeDeskt
 
 /**
  * Generate the folder-mcp MCP server configuration
+ *
+ * Uses npx with absolute path for reliable execution from GUI apps.
+ *
+ * IMPORTANT: macOS GUI apps (like Claude Desktop) don't inherit the user's
+ * shell PATH from .zshrc/.bashrc. They only see system paths like:
+ * /usr/local/bin, /opt/homebrew/bin, /usr/bin, /bin, etc.
+ *
+ * Using npx ensures:
+ * - Command is discoverable (npx is in standard PATH locations)
+ * - Package is auto-installed if not present (-y flag)
+ * - Works across Node.js version updates
+ * - Consistent with how other MCP servers (desktop-commander, etc.) work
+ *
+ * The `folder-mcp mcp server` command starts the MCP server in stdio mode,
+ * which then auto-starts the daemon if not running.
  */
 export function generateFolderMcpConfig(): McpServerConfig {
-  const nodePath = getNodePath();
-  const mcpServerPath = resolveMcpServerPath();
+  // Use absolute path to npx for macOS (GUI apps have limited PATH)
+  // Windows/Linux can typically find npx in standard locations
+  const npxCommand = process.platform === 'darwin'
+    ? '/opt/homebrew/bin/npx'  // macOS Homebrew location
+    : 'npx';                    // Windows/Linux use PATH
 
   return {
-    command: nodePath,
-    args: [mcpServerPath]
+    command: npxCommand,
+    args: ['-y', 'folder-mcp', 'mcp', 'server']
   };
 }
 
 /**
  * Configure Claude Desktop to use folder-mcp
+ *
+ * Uses the stable `folder-mcp` CLI command which survives Node.js updates.
  *
  * @param serverName - Name for the MCP server entry (default: "folder-mcp")
  * @param force - Overwrite existing configuration without prompting
@@ -164,8 +193,6 @@ export function configureClaudeDesktop(
   const configPath = getClaudeDesktopConfigPath();
 
   try {
-    // Resolve paths
-    const mcpServerPath = resolveMcpServerPath();
     const newConfig = generateFolderMcpConfig();
 
     // Read existing config
@@ -181,9 +208,8 @@ export function configureClaudeDesktop(
       if (isSameConfig) {
         return {
           success: true,
-          message: `Claude Desktop already configured for ${serverName} with current paths`,
+          message: `Claude Desktop already configured for ${serverName}`,
           configPath,
-          mcpServerPath,
           previousConfig,
           newConfig
         };
@@ -207,7 +233,6 @@ export function configureClaudeDesktop(
         ? `Updated Claude Desktop configuration for ${serverName}`
         : `Added ${serverName} to Claude Desktop configuration`,
       configPath,
-      mcpServerPath,
       previousConfig,
       newConfig
     };
@@ -271,7 +296,6 @@ export function checkClaudeDesktopStatus(serverName: string = 'folder-mcp'): Con
   const configPath = getClaudeDesktopConfigPath();
 
   try {
-    const mcpServerPath = resolveMcpServerPath();
     const expectedConfig = generateFolderMcpConfig();
 
     if (!existsSync(configPath)) {
@@ -279,7 +303,6 @@ export function checkClaudeDesktopStatus(serverName: string = 'folder-mcp'): Con
         success: true,
         message: 'Claude Desktop config file does not exist',
         configPath,
-        mcpServerPath,
         isConfigured: false,
         needsUpdate: true
       };
@@ -293,13 +316,12 @@ export function checkClaudeDesktopStatus(serverName: string = 'folder-mcp'): Con
         success: true,
         message: `${serverName} is not configured in Claude Desktop`,
         configPath,
-        mcpServerPath,
         isConfigured: false,
         needsUpdate: true
       };
     }
 
-    // Check if config matches expected
+    // Check if config matches expected (stable folder-mcp command)
     const isSameConfig =
       currentConfig.command === expectedConfig.command &&
       JSON.stringify(currentConfig.args) === JSON.stringify(expectedConfig.args);
@@ -308,9 +330,8 @@ export function checkClaudeDesktopStatus(serverName: string = 'folder-mcp'): Con
       success: true,
       message: isSameConfig
         ? `${serverName} is correctly configured`
-        : `${serverName} is configured but paths differ from current installation`,
+        : `${serverName} is configured but uses outdated paths - run without --status to update`,
       configPath,
-      mcpServerPath,
       previousConfig: currentConfig,
       newConfig: expectedConfig,
       isConfigured: true,
