@@ -31,6 +31,88 @@ import { ModelCacheChecker } from './services/model-cache-checker.js';
 import { DefaultModelSelector } from './services/default-model-selector.js';
 import { getActivityService, ActivityService } from './services/activity-service.js';
 
+/**
+ * Result of environment validation
+ */
+interface EnvironmentValidationResult {
+  success: boolean;
+  errors: string[];
+  warnings: string[];
+  betterSqlite3: 'ok' | 'error' | 'not-checked';
+  sqliteVec: 'ok' | 'error' | 'not-checked';
+}
+
+/**
+ * Validate that critical native modules are properly compiled for the current Node.js version.
+ * This catches NODE_MODULE_VERSION mismatch errors early before folder operations are attempted.
+ *
+ * IMPORTANT: This validation prevents data loss by catching environment issues before
+ * any cleanup logic could accidentally delete indexed data.
+ */
+async function validateEnvironment(): Promise<EnvironmentValidationResult> {
+  const result: EnvironmentValidationResult = {
+    success: true,
+    errors: [],
+    warnings: [],
+    betterSqlite3: 'not-checked',
+    sqliteVec: 'not-checked'
+  };
+
+  // Check better-sqlite3 native module
+  try {
+    const Database = (await import('better-sqlite3')).default;
+    // Try to create an in-memory database to verify the module works
+    const testDb = new Database(':memory:');
+    testDb.exec('SELECT 1');
+    testDb.close();
+    result.betterSqlite3 = 'ok';
+  } catch (error) {
+    result.betterSqlite3 = 'error';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('NODE_MODULE_VERSION') ||
+        errorMessage.includes('compiled against a different Node.js version')) {
+      result.errors.push(
+        `Native module version mismatch (better-sqlite3). ` +
+        `Your Node.js was upgraded but native modules need rebuilding. ` +
+        `Run: npm rebuild better-sqlite3`
+      );
+    } else {
+      result.errors.push(`Failed to load better-sqlite3: ${errorMessage}`);
+    }
+    result.success = false;
+  }
+
+  // Check sqlite-vec native module (only if better-sqlite3 worked)
+  if (result.betterSqlite3 === 'ok') {
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      const sqliteVec = await import('sqlite-vec');
+      const testDb = new Database(':memory:');
+      sqliteVec.load(testDb);
+      testDb.exec('SELECT vec_version()');
+      testDb.close();
+      result.sqliteVec = 'ok';
+    } catch (error) {
+      result.sqliteVec = 'error';
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes('NODE_MODULE_VERSION') ||
+          errorMessage.includes('compiled against a different Node.js version')) {
+        result.errors.push(
+          `Native module version mismatch (sqlite-vec). ` +
+          `Run: npm rebuild sqlite-vec`
+        );
+      } else {
+        result.errors.push(`Failed to load sqlite-vec: ${errorMessage}`);
+      }
+      result.success = false;
+    }
+  }
+
+  return result;
+}
+
 // Log level configuration
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -103,6 +185,42 @@ class FolderMCPDaemon {
 
   async start(): Promise<void> {
     info(`Starting folder-mcp daemon on port ${this.config.port}`);
+
+    // CRITICAL: Validate environment early to detect native module issues
+    // This prevents data loss by catching NODE_MODULE_VERSION mismatches before
+    // any folder operations that could trigger cleanup logic
+    debug('Validating environment (native modules)...');
+    const envValidation = await validateEnvironment();
+
+    if (!envValidation.success) {
+      // Log all errors prominently
+      for (const errorMsg of envValidation.errors) {
+        logError(`[ENVIRONMENT ERROR] ${errorMsg}`);
+        this.logToFile(`ENVIRONMENT ERROR: ${errorMsg}`);
+      }
+
+      // Also log warnings
+      for (const warningMsg of envValidation.warnings) {
+        warn(`[ENVIRONMENT WARNING] ${warningMsg}`);
+      }
+
+      // CRITICAL: Don't fail silently - make sure user knows what's happening
+      warn('========================================================');
+      warn('NATIVE MODULE ISSUES DETECTED');
+      warn('Folder indexing will fail until this is fixed.');
+      warn('Your existing indexed data will be PRESERVED.');
+      warn('');
+      warn('To fix, run one of:');
+      warn('  npm rebuild');
+      warn('  npm rebuild better-sqlite3');
+      warn('========================================================');
+
+      // Store environment error state for later use
+      // Note: We continue startup so the TUI can display the error to the user
+      // but folder operations will fail gracefully
+    } else {
+      debug('Environment validation passed (native modules OK)');
+    }
 
     try {
       debug('Registering daemon in discovery registry...');

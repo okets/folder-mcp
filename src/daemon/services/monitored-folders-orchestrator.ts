@@ -1,6 +1,6 @@
 /**
  * Monitored Folders Orchestrator
- * 
+ *
  * Singleton service that orchestrates all FolderLifecycleManager instances,
  * controlling their state transitions and updating FMDM.
  */
@@ -29,6 +29,86 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { ActivityService } from './activity-service.js';
+
+/**
+ * Checks if an error is an environment/system error that should NOT trigger data cleanup.
+ * Environment errors are issues with the Node.js environment, native modules, or system
+ * configuration that are NOT the user's fault and should be retried after fixing the environment.
+ *
+ * CRITICAL: When these errors occur, we must:
+ * - NOT delete the .folder-mcp directory (preserve indexed data)
+ * - NOT remove from configuration (allow retry after fix)
+ * - Show clear error message about environment issue
+ *
+ * @param error The error to check
+ * @returns True if this is an environment error that should preserve data
+ */
+function isEnvironmentError(error: Error | string): boolean {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack || '' : '';
+  const fullErrorText = `${errorMessage} ${errorStack}`.toLowerCase();
+
+  // Native module version mismatch (Node.js upgrade)
+  if (fullErrorText.includes('node_module_version') ||
+      fullErrorText.includes('compiled against a different node.js version') ||
+      fullErrorText.includes('please try re-compiling or re-installing')) {
+    return true;
+  }
+
+  // Native module loading failures
+  if (fullErrorText.includes('dlopen') ||
+      fullErrorText.includes('error loading native module') ||
+      fullErrorText.includes('cannot load such file') ||
+      fullErrorText.includes('cannot open shared object')) {
+    return true;
+  }
+
+  // Specific native module issues (better-sqlite3, sqlite-vec)
+  if ((fullErrorText.includes('better-sqlite3') || fullErrorText.includes('sqlite-vec')) &&
+      (fullErrorText.includes('.node') || fullErrorText.includes('native'))) {
+    return true;
+  }
+
+  // Missing native module binaries
+  if (fullErrorText.includes('was compiled against') ||
+      fullErrorText.includes('cannot find module') && fullErrorText.includes('.node')) {
+    return true;
+  }
+
+  // Python environment issues (should not delete data)
+  if (fullErrorText.includes('python') &&
+      (fullErrorText.includes('not found') ||
+       fullErrorText.includes('no module named') ||
+       fullErrorText.includes('modulenotfounderror'))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Get a user-friendly error message for environment errors
+ */
+function getEnvironmentErrorMessage(error: Error | string): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const fullText = errorMessage.toLowerCase();
+
+  if (fullText.includes('node_module_version') ||
+      fullText.includes('compiled against a different node.js version')) {
+    return 'Native module version mismatch - please run: npm rebuild better-sqlite3';
+  }
+
+  if (fullText.includes('dlopen') || fullText.includes('error loading native module')) {
+    return 'Failed to load native module - please reinstall dependencies: npm install';
+  }
+
+  if (fullText.includes('python') && fullText.includes('not found')) {
+    return 'Python not found - GPU models require Python 3.8+';
+  }
+
+  // Return original message if no specific match
+  return errorMessage;
+}
 
 export interface IMonitoredFoldersOrchestrator {
   /**
@@ -291,10 +371,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       this.fmdmService.updateFolders(currentFolders);
-      
+
       // Perform resource cleanup on operation failure
-      await this.performResourceCleanup(path, 'add_folder_failed');
-      
+      // Pass the original error so we can detect environment errors and preserve data
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      await this.performResourceCleanup(path, 'add_folder_failed', errorObj);
+
       throw error;
     }
   }
@@ -574,10 +656,12 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       }
       
       this.fmdmService.updateFolders(currentFolders);
-      
+
       // Perform resource cleanup on execution failure
-      await this.performResourceCleanup(path, 'add_folder_execution_failed');
-      
+      // Pass the original error so we can detect environment errors and preserve data
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      await this.performResourceCleanup(path, 'add_folder_execution_failed', errorObj);
+
       throw error;
     }
   }
@@ -1639,10 +1723,27 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
   /**
    * Perform resource cleanup when operations fail
    * This ensures that partially completed operations don't leave the system in an inconsistent state
+   *
+   * CRITICAL: For environment errors (native module mismatch, Python issues, etc.):
+   * - DO NOT delete the .folder-mcp directory (preserve indexed data!)
+   * - DO NOT remove from configuration (allow retry after environment fix)
+   * - Only clean up transient resources (managers, watchers, pending operations)
+   *
+   * @param folderPath Path to the folder being cleaned up
+   * @param reason Reason for cleanup
+   * @param originalError Optional - the error that triggered cleanup (used to detect environment errors)
    */
-  private async performResourceCleanup(folderPath: string, reason: string): Promise<void> {
-    this.logger.info(`[ORCHESTRATOR] Performing resource cleanup for ${folderPath} (reason: ${reason})`);
-    
+  private async performResourceCleanup(folderPath: string, reason: string, originalError?: Error): Promise<void> {
+    // Check if this is an environment error that should preserve data
+    const preserveData = originalError ? isEnvironmentError(originalError) : false;
+
+    if (preserveData) {
+      this.logger.warn(`[ORCHESTRATOR] Environment error detected for ${folderPath} - preserving .folder-mcp directory and configuration`);
+      this.logger.warn(`[ORCHESTRATOR] To fix: ${getEnvironmentErrorMessage(originalError!)}`);
+    }
+
+    this.logger.info(`[ORCHESTRATOR] Performing resource cleanup for ${folderPath} (reason: ${reason}, preserveData: ${preserveData})`);
+
     try {
       // 1. Force resource manager to cancel any pending operations for this folder
       if (this.resourceManager) {
@@ -1652,7 +1753,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           if (cancelled) {
             this.logger.info(`[ORCHESTRATOR] Cancelled pending resource manager operation: ${operationId}`);
           }
-          
+
           // Also try to cancel scan operations
           const scanOperationId = `scan-changes-${folderPath}`;
           const scanCancelled = await this.resourceManager.cancelOperation(scanOperationId);
@@ -1663,7 +1764,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           this.logger.warn(`[ORCHESTRATOR] Error cancelling resource manager operations for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
         }
       }
-      
+
       // 2. Stop and clean up any partially created folder manager
       const pathKey = this.normalizePathKey(folderPath);
       if (this.folderManagers.has(pathKey)) {
@@ -1673,7 +1774,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
             this.logger.info(`[ORCHESTRATOR] Stopping partially created folder manager for ${folderPath}`);
             await manager.stop();
             this.logger.info(`[ORCHESTRATOR] Folder manager stopped successfully`);
-            
+
             // On Windows, add a small delay to ensure database connections are fully released
             const isWindows = process.platform === 'win32';
             if (isWindows) {
@@ -1686,7 +1787,7 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           this.logger.warn(`[ORCHESTRATOR] Error stopping folder manager during cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
         }
       }
-      
+
       // 3. Clean up file watching if it was started
       if (this.monitoringOrchestrator) {
         try {
@@ -1697,44 +1798,54 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
           this.logger.debug(`[ORCHESTRATOR] File watching cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
-      
-      // 4. Clean up .folder-mcp directory if it was created
-      try {
-        const folderMcpPath = `${folderPath}/.folder-mcp`;
-        const fs = await import('fs');
-        
-        if (fs.existsSync(folderMcpPath)) {
-          this.logger.info(`[ORCHESTRATOR] Cleaning up .folder-mcp directory during cleanup: ${folderMcpPath}`);
-          await fs.promises.rm(folderMcpPath, { recursive: true, force: true });
-          this.logger.info(`[ORCHESTRATOR] Successfully cleaned up .folder-mcp directory`);
+
+      // 4. Clean up .folder-mcp directory ONLY if NOT an environment error
+      // CRITICAL: Environment errors should NOT delete indexed data!
+      if (!preserveData) {
+        try {
+          const folderMcpPath = `${folderPath}/.folder-mcp`;
+          const fsModule = await import('fs');
+
+          if (fsModule.existsSync(folderMcpPath)) {
+            this.logger.info(`[ORCHESTRATOR] Cleaning up .folder-mcp directory during cleanup: ${folderMcpPath}`);
+            await fsModule.promises.rm(folderMcpPath, { recursive: true, force: true });
+            this.logger.info(`[ORCHESTRATOR] Successfully cleaned up .folder-mcp directory`);
+          }
+        } catch (error) {
+          this.logger.warn(`[ORCHESTRATOR] Error cleaning up .folder-mcp directory for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
         }
-      } catch (error) {
-        this.logger.warn(`[ORCHESTRATOR] Error cleaning up .folder-mcp directory for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
+      } else {
+        this.logger.info(`[ORCHESTRATOR] Preserving .folder-mcp directory for ${folderPath} (environment error - data will be available after fix)`);
       }
-      
-      // 5. Remove from configuration if it was added
-      try {
-        await this.configService.removeFolder(folderPath);
-        this.logger.info(`[ORCHESTRATOR] Removed ${folderPath} from configuration during cleanup`);
-      } catch (error) {
-        // This is expected if folder wasn't added to config yet
-        this.logger.debug(`[ORCHESTRATOR] Configuration cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
+
+      // 5. Remove from configuration ONLY if NOT an environment error
+      // CRITICAL: Environment errors should keep folder in config for retry after fix
+      if (!preserveData) {
+        try {
+          await this.configService.removeFolder(folderPath);
+          this.logger.info(`[ORCHESTRATOR] Removed ${folderPath} from configuration during cleanup`);
+        } catch (error) {
+          // This is expected if folder wasn't added to config yet
+          this.logger.debug(`[ORCHESTRATOR] Configuration cleanup for ${folderPath}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      } else {
+        this.logger.info(`[ORCHESTRATOR] Preserving ${folderPath} in configuration (environment error - will retry after fix)`);
       }
-      
+
       // 6. Folder removal from managers handled above
-      
+
       // 7. Force garbage collection if available to free up memory
       if (global.gc) {
         this.logger.debug(`[ORCHESTRATOR] Triggering garbage collection after resource cleanup for ${folderPath}`);
         global.gc();
       }
-      
+
       // 8. Update FMDM to remove any partially created folder entries
       // BUT: Don't remove error folders that were intentionally added to FMDM
       // Check if the folder is already in FMDM with error status
       const currentFMDM = this.fmdmService.getFMDM();
       const folderInFMDM = currentFMDM.folders.find(f => f.path === folderPath);
-      
+
       if (!folderInFMDM || folderInFMDM.status !== 'error') {
         // Only update FMDM if folder is not in error state
         // (error state folders should remain visible to the user)
@@ -1742,18 +1853,19 @@ export class MonitoredFoldersOrchestrator extends EventEmitter implements IMonit
       } else {
         this.logger.debug(`[ORCHESTRATOR] Keeping error folder ${folderPath} in FMDM during cleanup`);
       }
-      
+
       // 9. Log final resource statistics after cleanup
       if (this.resourceManager) {
         const stats = this.resourceManager.getStats();
         this.logger.info(`[ORCHESTRATOR] Resource cleanup completed for ${folderPath}`, {
           reason,
+          preserveData,
           activeOperations: stats.activeOperations,
           queuedOperations: stats.queuedOperations,
           memoryUsedMB: Math.round(stats.memoryUsedMB)
         });
       }
-      
+
     } catch (error) {
       this.logger.error(`[ORCHESTRATOR] Error during resource cleanup for ${folderPath}:`, error instanceof Error ? error : new Error(String(error)));
       // Don't throw - cleanup should not fail the parent operation
