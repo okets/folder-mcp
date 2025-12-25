@@ -2,8 +2,8 @@
 
 **Phase**: 11 - Complete App Interface
 **Sprint**: 5 - Connect Screen
-**Status**: PLANNING
-**Estimated Start Date**: TBD
+**Status**: ✅ COMPLETED
+**Completed Date**: 2025-12-25
 
 ## Related Documentation
 - [Phase 11 Overview](../folder-mcp-roadmap-1.1.md#phase-11-complete-app-interface)
@@ -27,7 +27,7 @@ Build the Connect Screen - the 3rd of 4 screens in our TUI application. This scr
 - **Tool-specific**: Configurations tailored to each MCP client
 
 ### Scope
-- **In Scope**: Local connection setup for 6 MCP clients, auto-connect, clipboard copy, connection string popup
+- **In Scope**: Local connection setup for 9 MCP clients, auto-connect, clipboard copy, connection string popup
 - **Out of Scope**: Remote access functionality (Phase 12)
 - **Placeholder**: Remote Access section with "Coming in Phase 12" message
 
@@ -69,16 +69,23 @@ When folder-mcp is already configured in a client:
 
 ### Supported MCP Clients
 
-| Client | Config File Location | Format | Connect Method |
-|--------|---------------------|--------|----------------|
-| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) <br> `%APPDATA%\Claude\claude_desktop_config.json` (Windows) | JSON with `mcpServers` | ✅ Direct edit |
-| Claude Code | `~/.claude.json` (user) or `.mcp.json` (project) | JSON with `mcpServers` | ✅ Direct edit + CLI |
-| Cursor | `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project) | JSON with `mcpServers` | ✅ Direct edit |
-| Windsurf | `~/.windsurf/mcp.json` (global) | JSON with `mcpServers` | ✅ Direct edit |
-| Codex CLI | `~/.codex/config.json` (global) | JSON with `mcpServers` | ✅ Direct edit + CLI |
-| VS Code (Copilot) | `.vscode/mcp.json` (project-level only) | JSON with `servers` | ⚠️ Show Config only |
+| Client | Config File Location | Format | Connect Method | Status |
+|--------|---------------------|--------|----------------|--------|
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) <br> `%APPDATA%\Claude\claude_desktop_config.json` (Windows) | JSON with `mcpServers` | ✅ Direct edit | ✅ Tested |
+| Claude Code | `~/.claude.json` (user) or `.mcp.json` (project) | JSON with `mcpServers` | ✅ Direct edit + CLI | ✅ Tested |
+| Cursor | `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project) | JSON with `mcpServers` | ✅ Direct edit | ✅ Tested |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` (global) | JSON with `mcpServers` | ✅ Direct edit | ✅ Tested |
+| Codex CLI | `~/.codex/config.toml` (global) | TOML with `[mcp_servers]` | ✅ Direct edit | ✅ Tested |
+| Cline | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | JSON with `mcpServers` | ✅ Direct edit | ✅ Tested |
+| Qwen Code | `~/.qwen/settings.json` (global) | JSON with `mcpServers` | ✅ Direct edit | ✅ Tested |
+| GitHub Copilot CLI | `~/.copilot/mcp-config.json` (global) | JSON with `mcpServers` + `tools: ["*"]` | ✅ Direct edit | ✅ Tested |
+| VS Code (Copilot) | `.vscode/mcp.json` (project-level only) | JSON with `servers` | ⚠️ Show Config only | 📋 Manual |
 
-**Note on VS Code**: Config is project-level (`.vscode/mcp.json`), so we can't auto-configure it - we don't know which project directory the user wants. Show Config popup only.
+**Note on VS Code**: Config is project-level (`.vscode/mcp.json`), so we can't auto-configure it - we don't know which project directory the user wants. Show Config popup only with clear instructions.
+
+**Note on Codex CLI**: Uses TOML format for configuration, not JSON. The implementation handles TOML section parsing and appending.
+
+**Note on GitHub Copilot CLI**: Requires `tools: ["*"]` array in the server entry to enable all tools (Zod validation requirement).
 
 ### Configuration Formats
 
@@ -888,18 +895,21 @@ This breaks the JSON. The popup approach with no side borders solves this.
 ## Success Criteria
 
 ### Sprint Complete When:
-- [ ] Connect screen shows two sections: Local Connections + Remote Access
-- [ ] 6 MCP clients displayed (Claude Desktop, Claude Code, Cursor, Windsurf, Codex CLI, VS Code)
-- [ ] 5 clients show 2 buttons when expanded (Connect + Show Config)
-- [ ] VS Code shows 1 button when expanded (Show Config only)
-- [ ] "Connect" auto-configures client by merging into config file
-- [ ] "Show Config" opens full-screen popup with no side borders
-- [ ] Popup includes "Copy To Clipboard" button
-- [ ] Popup shows CLI command for Claude Code and Codex CLI
-- [ ] Platform-specific paths shown correctly (macOS/Windows/Linux)
-- [ ] Remote Access section shows Phase 12 placeholder
-- [ ] Navigation works (up/down, expand/collapse, left/right buttons, tab to nav)
-- [ ] All existing TUI functionality still works
+- [x] Connect screen shows two sections: Local Connections + Remote Access
+- [x] 9 MCP clients displayed (Claude Desktop, Claude Code, Cursor, Windsurf, Codex CLI, Cline, Qwen Code, GitHub Copilot CLI, VS Code)
+- [x] 8 clients show 2 buttons when expanded (Connect/Remove + Show Config)
+- [x] VS Code shows 1 button when expanded (Show Config only)
+- [x] "Connect" auto-configures client by merging into config file
+- [x] "Remove" removes folder-mcp from client config file
+- [x] "Show Config" opens full-screen popup with no side borders
+- [x] Popup includes "Copy To Clipboard" button
+- [x] Popup shows instructions for VS Code (per-project config)
+- [x] Platform-specific paths shown correctly (macOS/Windows/Linux)
+- [x] Remote Access section shows Phase 12 placeholder
+- [x] Navigation works (up/down, expand/collapse, left/right buttons, tab to nav)
+- [x] All existing TUI functionality still works
+- [x] TOML format support for Codex CLI
+- [x] GitHub Copilot CLI `tools: ["*"]` requirement handled
 
 ### Stretch Goals (If Time Permits):
 - [ ] Detect if client is installed before showing
@@ -934,3 +944,11 @@ This breaks the JSON. The popup approach with no side borders solves this.
 | 2025-12-23 | Added `isConfigured()` and `removeFromConfig()` to Task A1 | Claude |
 | 2025-12-23 | Simplified popup design: removed decorative borders, added config path, [C] Copy shortcut | Claude |
 | 2025-12-23 | Fixed resize state loss with useRef for popup state and selectedIndex | Claude |
+| 2025-12-25 | Fixed Windsurf path to `~/.codeium/windsurf/mcp_config.json` | Claude |
+| 2025-12-25 | Added TOML format support for Codex CLI (`~/.codex/config.toml`) | Claude |
+| 2025-12-25 | Added Cline MCP client support | Claude |
+| 2025-12-25 | Added Qwen Code MCP client support | Claude |
+| 2025-12-25 | Added GitHub Copilot CLI support with `tools: ["*"]` array requirement | Claude |
+| 2025-12-25 | Fixed VS Code "Connected" status detection for per-project configs | Claude |
+| 2025-12-25 | Added instruction header for VS Code's per-project config in Show Config popup | Claude |
+| 2025-12-25 | **SPRINT COMPLETED**: 9 MCP clients tested and working (8 auto-connect + 1 manual) | Claude |

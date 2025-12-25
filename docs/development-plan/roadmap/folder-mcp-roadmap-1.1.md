@@ -640,7 +640,7 @@ Discovery: get_server_info → find_documents → get_document_text
 - Sprint 2 ✅: Settings Screen (Theme, Log Verbosity settings)
 - Sprint 3 ✅: Default Model System (FMDM integration, Settings UI, Wizard simplification, CLI integration)
 - Sprint 4 ✅: Activity Log Screen (Progress River model, real-time daemon events, code review fixes)
-- Sprint 5: Connect Screen (Local MCP connection strings with copy buttons)
+- Sprint 5 ✅: Connect Screen (9 MCP clients: Claude Desktop, Claude Code, Cursor, Windsurf, Codex CLI, Cline, Qwen Code, GitHub Copilot CLI, VS Code)
 
 **Components**: All screens use existing tested components (GenericListPanel, SelectionListItem, TextListItem, ButtonsRow, LogItem). NO new components needed.
 

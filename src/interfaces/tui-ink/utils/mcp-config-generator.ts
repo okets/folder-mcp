@@ -18,25 +18,44 @@
  *    - Uses absolute node + script path for reliability
  *    - Requires restart after config change
  *
- * ⏳ Claude Code - NOT YET TESTED
- *    - Config at ~/.claude.json
- *    - Uses mcpServers key
+ * ✅ Claude Code - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via `folder-mcp connect claude-desktop` (same config)
+ *    - Config at ~/.claude.json with mcpServers key
+ *    - Uses absolute node + script path for reliability
  *
- * ⏳ Cursor - NOT YET TESTED
- *    - Config at ~/.cursor/mcp.json
- *    - Uses mcpServers key
+ * ✅ Cursor - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via `folder-mcp connect claude-desktop` (same config)
+ *    - Config at ~/.cursor/mcp.json with mcpServers key
+ *    - Uses absolute node + script path for reliability
  *
- * ⏳ Windsurf - NOT YET TESTED
- *    - Config at ~/.windsurf/mcp.json
- *    - Uses mcpServers key
+ * ✅ Windsurf - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via TUI Connect screen
+ *    - Config at ~/.codeium/windsurf/mcp_config.json with mcpServers key
+ *    - Uses absolute node + script path for reliability
  *
- * ⏳ Codex CLI - NOT YET TESTED
- *    - Config at ~/.codex/config.json
- *    - Uses mcpServers key
+ * ✅ Cline - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via TUI Connect screen
+ *    - Config at ~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json
+ *    - Uses mcpServers key (JSON format)
  *
- * ⏳ VS Code - NOT YET TESTED (project-level config)
+ * ✅ Qwen Code - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via TUI Connect screen
+ *    - Config at ~/.qwen/settings.json with mcpServers key
+ *    - Uses mcpServers key (JSON format)
+ *
+ * ✅ Codex CLI - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via TUI Connect screen
+ *    - Config at ~/.codex/config.toml (TOML format)
+ *    - Appends [mcp_servers.folder-mcp] section
+ *
+ * ✅ GitHub Copilot CLI - TESTED & WORKING (Dec 2024)
+ *    - Auto-configuration via TUI Connect screen
+ *    - Config at ~/.copilot/mcp-config.json with mcpServers key
+ *    - Requires tools: ["*"] to enable all tools
+ *
+ * ⚠️ VS Code - MANUAL SETUP REQUIRED (project-level config)
  *    - Config at .vscode/mcp.json (per-project)
- *    - Cannot auto-configure (manual setup required)
+ *    - Cannot auto-configure (project-level config)
  *
  * ============================================================================
  */
@@ -55,6 +74,9 @@ export type McpClientId =
     | 'cursor'
     | 'windsurf'
     | 'codex-cli'
+    | 'cline'
+    | 'qwen-code'
+    | 'github-copilot'
     | 'vscode';
 
 export interface McpClientInfo {
@@ -63,9 +85,11 @@ export interface McpClientInfo {
     icon: string;
     description: string;
     configPath: string;
-    /** Key for servers object (mcpServers vs servers) */
-    serversKey: 'mcpServers' | 'servers';
-    /** Whether we can auto-configure (false for project-level configs) */
+    /** Key for servers object (mcpServers vs servers vs mcp_servers for TOML) */
+    serversKey: 'mcpServers' | 'servers' | 'mcp_servers';
+    /** Config file format */
+    configFormat: 'json' | 'toml';
+    /** Whether we can auto-configure (false for project-level configs or unsupported formats) */
     canAutoConnect: boolean;
     /** Whether client uses 'type: stdio' in config */
     includesType: boolean;
@@ -117,14 +141,29 @@ const CONFIG_PATHS: Record<McpClientId, Record<Platform, string>> = {
         linux: '~/.cursor/mcp.json',
     },
     windsurf: {
-        darwin: '~/.windsurf/mcp.json',
-        win32: '~/.windsurf/mcp.json',
-        linux: '~/.windsurf/mcp.json',
+        darwin: '~/.codeium/windsurf/mcp_config.json',
+        win32: '~/.codeium/windsurf/mcp_config.json',
+        linux: '~/.codeium/windsurf/mcp_config.json',
     },
     'codex-cli': {
-        darwin: '~/.codex/config.json',
-        win32: '~/.codex/config.json',
-        linux: '~/.codex/config.json',
+        darwin: '~/.codex/config.toml',
+        win32: '~/.codex/config.toml',
+        linux: '~/.codex/config.toml',
+    },
+    cline: {
+        darwin: '~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
+        win32: '%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
+        linux: '~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
+    },
+    'qwen-code': {
+        darwin: '~/.qwen/settings.json',
+        win32: '~/.qwen/settings.json',
+        linux: '~/.qwen/settings.json',
+    },
+    'github-copilot': {
+        darwin: '~/.copilot/mcp-config.json',
+        win32: '~/.copilot/mcp-config.json',
+        linux: '~/.copilot/mcp-config.json',
     },
     vscode: {
         darwin: '.vscode/mcp.json',
@@ -182,51 +221,87 @@ const CLIENT_INFO: Record<McpClientId, Omit<McpClientInfo, 'configPath'>> = {
         icon: '◈',
         description: 'Anthropic Claude desktop application',
         serversKey: 'mcpServers',
+        configFormat: 'json',
         canAutoConnect: true,
         includesType: false,
     },
     'claude-code': {
         id: 'claude-code',
         name: 'Claude Code',
-        icon: '◆',
+        icon: '◈',
         description: 'Anthropic Claude CLI for developers',
         serversKey: 'mcpServers',
+        configFormat: 'json',
         canAutoConnect: true,
         includesType: true,
     },
     cursor: {
         id: 'cursor',
         name: 'Cursor',
-        icon: '◇',
+        icon: '◈',
         description: 'AI-first code editor',
         serversKey: 'mcpServers',
+        configFormat: 'json',
         canAutoConnect: true,
         includesType: false,
     },
     windsurf: {
         id: 'windsurf',
         name: 'Windsurf',
-        icon: '○',
-        description: 'AI-powered IDE',
+        icon: '◈',
+        description: 'AI-powered IDE (Codeium)',
         serversKey: 'mcpServers',
+        configFormat: 'json',
         canAutoConnect: true,
         includesType: false,
     },
     'codex-cli': {
         id: 'codex-cli',
         name: 'Codex CLI',
-        icon: '□',
+        icon: '◈',
         description: 'OpenAI Codex command-line tool',
+        serversKey: 'mcp_servers',
+        configFormat: 'toml',
+        canAutoConnect: true,
+        includesType: false,
+    },
+    cline: {
+        id: 'cline',
+        name: 'Cline',
+        icon: '◈',
+        description: 'VS Code AI coding assistant extension',
         serversKey: 'mcpServers',
+        configFormat: 'json',
+        canAutoConnect: true,
+        includesType: false,
+    },
+    'qwen-code': {
+        id: 'qwen-code',
+        name: 'Qwen Code',
+        icon: '◈',
+        description: 'Alibaba Qwen AI coding CLI',
+        serversKey: 'mcpServers',
+        configFormat: 'json',
+        canAutoConnect: true,
+        includesType: false,
+    },
+    'github-copilot': {
+        id: 'github-copilot',
+        name: 'Copilot CLI',
+        icon: '◈',
+        description: 'GitHub Copilot CLI (ghcs command)',
+        serversKey: 'mcpServers',
+        configFormat: 'json',
         canAutoConnect: true,
         includesType: false,
     },
     vscode: {
         id: 'vscode',
         name: 'VS Code',
-        icon: '▣',
-        description: 'GitHub Copilot with MCP support',
+        icon: '◈',
+        description: 'VS Code with Copilot (per-project)',
         serversKey: 'servers',
+        configFormat: 'json',
         canAutoConnect: false, // Project-level config only
         includesType: false,
     },
@@ -276,6 +351,11 @@ function generateServerEntry(clientId: McpClientId): Record<string, unknown> {
         entry.type = 'stdio';
     }
 
+    // GitHub Copilot CLI requires 'tools' array
+    if (clientId === 'github-copilot') {
+        entry.tools = ['*']; // Enable all tools
+    }
+
     return entry;
 }
 
@@ -295,7 +375,14 @@ export function generateConfigSnippet(clientId: McpClientId): string {
         },
     };
 
-    return JSON.stringify(config, null, 2);
+    const jsonConfig = JSON.stringify(config, null, 2);
+
+    // Add instruction header for project-level configs
+    if (clientId === 'vscode') {
+        return `Create or edit: <project>/.vscode/mcp.json\n\n${jsonConfig}`;
+    }
+
+    return jsonConfig;
 }
 
 // ============================================================================
@@ -313,12 +400,25 @@ export async function isConfigured(clientId: McpClientId): Promise<boolean> {
         return false;
     }
 
+    // Can't detect per-project configs - always show as not configured
+    if (!info.canAutoConnect) {
+        return false;
+    }
+
     try {
         if (!existsSync(configPath)) {
             return false;
         }
 
         const content = readFileSync(configPath, 'utf-8');
+
+        // Handle TOML format (Codex CLI)
+        if (info.configFormat === 'toml') {
+            return content.includes('[mcp_servers.folder-mcp]') ||
+                   content.includes('[mcp_servers."folder-mcp"]');
+        }
+
+        // Handle JSON format
         const config = JSON.parse(content) as Record<string, unknown>;
         const servers = config[info.serversKey] as Record<string, unknown> | undefined;
 
@@ -353,6 +453,16 @@ export async function addToConfig(clientId: McpClientId): Promise<ConfigResult> 
     }
 
     if (!info.canAutoConnect) {
+        // Provide specific guidance based on why auto-connect isn't supported
+        const cliCommand = generateCliCommand(clientId);
+        if (info.configFormat === 'toml') {
+            return {
+                success: false,
+                error: cliCommand
+                    ? `${info.name} uses TOML config. Run: ${cliCommand}`
+                    : `${info.name} uses TOML config format. Manual setup required.`,
+            };
+        }
         return {
             success: false,
             error: `${info.name} uses project-level configuration. Copy the config manually.`,
@@ -366,11 +476,19 @@ export async function addToConfig(clientId: McpClientId): Promise<ConfigResult> 
             mkdirSync(parentDir, { recursive: true });
         }
 
-        // Read existing config or create empty one
+        if (info.configFormat === 'toml') {
+            // Handle TOML format (Codex CLI)
+            return addToTomlConfig(configPath, info);
+        }
+
+        // Handle JSON format (all other clients)
         let config: Record<string, unknown> = {};
         if (existsSync(configPath)) {
-            const content = readFileSync(configPath, 'utf-8');
-            config = JSON.parse(content) as Record<string, unknown>;
+            const content = readFileSync(configPath, 'utf-8').trim();
+            // Handle empty files gracefully
+            if (content) {
+                config = JSON.parse(content) as Record<string, unknown>;
+            }
         }
 
         // Ensure servers object exists
@@ -395,6 +513,34 @@ export async function addToConfig(clientId: McpClientId): Promise<ConfigResult> 
 }
 
 /**
+ * Add folder-mcp to a TOML config file (Codex CLI)
+ */
+function addToTomlConfig(configPath: string, info: Omit<McpClientInfo, 'configPath'>): ConfigResult {
+    let content = '';
+    if (existsSync(configPath)) {
+        content = readFileSync(configPath, 'utf-8');
+    }
+
+    // Check if folder-mcp already exists
+    if (content.includes('[mcp_servers.folder-mcp]') || content.includes('[mcp_servers."folder-mcp"]')) {
+        return { success: true, configPath }; // Already configured
+    }
+
+    // Generate TOML entry
+    const tomlEntry = `
+[mcp_servers.folder-mcp]
+command = "folder-mcp"
+args = ["mcp", "server"]
+`;
+
+    // Append to file
+    const newContent = content.trimEnd() + '\n' + tomlEntry;
+    writeFileSync(configPath, newContent, 'utf-8');
+
+    return { success: true, configPath };
+}
+
+/**
  * Remove folder-mcp from a client's configuration
  */
 export async function removeFromConfig(clientId: McpClientId): Promise<ConfigResult> {
@@ -410,6 +556,12 @@ export async function removeFromConfig(clientId: McpClientId): Promise<ConfigRes
             return { success: false, error: 'Config file does not exist' };
         }
 
+        if (info.configFormat === 'toml') {
+            // Handle TOML format (Codex CLI)
+            return removeFromTomlConfig(configPath);
+        }
+
+        // Handle JSON format
         const content = readFileSync(configPath, 'utf-8');
         const config = JSON.parse(content) as Record<string, unknown>;
         const servers = config[info.serversKey] as Record<string, unknown> | undefined;
@@ -431,6 +583,27 @@ export async function removeFromConfig(clientId: McpClientId): Promise<ConfigRes
             error: error instanceof Error ? error.message : String(error),
         };
     }
+}
+
+/**
+ * Remove folder-mcp from a TOML config file (Codex CLI)
+ */
+function removeFromTomlConfig(configPath: string): ConfigResult {
+    const content = readFileSync(configPath, 'utf-8');
+
+    // Check if folder-mcp exists
+    if (!content.includes('[mcp_servers.folder-mcp]') && !content.includes('[mcp_servers."folder-mcp"]')) {
+        return { success: false, error: 'folder-mcp not found in config' };
+    }
+
+    // Remove the [mcp_servers.folder-mcp] section and its contents
+    // Match the section header and all following lines until the next section or end of file
+    const sectionRegex = /\n?\[mcp_servers\.(?:"folder-mcp"|folder-mcp)\][^\[]*(?=\[|$)/g;
+    const newContent = content.replace(sectionRegex, '');
+
+    writeFileSync(configPath, newContent.trim() + '\n', 'utf-8');
+
+    return { success: true, configPath };
 }
 
 // ============================================================================
