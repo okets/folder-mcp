@@ -295,7 +295,7 @@ export const ConnectionStringPopup: React.FC<ConnectionStringPopupProps> = ({
             {hasInstruction && (
                 <Text>
                     <Text color={theme.colors.border}>│</Text>
-                    <Text color={theme.colors.warning}>{padToWidth(instruction || '', contentWidth)}</Text>
+                    <Text color={theme.colors.warning}>{padToWidth(instruction!, contentWidth)}</Text>
                     <Text color={theme.colors.border}>│</Text>
                 </Text>
             )}

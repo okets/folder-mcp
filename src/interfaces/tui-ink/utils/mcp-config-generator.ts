@@ -14,24 +14,25 @@
  * ============================================================================
  *
  * ✅ Claude Desktop - TESTED & WORKING (Dec 2024)
- *    - Auto-configuration via `folder-mcp connect claude-desktop`
- *    - Uses absolute node + script path for reliability
+ *    - Auto-configuration via CLI: `folder-mcp connect claude-desktop`
+ *    - Auto-configuration via TUI: Connect screen
+ *    - Uses npx for cross-platform compatibility
  *    - Requires restart after config change
  *
  * ✅ Claude Code - TESTED & WORKING (Dec 2024)
- *    - Auto-configuration via `folder-mcp connect claude-desktop` (same config)
+ *    - Auto-configuration via TUI Connect screen
  *    - Config at ~/.claude.json with mcpServers key
- *    - Uses absolute node + script path for reliability
+ *    - Uses npx for cross-platform compatibility
  *
  * ✅ Cursor - TESTED & WORKING (Dec 2024)
- *    - Auto-configuration via `folder-mcp connect claude-desktop` (same config)
+ *    - Auto-configuration via TUI Connect screen
  *    - Config at ~/.cursor/mcp.json with mcpServers key
- *    - Uses absolute node + script path for reliability
+ *    - Uses npx for cross-platform compatibility
  *
  * ✅ Windsurf - TESTED & WORKING (Dec 2024)
  *    - Auto-configuration via TUI Connect screen
  *    - Config at ~/.codeium/windsurf/mcp_config.json with mcpServers key
- *    - Uses absolute node + script path for reliability
+ *    - Uses npx for cross-platform compatibility
  *
  * ✅ Cline - TESTED & WORKING (Dec 2024)
  *    - Auto-configuration via TUI Connect screen
@@ -63,6 +64,42 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
+
+// ============================================================================
+// Cross-Platform npx Discovery
+// ============================================================================
+
+/**
+ * Get the appropriate npx command for the current platform.
+ *
+ * macOS GUI apps (like Claude Desktop) don't inherit the user's shell PATH
+ * from .zshrc/.bashrc. They only see system paths. We check common npx
+ * locations to find a working executable.
+ *
+ * - Apple Silicon Homebrew: /opt/homebrew/bin/npx
+ * - Intel Mac Homebrew / official installer: /usr/local/bin/npx
+ * - Windows/Linux: rely on PATH resolution
+ */
+function getNpxCommand(): string {
+    if (process.platform !== 'darwin') {
+        return 'npx';
+    }
+
+    // Check common macOS npx locations in order of preference
+    const possiblePaths = [
+        '/opt/homebrew/bin/npx',  // Apple Silicon Homebrew
+        '/usr/local/bin/npx',     // Intel Homebrew / official installer
+    ];
+
+    for (const p of possiblePaths) {
+        if (existsSync(p)) {
+            return p;
+        }
+    }
+
+    // Fallback to PATH resolution (may not work for GUI apps)
+    return 'npx';
+}
 
 // ============================================================================
 // Types
@@ -340,12 +377,7 @@ export function getClientInfo(clientId: McpClientId): McpClientInfo {
  */
 function generateServerEntry(clientId: McpClientId): Record<string, unknown> {
     const info = CLIENT_INFO[clientId];
-
-    // Use npx with absolute path for macOS GUI apps (they don't inherit shell PATH)
-    // This is consistent with how other MCP servers (desktop-commander, etc.) work
-    const npxCommand = process.platform === 'darwin'
-        ? '/opt/homebrew/bin/npx'  // macOS Homebrew location
-        : 'npx';                    // Windows/Linux use PATH
+    const npxCommand = getNpxCommand();
 
     const entry: Record<string, unknown> = {
         command: npxCommand,
@@ -367,7 +399,8 @@ function generateServerEntry(clientId: McpClientId): Record<string, unknown> {
 
 /**
  * Generate a complete config snippet for display (Show Config)
- * Returns only the JSON config - use getConfigInstruction() for any instruction text
+ * Returns JSON or TOML based on the client's configFormat.
+ * Use getConfigInstruction() for any instruction text.
  */
 export function generateConfigSnippet(clientId: McpClientId): string {
     const info = CLIENT_INFO[clientId];
@@ -376,6 +409,16 @@ export function generateConfigSnippet(clientId: McpClientId): string {
     }
 
     const serverEntry = generateServerEntry(clientId);
+
+    // Handle TOML format (Codex CLI)
+    if (info.configFormat === 'toml') {
+        const npxCommand = getNpxCommand();
+        return `[${info.serversKey}.folder-mcp]
+command = "${npxCommand}"
+args = ["-y", "folder-mcp", "mcp", "server"]`;
+    }
+
+    // Handle JSON format (default)
     const config = {
         [info.serversKey]: {
             'folder-mcp': serverEntry,
@@ -489,7 +532,7 @@ export async function addToConfig(clientId: McpClientId): Promise<ConfigResult> 
 
         if (info.configFormat === 'toml') {
             // Handle TOML format (Codex CLI)
-            return addToTomlConfig(configPath, info);
+            return addToTomlConfig(configPath);
         }
 
         // Handle JSON format (all other clients)
@@ -526,7 +569,7 @@ export async function addToConfig(clientId: McpClientId): Promise<ConfigResult> 
 /**
  * Add folder-mcp to a TOML config file (Codex CLI)
  */
-function addToTomlConfig(configPath: string, info: Omit<McpClientInfo, 'configPath'>): ConfigResult {
+function addToTomlConfig(configPath: string): ConfigResult {
     let content = '';
     if (existsSync(configPath)) {
         content = readFileSync(configPath, 'utf-8');
@@ -537,11 +580,8 @@ function addToTomlConfig(configPath: string, info: Omit<McpClientInfo, 'configPa
         return { success: true, configPath }; // Already configured
     }
 
-    // Generate TOML entry
-    // Use npx for consistency across all clients
-    const npxCommand = process.platform === 'darwin'
-        ? '/opt/homebrew/bin/npx'
-        : 'npx';
+    // Generate TOML entry using shared npx discovery
+    const npxCommand = getNpxCommand();
     const tomlEntry = `
 [mcp_servers.folder-mcp]
 command = "${npxCommand}"

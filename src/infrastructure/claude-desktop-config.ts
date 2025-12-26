@@ -22,6 +22,34 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
+ * Get the appropriate npx command for the current platform.
+ *
+ * macOS GUI apps (like Claude Desktop) don't inherit the user's shell PATH
+ * from .zshrc/.bashrc. They only see system paths. We check common npx
+ * locations to find a working executable.
+ */
+function getNpxCommand(): string {
+  if (process.platform !== 'darwin') {
+    return 'npx';
+  }
+
+  // Check common macOS npx locations in order of preference
+  const possiblePaths = [
+    '/opt/homebrew/bin/npx',  // Apple Silicon Homebrew
+    '/usr/local/bin/npx',     // Intel Homebrew / official installer
+  ];
+
+  for (const p of possiblePaths) {
+    if (existsSync(p)) {
+      return p;
+    }
+  }
+
+  // Fallback to PATH resolution (may not work for GUI apps)
+  return 'npx';
+}
+
+/**
  * Claude Desktop MCP server configuration
  */
 interface McpServerConfig {
@@ -81,6 +109,10 @@ export function getClaudeDesktopConfigPath(): string {
 /**
  * Resolve the absolute path to mcp-server.js from current package location
  *
+ * @deprecated Unused since npx-based config was introduced (Dec 2024).
+ * The npx approach is preferred because it survives Node.js updates.
+ * Kept for reference only. Will be removed in future version.
+ *
  * This works regardless of where the package is installed:
  * - Development: /path/to/project/dist/src/mcp-server.js
  * - Production: /path/to/npm-global/lib/node_modules/folder-mcp/dist/src/mcp-server.js
@@ -124,7 +156,21 @@ export function readClaudeDesktopConfig(configPath: string): ClaudeDesktopConfig
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    return JSON.parse(content) as ClaudeDesktopConfig;
+    const parsed = JSON.parse(content);
+
+    // Validate structure - must be an object
+    if (typeof parsed !== 'object' || parsed === null) {
+      console.error(`Warning: Config at ${configPath} is not an object`);
+      return { mcpServers: {} };
+    }
+
+    // Ensure mcpServers is an object if present
+    if (parsed.mcpServers !== undefined && (typeof parsed.mcpServers !== 'object' || parsed.mcpServers === null)) {
+      console.error(`Warning: mcpServers in ${configPath} is not an object`);
+      parsed.mcpServers = {};
+    }
+
+    return parsed as ClaudeDesktopConfig;
   } catch (error) {
     // If file exists but is invalid JSON, preserve what we can
     console.error(`Warning: Could not parse existing config at ${configPath}`);
@@ -165,11 +211,7 @@ export function writeClaudeDesktopConfig(configPath: string, config: ClaudeDeskt
  * which then auto-starts the daemon if not running.
  */
 export function generateFolderMcpConfig(): McpServerConfig {
-  // Use absolute path to npx for macOS (GUI apps have limited PATH)
-  // Windows/Linux can typically find npx in standard locations
-  const npxCommand = process.platform === 'darwin'
-    ? '/opt/homebrew/bin/npx'  // macOS Homebrew location
-    : 'npx';                    // Windows/Linux use PATH
+  const npxCommand = getNpxCommand();
 
   return {
     command: npxCommand,

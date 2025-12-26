@@ -85,72 +85,85 @@ connectCommand
   .option('-f, --force', 'Overwrite existing configuration')
   .option('--remove', 'Remove folder-mcp from Claude Desktop')
   .option('--status', 'Check current configuration status')
-  .action(async (options) => {
-    const platform = getPlatformDisplayName();
-    const configPath = getClaudeDesktopConfigPath();
+  .action(async (options: { status?: boolean; remove?: boolean; force?: boolean }) => {
+    try {
+      const platform = getPlatformDisplayName();
+      const configPath = getClaudeDesktopConfigPath();
 
-    console.log(chalk.blue(`\nClaude Desktop Configuration (${platform})`));
-    console.log(chalk.gray(`Config: ${configPath}\n`));
+      console.log(chalk.blue(`\nClaude Desktop Configuration (${platform})`));
+      console.log(chalk.gray(`Config: ${configPath}\n`));
 
-    // Status check
-    if (options.status) {
-      const status = checkClaudeDesktopStatus();
-      if (status.success) {
-        if (status.isConfigured) {
-          console.log(chalk.green('✅ folder-mcp is configured'));
-          if (status.needsUpdate) {
-            console.log(chalk.yellow('⚠️  Configuration differs from current installation'));
-            console.log(chalk.gray('\nCurrent config:'));
-            console.log(formatConfigForDisplay(status.previousConfig!));
-            console.log(chalk.gray('\nExpected config:'));
-            console.log(formatConfigForDisplay(status.newConfig!));
-            console.log(chalk.gray('\nRun without --status to update.'));
+      // Status check
+      if (options.status) {
+        const status = checkClaudeDesktopStatus();
+        if (status.success) {
+          if (status.isConfigured) {
+            console.log(chalk.green('✅ folder-mcp is configured'));
+            if (status.needsUpdate) {
+              console.log(chalk.yellow('⚠️  Configuration differs from current installation'));
+              if (status.previousConfig) {
+                console.log(chalk.gray('\nCurrent config:'));
+                console.log(formatConfigForDisplay(status.previousConfig));
+              }
+              if (status.newConfig) {
+                console.log(chalk.gray('\nExpected config:'));
+                console.log(formatConfigForDisplay(status.newConfig));
+              }
+              console.log(chalk.gray('\nRun without --status to update.'));
+            } else {
+              if (status.previousConfig) {
+                console.log(chalk.gray('\nConfig:'));
+                console.log(formatConfigForDisplay(status.previousConfig));
+              }
+            }
           } else {
-            console.log(chalk.gray('\nConfig:'));
-            console.log(formatConfigForDisplay(status.previousConfig!));
+            console.log(chalk.yellow('⚠️  folder-mcp is not configured'));
+            console.log(chalk.gray('\nRun without --status to configure.'));
           }
         } else {
-          console.log(chalk.yellow('⚠️  folder-mcp is not configured'));
-          console.log(chalk.gray('\nRun without --status to configure.'));
+          console.log(chalk.red(`❌ ${status.message}`));
         }
-      } else {
-        console.log(chalk.red(`❌ ${status.message}`));
+        return;
       }
-      return;
-    }
 
-    // Remove configuration
-    if (options.remove) {
-      const result = removeFromClaudeDesktop();
+      // Remove configuration
+      if (options.remove) {
+        const result = removeFromClaudeDesktop();
+        if (result.success) {
+          console.log(chalk.green(`✅ ${result.message}`));
+          if (result.previousConfig) {
+            console.log(chalk.gray('\nRemoved config:'));
+            console.log(formatConfigForDisplay(result.previousConfig));
+          }
+          console.log(chalk.yellow('\n⚠️  Restart Claude Desktop to apply changes'));
+        } else {
+          console.log(chalk.red(`❌ ${result.message}`));
+          process.exit(1);
+        }
+        return;
+      }
+
+      // Configure
+      const result = configureClaudeDesktop('folder-mcp', options.force);
       if (result.success) {
         console.log(chalk.green(`✅ ${result.message}`));
+        if (result.newConfig) {
+          console.log(chalk.gray('\nConfig entry:'));
+          console.log(formatConfigForDisplay(result.newConfig));
+        }
+
         if (result.previousConfig) {
-          console.log(chalk.gray('\nRemoved config:'));
+          console.log(chalk.gray('\nPrevious config (will be replaced):'));
           console.log(formatConfigForDisplay(result.previousConfig));
         }
+
         console.log(chalk.yellow('\n⚠️  Restart Claude Desktop to apply changes'));
       } else {
         console.log(chalk.red(`❌ ${result.message}`));
         process.exit(1);
       }
-      return;
-    }
-
-    // Configure
-    const result = configureClaudeDesktop('folder-mcp', options.force);
-    if (result.success) {
-      console.log(chalk.green(`✅ ${result.message}`));
-      console.log(chalk.gray('\nConfig entry:'));
-      console.log(formatConfigForDisplay(result.newConfig!));
-
-      if (result.previousConfig) {
-        console.log(chalk.gray('\nPrevious config (will be replaced):'));
-        console.log(formatConfigForDisplay(result.previousConfig));
-      }
-
-      console.log(chalk.yellow('\n⚠️  Restart Claude Desktop to apply changes'));
-    } else {
-      console.log(chalk.red(`❌ ${result.message}`));
+    } catch (error) {
+      console.log(chalk.red(`❌ Error: ${error instanceof Error ? error.message : String(error)}`));
       process.exit(1);
     }
   });

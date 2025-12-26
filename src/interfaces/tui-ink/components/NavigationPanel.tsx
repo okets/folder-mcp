@@ -120,6 +120,13 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
         }
     }, [navigation, mainPanelItems, statusPanelItems]);
 
+    // DRY helper: Switch to content panel with first navigable item selected
+    const switchToContentWithFirstNavigable = useCallback((): boolean => {
+        setFirstNavigableItem();
+        navigation.switchToContent();
+        return true;
+    }, [setFirstNavigableItem, navigation]);
+
     // Wrap parent's onInput to translate keys for portrait mode (direction-aware navigation)
     const wrappedOnInput = useCallback((input: string, key: Key): boolean => {
         if (effectiveOrientation === 'portrait') {
@@ -136,16 +143,11 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             }
             // In portrait mode, down arrow switches to content panel (spatial navigation)
             if (key.downArrow) {
-                // Find first navigable item when entering panel (Step 8.2)
-                setFirstNavigableItem();
-                navigation.switchToContent();
-                return true;
+                return switchToContentWithFirstNavigable();
             }
             // Enter also switches to content panel (intuitive "select" action)
             if (key.return) {
-                setFirstNavigableItem();
-                navigation.switchToContent();
-                return true;
+                return switchToContentWithFirstNavigable();
             }
             // Up arrow reserved for future use
             if (key.upArrow) {
@@ -163,16 +165,11 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
             }
             // In landscape mode, right arrow switches to content panel (spatial navigation)
             if (key.rightArrow) {
-                // Find first navigable item when entering panel (Step 8.2)
-                setFirstNavigableItem();
-                navigation.switchToContent();
-                return true;
+                return switchToContentWithFirstNavigable();
             }
             // Enter also switches to content panel (intuitive "select" action)
             if (key.return) {
-                setFirstNavigableItem();
-                navigation.switchToContent();
-                return true;
+                return switchToContentWithFirstNavigable();
             }
             // Left arrow reserved for future use
             if (key.leftArrow) {
@@ -182,7 +179,7 @@ export const NavigationPanel: React.FC<NavigationPanelProps> = ({
 
         // Pass through other keys to parent if provided
         return onInput ? onInput(input, key) : false;
-    }, [effectiveOrientation, onInput, navigation, mainPanelItems, statusPanelItems, setFirstNavigableItem]);
+    }, [effectiveOrientation, onInput, navigation, switchToContentWithFirstNavigable]);
 
     // Render based on effective orientation
     if (effectiveOrientation === 'portrait') {

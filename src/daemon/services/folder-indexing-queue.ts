@@ -199,7 +199,7 @@ export class FolderIndexingQueue extends EventEmitter {
   /**
    * Check if a folder has been marked for cancellation
    */
-  isCancelled(folderPath: string): boolean {
+  private isCancelled(folderPath: string): boolean {
     return this.cancelledFolders.has(folderPath);
   }
 

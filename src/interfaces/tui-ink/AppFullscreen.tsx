@@ -376,8 +376,10 @@ const AppContentInner: React.FC<AppContentInnerProps> = memo(({ config, onConfig
             await fmdmOperations.removeFolder(folderPath);
             await fmdmOperations.addFolder(folderPath, newModel);
             // FMDM context will automatically update with the new state
-        } catch {
-            // Errors handled through Activity Log, not console
+        } catch (error) {
+            // Log error for visibility - if removeFolder succeeded but addFolder failed,
+            // the folder is lost. Activity Log will show the failure details.
+            console.error('[AppFullscreen] Model change failed:', error);
         }
     }, [fmdmOperations]);
     

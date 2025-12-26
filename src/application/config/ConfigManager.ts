@@ -76,20 +76,6 @@ export class ConfigManager implements IConfigManager {
     // Track if this is an intentional folders modification
     const isIntentionalFoldersChange = path === 'folders' || path.startsWith('folders.');
 
-    // Update the safeguard baseline when folders are intentionally modified
-    // This prevents the safeguard from blocking legitimate operations
-    if (isIntentionalFoldersChange) {
-      if (path === 'folders' && value?.list !== undefined) {
-        this.loadedFoldersList = Array.isArray(value.list) && value.list.length > 0
-          ? JSON.parse(JSON.stringify(value.list))
-          : undefined;
-      } else if (path === 'folders.list') {
-        this.loadedFoldersList = Array.isArray(value) && value.length > 0
-          ? JSON.parse(JSON.stringify(value))
-          : undefined;
-      }
-    }
-
     // Validate the value first
     const validationResult = await this.validate(path, value);
     if (!validationResult.valid) {
@@ -99,6 +85,15 @@ export class ConfigManager implements IConfigManager {
 
     // Set the value in user config
     this.setValueByPath(this.userConfig, path, value);
+
+    // Update the safeguard baseline AFTER applying the change
+    // This handles all nested paths like 'folders.list.0', not just exact matches
+    if (isIntentionalFoldersChange) {
+      const updatedList = this.userConfig?.folders?.list;
+      this.loadedFoldersList = Array.isArray(updatedList) && updatedList.length > 0
+        ? JSON.parse(JSON.stringify(updatedList))
+        : undefined;
+    }
 
     // Save user config
     await this.saveUserConfig();
@@ -169,6 +164,11 @@ export class ConfigManager implements IConfigManager {
     // SAFEGUARD: Prevent accidental folder clearing
     if ((!foldersList || foldersList.length === 0) &&
         this.loadedFoldersList && this.loadedFoldersList.length > 0) {
+      // Log warning for observability - this should rarely happen
+      console.warn(
+        `[ConfigManager] SAFEGUARD TRIGGERED: Restored ${this.loadedFoldersList.length} folder(s) to prevent accidental clearing. ` +
+        `This may indicate a bug in folder management logic.`
+      );
       // Restore the originally loaded folders
       if (!this.userConfig.folders) {
         this.userConfig.folders = {};
