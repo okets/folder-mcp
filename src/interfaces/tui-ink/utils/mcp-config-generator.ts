@@ -653,7 +653,17 @@ function removeFromTomlConfig(configPath: string): ConfigResult {
 
     // Remove the [mcp_servers.folder-mcp] section and its contents
     // Match the section header and all following lines until the next section or end of file
-    const sectionRegex = /\n?\[mcp_servers\.(?:"folder-mcp"|folder-mcp)\][^\[]*(?=\[|$)/g;
+    //
+    // IMPORTANT: We use a line-oriented regex, NOT character-based like [^\[]*
+    // The old pattern [^\[]* would stop at array brackets like args = ["-y", ...]
+    // leaving malformed TOML. This pattern matches complete lines that don't start with [.
+    //
+    // Pattern breakdown:
+    // - \n? - optional leading newline
+    // - \[mcp_servers\.(?:"folder-mcp"|folder-mcp)\] - section header
+    // - \s*\n - whitespace and newline after header
+    // - (?:(?!\[)[^\n]*\n?)* - lines that don't start with [ (key=value pairs)
+    const sectionRegex = /\n?\[mcp_servers\.(?:"folder-mcp"|folder-mcp)\]\s*\n(?:(?!\[)[^\n]*\n?)*/g;
     const newContent = content.replace(sectionRegex, '');
 
     writeFileSync(configPath, newContent.trim() + '\n', 'utf-8');
