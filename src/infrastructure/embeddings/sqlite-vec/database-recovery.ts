@@ -26,6 +26,7 @@ export interface RecoveryResult {
 
 export interface CorruptionCheckResult {
     isCorrupted: boolean;
+    isEnvironmentError?: boolean;  // True if error is due to environment (native module mismatch), not actual corruption
     severity: 'none' | 'minor' | 'severe' | 'critical';
     errors: string[];
     recoverable: boolean;
@@ -52,6 +53,40 @@ export class DatabaseRecovery {
             autoRecover: options.autoRecover ?? true,
             backupInterval: options.backupInterval ?? 24
         };
+    }
+
+    /**
+     * Check if an error is caused by environment issues (native module mismatch)
+     * rather than actual database corruption.
+     *
+     * Environment errors should NOT trigger database recovery/rename - the database
+     * is fine, it's the runtime environment that needs fixing (npm rebuild).
+     */
+    private isEnvironmentError(error: Error | string): boolean {
+        const errorMsg = typeof error === 'string' ? error : error.message;
+        const errorStr = errorMsg.toLowerCase();
+
+        // Native module version mismatch (most common after Node.js upgrade)
+        if (errorStr.includes('node_module_version') ||
+            errorStr.includes('module version mismatch') ||
+            errorStr.includes('was compiled against a different')) {
+            return true;
+        }
+
+        // Dynamic library loading failures
+        if (errorStr.includes('dlopen') ||
+            errorStr.includes('cannot load such file') ||
+            errorStr.includes('cannot open shared object')) {
+            return true;
+        }
+
+        // better-sqlite3 specific module errors
+        if (errorStr.includes('better-sqlite3') &&
+            (errorStr.includes('module') || errorStr.includes('native'))) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -121,7 +156,22 @@ export class DatabaseRecovery {
 
         } catch (error) {
             // Database cannot be opened at all
-            errors.push(`Cannot open database: ${error instanceof Error ? error.message : 'unknown'}`);
+            const errorMsg = error instanceof Error ? error.message : 'unknown';
+
+            // Check if this is an environment error (native module mismatch)
+            // Environment errors should NOT be treated as database corruption!
+            if (this.isEnvironmentError(error instanceof Error ? error : new Error(String(error)))) {
+                this.logger?.warn(`Environment error detected (NOT database corruption): ${errorMsg}`);
+                return {
+                    isCorrupted: false,  // Database is NOT corrupted
+                    isEnvironmentError: true,  // Flag that this is an environment issue
+                    severity: 'none',
+                    errors: [`Environment error: ${errorMsg}`],
+                    recoverable: true  // Will work after npm rebuild
+                };
+            }
+
+            errors.push(`Cannot open database: ${errorMsg}`);
             severity = 'critical';
             recoverable = false;
         } finally {
@@ -136,6 +186,7 @@ export class DatabaseRecovery {
 
         return {
             isCorrupted: errors.length > 0,
+            isEnvironmentError: false,
             severity,
             errors,
             recoverable

@@ -5,20 +5,43 @@
  * This schema supports per-folder databases with full document and chunk tracking.
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Read schema version from VERSION.json file
+// IMPORTANT: Uses multiple fallback paths to handle different execution contexts:
+// 1. Relative to this file's location (for compiled dist/)
+// 2. process.cwd() (for development with tsx)
+// 3. Hardcoded fallback (v4 for current schema)
 function getSchemaVersion(): number {
-    try {
-        const versionPath = join(process.cwd(), 'VERSION.json');
-        const versionData = JSON.parse(readFileSync(versionPath, 'utf-8'));
-        return versionData.dbSchemaVersion || 3;
-    } catch (error) {
-        // Fallback to default if VERSION.json is not found
-        console.warn('Could not read VERSION.json, using default schema version');
-        return 3;
+    // Try paths relative to this file's location (works in compiled dist)
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+
+    // Possible locations for VERSION.json
+    const possiblePaths = [
+        join(__dirname, '..', '..', '..', '..', 'VERSION.json'),     // From dist/src/infrastructure/embeddings/sqlite-vec/
+        join(__dirname, '..', '..', '..', '..', '..', 'VERSION.json'), // One more level up
+        join(process.cwd(), 'VERSION.json'),                          // CWD (development)
+        join(process.cwd(), 'dist', 'VERSION.json'),                  // CWD/dist
+    ];
+
+    for (const versionPath of possiblePaths) {
+        try {
+            if (existsSync(versionPath)) {
+                const versionData = JSON.parse(readFileSync(versionPath, 'utf-8'));
+                return versionData.dbSchemaVersion || 4;
+            }
+        } catch {
+            // Continue to next path
+        }
     }
+
+    // Fallback: Version 4 is the current schema (vec0 virtual tables from Sprint 7.5)
+    // This matches the dbSchemaVersion in VERSION.json to prevent false schema mismatches
+    console.warn('Could not read VERSION.json from any known path, using default schema version 4');
+    return 4;
 }
 
 // Schema version from VERSION.json (or fallback)

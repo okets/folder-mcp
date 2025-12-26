@@ -987,6 +987,74 @@ async function stopExistingDaemon(daemonInfo: { pid: number }): Promise<void> {
   await DaemonRegistry.cleanup();
 }
 
+/**
+ * Kill zombie MCP server processes that may have stale native modules.
+ *
+ * When users run `npm rebuild` or `npm run build`, existing MCP server processes
+ * (spawned by Claude.app, VS Code, etc.) still have the old native modules loaded.
+ * These zombie processes can cause:
+ * - "Native module version mismatch" errors
+ * - Database corruption false positives
+ * - Unnecessary re-indexing
+ *
+ * This function finds and kills all `folder-mcp mcp server` processes
+ * so MCP clients can spawn fresh instances with newly compiled modules.
+ */
+async function killZombieMcpServers(): Promise<void> {
+  const { execSync } = await import('child_process');
+
+  try {
+    // Find all folder-mcp mcp server processes (not the daemon)
+    // Using pgrep to find processes matching the pattern
+    let pids: number[] = [];
+
+    try {
+      // Get PIDs of all folder-mcp mcp server processes
+      const result = execSync('pgrep -f "folder-mcp mcp server"', { encoding: 'utf-8' });
+      pids = result.trim().split('\n').map(p => parseInt(p, 10)).filter(p => !isNaN(p) && p !== process.pid);
+    } catch {
+      // pgrep returns exit code 1 if no processes found - that's fine
+    }
+
+    if (pids.length === 0) {
+      info('No zombie MCP server processes found');
+      return;
+    }
+
+    info(`Found ${pids.length} zombie MCP server process(es), killing them...`);
+
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGTERM');
+        debug(`Sent SIGTERM to MCP server process ${pid}`);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
+          warn(`Failed to kill MCP server process ${pid}: ${error}`);
+        }
+      }
+    }
+
+    // Wait a moment for processes to terminate
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Force kill any remaining
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 0); // Check if still running
+        process.kill(pid, 'SIGKILL');
+        debug(`Force killed MCP server process ${pid}`);
+      } catch {
+        // Process already dead, that's fine
+      }
+    }
+
+    info(`Killed ${pids.length} zombie MCP server process(es). MCP clients will spawn fresh instances.`);
+
+  } catch (error) {
+    warn(`Error checking for zombie MCP servers: ${error}`);
+  }
+}
+
 // Main function
 async function main(): Promise<void> {
   // Parse command line arguments
@@ -1052,8 +1120,13 @@ the folder-mcp services.
     } else {
       info('No existing daemon processes found to restart');
     }
+
+    // Also kill zombie MCP server processes that may have stale native modules
+    // These are spawned by Claude.app and other MCP clients
+    info('Checking for zombie MCP server processes...');
+    await killZombieMcpServers();
   }
-  
+
   // Create config directory if it doesn't exist
   const configDir = join(homedir(), '.folder-mcp');
   try {

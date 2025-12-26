@@ -877,7 +877,9 @@ return;
       const embeddingCount = await this.getEmbeddingCount();
       const forceReprocess = embeddingCount === 0;
       if (forceReprocess) {
-        this.logger.info('[MANAGER-DETECT] No embeddings found in database, forcing reprocessing of all files');
+        this.logger.warn(`[MANAGER-DETECT] FORCE REPROCESS: embeddingCount=0 for ${this.folderPath} - will re-index all files`);
+      } else {
+        this.logger.info(`[MANAGER-DETECT] Found ${embeddingCount} existing embeddings for ${this.folderPath} - incremental update`);
       }
       
       // Phase 1: Intelligent processing decisions using file states
@@ -1531,15 +1533,18 @@ return;
       
       // Fallback: create temporary readonly connection only if service is active
       if (this.active) {
+        this.logger.info(`[MANAGER-EMBEDDING-COUNT] Using fallback path - sqliteVecStorage not ready`);
         const Database = (await import('better-sqlite3')).default;
         const db = new Database(dbPath, { readonly: true });
-        
+
         try {
-          // Count embeddings in the embeddings table
-          const result = db.prepare('SELECT COUNT(*) as count FROM embeddings').get() as { count: number };
+          // Count documents as proxy for embeddings (documents table always exists, doesn't need vec0)
+          // Note: chunk_embeddings is a vec0 virtual table that requires the extension to be loaded
+          const result = db.prepare('SELECT COUNT(*) as count FROM documents').get() as { count: number };
+          this.logger.info(`[MANAGER-EMBEDDING-COUNT] Fallback found ${result.count} documents`);
           return result.count;
         } catch (error) {
-          this.logger.debug(`[MANAGER-EMBEDDING-COUNT] Error querying embeddings table:`, error);
+          this.logger.error(`[MANAGER-EMBEDDING-COUNT] Fallback query failed:`, error instanceof Error ? error : new Error(String(error)));
           return 0;
         } finally {
           db.close();

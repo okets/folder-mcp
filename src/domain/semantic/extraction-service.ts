@@ -209,7 +209,18 @@ export class SemanticExtractionService implements ISemanticExtractionService {
     const results: SemanticData[] = [];
     for (let i = 0; i < texts.length; i++) {
       const text = texts[i]!;
-      const keyPhrases = keyPhrasesArray[i] || [];
+      let keyPhrases = keyPhrasesArray[i] || [];
+
+      // FALLBACK: If KeyBERT returns empty, generate basic key phrases from text
+      // This prevents "No key phrases provided" errors during storage
+      if (keyPhrases.length === 0) {
+        keyPhrases = this.generateFallbackKeyPhrases(text);
+        this.logger.warn('KeyBERT returned empty key phrases, using fallback extraction', {
+          textIndex: i,
+          textLength: text.length,
+          fallbackPhraseCount: keyPhrases.length
+        });
+      }
 
       // Calculate readability
       const readabilityScore = this.readabilityCalculator.calculate(text);
@@ -436,6 +447,107 @@ export class SemanticExtractionService implements ISemanticExtractionService {
       multiwordRatio,
       averageWordsPerPhrase
     };
+  }
+
+  /**
+   * Generate fallback key phrases when KeyBERT extraction fails or returns empty.
+   * Uses simple word frequency and n-gram extraction to ensure at least minimal
+   * semantic data is available for storage.
+   *
+   * This prevents "No key phrases provided" errors during chunk storage.
+   */
+  private generateFallbackKeyPhrases(text: string): SemanticScore[] {
+    // Clean and normalize text
+    const cleanText = text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')  // Remove punctuation
+      .replace(/\s+/g, ' ')       // Normalize whitespace
+      .trim();
+
+    // Split into words and filter
+    const words = cleanText.split(' ')
+      .filter(w => w.length >= 3)          // Minimum 3 chars
+      .filter(w => !this.isStopWord(w));   // Remove stop words
+
+    if (words.length === 0) {
+      // Ultra-fallback: return the first meaningful chunk of text
+      const firstWords = text.trim().split(/\s+/).slice(0, 3).join(' ');
+      return [{
+        text: firstWords || 'content',
+        score: 0.1  // Low confidence score
+      }];
+    }
+
+    // Calculate word frequencies
+    const wordFreq = new Map<string, number>();
+    for (const word of words) {
+      wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+    }
+
+    // Get top words by frequency
+    const sortedWords = Array.from(wordFreq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    // Generate bigrams from consecutive words
+    const bigrams: string[] = [];
+    for (let i = 0; i < words.length - 1; i++) {
+      bigrams.push(`${words[i]} ${words[i + 1]}`);
+    }
+
+    // Calculate bigram frequencies
+    const bigramFreq = new Map<string, number>();
+    for (const bigram of bigrams) {
+      bigramFreq.set(bigram, (bigramFreq.get(bigram) || 0) + 1);
+    }
+
+    // Get top bigrams
+    const sortedBigrams = Array.from(bigramFreq.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    // Combine results with scores based on frequency
+    const maxFreq = Math.max(...sortedWords.map(w => w[1]), 1);
+    const results: SemanticScore[] = [];
+
+    // Add bigrams first (higher value for multiword phrases)
+    for (const [bigram, freq] of sortedBigrams) {
+      results.push({
+        text: bigram,
+        score: 0.3 + (freq / maxFreq) * 0.2  // Score 0.3-0.5 for bigrams
+      });
+    }
+
+    // Add single words
+    for (const [word, freq] of sortedWords) {
+      if (results.length >= 5) break;  // Max 5 phrases
+      results.push({
+        text: word,
+        score: 0.1 + (freq / maxFreq) * 0.2  // Score 0.1-0.3 for single words
+      });
+    }
+
+    return results.slice(0, 5);  // Ensure max 5 phrases
+  }
+
+  /**
+   * Check if a word is a common stop word (should be skipped)
+   */
+  private isStopWord(word: string): boolean {
+    const stopWords = new Set([
+      'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i',
+      'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
+      'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+      'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what',
+      'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me',
+      'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take',
+      'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other',
+      'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also',
+      'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way',
+      'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
+      'is', 'are', 'was', 'were', 'been', 'being', 'has', 'had', 'does', 'did'
+    ]);
+    return stopWords.has(word.toLowerCase());
   }
 
 }
